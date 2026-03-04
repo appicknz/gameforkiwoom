@@ -3,7 +3,7 @@ import { Header } from "@/components/dashboard/header"
 import { StatsCards } from "@/components/dashboard/stats-cards"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
-import { Reminders } from "@/components/dashboard/reminders"
+import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
 import { ProjectList } from "@/components/dashboard/project-list"
 import { TeamCollaboration } from "@/components/dashboard/team-collaboration"
 import { ProjectProgress } from "@/components/dashboard/project-progress"
@@ -49,7 +49,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-3 md:space-y-4">
-              <Reminders />
+              <ClosingPricesBadges />
               <ProjectProgress />
               <ClosingPrices />
             </div>
