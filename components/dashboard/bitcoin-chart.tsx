@@ -290,18 +290,15 @@ export function BitcoinChart() {
           <img 
             src="/bitcoin-logo.png" 
             alt="Bitcoin" 
-            className="w-8 h-8 shrink-0"
+            className="w-10 h-10 shrink-0"
           />
           <div>
-            <p className="text-xs font-bold text-muted-foreground leading-tight mb-0.5">바이낸스 / 비트코인</p>
-            <div className="flex items-center gap-1.5">
-              <h2 className="text-base font-semibold text-foreground">BTC/USDT</h2>
-              <span className={`flex items-center gap-1 text-[10px] font-medium ${connected ? "text-emerald-500" : "text-muted-foreground"}`}>
-                {connected
-                  ? <><Wifi className="w-3 h-3" />LIVE</>
-                  : <><WifiOff className="w-3 h-3" />연결 중...</>}
-              </span>
-            </div>
+            <p className="text-xs font-bold text-muted-foreground leading-tight">바이낸스 / 비트코인</p>
+            <span className={`flex items-center gap-1 text-[10px] font-medium ${connected ? "text-emerald-500" : "text-muted-foreground"}`}>
+              {connected
+                ? <><Wifi className="w-3 h-3" />LIVE</>
+                : <><WifiOff className="w-3 h-3" />연결 중...</>}
+            </span>
             <p className="text-xs text-muted-foreground">선물 실시간</p>
           </div>
         </div>
