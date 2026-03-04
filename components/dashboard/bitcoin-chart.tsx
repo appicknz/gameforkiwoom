@@ -323,42 +323,42 @@ export function BitcoinChart() {
           </div>
         </div>
 
-        {/* 오른쪽: 현재가 */}
-        <div className="text-right shrink-0">
+        {/* 오른쪽: 현재가 + 변동률 + 인터벌 버튼 */}
+        <div className="shrink-0">
           {ticker ? (
             <>
-              <p className="text-[11px] text-muted-foreground font-medium mb-0.5">현재가</p>
-              <p className="text-sm font-bold text-foreground tabular-nums leading-tight">
+              <p className="text-[11px] text-muted-foreground font-medium mb-0.5 text-right">현재가</p>
+              <p className="text-sm font-bold text-foreground tabular-nums leading-tight text-right">
                 ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </p>
-              <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
-                {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <div className={`flex items-center gap-0.5 text-[11px] font-semibold ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
+                  {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  {INTERVALS.map((btn) => (
+                    <Button
+                      key={btn}
+                      variant={interval === btn ? "default" : "ghost"}
+                      size="sm"
+                      className="h-5 px-1.5 text-[10px]"
+                      onClick={() => {
+                        candleMapRef.current.clear()
+                        tradeBufferRef.current = []
+                        setIntervalState(btn)
+                      }}
+                    >
+                      {INTERVAL_CONFIG[btn].label}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </>
           ) : (
             <span className="text-xs text-muted-foreground animate-pulse">로딩 중...</span>
           )}
         </div>
-      </div>
-
-      {/* 헤더 2행: 인터벌 버튼 */}
-      <div className="flex items-center gap-1 mb-3">
-        {INTERVALS.map((btn) => (
-          <Button
-            key={btn}
-            variant={interval === btn ? "default" : "ghost"}
-            size="sm"
-            className="h-7 flex-1 text-xs px-0"
-            onClick={() => {
-              candleMapRef.current.clear()
-              tradeBufferRef.current = []
-              setIntervalState(btn)
-            }}
-          >
-            {INTERVAL_CONFIG[btn].label}
-          </Button>
-        ))}
       </div>
 
       {/* 보조 지표 */}
