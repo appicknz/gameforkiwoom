@@ -283,30 +283,31 @@ export function BitcoinChart() {
         
         // interval별 거래대금 집계
         const now = Math.floor(Date.now() / 1000)
-        const newAggregated = new Map(aggregatedVolume)
 
         // 1분 데이터 집계
         const last60seconds = Array.from(volumeBufferRef.current.entries())
           .filter(([time]) => time > now - 60)
           .reduce((sum, [, vol]) => sum + vol, 0)
-        newAggregated.set("1m", last60seconds)
 
         // 5분 데이터 집계
         const last300seconds = Array.from(volumeBufferRef.current.entries())
           .filter(([time]) => time > now - 300)
           .reduce((sum, [, vol]) => sum + vol, 0)
-        newAggregated.set("5m", last300seconds)
 
         // 1시간 데이터 집계
         const last3600seconds = Array.from(volumeBufferRef.current.entries())
           .filter(([time]) => time > now - 3600)
           .reduce((sum, [, vol]) => sum + vol, 0)
-        newAggregated.set("1h", last3600seconds)
 
         // 1일 데이터 집계
         const last86400seconds = Array.from(volumeBufferRef.current.entries())
           .filter(([time]) => time > now - 86400)
           .reduce((sum, [, vol]) => sum + vol, 0)
+
+        const newAggregated = new Map<Interval, number>()
+        newAggregated.set("1m", last60seconds)
+        newAggregated.set("5m", last300seconds)
+        newAggregated.set("1h", last3600seconds)
         newAggregated.set("1d", last86400seconds)
 
         setAggregatedVolume(newAggregated)
@@ -331,7 +332,7 @@ export function BitcoinChart() {
     return () => {
       tickerWsRef.current?.close()
     }
-  }, [aggregatedVolume])
+  }, [])
 
   const isPositive = (ticker?.changePercent ?? 0) >= 0
 
@@ -366,11 +367,11 @@ export function BitcoinChart() {
                 }
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">Binance Futures • {INTERVAL_CONFIG[interval].label}봉</p>
+            <p className="text-xs text-muted-foreground">Binance Futures • {interval && INTERVAL_CONFIG[interval] ? INTERVAL_CONFIG[interval].label : "1초"}봉</p>
           </div>
         </div>
 
-        {/* 시간 간격 선택 버튼 (오른쪽 정렬) */}
+        {/* 시간 간격 선택 버튼 (오른쪽 정��) */}
         <div className="flex items-center gap-2 shrink-0">
           {(["1m", "5m", "1h", "1d"] as const).map((btn) => (
             <Button
