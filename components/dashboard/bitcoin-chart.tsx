@@ -385,19 +385,17 @@ export function BitcoinChart() {
         </div>
       </div>
 
-      {/* 보조 지표 제거 - 헤더에 배치됨 */}
+      {/* 거래량/거래대금 정보 (차트 위) */}
+      {ticker && (
+        <div className="flex items-center gap-4 mb-2 text-[10px] text-muted-foreground">
+          <div>거래량: <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
+          <div>거래대금: <span className="text-foreground font-medium">{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
+        </div>
+      )}
 
       {/* 차트 */}
       <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
         <div ref={chartContainerRef} className="w-full h-full" />
-        
-        {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래) */}
-        {ticker && (
-          <div className="absolute bottom-10 left-2 bg-background/75 backdrop-blur-sm px-2 py-1 rounded border border-border/40 text-[10px] text-muted-foreground">
-            <div>거래량: <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
-            <div>거래대금: <span className="text-foreground font-medium">{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
-          </div>
-        )}
       </div>
     </Card>
   )
