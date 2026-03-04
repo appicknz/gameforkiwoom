@@ -91,7 +91,7 @@ export function BitcoinChart() {
       lineWidth: 1,
       lineStyle: 2, // dashed
       axisLabelVisible: true,
-      title: "기준가",
+      title: "배팅가",
     })
   }, [closingPrices])
 
