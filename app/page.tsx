@@ -7,6 +7,7 @@ import { Reminders } from "@/components/dashboard/reminders"
 import { ProjectList } from "@/components/dashboard/project-list"
 import { TeamCollaboration } from "@/components/dashboard/team-collaboration"
 import { ProjectProgress } from "@/components/dashboard/project-progress"
+import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { MobileAppCard } from "@/components/dashboard/mobile-app-card"
 import { TimeTracker } from "@/components/dashboard/time-tracker"
 import { Button } from "@/components/ui/button"
@@ -50,6 +51,7 @@ export default function DashboardPage() {
             <div className="space-y-3 md:space-y-4">
               <Reminders />
               <ProjectProgress />
+              <ClosingPrices />
             </div>
           </div>
 

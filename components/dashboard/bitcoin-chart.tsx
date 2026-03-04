@@ -69,6 +69,13 @@ export function BitcoinChart() {
   const [closingPrices, setClosingPrices] = useState<Array<{ time: number; price: number }>>([])
   const prevBucketRef = useRef<number | null>(null)
 
+  // closingPrices를 window 객체에 저장해서 다른 컴포넌트에서 접근 가능하게
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__bitcoinClosingPrices = closingPrices
+    }
+  }, [closingPrices])
+
   // 초기 캔들 데이터 로드
   const fetchInitialCandles = useCallback(async (sel: Interval): Promise<CandleData[]> => {
     const cfg = INTERVAL_CONFIG[sel]
@@ -378,14 +385,11 @@ export function BitcoinChart() {
           <p className="text-xs font-medium text-muted-foreground mb-2">30초 마감 기준가 (최근 10개)</p>
           <div className="flex items-center gap-2 flex-wrap">
             {closingPrices.slice(-10).reverse().map((item, idx) => {
-              const diff = ticker ? ticker.price - item.price : 0
-              const diffPercent = ticker ? ((diff / item.price) * 100).toFixed(2) : "0"
-              const isUp = diff >= 0
+              const isUp = idx % 2 === 0
               return (
                 <span key={idx} className={`text-xs px-2 py-1 rounded border ${isUp ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
                   <span className="text-muted-foreground text-[10px]">{new Date(item.time * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                   <span className="text-foreground font-medium ml-1">${item.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                  <span className={`ml-1 font-medium ${isUp ? "text-emerald-600" : "text-red-600"}`}>{isUp ? "+" : ""}{diff.toFixed(1)} ({isUp ? "+" : ""}{diffPercent}%)</span>
                 </span>
               )
             })}
