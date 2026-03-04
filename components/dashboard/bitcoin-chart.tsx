@@ -325,13 +325,20 @@ export function BitcoinChart() {
     <Card className="p-4 bg-background border border-border/60">
       {/* 헤더 1행: 배팅 기준가(왼) + 현재가(오) */}
       <div className="flex items-start justify-between gap-2 mb-3">
-        {/* 왼쪽: 로고 + 배팅 기준가 + 인터벌 버튼 */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        {/* 왼쪽: 로고 + 거래량/거래대금 + 배팅 기준가 + 인터벌 버튼 */}
+        <div className="flex items-start gap-2.5 min-w-0 flex-1">
           <img
             src="/bitcoin-logo.png"
             alt="Bitcoin"
             className="w-9 h-9 shrink-0"
           />
+          {/* 거래량/거래대금 */}
+          {ticker && (
+            <div className="text-[10px] text-muted-foreground leading-tight whitespace-nowrap">
+              <div>거래량 <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
+              <div>거래대금 <span className="text-foreground font-medium">{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
+            </div>
+          )}
           <div className="min-w-0">
             <p className="text-[11px] text-muted-foreground leading-tight">배팅 기준가</p>
             <p className="text-sm font-bold text-foreground tabular-nums truncate">
@@ -378,30 +385,10 @@ export function BitcoinChart() {
         </div>
       </div>
 
-      {/* 보조 지표 */}
-      {ticker && (
-        <div className="flex items-center gap-4 mb-3 text-xs text-muted-foreground">
-          <span>
-            거래량 <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span>
-          </span>
-          <span>
-            거래대금 <span className="text-foreground font-medium">{formatQuoteVolume(ticker.quoteAssetVolume)}</span>
-          </span>
-        </div>
-      )}
+      {/* 보조 지표 제거 - 헤더에 배치됨 */}
 
       {/* 차트 */}
-      <div className="relative w-full h-56 rounded-lg overflow-hidden">
-        <div ref={chartContainerRef} className="w-full h-full" />
-        
-        {/* 차트 내 거래량/거래대금 오버레이 */}
-        {ticker && (
-          <div className="absolute bottom-2 right-2 bg-background/80 backdrop-blur-sm px-2 py-1 rounded border border-border/40 text-[10px] text-muted-foreground">
-            <div>거래량: <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
-            <div>거래대금: <span className="text-foreground font-medium">{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
-          </div>
-        )}
-      </div>
+      <div ref={chartContainerRef} className="w-full h-56 rounded-lg overflow-hidden" />
     </Card>
   )
 }
