@@ -286,7 +286,7 @@ export function BitcoinChart() {
       {/* 헤더 */}
       <div className="flex items-start justify-between gap-4 mb-3">
         {/* 왼쪽: 로고 + 제목 */}
-        <div className="flex items-center gap-3.5 min-w-0">
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
           <img 
             src="/bitcoin-logo.png" 
             alt="Bitcoin" 
@@ -303,44 +303,43 @@ export function BitcoinChart() {
           </div>
         </div>
 
-        {/* 오른쪽: 인터벌 버튼 + 현재가 */}
-        <div className="flex items-center gap-4 shrink-0">
-          <div className="flex items-center gap-1">
-            {INTERVALS.map((btn) => (
-              <Button
-                key={btn}
-                variant={interval === btn ? "default" : "ghost"}
-                size="sm"
-                className="h-7 px-2.5 text-xs"
-                onClick={() => {
-                  candleMapRef.current.clear()
-                  tradeBufferRef.current = []
-                  setIntervalState(btn)
-                }}
-              >
-                {INTERVAL_CONFIG[btn].label}
-              </Button>
-            ))}
-          </div>
+        {/* 중앙: 인터벌 버튼 */}
+        <div className="flex items-center gap-1 justify-center flex-1">
+          {INTERVALS.map((btn) => (
+            <Button
+              key={btn}
+              variant={interval === btn ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              onClick={() => {
+                candleMapRef.current.clear()
+                tradeBufferRef.current = []
+                setIntervalState(btn)
+              }}
+            >
+              {INTERVAL_CONFIG[btn].label}
+            </Button>
+          ))}
+        </div>
 
-          <div className="text-right">
-            {ticker ? (
-              <>
-                <p className="text-xl font-bold text-foreground tabular-nums leading-tight">
-                  ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                </p>
-                <div className={`flex items-center justify-end gap-1 text-xs font-semibold ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
-                  {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
-                  <span className="text-muted-foreground font-normal">
-                    ({isPositive ? "+" : ""}${ticker.change.toFixed(1)})
-                  </span>
-                </div>
-              </>
-            ) : (
-              <span className="text-sm text-muted-foreground animate-pulse">로딩 중...</span>
-            )}
-          </div>
+        {/* 오른쪽: 현재가 */}
+        <div className="text-right flex-1">
+          {ticker ? (
+            <>
+              <p className="text-xl font-bold text-foreground tabular-nums leading-tight">
+                ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              </p>
+              <div className={`flex items-center justify-end gap-1 text-xs font-semibold ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
+                {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
+                <span className="text-muted-foreground font-normal">
+                  ({isPositive ? "+" : ""}${ticker.change.toFixed(1)})
+                </span>
+              </div>
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground animate-pulse">로딩 중...</span>
+          )}
         </div>
       </div>
 
