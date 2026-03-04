@@ -53,6 +53,7 @@ export function BitcoinChart() {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
+  const priceLineRef = useRef<any>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const tickerWsRef = useRef<WebSocket | null>(null)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
@@ -74,6 +75,24 @@ export function BitcoinChart() {
     if (typeof window !== 'undefined') {
       (window as any).__bitcoinClosingPrices = closingPrices
     }
+  }, [closingPrices])
+
+  // 30초 마감 기준가 노란색 수평선
+  useEffect(() => {
+    if (!seriesRef.current || closingPrices.length === 0) return
+    const latestPrice = closingPrices[closingPrices.length - 1].price
+
+    if (priceLineRef.current) {
+      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch {}
+    }
+    priceLineRef.current = seriesRef.current.createPriceLine({
+      price: latestPrice,
+      color: "#facc15",
+      lineWidth: 1,
+      lineStyle: 2, // dashed
+      axisLabelVisible: true,
+      title: "기준가",
+    })
   }, [closingPrices])
 
   // 초기 캔들 데이터 로드
