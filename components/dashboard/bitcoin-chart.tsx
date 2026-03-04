@@ -331,7 +331,7 @@ export function BitcoinChart() {
   return (
     <Card className="p-4 bg-background border border-border/60">
       {/* 헤더 1행: 배팅 기준가(왼) + 현재가(오) */}
-      <div className="flex items-start justify-between gap-2 mb-3">
+      <div className="flex items-start justify-between gap-2 mb-[6px]">
         {/* 왼쪽: 로고 + 배팅 기준가 + 인터벌 버튼 */}
         <div className="flex items-start gap-2.5 min-w-0">
           <img
@@ -388,7 +388,7 @@ export function BitcoinChart() {
       {/* 보조 지표 제거 - 헤더에 배치됨 */}
 
       {/* 차트 */}
-      <div className="relative w-full h-56 rounded-lg overflow-hidden">
+      <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
         <div ref={chartContainerRef} className="w-full h-full" />
         
         {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래) */}
