@@ -305,9 +305,9 @@ export function BitcoinChart() {
   return (
     <Card className="p-5 bg-background border border-border/60">
       {/* 헤더 */}
-      <div className="flex items-start justify-between gap-4 mb-3">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-3">
         {/* 왼쪽: 로고 + 최근 마감가 */}
-        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+        <div className="flex items-center gap-3.5 min-w-0 lg:flex-1">
           <img 
             src="/bitcoin-logo.png" 
             alt="Bitcoin" 
@@ -321,6 +321,48 @@ export function BitcoinChart() {
                 : "로딩 중..."}
             </p>
           </div>
+        </div>
+
+        {/* 중앙: 인터벌 버튼 (모바일: 가격 아래, 데스크톱: 중앙) */}
+        <div className="flex items-center gap-1 justify-start lg:justify-center lg:flex-1 w-full lg:w-auto">
+          {INTERVALS.map((btn) => (
+            <Button
+              key={btn}
+              variant={interval === btn ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              onClick={() => {
+                candleMapRef.current.clear()
+                tradeBufferRef.current = []
+                setIntervalState(btn)
+              }}
+            >
+              {INTERVAL_CONFIG[btn].label}
+            </Button>
+          ))}
+        </div>
+
+        {/* 오른쪽: 현재가 (데스크톱에만) */}
+        <div className="text-right hidden lg:block lg:flex-1">
+          {ticker ? (
+            <>
+              <p className="text-xs text-muted-foreground font-medium mb-1">현재가</p>
+              <p className="text-xl font-bold text-foreground tabular-nums leading-tight">
+                ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              </p>
+              <div className={`flex items-center justify-end gap-1 text-xs font-semibold ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
+                {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
+                <span className="text-muted-foreground font-normal">
+                  ({isPositive ? "+" : ""}${ticker.change.toFixed(1)})
+                </span>
+              </div>
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground animate-pulse">로딩 중...</span>
+          )}
+        </div>
+      </div>
         </div>
 
         {/* 중앙: 인터벌 버��� */}
