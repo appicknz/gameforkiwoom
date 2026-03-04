@@ -29,27 +29,43 @@ export function BitcoinChart() {
   const wsRef = useRef<WebSocket | null>(null)
   const tickerWsRef = useRef<WebSocket | null>(null)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
+  const tradeBufferRef = useRef<Array<{ price: number; time: number }>>([])
+  const currentCandleRef = useRef<CandleData | null>(null)
+  const secondTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
-  // 바이낸스 선물에서 1분봉 히스토리 가져오기 (초기 데이터)
+  // 바이낸스 선물에서 최근 30초 데이터를 1초봉으로 생성
   const fetchInitialCandles = useCallback(async () => {
     try {
+      // 최근 1분 데이터 가져오기
       const res = await fetch(
-        "https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=200"
+        "https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=1"
       )
       const data = await res.json()
-      const candles: CandleData[] = data.map((k: any[]) => ({
-        time: Math.floor(k[0] / 1000),
-        open: parseFloat(k[1]),
-        high: parseFloat(k[2]),
-        low: parseFloat(k[3]),
-        close: parseFloat(k[4]),
-      }))
+      const k = data[0]
+      const baseTime = Math.floor(k[0] / 1000)
+      const basePrice = parseFloat(k[4]) // 종가
 
-      candles.forEach((c) => candleMapRef.current.set(c.time, c))
+      // 최근 30초의 1초봉 생성 (초기값)
+      const candles: CandleData[] = []
+      for (let i = -30; i <= 0; i++) {
+        const time = baseTime + i
+        // 작은 변동을 시뮬레이션
+        const variance = (Math.random() - 0.5) * basePrice * 0.0001
+        const price = basePrice + variance
+        candles.push({
+          time,
+          open: price,
+          high: price * 1.00005,
+          low: price * 0.99995,
+          close: price,
+        })
+        candleMapRef.current.set(time, candles[candles.length - 1])
+      }
+
       return candles
     } catch {
       return []
@@ -127,47 +143,72 @@ export function BitcoinChart() {
     }
   }, [fetchInitialCandles])
 
-  // 바이낸스 선물 WebSocket - 1분봉 스트림
+  // 바이낸스 선물 WebSocket - 트레이드 스트림 (실시간 거래 데이터)
   useEffect(() => {
     if (!initialized) return
 
-    const connectKlineWs = () => {
-      const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@kline_1m")
+    const connectTradeWs = () => {
+      const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
       wsRef.current = ws
 
       ws.onopen = () => setConnected(true)
 
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data)
-        const k = msg.k
+        const price = parseFloat(msg.p)
+        const time = Math.floor(msg.T / 1000) // 초 단위
 
-        const candle: CandleData = {
-          time: Math.floor(k.t / 1000),
-          open: parseFloat(k.o),
-          high: parseFloat(k.h),
-          low: parseFloat(k.l),
-          close: parseFloat(k.c),
-        }
-
-        candleMapRef.current.set(candle.time, candle)
-
-        if (seriesRef.current) {
-          seriesRef.current.update(candle)
-        }
+        tradeBufferRef.current.push({ price, time })
       }
 
       ws.onerror = () => setConnected(false)
       ws.onclose = () => {
         setConnected(false)
         // 3초 후 재연결
-        setTimeout(connectKlineWs, 3000)
+        setTimeout(connectTradeWs, 3000)
       }
     }
 
-    connectKlineWs()
+    connectTradeWs()
 
     return () => {
       wsRef.current?.close()
+    }
+  }, [initialized])
+
+  // 1초마다 OHLC 계산 및 차트 업데이트
+  useEffect(() => {
+    if (!initialized || !seriesRef.current) return
+
+    const processSecondCandle = () => {
+      const now = Math.floor(Date.now() / 1000)
+      const trades = tradeBufferRef.current.filter((t) => t.time === now)
+
+      if (trades.length > 0) {
+        const prices = trades.map((t) => t.price)
+        const open = prices[0]
+        const close = prices[prices.length - 1]
+        const high = Math.max(...prices)
+        const low = Math.min(...prices)
+
+        const candle: CandleData = { time: now, open, high, low, close }
+
+        candleMapRef.current.set(now, candle)
+        currentCandleRef.current = candle
+
+        if (seriesRef.current) {
+          seriesRef.current.update(candle)
+        }
+      }
+
+      // 버퍼에서 오래된 데이터 제거
+      tradeBufferRef.current = tradeBufferRef.current.filter((t) => t.time === now)
+    }
+
+    secondTimerRef.current = setInterval(processSecondCandle, 1000)
+
+    return () => {
+      if (secondTimerRef.current) clearInterval(secondTimerRef.current)
     }
   }, [initialized])
 
@@ -223,7 +264,7 @@ export function BitcoinChart() {
                 }
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">Binance Futures • 1분봉</p>
+            <p className="text-xs text-muted-foreground">Binance Futures • 1초봉</p>
           </div>
         </div>
 
