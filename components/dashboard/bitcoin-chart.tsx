@@ -324,7 +324,7 @@ export function BitcoinChart() {
           </div>
         </div>
 
-        {/* 중앙: 인터벌 버튼 */}
+        {/* 중앙: 인터벌 버��� */}
         <div className="flex items-center gap-1 justify-center flex-1">
           {INTERVALS.map((btn) => (
             <Button
@@ -376,24 +376,6 @@ export function BitcoinChart() {
           <span>
             거래대금 <span className="text-foreground font-medium">{formatQuoteVolume(ticker.quoteAssetVolume)}</span>
           </span>
-        </div>
-      )}
-
-      {/* 30초 마감 가격 기록 */}
-      {closingPrices.length > 0 && (
-        <div className="mb-3 p-3 bg-muted/50 rounded-lg">
-          <p className="text-xs font-medium text-muted-foreground mb-2">30초 마감 기준가 (최근 10개)</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            {closingPrices.slice(-10).reverse().map((item, idx) => {
-              const isUp = idx % 2 === 0
-              return (
-                <span key={idx} className={`text-xs px-2 py-1 rounded border ${isUp ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
-                  <span className="text-muted-foreground text-[10px]">{new Date(item.time * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                  <span className="text-foreground font-medium ml-1">${item.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                </span>
-              )
-            })}
-          </div>
         </div>
       )}
 
