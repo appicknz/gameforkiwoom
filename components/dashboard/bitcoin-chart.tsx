@@ -149,6 +149,13 @@ export function BitcoinChart() {
         timeVisible: true,
         secondsVisible: interval === "1s" || interval === "30s",
       },
+      watermark: {
+        color: "rgba(156, 163, 175, 0.5)",
+        visible: true,
+        fontSize: 14,
+        horzAlign: "right",
+        vertAlign: "bottom",
+      },
       handleScroll: true,
       handleScale: true,
     })
