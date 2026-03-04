@@ -285,22 +285,23 @@ export function BitcoinChart() {
     <Card className="p-5 bg-background border border-border/60">
       {/* 헤더 */}
       <div className="flex items-start justify-between gap-4 mb-3">
-        {/* 왼쪽: 제목 */}
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shrink-0">
-            <span className="text-base font-bold text-orange-600 dark:text-orange-400">₿</span>
-          </div>
+        {/* 왼쪽: 로고 + 제목 */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img 
+            src="/bitcoin-logo.png" 
+            alt="Bitcoin" 
+            className="w-6 h-6 shrink-0"
+          />
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-foreground">BTC/USDT Perpetual</h2>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">FUTURES</span>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-base font-semibold text-foreground">BTC/USDT</h2>
               <span className={`flex items-center gap-1 text-[10px] font-medium ${connected ? "text-emerald-500" : "text-muted-foreground"}`}>
                 {connected
                   ? <><Wifi className="w-3 h-3" />LIVE</>
                   : <><WifiOff className="w-3 h-3" />연결 중...</>}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">Binance Futures • {INTERVAL_CONFIG[interval].label}봉</p>
+            <p className="text-xs text-muted-foreground">선물 실시간</p>
           </div>
         </div>
 
