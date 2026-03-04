@@ -24,16 +24,17 @@ interface TickerData {
   quoteAssetVolume: number
 }
 
-type Interval = "1s" | "1m" | "1h" | "1d"
+type Interval = "1s" | "30s" | "1m" | "1h" | "1d"
 
 const INTERVAL_CONFIG: Record<Interval, { label: string; binance: string; limit: number; seconds: number }> = {
-  "1s": { label: "초",   binance: "1m",  limit: 60,  seconds: 1 },
-  "1m": { label: "분",   binance: "1m",  limit: 200, seconds: 60 },
-  "1h": { label: "시간", binance: "1h",  limit: 168, seconds: 3600 },
-  "1d": { label: "일",   binance: "1d",  limit: 365, seconds: 86400 },
+  "1s":  { label: "1초",   binance: "1m",  limit: 60,  seconds: 1 },
+  "30s": { label: "30초",  binance: "1m",  limit: 60,  seconds: 30 },
+  "1m":  { label: "1분",   binance: "1m",  limit: 200, seconds: 60 },
+  "1h":  { label: "1시간", binance: "1h",  limit: 168, seconds: 3600 },
+  "1d":  { label: "1일",   binance: "1d",  limit: 365, seconds: 86400 },
 }
 
-const INTERVALS: Interval[] = ["1s", "1m", "1h", "1d"]
+const INTERVALS: Interval[] = ["1s", "30s", "1m", "1h", "1d"]
 
 function formatQuoteVolume(usd: number): string {
   const krw = usd * 1400
@@ -118,7 +119,7 @@ export function BitcoinChart() {
       timeScale: {
         borderVisible: false,
         timeVisible: true,
-        secondsVisible: interval === "1s",
+        secondsVisible: interval === "1s" || interval === "30s",
       },
       handleScroll: true,
       handleScale: true,
@@ -155,9 +156,11 @@ export function BitcoinChart() {
     }
   }, [interval, fetchInitialCandles])
 
-  // 1초봉: aggTrade WebSocket
+  // 1초봉 / 30초봉: aggTrade WebSocket
   useEffect(() => {
-    if (interval !== "1s") return
+    if (interval !== "1s" && interval !== "30s") return
+
+    const bucketSize = interval === "1s" ? 1 : 30
 
     const connect = () => {
       const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
@@ -176,25 +179,26 @@ export function BitcoinChart() {
     }
     connect()
 
-    // 1초 단위로 캔들 집계
+    // 버킷 단위로 캔들 집계
     const processCandle = () => {
       const now = Math.floor(Date.now() / 1000)
-      const trades = tradeBufferRef.current.filter((t) => t.time === now)
+      const bucket = now - (now % bucketSize)
+      const trades = tradeBufferRef.current.filter((t) => t.time >= bucket)
       if (trades.length === 0) return
 
       const prices = trades.map((t) => t.price)
       const candle: CandleData = {
-        time:  now,
+        time:  bucket,
         open:  prices[0],
         high:  Math.max(...prices),
         low:   Math.min(...prices),
         close: prices[prices.length - 1],
       }
-      candleMapRef.current.set(now, candle)
+      candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
 
       const qv = trades.reduce((s, t) => s + t.price * t.quantity, 0)
-      volumeBufferRef.current.set(now, qv)
+      volumeBufferRef.current.set(bucket, qv)
 
       const cutoff = now - 86400
       tradeBufferRef.current = tradeBufferRef.current.filter((t) => t.time >= cutoff)
@@ -210,7 +214,7 @@ export function BitcoinChart() {
 
   // kline WebSocket (1m, 1h, 1d)
   useEffect(() => {
-    if (interval === "1s") return
+    if (interval === "1s" || interval === "30s") return
     const cfg = INTERVAL_CONFIG[interval]
 
     const connect = () => {
