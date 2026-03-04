@@ -21,6 +21,7 @@ interface TickerData {
   high: number
   low: number
   volume: number
+  quoteAssetVolume: number
 }
 
 type Interval = "1s" | "1m" | "5m" | "1h" | "4h" | "1d"
@@ -48,7 +49,7 @@ export function BitcoinChart() {
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [initialized, setInitialized] = useState(false)
-  const [interval, setInterval] = useState<Interval>("1m")
+  const [interval, setInterval] = useState<Interval>("1s")
 
   // 선택된 interval에 따라 초기 데이터 로드
   const fetchInitialCandles = useCallback(async (selectedInterval: Interval) => {
@@ -286,6 +287,7 @@ export function BitcoinChart() {
           high: parseFloat(d.h),
           low: parseFloat(d.l),
           volume: parseFloat(d.v),
+          quoteAssetVolume: parseFloat(d.q),
         })
       }
 
@@ -304,9 +306,10 @@ export function BitcoinChart() {
 
   return (
     <Card className="p-5 bg-background border border-border/60">
-      {/* 헤더 */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
+      {/* 헤더 - 제목 섹션 */}
+      <div className="flex items-start justify-between gap-4 mb-4">
+        {/* 왼쪽: 제목 */}
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shrink-0">
             <span className="text-base font-bold text-orange-600 dark:text-orange-400">₿</span>
           </div>
@@ -325,8 +328,8 @@ export function BitcoinChart() {
           </div>
         </div>
 
-        {/* 시간 간격 선택 버튼 */}
-        <div className="flex items-center gap-2">
+        {/* 중간: 시간 간격 선택 버튼 (오른쪽 정렬) */}
+        <div className="flex items-center gap-2 shrink-0">
           {(["1m", "5m", "1h", "4h", "1d"] as const).map((btn) => (
             <Button
               key={btn}
@@ -344,8 +347,8 @@ export function BitcoinChart() {
           ))}
         </div>
 
-        {/* 현재가 & 변동률 */}
-        <div className="text-right">
+        {/* 오른쪽: 현재가 & 변동률 */}
+        <div className="text-right shrink-0">
           {ticker ? (
             <>
               <p className="text-2xl font-bold text-foreground tabular-nums">
@@ -369,10 +372,18 @@ export function BitcoinChart() {
 
       {/* 보조 지표 */}
       {ticker && (
-        <div className="flex gap-4 mb-3 text-xs text-muted-foreground">
+        <div className="flex gap-6 mb-3 text-xs text-muted-foreground flex-wrap">
           <span>고가 <span className="text-foreground font-medium">${ticker.high.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span></span>
           <span>저가 <span className="text-foreground font-medium">${ticker.low.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span></span>
           <span>거래량 <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></span>
+          <span>거래대금 <span className="text-foreground font-medium">
+            {ticker.quoteAssetVolume >= 100000000 
+              ? (ticker.quoteAssetVolume / 100000000).toFixed(2) + "억"
+              : ticker.quoteAssetVolume >= 10000
+                ? (ticker.quoteAssetVolume / 10000).toFixed(1) + "만"
+                : ticker.quoteAssetVolume.toLocaleString("en-US", { maximumFractionDigits: 0 })
+            }
+          </span></span>
         </div>
       )}
 
