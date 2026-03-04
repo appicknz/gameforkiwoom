@@ -24,7 +24,7 @@ export function ClosingPricesBadges() {
 
   return (
     <Card className="p-6 transition-all duration-500 hover:shadow-xl animate-slide-in-up" style={{ animationDelay: "500ms" }}>
-      <h2 className="text-xl font-semibold text-foreground mb-6">30초 끝자리</h2>
+      <h2 className="text-xl font-semibold text-foreground mb-3">30초 끝자리</h2>
       <div className="flex flex-wrap gap-2">
         {lastDigits.map((digit, idx) => (
           <div
