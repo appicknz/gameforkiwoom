@@ -306,7 +306,7 @@ export function BitcoinChart() {
     <Card className="p-5 bg-background border border-border/60">
       {/* 헤더 */}
       <div className="flex items-start justify-between gap-4 mb-3">
-        {/* 왼쪽: 로고 + 제목 */}
+        {/* 왼쪽: 로고 + 최근 마감가 */}
         <div className="flex items-center gap-3.5 min-w-0 flex-1">
           <img 
             src="/bitcoin-logo.png" 
@@ -314,13 +314,12 @@ export function BitcoinChart() {
             className="w-10 h-10 shrink-0"
           />
           <div>
-            <p className="text-xs font-bold text-muted-foreground leading-tight">배팅 기준가</p>
-            <span className={`flex items-center gap-1 text-[10px] font-medium ${connected ? "text-emerald-500" : "text-muted-foreground"}`}>
-              {connected
-                ? <><Wifi className="w-3 h-3" />LIVE</>
-                : <><WifiOff className="w-3 h-3" />연결 중...</>}
-            </span>
-            <p className="text-xs text-muted-foreground">선물 실시간</p>
+            <p className="text-xs text-muted-foreground leading-tight">배팅 기준가</p>
+            <p className="text-sm font-bold text-foreground">
+              ${closingPrices.length > 0 
+                ? closingPrices[closingPrices.length - 1].price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+                : "로딩 중..."}
+            </p>
           </div>
         </div>
 
