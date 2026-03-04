@@ -306,7 +306,7 @@ export function BitcoinChart() {
     <Card className="p-4 bg-background border border-border/60">
       {/* 헤더 1행: 배팅 기준가(왼) + 현재가(오) */}
       <div className="flex items-start justify-between gap-2 mb-3">
-        {/* 왼쪽: 로고 + 배팅 기준가 */}
+        {/* 왼쪽: 로고 + 배팅 기준가 + 인터벌 버튼 */}
         <div className="flex items-center gap-2.5 min-w-0">
           <img
             src="/bitcoin-logo.png"
@@ -320,39 +320,37 @@ export function BitcoinChart() {
                 ? closingPrices[closingPrices.length - 1].price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
                 : "로딩 중..."}
             </p>
+            <div className="flex items-center gap-0.5 mt-0.5">
+              {INTERVALS.map((btn) => (
+                <Button
+                  key={btn}
+                  variant={interval === btn ? "default" : "ghost"}
+                  size="sm"
+                  className="h-5 px-1.5 text-[10px]"
+                  onClick={() => {
+                    candleMapRef.current.clear()
+                    tradeBufferRef.current = []
+                    setIntervalState(btn)
+                  }}
+                >
+                  {INTERVAL_CONFIG[btn].label}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* 오른쪽: 현재가 + 변동률 + 인터벌 버튼 */}
-        <div className="shrink-0">
+        {/* 오른쪽: 현재가 + 변동률 */}
+        <div className="shrink-0 text-right">
           {ticker ? (
             <>
-              <p className="text-[11px] text-muted-foreground font-medium mb-0.5 text-right">현재가</p>
-              <p className="text-sm font-bold text-foreground tabular-nums leading-tight text-right">
+              <p className="text-[11px] text-muted-foreground font-medium mb-0.5">현재가</p>
+              <p className="text-sm font-bold text-foreground tabular-nums leading-tight">
                 ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </p>
-              <div className="flex items-center justify-between mt-0.5">
-                <div className="flex items-center gap-0.5">
-                  {INTERVALS.map((btn) => (
-                    <Button
-                      key={btn}
-                      variant={interval === btn ? "default" : "ghost"}
-                      size="sm"
-                      className="h-5 px-1.5 text-[10px]"
-                      onClick={() => {
-                        candleMapRef.current.clear()
-                        tradeBufferRef.current = []
-                        setIntervalState(btn)
-                      }}
-                    >
-                      {INTERVAL_CONFIG[btn].label}
-                    </Button>
-                  ))}
-                </div>
-                <div className={`flex items-center gap-0.5 text-[11px] font-semibold ml-1 ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
-                  {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
-                </div>
+              <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold mt-0.5 ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
+                {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
               </div>
             </>
           ) : (
