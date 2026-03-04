@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { TrendingUp, TrendingDown, Wifi, WifiOff } from "lucide-react"
 import { createChart, ColorType } from "lightweight-charts"
 
@@ -22,6 +23,17 @@ interface TickerData {
   volume: number
 }
 
+type Interval = "1s" | "1m" | "5m" | "1h" | "4h" | "1d"
+
+const INTERVAL_CONFIG: Record<Interval, { label: string; binance: string; limit: number }> = {
+  "1s": { label: "1초", binance: "", limit: 30 },
+  "1m": { label: "1분", binance: "1m", limit: 200 },
+  "5m": { label: "5분", binance: "5m", limit: 200 },
+  "1h": { label: "1시간", binance: "1h", limit: 168 },
+  "4h": { label: "4시간", binance: "4h", limit: 168 },
+  "1d": { label: "1일", binance: "1d", limit: 365 },
+}
+
 export function BitcoinChart() {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
@@ -36,38 +48,57 @@ export function BitcoinChart() {
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [initialized, setInitialized] = useState(false)
+  const [interval, setInterval] = useState<Interval>("1m")
 
-  // 바이낸스 선물에서 최근 30초 데이터를 1초봉으로 생성
-  const fetchInitialCandles = useCallback(async () => {
+  // 선택된 interval에 따라 초기 데이터 로드
+  const fetchInitialCandles = useCallback(async (selectedInterval: Interval) => {
     try {
-      // 최근 1분 데이터 가져오기
-      const res = await fetch(
-        "https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=1"
-      )
-      const data = await res.json()
-      const k = data[0]
-      const baseTime = Math.floor(k[0] / 1000)
-      const basePrice = parseFloat(k[4]) // 종가
+      if (selectedInterval === "1s") {
+        // 1초 데이터는 시뮬레이션
+        const res = await fetch(
+          "https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=1"
+        )
+        const data = await res.json()
+        const k = data[0]
+        const baseTime = Math.floor(k[0] / 1000)
+        const basePrice = parseFloat(k[4])
 
-      // 최근 30초의 1초봉 생성 (초기값)
-      const candles: CandleData[] = []
-      for (let i = -30; i <= 0; i++) {
-        const time = baseTime + i
-        // 작은 변동을 시뮬레이션
-        const variance = (Math.random() - 0.5) * basePrice * 0.0001
-        const price = basePrice + variance
-        candles.push({
-          time,
-          open: price,
-          high: price * 1.00005,
-          low: price * 0.99995,
-          close: price,
-        })
-        candleMapRef.current.set(time, candles[candles.length - 1])
+        const candles: CandleData[] = []
+        for (let i = -30; i <= 0; i++) {
+          const time = baseTime + i
+          const variance = (Math.random() - 0.5) * basePrice * 0.0001
+          const price = basePrice + variance
+          candles.push({
+            time,
+            open: price,
+            high: price * 1.00005,
+            low: price * 0.99995,
+            close: price,
+          })
+          candleMapRef.current.set(time, candles[candles.length - 1])
+        }
+        return candles
+      } else {
+        // 다른 interval은 바이낸스 REST API에서 가져오기
+        const config = INTERVAL_CONFIG[selectedInterval]
+        const res = await fetch(
+          `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${config.binance}&limit=${config.limit}`
+        )
+        const data = await res.json()
+        const candles: CandleData[] = data.map((k: any[]) => ({
+          time: Math.floor(k[0] / 1000),
+          open: parseFloat(k[1]),
+          high: parseFloat(k[2]),
+          low: parseFloat(k[3]),
+          close: parseFloat(k[4]),
+        }))
+
+        candleMapRef.current.clear()
+        candles.forEach((c) => candleMapRef.current.set(c.time, c))
+        return candles
       }
-
-      return candles
-    } catch {
+    } catch (error) {
+      console.error("Error fetching candles:", error)
       return []
     }
   }, [])
@@ -127,7 +158,7 @@ export function BitcoinChart() {
     resizeObserver.observe(container)
 
     // 초기 데이터 로드 후 WebSocket 연결
-    fetchInitialCandles().then((candles) => {
+    fetchInitialCandles(interval).then((candles) => {
       if (candles.length > 0) {
         candleSeries.setData(candles)
         chart.timeScale().fitContent()
@@ -141,44 +172,71 @@ export function BitcoinChart() {
       chartRef.current = null
       seriesRef.current = null
     }
-  }, [fetchInitialCandles])
+  }, [fetchInitialCandles, interval])
 
-  // 바이낸스 선물 WebSocket - 트레이드 스트림 (실시간 거래 데이터)
+  // 바이낸스 선물 WebSocket 연결 (interval에 따라 동적으로)
   useEffect(() => {
     if (!initialized) return
 
-    const connectTradeWs = () => {
-      const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
+    // 1s는 aggTrade, 나머지는 kline 스트림 사용
+    const connectWs = () => {
+      let ws: WebSocket
+      
+      if (interval === "1s") {
+        ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
+      } else {
+        const config = INTERVAL_CONFIG[interval]
+        ws = new WebSocket(`wss://fstream.binance.com/ws/btcusdt@kline_${config.binance}`)
+      }
+
       wsRef.current = ws
 
       ws.onopen = () => setConnected(true)
 
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data)
-        const price = parseFloat(msg.p)
-        const time = Math.floor(msg.T / 1000) // 초 단위
 
-        tradeBufferRef.current.push({ price, time })
+        if (interval === "1s") {
+          // aggTrade 처리
+          const price = parseFloat(msg.p)
+          const time = Math.floor(msg.T / 1000)
+          tradeBufferRef.current.push({ price, time })
+        } else {
+          // kline 처리
+          const k = msg.k
+          const candle: CandleData = {
+            time: Math.floor(k.t / 1000),
+            open: parseFloat(k.o),
+            high: parseFloat(k.h),
+            low: parseFloat(k.l),
+            close: parseFloat(k.c),
+          }
+
+          candleMapRef.current.set(candle.time, candle)
+
+          if (seriesRef.current) {
+            seriesRef.current.update(candle)
+          }
+        }
       }
 
       ws.onerror = () => setConnected(false)
       ws.onclose = () => {
         setConnected(false)
-        // 3초 후 재연결
-        setTimeout(connectTradeWs, 3000)
+        setTimeout(connectWs, 3000)
       }
     }
 
-    connectTradeWs()
+    connectWs()
 
     return () => {
       wsRef.current?.close()
     }
-  }, [initialized])
+  }, [initialized, interval])
 
-  // 1초마다 OHLC 계산 및 차트 업데이트
+  // 1초 간격 캔들 처리 (1s interval일 때만 실행)
   useEffect(() => {
-    if (!initialized || !seriesRef.current) return
+    if (!initialized || !seriesRef.current || interval !== "1s") return
 
     const processSecondCandle = () => {
       const now = Math.floor(Date.now() / 1000)
@@ -201,7 +259,6 @@ export function BitcoinChart() {
         }
       }
 
-      // 버퍼에서 오래된 데이터 제거
       tradeBufferRef.current = tradeBufferRef.current.filter((t) => t.time === now)
     }
 
@@ -210,7 +267,7 @@ export function BitcoinChart() {
     return () => {
       if (secondTimerRef.current) clearInterval(secondTimerRef.current)
     }
-  }, [initialized])
+  }, [initialized, interval])
 
   // 바이낸스 선물 WebSocket - 티커 스트림 (가격/변동률)
   useEffect(() => {
@@ -264,8 +321,27 @@ export function BitcoinChart() {
                 }
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">Binance Futures • 1초봉</p>
+            <p className="text-xs text-muted-foreground">Binance Futures • {INTERVAL_CONFIG[interval].label}봉</p>
           </div>
+        </div>
+
+        {/* 시간 간격 선택 버튼 */}
+        <div className="flex items-center gap-2">
+          {(["1m", "5m", "1h", "4h", "1d"] as const).map((btn) => (
+            <Button
+              key={btn}
+              variant={interval === btn ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              onClick={() => {
+                candleMapRef.current.clear()
+                setInitialized(false)
+                setInterval(btn)
+              }}
+            >
+              {INTERVAL_CONFIG[btn].label}
+            </Button>
+          ))}
         </div>
 
         {/* 현재가 & 변동률 */}
