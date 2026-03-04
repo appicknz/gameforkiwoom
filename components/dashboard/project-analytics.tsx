@@ -1,32 +1,58 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts"
 
-const chartData = [
-  { day: "S", value: 45, label: "Sunday" },
-  { day: "M", value: 75, label: "Monday" },
-  { day: "T", value: 74, label: "Tuesday" },
-  { day: "W", value: 92, label: "Wednesday" },
-  { day: "T", value: 35, label: "Thursday" },
-  { day: "F", value: 60, label: "Friday" },
-  { day: "S", value: 50, label: "Saturday" },
-]
-
-const barColors = ["#059669", "#047857", "#10b981", "#065f46", "#059669", "#047857", "#10b981"]
+interface ClosingPrice {
+  time: number
+  price: number
+}
 
 export function ProjectAnalytics() {
+  const [chartData, setChartData] = useState<Array<{ digit: string; count: number }>>([])
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
-  const maxValue = Math.max(...chartData.map((d) => d.value))
-  const average = Math.round(chartData.reduce((acc, d) => acc + d.value, 0) / chartData.length)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (typeof window !== 'undefined' && (window as any).__bitcoinClosingPrices) {
+        const closingPrices: ClosingPrice[] = (window as any).__bitcoinClosingPrices
+        
+        // 최근 100개 중에서 끝자리 분포 계산
+        const recentPrices = closingPrices.slice(-100)
+        const digitCounts = Array(10).fill(0)
+        
+        recentPrices.forEach((item) => {
+          const lastDigit = Math.floor(item.price * 10) % 10
+          digitCounts[lastDigit]++
+        })
+        
+        const newChartData = digitCounts.map((count, digit) => ({
+          digit: digit.toString(),
+          count: count,
+        }))
+        
+        setChartData(newChartData)
+      }
+    }, 500)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  const maxValue = chartData.length > 0 ? Math.max(...chartData.map((d) => d.count)) : 0
+  const average = chartData.length > 0 ? Math.round(chartData.reduce((acc, d) => acc + d.count, 0) / chartData.length) : 0
+  const totalCount = chartData.reduce((acc, d) => acc + d.count, 0)
+
+  const barColors = ["#059669", "#047857", "#10b981", "#065f46", "#059669", "#047857", "#10b981", "#059669", "#047857", "#10b981"]
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
+      const count = payload[0].value
+      const percentage = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0
       return (
         <div className="bg-foreground text-background px-3 py-2 rounded-lg text-xs font-semibold shadow-lg">
-          <p className="font-bold">{payload[0].value}%</p>
-          <p className="text-[10px] opacity-80">{payload[0].payload.label}</p>
+          <p className="font-bold">{count}개</p>
+          <p className="text-[10px] opacity-80">{percentage}%</p>
         </div>
       )
     }
@@ -42,7 +68,7 @@ export function ProjectAnalytics() {
         <h2 className="text-xl font-semibold text-foreground">Project Analytics</h2>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <div className="w-2 h-2 rounded-full bg-emerald-600"></div>
-          <span>Weekly Activity</span>
+          <span>끝자리 분포 (최근 100개)</span>
         </div>
       </div>
 
@@ -57,7 +83,7 @@ export function ProjectAnalytics() {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted/20" />
             <XAxis
-              dataKey="day"
+              dataKey="digit"
               axisLine={false}
               tickLine={false}
               tick={{ fill: "currentColor", fontSize: 14 }}
@@ -68,11 +94,10 @@ export function ProjectAnalytics() {
               tickLine={false}
               tick={{ fill: "currentColor", fontSize: 12 }}
               className="text-muted-foreground"
-              ticks={[0, 25, 50, 75, 100]}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "transparent" }} />
             <Bar
-              dataKey="value"
+              dataKey="count"
               fill="url(#barGradient)"
               radius={[12, 12, 12, 12]}
               maxBarSize={60}
@@ -99,12 +124,12 @@ export function ProjectAnalytics() {
       {/* Summary stats */}
       <div className="pt-4 border-t border-muted/50 flex items-center justify-between">
         <div className="text-sm">
-          <span className="text-muted-foreground">Average: </span>
-          <span className="font-semibold text-foreground">{average}%</span>
+          <span className="text-muted-foreground">평균: </span>
+          <span className="font-semibold text-foreground">{average}개</span>
         </div>
         <div className="text-sm">
-          <span className="text-muted-foreground">Peak: </span>
-          <span className="font-semibold text-emerald-600">{maxValue}%</span>
+          <span className="text-muted-foreground">최대: </span>
+          <span className="font-semibold text-emerald-600">{maxValue}개</span>
         </div>
       </div>
     </Card>
