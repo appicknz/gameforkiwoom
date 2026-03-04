@@ -368,8 +368,6 @@ export function BitcoinChart() {
       {/* 보조 지표 */}
       {ticker && (
         <div className="flex items-center gap-6 mb-3 text-xs text-muted-foreground flex-wrap">
-          <span>고가 <span className="text-foreground font-medium">${ticker.high.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span></span>
-          <span>저가 <span className="text-foreground font-medium">${ticker.low.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span></span>
           <span>
             거래량 <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span>
           </span>
