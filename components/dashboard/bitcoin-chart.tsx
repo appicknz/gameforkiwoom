@@ -24,20 +24,26 @@ interface TickerData {
   quoteAssetVolume: number
 }
 
-type Interval = "30s" | "1m" | "1h" | "1d"
+type Interval = "1s" | "30s" | "1m" | "1h" | "1d"
 
 const INTERVAL_CONFIG: Record<Interval, { label: string; binance: string; limit: number; seconds: number }> = {
+  "1s":  { label: "1초",  binance: "1m",  limit: 60,  seconds: 1 },
   "30s": { label: "30초", binance: "1m",  limit: 60,  seconds: 30 },
   "1m":  { label: "1M",   binance: "1m",  limit: 200, seconds: 60 },
   "1h":  { label: "1H",   binance: "1h",  limit: 168, seconds: 3600 },
   "1d":  { label: "1D",   binance: "1d",  limit: 365, seconds: 86400 },
 }
 
-const INTERVALS: Interval[] = ["30s", "1m", "1h", "1d"]
+const INTERVALS: Interval[] = ["1s", "30s", "1m", "1h", "1d"]
 
 function formatQuoteVolume(usd: number): string {
   const krw = usd * 1400
-  if (krw >= 1_000_000_000_000) return (krw / 1_000_000_000_000).toFixed(2) + "조"
+  if (krw >= 1_000_000_000_000) {
+    const jo = Math.floor(krw / 1_000_000_000_000)
+    const rem = krw % 1_000_000_000_000
+    const eok = Math.round(rem / 100_000_000)
+    return eok > 0 ? `${jo}조 ${eok}억` : `${jo}조`
+  }
   if (krw >= 100_000_000) return Math.round(krw / 100_000_000) + "억"
   if (krw >= 10_000) return (krw / 10_000).toFixed(0) + "만"
   return krw.toLocaleString() + "원"
@@ -58,7 +64,7 @@ export function BitcoinChart() {
 
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
-  const [interval, setIntervalState] = useState<Interval>("30s")
+  const [interval, setIntervalState] = useState<Interval>("1s")
   const [aggVolumes, setAggVolumes] = useState({ "30s": 0, "1m": 0, "1h": 0, "1d": 0 })
 
   // 초기 캔들 데이터 로드
@@ -135,7 +141,7 @@ export function BitcoinChart() {
       timeScale: {
         borderVisible: false,
         timeVisible: true,
-        secondsVisible: interval === "30s",
+        secondsVisible: interval === "1s" || interval === "30s",
       },
       handleScroll: true,
       handleScale: true,
@@ -172,9 +178,11 @@ export function BitcoinChart() {
     }
   }, [interval, fetchInitialCandles])
 
-  // 30초봉: aggTrade WebSocket
+  // 1초봉 / 30초봉: aggTrade WebSocket
   useEffect(() => {
-    if (interval !== "30s") return
+    if (interval !== "1s" && interval !== "30s") return
+
+    const bucketSize = interval === "1s" ? 1 : 30
 
     const connect = () => {
       const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
@@ -193,10 +201,10 @@ export function BitcoinChart() {
     }
     connect()
 
-    // 30초 버킷으로 캔들 집계
+    // 버킷 단위로 캔들 집계
     const processCandle = () => {
       const now = Math.floor(Date.now() / 1000)
-      const bucket = now - (now % 30)
+      const bucket = now - (now % bucketSize)
       const trades = tradeBufferRef.current.filter((t) => t.time >= bucket)
       if (trades.length === 0) return
 
@@ -228,7 +236,7 @@ export function BitcoinChart() {
 
   // kline WebSocket (1m, 1h, 1d)
   useEffect(() => {
-    if (interval === "30s") return
+    if (interval === "1s" || interval === "30s") return
     const cfg = INTERVAL_CONFIG[interval]
 
     const connect = () => {
@@ -362,21 +370,15 @@ export function BitcoinChart() {
 
       {/* 보조 지표 */}
       {ticker && (
-        <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground flex-wrap gap-2">
-          <div className="flex gap-5">
-            <span>고가 <span className="text-foreground font-medium">${ticker.high.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span></span>
-            <span>저가 <span className="text-foreground font-medium">${ticker.low.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span></span>
-            <span>거래량 <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></span>
-          </div>
-          <div className="flex items-center gap-4 ml-auto">
-            <span className="text-muted-foreground/60">거래대금</span>
-            {INTERVALS.map((iv) => (
-              <span key={iv}>
-                <span className="text-muted-foreground/60">{INTERVAL_CONFIG[iv].label} </span>
-                <span className="text-foreground font-medium">{formatQuoteVolume(aggVolumes[iv])}</span>
-              </span>
-            ))}
-          </div>
+        <div className="flex items-center gap-6 mb-3 text-xs text-muted-foreground flex-wrap">
+          <span>고가 <span className="text-foreground font-medium">${ticker.high.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span></span>
+          <span>저가 <span className="text-foreground font-medium">${ticker.low.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span></span>
+          <span>
+            거래량 <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span>
+          </span>
+          <span>
+            거래대금 <span className="text-foreground font-medium">{formatQuoteVolume(ticker.quoteAssetVolume)}</span>
+          </span>
         </div>
       )}
 
