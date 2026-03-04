@@ -391,9 +391,9 @@ export function BitcoinChart() {
       <div className="relative w-full h-56 rounded-lg overflow-hidden">
         <div ref={chartContainerRef} className="w-full h-full" />
         
-        {/* 차트 내 거래량/거래대금 오버레이 (워터마크 위, 오른쪽) */}
+        {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래) */}
         {ticker && (
-          <div className="absolute bottom-10 right-2 bg-background/75 backdrop-blur-sm px-2 py-1 rounded border border-border/40 text-[10px] text-muted-foreground">
+          <div className="absolute bottom-10 left-2 bg-background/75 backdrop-blur-sm px-2 py-1 rounded border border-border/40 text-[10px] text-muted-foreground">
             <div>거래량: <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
             <div>거래대금: <span className="text-foreground font-medium">{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
           </div>
