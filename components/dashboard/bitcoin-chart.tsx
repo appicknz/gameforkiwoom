@@ -286,13 +286,14 @@ export function BitcoinChart() {
       {/* 헤더 */}
       <div className="flex items-start justify-between gap-4 mb-3">
         {/* 왼쪽: 로고 + 제목 */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-3.5 min-w-0">
           <img 
             src="/bitcoin-logo.png" 
             alt="Bitcoin" 
-            className="w-6 h-6 shrink-0"
+            className="w-8 h-8 shrink-0"
           />
           <div>
+            <p className="text-xs font-bold text-muted-foreground leading-tight mb-0.5">바이낸스 / 비트코인</p>
             <div className="flex items-center gap-1.5">
               <h2 className="text-base font-semibold text-foreground">BTC/USDT</h2>
               <span className={`flex items-center gap-1 text-[10px] font-medium ${connected ? "text-emerald-500" : "text-muted-foreground"}`}>
