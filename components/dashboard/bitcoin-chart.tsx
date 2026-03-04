@@ -331,11 +331,7 @@ export function BitcoinChart() {
               <p className="text-sm font-bold text-foreground tabular-nums leading-tight text-right">
                 ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <div className={`flex items-center gap-0.5 text-[11px] font-semibold ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
-                  {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
-                </div>
+              <div className="flex items-center justify-between mt-0.5">
                 <div className="flex items-center gap-0.5">
                   {INTERVALS.map((btn) => (
                     <Button
@@ -352,6 +348,10 @@ export function BitcoinChart() {
                       {INTERVAL_CONFIG[btn].label}
                     </Button>
                   ))}
+                </div>
+                <div className={`flex items-center gap-0.5 text-[11px] font-semibold ml-1 ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
+                  {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
                 </div>
               </div>
             </>
