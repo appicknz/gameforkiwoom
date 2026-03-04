@@ -66,6 +66,8 @@ export function BitcoinChart() {
   const [connected, setConnected] = useState(false)
   const [interval, setIntervalState] = useState<Interval>("1s")
   const [aggVolumes, setAggVolumes] = useState({ "1m": 0, "1h": 0, "1d": 0 })
+  const [closingPrices, setClosingPrices] = useState<Array<{ time: number; price: number }>>([])
+  const prevBucketRef = useRef<number | null>(null)
 
   // 초기 캔들 데이터 로드
   const fetchInitialCandles = useCallback(async (sel: Interval): Promise<CandleData[]> => {
@@ -187,15 +189,26 @@ export function BitcoinChart() {
       if (trades.length === 0) return
 
       const prices = trades.map((t) => t.price)
+      const closingPrice = prices[prices.length - 1]
+      
       const candle: CandleData = {
         time:  bucket,
         open:  prices[0],
         high:  Math.max(...prices),
         low:   Math.min(...prices),
-        close: prices[prices.length - 1],
+        close: closingPrice,
       }
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
+
+      // 30초봉 마감 가격 기록
+      if (interval === "30s" && (prevBucketRef.current === null || bucket !== prevBucketRef.current)) {
+        prevBucketRef.current = bucket
+        setClosingPrices((prev) => {
+          const updated = [...prev, { time: bucket, price: closingPrice }]
+          return updated.slice(-100) // 최근 100개만 유지
+        })
+      }
 
       const qv = trades.reduce((s, t) => s + t.price * t.quantity, 0)
       volumeBufferRef.current.set(bucket, qv)
@@ -293,7 +306,7 @@ export function BitcoinChart() {
             className="w-10 h-10 shrink-0"
           />
           <div>
-            <p className="text-xs font-bold text-muted-foreground leading-tight">바이낸스 / 비트코인</p>
+            <p className="text-xs font-bold text-muted-foreground leading-tight">배팅 기준가</p>
             <span className={`flex items-center gap-1 text-[10px] font-medium ${connected ? "text-emerald-500" : "text-muted-foreground"}`}>
               {connected
                 ? <><Wifi className="w-3 h-3" />LIVE</>
@@ -326,6 +339,7 @@ export function BitcoinChart() {
         <div className="text-right flex-1">
           {ticker ? (
             <>
+              <p className="text-xs text-muted-foreground font-medium mb-1">현재가</p>
               <p className="text-xl font-bold text-foreground tabular-nums leading-tight">
                 ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </p>
@@ -354,6 +368,21 @@ export function BitcoinChart() {
           <span>
             거래대금 <span className="text-foreground font-medium">{formatQuoteVolume(ticker.quoteAssetVolume)}</span>
           </span>
+        </div>
+      )}
+
+      {/* 30초 마감 가격 기록 */}
+      {interval === "30s" && closingPrices.length > 0 && (
+        <div className="mb-3 p-3 bg-muted/50 rounded-lg">
+          <p className="text-xs font-medium text-muted-foreground mb-2">30초 마감 기준가 (최근 10개)</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            {closingPrices.slice(-10).reverse().map((item, idx) => (
+              <span key={idx} className="text-xs bg-background px-2 py-1 rounded border border-border/60">
+                <span className="text-muted-foreground">{new Date(item.time * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                <span className="text-foreground font-medium ml-1">${item.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
