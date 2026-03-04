@@ -24,17 +24,16 @@ interface TickerData {
   quoteAssetVolume: number
 }
 
-type Interval = "1s" | "30s" | "1m" | "1h" | "1d"
+type Interval = "1s" | "1m" | "1h" | "1d"
 
 const INTERVAL_CONFIG: Record<Interval, { label: string; binance: string; limit: number; seconds: number }> = {
-  "1s":  { label: "1초",  binance: "1m",  limit: 60,  seconds: 1 },
-  "30s": { label: "30초", binance: "1m",  limit: 60,  seconds: 30 },
-  "1m":  { label: "1M",   binance: "1m",  limit: 200, seconds: 60 },
-  "1h":  { label: "1H",   binance: "1h",  limit: 168, seconds: 3600 },
-  "1d":  { label: "1D",   binance: "1d",  limit: 365, seconds: 86400 },
+  "1s": { label: "초",   binance: "1m",  limit: 60,  seconds: 1 },
+  "1m": { label: "분",   binance: "1m",  limit: 200, seconds: 60 },
+  "1h": { label: "시간", binance: "1h",  limit: 168, seconds: 3600 },
+  "1d": { label: "일",   binance: "1d",  limit: 365, seconds: 86400 },
 }
 
-const INTERVALS: Interval[] = ["1s", "30s", "1m", "1h", "1d"]
+const INTERVALS: Interval[] = ["1s", "1m", "1h", "1d"]
 
 function formatQuoteVolume(usd: number): string {
   const krw = usd * 1400
@@ -65,48 +64,26 @@ export function BitcoinChart() {
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [interval, setIntervalState] = useState<Interval>("1s")
-  const [aggVolumes, setAggVolumes] = useState({ "30s": 0, "1m": 0, "1h": 0, "1d": 0 })
+  const [aggVolumes, setAggVolumes] = useState({ "1m": 0, "1h": 0, "1d": 0 })
 
   // 초기 캔들 데이터 로드
   const fetchInitialCandles = useCallback(async (sel: Interval): Promise<CandleData[]> => {
     const cfg = INTERVAL_CONFIG[sel]
     try {
-      if (sel === "30s") {
-        // 1분봉을 두 개의 30초봉으로 분리
-        const res = await fetch(
-          "https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=60"
-        )
-        const data: any[][] = await res.json()
-        const candles: CandleData[] = []
-        for (const k of data) {
-          const baseTime = Math.floor(k[0] / 1000)
-          const open  = parseFloat(k[1])
-          const high  = parseFloat(k[2])
-          const low   = parseFloat(k[3])
-          const close = parseFloat(k[4])
-          const mid   = (open + close) / 2
-          candles.push({ time: baseTime,      open, high: Math.max(open, mid), low: Math.min(open, mid), close: mid })
-          candles.push({ time: baseTime + 30, open: mid, high: Math.max(mid, close), low: Math.min(mid, close), close })
-        }
-        candleMapRef.current.clear()
-        candles.forEach((c) => candleMapRef.current.set(c.time, c))
-        return candles
-      } else {
-        const res = await fetch(
-          `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${cfg.binance}&limit=${cfg.limit}`
-        )
-        const data: any[][] = await res.json()
-        const candles: CandleData[] = data.map((k) => ({
-          time:  Math.floor(k[0] / 1000),
-          open:  parseFloat(k[1]),
-          high:  parseFloat(k[2]),
-          low:   parseFloat(k[3]),
-          close: parseFloat(k[4]),
-        }))
-        candleMapRef.current.clear()
-        candles.forEach((c) => candleMapRef.current.set(c.time, c))
-        return candles
-      }
+      const res = await fetch(
+        `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${cfg.binance}&limit=${cfg.limit}`
+      )
+      const data: any[][] = await res.json()
+      const candles: CandleData[] = data.map((k) => ({
+        time:  Math.floor(k[0] / 1000),
+        open:  parseFloat(k[1]),
+        high:  parseFloat(k[2]),
+        low:   parseFloat(k[3]),
+        close: parseFloat(k[4]),
+      }))
+      candleMapRef.current.clear()
+      candles.forEach((c) => candleMapRef.current.set(c.time, c))
+      return candles
     } catch {
       return []
     }
@@ -141,7 +118,7 @@ export function BitcoinChart() {
       timeScale: {
         borderVisible: false,
         timeVisible: true,
-        secondsVisible: interval === "1s" || interval === "30s",
+        secondsVisible: interval === "1s",
       },
       handleScroll: true,
       handleScale: true,
@@ -178,11 +155,9 @@ export function BitcoinChart() {
     }
   }, [interval, fetchInitialCandles])
 
-  // 1초봉 / 30초봉: aggTrade WebSocket
+  // 1초봉: aggTrade WebSocket
   useEffect(() => {
-    if (interval !== "1s" && interval !== "30s") return
-
-    const bucketSize = interval === "1s" ? 1 : 30
+    if (interval !== "1s") return
 
     const connect = () => {
       const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
@@ -201,26 +176,25 @@ export function BitcoinChart() {
     }
     connect()
 
-    // 버킷 단위로 캔들 집계
+    // 1초 단위로 캔들 집계
     const processCandle = () => {
       const now = Math.floor(Date.now() / 1000)
-      const bucket = now - (now % bucketSize)
-      const trades = tradeBufferRef.current.filter((t) => t.time >= bucket)
+      const trades = tradeBufferRef.current.filter((t) => t.time === now)
       if (trades.length === 0) return
 
       const prices = trades.map((t) => t.price)
       const candle: CandleData = {
-        time:  bucket,
+        time:  now,
         open:  prices[0],
         high:  Math.max(...prices),
         low:   Math.min(...prices),
         close: prices[prices.length - 1],
       }
-      candleMapRef.current.set(bucket, candle)
+      candleMapRef.current.set(now, candle)
       seriesRef.current?.update(candle)
 
       const qv = trades.reduce((s, t) => s + t.price * t.quantity, 0)
-      volumeBufferRef.current.set(bucket, qv)
+      volumeBufferRef.current.set(now, qv)
 
       const cutoff = now - 86400
       tradeBufferRef.current = tradeBufferRef.current.filter((t) => t.time >= cutoff)
@@ -236,7 +210,7 @@ export function BitcoinChart() {
 
   // kline WebSocket (1m, 1h, 1d)
   useEffect(() => {
-    if (interval === "1s" || interval === "30s") return
+    if (interval === "1s") return
     const cfg = INTERVAL_CONFIG[interval]
 
     const connect = () => {
@@ -279,7 +253,6 @@ export function BitcoinChart() {
             .reduce((s, [, v]) => s + v, 0)
 
         setAggVolumes({
-          "30s": sumVol(30),
           "1m":  sumVol(60),
           "1h":  sumVol(3600),
           "1d":  totalQuoteUSD,
