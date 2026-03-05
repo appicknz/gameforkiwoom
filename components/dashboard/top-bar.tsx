@@ -65,13 +65,11 @@ export function TopBar() {
         .select('id, username, role')
         .eq('id', userId)
         .single()
-      console.log("[v0] profileData:", profileData, "error:", profileError)
       if (profileData) setProfile(profileData)
     }
 
     const init = async () => {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      console.log("[v0] session:", session?.user?.id, "sessionError:", sessionError)
+      const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         setIsLoggedIn(true)
         await fetchProfile(session.user.id)
@@ -84,7 +82,6 @@ export function TopBar() {
 
     // 로그인/로그아웃 상태 변경 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("[v0] authStateChange event:", event, "userId:", session?.user?.id)
       if (session?.user) {
         setIsLoggedIn(true)
         await fetchProfile(session.user.id)

@@ -58,9 +58,6 @@ export function BitcoinChart() {
   const wsRef = useRef<WebSocket | null>(null)         // kline WS (1m/1h/1d)
   const tickerWsRef = useRef<WebSocket | null>(null)   // ticker WS (변동률)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
-  // volumeBufferRef: 시간별 거래대금 집계용 버퍼 (ticker WS에서 사용)
-  const volumeBufferRef = useRef<Map<number, number>>(new Map())
-
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [interval, setIntervalState] = useState<Interval>("1s")
@@ -250,6 +247,9 @@ export function BitcoinChart() {
 
   // 티커 WebSocket (현재가 + 거래대금 집계)
   useEffect(() => {
+    // 이 useEffect 내부에서만 사용하는 로컬 거래대금 버퍼
+    const localVolBuffer = new Map<number, number>()
+
     const connect = () => {
       const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@ticker")
       tickerWsRef.current = ws
@@ -258,8 +258,11 @@ export function BitcoinChart() {
         const totalQuoteUSD = parseFloat(d.q)
         const now = Math.floor(Date.now() / 1000)
 
+        // 현재 시각 버퍼에 저장
+        localVolBuffer.set(now, totalQuoteUSD)
+
         const sumVol = (seconds: number) =>
-          Array.from(volumeBufferRef.current.entries())
+          Array.from(localVolBuffer.entries())
             .filter(([t]) => t > now - seconds)
             .reduce((s, [, v]) => s + v, 0)
 
