@@ -2,6 +2,7 @@ import { Sidebar } from "@/components/dashboard/sidebar"
 import { Header } from "@/components/dashboard/header"
 import { StatsCards } from "@/components/dashboard/stats-cards"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
+import { BettingGame } from "@/components/dashboard/betting-game"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
 import { ProjectList } from "@/components/dashboard/project-list"
@@ -44,6 +45,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
             <div className="lg:col-span-2 space-y-3 md:space-y-4">
               <BitcoinChart />
+              <BettingGame />
               <ProjectAnalytics />
               <TeamCollaboration />
             </div>

@@ -77,6 +77,13 @@ export function BitcoinChart() {
     }
   }, [closingPrices])
 
+  // 현재가를 window 객체에 저장
+  useEffect(() => {
+    if (typeof window !== 'undefined' && ticker) {
+      (window as any).__bitcoinCurrentPrice = ticker.price
+    }
+  }, [ticker])
+
   // 30초 마감 기준가 노란색 수평선
   useEffect(() => {
     if (!seriesRef.current || closingPrices.length === 0) return
