@@ -29,22 +29,19 @@ export default function LoginPage() {
       return
     }
 
-    // 역할 확인 후 리다이렉트
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", data.user.id)
-      .single()
+    // service_role API로 role 조회 (RLS 우회)
+    const roleRes = await fetch("/api/auth/role")
+    const { role } = await roleRes.json()
 
-    if (profile?.role === "super_admin") {
+    router.refresh()
+
+    if (role === "super_admin") {
       router.push("/sogirl")
-    } else if (profile?.role === "branch_admin") {
+    } else if (role === "branch_admin") {
       router.push("/branch")
     } else {
       router.push("/")
     }
-
-    router.refresh()
   }
 
   return (

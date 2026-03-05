@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { Users, TrendingUp, Wallet, LogOut, RefreshCw } from "lucide-react"
 
@@ -31,7 +30,6 @@ export function BranchDashboard({
   branch: BranchInfo
 }) {
   const router = useRouter()
-  const supabase = createClient()
 
   const [tab, setTab] = useState<Tab>("members")
   const [members, setMembers] = useState<Member[]>([])
@@ -45,50 +43,16 @@ export function BranchDashboard({
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-
-    const [memberRes, betRes, balanceRes] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("id, username, created_at")
-        .eq("branch_id", branch.id)
-        .eq("role", "user")
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("bet_history")
-        .select("id, user_id, bet_direction, bet_digit, bet_parity, bet_amount, result, created_at, profiles(username)")
-        .eq("branch_id", branch.id)
-        .order("created_at", { ascending: false })
-        .limit(200),
-      supabase
-        .from("balances")
-        .select("user_id, amount"),
-    ])
-
-    const memberList = memberRes.data ?? []
-    const betList = betRes.data ?? []
-    const balanceList = balanceRes.data ?? []
-
-    const balanceMap = new Map(balanceList.map(b => [b.user_id, b.amount]))
-    const betsByUser = betList.reduce((acc, b) => {
-      acc[b.user_id] = acc[b.user_id] ?? { total: 0, wins: 0 }
-      acc[b.user_id].total++
-      if (b.result === "win") acc[b.user_id].wins++
-      return acc
-    }, {} as Record<string, { total: number; wins: number }>)
-
-    const enrichedMembers = memberList.map(m => ({
-      ...m,
-      balance: balanceMap.get(m.id) ?? 0,
-      bet_count: betsByUser[m.id]?.total ?? 0,
-      win_count: betsByUser[m.id]?.wins ?? 0,
-    }))
-
-    setMembers(enrichedMembers)
-    setBets(betList)
-    setTotalBets(betList.length)
-    setTotalWins(betList.filter(b => b.result === "win").length)
+    const res = await fetch("/api/branch/data")
+    if (res.ok) {
+      const json = await res.json()
+      setMembers(json.members ?? [])
+      setBets(json.bets ?? [])
+      setTotalBets(json.bets?.length ?? 0)
+      setTotalWins(json.bets?.filter((b: any) => b.result === "win").length ?? 0)
+    }
     setLoading(false)
-  }, [branch.id])
+  }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -110,7 +74,8 @@ export function BranchDashboard({
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    const { createClient } = await import("@/lib/supabase/client")
+    await createClient().auth.signOut()
     router.push("/login")
   }
 
