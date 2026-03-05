@@ -65,7 +65,7 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
             if (data.type === "closing") {
               optsRef.current.onClosingPrice?.(data.price, data.time)
-              const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+              const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices || []
               const last = prev[prev.length - 1]
               if (!last || last.time !== data.time) {
                 win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
@@ -132,7 +132,7 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         if (prevThirtyBucket === null || thirtyBucket !== prevThirtyBucket) {
           prevThirtyBucket = thirtyBucket
           optsRef.current.onClosingPrice?.(closingPrice, thirtyBucket)
-          const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+          const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices || []
           win.__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
         }
 

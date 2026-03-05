@@ -29,6 +29,8 @@ export default function SogirlLoginPage() {
       return
     }
 
+    // 쿠키가 설정된 후 서버 컴포넌트가 새 쿠키를 읽을 수 있도록 refresh 먼저
+    router.refresh()
     router.push("/sogirl")
   }
 
