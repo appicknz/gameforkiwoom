@@ -1,8 +1,11 @@
 "use client"
 
+"use client"
+
 import { useEffect, useState, useRef, useCallback } from "react"
 import { Check, X } from "lucide-react"
 import { GameChart } from "@/components/game/game-chart"
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
@@ -108,20 +111,32 @@ export default function GamePage() {
   const betParityRef = useRef<BetParity>(null)
   const basePriceRef = useRef<number | null>(null)
   const betAmountRef = useRef<BetAmount>(10000)
+  // closing prices를 ref로 관리 — window 폴링 불필요
+  const closingPricesRef = useRef<Array<{ time: number; price: number }>>([])
+  const currentPriceRef = useRef<number | null>(null)
 
   const getRoundNumber = useCallback(() => Math.floor(Date.now() / 1000 / 30), [])
 
-  // GameChart 콜백: WebSocket 체결가 직접 수신 (window 폴링 제거)
-  const handlePrice = useCallback((price: number) => {
-    setCurrentPrice(price)
-  }, [])
+  // usePriceWorker를 game page에서 직접 구독 — GameChart prop 콜백과 동일 소스
+  usePriceWorker({
+    onPrice: useCallback((price: number) => {
+      setCurrentPrice(price)
+      currentPriceRef.current = price
+    }, []),
+    onClosingPrice: useCallback((price: number, time: number) => {
+      closingPricesRef.current = [...closingPricesRef.current, { time, price }].slice(-100)
+      // 최근 끝자리 배지 업데이트
+      setRecentDigits(closingPricesRef.current.slice(-8).map((p) => Math.floor(p.price * 10) % 10))
+    }, []),
+    onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
+      closingPricesRef.current = prices
+      setRecentDigits(prices.slice(-8).map((p) => Math.floor(p.price * 10) % 10))
+    }, []),
+  })
 
-  const handleClosingPrice = useCallback((_price: number, _bucket: number) => {
-    const prices: Array<{ time: number; price: number }> =
-      (window as any).__bitcoinClosingPrices ?? []
-    const digits = prices.slice(-8).map((p) => Math.floor(p.price * 10) % 10)
-    setRecentDigits(digits)
-  }, [])
+  // GameChart props — 차트 캔들 업데이트만 담당, 가격 소스는 위 usePriceWorker와 동일
+  const handlePrice = useCallback((_price: number) => {}, [])
+  const handleClosingPrice = useCallback((_price: number, _bucket: number) => {}, [])
 
   // 라운드 타이머 + 결산
   useEffect(() => {
@@ -134,12 +149,12 @@ export default function GamePage() {
       const round = getRoundNumber()
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        const prices: Array<{ time: number; price: number }> =
-          (window as any).__bitcoinClosingPrices ?? []
+        // ref에서 직접 읽음 — window 폴링 완전 제거
+        const prices = closingPricesRef.current
         const latestClose =
           prices.length > 0
             ? prices[prices.length - 1].price
-            : (window as any).__bitcoinCurrentPrice ?? null
+            : currentPriceRef.current
 
         if (
           (betRef.current || betDigitRef.current || betParityRef.current) &&
@@ -213,9 +228,8 @@ export default function GamePage() {
   const isLocked = timeLeft <= 15
 
   const getBase = () => {
-    const prices: Array<{ time: number; price: number }> =
-      (window as any).__bitcoinClosingPrices ?? []
-    return prices.length > 0 ? prices[prices.length - 1].price : currentPrice
+    const prices = closingPricesRef.current
+    return prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
   }
 
   const placeBet = (direction: BetDirection) => {
@@ -319,15 +333,12 @@ export default function GamePage() {
           <p className="text-[8px] text-white/20 my-0.5">VS</p>
           <p className="text-[8px] text-white/30">배팅가</p>
           <p className="text-[12px] font-semibold tabular-nums text-white/60">
-            {basePrice
-              ? basePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-              : (() => {
-                  const prices: Array<{ time: number; price: number }> =
-                    typeof window !== "undefined" ? ((window as any).__bitcoinClosingPrices ?? []) : []
-                  return prices.length > 0
-                    ? prices[prices.length - 1].price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-                    : "—"
-                })()}
+            {(() => {
+              const displayPrice = basePrice ?? closingPricesRef.current[closingPricesRef.current.length - 1]?.price ?? null
+              return displayPrice
+                ? displayPrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+                : "—"
+            })()}
           </p>
         </div>
       </div>

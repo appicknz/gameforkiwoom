@@ -121,31 +121,23 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
     }
   }, [fetchInitialCandles])
 
-  // 배팅가 수평선 업데이트
-  useEffect(() => {
-    const update = () => {
-      const prices: Array<{ time: number; price: number }> =
-        (window as any).__bitcoinClosingPrices ?? []
-      if (!seriesRef.current || prices.length === 0) return
-      const latest = prices[prices.length - 1].price
-
-      if (priceLineRef.current) {
-        try { seriesRef.current.removePriceLine(priceLineRef.current) } catch {}
-      }
-      priceLineRef.current = seriesRef.current.createPriceLine({
-        price: latest,
-        color: "#facc15",
-        lineWidth: 1,
-        lineStyle: 2,
-        axisLabelVisible: true,
-        title: "배팅가",
-      })
+  // setInterval 폴링 완전 제거 — onClosingPrice 콜백에서 배팅가 수평선을 직접 업데이트
+  const updateBaseLine = useCallback((price: number) => {
+    if (!seriesRef.current) return
+    if (priceLineRef.current) {
+      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch {}
     }
-    const id = setInterval(update, 1000)
-    return () => clearInterval(id)
+    priceLineRef.current = seriesRef.current.createPriceLine({
+      price,
+      color: "#facc15",
+      lineWidth: 1,
+      lineStyle: 2,
+      axisLabelVisible: true,
+      title: "배팅가",
+    })
   }, [])
 
-  // SSE를 통해 서버가 집계한 가격을 수신 — 모든 사용자 동일 가격 보장
+  // 모든 사용자 동일 가격 보장 — usePriceWorker 단일 소스
   usePriceWorker({
     onPrice: useCallback((price, time) => {
       const bucket = time - (time % 1)
@@ -162,11 +154,16 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
       onPriceRef.current?.(price)
     }, []),
     onClosingPrice: useCallback((price, time) => {
+      // 배팅가 수평선을 콜백에서 직접 업데이트 (setInterval 불필요)
+      updateBaseLine(price)
       onClosingPriceRef.current?.(price, time)
-    }, []),
-    onInitClosing: useCallback((_prices) => {
-      // closing prices는 window에 이미 훅에서 저장됨
-    }, []),
+    }, [updateBaseLine]),
+    onInitClosing: useCallback((prices) => {
+      // 초기 로드 시 마지막 배팅가 수평선 설정
+      if (prices.length > 0) {
+        updateBaseLine(prices[prices.length - 1].price)
+      }
+    }, [updateBaseLine]),
   })
 
   return (

@@ -55,28 +55,16 @@ export function BitcoinChart() {
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
   const priceLineRef = useRef<any>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const tickerWsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)         // kline WS (1m/1h/1d)
+  const tickerWsRef = useRef<WebSocket | null>(null)   // ticker WS (변동률)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
-  // 30초봉 전용: aggTrade 버퍼
-  const tradeBufferRef = useRef<Array<{ price: number; quantity: number; time: number }>>([])
-  const secondTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  // 거래대금 집계 버퍼 (30초 버킷 단위 USD)
-  const volumeBufferRef = useRef<Map<number, number>>(new Map())
 
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [interval, setIntervalState] = useState<Interval>("1s")
   const [aggVolumes, setAggVolumes] = useState({ "1m": 0, "1h": 0, "1d": 0 })
   const [closingPrices, setClosingPrices] = useState<Array<{ time: number; price: number }>>([])
-  const prevBucketRef = useRef<number | null>(null)
-
-  // closingPrices를 window 객체에 저장해서 다른 컴포넌트에서 접근 가능하게
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).__bitcoinClosingPrices = closingPrices
-    }
-  }, [closingPrices])
+  // NOTE: window.__bitcoinClosingPrices 저장 제거 — usePriceWorker 훅이 직접 관리
 
   // 현재가 상태 (aggTrade 기반 캔들 close 가격 사용)
   const [lastCandlePrice, setLastCandlePrice] = useState<number | null>(null)

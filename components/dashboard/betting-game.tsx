@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { TrendingUp, TrendingDown, Clock } from "lucide-react"
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
@@ -41,6 +42,8 @@ export function BettingGame() {
   const betParityRef = useRef<BetParity>(null)
   const basePriceRef = useRef<number | null>(null)
   const roundRef = useRef<number>(0)
+  const closingPricesRef = useRef<Array<{ time: number; price: number }>>([])
+  const currentPriceRef = useRef<number | null>(null)
 
   // 서버 시간 기준 현재 라운드 번호 (00초 또는 30초 기준)
   const getRoundNumber = useCallback(() => {
@@ -48,15 +51,20 @@ export function BettingGame() {
     return Math.floor(now / 30)
   }, [])
 
-  // 현재가 polling
-  useEffect(() => {
-    const poll = setInterval(() => {
-      if (typeof window !== "undefined" && (window as any).__bitcoinCurrentPrice) {
-        setCurrentPrice((window as any).__bitcoinCurrentPrice)
-      }
-    }, 500)
-    return () => clearInterval(poll)
-  }, [])
+  // usePriceWorker로 현재가 직접 수신 (window 폴링 완전 제거)
+  usePriceWorker({
+    onPrice: useCallback((price: number) => {
+      setCurrentPrice(price)
+      currentPriceRef.current = price
+    }, []),
+    onClosingPrice: useCallback((price: number, time: number) => {
+      // closingPrices를 ref로 관리해 라운드 정산에 사용
+      closingPricesRef.current = [...closingPricesRef.current, { time, price }].slice(-100)
+    }, []),
+    onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
+      closingPricesRef.current = prices
+    }, []),
+  })
 
   // 라운드 관리 타이머
   useEffect(() => {
@@ -71,14 +79,12 @@ export function BettingGame() {
 
       // 새 라운드 시작 시
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        // 이전 라운드 결산
-        const currentPriceNow = (window as any).__bitcoinCurrentPrice ?? null
-        const closingPrices: Array<{ time: number; price: number }> =
-          (window as any).__bitcoinClosingPrices ?? []
+        // 이전 라운드 결산 — window 폴링 없이 ref에서 직접 읽음
+        const prices = closingPricesRef.current
         const latestClose =
-          closingPrices.length > 0
-            ? closingPrices[closingPrices.length - 1].price
-            : currentPriceNow
+          prices.length > 0
+            ? prices[prices.length - 1].price
+            : currentPriceRef.current
 
         if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null && latestClose !== null) {
           const lastDigit = Math.floor(latestClose * 10) % 10
@@ -139,13 +145,10 @@ export function BettingGame() {
     return () => clearInterval(tick)
   }, [getRoundNumber])
 
-  // 공통 기준가 세팅
+  // 공통 기준가 세팅 — ref에서 직접 읽음, window 불필요
   const getBase = () => {
-    const closingPrices: Array<{ time: number; price: number }> =
-      (window as any).__bitcoinClosingPrices ?? []
-    return closingPrices.length > 0
-      ? closingPrices[closingPrices.length - 1].price
-      : currentPrice
+    const prices = closingPricesRef.current
+    return prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
   }
 
   // 배팅 가능: 30~18초 구간 (timeLeft > 15 && timeLeft > 18 즉 18초 초과)
