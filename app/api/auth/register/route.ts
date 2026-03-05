@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,12 +28,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '이미 사용 중인 아이디입니다.' }, { status: 409 })
   }
 
-  // Supabase Auth 유저 생성 (이메일은 내부용 가상 이메일)
-  const email = `${username}@game.local`
+  // Supabase Auth 유저 생성
+  // 이메일 검증 우회: uuid@noreply.app 형식 사용 후 phone_confirmed 처리
+  const uid = randomUUID()
+  const email = `${uid}@noreply.app`
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
+    user_metadata: { username },
   })
 
   if (authError) {
