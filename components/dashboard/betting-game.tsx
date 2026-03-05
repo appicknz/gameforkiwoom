@@ -215,7 +215,7 @@ export function BettingGame() {
 
   return (
     <Card className="p-4 bg-background border border-border/60">
-      {/* 타이틀 + 라운드 + 상태 */}
+      {/* 타이틀 + 라운드 */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-foreground">배팅 게임</h3>
@@ -223,52 +223,12 @@ export function BettingGame() {
             #{roundNumber}
           </span>
         </div>
-
-        {/* 상태 표시 영역: 배팅 없음 → 승/패 누적, 배팅 중 → 선택 현황, 결과 → 결과 */}
-        <div className="text-right">
-          {phase === "result" && lastResult ? (
-            <div className="flex gap-1">
-              {lastResult.direction && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonDirection ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
-                  {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
-                </span>
-              )}
-              {lastResult.digit && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonDigit ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
-                  {lastResult.digit === "over" ? "오버" : "언더"} {lastResult.wonDigit ? "승" : "패"}
-                </span>
-              )}
-              {lastResult.parity && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonParity ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
-                  {lastResult.parity === "odd" ? "홀" : "짝"} {lastResult.wonParity ? "승" : "패"}
-                </span>
-              )}
-            </div>
-          ) : (betDirection || betDigit || betParity) ? (
-            <div className="flex gap-1">
-              {betDirection && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${betDirection === "long" ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
-                  {betDirection === "long" ? "롱" : "숏"}
-                </span>
-              )}
-              {betDigit && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-500">
-                  {betDigit === "over" ? "오버" : "언더"}
-                </span>
-              )}
-              {betParity && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${betParity === "odd" ? "bg-violet-500/10 text-violet-500" : "bg-pink-500/10 text-pink-500"}`}>
-                  {betParity === "odd" ? "홀" : "짝"}
-                </span>
-              )}
-            </div>
-          ) : (
-            <span className="text-[11px] text-muted-foreground">
-              <span className="text-emerald-500 font-semibold">{wins}승</span>
-              {" / "}
-              <span className="text-red-500 font-semibold">{losses}패</span>
-            </span>
-          )}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-muted-foreground">
+            <span className="text-emerald-500 font-semibold">{wins}승</span>
+            {" / "}
+            <span className="text-red-500 font-semibold">{losses}패</span>
+          </span>
         </div>
       </div>
 
@@ -314,6 +274,32 @@ export function BettingGame() {
             <p className={`font-semibold tabular-nums ${isUp ? "text-emerald-500" : "text-red-500"}`}>
               ${currentPrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* 결과 표시 */}
+      {phase === "result" && lastResult && (
+        <div className="mb-3 rounded-lg px-4 py-2.5 border border-border/40 bg-muted/30 space-y-1">
+          <p className="text-[11px] text-muted-foreground text-center">
+            마감가 ${lastResult.closePrice.toFixed(1)} (끝자리: {Math.floor(lastResult.closePrice * 10) % 10})
+          </p>
+          <div className="flex gap-2">
+            {lastResult.direction && (
+              <div className={`flex-1 text-center text-xs font-bold py-1 rounded-lg ${lastResult.wonDirection ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승리" : "패배"}
+              </div>
+            )}
+            {lastResult.digit && (
+              <div className={`flex-1 text-center text-xs font-bold py-1 rounded-lg ${lastResult.wonDigit ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                {lastResult.digit === "under" ? "언더" : "오버"} {lastResult.wonDigit ? "승리" : "패배"}
+              </div>
+            )}
+            {lastResult.parity && (
+              <div className={`flex-1 text-center text-xs font-bold py-1 rounded-lg ${lastResult.wonParity ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                {lastResult.parity === "odd" ? "홀" : "짝"} {lastResult.wonParity ? "승리" : "패배"}
+              </div>
+            )}
           </div>
         </div>
       )}
