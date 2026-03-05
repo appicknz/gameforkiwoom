@@ -1,7 +1,5 @@
 "use client"
 
-"use client"
-
 import { useEffect, useState, useRef, useCallback } from "react"
 import { Check, X } from "lucide-react"
 import { GameChart } from "@/components/game/game-chart"

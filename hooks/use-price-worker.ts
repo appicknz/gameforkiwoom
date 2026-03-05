@@ -141,9 +141,9 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
           prevThirtyBucket = thirtyBucket
           optsRef.current.onClosingPrice?.(closingPrice, thirtyBucket)
           if (typeof window !== "undefined") {
-            const prev: Array<{ time: number; price: number }> =
-              (window as any).__bitcoinClosingPrices ?? [];
-            ;(window as any).__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
+            const win = window as any
+            const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+            win.__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
           }
         }
 
