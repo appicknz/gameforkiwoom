@@ -148,7 +148,7 @@ export function BettingGame() {
       : currentPrice
   }
 
-  const canBet = phase === "betting" && timeLeft > 2
+  const canBet = (phase === "betting" || phase === "waiting") && timeLeft > 2
 
   // 롱/숏 배팅 처리
   const placeBet = (direction: BetDirection) => {
@@ -159,7 +159,7 @@ export function BettingGame() {
     basePriceRef.current = base
     setBetDirection(direction)
     setBasePrice(base)
-    if (betDigit !== null) setPhase("waiting")
+    setPhase("waiting")
   }
 
   // 언더/오버 배팅 처리
@@ -171,7 +171,7 @@ export function BettingGame() {
     basePriceRef.current = base
     setBetDigit(digit)
     setBasePrice(base)
-    if (betDirection !== null) setPhase("waiting")
+    setPhase("waiting")
   }
 
   // 홀/짝 배팅 처리
@@ -183,7 +183,7 @@ export function BettingGame() {
     basePriceRef.current = base
     setBetParity(parity)
     setBasePrice(base)
-    if (betDirection !== null || betDigit !== null) setPhase("waiting")
+    setPhase("waiting")
   }
 
   const priceDiff =
