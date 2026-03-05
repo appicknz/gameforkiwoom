@@ -70,10 +70,10 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
               optsRef.current.onClosingPrice?.(data.price, data.time)
               if (typeof window !== "undefined") {
                 const prev: Array<{ time: number; price: number }> =
-                  (window as any).__bitcoinClosingPrices ?? []
+                  (window as any).__bitcoinClosingPrices ?? [];
                 const last = prev[prev.length - 1]
                 if (!last || last.time !== data.time) {
-                  (window as any).__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
+                  ;(window as any).__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
                 }
               }
             }
@@ -142,8 +142,8 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
           optsRef.current.onClosingPrice?.(closingPrice, thirtyBucket)
           if (typeof window !== "undefined") {
             const prev: Array<{ time: number; price: number }> =
-              (window as any).__bitcoinClosingPrices ?? []
-            (window as any).__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
+              (window as any).__bitcoinClosingPrices ?? [];
+            ;(window as any).__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
           }
         }
 
