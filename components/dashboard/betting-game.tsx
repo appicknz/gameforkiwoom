@@ -7,15 +7,18 @@ import { TrendingUp, TrendingDown, Clock } from "lucide-react"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
+type BetParity = "odd" | "even" | null
 
 interface RoundResult {
   round: number
   direction: BetDirection
   digit: BetDigit
+  parity: BetParity
   basePrice: number
   closePrice: number
   wonDirection: boolean
   wonDigit: boolean
+  wonParity: boolean
 }
 
 export function BettingGame() {
@@ -23,6 +26,7 @@ export function BettingGame() {
   const [roundNumber, setRoundNumber] = useState(0)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
   const [betDigit, setBetDigit] = useState<BetDigit>(null)
+  const [betParity, setBetParity] = useState<BetParity>(null)
   const [basePrice, setBasePrice] = useState<number | null>(null)
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
   const [phase, setPhase] = useState<"betting" | "waiting" | "result">("betting")
@@ -34,6 +38,7 @@ export function BettingGame() {
   const prevRoundRef = useRef<number | null>(null)
   const betRef = useRef<BetDirection>(null)
   const betDigitRef = useRef<BetDigit>(null)
+  const betParityRef = useRef<BetParity>(null)
   const basePriceRef = useRef<number | null>(null)
   const roundRef = useRef<number>(0)
 
@@ -75,7 +80,7 @@ export function BettingGame() {
             ? closingPrices[closingPrices.length - 1].price
             : currentPriceNow
 
-        if ((betRef.current || betDigitRef.current) && basePriceRef.current !== null && latestClose !== null) {
+        if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null && latestClose !== null) {
           const lastDigit = Math.floor(latestClose * 10) % 10
           const wonDirection = betRef.current
             ? betRef.current === "long"
@@ -84,23 +89,30 @@ export function BettingGame() {
             : false
           const wonDigit = betDigitRef.current
             ? betDigitRef.current === "under"
-              ? lastDigit >= 0 && lastDigit <= 4
-              : lastDigit >= 5 && lastDigit <= 9
+              ? lastDigit <= 4
+              : lastDigit >= 5
+            : false
+          const wonParity = betParityRef.current
+            ? betParityRef.current === "odd"
+              ? lastDigit % 2 !== 0
+              : lastDigit % 2 === 0
             : false
 
           const result: RoundResult = {
             round: roundRef.current,
             direction: betRef.current,
             digit: betDigitRef.current,
+            parity: betParityRef.current,
             basePrice: basePriceRef.current,
             closePrice: latestClose,
             wonDirection,
             wonDigit,
+            wonParity,
           }
           setLastResult(result)
           setResults((prev) => [result, ...prev].slice(0, 20))
-          const anyWon = (betRef.current && wonDirection) || (betDigitRef.current && wonDigit)
-          const anyLost = (betRef.current && !wonDirection) || (betDigitRef.current && !wonDigit)
+          const anyWon = (betRef.current && wonDirection) || (betDigitRef.current && wonDigit) || (betParityRef.current && wonParity)
+          const anyLost = (betRef.current && !wonDirection) || (betDigitRef.current && !wonDigit) || (betParityRef.current && !wonParity)
           if (anyWon) setWins((w) => w + 1)
           if (anyLost) setLosses((l) => l + 1)
           setPhase("result")
@@ -109,8 +121,10 @@ export function BettingGame() {
         // 새 라운드 초기화
         betRef.current = null
         betDigitRef.current = null
+        betParityRef.current = null
         setBetDirection(null)
         setBetDigit(null)
+        setBetParity(null)
         setBasePrice(null)
         basePriceRef.current = null
 
@@ -158,6 +172,18 @@ export function BettingGame() {
     setBetDigit(digit)
     setBasePrice(base)
     if (betDirection !== null) setPhase("waiting")
+  }
+
+  // 홀/짝 배팅 처리
+  const placeParityBet = (parity: BetParity) => {
+    if (!canBet || betParity !== null) return
+    const base = getBase()
+    if (!base) return
+    betParityRef.current = parity
+    basePriceRef.current = base
+    setBetParity(parity)
+    setBasePrice(base)
+    if (betDirection !== null || betDigit !== null) setPhase("waiting")
   }
 
   const priceDiff =
@@ -251,6 +277,11 @@ export function BettingGame() {
                 {lastResult.digit === "under" ? "언더" : "오버"} {lastResult.wonDigit ? "승리" : "패배"}
               </div>
             )}
+            {lastResult.parity && (
+              <div className={`flex-1 text-center text-xs font-bold py-1 rounded-lg ${lastResult.wonParity ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                {lastResult.parity === "odd" ? "홀" : "짝"} {lastResult.wonParity ? "승리" : "패배"}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -284,7 +315,7 @@ export function BettingGame() {
       </div>
 
       {/* 언더 / 오버 버튼 */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 mb-2">
         <Button
           onClick={() => placeDigitBet("under")}
           disabled={!canBet || betDigit !== null}
@@ -309,10 +340,36 @@ export function BettingGame() {
         </Button>
       </div>
 
+      {/* 홀 / 짝 버튼 */}
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          onClick={() => placeParityBet("odd")}
+          disabled={!canBet || betParity !== null}
+          className={`h-10 text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
+            betParity === "odd"
+              ? "bg-violet-600 hover:bg-violet-600 text-white shadow-lg shadow-violet-500/30 scale-[1.02]"
+              : "bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 border border-violet-500/30"
+          }`}
+        >
+          홀 (1·3·5·7·9)
+        </Button>
+        <Button
+          onClick={() => placeParityBet("even")}
+          disabled={!canBet || betParity !== null}
+          className={`h-10 text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
+            betParity === "even"
+              ? "bg-pink-600 hover:bg-pink-600 text-white shadow-lg shadow-pink-500/30 scale-[1.02]"
+              : "bg-pink-500/10 hover:bg-pink-500/20 text-pink-500 border border-pink-500/30"
+          }`}
+        >
+          짝 (0·2·4·6·8)
+        </Button>
+      </div>
+
       {/* 배팅 상태 안내 */}
       <p className="text-center text-[10px] text-muted-foreground mt-2">
-        {canBet && !betDirection && !betDigit && "롱/숏 또는 언더/오버를 선택하세요 (각각 독립 배팅)"}
-        {canBet && (betDirection || betDigit) && "추가 배팅 가능"}
+        {canBet && !betDirection && !betDigit && !betParity && "롱/숏, 언더/오버, 홀/짝 각각 독립 배팅 가능"}
+        {canBet && (betDirection || betDigit || betParity) && "추가 배팅 가능"}
         {phase === "betting" && timeLeft <= 2 && "마감 임박 - 배팅 불가"}
         {phase === "waiting" && "배팅 완료 - 라운드 마감 대기 중"}
         {phase === "result" && "새 라운드 준비 중..."}
