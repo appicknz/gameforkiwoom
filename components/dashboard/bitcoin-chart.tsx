@@ -55,19 +55,21 @@ export function BitcoinChart() {
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
   const priceLineRef = useRef<any>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const tickerWsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)         // kline WS (1m/1h/1d)
+  const tickerWsRef = useRef<WebSocket | null>(null)   // ticker WS (변동률)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
-  const volBufferRef = useRef<Map<number, number>>(new Map())
-  const tradeBufferRef = useRef<any[]>([])
 
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [interval, setIntervalState] = useState<Interval>("1s")
   const [aggVolumes, setAggVolumes] = useState({ "1m": 0, "1h": 0, "1d": 0 })
   const [closingPrices, setClosingPrices] = useState<Array<{ time: number; price: number }>>([])
+  // NOTE: window.__bitcoinClosingPrices 저장 제거 — usePriceWorker 훅이 직접 관리
+
+  // 현재가 상태 (aggTrade 기반 캔들 close 가격 사용)
   const [lastCandlePrice, setLastCandlePrice] = useState<number | null>(null)
 
+  // 30초 마감 기준가 노란색 수평선
   useEffect(() => {
     if (!seriesRef.current || closingPrices.length === 0) return
     const latestPrice = closingPrices[closingPrices.length - 1].price
@@ -79,12 +81,13 @@ export function BitcoinChart() {
       price: latestPrice,
       color: "#facc15",
       lineWidth: 1,
-      lineStyle: 2,
+      lineStyle: 2, // dashed
       axisLabelVisible: true,
       title: "배팅가",
     })
   }, [closingPrices])
 
+  // 초기 캔들 데이터 로드
   const fetchInitialCandles = useCallback(async (sel: Interval): Promise<CandleData[]> => {
     const cfg = INTERVAL_CONFIG[sel]
     try {
@@ -107,6 +110,7 @@ export function BitcoinChart() {
     }
   }, [])
 
+  // 차트 초기화 (interval 변경 시 재생성)
   useEffect(() => {
     if (!chartContainerRef.current) return
 
@@ -179,6 +183,7 @@ export function BitcoinChart() {
     }
   }, [interval, fetchInitialCandles])
 
+  // SSE를 통해 서버가 집계한 가격을 수신 — 모든 사용자 동일 가격 보장
   usePriceWorker({
     onConnected: useCallback(() => setConnected(true), []),
     onDisconnected: useCallback(() => setConnected(false), []),
@@ -190,6 +195,7 @@ export function BitcoinChart() {
       const bucketSize = interval === "30s" ? 30 : 1
       const bucket = time - (time % bucketSize)
 
+      // 기존 캔들에서 open 유지, close/high/low 업데이트
       const existing = candleMapRef.current.get(bucket)
       const candle: CandleData = {
         time:  bucket,
@@ -211,6 +217,7 @@ export function BitcoinChart() {
     }, []),
   })
 
+  // kline WebSocket (1m, 1h, 1d)
   useEffect(() => {
     if (interval === "1s" || interval === "30s") return
     const cfg = INTERVAL_CONFIG[interval]
@@ -239,6 +246,7 @@ export function BitcoinChart() {
     return () => { wsRef.current?.close() }
   }, [interval])
 
+  // 티커 WebSocket (현재가 + 거래대금 집계)
   useEffect(() => {
     const connect = () => {
       const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@ticker")
@@ -248,10 +256,8 @@ export function BitcoinChart() {
         const totalQuoteUSD = parseFloat(d.q)
         const now = Math.floor(Date.now() / 1000)
 
-        volBufferRef.current.set(now, totalQuoteUSD)
-
         const sumVol = (seconds: number) =>
-          Array.from(volBufferRef.current.entries())
+          Array.from(volumeBufferRef.current.entries())
             .filter(([t]) => t > now - seconds)
             .reduce((s, [, v]) => s + v, 0)
 
@@ -282,7 +288,9 @@ export function BitcoinChart() {
 
   return (
     <Card className="p-4 bg-background border border-border/60">
+      {/* 헤더 1행: 배팅 기준가(왼) + 현재가(오) */}
       <div className="flex items-start justify-between gap-2 mb-[6px]">
+        {/* 왼쪽: 로고 + 배팅 기준가 + 인터벌 버튼 */}
         <div className="flex items-start gap-2.5 min-w-0">
           <img
             src="/bitcoin-logo.png"
@@ -316,6 +324,7 @@ export function BitcoinChart() {
           </div>
         </div>
 
+        {/* 오른쪽: 현재가 + 변동률 */}
         <div className="shrink-0 text-right">
           {lastCandlePrice ? (
             <>
@@ -336,9 +345,11 @@ export function BitcoinChart() {
         </div>
       </div>
 
+      {/* 차트 */}
       <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
         <div ref={chartContainerRef} className="w-full h-full" />
         
+        {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래, 시간 위) */}
         {ticker && (
           <div className="absolute bottom-8 left-2 bg-background/75 backdrop-blur-sm px-2 py-1 rounded border border-border/40 text-[10px] text-muted-foreground z-10">
             <div>거래량: <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
