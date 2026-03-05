@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -17,19 +17,18 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
 
+    // 아이디를 내부 이메일 형식으로 변환
+    const email = `${username.trim().toLowerCase()}@game.local`
+
     const supabase = createClient()
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (authError) {
-      setError("이메일 또는 비밀번호가 올바르지 않습니다.")
+      setError("아이디 또는 비밀번호가 올바르지 않습니다.")
       setLoading(false)
       return
     }
 
-    // service_role API로 role 조회 (RLS 우회)
     const roleRes = await fetch("/api/auth/role")
     const { role } = await roleRes.json()
 
@@ -47,7 +46,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        {/* 로고 */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary mb-4">
             <span className="text-primary-foreground font-bold text-xl">B</span>
@@ -56,17 +54,17 @@ export default function LoginPage() {
           <p className="text-muted-foreground text-sm mt-1">계정에 접속하세요</p>
         </div>
 
-        {/* 폼 */}
         <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">이메일</label>
+              <label className="text-sm font-medium text-foreground">아이디</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="example@email.com"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="아이디 입력"
                 required
+                autoComplete="username"
                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition"
               />
             </div>
@@ -79,6 +77,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
+                autoComplete="current-password"
                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition"
               />
             </div>
@@ -99,7 +98,6 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* 하단 링크 */}
         <div className="flex flex-col gap-2 mt-4 text-center">
           <p className="text-sm text-muted-foreground">
             계정이 없으신가요?{" "}

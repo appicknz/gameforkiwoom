@@ -9,7 +9,6 @@ export default function RegisterPage() {
   const router = useRouter()
   const [form, setForm] = useState({
     username: "",
-    email: "",
     password: "",
     passwordConfirm: "",
     branchCode: "",
@@ -25,12 +24,16 @@ export default function RegisterPage() {
     e.preventDefault()
     setError(null)
 
+    if (!form.username.trim()) {
+      setError("아이디를 입력해주세요.")
+      return
+    }
     if (form.password !== form.passwordConfirm) {
       setError("비밀번호가 일치하지 않습니다.")
       return
     }
-    if (form.password.length < 6) {
-      setError("비밀번호는 6자 이상이어야 합니다.")
+    if (form.password.length < 4) {
+      setError("비밀번호는 4자 이상이어야 합니다.")
       return
     }
     if (!form.branchCode.trim()) {
@@ -39,43 +42,40 @@ export default function RegisterPage() {
     }
 
     setLoading(true)
+
+    // 아이디를 내부 이메일 형식으로 변환
+    const email = `${form.username.trim().toLowerCase()}@game.local`
+    const branchCode = form.branchCode.trim().toUpperCase()
+
     const supabase = createClient()
 
-    // 지점 코드 유효성 사전 확인
-    const { data: branch, error: branchError } = await supabase
-      .from("branches")
-      .select("id, status")
-      .eq("code", form.branchCode.trim().toUpperCase())
-      .single()
+    // 지점 코드 유효성 확인 (API 통해서)
+    const branchRes = await fetch(`/api/branch/check?code=${branchCode}`)
+    const branchData = await branchRes.json()
 
-    if (branchError || !branch) {
-      setError("유효하지 않은 지점 코드입니다.")
-      setLoading(false)
-      return
-    }
-
-    if (branch.status !== "approved") {
-      setError("승인되지 않은 지점 코드입니다.")
+    if (!branchData.valid) {
+      setError(branchData.error ?? "유효하지 않은 지점 코드입니다.")
       setLoading(false)
       return
     }
 
     const { error: authError } = await supabase.auth.signUp({
-      email: form.email,
+      email,
       password: form.password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
         data: {
-          username: form.username,
-          branch_code: form.branchCode.trim().toUpperCase(),
+          username: form.username.trim(),
+          branch_code: branchCode,
         },
       },
     })
 
     if (authError) {
-      setError(authError.message === "User already registered"
-        ? "이미 사용 중인 이메일입니다."
-        : "회원가입 중 오류가 발생했습니다.")
+      if (authError.message.includes("already registered") || authError.message.includes("already been registered")) {
+        setError("이미 사용 중인 아이디입니다.")
+      } else {
+        setError("회원가입 중 오류가 발생했습니다: " + authError.message)
+      }
       setLoading(false)
       return
     }
@@ -86,7 +86,6 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        {/* 로고 */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary mb-4">
             <span className="text-primary-foreground font-bold text-xl">B</span>
@@ -111,27 +110,15 @@ export default function RegisterPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">닉네임</label>
+              <label className="text-sm font-medium text-foreground">아이디</label>
               <input
                 type="text"
                 name="username"
                 value={form.username}
                 onChange={handleChange}
-                placeholder="사용할 닉네임"
+                placeholder="사용할 아이디"
                 required
-                className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">이메일</label>
-              <input
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder="example@email.com"
-                required
+                autoComplete="username"
                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition"
               />
             </div>
@@ -143,8 +130,9 @@ export default function RegisterPage() {
                 name="password"
                 value={form.password}
                 onChange={handleChange}
-                placeholder="6자 이상"
+                placeholder="4자 이상"
                 required
+                autoComplete="new-password"
                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition"
               />
             </div>
@@ -158,6 +146,7 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 placeholder="비밀번호 재입력"
                 required
+                autoComplete="new-password"
                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition"
               />
             </div>
