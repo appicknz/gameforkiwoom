@@ -15,7 +15,12 @@ const BG = "#0a0e1a"
 const GRID = "rgba(255,255,255,0.04)"
 const TEXT = "rgba(255,255,255,0.35)"
 
-export function GameChart() {
+interface GameChartProps {
+  onPrice?: (price: number) => void
+  onClosingPrice?: (price: number, bucket: number) => void
+}
+
+export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
@@ -24,6 +29,11 @@ export function GameChart() {
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
   const tradeBufferRef = useRef<Array<{ price: number; quantity: number; time: number }>>([])
   const prevBucketRef = useRef<number | null>(null)
+  const onPriceRef = useRef(onPrice)
+  const onClosingPriceRef = useRef(onClosingPrice)
+
+  useEffect(() => { onPriceRef.current = onPrice }, [onPrice])
+  useEffect(() => { onClosingPriceRef.current = onClosingPrice }, [onClosingPrice])
 
   const fetchInitialCandles = useCallback(async (): Promise<CandleData[]> => {
     try {
@@ -173,7 +183,8 @@ export function GameChart() {
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
 
-      // 현재가 공유
+      // 콜백으로 현재가 전달 (+ window 호환성 유지)
+      onPriceRef.current?.(closingPrice)
       if (typeof window !== "undefined") {
         (window as any).__bitcoinCurrentPrice = closingPrice
       }
@@ -186,6 +197,7 @@ export function GameChart() {
           (window as any).__bitcoinClosingPrices ?? []
         const updated = [...prev, { time: thirtySecBucket, price: closingPrice }].slice(-100)
         ;(window as any).__bitcoinClosingPrices = updated
+        onClosingPriceRef.current?.(closingPrice, thirtySecBucket)
       }
 
       const cutoff = now - 86400

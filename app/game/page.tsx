@@ -111,24 +111,16 @@ export default function GamePage() {
 
   const getRoundNumber = useCallback(() => Math.floor(Date.now() / 1000 / 30), [])
 
-  // 현재가 polling
-  useEffect(() => {
-    const id = setInterval(() => {
-      const p = (window as any).__bitcoinCurrentPrice
-      if (p) setCurrentPrice(p)
-    }, 200)
-    return () => clearInterval(id)
+  // GameChart 콜백: WebSocket 체결가 직접 수신 (window 폴링 제거)
+  const handlePrice = useCallback((price: number) => {
+    setCurrentPrice(price)
   }, [])
 
-  // 최근 끝자리 배지
-  useEffect(() => {
-    const id = setInterval(() => {
-      const prices: Array<{ time: number; price: number }> =
-        (window as any).__bitcoinClosingPrices ?? []
-      const digits = prices.slice(-8).map((p) => Math.floor(p.price * 10) % 10)
-      setRecentDigits(digits)
-    }, 500)
-    return () => clearInterval(id)
+  const handleClosingPrice = useCallback((_price: number, _bucket: number) => {
+    const prices: Array<{ time: number; price: number }> =
+      (window as any).__bitcoinClosingPrices ?? []
+    const digits = prices.slice(-8).map((p) => Math.floor(p.price * 10) % 10)
+    setRecentDigits(digits)
   }, [])
 
   // 라운드 타이머 + 결산
@@ -366,7 +358,7 @@ export default function GamePage() {
 
       {/* 차트 */}
       <div className="relative mx-4 rounded-xl overflow-hidden border border-white/5 shrink-0" style={{ height: 148 }}>
-        <GameChart />
+        <GameChart onPrice={handlePrice} onClosingPrice={handleClosingPrice} />
       </div>
 
       {/* 타이머 상태 라벨 */}
