@@ -1,20 +1,14 @@
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
 import { SogirlDashboard } from "@/components/admin/sogirl-dashboard"
 
 export default async function SogirlPage() {
-  const supabase = await createClient()
+  const cookieStore = await cookies()
+  const adminCookie = cookieStore.get("sogirl_admin")
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  if (adminCookie?.value !== "1") {
+    redirect("/sogirl/login")
+  }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, username")
-    .eq("id", user.id)
-    .single()
-
-  if (profile?.role !== "super_admin") redirect("/")
-
-  return <SogirlDashboard adminName={profile.username ?? "관리자"} />
+  return <SogirlDashboard adminName="본사 관리자" />
 }

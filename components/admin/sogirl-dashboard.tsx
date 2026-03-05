@@ -135,8 +135,8 @@ export function SogirlDashboard({ adminName }: { adminName: string }) {
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/login")
+    await fetch("/api/sogirl/logout", { method: "POST" })
+    router.push("/sogirl/login")
   }
 
   const fmtBalance = (n: number) =>
