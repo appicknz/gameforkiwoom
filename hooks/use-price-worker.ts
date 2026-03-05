@@ -29,6 +29,7 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
   useEffect(() => {
     if (typeof window === "undefined") return
 
+    // window를 변수로 분리해 ASI 파싱 오류 방지
     const win = window as any
     let ws: WebSocket | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null

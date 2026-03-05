@@ -30,10 +30,9 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  // 보호된 경로 정의
-  const isProtectedRoute =
-    pathname === '/' ||
-    pathname.startsWith('/game') ||
+  // /와 /game은 누구나 접근 가능 (공개 페이지)
+  // /branch, /sogirl은 로그인 필요 (관리자 전용)
+  const isAdminRoute =
     pathname.startsWith('/branch') ||
     pathname.startsWith('/sogirl')
 
@@ -41,8 +40,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/register')
 
-  // 비로그인 상태에서 보호된 경로 접근 → 로그인 페이지로
-  if (isProtectedRoute && !user) {
+  // 비로그인 상태에서 관리자 경로 접근 → 로그인 페이지로
+  if (isAdminRoute && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
@@ -56,7 +55,6 @@ export async function updateSession(request: NextRequest) {
   }
 
   // 역할 기반 접근 제어는 각 페이지에서 처리
-  // (미들웨어에서 DB 조회는 성능 저하 — 페이지 레벨에서 처리)
 
   return supabaseResponse
 }
