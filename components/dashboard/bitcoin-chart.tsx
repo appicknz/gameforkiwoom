@@ -58,6 +58,7 @@ export function BitcoinChart() {
   const wsRef = useRef<WebSocket | null>(null)         // kline WS (1m/1h/1d)
   const tickerWsRef = useRef<WebSocket | null>(null)   // ticker WS (변동률)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
+  // volumeBufferRef: 시간별 거래대금 집계용 버퍼 (ticker WS에서 사용)
   const volumeBufferRef = useRef<Map<number, number>>(new Map())
 
   const [ticker, setTicker] = useState<TickerData | null>(null)

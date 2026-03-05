@@ -59,18 +59,22 @@ export function TopBar() {
   )
 
   useEffect(() => {
+    const fetchProfile = async (userId: string) => {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, role')
+        .eq('id', userId)
+        .single()
+      console.log("[v0] profileData:", profileData, "error:", profileError)
+      if (profileData) setProfile(profileData)
+    }
+
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      console.log("[v0] session:", session?.user?.id, "sessionError:", sessionError)
       if (session?.user) {
         setIsLoggedIn(true)
-        // 클라이언트에서 직접 profiles 테이블 조회
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('id, username, role, created_at')
-          .eq('id', session.user.id)
-          .single()
-        if (profileData) setProfile(profileData)
-        // 잔고 조회
+        await fetchProfile(session.user.id)
         fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
       } else {
         setIsLoggedIn(false)
@@ -80,14 +84,10 @@ export function TopBar() {
 
     // 로그인/로그아웃 상태 변경 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("[v0] authStateChange event:", event, "userId:", session?.user?.id)
       if (session?.user) {
         setIsLoggedIn(true)
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('id, username, role, created_at')
-          .eq('id', session.user.id)
-          .single()
-        if (profileData) setProfile(profileData)
+        await fetchProfile(session.user.id)
         fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
       } else {
         setIsLoggedIn(false)
