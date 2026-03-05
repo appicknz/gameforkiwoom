@@ -1,5 +1,4 @@
 import { Sidebar } from "@/components/dashboard/sidebar"
-import { Header } from "@/components/dashboard/header"
 import { StatsCards } from "@/components/dashboard/stats-cards"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import { BettingGame } from "@/components/dashboard/betting-game"
@@ -11,7 +10,6 @@ import { ProjectProgress } from "@/components/dashboard/project-progress"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { MobileAppCard } from "@/components/dashboard/mobile-app-card"
 import { TimeTracker } from "@/components/dashboard/time-tracker"
-import { Button } from "@/components/ui/button"
 
 export default function DashboardPage() {
   return (
@@ -21,24 +19,6 @@ export default function DashboardPage() {
       </div>
 
       <main className="flex-1 p-3 md:p-4 lg:p-5 lg:ml-64">
-        <Header
-          title="Dashboard"
-          description="Plan, prioritize, and accomplish your tasks with ease."
-          actions={
-            <>
-              <Button className="w-full sm:w-auto h-9 text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 hover:shadow-lg hover:shadow-primary/30 hover:scale-105">
-                + Add Project
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto h-9 text-sm transition-all duration-300 hover:shadow-md hover:scale-105 bg-transparent"
-              >
-                Import Data
-              </Button>
-            </>
-          }
-        />
-
         <div className="mt-4 md:mt-5 space-y-3 md:space-y-4">
           <StatsCards />
 
