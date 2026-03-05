@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useCallback } from "react"
 import { Card } from "@/components/ui/card"
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 interface ClosingPrice {
   time: number
@@ -11,19 +12,17 @@ interface ClosingPrice {
 export function ClosingPrices() {
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (typeof window !== 'undefined' && (window as any).__bitcoinClosingPrices) {
-        setClosingPrices((window as any).__bitcoinClosingPrices)
-      }
-    }, 500)
+  // window 폴링 제거 — usePriceWorker 콜백으로 직접 업데이트
+  usePriceWorker({
+    onClosingPrice: useCallback((price: number, time: number) => {
+      setClosingPrices((prev) => [...prev, { time, price }].slice(-100))
+    }, []),
+    onInitClosing: useCallback((prices: ClosingPrice[]) => {
+      setClosingPrices(prices)
+    }, []),
+  })
 
-    return () => clearInterval(interval)
-  }, [])
-
-  if (closingPrices.length === 0) {
-    return null
-  }
+  if (closingPrices.length === 0) return null
 
   const displayPrices = closingPrices.slice(-10).reverse()
 
@@ -43,10 +42,10 @@ export function ClosingPrices() {
               }`}
             >
               <div className="text-[10px] text-muted-foreground font-medium mb-1">
-                {new Date(item.time * 1000).toLocaleTimeString('ko-KR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
+                {new Date(item.time * 1000).toLocaleTimeString("ko-KR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
                 })}
               </div>
               <div className="text-sm font-bold text-foreground">

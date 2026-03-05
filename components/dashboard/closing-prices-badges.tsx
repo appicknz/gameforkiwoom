@@ -1,26 +1,26 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useCallback } from "react"
 import { Card } from "@/components/ui/card"
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 export function ClosingPricesBadges() {
   const [lastDigits, setLastDigits] = useState<number[]>([])
 
-  useEffect(() => {
-    const updateDigits = () => {
-      const closingPrices = (window as any).__bitcoinClosingPrices || []
-      const digits = closingPrices.map((item: { price: number }) => {
-        const priceStr = item.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-        const lastChar = priceStr[priceStr.length - 1]
-        return parseInt(lastChar) || 0
-      })
-      setLastDigits(digits.slice(-10).reverse()) // 최근 10개
-    }
-
-    updateDigits()
-    const interval = setInterval(updateDigits, 1000)
-    return () => clearInterval(interval)
-  }, [])
+  // window 폴링 제거 — usePriceWorker 콜백으로 직접 업데이트
+  usePriceWorker({
+    onClosingPrice: useCallback((price: number, _time: number) => {
+      const digit = Math.floor(price * 10) % 10
+      setLastDigits((prev) => [...prev, digit].slice(-10).reverse().slice(0, 10))
+    }, []),
+    onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
+      const digits = prices
+        .slice(-10)
+        .reverse()
+        .map((item) => Math.floor(item.price * 10) % 10)
+      setLastDigits(digits)
+    }, []),
+  })
 
   return (
     <Card className="p-6 transition-all duration-500 hover:shadow-xl animate-slide-in-up" style={{ animationDelay: "500ms" }}>

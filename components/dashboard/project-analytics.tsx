@@ -1,43 +1,44 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import { useState, useEffect } from "react"
+import { useState, useCallback } from "react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts"
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 interface ClosingPrice {
   time: number
   price: number
 }
 
+function buildChartData(prices: ClosingPrice[]) {
+  const recent = prices.slice(-100)
+  const digitCounts = Array(10).fill(0)
+  recent.forEach((item) => {
+    const lastDigit = Math.floor(item.price * 10) % 10
+    digitCounts[lastDigit]++
+  })
+  return digitCounts.map((count, digit) => ({ digit: digit.toString(), count }))
+}
+
 export function ProjectAnalytics() {
   const [chartData, setChartData] = useState<Array<{ digit: string; count: number }>>([])
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
+  const [pricesRef, setPricesRef] = useState<ClosingPrice[]>([])
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (typeof window !== 'undefined' && (window as any).__bitcoinClosingPrices) {
-        const closingPrices: ClosingPrice[] = (window as any).__bitcoinClosingPrices
-        
-        // 최근 100개 중에서 끝자리 분포 계산
-        const recentPrices = closingPrices.slice(-100)
-        const digitCounts = Array(10).fill(0)
-        
-        recentPrices.forEach((item) => {
-          const lastDigit = Math.floor(item.price * 10) % 10
-          digitCounts[lastDigit]++
-        })
-        
-        const newChartData = digitCounts.map((count, digit) => ({
-          digit: digit.toString(),
-          count: count,
-        }))
-        
-        setChartData(newChartData)
-      }
-    }, 500)
-
-    return () => clearInterval(interval)
-  }, [])
+  // window 폴링 제거 — usePriceWorker 콜백으로 직접 업데이트
+  usePriceWorker({
+    onClosingPrice: useCallback((price: number, time: number) => {
+      // state로 직접 관리 — window 참조 완전 제거
+      setPricesRef((prev) => {
+        const next = [...prev, { time, price }].slice(-100)
+        setChartData(buildChartData(next))
+        return next
+      })
+    }, []),
+    onInitClosing: useCallback((prices: ClosingPrice[]) => {
+      setChartData(buildChartData(prices))
+    }, []),
+  })
 
   const maxValue = chartData.length > 0 ? Math.max(...chartData.map((d) => d.count)) : 0
   const average = chartData.length > 0 ? Math.round(chartData.reduce((acc, d) => acc + d.count, 0) / chartData.length) : 0
@@ -82,38 +83,23 @@ export function ProjectAnalytics() {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted/20" />
-            <XAxis
-              dataKey="digit"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "currentColor", fontSize: 14 }}
-              className="text-muted-foreground"
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "currentColor", fontSize: 12 }}
-              className="text-muted-foreground"
-            />
+            <XAxis dataKey="digit" axisLine={false} tickLine={false} tick={{ fill: "currentColor", fontSize: 14 }} className="text-muted-foreground" />
+            <YAxis axisLine={false} tickLine={false} tick={{ fill: "currentColor", fontSize: 12 }} className="text-muted-foreground" />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "transparent" }} />
             <Bar
               dataKey="count"
               fill="url(#barGradient)"
               radius={[12, 12, 12, 12]}
               maxBarSize={60}
-              onMouseEnter={(data, index) => setHoveredBar(index)}
+              onMouseEnter={(_data: any, index: number) => setHoveredBar(index)}
               onMouseLeave={() => setHoveredBar(null)}
             >
-              {chartData.map((entry, index) => (
+              {chartData.map((_, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={barColors[index]}
                   className="transition-all duration-300"
-                  style={{
-                    filter:
-                      hoveredBar === index ? "brightness(1.2) drop-shadow(0 4px 8px rgba(5, 150, 105, 0.4))" : "none",
-                    transformOrigin: "center bottom",
-                  }}
+                  style={{ filter: hoveredBar === index ? "brightness(1.2) drop-shadow(0 4px 8px rgba(5, 150, 105, 0.4))" : "none" }}
                 />
               ))}
             </Bar>
@@ -121,7 +107,6 @@ export function ProjectAnalytics() {
         </ResponsiveContainer>
       </div>
 
-      {/* Summary stats */}
       <div className="pt-4 border-t border-muted/50 flex items-center justify-between">
         <div className="text-sm">
           <span className="text-muted-foreground">평균: </span>
