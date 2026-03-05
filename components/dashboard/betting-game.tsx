@@ -215,21 +215,69 @@ export function BettingGame() {
 
   return (
     <Card className="p-4 bg-background border border-border/60">
-      {/* 타이틀 + 라운드 */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-foreground">배팅 게임</h3>
-          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-            #{roundNumber}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
+      {/* 타이틀 + 라운드 — 배팅/결과 정보는 이 영역에 오버레이 */}
+      <div className="relative mb-3">
+        {/* 기본: 타이틀 + 승패 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-foreground">배팅 게임</h3>
+            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              #{roundNumber}
+            </span>
+          </div>
           <span className="text-[11px] text-muted-foreground">
             <span className="text-emerald-500 font-semibold">{wins}승</span>
             {" / "}
             <span className="text-red-500 font-semibold">{losses}패</span>
           </span>
         </div>
+
+        {/* 오버레이: 배팅 기준가 / 현재가 */}
+        {basePrice !== null && currentPrice !== null && phase !== "result" && (
+          <div className="absolute inset-0 flex items-center justify-between bg-background/95 rounded-lg px-1">
+            <div>
+              <p className="text-[9px] text-muted-foreground">배팅 기준가</p>
+              <p className="text-xs font-semibold tabular-nums text-foreground">
+                ${basePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              </p>
+            </div>
+            <div className={`text-xs font-bold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
+              {isUp ? "▲" : "▼"} {Math.abs(priceDiff!).toFixed(1)}
+            </div>
+            <div className="text-right">
+              <p className="text-[9px] text-muted-foreground">현재가</p>
+              <p className={`text-xs font-semibold tabular-nums ${isUp ? "text-emerald-500" : "text-red-500"}`}>
+                ${currentPrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 오버레이: 라운드 결과 */}
+        {phase === "result" && lastResult && (
+          <div className="absolute inset-0 flex items-center justify-between bg-background/95 rounded-lg px-1 gap-1">
+            <p className="text-[10px] text-muted-foreground shrink-0">
+              끝자리 {Math.floor(lastResult.closePrice * 10) % 10}
+            </p>
+            <div className="flex gap-1">
+              {lastResult.direction && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonDirection ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                  {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
+                </span>
+              )}
+              {lastResult.digit && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonDigit ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                  {lastResult.digit === "over" ? "오버" : "언더"} {lastResult.wonDigit ? "승" : "패"}
+                </span>
+              )}
+              {lastResult.parity && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonParity ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                  {lastResult.parity === "odd" ? "홀" : "짝"} {lastResult.wonParity ? "승" : "패"}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 타이머 바 */}
@@ -256,53 +304,6 @@ export function BettingGame() {
           />
         </div>
       </div>
-
-      {/* 기준가 vs 현재가 */}
-      {basePrice !== null && currentPrice !== null && (
-        <div className="flex items-center justify-between mb-3 text-[11px] bg-muted/40 rounded-lg px-3 py-2">
-          <div>
-            <p className="text-muted-foreground">배팅 기준가</p>
-            <p className="font-semibold tabular-nums text-foreground">
-              ${basePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-            </p>
-          </div>
-          <div className={`text-xs font-bold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-            {isUp ? "▲" : "▼"} {Math.abs(priceDiff!).toFixed(1)}
-          </div>
-          <div className="text-right">
-            <p className="text-muted-foreground">현재가</p>
-            <p className={`font-semibold tabular-nums ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-              ${currentPrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* 결과 표시 */}
-      {phase === "result" && lastResult && (
-        <div className="mb-3 rounded-lg px-4 py-2.5 border border-border/40 bg-muted/30 space-y-1">
-          <p className="text-[11px] text-muted-foreground text-center">
-            마감가 ${lastResult.closePrice.toFixed(1)} (끝자리: {Math.floor(lastResult.closePrice * 10) % 10})
-          </p>
-          <div className="flex gap-2">
-            {lastResult.direction && (
-              <div className={`flex-1 text-center text-xs font-bold py-1 rounded-lg ${lastResult.wonDirection ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
-                {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승리" : "패배"}
-              </div>
-            )}
-            {lastResult.digit && (
-              <div className={`flex-1 text-center text-xs font-bold py-1 rounded-lg ${lastResult.wonDigit ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
-                {lastResult.digit === "under" ? "언더" : "오버"} {lastResult.wonDigit ? "승리" : "패배"}
-              </div>
-            )}
-            {lastResult.parity && (
-              <div className={`flex-1 text-center text-xs font-bold py-1 rounded-lg ${lastResult.wonParity ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
-                {lastResult.parity === "odd" ? "홀" : "짝"} {lastResult.wonParity ? "승리" : "패배"}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* 3그룹 버튼: 롱/숏 | 오버/언더 | 홀/짝 */}
       <div className="grid grid-cols-3 gap-2">
