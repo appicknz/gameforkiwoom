@@ -58,6 +58,8 @@ export function BitcoinChart() {
   const wsRef = useRef<WebSocket | null>(null)         // kline WS (1m/1h/1d)
   const tickerWsRef = useRef<WebSocket | null>(null)   // ticker WS (변동률)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
+  const volumeBufferRef = useRef<Map<number, number>>(new Map()) // 거래대금 버퍼
+  const tradeBufferRef = useRef<any[]>([])
 
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
@@ -255,6 +257,9 @@ export function BitcoinChart() {
         const d = JSON.parse(e.data)
         const totalQuoteUSD = parseFloat(d.q)
         const now = Math.floor(Date.now() / 1000)
+
+        // volumeBufferRef에 현재 거래대금 저장
+        volumeBufferRef.current.set(now, totalQuoteUSD)
 
         const sumVol = (seconds: number) =>
           Array.from(volumeBufferRef.current.entries())
