@@ -29,11 +29,11 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
   useEffect(() => {
     if (typeof window === "undefined") return
 
+    const win = window as any
     let ws: WebSocket | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
 
-    // price-server에 연결 (미설정 시 Binance 직접 연결)
     const serverUrl = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
 
     if (serverUrl) {
@@ -48,36 +48,29 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
         ws.onmessage = (event) => {
           try {
-            const data = JSON.parse(event.data)
+            const data = JSON.parse(event.data as string)
 
             if (data.type === "init") {
               optsRef.current.onInitClosing?.(data.closingPrices)
-              if (typeof window !== "undefined") {
-                (window as any).__bitcoinClosingPrices = data.closingPrices
-              }
+              win.__bitcoinClosingPrices = data.closingPrices
               return
             }
 
             if (data.type === "price") {
               optsRef.current.onPrice?.(data.price, data.time)
-              if (typeof window !== "undefined") {
-                (window as any).__bitcoinCurrentPrice = data.price
-              }
+              win.__bitcoinCurrentPrice = data.price
               return
             }
 
             if (data.type === "closing") {
               optsRef.current.onClosingPrice?.(data.price, data.time)
-              if (typeof window !== "undefined") {
-                const win = window as any
-                const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-                const last = prev[prev.length - 1]
-                if (!last || last.time !== data.time) {
-                  win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
-                }
+              const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+              const last = prev[prev.length - 1]
+              if (!last || last.time !== data.time) {
+                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
               }
             }
-          } catch {}
+          } catch { /* ignore malformed messages */ }
         }
 
         ws.onclose = () => {
@@ -107,12 +100,12 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
         ws.onmessage = (event) => {
           try {
-            const msg = JSON.parse(event.data)
+            const msg = JSON.parse(event.data as string)
             tradeBuffer.push({
               price: parseFloat(msg.p),
               time: Math.floor(msg.T / 1000),
             })
-          } catch {}
+          } catch { /* ignore */ }
         }
 
         ws.onclose = () => {
@@ -132,19 +125,14 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
         const closingPrice = trades[trades.length - 1].price
         optsRef.current.onPrice?.(closingPrice, now)
-        if (typeof window !== "undefined") {
-          (window as any).__bitcoinCurrentPrice = closingPrice
-        }
+        win.__bitcoinCurrentPrice = closingPrice
 
         const thirtyBucket = now - (now % 30)
         if (prevThirtyBucket === null || thirtyBucket !== prevThirtyBucket) {
           prevThirtyBucket = thirtyBucket
           optsRef.current.onClosingPrice?.(closingPrice, thirtyBucket)
-          if (typeof window !== "undefined") {
-            const win = window as any
-            const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-            win.__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
-          }
+          const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+          win.__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
         }
 
         const cutoff = now - 300
