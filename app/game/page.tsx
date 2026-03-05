@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { Check, X } from "lucide-react"
 import { GameChart } from "@/components/game/game-chart"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+import useSWR from "swr"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
@@ -31,8 +32,9 @@ const BET_AMOUNTS: { label: string; value: BetAmount }[] = [
   { label: "1백만", value: 1000000 },
 ]
 
-const INITIAL_BALANCE = 1_000_000
 const PAYOUT_RATIO = 0.95 // 이기면 배팅금의 95% 수익
+
+const fetcher = (url: string) => fetch(url).then(r => r.json())
 
 function CircularTimer({ timeLeft, total = 30 }: { timeLeft: number; total?: number }) {
   const r = 34
@@ -98,7 +100,10 @@ export default function GamePage() {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
   const [phase, setPhase] = useState<"betting" | "waiting" | "result">("betting")
   const [lastResult, setLastResult] = useState<RoundResult | null>(null)
-  const [balance, setBalance] = useState(INITIAL_BALANCE)
+  // 잔고 — Supabase API에서 조회 (SWR 캐싱)
+  const { data: balanceData, mutate: mutateBalance } = useSWR("/api/balance", fetcher, { refreshInterval: 30000 })
+  const [balance, setBalance] = useState<number>(0)
+  const balanceRef = useRef<number>(0)
   const [roundCount, setRoundCount] = useState(0)
   const [recentDigits, setRecentDigits] = useState<number[]>([])
   const [showResult, setShowResult] = useState(false)
@@ -112,6 +117,14 @@ export default function GamePage() {
   // closing prices를 ref로 관리 — window 폴링 불필요
   const closingPricesRef = useRef<Array<{ time: number; price: number }>>([])
   const currentPriceRef = useRef<number | null>(null)
+
+  // SWR 잔고가 업데이트되면 local state에 반영
+  useEffect(() => {
+    if (balanceData?.balance !== undefined) {
+      setBalance(balanceData.balance)
+      balanceRef.current = balanceData.balance
+    }
+  }, [balanceData])
 
   const getRoundNumber = useCallback(() => Math.floor(Date.now() / 1000 / 30), [])
 
@@ -197,7 +210,17 @@ export default function GamePage() {
           }
           setLastResult(result)
           setRoundCount((c) => c + 1)
-          setBalance((b) => Math.max(0, b + profit))
+
+          // Supabase 잔고 정산 (fire-and-forget, 로컬 state는 낙관적 업데이트)
+          const optimisticBalance = Math.max(0, balanceRef.current + profit)
+          setBalance(optimisticBalance)
+          balanceRef.current = optimisticBalance
+          fetch("/api/balance/settle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ wonCount, betAmount: betAmountRef.current }),
+          }).then(() => mutateBalance())
+
           setPhase("result")
           setShowResult(true)
 
@@ -527,6 +550,25 @@ export default function GamePage() {
       <div className="mx-4 mt-2 mb-1 shrink-0">
         <button
           disabled={selectedCount === 0 || !canBet}
+          onClick={async () => {
+            if (selectedCount === 0 || !canBet) return
+            // 종목별 배팅금 차감 — selectedCount개 만큼
+            const res = await fetch("/api/balance/bet", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                betAmount: totalBet,
+                betDirection: betDirection ?? undefined,
+                betDigit: betDigit ?? undefined,
+                betParity: betParity ?? undefined,
+              }),
+            })
+            if (res.ok) {
+              const data = await res.json()
+              setBalance(data.balance)
+              balanceRef.current = data.balance
+            }
+          }}
           className="w-full py-3.5 rounded-xl text-[13px] font-bold transition-all duration-200"
           style={{
             background: selectedCount > 0 && canBet
