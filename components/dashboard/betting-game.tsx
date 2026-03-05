@@ -286,84 +286,91 @@ export function BettingGame() {
         </div>
       )}
 
-      {/* 롱 / 숏 버튼 */}
-      <div className="grid grid-cols-2 gap-2 mb-2">
-        <Button
-          onClick={() => placeBet("long")}
-          disabled={!canBet || betDirection !== null}
-          className={`h-12 text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
-            betDirection === "long"
-              ? "bg-emerald-600 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 scale-[1.02]"
-              : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30"
-          }`}
-        >
-          <TrendingUp className="w-4 h-4" />
-          롱
-        </Button>
-        <Button
-          onClick={() => placeBet("short")}
-          disabled={!canBet || betDirection !== null}
-          className={`h-12 text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
-            betDirection === "short"
-              ? "bg-red-600 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 scale-[1.02]"
-              : "bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30"
-          }`}
-        >
-          <TrendingDown className="w-4 h-4" />
-          숏
-        </Button>
-      </div>
+      {/* 3그룹 버튼: 롱/숏 | 오버/언더 | 홀/짝 */}
+      <div className="grid grid-cols-3 gap-2">
+        {/* 그룹 1: 롱 / 숏 */}
+        <div className="flex flex-col gap-2">
+          <Button
+            onClick={() => placeBet("long")}
+            disabled={!canBet || betDirection !== null}
+            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1 ${
+              betDirection === "long"
+                ? "bg-emerald-600 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 scale-[1.02]"
+                : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30"
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            롱
+          </Button>
+          <Button
+            onClick={() => placeBet("short")}
+            disabled={!canBet || betDirection !== null}
+            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1 ${
+              betDirection === "short"
+                ? "bg-red-600 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 scale-[1.02]"
+                : "bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30"
+            }`}
+          >
+            <TrendingDown className="w-3.5 h-3.5" />
+            숏
+          </Button>
+        </div>
 
-      {/* 언더 / 오버 버튼 */}
-      <div className="grid grid-cols-2 gap-2 mb-2">
-        <Button
-          onClick={() => placeDigitBet("under")}
-          disabled={!canBet || betDigit !== null}
-          className={`h-10 text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
-            betDigit === "under"
-              ? "bg-blue-600 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-[1.02]"
-              : "bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/30"
-          }`}
-        >
-          언더 (0~4)
-        </Button>
-        <Button
-          onClick={() => placeDigitBet("over")}
-          disabled={!canBet || betDigit !== null}
-          className={`h-10 text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
-            betDigit === "over"
-              ? "bg-orange-600 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/30 scale-[1.02]"
-              : "bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 border border-orange-500/30"
-          }`}
-        >
-          오버 (5~9)
-        </Button>
-      </div>
+        {/* 그룹 2: 오버 / 언더 */}
+        <div className="flex flex-col gap-2">
+          <Button
+            onClick={() => placeDigitBet("over")}
+            disabled={!canBet || betDigit !== null}
+            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
+              betDigit === "over"
+                ? "bg-orange-600 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/30 scale-[1.02]"
+                : "bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 border border-orange-500/30"
+            }`}
+          >
+            <span>오버</span>
+            <span className="text-[9px] opacity-70">5~9</span>
+          </Button>
+          <Button
+            onClick={() => placeDigitBet("under")}
+            disabled={!canBet || betDigit !== null}
+            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
+              betDigit === "under"
+                ? "bg-blue-600 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-[1.02]"
+                : "bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/30"
+            }`}
+          >
+            <span>언더</span>
+            <span className="text-[9px] opacity-70">0~4</span>
+          </Button>
+        </div>
 
-      {/* 홀 / 짝 버튼 */}
-      <div className="grid grid-cols-2 gap-2">
-        <Button
-          onClick={() => placeParityBet("odd")}
-          disabled={!canBet || betParity !== null}
-          className={`h-10 text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
-            betParity === "odd"
-              ? "bg-violet-600 hover:bg-violet-600 text-white shadow-lg shadow-violet-500/30 scale-[1.02]"
-              : "bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 border border-violet-500/30"
-          }`}
-        >
-          홀 (1·3·5·7·9)
-        </Button>
-        <Button
-          onClick={() => placeParityBet("even")}
-          disabled={!canBet || betParity !== null}
-          className={`h-10 text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
-            betParity === "even"
-              ? "bg-pink-600 hover:bg-pink-600 text-white shadow-lg shadow-pink-500/30 scale-[1.02]"
-              : "bg-pink-500/10 hover:bg-pink-500/20 text-pink-500 border border-pink-500/30"
-          }`}
-        >
-          짝 (0·2·4·6·8)
-        </Button>
+        {/* 그룹 3: 홀 / 짝 */}
+        <div className="flex flex-col gap-2">
+          <Button
+            onClick={() => placeParityBet("odd")}
+            disabled={!canBet || betParity !== null}
+            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
+              betParity === "odd"
+                ? "bg-violet-600 hover:bg-violet-600 text-white shadow-lg shadow-violet-500/30 scale-[1.02]"
+                : "bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 border border-violet-500/30"
+            }`}
+          >
+            <span>홀</span>
+            <span className="text-[9px] opacity-70">1·3·5·7·9</span>
+          </Button>
+          <Button
+            onClick={() => placeParityBet("even")}
+            disabled={!canBet || betParity !== null}
+            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
+              betParity === "even"
+                ? "bg-pink-600 hover:bg-pink-600 text-white shadow-lg shadow-pink-500/30 scale-[1.02]"
+                : "bg-pink-500/10 hover:bg-pink-500/20 text-pink-500 border border-pink-500/30"
+            }`}
+          >
+            <span>짝</span>
+            <span className="text-[9px] opacity-70">0·2·4·6·8</span>
+          </Button>
+        </div>
       </div>
 
       {/* 배팅 상태 안내 */}
