@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useCallback } from "react"
 import { createChart, ColorType } from "lightweight-charts"
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 interface CandleData {
   time: number
@@ -25,7 +26,6 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
   const priceLineRef = useRef<any>(null)
-  const wsRef = useRef<WebSocket | null>(null)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
   const tradeBufferRef = useRef<Array<{ price: number; quantity: number; time: number }>>([])
   const prevBucketRef = useRef<number | null>(null)
@@ -147,23 +147,15 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
     return () => clearInterval(id)
   }, [])
 
-  // aggTrade WebSocket
-  useEffect(() => {
-    const connect = () => {
-      const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
-      wsRef.current = ws
-      ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data)
-        tradeBufferRef.current.push({
-          price: parseFloat(msg.p),
-          quantity: parseFloat(msg.q),
-          time: Math.floor(msg.T / 1000),
-        })
-      }
-      ws.onclose = () => setTimeout(connect, 3000)
-    }
-    connect()
+  // SharedWorker를 통해 모든 탭이 동일한 aggTrade 스트림 수신
+  usePriceWorker({
+    onTrade: useCallback((msg) => {
+      tradeBufferRef.current.push({ price: msg.price, quantity: msg.quantity, time: msg.time })
+    }, []),
+  })
 
+  // 1초 버킷 집계 타이머
+  useEffect(() => {
     const processCandle = () => {
       const now = Math.floor(Date.now() / 1000)
       const bucket = now - (now % 1)
@@ -183,13 +175,11 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
 
-      // 콜백으로 현재가 전달 (+ window 호환성 유지)
       onPriceRef.current?.(closingPrice)
       if (typeof window !== "undefined") {
         (window as any).__bitcoinCurrentPrice = closingPrice
       }
 
-      // 30초 마감가 기록
       const thirtySecBucket = now - (now % 30)
       if (prevBucketRef.current === null || thirtySecBucket !== prevBucketRef.current) {
         prevBucketRef.current = thirtySecBucket
@@ -205,10 +195,7 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
     }
 
     const timer = setInterval(processCandle, 1000)
-    return () => {
-      wsRef.current?.close()
-      clearInterval(timer)
-    }
+    return () => clearInterval(timer)
   }, [])
 
   return (

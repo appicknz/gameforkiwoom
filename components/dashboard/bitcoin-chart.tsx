@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { TrendingUp, TrendingDown, Wifi, WifiOff } from "lucide-react"
 import { createChart, ColorType } from "lightweight-charts"
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 interface CandleData {
   time: number
@@ -194,30 +195,26 @@ export function BitcoinChart() {
     }
   }, [interval, fetchInitialCandles])
 
-  // 1초봉 / 30초봉: aggTrade WebSocket
+  // SharedWorker를 통해 모든 탭이 동일한 aggTrade 스트림 수신
+  const bucketSizeRef = useRef(interval === "30s" ? 30 : 1)
+  useEffect(() => {
+    bucketSizeRef.current = interval === "30s" ? 30 : 1
+  }, [interval])
+
+  usePriceWorker({
+    onConnected: () => setConnected(true),
+    onDisconnected: () => setConnected(false),
+    onTrade: useCallback((msg) => {
+      if (interval !== "1s" && interval !== "30s") return
+      tradeBufferRef.current.push({ price: msg.price, quantity: msg.quantity, time: msg.time })
+    }, [interval]),
+  })
+
+  // 1초 버킷 집계 타이머
   useEffect(() => {
     if (interval !== "1s" && interval !== "30s") return
+    const bucketSize = bucketSizeRef.current
 
-    const bucketSize = interval === "1s" ? 1 : 30
-
-    const connect = () => {
-      const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
-      wsRef.current = ws
-      ws.onopen = () => setConnected(true)
-      ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data)
-        tradeBufferRef.current.push({
-          price:    parseFloat(msg.p),
-          quantity: parseFloat(msg.q),
-          time:     Math.floor(msg.T / 1000),
-        })
-      }
-      ws.onerror = () => setConnected(false)
-      ws.onclose = () => { setConnected(false); setTimeout(connect, 3000) }
-    }
-    connect()
-
-    // 버킷 단위로 캔들 집계
     const processCandle = () => {
       const now = Math.floor(Date.now() / 1000)
       const bucket = now - (now % bucketSize)
@@ -226,7 +223,7 @@ export function BitcoinChart() {
 
       const prices = trades.map((t) => t.price)
       const closingPrice = prices[prices.length - 1]
-      
+
       const candle: CandleData = {
         time:  bucket,
         open:  prices[0],
@@ -237,20 +234,15 @@ export function BitcoinChart() {
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
 
-      // 차트 라벨과 동일한 소스로 현재가 업데이트
       setLastCandlePrice(closingPrice)
       if (typeof window !== "undefined") {
         (window as any).__bitcoinCurrentPrice = closingPrice
       }
 
-      // 30초마다 마감 가격 기록 (모든 인터벌에서)
       const thirtySecBucket = now - (now % 30)
       if (prevBucketRef.current === null || thirtySecBucket !== prevBucketRef.current) {
         prevBucketRef.current = thirtySecBucket
-        setClosingPrices((prev) => {
-          const updated = [...prev, { time: thirtySecBucket, price: closingPrice }]
-          return updated.slice(-100) // 최근 100개만 유지
-        })
+        setClosingPrices((prev) => [...prev, { time: thirtySecBucket, price: closingPrice }].slice(-100))
       }
 
       const qv = trades.reduce((s, t) => s + t.price * t.quantity, 0)
@@ -261,9 +253,7 @@ export function BitcoinChart() {
     }
 
     secondTimerRef.current = setInterval(processCandle, 1000)
-
     return () => {
-      wsRef.current?.close()
       if (secondTimerRef.current) clearInterval(secondTimerRef.current)
     }
   }, [interval])
