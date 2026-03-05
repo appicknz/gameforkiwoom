@@ -299,14 +299,10 @@ function BetHistoryTable() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from("bet_history")
-      .select("*, profiles(username)")
-      .order("created_at", { ascending: false })
-      .limit(100)
-      .then(({ data }) => {
-        setBets(data ?? [])
+    fetch("/api/sogirl/bets")
+      .then(r => r.json())
+      .then(json => {
+        setBets(json.bets ?? [])
         setLoading(false)
       })
   }, [])
