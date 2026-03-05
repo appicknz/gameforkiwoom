@@ -61,17 +61,41 @@ export function TopBar() {
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
+      if (session?.user) {
         setIsLoggedIn(true)
+        // 클라이언트에서 직접 profiles 테이블 조회
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('id, username, role, created_at')
+          .eq('id', session.user.id)
+          .single()
+        if (profileData) setProfile(profileData)
+        // 잔고 조회
         fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
-        fetch("/api/user/profile").then(r => r.json()).then(d => {
-          if (d.profile) setProfile(d.profile)
-        })
       } else {
         setIsLoggedIn(false)
       }
     }
     init()
+
+    // 로그인/로그아웃 상태 변경 감지
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setIsLoggedIn(true)
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('id, username, role, created_at')
+          .eq('id', session.user.id)
+          .single()
+        if (profileData) setProfile(profileData)
+        fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
+      } else {
+        setIsLoggedIn(false)
+        setProfile(null)
+        setBalance(0)
+      }
+    })
+    return () => subscription.unsubscribe()
   }, [])
 
   // 드롭다운 외부 클릭 시 닫기
