@@ -1,6 +1,6 @@
 "use client"
 
-import { Menu, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus } from "lucide-react"
+import { Menu, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState, useEffect, useRef } from "react"
@@ -18,6 +18,16 @@ export function TopBar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // --- 비로그인 탭 ---
+  const [authTab, setAuthTab] = useState<"login" | "register">("login")
+
+  // --- 로그인 폼 ---
+  const [loginUsername, setLoginUsername] = useState("")
+  const [loginPw, setLoginPw] = useState("")
+  const [showLoginPw, setShowLoginPw] = useState(false)
+  const [loginMsg, setLoginMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [loginLoading, setLoginLoading] = useState(false)
 
   // --- 가입 폼 상태 (비로그인) ---
   const [regUsername, setRegUsername] = useState("")
@@ -74,6 +84,42 @@ export function TopBar() {
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
   }, [])
+
+  // 로그인
+  const handleLogin = async () => {
+    setLoginMsg(null)
+    if (!loginUsername.trim()) return setLoginMsg({ text: "아이디를 입력해주세요.", ok: false })
+    if (!loginPw) return setLoginMsg({ text: "비밀번호를 입력해주세요.", ok: false })
+
+    setLoginLoading(true)
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: loginUsername, password: loginPw }),
+    })
+    const data = await res.json()
+
+    if (!res.ok) {
+      setLoginLoading(false)
+      return setLoginMsg({ text: data.error ?? "로그인에 실패했습니다.", ok: false })
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: loginPw,
+    })
+
+    setLoginLoading(false)
+
+    if (signInError) {
+      return setLoginMsg({ text: "아이디 또는 비밀번호가 올바르지 않습니다.", ok: false })
+    }
+
+    setIsLoggedIn(true)
+    setDropdownOpen(false)
+    setLoginUsername(""); setLoginPw("")
+    window.location.reload()
+  }
 
   // 가입하기
   const handleRegister = async () => {
@@ -214,70 +260,94 @@ export function TopBar() {
           {dropdownOpen && (
             <div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-xl shadow-xl z-50">
 
-              {/* ===== 비로그인: 가입 폼 ===== */}
+              {/* ===== 비로그인: 로그인 / 가입 탭 ===== */}
               {!isLoggedIn && (
                 <>
-                  <div className="px-4 pt-4 pb-2">
-                    <p className="text-sm font-semibold text-foreground mb-3">회원가입</p>
+                  {/* 탭 */}
+                  <div className="flex border-b border-border">
+                    <button
+                      onClick={() => { setAuthTab("login"); setLoginMsg(null) }}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-colors ${authTab === "login" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <LogIn className="w-3.5 h-3.5" /> 로그인
+                    </button>
+                    <button
+                      onClick={() => { setAuthTab("register"); setRegMsg(null) }}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-colors ${authTab === "register" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <UserPlus className="w-3.5 h-3.5" /> 회원가입
+                    </button>
+                  </div>
 
-                    {/* 아이디 */}
-                    <div className="space-y-2">
-                      <div className="relative">
-                        <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                        <input
-                          type="text"
-                          placeholder="아이디"
-                          value={regUsername}
-                          onChange={e => setRegUsername(e.target.value)}
-                          className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                      </div>
+                  <div className="px-4 py-3 space-y-2">
+                    {/* 로그인 폼 */}
+                    {authTab === "login" && (
+                      <>
+                        <div className="relative">
+                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <input type="text" placeholder="아이디" value={loginUsername}
+                            onChange={e => setLoginUsername(e.target.value)}
+                            className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                        <div className="relative">
+                          <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <input type={showLoginPw ? "text" : "password"} placeholder="비밀번호"
+                            value={loginPw} onChange={e => setLoginPw(e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && handleLogin()}
+                            className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          <button type="button" onClick={() => setShowLoginPw(v => !v)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            {showLoginPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                        {loginMsg && <p className={`text-xs ${loginMsg.ok ? "text-primary" : "text-destructive"}`}>{loginMsg.text}</p>}
+                        <Button className="w-full h-9 text-sm" onClick={handleLogin} disabled={loginLoading}>
+                          {loginLoading ? "로그인 중..." : "로그인"}
+                        </Button>
+                      </>
+                    )}
 
-                      {/* 비밀번호 */}
-                      <div className="relative">
-                        <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                        <input
-                          type={showRegPw ? "text" : "password"}
-                          placeholder="비밀번호"
-                          value={regPw}
-                          onChange={e => setRegPw(e.target.value)}
-                          className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                        <button type="button" onClick={() => setShowRegPw(v => !v)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
-                          {showRegPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-
-                      {/* 비밀번호 확인 */}
-                      <div className="relative">
-                        <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                        <input
-                          type={showRegConfirm ? "text" : "password"}
-                          placeholder="비밀번호 확인"
-                          value={regConfirmPw}
-                          onChange={e => setRegConfirmPw(e.target.value)}
-                          onKeyDown={e => e.key === "Enter" && handleRegister()}
-                          className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                        <button type="button" onClick={() => setShowRegConfirm(v => !v)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
-                          {showRegConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-
-                      {regMsg && (
-                        <p className={`text-xs ${regMsg.ok ? "text-primary" : "text-destructive"}`}>{regMsg.text}</p>
-                      )}
-
-                      <Button
-                        className="w-full h-9 text-sm"
-                        onClick={handleRegister}
-                        disabled={regLoading}
-                      >
-                        {regLoading ? "처리 중..." : "가입하기"}
-                      </Button>
-                    </div>
+                    {/* 가입 폼 */}
+                    {authTab === "register" && (
+                      <>
+                        <div className="relative">
+                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <input type="text" placeholder="아이디" value={regUsername}
+                            onChange={e => setRegUsername(e.target.value)}
+                            className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                        <div className="relative">
+                          <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <input type={showRegPw ? "text" : "password"} placeholder="비밀번호"
+                            value={regPw} onChange={e => setRegPw(e.target.value)}
+                            className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          <button type="button" onClick={() => setShowRegPw(v => !v)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            {showRegPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <input type={showRegConfirm ? "text" : "password"} placeholder="비밀번호 확인"
+                            value={regConfirmPw} onChange={e => setRegConfirmPw(e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && handleRegister()}
+                            className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          <button type="button" onClick={() => setShowRegConfirm(v => !v)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            {showRegConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                        {regMsg && <p className={`text-xs ${regMsg.ok ? "text-primary" : "text-destructive"}`}>{regMsg.text}</p>}
+                        <Button className="w-full h-9 text-sm" onClick={handleRegister} disabled={regLoading}>
+                          {regLoading ? "처리 중..." : "가입하기"}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </>
               )}
