@@ -30,7 +30,6 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
     if (typeof window === "undefined") return
 
     // window를 변수로 분리해 ASI 파싱 오류 방지
-    const win = window as any
     let ws: WebSocket | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
@@ -53,22 +52,22 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
             if (data.type === "init") {
               optsRef.current.onInitClosing?.(data.closingPrices)
-              win.__bitcoinClosingPrices = data.closingPrices
+              ;(window as any).__bitcoinClosingPrices = data.closingPrices
               return
             }
 
             if (data.type === "price") {
               optsRef.current.onPrice?.(data.price, data.time)
-              win.__bitcoinCurrentPrice = data.price
+              ;(window as any).__bitcoinCurrentPrice = data.price
               return
             }
 
             if (data.type === "closing") {
               optsRef.current.onClosingPrice?.(data.price, data.time)
-              const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices || []
-              const last = prev[prev.length - 1]
-              if (!last || last.time !== data.time) {
-                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
+              const closingPrev: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices || []
+              const closingLast = closingPrev[closingPrev.length - 1]
+              if (!closingLast || closingLast.time !== data.time) {
+                ;(window as any).__bitcoinClosingPrices = [...closingPrev, { time: data.time, price: data.price }].slice(-100)
               }
             }
           } catch { /* ignore malformed messages */ }
@@ -126,14 +125,14 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
         const closingPrice = trades[trades.length - 1].price
         optsRef.current.onPrice?.(closingPrice, now)
-        win.__bitcoinCurrentPrice = closingPrice
+        ;(window as any).__bitcoinCurrentPrice = closingPrice
 
         const thirtyBucket = now - (now % 30)
         if (prevThirtyBucket === null || thirtyBucket !== prevThirtyBucket) {
           prevThirtyBucket = thirtyBucket
           optsRef.current.onClosingPrice?.(closingPrice, thirtyBucket)
-          const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices || []
-          win.__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
+          const bucketPrev: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices || []
+          ;(window as any).__bitcoinClosingPrices = [...bucketPrev, { time: thirtyBucket, price: closingPrice }].slice(-100)
         }
 
         const cutoff = now - 300
