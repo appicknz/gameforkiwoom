@@ -2,15 +2,7 @@
 
 import { useEffect, useRef } from "react"
 
-export interface TradeMessage {
-  type: "trade"
-  price: number
-  quantity: number
-  time: number
-}
-
 interface UsePriceWorkerOptions {
-  onTrade?: (msg: TradeMessage) => void
   onConnected?: () => void
   onDisconnected?: () => void
   onPrice?: (price: number, time: number) => void
@@ -19,9 +11,16 @@ interface UsePriceWorkerOptions {
 }
 
 /**
- * /api/price-stream SSE에 연결합니다.
- * 서버가 Binance WebSocket 단 하나를 열고 집계한 가격을 Redis에 저장,
- * 모든 클라이언트는 이 SSE를 통해 완전히 동일한 가격을 수신합니다.
+ * Railway에 배포된 BTC price WebSocket 서버에 연결합니다.
+ *
+ * 서버(price-server/index.js)가 Binance aggTrade WebSocket 하나를 열고
+ * 1초 집계 후 모든 클라이언트에 동시 브로드캐스트합니다.
+ * → 전 세계 모든 사용자가 정확히 동일한 가격을 수신합니다.
+ *
+ * 환경변수: NEXT_PUBLIC_PRICE_SERVER_URL
+ * 예) wss://your-app.railway.app
+ *
+ * 미설정 시 Binance에 직접 연결(개발용 폴백)
  */
 export function usePriceWorker(options: UsePriceWorkerOptions) {
   const optsRef = useRef(options)
@@ -30,78 +29,141 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
   useEffect(() => {
     if (typeof window === "undefined") return
 
-    let es: EventSource | null = null
+    let ws: WebSocket | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
 
-    const connect = () => {
-      if (closed) return
+    // price-server에 연결 (미설정 시 Binance 직접 연결)
+    const serverUrl = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
 
-      es = new EventSource("/api/price-stream")
+    if (serverUrl) {
+      // ── Price Server 모드 (프로덕션) ──────────────────────────
+      const connect = () => {
+        if (closed) return
+        ws = new WebSocket(serverUrl)
 
-      es.onopen = () => {
-        optsRef.current.onConnected?.()
-      }
+        ws.onopen = () => {
+          optsRef.current.onConnected?.()
+        }
 
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data)
 
-          if (data.type === "init_closing") {
-            optsRef.current.onInitClosing?.(data.prices)
-            if (typeof window !== "undefined") {
-              (window as any).__bitcoinClosingPrices = data.prices
+            if (data.type === "init") {
+              optsRef.current.onInitClosing?.(data.closingPrices)
+              if (typeof window !== "undefined") {
+                (window as any).__bitcoinClosingPrices = data.closingPrices
+              }
+              return
             }
-            return
-          }
 
-          if (data.type === "price") {
-            const { price, time } = data
-
-            optsRef.current.onPrice?.(price, time)
-
-            // onTrade 하위 호환 — bitcoin-chart의 tradeBuffer를 채우기 위해
-            optsRef.current.onTrade?.({ type: "trade", price, quantity: 0, time })
-
-            if (typeof window !== "undefined") {
-              (window as any).__bitcoinCurrentPrice = price
+            if (data.type === "price") {
+              optsRef.current.onPrice?.(data.price, data.time)
+              if (typeof window !== "undefined") {
+                (window as any).__bitcoinCurrentPrice = data.price
+              }
+              return
             }
-            return
-          }
 
-          if (data.type === "closing") {
-            const { price, time } = data
-            optsRef.current.onClosingPrice?.(price, time)
-
-            if (typeof window !== "undefined") {
-              const prev: Array<{ time: number; price: number }> =
-                (window as any).__bitcoinClosingPrices ?? []
-              const last = prev[prev.length - 1]
-              if (!last || last.time !== time) {
-                const updated = [...prev, { time, price }].slice(-100)
-                ;(window as any).__bitcoinClosingPrices = updated
+            if (data.type === "closing") {
+              optsRef.current.onClosingPrice?.(data.price, data.time)
+              if (typeof window !== "undefined") {
+                const prev: Array<{ time: number; price: number }> =
+                  (window as any).__bitcoinClosingPrices ?? []
+                const last = prev[prev.length - 1]
+                if (!last || last.time !== data.time) {
+                  (window as any).__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
+                }
               }
             }
-          }
-        } catch {}
-      }
+          } catch {}
+        }
 
-      es.onerror = () => {
-        optsRef.current.onDisconnected?.()
-        es?.close()
-        es = null
-        if (!closed) {
-          retryTimer = setTimeout(connect, 3000)
+        ws.onclose = () => {
+          optsRef.current.onDisconnected?.()
+          if (!closed) retryTimer = setTimeout(connect, 3000)
+        }
+
+        ws.onerror = () => {
+          ws?.close()
         }
       }
-    }
 
-    connect()
+      connect()
+
+    } else {
+      // ── 개발용 폴백: Binance 직접 연결 ──────────────────────
+      console.warn("[usePriceWorker] NEXT_PUBLIC_PRICE_SERVER_URL not set, falling back to Binance direct connection")
+
+      const tradeBuffer: Array<{ price: number; time: number }> = []
+      let prevThirtyBucket: number | null = null
+
+      const connect = () => {
+        if (closed) return
+        ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
+
+        ws.onopen = () => optsRef.current.onConnected?.()
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data)
+            tradeBuffer.push({
+              price: parseFloat(msg.p),
+              time: Math.floor(msg.T / 1000),
+            })
+          } catch {}
+        }
+
+        ws.onclose = () => {
+          optsRef.current.onDisconnected?.()
+          if (!closed) retryTimer = setTimeout(connect, 3000)
+        }
+
+        ws.onerror = () => ws?.close()
+      }
+
+      connect()
+
+      const timer = setInterval(() => {
+        const now = Math.floor(Date.now() / 1000)
+        const trades = tradeBuffer.filter((t) => t.time >= now)
+        if (trades.length === 0) return
+
+        const closingPrice = trades[trades.length - 1].price
+        optsRef.current.onPrice?.(closingPrice, now)
+        if (typeof window !== "undefined") {
+          (window as any).__bitcoinCurrentPrice = closingPrice
+        }
+
+        const thirtyBucket = now - (now % 30)
+        if (prevThirtyBucket === null || thirtyBucket !== prevThirtyBucket) {
+          prevThirtyBucket = thirtyBucket
+          optsRef.current.onClosingPrice?.(closingPrice, thirtyBucket)
+          if (typeof window !== "undefined") {
+            const prev: Array<{ time: number; price: number }> =
+              (window as any).__bitcoinClosingPrices ?? []
+            (window as any).__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
+          }
+        }
+
+        const cutoff = now - 300
+        const idx = tradeBuffer.findIndex((t) => t.time >= cutoff)
+        if (idx > 0) tradeBuffer.splice(0, idx)
+      }, 1000)
+
+      return () => {
+        closed = true
+        if (retryTimer) clearTimeout(retryTimer)
+        clearInterval(timer)
+        ws?.close()
+      }
+    }
 
     return () => {
       closed = true
       if (retryTimer) clearTimeout(retryTimer)
-      es?.close()
+      ws?.close()
     }
   }, [])
 }
