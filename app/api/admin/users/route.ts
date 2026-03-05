@@ -6,7 +6,7 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const ADMIN_PASSWORD = 'Wjdruddl0)'
+const ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD ?? ''
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
