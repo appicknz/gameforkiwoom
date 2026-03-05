@@ -58,6 +58,7 @@ export function BitcoinChart() {
   const wsRef = useRef<WebSocket | null>(null)         // kline WS (1m/1h/1d)
   const tickerWsRef = useRef<WebSocket | null>(null)   // ticker WS (변동률)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
+  const volumeBufferRef = useRef<Map<number, number>>(new Map())
 
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
