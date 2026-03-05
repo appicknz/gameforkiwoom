@@ -195,68 +195,39 @@ export function BitcoinChart() {
     }
   }, [interval, fetchInitialCandles])
 
-  // SharedWorker를 통해 모든 탭이 동일한 aggTrade 스트림 수신
-  const bucketSizeRef = useRef(interval === "30s" ? 30 : 1)
-  useEffect(() => {
-    bucketSizeRef.current = interval === "30s" ? 30 : 1
-  }, [interval])
-
+  // SSE를 통해 서버가 집계한 가격을 수신 — 모든 사용자 동일 가격 보장
   usePriceWorker({
-    onConnected: () => setConnected(true),
-    onDisconnected: () => setConnected(false),
-    onTrade: useCallback((msg) => {
+    onConnected: useCallback(() => setConnected(true), []),
+    onDisconnected: useCallback(() => setConnected(false), []),
+    onInitClosing: useCallback((prices) => {
+      setClosingPrices(prices)
+    }, []),
+    onPrice: useCallback((price, time) => {
       if (interval !== "1s" && interval !== "30s") return
-      tradeBufferRef.current.push({ price: msg.price, quantity: msg.quantity, time: msg.time })
-    }, [interval]),
-  })
+      const bucketSize = interval === "30s" ? 30 : 1
+      const bucket = time - (time % bucketSize)
 
-  // 1초 버킷 집계 타이머
-  useEffect(() => {
-    if (interval !== "1s" && interval !== "30s") return
-    const bucketSize = bucketSizeRef.current
-
-    const processCandle = () => {
-      const now = Math.floor(Date.now() / 1000)
-      const bucket = now - (now % bucketSize)
-      const trades = tradeBufferRef.current.filter((t) => t.time >= bucket)
-      if (trades.length === 0) return
-
-      const prices = trades.map((t) => t.price)
-      const closingPrice = prices[prices.length - 1]
-
+      // 기존 캔들에서 open 유지, close/high/low 업데이트
+      const existing = candleMapRef.current.get(bucket)
       const candle: CandleData = {
         time:  bucket,
-        open:  prices[0],
-        high:  Math.max(...prices),
-        low:   Math.min(...prices),
-        close: closingPrice,
+        open:  existing?.open ?? price,
+        high:  existing ? Math.max(existing.high, price) : price,
+        low:   existing ? Math.min(existing.low, price)  : price,
+        close: price,
       }
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
-
-      setLastCandlePrice(closingPrice)
-      if (typeof window !== "undefined") {
-        (window as any).__bitcoinCurrentPrice = closingPrice
-      }
-
-      const thirtySecBucket = now - (now % 30)
-      if (prevBucketRef.current === null || thirtySecBucket !== prevBucketRef.current) {
-        prevBucketRef.current = thirtySecBucket
-        setClosingPrices((prev) => [...prev, { time: thirtySecBucket, price: closingPrice }].slice(-100))
-      }
-
-      const qv = trades.reduce((s, t) => s + t.price * t.quantity, 0)
-      volumeBufferRef.current.set(bucket, qv)
-
-      const cutoff = now - 86400
-      tradeBufferRef.current = tradeBufferRef.current.filter((t) => t.time >= cutoff)
-    }
-
-    secondTimerRef.current = setInterval(processCandle, 1000)
-    return () => {
-      if (secondTimerRef.current) clearInterval(secondTimerRef.current)
-    }
-  }, [interval])
+      setLastCandlePrice(price)
+    }, [interval]),
+    onClosingPrice: useCallback((price, time) => {
+      setClosingPrices((prev) => {
+        const last = prev[prev.length - 1]
+        if (last?.time === time) return prev
+        return [...prev, { time, price }].slice(-100)
+      })
+    }, []),
+  })
 
   // kline WebSocket (1m, 1h, 1d)
   useEffect(() => {

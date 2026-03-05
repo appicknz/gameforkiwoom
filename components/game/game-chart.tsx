@@ -27,8 +27,6 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
   const seriesRef = useRef<any>(null)
   const priceLineRef = useRef<any>(null)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
-  const tradeBufferRef = useRef<Array<{ price: number; quantity: number; time: number }>>([])
-  const prevBucketRef = useRef<number | null>(null)
   const onPriceRef = useRef(onPrice)
   const onClosingPriceRef = useRef(onClosingPrice)
 
@@ -147,56 +145,29 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
     return () => clearInterval(id)
   }, [])
 
-  // SharedWorker를 통해 모든 탭이 동일한 aggTrade 스트림 수신
+  // SSE를 통해 서버가 집계한 가격을 수신 — 모든 사용자 동일 가격 보장
   usePriceWorker({
-    onTrade: useCallback((msg) => {
-      tradeBufferRef.current.push({ price: msg.price, quantity: msg.quantity, time: msg.time })
-    }, []),
-  })
-
-  // 1초 버킷 집계 타이머
-  useEffect(() => {
-    const processCandle = () => {
-      const now = Math.floor(Date.now() / 1000)
-      const bucket = now - (now % 1)
-      const trades = tradeBufferRef.current.filter((t) => t.time >= bucket)
-      if (trades.length === 0) return
-
-      const prices = trades.map((t) => t.price)
-      const closingPrice = prices[prices.length - 1]
-
+    onPrice: useCallback((price, time) => {
+      const bucket = time - (time % 1)
+      const existing = candleMapRef.current.get(bucket)
       const candle: CandleData = {
-        time: bucket,
-        open: prices[0],
-        high: Math.max(...prices),
-        low: Math.min(...prices),
-        close: closingPrice,
+        time:  bucket,
+        open:  existing?.open ?? price,
+        high:  existing ? Math.max(existing.high, price) : price,
+        low:   existing ? Math.min(existing.low, price)  : price,
+        close: price,
       }
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
-
-      onPriceRef.current?.(closingPrice)
-      if (typeof window !== "undefined") {
-        (window as any).__bitcoinCurrentPrice = closingPrice
-      }
-
-      const thirtySecBucket = now - (now % 30)
-      if (prevBucketRef.current === null || thirtySecBucket !== prevBucketRef.current) {
-        prevBucketRef.current = thirtySecBucket
-        const prev: Array<{ time: number; price: number }> =
-          (window as any).__bitcoinClosingPrices ?? []
-        const updated = [...prev, { time: thirtySecBucket, price: closingPrice }].slice(-100)
-        ;(window as any).__bitcoinClosingPrices = updated
-        onClosingPriceRef.current?.(closingPrice, thirtySecBucket)
-      }
-
-      const cutoff = now - 86400
-      tradeBufferRef.current = tradeBufferRef.current.filter((t) => t.time >= cutoff)
-    }
-
-    const timer = setInterval(processCandle, 1000)
-    return () => clearInterval(timer)
-  }, [])
+      onPriceRef.current?.(price)
+    }, []),
+    onClosingPrice: useCallback((price, time) => {
+      onClosingPriceRef.current?.(price, time)
+    }, []),
+    onInitClosing: useCallback((_prices) => {
+      // closing prices는 window에 이미 훅에서 저장됨
+    }, []),
+  })
 
   return (
     <div

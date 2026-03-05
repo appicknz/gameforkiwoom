@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useRef } from "react"
 
 export interface TradeMessage {
   type: "trade"
@@ -9,92 +9,89 @@ export interface TradeMessage {
   time: number
 }
 
-type WorkerMessage =
-  | TradeMessage
-  | { type: "connected" }
-  | { type: "disconnected" }
-  | { type: "pong" }
-
 interface UsePriceWorkerOptions {
-  onTrade: (msg: TradeMessage) => void
+  onTrade?: (msg: TradeMessage) => void
   onConnected?: () => void
   onDisconnected?: () => void
+  onPrice?: (price: number, time: number) => void
+  onClosingPrice?: (price: number, time: number) => void
+  onInitClosing?: (prices: Array<{ time: number; price: number }>) => void
 }
 
 /**
- * SharedWorker를 통해 Binance aggTrade 스트림을 구독합니다.
- * SharedWorker를 지원하지 않는 환경(일부 Safari)에서는
- * 자동으로 직접 WebSocket 폴백으로 전환합니다.
+ * /api/price-stream SSE에 연결합니다.
+ * 서버가 Binance WebSocket 단 하나를 열고 집계한 가격을 Redis에 저장,
+ * 모든 클라이언트는 이 SSE를 통해 완전히 동일한 가격을 수신합니다.
  */
-export function usePriceWorker({ onTrade, onConnected, onDisconnected }: UsePriceWorkerOptions) {
-  const onTradeRef = useRef(onTrade)
-  const onConnectedRef = useRef(onConnected)
-  const onDisconnectedRef = useRef(onDisconnected)
-
-  useEffect(() => { onTradeRef.current = onTrade }, [onTrade])
-  useEffect(() => { onConnectedRef.current = onConnected }, [onConnected])
-  useEffect(() => { onDisconnectedRef.current = onDisconnected }, [onDisconnected])
+export function usePriceWorker(options: UsePriceWorkerOptions) {
+  const optsRef = useRef(options)
+  useEffect(() => { optsRef.current = options })
 
   useEffect(() => {
     if (typeof window === "undefined") return
 
-    // SharedWorker 지원 여부 확인
-    if (typeof SharedWorker !== "undefined") {
-      // SharedWorker 경로: /price-worker.js
-      let worker: SharedWorker
-      try {
-        worker = new SharedWorker("/price-worker.js", { name: "binance-price-worker" })
-      } catch (e) {
-        // 생성 실패 시 폴백
-        startFallbackWs()
-        return
-      }
-
-      const port = worker.port
-
-      port.onmessage = (e: MessageEvent<WorkerMessage>) => {
-        const msg = e.data
-        if (msg.type === "trade") onTradeRef.current(msg)
-        else if (msg.type === "connected") onConnectedRef.current?.()
-        else if (msg.type === "disconnected") onDisconnectedRef.current?.()
-      }
-
-      port.start()
-
-      return () => {
-        port.close()
-      }
-    } else {
-      // SharedWorker 미지원 환경 폴백 (직접 WebSocket)
-      return startFallbackWs()
-    }
-  }, [])
-
-  // SharedWorker 미지원 시 직접 WebSocket 연결
-  function startFallbackWs() {
-    let ws: WebSocket | null = null
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-    let destroyed = false
+    let es: EventSource | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let closed = false
 
     const connect = () => {
-      if (destroyed) return
-      ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
+      if (closed) return
 
-      ws.onopen = () => onConnectedRef.current?.()
-      ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data)
-        onTradeRef.current({
-          type: "trade",
-          price: parseFloat(msg.p),
-          quantity: parseFloat(msg.q),
-          time: Math.floor(msg.T / 1000),
-        })
+      es = new EventSource("/api/price-stream")
+
+      es.onopen = () => {
+        optsRef.current.onConnected?.()
       }
-      ws.onerror = () => onDisconnectedRef.current?.()
-      ws.onclose = () => {
-        onDisconnectedRef.current?.()
-        if (!destroyed) {
-          reconnectTimer = setTimeout(connect, 3000)
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+
+          if (data.type === "init_closing") {
+            optsRef.current.onInitClosing?.(data.prices)
+            if (typeof window !== "undefined") {
+              (window as any).__bitcoinClosingPrices = data.prices
+            }
+            return
+          }
+
+          if (data.type === "price") {
+            const { price, time } = data
+
+            optsRef.current.onPrice?.(price, time)
+
+            // onTrade 하위 호환 — bitcoin-chart의 tradeBuffer를 채우기 위해
+            optsRef.current.onTrade?.({ type: "trade", price, quantity: 0, time })
+
+            if (typeof window !== "undefined") {
+              (window as any).__bitcoinCurrentPrice = price
+            }
+            return
+          }
+
+          if (data.type === "closing") {
+            const { price, time } = data
+            optsRef.current.onClosingPrice?.(price, time)
+
+            if (typeof window !== "undefined") {
+              const prev: Array<{ time: number; price: number }> =
+                (window as any).__bitcoinClosingPrices ?? []
+              const last = prev[prev.length - 1]
+              if (!last || last.time !== time) {
+                const updated = [...prev, { time, price }].slice(-100)
+                ;(window as any).__bitcoinClosingPrices = updated
+              }
+            }
+          }
+        } catch {}
+      }
+
+      es.onerror = () => {
+        optsRef.current.onDisconnected?.()
+        es?.close()
+        es = null
+        if (!closed) {
+          retryTimer = setTimeout(connect, 3000)
         }
       }
     }
@@ -102,9 +99,9 @@ export function usePriceWorker({ onTrade, onConnected, onDisconnected }: UsePric
     connect()
 
     return () => {
-      destroyed = true
-      ws?.close()
-      if (reconnectTimer) clearTimeout(reconnectTimer)
+      closed = true
+      if (retryTimer) clearTimeout(retryTimer)
+      es?.close()
     }
-  }
+  }, [])
 }
