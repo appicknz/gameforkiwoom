@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from "react"
-import { TrendingUp, TrendingDown, Check, X } from "lucide-react"
+import { Check, X } from "lucide-react"
 import { GameChart } from "@/components/game/game-chart"
 
 type BetDirection = "long" | "short" | null
@@ -413,7 +413,6 @@ export default function GamePage() {
                       {isWon ? <Check className="w-2.5 h-2.5 text-black" /> : <X className="w-2.5 h-2.5 text-white" />}
                     </div>
                   )}
-                  {dir === "long" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                   <span>{dir === "long" ? "롱" : "숏"}</span>
                   <span className="text-[8px] opacity-50">{dir === "long" ? "직전 대비 상승" : "직전 대비 하락"}</span>
                   {isSelected && <span className="text-[8px] opacity-60">{amountLabel}</span>}
