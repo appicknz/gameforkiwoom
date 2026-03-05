@@ -285,12 +285,12 @@ export default function GamePage() {
   return (
     <div className="flex flex-col h-screen bg-[#0a0e1a] overflow-hidden relative" style={{ maxHeight: 812 }}>
 
-      {/* 상단 헤더 */}
-      <div className="px-4 pt-3 pb-1 flex items-start justify-between gap-2 shrink-0">
+      {/* 상단 헤더: grid-cols-3으로 타이머를 정확히 가운데 고정 */}
+      <div className="px-4 pt-3 pb-1 grid grid-cols-3 items-center shrink-0">
         {/* 왼쪽: 잔고 */}
         <div>
           <p className="text-[8px] text-white/30 uppercase tracking-widest">잔고 BALANCE</p>
-          <p className="text-[18px] font-bold text-white tabular-nums leading-tight">
+          <p className="text-[13px] font-bold text-white tabular-nums leading-tight">
             {balance.toLocaleString()}원
           </p>
           <p className="text-[9px] text-white/30 mt-0.5">배팅 {roundCount}판</p>
@@ -302,7 +302,7 @@ export default function GamePage() {
           </p>
         </div>
 
-        {/* 가운데: 원형 타이머 */}
+        {/* 가운데: 원형 타이머 — 완전히 가운데 정렬 */}
         <div className="flex flex-col items-center gap-1">
           <CircularTimer timeLeft={timeLeft} />
           <div className="flex gap-1">
