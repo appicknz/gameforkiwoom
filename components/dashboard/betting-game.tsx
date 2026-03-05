@@ -192,8 +192,23 @@ export function BettingGame() {
       : null
   const isUp = priceDiff !== null && priceDiff >= 0
   const timerPercent = (timeLeft / 30) * 100
+
+  // 색상 로직
+  // 30~18초: 초록 (배팅 가능)
+  // 18~15초: 빨강 (배팅 마감 3초 전)
+  // 15~3초: 주황 (게임 중)
+  // 3~0초: 빨강 (다음 게임까지 3초 전)
   const timerColor =
-    timeLeft <= 5 ? "#ef4444" : timeLeft <= 10 ? "#f97316" : "#22c55e"
+    timeLeft > 18 ? "#22c55e"
+    : timeLeft > 15 ? "#ef4444"
+    : timeLeft > 3  ? "#f97316"
+    : "#ef4444"
+
+  const timerLabel =
+    timeLeft > 18 ? "배팅 가능"
+    : timeLeft > 15 ? "배팅 마감 3초 전"
+    : timeLeft > 3  ? "게임 중"
+    : "다음 게임까지 3초 전"
 
   return (
     <Card className="p-4 bg-background border border-border/60">
@@ -217,9 +232,9 @@ export function BettingGame() {
       {/* 타이머 바 */}
       <div className="relative mb-3">
         <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-1 text-[11px]" style={{ color: timerColor }}>
             <Clock className="w-3 h-3" />
-            <span>라운드 마감</span>
+            <span className="font-medium">{timerLabel}</span>
           </div>
           <span
             className="text-sm font-bold tabular-nums"
