@@ -1,15 +1,29 @@
 "use client"
 
-import { Search, Mail, Bell } from "lucide-react"
+import { Search, Mail, Bell, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useState } from "react"
 
 export function TopBar() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
   return (
     <header className="sticky top-0 z-40 w-full bg-background border-b border-border">
       <div className="flex items-center justify-between gap-3 px-3 md:px-4 lg:px-5 py-3 md:py-4">
-        <div className="flex items-center gap-2 flex-1">
+        {/* 모바일 메뉴 버튼 */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden h-8 w-8 hover:bg-secondary"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        >
+          {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+        </Button>
+
+        {/* 검색 바 */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -22,6 +36,7 @@ export function TopBar() {
           </div>
         </div>
 
+        {/* 오른쪽 아이콘 및 프로필 */}
         <div className="flex items-center gap-1.5 md:gap-2">
           <Button
             variant="ghost"
@@ -51,6 +66,8 @@ export function TopBar() {
           </div>
         </div>
       </div>
+
+      {/* 모바일 메뉴 상태를 위한 context provider는 별도로 관리 */}
     </header>
   )
 }
