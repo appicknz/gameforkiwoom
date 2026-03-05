@@ -69,11 +69,11 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             if (data.type === "closing") {
               optsRef.current.onClosingPrice?.(data.price, data.time)
               if (typeof window !== "undefined") {
-                const prev: Array<{ time: number; price: number }> =
-                  (window as any).__bitcoinClosingPrices ?? [];
+                const win = window as any
+                const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
                 const last = prev[prev.length - 1]
                 if (!last || last.time !== data.time) {
-                  ;(window as any).__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
+                  win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
                 }
               }
             }
