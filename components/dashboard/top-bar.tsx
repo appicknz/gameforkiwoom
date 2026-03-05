@@ -1,43 +1,57 @@
 "use client"
 
-import { Search, Mail, Bell, Menu, X } from "lucide-react"
+import { Mail, Bell, Menu, X, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 export function TopBar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [balance, setBalance] = useState(0)
+
+  useEffect(() => {
+    // 현재 로그인한 사용자의 잔고 조회
+    const fetchBalance = async () => {
+      try {
+        const res = await fetch("/api/user/balance")
+        if (res.ok) {
+          const { balance } = await res.json()
+          setBalance(balance ?? 0)
+        }
+      } catch (err) {
+        console.error("[v0] Failed to fetch balance:", err)
+      }
+    }
+    fetchBalance()
+  }, [])
 
   return (
     <header className="sticky top-0 z-40 w-full bg-background border-b border-border">
-      <div className="flex items-center justify-between gap-3 px-3 md:px-4 lg:px-5 py-3 md:py-4">
-        {/* 모바일 메뉴 버튼 */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="lg:hidden h-8 w-8 hover:bg-secondary"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        >
-          {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-        </Button>
+      <div className="flex items-center justify-center gap-3 px-3 md:px-4 lg:px-5 py-3 md:py-4">
+        {/* 모바일 메뉴 버튼 - 왼쪽 */}
+        <div className="absolute left-3 md:left-4 lg:left-5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden h-8 w-8 hover:bg-secondary"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </Button>
+        </div>
 
-        {/* 검색 바 */}
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search task"
-              className="pl-9 pr-3 md:pr-16 h-9 text-sm bg-card border-border transition-all duration-300 focus:shadow-lg focus:shadow-primary/10"
-            />
-            <kbd className="hidden md:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground bg-muted rounded border border-border">
-              ⌘F
-            </kbd>
+        {/* 가운데 - 잔고 표시 */}
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 border border-primary/20">
+            <Wallet className="w-4 h-4 text-primary" />
+            <span className="text-xs md:text-sm font-semibold text-foreground">
+              ₩ {balance.toLocaleString()}
+            </span>
           </div>
         </div>
 
-        {/* 오른쪽 아이콘 및 프로필 */}
-        <div className="flex items-center gap-1.5 md:gap-2">
+        {/* 오른쪽 - 아이콘 및 프로필 */}
+        <div className="absolute right-3 md:right-4 lg:right-5 flex items-center gap-1.5 md:gap-2">
           <Button
             variant="ghost"
             size="icon"
@@ -56,18 +70,16 @@ export function TopBar() {
 
           <div className="flex items-center gap-2 pl-2 md:pl-3 border-l border-border">
             <Avatar className="w-7 h-7 md:w-8 md:h-8 ring-2 ring-primary/20 transition-all duration-300 hover:ring-primary/40">
-              <AvatarImage src="/profile.jpg" alt="Jessin Sam" />
-              <AvatarFallback className="text-xs">JS</AvatarFallback>
+              <AvatarImage src="/profile.jpg" alt="User" />
+              <AvatarFallback className="text-xs">U</AvatarFallback>
             </Avatar>
             <div className="text-xs hidden sm:block">
-              <p className="font-semibold text-foreground">Jessin Sam</p>
-              <p className="text-muted-foreground text-[10px]">jessin@gmail.com</p>
+              <p className="font-semibold text-foreground">User</p>
+              <p className="text-muted-foreground text-[10px]">user@game.local</p>
             </div>
           </div>
         </div>
       </div>
-
-      {/* 모바일 메뉴 상태를 위한 context provider는 별도로 관리 */}
     </header>
   )
 }
