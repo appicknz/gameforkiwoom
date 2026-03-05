@@ -77,12 +77,8 @@ export function BitcoinChart() {
     }
   }, [closingPrices])
 
-  // 현재가를 window 객체에 저장
-  useEffect(() => {
-    if (typeof window !== 'undefined' && ticker) {
-      (window as any).__bitcoinCurrentPrice = ticker.price
-    }
-  }, [ticker])
+  // 현재가 상태 (aggTrade 기반 캔들 close 가격 사용)
+  const [lastCandlePrice, setLastCandlePrice] = useState<number | null>(null)
 
   // 30초 마감 기준가 노란색 수평선
   useEffect(() => {
@@ -241,6 +237,12 @@ export function BitcoinChart() {
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
 
+      // 차트 라벨과 동일한 소스로 현재가 업데이트
+      setLastCandlePrice(closingPrice)
+      if (typeof window !== "undefined") {
+        (window as any).__bitcoinCurrentPrice = closingPrice
+      }
+
       // 30초마다 마감 가격 기록 (모든 인터벌에서)
       const thirtySecBucket = now - (now % 30)
       if (prevBucketRef.current === null || thirtySecBucket !== prevBucketRef.current) {
@@ -375,16 +377,18 @@ export function BitcoinChart() {
 
         {/* 오른쪽: 현재가 + 변동률 */}
         <div className="shrink-0 text-right">
-          {ticker ? (
+          {lastCandlePrice ? (
             <>
               <p className="text-[11px] text-muted-foreground font-medium mb-0.5">현재가</p>
               <p className="text-sm font-bold text-foreground tabular-nums leading-tight">
-                ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                ${lastCandlePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </p>
-              <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold mt-0.5 ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
-                {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
-              </div>
+              {ticker && (
+                <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold mt-0.5 ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
+                  {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
+                </div>
+              )}
             </>
           ) : (
             <span className="text-xs text-muted-foreground animate-pulse">로딩 중...</span>
