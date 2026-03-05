@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import {
   Users, Building2, TrendingUp, Wallet, CheckCircle,
@@ -42,7 +41,6 @@ type Tab = "branches" | "members" | "bets"
 
 export function SogirlDashboard({ adminName }: { adminName: string }) {
   const router = useRouter()
-  const supabase = createClient()
 
   const [tab, setTab] = useState<Tab>("branches")
   const [branches, setBranches] = useState<Branch[]>([])
@@ -56,57 +54,13 @@ export function SogirlDashboard({ adminName }: { adminName: string }) {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const supabaseAdmin = createClient()
-
-    const [branchRes, memberRes, betRes, balanceRes] = await Promise.all([
-      supabaseAdmin.from("branches").select("*").order("created_at", { ascending: false }),
-      supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabaseAdmin.from("bet_history").select("id, user_id, result"),
-      supabaseAdmin.from("balances").select("user_id, amount"),
-    ])
-
-    const branchList: Branch[] = branchRes.data ?? []
-    const memberList: Member[] = memberRes.data ?? []
-    const betList = betRes.data ?? []
-    const balanceList = balanceRes.data ?? []
-
-    // 이메일은 auth.users에서 직접 조회 불가 (anon key) — username으로 대체
-    const balanceMap = new Map(balanceList.map(b => [b.user_id, b.amount]))
-    const betsByUser = betList.reduce((acc, b) => {
-      acc[b.user_id] = acc[b.user_id] ?? { total: 0, wins: 0 }
-      acc[b.user_id].total++
-      if (b.result === "win") acc[b.user_id].wins++
-      return acc
-    }, {} as Record<string, { total: number; wins: number }>)
-
-    const enrichedMembers = memberList.map(m => ({
-      ...m,
-      balance: balanceMap.get(m.id) ?? 0,
-      bet_count: betsByUser[m.id]?.total ?? 0,
-      win_count: betsByUser[m.id]?.wins ?? 0,
-    }))
-
-    const branchMemberCount = memberList.reduce((acc, m) => {
-      if (m.branch_id) {
-        acc[m.branch_id] = (acc[m.branch_id] ?? 0) + 1
-      }
-      return acc
-    }, {} as Record<string, number>)
-
-    const enrichedBranches = branchList.map(b => ({
-      ...b,
-      member_count: branchMemberCount[b.id] ?? 0,
-    }))
-
-    setBranches(enrichedBranches)
-    setMembers(enrichedMembers)
-    setStats({
-      totalBranches: branchList.length,
-      pendingBranches: branchList.filter(b => b.status === "pending").length,
-      totalMembers: memberList.filter(m => m.role === "user").length,
-      totalBets: betList.length,
-      totalWins: betList.filter(b => b.result === "win").length,
-    })
+    const res = await fetch("/api/sogirl/data")
+    if (res.ok) {
+      const json = await res.json()
+      setBranches(json.branches ?? [])
+      setMembers(json.members ?? [])
+      setStats(json.stats ?? { totalBranches: 0, pendingBranches: 0, totalMembers: 0, totalBets: 0, totalWins: 0 })
+    }
     setLoading(false)
   }, [])
 
@@ -114,7 +68,11 @@ export function SogirlDashboard({ adminName }: { adminName: string }) {
 
   const updateBranchStatus = async (branchId: string, status: "approved" | "rejected") => {
     setActionLoading(branchId)
-    await supabase.from("branches").update({ status }).eq("id", branchId)
+    await fetch("/api/sogirl/branch-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ branchId, status }),
+    })
     await fetchData()
     setActionLoading(null)
   }
