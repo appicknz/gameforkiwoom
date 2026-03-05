@@ -148,7 +148,10 @@ export function BettingGame() {
       : currentPrice
   }
 
-  const canBet = (phase === "betting" || phase === "waiting") && timeLeft > 2
+  // 배팅 가능: 30~18초 구간 (timeLeft > 15 && timeLeft > 18 즉 18초 초과)
+  // 배팅 마감 3초 전(18~15초)에도 이미 한 배팅 외 추가 배팅 불가
+  // 15초 이하는 게임 중 - 절대 배팅 불가
+  const canBet = timeLeft > 15 && phase !== "result"
 
   // 롱/숏 배팅 처리
   const placeBet = (direction: BetDirection) => {
@@ -392,8 +395,8 @@ export function BettingGame() {
       <p className="text-center text-[10px] text-muted-foreground mt-2">
         {canBet && !betDirection && !betDigit && !betParity && "롱/숏, 언더/오버, 홀/짝 각각 독립 배팅 가능"}
         {canBet && (betDirection || betDigit || betParity) && "추가 배팅 가능"}
-        {phase === "betting" && timeLeft <= 2 && "마감 임박 - 배팅 불가"}
-        {phase === "waiting" && "배팅 완료 - 라운드 마감 대기 중"}
+        {timeLeft <= 15 && timeLeft > 3 && phase !== "result" && "게임 중 - 배팅 불가"}
+        {timeLeft <= 3 && phase !== "result" && "다음 게임까지 3초 전"}
         {phase === "result" && "새 라운드 준비 중..."}
       </p>
     </Card>
