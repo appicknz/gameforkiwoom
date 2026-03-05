@@ -281,30 +281,30 @@ export default function GamePage() {
   // 배팅 금액 포맷 (버튼 아래 표시)
   const amountLabel = `$${(betAmount / 1000).toFixed(2)}`
 
+  // iPhone mini: 375×812. 하단 바 56px, safe area 고려해 전체를 h-screen으로 고정
   return (
-    <div className="flex flex-col min-h-screen bg-[#0a0e1a] pb-20 relative overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#0a0e1a] overflow-hidden relative" style={{ maxHeight: 812 }}>
 
       {/* 상단 헤더 */}
-      <div className="px-4 pt-5 pb-2 flex items-start justify-between gap-2">
+      <div className="px-4 pt-3 pb-1 flex items-start justify-between gap-2 shrink-0">
         {/* 왼쪽: 잔고 */}
         <div>
-          <p className="text-[9px] text-white/30 uppercase tracking-widest">잔고 BALANCE</p>
-          <p className="text-[22px] font-bold text-white mt-0.5 tabular-nums leading-tight">
+          <p className="text-[8px] text-white/30 uppercase tracking-widest">잔고 BALANCE</p>
+          <p className="text-[18px] font-bold text-white tabular-nums leading-tight">
             {balance.toLocaleString()}원
           </p>
-          <p className="text-[10px] text-white/30 mt-1.5">배팅 {roundCount}판</p>
-          <p className="text-[10px] mt-0.5 text-white/30">
+          <p className="text-[9px] text-white/30 mt-0.5">배팅 {roundCount}판</p>
+          <p className="text-[9px] mt-0.5 text-white/30">
             예상 수익{" "}
             {selectedCount > 0
-              ? <span className="text-[#00e676]">{formatAmount(totalExpected)}만</span>
+              ? <span className="text-[#00e676]">{formatAmount(totalExpected)}</span>
               : "—"}
           </p>
         </div>
 
         {/* 가운데: 원형 타이머 */}
-        <div className="flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-1">
           <CircularTimer timeLeft={timeLeft} />
-          {/* 3개 점 인디케이터 */}
           <div className="flex gap-1">
             {[0, 1, 2].map((i) => (
               <div
@@ -318,18 +318,15 @@ export default function GamePage() {
 
         {/* 오른쪽: 실시간가 / 배팅가 */}
         <div className="text-right">
-          <div className="w-7 h-7 rounded-full border border-white/10 flex items-center justify-center ml-auto mb-2">
-            <span className="text-[9px] text-white/30">⏱</span>
-          </div>
-          <p className="text-[9px] text-white/30">실시간가</p>
-          <p className="text-base font-bold tabular-nums leading-tight" style={{ color: isUp ? "#00e676" : "#ff3d57" }}>
+          <p className="text-[8px] text-white/30">실시간가</p>
+          <p className="text-[13px] font-bold tabular-nums leading-tight" style={{ color: isUp ? "#00e676" : "#ff3d57" }}>
             {currentPrice
               ? currentPrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
               : "—"}
           </p>
-          <p className="text-[9px] text-white/20 my-0.5">VS</p>
-          <p className="text-[9px] text-white/30">배팅가</p>
-          <p className="text-sm font-semibold tabular-nums text-white/60">
+          <p className="text-[8px] text-white/20 my-0.5">VS</p>
+          <p className="text-[8px] text-white/30">배팅가</p>
+          <p className="text-[12px] font-semibold tabular-nums text-white/60">
             {basePrice
               ? basePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
               : (() => {
@@ -345,14 +342,14 @@ export default function GamePage() {
 
       {/* 최근 끝자리 배지 */}
       {recentDigits.length > 0 && (
-        <div className="px-4 pb-2 flex gap-1.5 flex-wrap">
+        <div className="px-4 pb-1 flex gap-1 shrink-0">
           {recentDigits.map((d, i) => {
             const { bg, color } = digitColor(d)
             const isLast = i === recentDigits.length - 1
             return (
               <div
                 key={i}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold transition-all duration-300"
+                className="w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-bold transition-all duration-300"
                 style={{
                   background: bg,
                   color,
@@ -368,75 +365,66 @@ export default function GamePage() {
       )}
 
       {/* 차트 */}
-      <div className="relative mx-4 rounded-xl overflow-hidden border border-white/5" style={{ height: 170 }}>
+      <div className="relative mx-4 rounded-xl overflow-hidden border border-white/5 shrink-0" style={{ height: 148 }}>
         <GameChart />
       </div>
 
       {/* 타이머 상태 라벨 */}
-      <div className="px-4 mt-1.5 mb-2">
-        <p className="text-[10px] font-semibold" style={{ color: timerColor }}>
+      <div className="px-4 mt-1 mb-1 shrink-0">
+        <p className="text-[9px] font-semibold" style={{ color: timerColor }}>
           {timerLabel}
         </p>
       </div>
 
       {/* 배팅 버튼 영역 */}
-      <div className="mx-4 rounded-xl border border-white/8 bg-[#0f1527] p-3">
-        {/* 그룹 헤더 */}
-        <div className="grid grid-cols-3 gap-2 mb-2">
+      <div className="mx-4 rounded-xl border border-white/8 bg-[#0f1527] p-2.5 shrink-0">
+        <div className="grid grid-cols-3 gap-1.5 mb-1.5">
           {["롱 / 숏", "언더 / 오버", "홀 / 짝"].map((label) => (
-            <p key={label} className="text-[10px] text-white/25 text-center">{label}</p>
+            <p key={label} className="text-[9px] text-white/25 text-center">{label}</p>
           ))}
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5">
           {/* 그룹 1: 롱 / 숏 */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {(["long", "short"] as const).map((dir) => {
               const isSelected = betDirection === dir
               const isWon = lastResult?.direction === dir && lastResult.wonDirection
-              const isLost = lastResult?.direction === dir && !lastResult.wonDirection
               const isResult = phase === "result" && lastResult?.direction === dir
               const color = dir === "long" ? "#00e676" : "#ff3d57"
-              const locked = isLocked && !isSelected
-
               return (
                 <button
                   key={dir}
                   onClick={() => placeBet(dir)}
                   disabled={!canBet || betDirection !== null}
-                  className="rounded-xl py-3 text-xs font-bold transition-all duration-200 flex flex-col items-center gap-0.5 border relative"
+                  className="rounded-xl py-2.5 text-[11px] font-bold transition-all duration-200 flex flex-col items-center gap-0.5 border relative"
                   style={{
                     background: isResult
                       ? isWon ? "rgba(0,230,118,0.12)" : "rgba(255,61,87,0.12)"
                       : isSelected ? (dir === "long" ? "rgba(0,230,118,0.15)" : "rgba(255,61,87,0.15)") : "rgba(255,255,255,0.03)",
-                    borderColor: isResult
-                      ? isWon ? "#00e676" : "#ff3d57"
-                      : isSelected ? color : "rgba(255,255,255,0.08)",
+                    borderColor: isResult ? (isWon ? "#00e676" : "#ff3d57") : isSelected ? color : "rgba(255,255,255,0.08)",
                     color: isResult ? (isWon ? "#00e676" : "#ff3d57") : isSelected ? color : "rgba(255,255,255,0.4)",
-                    boxShadow: isSelected ? `0 0 16px ${color}22` : "none",
+                    boxShadow: isSelected ? `0 0 12px ${color}22` : "none",
                   }}
                 >
-                  {/* 결과 아이콘 */}
                   {isResult && (
-                    <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center"
                       style={{ background: isWon ? "#00e676" : "#ff3d57" }}>
-                      {isWon
-                        ? <Check className="w-3 h-3 text-black" />
-                        : <X className="w-3 h-3 text-white" />}
+                      {isWon ? <Check className="w-2.5 h-2.5 text-black" /> : <X className="w-2.5 h-2.5 text-white" />}
                     </div>
                   )}
-                  {dir === "long" ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                  {dir === "long" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                   <span>{dir === "long" ? "롱" : "숏"}</span>
-                  <span className="text-[9px] opacity-50">{dir === "long" ? "직전 대비 상승" : "직전 대비 하락"}</span>
-                  {isSelected && <span className="text-[9px] opacity-60">{amountLabel}</span>}
+                  <span className="text-[8px] opacity-50">{dir === "long" ? "직전 대비 상승" : "직전 대비 하락"}</span>
+                  {isSelected && <span className="text-[8px] opacity-60">{amountLabel}</span>}
                 </button>
               )
             })}
-            {isLocked && <p className="text-[9px] text-white/20 text-center tracking-widest">LOCKED</p>}
+            {isLocked && <p className="text-[8px] text-white/20 text-center tracking-widest">LOCKED</p>}
           </div>
 
           {/* 그룹 2: 언더 / 오버 */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {(["under", "over"] as const).map((dig) => {
               const isSelected = betDigit === dig
               const isWon = lastResult?.digit === dig && lastResult.wonDigit
@@ -447,35 +435,33 @@ export default function GamePage() {
                   key={dig}
                   onClick={() => placeDigitBet(dig)}
                   disabled={!canBet || betDigit !== null}
-                  className="rounded-xl py-3 text-xs font-bold transition-all duration-200 flex flex-col items-center gap-0.5 border relative"
+                  className="rounded-xl py-2.5 text-[11px] font-bold transition-all duration-200 flex flex-col items-center gap-0.5 border relative"
                   style={{
                     background: isResult
                       ? isWon ? "rgba(0,230,118,0.12)" : "rgba(255,61,87,0.12)"
                       : isSelected ? `${color}22` : "rgba(255,255,255,0.03)",
-                    borderColor: isResult
-                      ? isWon ? "#00e676" : "#ff3d57"
-                      : isSelected ? color : "rgba(255,255,255,0.08)",
+                    borderColor: isResult ? (isWon ? "#00e676" : "#ff3d57") : isSelected ? color : "rgba(255,255,255,0.08)",
                     color: isResult ? (isWon ? "#00e676" : "#ff3d57") : isSelected ? color : "rgba(255,255,255,0.4)",
-                    boxShadow: isSelected ? `0 0 16px ${color}22` : "none",
+                    boxShadow: isSelected ? `0 0 12px ${color}22` : "none",
                   }}
                 >
                   {isResult && (
-                    <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center"
                       style={{ background: isWon ? "#00e676" : "#ff3d57" }}>
-                      {isWon ? <Check className="w-3 h-3 text-black" /> : <X className="w-3 h-3 text-white" />}
+                      {isWon ? <Check className="w-2.5 h-2.5 text-black" /> : <X className="w-2.5 h-2.5 text-white" />}
                     </div>
                   )}
                   <span>{dig === "under" ? "언더" : "오버"}</span>
-                  <span className="text-[9px] opacity-50">{dig === "under" ? "0 ~ 4" : "5 ~ 9"}</span>
-                  {isSelected && <span className="text-[9px] opacity-60">{amountLabel}</span>}
+                  <span className="text-[8px] opacity-50">{dig === "under" ? "0 ~ 4" : "5 ~ 9"}</span>
+                  {isSelected && <span className="text-[8px] opacity-60">{amountLabel}</span>}
                 </button>
               )
             })}
-            {isLocked && <p className="text-[9px] text-white/20 text-center tracking-widest">LOCKED</p>}
+            {isLocked && <p className="text-[8px] text-white/20 text-center tracking-widest">LOCKED</p>}
           </div>
 
           {/* 그룹 3: 홀 / 짝 */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {(["odd", "even"] as const).map((par) => {
               const isSelected = betParity === par
               const isWon = lastResult?.parity === par && lastResult.wonParity
@@ -486,47 +472,45 @@ export default function GamePage() {
                   key={par}
                   onClick={() => placeParityBet(par)}
                   disabled={!canBet || betParity !== null}
-                  className="rounded-xl py-3 text-xs font-bold transition-all duration-200 flex flex-col items-center gap-0.5 border relative"
+                  className="rounded-xl py-2.5 text-[11px] font-bold transition-all duration-200 flex flex-col items-center gap-0.5 border relative"
                   style={{
                     background: isResult
                       ? isWon ? "rgba(0,230,118,0.12)" : "rgba(255,61,87,0.12)"
                       : isSelected ? `${color}22` : "rgba(255,255,255,0.03)",
-                    borderColor: isResult
-                      ? isWon ? "#00e676" : "#ff3d57"
-                      : isSelected ? color : "rgba(255,255,255,0.08)",
+                    borderColor: isResult ? (isWon ? "#00e676" : "#ff3d57") : isSelected ? color : "rgba(255,255,255,0.08)",
                     color: isResult ? (isWon ? "#00e676" : "#ff3d57") : isSelected ? color : "rgba(255,255,255,0.4)",
-                    boxShadow: isSelected ? `0 0 16px ${color}22` : "none",
+                    boxShadow: isSelected ? `0 0 12px ${color}22` : "none",
                   }}
                 >
                   {isResult && (
-                    <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center"
                       style={{ background: isWon ? "#00e676" : "#ff3d57" }}>
-                      {isWon ? <Check className="w-3 h-3 text-black" /> : <X className="w-3 h-3 text-white" />}
+                      {isWon ? <Check className="w-2.5 h-2.5 text-black" /> : <X className="w-2.5 h-2.5 text-white" />}
                     </div>
                   )}
                   <span>{par === "odd" ? "홀" : "짝"}</span>
-                  <span className="text-[9px] opacity-50">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
-                  {isSelected && <span className="text-[9px] opacity-60">{amountLabel}</span>}
+                  <span className="text-[8px] opacity-50">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
+                  {isSelected && <span className="text-[8px] opacity-60">{amountLabel}</span>}
                 </button>
               )
             })}
-            {isLocked && <p className="text-[9px] text-white/20 text-center tracking-widest">LOCKED</p>}
+            {isLocked && <p className="text-[8px] text-white/20 text-center tracking-widest">LOCKED</p>}
           </div>
         </div>
       </div>
 
       {/* 배팅 금액 선택 */}
-      <div className="mx-4 mt-3 rounded-xl border border-white/8 bg-[#0f1527] p-3">
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <span className="text-[10px] text-white/30">₩</span>
-          <p className="text-[10px] text-white/30">배팅 가격</p>
+      <div className="mx-4 mt-2 rounded-xl border border-white/8 bg-[#0f1527] px-3 py-2 shrink-0">
+        <div className="flex items-center gap-1 mb-2">
+          <span className="text-[9px] text-white/30">₩</span>
+          <p className="text-[9px] text-white/30">배팅 가격</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           {BET_AMOUNTS.map(({ label, value }) => (
             <button
               key={value}
               onClick={() => { setBetAmount(value); betAmountRef.current = value }}
-              className="flex-1 py-1.5 rounded-full text-[11px] font-semibold transition-all duration-200 border"
+              className="flex-1 py-1.5 rounded-full text-[10px] font-semibold transition-all duration-200 border"
               style={{
                 background: betAmount === value ? "rgba(0,230,118,0.18)" : "rgba(255,255,255,0.04)",
                 borderColor: betAmount === value ? "#00e676" : "rgba(255,255,255,0.08)",
@@ -540,16 +524,16 @@ export default function GamePage() {
       </div>
 
       {/* CTA 버튼 */}
-      <div className="mx-4 mt-3">
+      <div className="mx-4 mt-2 mb-1 shrink-0">
         <button
           disabled={selectedCount === 0 || !canBet}
-          className="w-full py-4 rounded-xl text-sm font-bold transition-all duration-200"
+          className="w-full py-3.5 rounded-xl text-[13px] font-bold transition-all duration-200"
           style={{
             background: selectedCount > 0 && canBet
               ? "linear-gradient(135deg, #00e676, #00c853)"
               : "rgba(255,255,255,0.04)",
             color: selectedCount > 0 && canBet ? "#0a0e1a" : "rgba(255,255,255,0.2)",
-            boxShadow: selectedCount > 0 && canBet ? "0 4px 24px rgba(0,230,118,0.25)" : "none",
+            boxShadow: selectedCount > 0 && canBet ? "0 4px 20px rgba(0,230,118,0.25)" : "none",
             cursor: selectedCount === 0 || !canBet ? "not-allowed" : "pointer",
             border: selectedCount > 0 && canBet ? "none" : "1px solid rgba(255,255,255,0.06)",
           }}
@@ -565,82 +549,69 @@ export default function GamePage() {
       {/* 결과 오버레이 */}
       {showResult && lastResult && (
         <div
-          className="fixed inset-x-0 bottom-16 mx-4 max-w-sm mx-auto rounded-2xl overflow-hidden z-50"
+          className="absolute inset-x-4 bottom-16 rounded-2xl overflow-hidden z-50"
           style={{
             background: "rgba(10,14,26,0.97)",
             border: lastResult.profit >= 0 ? "1px solid rgba(0,230,118,0.3)" : "1px solid rgba(255,61,87,0.3)",
           }}
         >
-          {/* WIN / LOSE 큰 텍스트 */}
-          <div className="px-5 pt-5 pb-3">
+          <div className="px-4 pt-4 pb-3">
             <div className="flex items-start justify-between mb-1">
               <p
-                className="text-[42px] font-black leading-none tracking-tight"
+                className="text-[38px] font-black leading-none tracking-tight"
                 style={{ color: lastResult.profit >= 0 ? "#00e676" : "#ff3d57" }}
               >
                 {lastResult.profit >= 0 ? "WIN" : "LOSE"}
               </p>
               <div className="text-right">
-                <p className="text-[10px] text-white/30">
+                <p className="text-[9px] text-white/30">
                   {lastResult.profit >= 0 ? "배팅 성공" : "배팅 실패"}
                 </p>
                 <p
-                  className="text-base font-bold tabular-nums"
+                  className="text-sm font-bold tabular-nums"
                   style={{ color: lastResult.profit >= 0 ? "#00e676" : "#ff3d57" }}
                 >
                   {lastResult.profit >= 0 ? "+" : ""}{lastResult.profit.toLocaleString()}원
                 </p>
               </div>
             </div>
-
-            {/* 끝자리 정보 */}
-            <p className="text-[10px] text-white/30 mb-3">
+            <p className="text-[9px] text-white/30 mb-2.5">
               끝자리 {Math.floor(lastResult.closePrice * 10) % 10}
               {lastResult.digit && ` · ${lastResult.digit === "under" ? "언더(0-4)" : "오버(5-9)"}`}
               {lastResult.parity && ` · ${lastResult.parity === "odd" ? "홀(1·3·5·7·9)" : "짝(0·2·4·6·8)"}`}
             </p>
-
-            {/* 개별 결과 뱃지 */}
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-1.5 flex-wrap">
               {lastResult.direction && (
-                <div
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold border"
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border"
                   style={{
                     background: lastResult.wonDirection ? "rgba(0,230,118,0.12)" : "rgba(255,61,87,0.12)",
                     borderColor: lastResult.wonDirection ? "#00e676" : "#ff3d57",
                     color: lastResult.wonDirection ? "#00e676" : "#ff3d57",
-                  }}
-                >
+                  }}>
                   {lastResult.direction === "long" ? "롱" : "숏"}
-                  {lastResult.wonDirection
-                    ? <Check className="w-3 h-3" />
-                    : <X className="w-3 h-3" />}
+                  {lastResult.wonDirection ? <Check className="w-2.5 h-2.5" /> : <X className="w-2.5 h-2.5" />}
                 </div>
               )}
               {lastResult.digit && (
-                <div
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold border"
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border"
                   style={{
                     background: lastResult.wonDigit ? "rgba(0,230,118,0.12)" : "rgba(255,61,87,0.12)",
                     borderColor: lastResult.wonDigit ? "#00e676" : "#ff3d57",
                     color: lastResult.wonDigit ? "#00e676" : "#ff3d57",
-                  }}
-                >
+                  }}>
                   {lastResult.digit === "under" ? "언더" : "오버"}
-                  {lastResult.wonDigit ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                  {lastResult.wonDigit ? <Check className="w-2.5 h-2.5" /> : <X className="w-2.5 h-2.5" />}
                 </div>
               )}
               {lastResult.parity && (
-                <div
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold border"
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border"
                   style={{
                     background: lastResult.wonParity ? "rgba(0,230,118,0.12)" : "rgba(255,61,87,0.12)",
                     borderColor: lastResult.wonParity ? "#00e676" : "#ff3d57",
                     color: lastResult.wonParity ? "#00e676" : "#ff3d57",
-                  }}
-                >
+                  }}>
                   {lastResult.parity === "odd" ? "홀" : "짝"}
-                  {lastResult.wonParity ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                  {lastResult.wonParity ? <Check className="w-2.5 h-2.5" /> : <X className="w-2.5 h-2.5" />}
                 </div>
               )}
             </div>
@@ -649,8 +620,8 @@ export default function GamePage() {
       )}
 
       {/* 하단 고정 바 */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm border-t border-white/6 bg-[#0a0e1a]/95 backdrop-blur-md px-6 py-3 flex items-center justify-between z-40">
-        <button className="flex flex-col items-center gap-0.5">
+      <div className="shrink-0 border-t border-white/6 bg-[#0a0e1a] px-6 py-2.5 flex items-center justify-between mt-auto">
+        <button>
           <div className="w-7 h-7 rounded-lg bg-white/6 flex items-center justify-center">
             <span className="text-sm text-white/40">≡</span>
           </div>
@@ -661,7 +632,7 @@ export default function GamePage() {
           </span>
           <span className="text-white/20">/3 선택됨</span>
         </div>
-        <button className="flex flex-col items-center gap-0.5">
+        <button>
           <div className="w-7 h-7 rounded-lg bg-white/6 flex items-center justify-center">
             <span className="text-sm text-white/40">?</span>
           </div>
