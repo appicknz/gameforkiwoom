@@ -10,18 +10,18 @@ interface UsePriceWorkerOptions {
   onInitClosing?: (prices: Array<{ time: number; price: number }>) => void
 }
 
-/**
- * Railway에 배포된 BTC price WebSocket 서버에 연결합니다.
- *
- * 서버(price-server/index.js)가 Binance aggTrade WebSocket 하나를 열고
- * 1초 집계 후 모든 클라이언트에 동시 브로드캐스트합니다.
- * → 전 세계 모든 사용자가 정확히 동일한 가격을 수신합니다.
- *
- * 환경변수: NEXT_PUBLIC_PRICE_SERVER_URL
- * 예) wss://your-app.railway.app
- *
- * 미설정 시 Binance에 직접 연결(개발용 폴백)
- */
+// 모듈 레벨 공유 상태 — window 객체 대신 사용 (Turbopack ASI 파싱 오류 방지)
+let _sharedClosingPrices: Array<{ time: number; price: number }> = []
+let _sharedCurrentPrice = 0
+
+export function getSharedClosingPrices() {
+  return _sharedClosingPrices
+}
+
+export function getSharedCurrentPrice() {
+  return _sharedCurrentPrice
+}
+
 export function usePriceWorker(options: UsePriceWorkerOptions) {
   const optsRef = useRef(options)
   useEffect(() => { optsRef.current = options })
@@ -29,7 +29,6 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
   useEffect(() => {
     if (typeof window === "undefined") return
 
-    // window를 변수로 분리해 ASI 파싱 오류 방지
     let ws: WebSocket | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
@@ -51,23 +50,22 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             const data = JSON.parse(event.data as string)
 
             if (data.type === "init") {
+              _sharedClosingPrices = data.closingPrices
               optsRef.current.onInitClosing?.(data.closingPrices)
-              ;(window as any).__bitcoinClosingPrices = data.closingPrices
               return
             }
 
             if (data.type === "price") {
+              _sharedCurrentPrice = data.price
               optsRef.current.onPrice?.(data.price, data.time)
-              ;(window as any).__bitcoinCurrentPrice = data.price
               return
             }
 
             if (data.type === "closing") {
               optsRef.current.onClosingPrice?.(data.price, data.time)
-              const closingPrev: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices || []
-              const closingLast = closingPrev[closingPrev.length - 1]
-              if (!closingLast || closingLast.time !== data.time) {
-                ;(window as any).__bitcoinClosingPrices = [...closingPrev, { time: data.time, price: data.price }].slice(-100)
+              const last = _sharedClosingPrices[_sharedClosingPrices.length - 1]
+              if (!last || last.time !== data.time) {
+                _sharedClosingPrices = [..._sharedClosingPrices, { time: data.time, price: data.price }].slice(-100)
               }
             }
           } catch { /* ignore malformed messages */ }
@@ -124,15 +122,14 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         if (trades.length === 0) return
 
         const closingPrice = trades[trades.length - 1].price
+        _sharedCurrentPrice = closingPrice
         optsRef.current.onPrice?.(closingPrice, now)
-        ;(window as any).__bitcoinCurrentPrice = closingPrice
 
         const thirtyBucket = now - (now % 30)
         if (prevThirtyBucket === null || thirtyBucket !== prevThirtyBucket) {
           prevThirtyBucket = thirtyBucket
           optsRef.current.onClosingPrice?.(closingPrice, thirtyBucket)
-          const bucketPrev: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices || []
-          ;(window as any).__bitcoinClosingPrices = [...bucketPrev, { time: thirtyBucket, price: closingPrice }].slice(-100)
+          _sharedClosingPrices = [..._sharedClosingPrices, { time: thirtyBucket, price: closingPrice }].slice(-100)
         }
 
         const cutoff = now - 300
