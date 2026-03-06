@@ -21,6 +21,9 @@ interface RoundResult {
   wonDirection: boolean
   wonDigit: boolean
   wonParity: boolean
+  directionAmount: number
+  digitAmount: number
+  parityAmount: number
 }
 
 // 금액 칩
@@ -197,6 +200,185 @@ function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading
   )
 }
 
+interface ResultSheetProps {
+  result: RoundResult | null
+  open: boolean
+  onClose: () => void
+}
+
+function ResultSheet({ result, open, onClose }: ResultSheetProps) {
+  if (!open || !result) return null
+
+  const lastDigit = Math.floor(Math.abs(result.closePrice * 10)) % 10
+  const priceChange = result.closePrice - result.basePrice
+  const isUp = priceChange >= 0
+
+  const labelMap: Record<string, { text: string; color: string; bg: string }> = {
+    long:  { text: "롱",   color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+    short: { text: "숏",   color: "#ef4444", bg: "rgba(239,68,68,0.12)"  },
+    over:  { text: "오버", color: "#f97316", bg: "rgba(249,115,22,0.12)" },
+    under: { text: "언더", color: "#60a5fa", bg: "rgba(96,165,250,0.12)" },
+    odd:   { text: "홀",   color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
+    even:  { text: "짝",   color: "#ec4899", bg: "rgba(236,72,153,0.12)" },
+  }
+
+  const bets = [
+    result.direction && {
+      key: result.direction,
+      label: labelMap[result.direction],
+      won: result.wonDirection,
+      amount: result.directionAmount,
+    },
+    result.digit && {
+      key: result.digit,
+      label: labelMap[result.digit],
+      won: result.wonDigit,
+      amount: result.digitAmount,
+    },
+    result.parity && {
+      key: result.parity,
+      label: labelMap[result.parity],
+      won: result.wonParity,
+      amount: result.parityAmount,
+    },
+  ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number }[]
+
+  const totalBet = bets.reduce((s, b) => s + b.amount, 0)
+  const totalPayout = bets.filter(b => b.won).reduce((s, b) => s + Math.floor(b.amount * PAYOUT_RATIO), 0)
+  const netProfit = totalPayout - totalBet
+  const allWon = bets.every(b => b.won)
+  const allLost = bets.every(b => !b.won)
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/60 z-40" onClick={onClose} />
+      <div className="fixed bottom-0 left-0 right-0 z-50 max-w-lg mx-auto">
+        <div className="bg-background rounded-t-2xl shadow-2xl border-t border-border overflow-hidden">
+          {/* 상단 결과 헤더 */}
+          <div
+            className="px-5 pt-5 pb-4 flex items-center justify-between"
+            style={{
+              background: allWon
+                ? "linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05))"
+                : allLost
+                ? "linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))"
+                : "linear-gradient(135deg, rgba(249,115,22,0.12), rgba(249,115,22,0.04))",
+            }}
+          >
+            <div>
+              <p className="text-[11px] text-muted-foreground mb-0.5">라운드 #{result.round} 결과</p>
+              <p
+                className="text-2xl font-black tracking-tight"
+                style={{ color: allWon ? "#10b981" : allLost ? "#ef4444" : "#f97316" }}
+              >
+                {allWon ? "전체 승리!" : allLost ? "전체 패배" : "부분 승리"}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                끝자리 <span className="font-bold text-foreground">{lastDigit}</span>
+                {"  "}
+                {isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
+              </p>
+            </div>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1.5 rounded-full hover:bg-muted">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="px-5 py-4 space-y-3">
+            {/* 종목별 결과 */}
+            {bets.map((bet) => {
+              const payout = bet.won ? Math.floor(bet.amount * PAYOUT_RATIO) : 0
+              const net = payout - bet.amount
+              return (
+                <div
+                  key={bet.key}
+                  className="flex items-center gap-3 p-3 rounded-xl border"
+                  style={{
+                    background: bet.won ? "rgba(16,185,129,0.06)" : "rgba(239,68,68,0.06)",
+                    borderColor: bet.won ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)",
+                  }}
+                >
+                  {/* 종목 배지 */}
+                  <span
+                    className="text-sm font-bold px-2.5 py-1 rounded-lg shrink-0"
+                    style={{ background: bet.label.bg, color: bet.label.color }}
+                  >
+                    {bet.label.text}
+                  </span>
+
+                  {/* 배팅 정보 */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground">배팅</p>
+                    <p className="text-sm font-semibold tabular-nums text-foreground">
+                      ₩{bet.amount.toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* 결과 */}
+                  <div className="text-right shrink-0">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">
+                      {bet.won ? "수익" : "손실"}
+                    </p>
+                    <p
+                      className="text-sm font-bold tabular-nums"
+                      style={{ color: bet.won ? "#10b981" : "#ef4444" }}
+                    >
+                      {bet.won
+                        ? `+₩${payout.toLocaleString()}`
+                        : `-₩${bet.amount.toLocaleString()}`}
+                    </p>
+                    {bet.won && (
+                      <p className="text-[9px] text-muted-foreground">
+                        순수익 +₩{net.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 승패 아이콘 */}
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black"
+                    style={{
+                      background: bet.won ? "#10b981" : "#ef4444",
+                      color: "#fff",
+                    }}
+                  >
+                    {bet.won ? "승" : "패"}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* 총 합계 */}
+            <div className="border-t border-border pt-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">총 배팅</p>
+                <p className="text-sm font-semibold tabular-nums text-foreground">₩{totalBet.toLocaleString()}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">순손익</p>
+                <p
+                  className="text-lg font-black tabular-nums"
+                  style={{ color: netProfit >= 0 ? "#10b981" : "#ef4444" }}
+                >
+                  {netProfit >= 0 ? "+" : ""}₩{netProfit.toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            {/* 닫기 버튼 */}
+            <button
+              onClick={onClose}
+              className="w-full py-3 rounded-xl bg-muted text-muted-foreground font-semibold text-sm hover:bg-muted/80 transition-colors mb-safe"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 export function BettingGame() {
   const [timeLeft, setTimeLeft] = useState(30)
   const [roundNumber, setRoundNumber] = useState(0)
@@ -214,6 +396,7 @@ export function BettingGame() {
   const [wins, setWins] = useState(0)
   const [losses, setLosses] = useState(0)
   const [balance, setBalance] = useState<number | null>(null)
+  const [showResultSheet, setShowResultSheet] = useState(false)
 
   // 로그인 시 잔고 로드 (supabase.auth 사용 안 함 - lock 경합 방지)
   useEffect(() => {
@@ -321,8 +504,12 @@ export function BettingGame() {
             wonDirection,
             wonDigit,
             wonParity,
+            directionAmount: betDirectionAmountRef.current,
+            digitAmount: betDigitAmountRef.current,
+            parityAmount: betParityAmountRef.current,
           }
           setLastResult(result)
+          setShowResultSheet(true)
           setResults((prev) => [result, ...prev].slice(0, 20))
           const anyWon = (betRef.current && wonDirection) || (betDigitRef.current && wonDigit) || (betParityRef.current && wonParity)
           const anyLost = (betRef.current && !wonDirection) || (betDigitRef.current && !wonDigit) || (betParityRef.current && !wonParity)
@@ -348,6 +535,7 @@ export function BettingGame() {
         basePriceRef.current = null
         setDialog(null)
 
+        setShowResultSheet(false)
         setTimeout(() => setPhase("betting"), 1500)
       }
 
@@ -640,15 +828,20 @@ export function BettingGame() {
       {/* 배팅 다이얼로그 */}
       {dialog && (
         <BetDialog
-          open={dialog.open}
-          betType={dialog.type}
-          selectedValue={dialog.value}
+          open={dialog?.open ?? false}
+          betType={dialog?.type ?? null}
+          selectedValue={dialog?.value ?? null}
           onClose={() => setDialog(null)}
           onConfirm={handleConfirmBet}
           isLoading={isPlacingBet}
           balance={balance}
         />
-      )}
+
+        <ResultSheet
+          result={lastResult}
+          open={showResultSheet}
+          onClose={() => setShowResultSheet(false)}
+        />
     </>
   )
 }
