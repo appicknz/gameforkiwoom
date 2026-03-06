@@ -93,7 +93,10 @@ export default function GamePage() {
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
   const [betDigit, setBetDigit] = useState<BetDigit>(null)
   const [betParity, setBetParity] = useState<BetParity>(null)
-  const [betAmount, setBetAmount] = useState<BetAmount>(10000)
+  // 3가지 배팅 타입 각각 독립적인 금액
+  const [betDirectionAmount, setBetDirectionAmount] = useState<BetAmount>(10000)
+  const [betDigitAmount, setBetDigitAmount] = useState<BetAmount>(10000)
+  const [betParityAmount, setBetParityAmount] = useState<BetAmount>(10000)
   const [basePrice, setBasePrice] = useState<number | null>(null)
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
   const [phase, setPhase] = useState<"betting" | "waiting" | "result">("betting")
@@ -102,13 +105,18 @@ export default function GamePage() {
   const [roundCount, setRoundCount] = useState(0)
   const [recentDigits, setRecentDigits] = useState<number[]>([])
   const [showResult, setShowResult] = useState(false)
+  // 예상 수익 표시용
+  const [expectedProfit, setExpectedProfit] = useState(0)
 
   const prevRoundRef = useRef<number | null>(null)
   const betRef = useRef<BetDirection>(null)
   const betDigitRef = useRef<BetDigit>(null)
   const betParityRef = useRef<BetParity>(null)
   const basePriceRef = useRef<number | null>(null)
-  const betAmountRef = useRef<BetAmount>(10000)
+  // 3가지 타입별 배팅 금액 ref
+  const betDirectionAmountRef = useRef<BetAmount>(10000)
+  const betDigitAmountRef = useRef<BetAmount>(10000)
+  const betParityAmountRef = useRef<BetAmount>(10000)
   // closing prices를 ref로 관리 — window 폴링 불필요
   const closingPricesRef = useRef<Array<{ time: number; price: number }>>([])
   const currentPriceRef = useRef<number | null>(null)
@@ -173,15 +181,25 @@ export default function GamePage() {
             : false
 
           const betCount = [betRef.current, betDigitRef.current, betParityRef.current].filter(Boolean).length
-          const wonCount = [
-            betRef.current && wonDirection,
-            betDigitRef.current && wonDigit,
-            betParityRef.current && wonParity,
-          ].filter(Boolean).length
-          const lostCount = betCount - wonCount
 
-          // 정산: 이긴 배팅 +95%, 진 배팅 -100%
-          const profit = Math.floor(wonCount * betAmountRef.current * PAYOUT_RATIO) - lostCount * betAmountRef.current
+          // 각 타입별 수익 계산
+          let profit = 0
+          if (betRef.current && wonDirection) {
+            profit += Math.floor(betDirectionAmountRef.current * PAYOUT_RATIO)
+          } else if (betRef.current) {
+            profit -= betDirectionAmountRef.current
+          }
+          if (betDigitRef.current && wonDigit) {
+            profit += Math.floor(betDigitAmountRef.current * PAYOUT_RATIO)
+          } else if (betDigitRef.current) {
+            profit -= betDigitAmountRef.current
+          }
+          if (betParityRef.current && wonParity) {
+            profit += Math.floor(betParityAmountRef.current * PAYOUT_RATIO)
+          } else if (betParityRef.current) {
+            profit -= betParityAmountRef.current
+          }
+
           const newBalance = Math.max(0, balance + profit)
 
           const result: RoundResult = {
@@ -194,7 +212,7 @@ export default function GamePage() {
             wonDigit,
             wonParity,
             profit,
-            betAmount: betAmountRef.current,
+            betAmount: betDirectionAmountRef.current,
           }
           setLastResult(result)
           setRoundCount((c) => c + 1)
@@ -249,7 +267,6 @@ export default function GamePage() {
     const base = getBase()
     if (!base) return
     
-    // 배팅 금액을 DB에 차감하는 API 호출
     const token = typeof window !== "undefined" ? sessionStorage.getItem("supabase_token") : null
     if (!token) return
     
@@ -260,14 +277,13 @@ export default function GamePage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ betAmount: betAmountRef.current }),
+        body: JSON.stringify({ betAmount: betDirectionAmount }),
       })
       const data = await res.json()
       if (!res.ok) {
         console.error("[v0] Bet failed:", data.error)
         return
       }
-      // DB 차감 성공 → UI 업데이트
       setBalance(data.newBalance)
     } catch (err) {
       console.error("[v0] Bet API error:", err)
@@ -276,6 +292,7 @@ export default function GamePage() {
     
     betRef.current = direction
     basePriceRef.current = base
+    betDirectionAmountRef.current = betDirectionAmount
     setBetDirection(direction)
     setBasePrice(base)
     setPhase("waiting")
@@ -296,7 +313,7 @@ export default function GamePage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ betAmount: betAmountRef.current }),
+        body: JSON.stringify({ betAmount: betDigitAmount }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -311,6 +328,7 @@ export default function GamePage() {
     
     betDigitRef.current = digit
     basePriceRef.current = base
+    betDigitAmountRef.current = betDigitAmount
     setBetDigit(digit)
     setBasePrice(base)
     setPhase("waiting")
@@ -331,7 +349,7 @@ export default function GamePage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ betAmount: betAmountRef.current }),
+        body: JSON.stringify({ betAmount: betParityAmount }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -346,6 +364,7 @@ export default function GamePage() {
     
     betParityRef.current = parity
     basePriceRef.current = base
+    betParityAmountRef.current = betParityAmount
     setBetParity(parity)
     setBasePrice(base)
     setPhase("waiting")
@@ -367,11 +386,14 @@ export default function GamePage() {
     : "다음 게임 3초 전"
 
   const selectedCount = [betDirection, betDigit, betParity].filter(Boolean).length
-  const totalBet = selectedCount * betAmount
-  const totalExpected = expectedReturn(selectedCount, betAmount)
-
-  // 배팅 금액 포맷 (버튼 아래 표시)
-  const amountLabel = `$${(betAmount / 1000).toFixed(2)}`
+  
+  // 각 타입별 배팅 금액 합계
+  const totalBet = (betDirection ? betDirectionAmount : 0) + (betDigit ? betDigitAmount : 0) + (betParity ? betParityAmount : 0)
+  
+  // 각 타입별 모두 이겼을 때 예상 수익 (모두 이기면 각 배팅금액 * 1.95)
+  const totalExpected = (betDirection ? Math.floor(betDirectionAmount * PAYOUT_RATIO) : 0) + 
+                        (betDigit ? Math.floor(betDigitAmount * PAYOUT_RATIO) : 0) + 
+                        (betParity ? Math.floor(betParityAmount * PAYOUT_RATIO) : 0)
 
   // iPhone mini: 375×812. 하단 �� 56px, safe area 고려해 전체를 h-screen으로 고정
   return (
@@ -504,7 +526,7 @@ export default function GamePage() {
                   )}
                   <span>{dir === "long" ? "롱" : "숏"}</span>
                   <span className="text-[8px] opacity-50">{dir === "long" ? "직전 대비 상승" : "직전 대비 하락"}</span>
-                  {isSelected && <span className="text-[8px] opacity-60">{amountLabel}</span>}
+                  {isSelected && <span className="text-[8px] opacity-60">₩{betDirectionAmount.toLocaleString()}</span>}
                 </button>
               )
             })}
@@ -541,7 +563,7 @@ export default function GamePage() {
                   )}
                   <span>{dig === "under" ? "언더" : "오버"}</span>
                   <span className="text-[8px] opacity-50">{dig === "under" ? "0 ~ 4" : "5 ~ 9"}</span>
-                  {isSelected && <span className="text-[8px] opacity-60">{amountLabel}</span>}
+                  {isSelected && <span className="text-[8px] opacity-60">₩{betDigitAmount.toLocaleString()}</span>}
                 </button>
               )
             })}
@@ -578,7 +600,7 @@ export default function GamePage() {
                   )}
                   <span>{par === "odd" ? "홀" : "짝"}</span>
                   <span className="text-[8px] opacity-50">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
-                  {isSelected && <span className="text-[8px] opacity-60">{amountLabel}</span>}
+                  {isSelected && <span className="text-[8px] opacity-60">₩{betParityAmount.toLocaleString()}</span>}
                 </button>
               )
             })}
@@ -587,27 +609,81 @@ export default function GamePage() {
         </div>
       </div>
 
-      {/* 배팅 금액 선택 */}
-      <div className="mx-4 mt-2 rounded-xl border border-white/8 bg-[#0f1527] px-3 py-2 shrink-0">
-        <div className="flex items-center gap-1 mb-2">
-          <span className="text-[9px] text-white/30">₩</span>
-          <p className="text-[9px] text-white/30">배팅 가격</p>
+      {/* 배팅 금액 선택 - 각 타입별 독립적 */}
+      <div className="mx-4 mt-2 rounded-xl border border-white/8 bg-[#0f1527] px-3 py-2 shrink-0 space-y-2.5">
+        {/* 롱/숏 배팅 금액 */}
+        <div>
+          <div className="flex items-center gap-1 mb-1.5">
+            <span className="text-[9px] text-white/30">₩</span>
+            <p className="text-[9px] text-white/30">롱/숏</p>
+          </div>
+          <div className="flex gap-1.5">
+            {BET_AMOUNTS.map(({ label, value }) => (
+              <button
+                key={`dir-${value}`}
+                onClick={() => setBetDirectionAmount(value)}
+                disabled={betDirection !== null}
+                className="flex-1 py-1.5 rounded-full text-[10px] font-semibold transition-all duration-200 border disabled:opacity-40"
+                style={{
+                  background: betDirectionAmount === value ? "rgba(0,230,118,0.18)" : "rgba(255,255,255,0.04)",
+                  borderColor: betDirectionAmount === value ? "#00e676" : "rgba(255,255,255,0.08)",
+                  color: betDirectionAmount === value ? "#00e676" : "rgba(255,255,255,0.4)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1.5">
-          {BET_AMOUNTS.map(({ label, value }) => (
-            <button
-              key={value}
-              onClick={() => { setBetAmount(value); betAmountRef.current = value }}
-              className="flex-1 py-1.5 rounded-full text-[10px] font-semibold transition-all duration-200 border"
-              style={{
-                background: betAmount === value ? "rgba(0,230,118,0.18)" : "rgba(255,255,255,0.04)",
-                borderColor: betAmount === value ? "#00e676" : "rgba(255,255,255,0.08)",
-                color: betAmount === value ? "#00e676" : "rgba(255,255,255,0.4)",
-              }}
-            >
-              {label}
-            </button>
-          ))}
+
+        {/* 언더/오버 배팅 금액 */}
+        <div>
+          <div className="flex items-center gap-1 mb-1.5">
+            <span className="text-[9px] text-white/30">₩</span>
+            <p className="text-[9px] text-white/30">언더/오버</p>
+          </div>
+          <div className="flex gap-1.5">
+            {BET_AMOUNTS.map(({ label, value }) => (
+              <button
+                key={`digit-${value}`}
+                onClick={() => setBetDigitAmount(value)}
+                disabled={betDigit !== null}
+                className="flex-1 py-1.5 rounded-full text-[10px] font-semibold transition-all duration-200 border disabled:opacity-40"
+                style={{
+                  background: betDigitAmount === value ? "rgba(96,165,250,0.18)" : "rgba(255,255,255,0.04)",
+                  borderColor: betDigitAmount === value ? "#60a5fa" : "rgba(255,255,255,0.08)",
+                  color: betDigitAmount === value ? "#60a5fa" : "rgba(255,255,255,0.4)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 홀/짝 배팅 금액 */}
+        <div>
+          <div className="flex items-center gap-1 mb-1.5">
+            <span className="text-[9px] text-white/30">₩</span>
+            <p className="text-[9px] text-white/30">홀/짝</p>
+          </div>
+          <div className="flex gap-1.5">
+            {BET_AMOUNTS.map(({ label, value }) => (
+              <button
+                key={`parity-${value}`}
+                onClick={() => setBetParityAmount(value)}
+                disabled={betParity !== null}
+                className="flex-1 py-1.5 rounded-full text-[10px] font-semibold transition-all duration-200 border disabled:opacity-40"
+                style={{
+                  background: betParityAmount === value ? "rgba(167,139,250,0.18)" : "rgba(255,255,255,0.04)",
+                  borderColor: betParityAmount === value ? "#a78bfa" : "rgba(255,255,255,0.08)",
+                  color: betParityAmount === value ? "#a78bfa" : "rgba(255,255,255,0.4)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
