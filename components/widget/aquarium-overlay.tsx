@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 
 interface Creature {
   id: number
-  type: "whale" | "shark" | "dolphin" | "fish" | "smallfish" | "shrimp" | "seahorse" | "diver" | "jellyfish" | "crab" | "tuna" | "puffer" | "tropical" | "ray" | "octopus"
+  type: "whale" | "shark" | "dolphin" | "fish" | "smallfish" | "shrimp" | "seahorse" | "clione" | "jellyfish" | "crab" | "tuna" | "puffer" | "tropical" | "ray" | "octopus"
   x: number
   y: number
   speed: number
@@ -31,7 +31,7 @@ function pickCreatureType(level: "mega" | "high" | "mid" | "low" | "tiny"): Crea
   const pools: Record<string, Creature["type"][]> = {
     mega:  ["whale", "whale", "shark", "dolphin"],
     high:  ["tuna", "dolphin", "shark", "ray"],
-    mid:   ["fish", "tuna", "tropical", "diver", "octopus"],
+    mid:   ["fish", "tuna", "tropical", "clione", "octopus"],
     low:   ["smallfish", "tropical", "puffer", "jellyfish", "seahorse"],
     tiny:  ["shrimp", "crab", "jellyfish", "seahorse", "smallfish"],
   }
@@ -45,20 +45,34 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
   switch (type) {
     case "whale":
       return (
-        <svg width="120" height="60" viewBox="0 0 120 60" transform={flip}>
+        <svg width="340" height="140" viewBox="0 0 340 140" transform={flip}>
           {/* body */}
-          <ellipse cx="55" cy="30" rx="50" ry="22" fill="#1e3a5f" opacity="0.9" />
-          {/* belly */}
-          <ellipse cx="55" cy="36" rx="35" ry="12" fill="#4a7ab5" opacity="0.7" />
-          {/* tail */}
-          <path d="M5 30 Q0 15 15 20 Q8 30 15 40 Q0 45 5 30Z" fill="#1e3a5f" />
+          <ellipse cx="155" cy="70" rx="145" ry="52" fill="#1e3a5f" opacity="0.92"/>
+          {/* belly highlight */}
+          <ellipse cx="155" cy="82" rx="100" ry="28" fill="#4a7ab5" opacity="0.55"/>
+          <ellipse cx="155" cy="88" rx="70" ry="16" fill="#7db8e8" opacity="0.25"/>
+          {/* tail flukes */}
+          <path d="M12 70 Q0 38 32 52 Q18 70 32 88 Q0 102 12 70Z" fill="#1e3a5f"/>
+          {/* tail notch detail */}
+          <path d="M32 70 Q24 66 20 70 Q24 74 32 70Z" fill="#17304f"/>
+          {/* dorsal fin */}
+          <path d="M155 18 Q178 4 200 30 Q178 24 155 18Z" fill="#1a3358"/>
+          {/* pectoral fin top */}
+          <path d="M175 42 Q215 14 235 54 Q210 46 175 42Z" fill="#1a3358" opacity="0.85"/>
           {/* eye */}
-          <circle cx="88" cy="24" r="4" fill="white" />
-          <circle cx="89" cy="24" r="2" fill="#1a1a2e" />
-          {/* fin */}
-          <path d="M55 8 Q65 2 75 14 Q65 12 55 8Z" fill="#1e3a5f" />
+          <circle cx="258" cy="56" r="10" fill="white"/>
+          <circle cx="260" cy="56" r="5" fill="#1a1a2e"/>
+          <circle cx="262" cy="53" r="2" fill="white"/>
+          {/* smile line */}
+          <path d="M268 72 Q275 78 268 82" stroke="#3a6a9a" strokeWidth="2" fill="none" opacity="0.6"/>
+          {/* barnacle dots */}
+          <circle cx="120" cy="52" r="3" fill="#2a5080" opacity="0.5"/>
+          <circle cx="140" cy="48" r="2" fill="#2a5080" opacity="0.4"/>
+          <circle cx="100" cy="60" r="2.5" fill="#2a5080" opacity="0.4"/>
           {/* water spout */}
-          <path d="M90 10 Q93 2 96 10" stroke="#7dd3fc" strokeWidth="2" fill="none" opacity="0.8" />
+          <path d="M268 28 Q274 10 280 28" stroke="#7dd3fc" strokeWidth="3.5" fill="none" opacity="0.75" strokeLinecap="round"/>
+          <path d="M274 24 Q278 8 284 20" stroke="#bae6fd" strokeWidth="2" fill="none" opacity="0.5" strokeLinecap="round"/>
+          <path d="M264 30 Q268 16 272 26" stroke="#7dd3fc" strokeWidth="2" fill="none" opacity="0.4" strokeLinecap="round"/>
         </svg>
       )
     case "shark":
@@ -135,27 +149,27 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
           <path d="M12 18 Q20 16 20 20 Q16 22 12 20Z" fill="#4ade80" opacity="0.7" />
         </svg>
       )
-    case "diver":
+    case "clione":
+      // 클리오네 (바다천사) — 반투명 날개와 긴 몸통
       return (
-        <svg width="44" height="56" viewBox="0 0 44 56" transform={flip}>
-          {/* tank */}
-          <rect x="16" y="24" width="12" height="20" rx="4" fill="#94a3b8" />
-          {/* body */}
-          <ellipse cx="22" cy="32" rx="10" ry="14" fill="#0891b2" opacity="0.9" />
-          {/* head/mask */}
-          <circle cx="22" cy="16" r="9" fill="#0891b2" />
-          <ellipse cx="22" cy="16" rx="7" ry="5" fill="#bae6fd" opacity="0.8" />
-          <circle cx="22" cy="15" r="3" fill="#0ea5e9" opacity="0.6" />
-          {/* arms */}
-          <path d="M12 30 Q6 34 8 40" stroke="#0891b2" strokeWidth="4" strokeLinecap="round" fill="none" />
-          <path d="M32 30 Q38 34 36 40" stroke="#0891b2" strokeWidth="4" strokeLinecap="round" fill="none" />
-          {/* fins */}
-          <ellipse cx="16" cy="46" rx="8" ry="4" fill="#0284c7" transform="rotate(-20,16,46)" />
-          <ellipse cx="28" cy="46" rx="8" ry="4" fill="#0284c7" transform="rotate(20,28,46)" />
-          {/* bubbles */}
-          <circle cx="34" cy="18" r="2" fill="white" opacity="0.7" />
-          <circle cx="37" cy="14" r="1.5" fill="white" opacity="0.5" />
-          <circle cx="35" cy="10" r="1" fill="white" opacity="0.4" />
+        <svg width="32" height="52" viewBox="0 0 32 52" transform={flip}>
+          {/* 몸통 */}
+          <ellipse cx="16" cy="32" rx="7" ry="16" fill="#ff9ecb" opacity="0.75"/>
+          <ellipse cx="16" cy="30" rx="4.5" ry="12" fill="#ffcce8" opacity="0.45"/>
+          {/* 머리 */}
+          <circle cx="16" cy="14" r="8" fill="#ff9ecb" opacity="0.8"/>
+          <circle cx="16" cy="13" r="5" fill="#ffd6ec" opacity="0.5"/>
+          {/* 날개 (왼) */}
+          <path d="M9 26 Q1 18 3 28 Q1 36 9 30 Z" fill="#ff9ecb" opacity="0.55"/>
+          {/* 날개 (오) */}
+          <path d="M23 26 Q31 18 29 28 Q31 36 23 30 Z" fill="#ff9ecb" opacity="0.55"/>
+          {/* 꼬리 끝 */}
+          <path d="M13 48 Q16 54 19 48" stroke="#ff9ecb" strokeWidth="2" fill="none" strokeLinecap="round"/>
+          {/* 눈 */}
+          <circle cx="13" cy="12" r="1.8" fill="#c2185b"/>
+          <circle cx="19" cy="12" r="1.8" fill="#c2185b"/>
+          {/* 내부 발광 */}
+          <ellipse cx="16" cy="28" rx="3" ry="7" fill="#ff6fb0" opacity="0.3"/>
         </svg>
       )
     case "jellyfish":
@@ -343,13 +357,14 @@ export function AquariumOverlay() {
           const dir: 1 | -1 = Math.random() > 0.5 ? 1 : -1
           const type = pickCreatureType(volumeLevel)
           const sizeMap: Record<Creature["type"], number> = {
-            whale: 1.1, shark: 0.85, dolphin: 0.75, diver: 0.65,
+            whale: volumeLevel === "mega" ? 1.8 : 1.0,
+            shark: 0.85, dolphin: 0.75, clione: 0.75,
             fish: 0.6, smallfish: 0.5, shrimp: 0.45, seahorse: 0.4,
             jellyfish: 0.5, crab: 0.45,
             tuna: 0.7, puffer: 0.55, tropical: 0.65, ray: 0.8, octopus: 0.6,
           }
           const speedMap: Record<Creature["type"], number> = {
-            whale: 0.35, shark: 0.7, dolphin: 0.65, diver: 0.2,
+            whale: 0.3, shark: 0.7, dolphin: 0.65, clione: 0.18,
             fish: 0.55, smallfish: 0.5, shrimp: 0.3, seahorse: 0.15,
             jellyfish: 0.1, crab: 0.25,
             tuna: 0.75, puffer: 0.3, tropical: 0.5, ray: 0.6, octopus: 0.25,
@@ -428,6 +443,107 @@ export function AquariumOverlay() {
           </svg>
         </div>
       ))}
+
+      {/* 산호초 */}
+      <svg className="absolute bottom-0 left-0 w-full" height="64" viewBox="0 0 900 64" preserveAspectRatio="xMidYMax meet" style={{ opacity: 0.85, pointerEvents: "none" }}>
+        {/* 분홍 가지 산호 */}
+        <g transform="translate(30,64)">
+          <line x1="0" y1="0" x2="0" y2="-38" stroke="#f472b6" strokeWidth="3" strokeLinecap="round"/>
+          <line x1="0" y1="-20" x2="-12" y2="-36" stroke="#f472b6" strokeWidth="2.2" strokeLinecap="round"/>
+          <line x1="0" y1="-20" x2="12" y2="-38" stroke="#f472b6" strokeWidth="2.2" strokeLinecap="round"/>
+          <line x1="0" y1="-30" x2="-8" y2="-44" stroke="#f472b6" strokeWidth="1.8" strokeLinecap="round"/>
+          <line x1="-12" y1="-36" x2="-20" y2="-46" stroke="#f472b6" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="12" y1="-38" x2="20" y2="-50" stroke="#f472b6" strokeWidth="1.5" strokeLinecap="round"/>
+          {[[0,-38],[-12,-36],[12,-38],[-20,-46],[20,-50],[-8,-44]].map(([x,y],i)=>(
+            <circle key={i} cx={x} cy={y} r="2.5" fill="#f9a8d4"/>
+          ))}
+        </g>
+        {/* 버섯 산호 */}
+        <g transform="translate(90,64)">
+          <rect x="-4" y="-28" width="8" height="28" rx="3" fill="#fb923c" opacity="0.85"/>
+          <ellipse cx="0" cy="-28" rx="18" ry="10" fill="#fdba74" opacity="0.9"/>
+          <ellipse cx="0" cy="-28" rx="14" ry="7" fill="#fed7aa" opacity="0.6"/>
+        </g>
+        {/* 뇌 산호 */}
+        <g transform="translate(155,64)">
+          <ellipse cx="0" cy="-22" rx="22" ry="18" fill="#a78bfa" opacity="0.8"/>
+          <ellipse cx="0" cy="-22" rx="18" ry="14" fill="#c4b5fd" opacity="0.4"/>
+          <path d="M-14 -22 Q-8 -30 0 -26 Q8 -30 14 -22 Q8 -14 0 -18 Q-8 -14 -14 -22Z" stroke="#7c3aed" strokeWidth="1.2" fill="none" opacity="0.7"/>
+          <rect x="-3" y="-4" width="6" height="4" rx="2" fill="#a78bfa"/>
+        </g>
+        {/* 빨간 가지 산호 */}
+        <g transform="translate(220,64)">
+          <line x1="0" y1="0" x2="0" y2="-44" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round"/>
+          <line x1="0" y1="-16" x2="-14" y2="-30" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/>
+          <line x1="0" y1="-16" x2="16" y2="-34" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/>
+          <line x1="0" y1="-32" x2="-10" y2="-46" stroke="#ef4444" strokeWidth="1.6" strokeLinecap="round"/>
+          <line x1="0" y1="-32" x2="10" y2="-50" stroke="#ef4444" strokeWidth="1.6" strokeLinecap="round"/>
+          <line x1="-14" y1="-30" x2="-22" y2="-42" stroke="#ef4444" strokeWidth="1.3" strokeLinecap="round"/>
+          <line x1="16" y1="-34" x2="24" y2="-46" stroke="#ef4444" strokeWidth="1.3" strokeLinecap="round"/>
+          {[[-22,-42],[-10,-46],[0,-44],[10,-50],[24,-46],[-14,-30],[16,-34]].map(([x,y],i)=>(
+            <circle key={i} cx={x} cy={y} r="2.2" fill="#fca5a5"/>
+          ))}
+        </g>
+        {/* 관 산호 군집 */}
+        <g transform="translate(300,64)">
+          {[0,9,18,27,34].map((x, i) => (
+            <g key={i}>
+              <rect x={x-3} y={-(20+i*4)} width="6" height={20+i*4} rx="3" fill={["#22d3ee","#34d399","#60a5fa","#a78bfa","#f472b6"][i]} opacity="0.85"/>
+              <circle cx={x} cy={-(20+i*4)} r="4" fill={["#67e8f9","#6ee7b7","#93c5fd","#c4b5fd","#f9a8d4"][i]}/>
+            </g>
+          ))}
+        </g>
+        {/* 황색 버섯산호 */}
+        <g transform="translate(390,64)">
+          <rect x="-3" y="-22" width="6" height="22" rx="3" fill="#eab308" opacity="0.85"/>
+          <ellipse cx="0" cy="-22" rx="17" ry="9" fill="#fde047" opacity="0.85"/>
+          <ellipse cx="0" cy="-22" rx="12" ry="6" fill="#fef08a" opacity="0.5"/>
+        </g>
+        {/* 초록 가지 산호 */}
+        <g transform="translate(460,64)">
+          <line x1="0" y1="0" x2="0" y2="-40" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round"/>
+          <line x1="0" y1="-18" x2="-13" y2="-32" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
+          <line x1="0" y1="-18" x2="15" y2="-36" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
+          <line x1="0" y1="-30" x2="-9" y2="-46" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round"/>
+          <line x1="-13" y1="-32" x2="-18" y2="-44" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="15" y1="-36" x2="22" y2="-50" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round"/>
+          {[[-18,-44],[0,-40],[-9,-46],[15,-36],[22,-50],[-13,-32]].map(([x,y],i)=>(
+            <circle key={i} cx={x} cy={y} r="2.2" fill="#6ee7b7"/>
+          ))}
+        </g>
+        {/* 파란 뇌산호 */}
+        <g transform="translate(550,64)">
+          <ellipse cx="0" cy="-18" rx="18" ry="14" fill="#0ea5e9" opacity="0.75"/>
+          <path d="M-12 -18 Q-6 -26 0 -22 Q6 -26 12 -18 Q6 -10 0 -14 Q-6 -10 -12 -18Z" stroke="#0284c7" strokeWidth="1.2" fill="none" opacity="0.8"/>
+          <rect x="-2.5" y="-4" width="5" height="4" rx="2" fill="#0ea5e9"/>
+        </g>
+        {/* 관산호 군집 2 */}
+        <g transform="translate(630,64)">
+          {[0,9,17,25].map((x, i) => (
+            <g key={i}>
+              <rect x={x-3} y={-(18+i*5)} width="6" height={18+i*5} rx="3" fill={["#f472b6","#fb923c","#facc15","#34d399"][i]} opacity="0.8"/>
+              <circle cx={x} cy={-(18+i*5)} r="3.5" fill={["#fda4af","#fdba74","#fef08a","#6ee7b7"][i]}/>
+            </g>
+          ))}
+        </g>
+        {/* 보라 가지 산호 */}
+        <g transform="translate(720,64)">
+          <line x1="0" y1="0" x2="0" y2="-42" stroke="#8b5cf6" strokeWidth="2.8" strokeLinecap="round"/>
+          <line x1="0" y1="-18" x2="-14" y2="-34" stroke="#8b5cf6" strokeWidth="2.2" strokeLinecap="round"/>
+          <line x1="0" y1="-18" x2="14" y2="-36" stroke="#8b5cf6" strokeWidth="2.2" strokeLinecap="round"/>
+          <line x1="0" y1="-30" x2="-8" y2="-46" stroke="#8b5cf6" strokeWidth="1.8" strokeLinecap="round"/>
+          <line x1="14" y1="-36" x2="20" y2="-48" stroke="#8b5cf6" strokeWidth="1.5" strokeLinecap="round"/>
+          {[[-14,-34],[14,-36],[0,-42],[-8,-46],[20,-48]].map(([x,y],i)=>(
+            <circle key={i} cx={x} cy={y} r="2.5" fill="#c4b5fd"/>
+          ))}
+        </g>
+        {/* 오렌지 버섯산호 */}
+        <g transform="translate(820,64)">
+          <rect x="-4" y="-24" width="8" height="24" rx="3" fill="#f97316" opacity="0.85"/>
+          <ellipse cx="0" cy="-24" rx="20" ry="11" fill="#fdba74" opacity="0.9"/>
+          <ellipse cx="0" cy="-24" rx="15" ry="7.5" fill="#fed7aa" opacity="0.55"/>
+        </g>
+      </svg>
 
       {/* 모래/바닥 */}
       <div className="absolute bottom-0 left-0 right-0 h-3 rounded-b-xl"
