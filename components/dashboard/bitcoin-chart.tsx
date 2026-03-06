@@ -333,6 +333,7 @@ export function BitcoinChart() {
         <div className="shrink-0 text-right">
           {lastCandlePrice ? (
             <>
+              <p className="text-[11px] text-muted-foreground font-medium mb-0.5">현재가</p>
               <p className="text-sm font-bold text-foreground tabular-nums leading-tight">
                 ${lastCandlePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </p>
