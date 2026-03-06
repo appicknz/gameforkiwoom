@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Send, X, MessageCircle } from "lucide-react"
+import { Send, MessageCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ChatMessage } from "@/app/api/chat/route"
 
@@ -102,17 +102,12 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
   return (
     <div className="flex flex-col h-full">
       {/* 헤더 */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="w-4 h-4 text-primary" />
-          <span className="text-sm font-semibold text-foreground">실시간 채팅</span>
-          <span className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
-            {messages.length}
-          </span>
-        </div>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-          <X className="w-4 h-4" />
-        </button>
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
+        <MessageCircle className="w-4 h-4 text-primary" />
+        <span className="text-sm font-semibold text-foreground">실시간 채팅</span>
+        <span className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
+          {messages.length}
+        </span>
       </div>
 
       {/* 닉네임 */}
