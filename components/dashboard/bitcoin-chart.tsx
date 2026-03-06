@@ -120,7 +120,7 @@ export function BitcoinChart() {
         autoScale: true,
         borderVisible: false,
         scaleMargins: { top: 0.1, bottom: 0.1 },
-        mode: 2,  // 로그 스케일 (1 = 선형, 2 = 로그)
+        mode: 0,  // 0 = 일반(가격), 1 = 로그, 2 = 퍼센트
       },
       timeScale: {
         borderVisible: false,
