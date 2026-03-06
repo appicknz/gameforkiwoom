@@ -9,6 +9,9 @@ import { usePriceWorker } from "@/hooks/use-price-worker"
 
 interface CandleData {
   time: number
+  open: number
+  high: number
+  low: number
   close: number
 }
 
@@ -150,11 +153,12 @@ export function BitcoinChart() {
 
     chartRef.current = chart
 
-    const lineSeries = chart.addLineSeries({
-      color: "#22c55e",
-      lineWidth: 2,
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: "#22c55e", downColor: "#ef4444",
+      borderUpColor: "#22c55e", borderDownColor: "#ef4444",
+      wickUpColor: "#22c55e", wickDownColor: "#ef4444",
     })
-    seriesRef.current = lineSeries
+    seriesRef.current = candleSeries
 
     const resizeObserver = new ResizeObserver(() => {
       if (chartRef.current && container) {
@@ -190,11 +194,16 @@ export function BitcoinChart() {
       const bucketSize = interval === "30s" ? 30 : 1
       const bucket = time - (time % bucketSize)
 
-      // 라인 시리즈는 close 값만 필요
+      // 기존 캔들에서 open 유지, close/high/low 업데이트
+      const existing = candleMapRef.current.get(bucket)
       const candle: CandleData = {
-        time: bucket,
+        time:  bucket,
+        open:  existing?.open ?? price,
+        high:  existing ? Math.max(existing.high, price) : price,
+        low:   existing ? Math.min(existing.low, price)  : price,
         close: price,
       }
+      candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
       setLastCandlePrice(price)
     }, [interval]),
@@ -218,11 +227,14 @@ export function BitcoinChart() {
       ws.onopen = () => setConnected(true)
       ws.onmessage = (e) => {
         const k = JSON.parse(e.data).k
-        // 라인 시리즈는 close 값만 필요
         const candle: CandleData = {
           time:  Math.floor(k.t / 1000),
+          open:  parseFloat(k.o),
+          high:  parseFloat(k.h),
+          low:   parseFloat(k.l),
           close: parseFloat(k.c),
         }
+        candleMapRef.current.set(candle.time, candle)
         seriesRef.current?.update(candle)
       }
       ws.onerror = () => setConnected(false)

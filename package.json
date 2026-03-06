@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "NEXT_WEBPACK_USE_TURBOPACK=0 next dev",
     "lint": "eslint .",
     "start": "next start"
   },
