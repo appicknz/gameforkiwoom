@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { TrendingUp, TrendingDown, Wifi, WifiOff } from "lucide-react"
 import { createChart, ColorType } from "lightweight-charts"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { ChartBackground } from "@/components/dashboard/chart-background"
 
 interface CandleData {
   time: number
@@ -352,8 +351,7 @@ export function BitcoinChart() {
 
       {/* 차트 */}
       <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
-        <ChartBackground />
-        <div ref={chartContainerRef} className="w-full h-full relative z-[1]" />
+        <div ref={chartContainerRef} className="w-full h-full" />
         
         {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래, 시간 위) */}
         {ticker && (
