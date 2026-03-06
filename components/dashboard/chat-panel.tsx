@@ -26,8 +26,10 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
   const [nickInput, setNickInput] = useState("")
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const lastIdRef = useRef<string | null>(null)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
+  const isInitialLoad = useRef(true)
 
   // 닉네임 초기화
   useEffect(() => {
@@ -59,12 +61,15 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [fetchMessages])
 
-  // 새 메시지 오면 스크롤
+  // 새 메시지 오면 스크롤 (초기: 즉시, 이후: smooth)
   useEffect(() => {
     const latest = messages[messages.length - 1]
-    if (latest && latest.id !== lastIdRef.current) {
+    if (!latest) return
+    if (latest.id !== lastIdRef.current) {
       lastIdRef.current = latest.id
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+      const behavior = isInitialLoad.current ? "instant" : "smooth"
+      isInitialLoad.current = false
+      bottomRef.current?.scrollIntoView({ behavior } as ScrollIntoViewOptions)
     }
   }, [messages])
 
