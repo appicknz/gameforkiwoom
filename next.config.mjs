@@ -12,7 +12,6 @@ const nextConfig = {
   // → 브라우저에서 GoTrueClient 생성 구조적으로 불가
   serverExternalPackages: [
     "@supabase/supabase-js",
-    "@supabase/ssr",
     "@supabase/auth-js",
     "@supabase/gotrue-js",
     "@supabase/postgrest-js",
