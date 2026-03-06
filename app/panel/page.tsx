@@ -36,6 +36,7 @@ export default function PanelPage() {
   const [myRole, setMyRole] = useState<string>("")
   const [myUserId, setMyUserId] = useState<string>("")
   const [myBranchCode, setMyBranchCode] = useState<string | null>(null)
+  const [profile, setProfile] = useState<{ username: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [adminPw, setAdminPw] = useState("")
   const [pwInput, setPwInput] = useState("")
@@ -75,14 +76,35 @@ export default function PanelPage() {
         setMyUserId(data.profile?.id ?? "")
         setMyRole(role)
         setMyBranchCode(data.profile?.branch_code ?? null)
+        setProfile({ username: data.profile?.username ?? "", role })
         setLoading(false)
       })
       .catch(() => router.replace("/"))
   }, [router])
 
-  const handlePwSubmit = () => {
+  const handlePwSubmit = async () => {
     setPwError("")
+    setLoading(true)
+    
+    // 입력한 비밀번호 검증 (실제 로그인 시도)
+    const res = await fetch("/api/admin/verify-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: profile?.username,
+        password: pwInput,
+      }),
+    })
+
+    if (!res.ok) {
+      setPwError("비밀번호가 올바르지 않습니다.")
+      setLoading(false)
+      return
+    }
+
     setAdminPw(pwInput)
+    setPwInput("")
+    setLoading(false)
   }
 
   // 회원 목록 로드 (branch_admin은 자기 지점만)
