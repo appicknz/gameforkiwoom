@@ -186,34 +186,18 @@ export function BitcoinChart() {
     }
   }, [interval, fetchInitialCandles])
 
-  // SSE를 통해 서버가 집계한 가격을 수신 — 모든 사용자 동일 가격 보장
+  // Price Server — 배팅 기준가(closingPrice) 수신 전용, 차트 캔들과 분리
   usePriceWorker({
-    onConnected: useCallback(() => setConnected(true), []),
-    onDisconnected: useCallback(() => setConnected(false), []),
+    onConnected: useCallback(() => {}, []),
+    onDisconnected: useCallback(() => {}, []),
     onInitClosing: useCallback((prices) => {
       setClosingPrices(prices)
     }, []),
-    onPrice: useCallback((price, time) => {
-      if (interval !== "1s" && interval !== "30s") return
-      if (!dataReadyRef.current) return  // 초기 데이터 로딩 완료 전 무시
-      const bucketSize = interval === "30s" ? 30 : 1
-      // time이 밀리초로 오는 경우 초 단위로 변환
-      const timeSec = time > 1e10 ? Math.floor(time / 1000) : time
-      const bucket = timeSec - (timeSec % bucketSize)
-
-      // 기존 캔들에서 open 유지, close/high/low 업데이트
-      const existing = candleMapRef.current.get(bucket)
-      const candle: CandleData = {
-        time:  bucket,
-        open:  existing?.open ?? price,
-        high:  existing ? Math.max(existing.high, price) : price,
-        low:   existing ? Math.min(existing.low, price)  : price,
-        close: price,
+    onPrice: useCallback((price) => {
+      // 현재가 표시 전용 (차트 캔들은 Binance kline WS에서 직접 그림)
+      if (interval === "1s" || interval === "30s") {
+        setLastCandlePrice(price)
       }
-      candleMapRef.current.set(bucket, candle)
-      seriesRef.current?.update(candle)
-      chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
-      setLastCandlePrice(price)
     }, [interval]),
     onClosingPrice: useCallback((price, time) => {
       setClosingPrices((prev) => {
@@ -224,26 +208,50 @@ export function BitcoinChart() {
     }, []),
   })
 
-  // kline WebSocket (1m, 1h, 1d)
+  // kline WebSocket — 1s/30s/1m/1h/1d 모두 Binance에서 직접 OHLC 수신
   useEffect(() => {
-    if (interval === "1s" || interval === "30s") return
-    const cfg = INTERVAL_CONFIG[interval]
 
     const connect = () => {
-      const ws = new WebSocket(`wss://fstream.binance.com/ws/btcusdt@kline_${cfg.binance}`)
+      // 1s, 30s 모두 kline_1s 스트림 사용 (OHLC가 이미 계산된 채로 수신)
+      const binanceInterval = (interval === "1s" || interval === "30s")
+        ? "1s"
+        : INTERVAL_CONFIG[interval].binance
+      const ws = new WebSocket(`wss://fstream.binance.com/ws/btcusdt@kline_${binanceInterval}`)
       wsRef.current = ws
+
       ws.onopen = () => setConnected(true)
       ws.onmessage = (e) => {
+        if (!seriesRef.current) return
         const k = JSON.parse(e.data).k
-        const candle: CandleData = {
-          time:  Math.floor(k.t / 1000),
-          open:  parseFloat(k.o),
-          high:  parseFloat(k.h),
-          low:   parseFloat(k.l),
-          close: parseFloat(k.c),
+        const openTimeSec = Math.floor(k.t / 1000)
+
+        if (interval === "30s") {
+          // 30초 버킷: 30초 단위로 집계
+          const bucket = openTimeSec - (openTimeSec % 30)
+          const existing = candleMapRef.current.get(bucket)
+          const candle: CandleData = {
+            time:  bucket,
+            open:  existing?.open ?? parseFloat(k.o),
+            high:  existing ? Math.max(existing.high, parseFloat(k.h)) : parseFloat(k.h),
+            low:   existing ? Math.min(existing.low, parseFloat(k.l))  : parseFloat(k.l),
+            close: parseFloat(k.c),
+          }
+          candleMapRef.current.set(bucket, candle)
+          seriesRef.current.update(candle)
+          setLastCandlePrice(parseFloat(k.c))
+        } else {
+          // 1s, 1m, 1h, 1d: Binance OHLC 그대로 사용
+          const candle: CandleData = {
+            time:  openTimeSec,
+            open:  parseFloat(k.o),
+            high:  parseFloat(k.h),
+            low:   parseFloat(k.l),
+            close: parseFloat(k.c),
+          }
+          candleMapRef.current.set(candle.time, candle)
+          seriesRef.current.update(candle)
+          if (interval === "1s") setLastCandlePrice(parseFloat(k.c))
         }
-        candleMapRef.current.set(candle.time, candle)
-        seriesRef.current?.update(candle)
       }
       ws.onerror = () => setConnected(false)
       ws.onclose = () => { setConnected(false); setTimeout(connect, 3000) }
