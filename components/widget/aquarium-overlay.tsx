@@ -40,7 +40,8 @@ function pickCreatureType(level: "mega" | "high" | "mid" | "low" | "tiny"): Crea
 }
 
 function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
-  const flip = dir === -1 ? "scale(-1,1)" : undefined
+  // 원본 SVG들은 대부분 오른쪽을 바라보는 형태 → dir=1(오른쪽이동)이면 그대로, dir=-1(왼쪽이동)이면 반전
+  const flip = dir === 1 ? "scale(-1,1)" : undefined
 
   switch (type) {
     case "whale":
@@ -49,7 +50,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
         <svg
           width="420" height="160"
           viewBox="0 0 7908 2987"
-          style={{ transform: flip ? "scaleX(-1)" : undefined, display: "block" }}
+          style={{ display: "block" }}
           preserveAspectRatio="xMidYMid meet"
         >
           <g transform="translate(0,2987) scale(0.1,-0.1)" fill="#1a4480" stroke="none">
@@ -352,16 +353,21 @@ export function AquariumOverlay() {
             jellyfish: 0.1, crab: 0.25,
             tuna: 0.75, puffer: 0.3, tropical: 0.5, ray: 0.6, octopus: 0.25,
           }
+          // 고래는 크기가 커서(160px) y 범위를 위쪽 절반으로 제한, 나머지는 전체 범위
+          const yMax = type === "whale"
+            ? H * 0.45
+            : H * 0.72
+          const yMin = H * 0.05
           const c: Creature = {
             id: creatureId++,
             type,
             x: dir === 1 ? -150 : W + 150,
-            y: H * 0.15 + Math.random() * H * 0.65,
+            y: yMin + Math.random() * (yMax - yMin),
             speed: speedMap[type] * (0.8 + Math.random() * 0.4),
             dir,
             scale: sizeMap[type] * (0.9 + Math.random() * 0.2),
             opacity: 0.75 + Math.random() * 0.25,
-            yDrift: 0.3 + Math.random() * 0.4,
+            yDrift: 0.3 + Math.random() * 0.5,
             yPhase: Math.random() * Math.PI * 2,
           }
           return [...prev, c]
@@ -661,6 +667,7 @@ export function AquariumOverlay() {
             left: c.x,
             top: c.y,
             transform: `scale(${c.scale})`,
+            transformOrigin: "top left",
             opacity: c.opacity,
             transition: "opacity 0.5s",
           }}
