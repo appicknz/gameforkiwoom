@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 
 interface Creature {
   id: number
-  type: "whale" | "shark" | "dolphin" | "fish" | "smallfish" | "shrimp" | "seahorse" | "clione" | "jellyfish" | "crab" | "tuna" | "puffer" | "tropical" | "ray" | "octopus"
+  type: "whale" | "shark" | "dolphin" | "fish" | "smallfish" | "shrimp" | "seahorse" | "anglerfish" | "jellyfish" | "crab" | "tuna" | "puffer" | "tropical" | "ray" | "octopus" | "lionfish" | "swordfish" | "turtle"
   x: number
   y: number
   speed: number
@@ -29,11 +29,11 @@ function getDeltaLevel(deltaUsdt: number): "mega" | "high" | "mid" | "low" | "ti
 
 function pickCreatureType(level: "mega" | "high" | "mid" | "low" | "tiny"): Creature["type"] {
   const pools: Record<string, Creature["type"][]> = {
-    mega:  ["whale", "whale", "shark", "dolphin"],
-    high:  ["tuna", "dolphin", "shark", "ray"],
-    mid:   ["fish", "tuna", "tropical", "clione", "octopus"],
-    low:   ["smallfish", "tropical", "puffer", "jellyfish", "seahorse"],
-    tiny:  ["shrimp", "crab", "jellyfish", "seahorse", "smallfish"],
+    mega:  ["whale", "whale", "shark", "swordfish"],
+    high:  ["tuna", "dolphin", "shark", "ray", "swordfish", "turtle"],
+    mid:   ["fish", "tuna", "tropical", "lionfish", "octopus", "ray", "turtle"],
+    low:   ["smallfish", "tropical", "puffer", "jellyfish", "seahorse", "anglerfish"],
+    tiny:  ["shrimp", "crab", "jellyfish", "seahorse", "smallfish", "anglerfish"],
   }
   const pool = pools[level]
   return pool[Math.floor(Math.random() * pool.length)]
@@ -133,27 +133,114 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
           <path d="M12 18 Q20 16 20 20 Q16 22 12 20Z" fill="#4ade80" opacity="0.7" />
         </svg>
       )
-    case "clione":
-      // 클리오네 (바다천사) — 반투명 날개와 긴 몸통
+    case "anglerfish":
+      // 아귀 — 큰 입, 이마 낚싯대 발광체
       return (
-        <svg width="32" height="52" viewBox="0 0 32 52" transform={flip}>
-          {/* 몸통 */}
-          <ellipse cx="16" cy="32" rx="7" ry="16" fill="#ff9ecb" opacity="0.75"/>
-          <ellipse cx="16" cy="30" rx="4.5" ry="12" fill="#ffcce8" opacity="0.45"/>
-          {/* 머리 */}
-          <circle cx="16" cy="14" r="8" fill="#ff9ecb" opacity="0.8"/>
-          <circle cx="16" cy="13" r="5" fill="#ffd6ec" opacity="0.5"/>
-          {/* 날개 (왼) */}
-          <path d="M9 26 Q1 18 3 28 Q1 36 9 30 Z" fill="#ff9ecb" opacity="0.55"/>
-          {/* 날개 (오) */}
-          <path d="M23 26 Q31 18 29 28 Q31 36 23 30 Z" fill="#ff9ecb" opacity="0.55"/>
-          {/* 꼬리 끝 */}
-          <path d="M13 48 Q16 54 19 48" stroke="#ff9ecb" strokeWidth="2" fill="none" strokeLinecap="round"/>
+        <svg width="52" height="44" viewBox="0 0 52 44" transform={flip}>
+          {/* 몸 — 둥글고 납작한 형태 */}
+          <ellipse cx="26" cy="26" rx="20" ry="16" fill="#2d3a1e" opacity="0.9"/>
+          <ellipse cx="26" cy="28" rx="14" ry="9" fill="#3d4f28" opacity="0.5"/>
+          {/* 꼬리 */}
+          <path d="M6 26 Q0 18 8 22 Q4 26 8 30 Q0 34 6 26Z" fill="#2d3a1e"/>
+          {/* 큰 입 / 이빨 */}
+          <path d="M40 22 Q50 26 40 34" fill="#2d3a1e" stroke="#1a240e" strokeWidth="0.8"/>
+          <path d="M42 24 L44 22 L46 25 L48 23 L50 26 L47 28 L44 26 L42 28Z" fill="#c8f5a0" opacity="0.85"/>
+          {/* 등지느러미 */}
+          <path d="M18 10 Q24 4 30 10 Q24 8 18 10Z" fill="#2d3a1e"/>
+          {/* 낚싯대 (esca) */}
+          <path d="M34 10 Q38 4 40 6 Q38 8 36 12" stroke="#3d5c20" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+          {/* 발광체 */}
+          <circle cx="40" cy="5" r="4" fill="#aaff44" opacity="0.9"/>
+          <circle cx="40" cy="5" r="6" fill="#88ff00" opacity="0.25"/>
           {/* 눈 */}
-          <circle cx="13" cy="12" r="1.8" fill="#c2185b"/>
-          <circle cx="19" cy="12" r="1.8" fill="#c2185b"/>
-          {/* 내부 발광 */}
-          <ellipse cx="16" cy="28" rx="3" ry="7" fill="#ff6fb0" opacity="0.3"/>
+          <circle cx="38" cy="20" r="4.5" fill="#c8f5a0" opacity="0.9"/>
+          <circle cx="38" cy="20" r="2.5" fill="#0a1a00"/>
+          <circle cx="39" cy="19" r="1" fill="white" opacity="0.7"/>
+          {/* 옆면 무늬 */}
+          <path d="M14 22 Q20 18 28 22" stroke="#3d5c20" strokeWidth="0.8" fill="none" opacity="0.5"/>
+        </svg>
+      )
+    case "lionfish":
+      // 쏠배감펭 — 화려한 줄무늬와 독침 지느러미
+      return (
+        <svg width="60" height="52" viewBox="0 0 60 52" transform={flip}>
+          {/* 몸 */}
+          <ellipse cx="32" cy="30" rx="22" ry="16" fill="#c2410c" opacity="0.88"/>
+          <ellipse cx="32" cy="32" rx="15" ry="9" fill="#fed7aa" opacity="0.45"/>
+          {/* 세로 줄무늬 */}
+          {[20,26,32,38,44].map((x, i) => (
+            <line key={i} x1={x} y1="16" x2={x} y2="44"
+              stroke="#7c2d12" strokeWidth="2.5" opacity={0.35 + i*0.05}/>
+          ))}
+          {/* 꼬리 */}
+          <path d="M10 30 Q2 20 14 25 Q8 30 14 35 Q2 40 10 30Z" fill="#c2410c"/>
+          {/* 독침 등지느러미 (여러 개) */}
+          {[20,25,30,35,40,45].map((x, i) => (
+            <path key={i} d={`M${x} 14 Q${x+1} ${6-i} ${x+2} 14`}
+              stroke="#ef4444" strokeWidth="2" fill="none" strokeLinecap="round"/>
+          ))}
+          {/* 가슴지느러미 (넓게) */}
+          <path d="M20 30 Q10 42 18 46 Q22 40 24 34Z" fill="#ea580c" opacity="0.75"/>
+          <path d="M20 30 Q12 24 18 20 Q22 26 24 30Z" fill="#ea580c" opacity="0.75"/>
+          {/* 배지느러미 */}
+          <path d="M34 44 Q40 50 44 44 Q40 42 34 44Z" fill="#f97316" opacity="0.7"/>
+          {/* 눈 */}
+          <circle cx="46" cy="25" r="5" fill="white"/>
+          <circle cx="46.5" cy="25" r="3" fill="#1a1a2e"/>
+          <circle cx="47.5" cy="24" r="1.2" fill="white"/>
+        </svg>
+      )
+    case "swordfish":
+      // 황새치 — 길고 뾰족한 주둥이, 초승달 꼬리
+      return (
+        <svg width="100" height="36" viewBox="0 0 100 36" transform={flip}>
+          {/* 몸 */}
+          <ellipse cx="52" cy="18" rx="32" ry="12" fill="#1e3a5f" opacity="0.9"/>
+          <ellipse cx="52" cy="20" rx="22" ry="7" fill="#3b82f6" opacity="0.35"/>
+          {/* 뾰족한 주둥이 (빌) */}
+          <path d="M84 17 L100 18 L84 19Z" fill="#1e3a5f"/>
+          {/* 초승달 꼬리 */}
+          <path d="M20 18 Q6 6 16 13 Q10 18 16 23 Q6 30 20 18Z" fill="#1e3a5f"/>
+          {/* 등지느러미 — 넓고 높은 삼각형 */}
+          <path d="M50 6 Q62 0 72 10 Q62 8 50 6Z" fill="#1e3a5f" opacity="0.95"/>
+          {/* 복지느러미 */}
+          <path d="M50 28 Q58 34 64 28 Q58 26 50 28Z" fill="#1a3a5f" opacity="0.8"/>
+          {/* 옆줄 */}
+          <path d="M25 17 Q50 15 78 17" stroke="#60a5fa" strokeWidth="0.9" fill="none" opacity="0.5"/>
+          {/* 눈 */}
+          <circle cx="78" cy="14" r="3.5" fill="white"/>
+          <circle cx="78.5" cy="14" r="2" fill="#0a0f1e"/>
+          <circle cx="79.5" cy="13" r="0.8" fill="white"/>
+        </svg>
+      )
+    case "turtle":
+      // 바다거북
+      return (
+        <svg width="64" height="54" viewBox="0 0 64 54" transform={flip}>
+          {/* 등껍질 */}
+          <ellipse cx="32" cy="28" rx="22" ry="18" fill="#15803d" opacity="0.88"/>
+          {/* 등껍질 무늬 */}
+          <ellipse cx="32" cy="28" rx="15" ry="12" fill="#166534" opacity="0.5"/>
+          <path d="M32 16 L40 24 L36 34 L28 34 L24 24Z" fill="#14532d" opacity="0.4"/>
+          <path d="M22 20 L30 26" stroke="#14532d" strokeWidth="1.2" fill="none" opacity="0.5"/>
+          <path d="M34 26 L42 22" stroke="#14532d" strokeWidth="1.2" fill="none" opacity="0.5"/>
+          <path d="M24 30 L30 36" stroke="#14532d" strokeWidth="1.2" fill="none" opacity="0.5"/>
+          <path d="M34 34 L40 30" stroke="#14532d" strokeWidth="1.2" fill="none" opacity="0.5"/>
+          {/* 머리 */}
+          <circle cx="50" cy="22" r="8" fill="#16a34a" opacity="0.9"/>
+          <ellipse cx="54" cy="22" rx="5" ry="4" fill="#15803d" opacity="0.6"/>
+          {/* 눈 */}
+          <circle cx="53" cy="19" r="2.5" fill="white"/>
+          <circle cx="53.5" cy="19" r="1.3" fill="#0a0f0a"/>
+          <circle cx="54.2" cy="18.3" r="0.5" fill="white"/>
+          {/* 앞발 */}
+          <path d="M18 20 Q6 14 4 20 Q8 22 12 22 Q16 22 18 24Z" fill="#15803d" opacity="0.85"/>
+          <path d="M18 34 Q6 40 4 34 Q8 32 12 32 Q16 32 18 30Z" fill="#15803d" opacity="0.85"/>
+          {/* 뒷발 */}
+          <path d="M36 14 Q32 4 40 6 Q40 10 38 14Z" fill="#16a34a" opacity="0.75"/>
+          <path d="M36 42 Q32 52 40 50 Q40 46 38 42Z" fill="#16a34a" opacity="0.75"/>
+          {/* 꼬리 */}
+          <path d="M10 28 Q2 26 0 28 Q2 30 10 30Z" fill="#15803d"/>
         </svg>
       )
     case "jellyfish":
@@ -342,16 +429,18 @@ export function AquariumOverlay() {
           const type = pickCreatureType(volumeLevel)
           const sizeMap: Record<Creature["type"], number> = {
             whale: volumeLevel === "mega" ? 1.8 : 1.0,
-            shark: 0.85, dolphin: 0.75, clione: 0.75,
+            shark: 0.85, dolphin: 0.75, anglerfish: 0.65,
             fish: 0.6, smallfish: 0.5, shrimp: 0.45, seahorse: 0.4,
             jellyfish: 0.5, crab: 0.45,
             tuna: 0.7, puffer: 0.55, tropical: 0.65, ray: 0.8, octopus: 0.6,
+            lionfish: 0.7, swordfish: 0.85, turtle: 0.7,
           }
           const speedMap: Record<Creature["type"], number> = {
-            whale: 0.3, shark: 0.7, dolphin: 0.65, clione: 0.18,
+            whale: 0.3, shark: 0.7, dolphin: 0.65, anglerfish: 0.15,
             fish: 0.55, smallfish: 0.5, shrimp: 0.3, seahorse: 0.15,
             jellyfish: 0.1, crab: 0.25,
             tuna: 0.75, puffer: 0.3, tropical: 0.5, ray: 0.6, octopus: 0.25,
+            lionfish: 0.35, swordfish: 0.9, turtle: 0.3,
           }
           // 고래는 크기가 커서(160px) y 범위를 위쪽 절반으로 제한, 나머지는 전체 범위
           const yMax = type === "whale"
@@ -404,23 +493,30 @@ export function AquariumOverlay() {
 
   return (
     <div ref={containerRef} className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl">
-      {/* 수족관 배경 그라데이션 */}
+      {/* 바다 배경: 수면→심해 그라데이션 */}
       <div className="absolute inset-0 rounded-xl"
         style={{
-          background: "linear-gradient(180deg, rgba(7,89,133,0.18) 0%, rgba(3,105,161,0.08) 50%, rgba(2,132,199,0.04) 100%)",
+          background: "linear-gradient(180deg, rgba(2,68,110,0.28) 0%, rgba(1,55,90,0.18) 35%, rgba(0,38,64,0.22) 70%, rgba(0,20,40,0.30) 100%)",
         }}
       />
 
-      {/* 빛 반사 줄기 */}
-      <div className="absolute top-0 left-[15%] w-px h-full opacity-10"
-        style={{ background: "linear-gradient(180deg, rgba(186,230,253,0.8) 0%, transparent 100%)" }} />
-      <div className="absolute top-0 left-[35%] w-px h-full opacity-8"
-        style={{ background: "linear-gradient(180deg, rgba(186,230,253,0.5) 0%, transparent 80%)" }} />
-      <div className="absolute top-0 left-[60%] w-px h-full opacity-10"
-        style={{ background: "linear-gradient(180deg, rgba(186,230,253,0.7) 0%, transparent 100%)" }} />
-      <div className="absolute top-0 left-[80%] w-[2px] h-full opacity-6"
-        style={{ background: "linear-gradient(180deg, rgba(186,230,253,0.4) 0%, transparent 70%)" }} />
+      {/* 수면 반짝임 — 상단 밝은 가로 줄 */}
+      <div className="absolute top-0 left-0 right-0 h-3 rounded-t-xl"
+        style={{ background: "linear-gradient(180deg, rgba(125,211,252,0.22) 0%, transparent 100%)" }}/>
 
+      {/* 빛 반사 줄기 (god rays) */}
+      <div className="absolute top-0 left-[12%] w-[2px] h-full opacity-[0.07]"
+        style={{ background: "linear-gradient(180deg, rgba(186,230,253,1) 0%, transparent 75%)" }} />
+      <div className="absolute top-0 left-[22%] w-[6px] h-[70%] opacity-[0.05]"
+        style={{ background: "linear-gradient(180deg, rgba(186,230,253,1) 0%, transparent 100%)", transform: "skewX(-4deg)" }} />
+      <div className="absolute top-0 left-[38%] w-[2px] h-full opacity-[0.08]"
+        style={{ background: "linear-gradient(180deg, rgba(186,230,253,0.9) 0%, transparent 80%)" }} />
+      <div className="absolute top-0 left-[55%] w-[8px] h-[60%] opacity-[0.04]"
+        style={{ background: "linear-gradient(180deg, rgba(186,230,253,1) 0%, transparent 100%)", transform: "skewX(6deg)" }} />
+      <div className="absolute top-0 left-[68%] w-[2px] h-full opacity-[0.07]"
+        style={{ background: "linear-gradient(180deg, rgba(186,230,253,0.8) 0%, transparent 70%)" }} />
+      <div className="absolute top-0 left-[82%] w-[4px] h-[80%] opacity-[0.05]"
+        style={{ background: "linear-gradient(180deg, rgba(186,230,253,1) 0%, transparent 100%)", transform: "skewX(-3deg)" }} />
       {/* 수초 */}
       {[8, 18, 72, 85, 92].map((left, i) => (
         <div key={i} className="absolute bottom-0" style={{ left: `${left}%` }}>
@@ -433,12 +529,55 @@ export function AquariumOverlay() {
         </div>
       ))}
 
+      {/* 배경 산호 (흐릿하게, 원근감) */}
+      <svg className="absolute bottom-0 left-0 w-full" height="50" viewBox="0 0 1000 50" preserveAspectRatio="xMidYMax meet" style={{ opacity: 0.3, pointerEvents: "none" }}>
+        <g transform="translate(70,50)">
+          <line x1="0" y1="0" x2="0" y2="-32" stroke="#f472b6" strokeWidth="5" strokeLinecap="round"/>
+          <line x1="0" y1="-16" x2="-16" y2="-32" stroke="#f472b6" strokeWidth="4" strokeLinecap="round"/>
+          <line x1="0" y1="-16" x2="16" y2="-36" stroke="#f472b6" strokeWidth="4" strokeLinecap="round"/>
+          {[[-16,-32],[16,-36],[0,-32]].map(([x,y],i)=>(<circle key={i} cx={x} cy={y} r="5" fill="#f9a8d4"/>))}
+        </g>
+        <g transform="translate(200,50)">
+          <ellipse cx="0" cy="-20" rx="28" ry="16" fill="#0ea5e9" opacity="0.7"/>
+          <rect x="-4" y="-4" width="8" height="4" rx="2" fill="#0ea5e9"/>
+        </g>
+        <g transform="translate(340,50)">
+          <line x1="0" y1="0" x2="0" y2="-36" stroke="#ef4444" strokeWidth="4.5" strokeLinecap="round"/>
+          <line x1="0" y1="-14" x2="-18" y2="-30" stroke="#ef4444" strokeWidth="3.5" strokeLinecap="round"/>
+          <line x1="0" y1="-14" x2="18" y2="-34" stroke="#ef4444" strokeWidth="3.5" strokeLinecap="round"/>
+          {[[-18,-30],[18,-34],[0,-36]].map(([x,y],i)=>(<circle key={i} cx={x} cy={y} r="4" fill="#fca5a5"/>))}
+        </g>
+        <g transform="translate(480,50)">
+          {[0,12,22,32].map((x,i)=>(
+            <g key={i}>
+              <rect x={x-4} y={-(20+i*6)} width="8" height={20+i*6} rx="4" fill={["#22d3ee","#a78bfa","#f472b6","#34d399"][i]} opacity="0.9"/>
+              <circle cx={x} cy={-(20+i*6)} r="6" fill={["#67e8f9","#c4b5fd","#f9a8d4","#6ee7b7"][i]}/>
+            </g>
+          ))}
+        </g>
+        <g transform="translate(650,50)">
+          <ellipse cx="0" cy="-22" rx="26" ry="20" fill="#7c3aed" opacity="0.8"/>
+          <path d="M-18,-22 Q-8,-34 0,-28 Q8,-34 18,-22 Q8,-10 0,-16 Q-8,-10 -18,-22Z" stroke="#5b21b6" strokeWidth="2" fill="none" opacity="0.7"/>
+          <rect x="-4" y="-4" width="8" height="4" rx="2" fill="#7c3aed"/>
+        </g>
+        <g transform="translate(800,50)">
+          <line x1="0" y1="0" x2="2" y2="-38" stroke="#10b981" strokeWidth="4.5" strokeLinecap="round"/>
+          <line x1="2" y1="-18" x2="-16" y2="-34" stroke="#10b981" strokeWidth="3.5" strokeLinecap="round"/>
+          <line x1="2" y1="-18" x2="18" y2="-38" stroke="#10b981" strokeWidth="3.5" strokeLinecap="round"/>
+          {[[-16,-34],[2,-38],[18,-38]].map(([x,y],i)=>(<circle key={i} cx={x} cy={y} r="4" fill="#6ee7b7"/>))}
+        </g>
+        <g transform="translate(930,50)">
+          <rect x="-5" y="-26" width="10" height="26" rx="4" fill="#f97316" opacity="0.85"/>
+          <ellipse cx="0" cy="-26" rx="24" ry="13" fill="#fdba74" opacity="0.9"/>
+        </g>
+      </svg>
+
       {/* 산호초 */}
       <svg className="absolute bottom-0 left-0 w-full" height="80" viewBox="0 0 1000 80" preserveAspectRatio="xMidYMax meet" style={{ opacity: 0.9, pointerEvents: "none" }}>
         <defs>
           <radialGradient id="cg1" cx="50%" cy="80%" r="60%"><stop offset="0%" stopColor="#fde68a"/><stop offset="100%" stopColor="#f59e0b" stopOpacity="0"/></radialGradient>
         </defs>
-        {/* 모래 바닥 */}
+        {/* 모�� 바닥 */}
         <ellipse cx="500" cy="82" rx="520" ry="12" fill="rgba(251,191,36,0.1)"/>
 
         {/* ─ 분홍 가지산호 (대) ─ */}
