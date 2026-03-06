@@ -518,7 +518,7 @@ export function BettingGame() {
           setPhase("result")
         }
 
-        // 새 라운드 초기화
+        // 새 라운드 초기화 (결과 시트는 닫지 않음 - 유저가 직접 닫거나 배팅 시 닫힘)
         betRef.current = null
         betDigitRef.current = null
         betParityRef.current = null
@@ -534,8 +534,6 @@ export function BettingGame() {
         setBasePrice(null)
         basePriceRef.current = null
         setDialog(null)
-
-        setShowResultSheet(false)
         setTimeout(() => setPhase("betting"), 1500)
       }
 
@@ -553,12 +551,13 @@ export function BettingGame() {
 
   const canBet = timeLeft > 15 && phase !== "result"
 
-  // 종목 버튼 클릭 → 다이얼로그 열기
+  // 종목 버튼 클릭 → 다이얼로그 열기 (결과 시트가 열려있으면 닫기)
   const openDialog = (type: BetType, value: string) => {
     if (!canBet) return
     if (type === "direction" && betDirection !== null) return
     if (type === "digit" && betDigit !== null) return
     if (type === "parity" && betParity !== null) return
+    setShowResultSheet(false)
     setDialog({ open: true, type, value })
   }
 
