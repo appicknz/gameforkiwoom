@@ -60,5 +60,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: profileError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, email })
+  return NextResponse.json({ success: true, email, username })
 }

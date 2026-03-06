@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   // profiles 테이블에서 username으로 user_id 조회
   const { data: profile, error: profileError } = await adminSupabase
     .from('profiles')
-    .select('id')
+    .select('id, username, role')
     .eq('username', username)
     .single()
 
@@ -31,5 +31,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
   }
 
-  return NextResponse.json({ email: userData.user.email })
+  return NextResponse.json({
+    email: userData.user.email,
+    username: profile.username,
+    role: (profile as any).role ?? "user",
+  })
 }
