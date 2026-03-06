@@ -1,5 +1,5 @@
 import { Sidebar } from "@/components/dashboard/sidebar"
-import { TopBar } from "@/components/dashboard/top-bar1"
+import { TopBar } from "@/components/dashboard/top-bar"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import { BettingGame } from "@/components/dashboard/betting-game"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
