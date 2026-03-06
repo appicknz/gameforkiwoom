@@ -9,9 +9,6 @@ import { usePriceWorker } from "@/hooks/use-price-worker"
 
 interface CandleData {
   time: number
-  open: number
-  high: number
-  low: number
   close: number
 }
 
@@ -153,12 +150,11 @@ export function BitcoinChart() {
 
     chartRef.current = chart
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: "#22c55e", downColor: "#ef4444",
-      borderUpColor: "#22c55e", borderDownColor: "#ef4444",
-      wickUpColor: "#22c55e", wickDownColor: "#ef4444",
+    const lineSeries = chart.addLineSeries({
+      color: "#22c55e",
+      lineWidth: 2,
     })
-    seriesRef.current = candleSeries
+    seriesRef.current = lineSeries
 
     const resizeObserver = new ResizeObserver(() => {
       if (chartRef.current && container) {
