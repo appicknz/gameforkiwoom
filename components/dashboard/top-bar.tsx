@@ -17,6 +17,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+// React Strict Mode 에서 중복 구독 방지
+let authSubscriptionUnsubscribe: (() => void) | null = null
+
 export function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -67,20 +70,27 @@ export function TopBar() {
       }
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setIsLoggedIn(true)
-        const uname = session.user.user_metadata?.username
-        if (uname) {
-          setProfile({ username: uname, role: session.user.user_metadata?.role ?? "user" })
+    // React Strict Mode에서 중복 구독 방지
+    if (!authSubscriptionUnsubscribe) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (session?.user) {
+          setIsLoggedIn(true)
+          const uname = session.user.user_metadata?.username
+          if (uname) {
+            setProfile({ username: uname, role: session.user.user_metadata?.role ?? "user" })
+          }
+        } else {
+          setIsLoggedIn(false)
+          setProfile(null)
+          setBalance(0)
         }
-      } else {
-        setIsLoggedIn(false)
-        setProfile(null)
-        setBalance(0)
-      }
-    })
-    return () => subscription.unsubscribe()
+      })
+      authSubscriptionUnsubscribe = () => subscription.unsubscribe()
+    }
+
+    return () => {
+      // cleanup에서는 unsubscribe 호출 금지 (다른 mount가 이 값을 사용할 수 있음)
+    }
   }, [])
 
   // 드롭다운 외부 클릭 닫기
