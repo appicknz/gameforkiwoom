@@ -35,6 +35,12 @@ export function BettingGame() {
   const [results, setResults] = useState<RoundResult[]>([])
   const [wins, setWins] = useState(0)
   const [losses, setLosses] = useState(0)
+  // 각 타입별 독립 배팅 금액
+  const [betDirectionAmount, setBetDirectionAmount] = useState(10000)
+  const [betDigitAmount, setBetDigitAmount] = useState(10000)
+  const [betParityAmount, setBetParityAmount] = useState(10000)
+  // 누적식 금액 선택
+  const [selectedChip, setSelectedChip] = useState<number | null>(null)
 
   const prevRoundRef = useRef<number | null>(null)
   const betRef = useRef<BetDirection>(null)
@@ -192,6 +198,31 @@ export function BettingGame() {
     setPhase("waiting")
   }
 
+  const CHIPS = [
+    { label: "1만", value: 10000 },
+    { label: "5만", value: 50000 },
+    { label: "10만", value: 100000 },
+    { label: "50만", value: 500000 },
+    { label: "100만", value: 1000000 },
+  ]
+
+  // 칩 클릭: 같은 칩 반복 클릭 시 누적, 다른 칩은 초기화
+  const handleChip = (value: number) => {
+    if (!canBet) return
+    if (selectedChip === value) {
+      // 누적
+      if (!betDirection) setBetDirectionAmount((p) => p + value)
+      if (!betDigit) setBetDigitAmount((p) => p + value)
+      if (!betParity) setBetParityAmount((p) => p + value)
+    } else {
+      // 초기화 후 새 금액 설정
+      setSelectedChip(value)
+      if (!betDirection) setBetDirectionAmount(value)
+      if (!betDigit) setBetDigitAmount(value)
+      if (!betParity) setBetParityAmount(value)
+    }
+  }
+
   const priceDiff =
     currentPrice !== null && basePrice !== null
       ? currentPrice - basePrice
@@ -308,6 +339,28 @@ export function BettingGame() {
         </div>
       </div>
 
+      {/* 금액 선택 칩 버튼 */}
+      <div className="flex gap-1.5 mb-3">
+        {CHIPS.map(({ label, value }) => {
+          const isActive = selectedChip === value
+          return (
+            <button
+              key={value}
+              onClick={() => handleChip(value)}
+              disabled={!canBet}
+              className="flex-1 py-1.5 rounded-xl text-[11px] font-bold border transition-all duration-150 disabled:opacity-30"
+              style={{
+                background: isActive ? "rgba(16,185,129,0.12)" : "transparent",
+                borderColor: isActive ? "#10b981" : "hsl(var(--border))",
+                color: isActive ? "#10b981" : "hsl(var(--muted-foreground))",
+              }}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+
       {/* 3그룹 버튼: 롱/숏 | 오버/언더 | 홀/짝 */}
       <div className="grid grid-cols-3 gap-2">
         {/* 그룹 1: 롱 / 숏 */}
@@ -315,26 +368,26 @@ export function BettingGame() {
           <Button
             onClick={() => placeBet("long")}
             disabled={!canBet || betDirection !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1 ${
+            className={`h-14 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center gap-0.5 ${
               betDirection === "long"
                 ? "bg-emerald-600 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 scale-[1.02]"
                 : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30"
             }`}
           >
-            <TrendingUp className="w-3.5 h-3.5" />
-            롱
+            <div className="flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" />롱</div>
+            <span className="text-[9px] opacity-60">₩{betDirectionAmount.toLocaleString()}</span>
           </Button>
           <Button
             onClick={() => placeBet("short")}
             disabled={!canBet || betDirection !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1 ${
+            className={`h-14 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center gap-0.5 ${
               betDirection === "short"
                 ? "bg-red-600 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 scale-[1.02]"
                 : "bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30"
             }`}
           >
-            <TrendingDown className="w-3.5 h-3.5" />
-            숏
+            <div className="flex items-center gap-1"><TrendingDown className="w-3.5 h-3.5" />숏</div>
+            <span className="text-[9px] opacity-60">₩{betDirectionAmount.toLocaleString()}</span>
           </Button>
         </div>
 
@@ -343,7 +396,7 @@ export function BettingGame() {
           <Button
             onClick={() => placeDigitBet("over")}
             disabled={!canBet || betDigit !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
+            className={`h-14 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
               betDigit === "over"
                 ? "bg-orange-600 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/30 scale-[1.02]"
                 : "bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 border border-orange-500/30"
@@ -351,11 +404,12 @@ export function BettingGame() {
           >
             <span>오버</span>
             <span className="text-[9px] opacity-70">5~9</span>
+            <span className="text-[9px] opacity-50">₩{betDigitAmount.toLocaleString()}</span>
           </Button>
           <Button
             onClick={() => placeDigitBet("under")}
             disabled={!canBet || betDigit !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
+            className={`h-14 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
               betDigit === "under"
                 ? "bg-blue-600 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-[1.02]"
                 : "bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/30"
@@ -363,6 +417,7 @@ export function BettingGame() {
           >
             <span>언더</span>
             <span className="text-[9px] opacity-70">0~4</span>
+            <span className="text-[9px] opacity-50">₩{betDigitAmount.toLocaleString()}</span>
           </Button>
         </div>
 
@@ -371,7 +426,7 @@ export function BettingGame() {
           <Button
             onClick={() => placeParityBet("odd")}
             disabled={!canBet || betParity !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
+            className={`h-14 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
               betParity === "odd"
                 ? "bg-violet-600 hover:bg-violet-600 text-white shadow-lg shadow-violet-500/30 scale-[1.02]"
                 : "bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 border border-violet-500/30"
@@ -379,11 +434,12 @@ export function BettingGame() {
           >
             <span>홀</span>
             <span className="text-[9px] opacity-70">1·3·5·7·9</span>
+            <span className="text-[9px] opacity-50">₩{betParityAmount.toLocaleString()}</span>
           </Button>
           <Button
             onClick={() => placeParityBet("even")}
             disabled={!canBet || betParity !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
+            className={`h-14 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
               betParity === "even"
                 ? "bg-pink-600 hover:bg-pink-600 text-white shadow-lg shadow-pink-500/30 scale-[1.02]"
                 : "bg-pink-500/10 hover:bg-pink-500/20 text-pink-500 border border-pink-500/30"
@@ -391,6 +447,7 @@ export function BettingGame() {
           >
             <span>짝</span>
             <span className="text-[9px] opacity-70">0·2·4·6·8</span>
+            <span className="text-[9px] opacity-50">₩{betParityAmount.toLocaleString()}</span>
           </Button>
         </div>
       </div>
