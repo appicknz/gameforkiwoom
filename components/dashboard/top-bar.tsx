@@ -3,7 +3,7 @@
 import { Menu, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { useRouter } from "next/navigation"
 
@@ -12,16 +12,24 @@ interface Profile {
   role: string
 }
 
-// 모듈 레벨 싱글톤 - 절대로 컴포넌트 내부에서 createClient 호출 금지
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// 싱글톤: 이 값은 모듈 로드 시점에 한 번만 생성됨
+let supabaseInstance: ReturnType<typeof createClient> | null = null
+
+function getSupabaseClient() {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+  }
+  return supabaseInstance
+}
 
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
 
 export function TopBar() {
   const router = useRouter()
+  const supabase = useMemo(() => getSupabaseClient(), [])
   const [menuOpen, setMenuOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [balance, setBalance] = useState(0)
