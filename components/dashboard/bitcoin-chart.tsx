@@ -307,7 +307,7 @@ export function BitcoinChart() {
       tickerWsRef.current = ws
       ws.onmessage = (e) => {
         const d = JSON.parse(e.data)
-        setTicker({
+        const data: TickerData = {
           price:            parseFloat(d.c),
           change:           parseFloat(d.p),
           changePercent:    parseFloat(d.P),
@@ -315,7 +315,12 @@ export function BitcoinChart() {
           low:              parseFloat(d.l),
           volume:           parseFloat(d.v),
           quoteAssetVolume: parseFloat(d.q),
-        })
+        }
+        setTicker(data)
+        // widget 컴포넌트에서 거래대금을 읽을 수 있도록 노출
+        if (typeof window !== "undefined") {
+          (window as any).__tickerData = data
+        }
       }
       ws.onerror = () => {}
       ws.onclose = () => setTimeout(connect, 3000)
