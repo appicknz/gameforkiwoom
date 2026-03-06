@@ -4,7 +4,6 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { Check, X } from "lucide-react"
 import { GameChart } from "@/components/game/game-chart"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { createClient } from "@supabase/supabase-js"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
@@ -90,11 +89,6 @@ function expectedReturn(betCount: number, amount: number) {
 }
 
 export default function GamePage() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
   const [timeLeft, setTimeLeft] = useState(30)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
   const [betDigit, setBetDigit] = useState<BetDigit>(null)
@@ -209,8 +203,7 @@ export default function GamePage() {
           setShowResult(true)
 
           // DB에 결과 저장 (비동기, 실패해도 UI는 진행)
-          const session = await supabase.auth.getSession().catch(() => ({ data: { session: null } }))
-          const token = session?.data?.session?.access_token
+          const token = typeof window !== "undefined" ? sessionStorage.getItem("supabase_token") : null
           if (token) {
             fetch("/api/user/game/play", {
               method: "POST",
@@ -306,7 +299,7 @@ export default function GamePage() {
   // 배팅 금액 포맷 (버튼 아래 표시)
   const amountLabel = `$${(betAmount / 1000).toFixed(2)}`
 
-  // iPhone mini: 375×812. 하단 바 56px, safe area 고려해 전체를 h-screen으로 고정
+  // iPhone mini: 375×812. 하단 �� 56px, safe area 고려해 전체를 h-screen으로 고정
   return (
     <div className="flex flex-col h-screen bg-[#0a0e1a] overflow-hidden relative" style={{ maxHeight: 812 }}>
 

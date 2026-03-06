@@ -128,7 +128,10 @@ export function TopBar() {
     setDropdownOpen(false)
     setLoginUsername("")
     setLoginPw("")
-    // signInWithPassword 반환 토큰으로 즉시 balance 조회
+    // access_token을 sessionStorage에 저장 (게임/다른 페이지에서 사용)
+    if (signInData.session?.access_token) {
+      sessionStorage.setItem("supabase_token", signInData.session.access_token)
+    }
     const token = signInData.session?.access_token
     if (token) {
       fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
@@ -177,8 +180,10 @@ export function TopBar() {
     setIsLoggedIn(true)
     setDropdownOpen(false)
     setRegUsername(""); setRegPw(""); setRegConfirmPw("")
+    // access_token을 sessionStorage에 저장 (게임/다른 페이지에서 사용)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.access_token) {
+        sessionStorage.setItem("supabase_token", session.access_token)
         fetch("/api/user/balance", { headers: { Authorization: `Bearer ${session.access_token}` } })
           .then(r => r.json()).then(d => setBalance(d.balance ?? 0))
       }
