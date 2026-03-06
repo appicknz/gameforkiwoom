@@ -134,7 +134,7 @@ export function BitcoinChart() {
         vertLine: { color: "rgba(156,163,175,0.5)", labelBackgroundColor: "#1f2937" },
         horzLine: { color: "rgba(156,163,175,0.5)", labelBackgroundColor: "#1f2937" },
       },
-      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.1 } },
+      rightPriceScale: { borderVisible: false, autoScale: true, scaleMargins: { top: 0.15, bottom: 0.15 } },
       timeScale: {
         borderVisible: false,
         timeVisible: true,
@@ -205,6 +205,7 @@ export function BitcoinChart() {
       }
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
+      chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
       setLastCandlePrice(price)
     }, [interval]),
     onClosingPrice: useCallback((price, time) => {
@@ -236,6 +237,7 @@ export function BitcoinChart() {
         }
         candleMapRef.current.set(candle.time, candle)
         seriesRef.current?.update(candle)
+        chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
       }
       ws.onerror = () => setConnected(false)
       ws.onclose = () => { setConnected(false); setTimeout(connect, 3000) }
