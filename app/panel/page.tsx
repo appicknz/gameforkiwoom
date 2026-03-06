@@ -208,17 +208,22 @@ export default function PanelPage() {
   }
 
   if (!adminPw) {
+    const isBranchAdmin = myRole === "branch_admin"
+    const pwLabel = isBranchAdmin ? "본인 비밀번호" : "마스터 비밀번호"
+    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력하세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-full max-w-sm p-8 bg-card border border-border rounded-2xl shadow-sm">
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-2 mb-2">
             <Shield className="w-5 h-5 text-primary" />
             <h1 className="text-lg font-semibold text-foreground">관리자 인증</h1>
           </div>
+          <p className="text-xs text-muted-foreground mb-6">{pwDescription}</p>
           <div className="space-y-3">
             <Input
               type="password"
-              placeholder="관리자 비밀번호"
+              placeholder={pwLabel}
               value={pwInput}
               onChange={e => setPwInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handlePwSubmit()}
