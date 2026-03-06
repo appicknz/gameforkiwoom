@@ -5,11 +5,17 @@ import { useEffect, useRef } from "react"
 interface Dot {
   x: number
   y: number
-  angle: number
-  dist: number
   opacity: number
   size: number
   birth: number
+}
+
+interface Radar {
+  cx: number
+  cy: number
+  maxR: number
+  angle: number
+  speed: number
 }
 
 interface Jet {
@@ -31,38 +37,63 @@ export function ChartBackground() {
     if (!ctx) return
 
     let animId: number
-    let radarAngle = 0
     const dots: Dot[] = []
-    let jet: Jet | null = null
-    let jetTimer = 0
+    const jets: Jet[] = []
+
+    // 레이더: 1~3개, 각각 랜덤 위치/크기/속도
+    let radars: Radar[] = []
+
+    const initRadars = (w: number, h: number) => {
+      const count = 1 + Math.floor(Math.random() * 3) // 1~3개
+      radars = Array.from({ length: count }, () => ({
+        cx: w * (0.15 + Math.random() * 0.7),
+        cy: h * (0.15 + Math.random() * 0.7),
+        maxR: Math.min(w, h) * (0.12 + Math.random() * 0.28),
+        angle: Math.random() * Math.PI * 2,
+        speed: 0.010 + Math.random() * 0.022,
+      }))
+    }
 
     const spawnJet = (w: number, h: number) => {
-      // 랜덤으로 왼→오른 또는 위→아래 방향
-      const fromLeft = Math.random() > 0.3
-      jet = fromLeft
-        ? { x: -60, y: h * (0.2 + Math.random() * 0.5), vx: 1.4 + Math.random() * 0.8, vy: (Math.random() - 0.5) * 0.3, scale: 0.55, opacity: 0 }
-        : { x: w * (0.2 + Math.random() * 0.6), y: -40, vx: (Math.random() - 0.5) * 0.3, vy: 1.2 + Math.random() * 0.6, scale: 0.5, opacity: 0 }
+      const fromLeft = Math.random() > 0.35
+      const speed = 0.8 + Math.random() * 2.5        // 0.8 ~ 3.3 (매우 다양)
+      const scale = 0.35 + Math.random() * 0.55       // 0.35 ~ 0.9 (크기 다양)
+      const j: Jet = fromLeft
+        ? {
+            x: -60,
+            y: h * (0.1 + Math.random() * 0.8),
+            vx: speed,
+            vy: (Math.random() - 0.5) * speed * 0.25,
+            scale,
+            opacity: 0,
+          }
+        : {
+            x: w * (0.1 + Math.random() * 0.8),
+            y: -40,
+            vx: (Math.random() - 0.5) * speed * 0.25,
+            vy: speed,
+            scale,
+            opacity: 0,
+          }
+      jets.push(j)
     }
 
     const drawJet = (ctx: CanvasRenderingContext2D, j: Jet) => {
       ctx.save()
       ctx.translate(j.x, j.y)
-      // vx/vy 방향으로 회전
       const angle = Math.atan2(j.vy, j.vx)
       ctx.rotate(angle)
       ctx.scale(j.scale, j.scale)
       ctx.globalAlpha = j.opacity
 
-      const g = ctx.createLinearGradient(-30, 0, 30, 0)
+      // 엔진 trail
+      const g = ctx.createLinearGradient(-48, 0, -20, 0)
       g.addColorStop(0, "rgba(34,197,94,0)")
-      g.addColorStop(0.5, "rgba(34,197,94,0.7)")
-      g.addColorStop(1, "rgba(34,197,94,0)")
+      g.addColorStop(1, "rgba(34,197,94,0.6)")
       ctx.strokeStyle = g
-      ctx.lineWidth = 1.5
-
-      // 엔진 불꽃 trail
+      ctx.lineWidth = 2
       ctx.beginPath()
-      ctx.moveTo(-40, 0)
+      ctx.moveTo(-48, 0)
       ctx.lineTo(-28, 0)
       ctx.stroke()
 
@@ -101,7 +132,7 @@ export function ChartBackground() {
       ctx.fill()
       ctx.stroke()
 
-      // 수직 꼬리날개
+      // 꼬리날개
       ctx.beginPath()
       ctx.moveTo(-16, -2)
       ctx.lineTo(-22, -10)
@@ -114,87 +145,104 @@ export function ChartBackground() {
       ctx.restore()
     }
 
+    // jet 생성 타이머: 각 jet마다 독립적인 interval
+    const scheduleNextJet = (w: number, h: number) => {
+      const delay = 1500 + Math.random() * 3000 // 1.5~4.5초 간격
+      setTimeout(() => {
+        const maxJets = 2 + Math.floor(Math.random() * 4) // 동시 최대 2~5개
+        if (jets.length < maxJets) spawnJet(w, h)
+        scheduleNextJet(w, h)
+      }, delay)
+    }
+
     const resize = () => {
       const rect = canvas.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) return
       canvas.width = rect.width * window.devicePixelRatio
       canvas.height = rect.height * window.devicePixelRatio
       ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+      initRadars(rect.width, rect.height)
     }
     resize()
 
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
 
+    // 초기 jet 2~3개 바로 띄우기
+    const rect = canvas.getBoundingClientRect()
+    const initW = rect.width || 600
+    const initH = rect.height || 180
+    spawnJet(initW, initH)
+    if (Math.random() > 0.4) spawnJet(initW, initH)
+    scheduleNextJet(initW, initH)
+
+    let stopped = false
+
     const draw = (ts: number) => {
+      if (stopped) return
       const w = canvas.width / window.devicePixelRatio
       const h = canvas.height / window.devicePixelRatio
+      if (w === 0 || h === 0) { animId = requestAnimationFrame(draw); return }
 
       ctx.clearRect(0, 0, w, h)
 
-      // ── 레이더 원 ─────────────────────────────────────────
-      const cx = w * 0.82
-      const cy = h * 0.42
-      const maxR = Math.min(w, h) * 0.38
+      // ── 레이더들 ──────────────────────────────────────────
+      for (const radar of radars) {
+        const { cx, cy, maxR } = radar
+        radar.angle = (radar.angle + radar.speed) % (Math.PI * 2)
+        const ra = radar.angle
 
-      // 동심원 (3개)
-      for (let i = 1; i <= 3; i++) {
-        const r = (maxR / 3) * i
+        // 동심원
+        for (let i = 1; i <= 3; i++) {
+          ctx.beginPath()
+          ctx.arc(cx, cy, (maxR / 3) * i, 0, Math.PI * 2)
+          ctx.strokeStyle = `rgba(34,197,94,${0.05 + i * 0.02})`
+          ctx.lineWidth = 0.7
+          ctx.stroke()
+        }
+
+        // 십자선
+        ctx.strokeStyle = "rgba(34,197,94,0.07)"
+        ctx.lineWidth = 0.5
         ctx.beginPath()
-        ctx.arc(cx, cy, r, 0, Math.PI * 2)
-        ctx.strokeStyle = `rgba(34,197,94,${0.06 + i * 0.02})`
-        ctx.lineWidth = 0.8
+        ctx.moveTo(cx - maxR, cy); ctx.lineTo(cx + maxR, cy)
+        ctx.moveTo(cx, cy - maxR); ctx.lineTo(cx, cy + maxR)
         ctx.stroke()
-      }
 
-      // 십자선
-      ctx.strokeStyle = "rgba(34,197,94,0.08)"
-      ctx.lineWidth = 0.6
-      ctx.beginPath()
-      ctx.moveTo(cx - maxR, cy); ctx.lineTo(cx + maxR, cy)
-      ctx.moveTo(cx, cy - maxR); ctx.lineTo(cx, cy + maxR)
-      ctx.stroke()
+        // 스위프 부채꼴
+        const sweepLength = Math.PI * 0.55
+        const steps = 28
+        for (let s = 0; s < steps; s++) {
+          const a0 = ra - sweepLength * (s / steps)
+          const a1 = ra - sweepLength * ((s + 1) / steps)
+          ctx.beginPath()
+          ctx.moveTo(cx, cy)
+          ctx.arc(cx, cy, maxR, a0, a1, true)
+          ctx.closePath()
+          ctx.fillStyle = `rgba(34,197,94,${(1 - s / steps) * 0.16})`
+          ctx.fill()
+        }
 
-      // 레이더 스위프 (그라디언트 부채꼴)
-      radarAngle = (radarAngle + 0.018) % (Math.PI * 2)
-      const sweepLength = Math.PI * 0.55
-      const sweepGrad = ctx.createConicalGradient
-        ? null // 브라우저 미지원 fallback 아래서 처리
-        : null
-
-      // conical gradient 미지원이므로 여러 삼각형으로 근사
-      const steps = 30
-      for (let s = 0; s < steps; s++) {
-        const a0 = radarAngle - sweepLength * (s / steps)
-        const a1 = radarAngle - sweepLength * ((s + 1) / steps)
-        const alpha = (1 - s / steps) * 0.18
+        // 스위프 선
         ctx.beginPath()
         ctx.moveTo(cx, cy)
-        ctx.arc(cx, cy, maxR, a0, a1, true)
-        ctx.closePath()
-        ctx.fillStyle = `rgba(34,197,94,${alpha})`
-        ctx.fill()
-      }
+        ctx.lineTo(cx + Math.cos(ra) * maxR, cy + Math.sin(ra) * maxR)
+        ctx.strokeStyle = "rgba(34,197,94,0.45)"
+        ctx.lineWidth = 1
+        ctx.stroke()
 
-      // 스위프 선
-      ctx.beginPath()
-      ctx.moveTo(cx, cy)
-      ctx.lineTo(cx + Math.cos(radarAngle) * maxR, cy + Math.sin(radarAngle) * maxR)
-      ctx.strokeStyle = "rgba(34,197,94,0.5)"
-      ctx.lineWidth = 1
-      ctx.stroke()
-
-      // ── 레이더 점 생성 (스위프 선 근처) ─────────────────
-      if (Math.random() < 0.12) {
-        const dist = maxR * (0.25 + Math.random() * 0.7)
-        const angle = radarAngle + (Math.random() - 0.5) * 0.15
-        dots.push({
-          x: cx + Math.cos(angle) * dist,
-          y: cy + Math.sin(angle) * dist,
-          angle, dist,
-          opacity: 1,
-          size: 1.5 + Math.random() * 2,
-          birth: ts,
-        })
+        // 점 생성
+        if (Math.random() < 0.10) {
+          const dist = maxR * (0.25 + Math.random() * 0.7)
+          const angle = ra + (Math.random() - 0.5) * 0.18
+          dots.push({
+            x: cx + Math.cos(angle) * dist,
+            y: cy + Math.sin(angle) * dist,
+            opacity: 1,
+            size: 1.2 + Math.random() * 2.5,
+            birth: ts,
+          })
+        }
       }
 
       // ── 점 그리기 & 페이드 ──────────────────────────────
@@ -204,11 +252,10 @@ export function ChartBackground() {
         d.opacity = Math.max(0, 1 - age / 2.5)
         if (d.opacity <= 0) { dots.splice(i, 1); continue }
 
-        // 링 + 코어
         ctx.beginPath()
         ctx.arc(d.x, d.y, d.size * 2, 0, Math.PI * 2)
-        ctx.strokeStyle = `rgba(34,197,94,${d.opacity * 0.4})`
-        ctx.lineWidth = 0.8
+        ctx.strokeStyle = `rgba(34,197,94,${d.opacity * 0.35})`
+        ctx.lineWidth = 0.7
         ctx.stroke()
 
         ctx.beginPath()
@@ -217,24 +264,18 @@ export function ChartBackground() {
         ctx.fill()
       }
 
-      // ── 전투기 ───────────────────────────────────────────
-      jetTimer++
-      // 25~50초 랜덤 간격으로 등장
-      if (!jet && jetTimer > 1500 + Math.random() * 1500) {
-        spawnJet(w, h)
-        jetTimer = 0
-      }
+      // ── 전투기들 ─────────────────────────────────────────
+      for (let i = jets.length - 1; i >= 0; i--) {
+        const j = jets[i]
+        j.x += j.vx
+        j.y += j.vy
+        j.opacity = Math.min(1, j.opacity + 0.05)
 
-      if (jet) {
-        jet.x += jet.vx
-        jet.y += jet.vy
-        jet.opacity = Math.min(1, jet.opacity + 0.04)
-
-        const offscreen = jet.x > w + 80 || jet.y > h + 80 || jet.x < -80 || jet.y < -80
+        const offscreen = j.x > w + 100 || j.y > h + 100 || j.x < -100 || j.y < -100
         if (offscreen) {
-          jet = null
+          jets.splice(i, 1)
         } else {
-          drawJet(ctx, jet)
+          drawJet(ctx, j)
         }
       }
 
@@ -244,6 +285,7 @@ export function ChartBackground() {
     animId = requestAnimationFrame(draw)
 
     return () => {
+      stopped = true
       cancelAnimationFrame(animId)
       ro.disconnect()
     }
