@@ -10,6 +10,7 @@ import {
   HelpCircle,
   LogOut,
   LogIn,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
@@ -38,13 +39,21 @@ export function Sidebar() {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
   const pathname = usePathname()
   const router = useRouter()
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 4000)
+  }
 
   useEffect(() => {
     const check = () => {
       try {
-        setIsLoggedIn(!!localStorage.getItem("app_token"))
+        const hasLocal = !!localStorage.getItem("app_token")
+        const hasSession = !!sessionStorage.getItem("guest_token")
+        setIsLoggedIn(hasLocal || hasSession)
       } catch {
         setIsLoggedIn(false)
       }
@@ -54,10 +63,25 @@ export function Sidebar() {
     return () => window.removeEventListener("storage", check)
   }, [])
 
+  const handleGuestLogin = () => {
+    try {
+      sessionStorage.setItem("guest_token", "guest")
+      sessionStorage.setItem("guest_balance", "100000")
+    } catch {}
+    setIsLoggedIn(true)
+    setMobileOpen(false)
+    showToast("테스트 게임이 시작됩니다. 10만 포인트가 지급되었습니다.")
+    window.dispatchEvent(new Event("guest-login"))
+  }
+
   const handleLogout = () => {
-    try { localStorage.removeItem("app_token") } catch {}
+    try {
+      localStorage.removeItem("app_token")
+      sessionStorage.removeItem("guest_token")
+      sessionStorage.removeItem("guest_balance")
+    } catch {}
     setIsLoggedIn(false)
-    router.push("/login")
+    router.push("/")
   }
 
   return (
@@ -163,9 +187,8 @@ export function Sidebar() {
                   <span className="text-sm">로그아웃</span>
                 </button>
               ) : (
-                <Link
-                  href="/login"
-                  onClick={() => setMobileOpen(false)}
+                <button
+                  onClick={handleGuestLogin}
                   onMouseEnter={() => setHoveredItem("auth")}
                   onMouseLeave={() => setHoveredItem(null)}
                   className={cn(
@@ -175,12 +198,22 @@ export function Sidebar() {
                 >
                   <LogIn className="w-4 h-4 shrink-0" />
                   <span className="text-sm">로그인</span>
-                </Link>
+                </button>
               )}
             </nav>
           </div>
         </div>
       </aside>
+
+      {/* 토스트 알림 */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-foreground text-background px-5 py-3.5 rounded-xl shadow-2xl text-sm font-medium animate-in slide-in-from-bottom-4 duration-300 max-w-xs w-full">
+          <span className="flex-1">{toast}</span>
+          <button onClick={() => setToast(null)} className="shrink-0 opacity-60 hover:opacity-100">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </>
   )
 }
