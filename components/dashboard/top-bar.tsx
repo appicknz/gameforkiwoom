@@ -59,20 +59,16 @@ export function TopBar() {
   )
 
   useEffect(() => {
-    const fetchProfile = async (userId: string) => {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, username, role')
-        .eq('id', userId)
-        .single()
-      if (profileData) setProfile(profileData)
-    }
-
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         setIsLoggedIn(true)
-        await fetchProfile(session.user.id)
+        // API를 통해 서버에서 조회 (RLS 우회)
+        const res = await fetch("/api/user/profile")
+        if (res.ok) {
+          const data = await res.json()
+          if (data.profile) setProfile(data.profile)
+        }
         fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
       } else {
         setIsLoggedIn(false)
@@ -84,7 +80,11 @@ export function TopBar() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setIsLoggedIn(true)
-        await fetchProfile(session.user.id)
+        const res = await fetch("/api/user/profile")
+        if (res.ok) {
+          const data = await res.json()
+          if (data.profile) setProfile(data.profile)
+        }
         fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
       } else {
         setIsLoggedIn(false)
