@@ -4,7 +4,7 @@ import { Menu, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState, useEffect, useRef } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase-client"
 
 interface Profile {
   username: string
@@ -46,11 +46,6 @@ export function TopBar() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [pwLoading, setPwLoading] = useState(false)
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
 
   useEffect(() => {
     // service_role API를 통해 프로필 조회 (RLS 우회)
