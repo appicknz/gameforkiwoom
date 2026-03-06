@@ -121,6 +121,12 @@ export default function PanelPage() {
   const handleCharge = async (userId: string, delta: number) => {
     setChargeLoading(true)
     setChargeMsg(null)
+    const token = getToken()
+    if (!token) {
+      setChargeMsg({ text: "세션이 만료되었습니다.", ok: false })
+      setChargeLoading(false)
+      return
+    }
     const amount = parseInt(chargeAmount)
     if (!chargeAmount || isNaN(amount) || amount <= 0) {
       setChargeMsg({ text: "올바른 금액을 입력하세요.", ok: false })
@@ -129,8 +135,11 @@ export default function PanelPage() {
     }
     const res = await fetch("/api/admin/charge", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pw: adminPw, userId, amount: delta * amount }),
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ userId, amount: delta * amount }),
     })
     const data = await res.json()
     if (!res.ok) {
