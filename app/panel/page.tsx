@@ -120,11 +120,11 @@ export default function PanelPage() {
   }, [myUserId])
 
   useEffect(() => {
-    if (adminPw) {
+    if (adminPw && myUserId) {
       loadUsers(adminPw)
       if (SUPER_ROLES.includes(myRole)) loadBranches(adminPw)
     }
-  }, [adminPw, myRole, loadUsers, loadBranches])
+  }, [adminPw, myRole, myUserId])
 
   // 잔고 충전/차감
   const handleCharge = async (userId: string, delta: number) => {
@@ -374,7 +374,7 @@ export default function PanelPage() {
                           <div className="mt-3 p-3 bg-muted rounded-lg">
                             <p className="text-xs font-medium text-foreground mb-2">잔고 충전 / 차감</p>
                             <div className="flex gap-2">
-                              <Input type="number" placeholder="금액 입력" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} className="h-8 text-sm" />
+                              <Input type="number" placeholder="금��� 입력" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} className="h-8 text-sm" />
                               <Button size="sm" className="gap-1 h-8 text-xs" onClick={() => handleCharge(user.id, 1)} disabled={chargeLoading}>
                                 <Plus className="w-3 h-3" /> 충전
                               </Button>
