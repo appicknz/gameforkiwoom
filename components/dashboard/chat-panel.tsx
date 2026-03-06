@@ -101,17 +101,8 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* 헤더 */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
-        <MessageCircle className="w-4 h-4 text-primary" />
-        <span className="text-sm font-semibold text-foreground">실시간 채팅</span>
-        <span className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
-          {messages.length}
-        </span>
-      </div>
-
-      {/* 닉네임 */}
-      <div className="px-4 py-2 border-b border-border bg-secondary/30 shrink-0">
+      {/* 닉네임 헤더 */}
+      <div className="px-3 py-2.5 border-b border-border bg-secondary/30 shrink-0">
         {editingNick ? (
           <div className="flex gap-2 items-center">
             <input
@@ -136,8 +127,8 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
         )}
       </div>
 
-      {/* 메시지 목록 */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+      {/* 메시지 목록 (전체 공간 사용) */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0">
         {messages.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">
             첫 번째 메시지를 보내보세요.
@@ -170,8 +161,8 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* 입력창 */}
-      <div className="px-3 py-3 border-t border-border shrink-0">
+      {/* 입력창 (하단 고정) */}
+      <div className="px-3 py-2.5 border-t border-border shrink-0 bg-card">
         <div className="flex gap-2 items-end">
           <textarea
             value={text}
@@ -180,14 +171,14 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
             placeholder="메시지 입력..."
             rows={1}
             maxLength={300}
-            className="flex-1 text-xs bg-secondary border border-border rounded-xl px-3 py-2 outline-none focus:border-primary resize-none leading-relaxed"
-            style={{ minHeight: "36px", maxHeight: "80px" }}
+            className="flex-1 text-xs bg-secondary border border-border rounded-xl px-2.5 py-1.5 outline-none focus:border-primary resize-none leading-relaxed"
+            style={{ minHeight: "32px", maxHeight: "80px" }}
           />
           <button
             onClick={handleSend}
             disabled={!text.trim() || sending}
             className={cn(
-              "w-9 h-9 rounded-xl flex items-center justify-center transition-all shrink-0",
+              "w-8 h-8 rounded-xl flex items-center justify-center transition-all shrink-0",
               text.trim() && !sending
                 ? "bg-primary text-primary-foreground hover:opacity-90"
                 : "bg-secondary text-muted-foreground cursor-not-allowed"

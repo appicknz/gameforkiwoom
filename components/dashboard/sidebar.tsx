@@ -187,7 +187,10 @@ export function Sidebar() {
 
           {/* 채팅 섹션 - 항상 표시 */}
           <div className="flex flex-col flex-1 min-h-0">
-            <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">채팅</p>
+            <div className="flex items-center gap-2 mb-2">
+              <MessageCircle className="w-3.5 h-3.5 text-primary" />
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">채팅</p>
+            </div>
             <div className="flex-1 min-h-0">
               <ChatPanel />
             </div>
