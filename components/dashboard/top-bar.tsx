@@ -62,26 +62,45 @@ export function TopBar() {
 
   // ── 초기화: 세션 확인 ──────────────────────────────────────
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
+    const loadSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user && session.access_token) {
         setIsLoggedIn(true)
-        // username은 user_metadata에 저장되어 있음 (가입 시 저장)
-        const uname = session.user.user_metadata?.username
-        if (uname) {
-          setProfile({ username: uname, role: session.user.user_metadata?.role ?? "user" })
+        // profiles 테이블에서 username/role 조회 (access_token으로 인증)
+        const token = session.access_token
+        const [profileRes, balanceRes] = await Promise.all([
+          fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
+          fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
+        ])
+        if (profileRes.ok) {
+          const d = await profileRes.json()
+          if (d.profile) setProfile({ username: d.profile.username, role: d.profile.role })
         }
-        fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
+        if (balanceRes.ok) {
+          const d = await balanceRes.json()
+          setBalance(d.balance ?? 0)
+        }
       }
-    })
+    }
+    loadSession()
 
     // React Strict Mode에서 중복 구독 방지
     if (!authSubscriptionUnsubscribe) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        if (session?.user) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session?.user && session.access_token) {
           setIsLoggedIn(true)
-          const uname = session.user.user_metadata?.username
-          if (uname) {
-            setProfile({ username: uname, role: session.user.user_metadata?.role ?? "user" })
+          const token = session.access_token
+          const [profileRes, balanceRes] = await Promise.all([
+            fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
+            fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
+          ])
+          if (profileRes.ok) {
+            const d = await profileRes.json()
+            if (d.profile) setProfile({ username: d.profile.username, role: d.profile.role })
+          }
+          if (balanceRes.ok) {
+            const d = await balanceRes.json()
+            setBalance(d.balance ?? 0)
           }
         } else {
           setIsLoggedIn(false)
@@ -92,9 +111,7 @@ export function TopBar() {
       authSubscriptionUnsubscribe = () => subscription.unsubscribe()
     }
 
-    return () => {
-      // cleanup에서는 unsubscribe 호출 금지 (다른 mount가 이 값을 사용할 수 있음)
-    }
+    return () => {}
   }, [])
 
   // 드롭다운 외부 클릭 닫기
@@ -191,7 +208,12 @@ export function TopBar() {
     setIsLoggedIn(true)
     setDropdownOpen(false)
     setRegUsername(""); setRegPw(""); setRegConfirmPw("")
-    fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token) {
+        fetch("/api/user/balance", { headers: { Authorization: `Bearer ${session.access_token}` } })
+          .then(r => r.json()).then(d => setBalance(d.balance ?? 0))
+      }
+    })
   }
 
   // ── 비밀번호 변경 ──────────────────────────────────────────
@@ -202,9 +224,13 @@ export function TopBar() {
     if (newPw !== confirmPw) return setPwMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false })
 
     setPwLoading(true)
+    const { data: { session: pwSession } } = await supabase.auth.getSession()
     const res = await fetch("/api/user/profile", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(pwSession?.access_token ? { Authorization: `Bearer ${pwSession.access_token}` } : {}),
+      },
       body: JSON.stringify({ newPassword: newPw }),
     })
     const d = await res.json()

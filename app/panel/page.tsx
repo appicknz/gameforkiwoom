@@ -39,14 +39,19 @@ export default function PanelPage() {
   const [chargeLoading, setChargeLoading] = useState(false)
   const [chargeMsg, setChargeMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
-  // 권한 확인
+  // 권한 확인: access_token으로 profiles 테이블에서 role 조회
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.user) {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user || !session.access_token) {
         router.replace("/")
         return
       }
-      const role = session.user.user_metadata?.role
+      const res = await fetch("/api/user/profile", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) { router.replace("/"); return }
+      const data = await res.json()
+      const role = data.profile?.role ?? ""
       if (!ADMIN_ROLES.includes(role)) {
         router.replace("/")
         return
