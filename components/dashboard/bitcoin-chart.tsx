@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { TrendingUp, TrendingDown, Wifi, WifiOff } from "lucide-react"
 import { createChart, ColorType } from "lightweight-charts"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { ChartBackground } from "@/components/dashboard/chart-background"
 
 interface CandleData {
   time: number
@@ -51,7 +50,7 @@ function formatQuoteVolume(usd: number): string {
   return krw.toLocaleString() + "원"
 }
 
-export function BitcoinChart({ showBackground = false }: { showBackground?: boolean } = {}) {
+export function BitcoinChart() {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
@@ -119,9 +118,6 @@ export function BitcoinChart({ showBackground = false }: { showBackground?: bool
       chartRef.current = null
       seriesRef.current = null
     }
-
-    // interval 변경 시 이전 캔들 데이터 초기화 (open/high/low 오염 방지)
-    candleMapRef.current.clear()
 
     const container = chartContainerRef.current
     const chart = createChart(container, {
@@ -339,6 +335,7 @@ export function BitcoinChart({ showBackground = false }: { showBackground?: bool
         <div className="shrink-0 text-right">
           {lastCandlePrice ? (
             <>
+              <p className="text-[11px] text-muted-foreground font-medium mb-0.5">현재가</p>
               <p className="text-sm font-bold text-foreground tabular-nums leading-tight">
                 ${lastCandlePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </p>
@@ -357,8 +354,7 @@ export function BitcoinChart({ showBackground = false }: { showBackground?: bool
 
       {/* 차트 */}
       <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
-        {showBackground && <ChartBackground />}
-        <div ref={chartContainerRef} className="relative w-full h-full z-[1]" />
+        <div ref={chartContainerRef} className="w-full h-full" />
         
         {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래, 시간 위) */}
         {ticker && (
