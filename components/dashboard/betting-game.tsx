@@ -276,7 +276,7 @@ function ResultSheet({ result, open, onClose }: ResultSheetProps) {
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 끝자리 <span className="font-bold text-foreground">{lastDigit}</span>
                 {"  "}
-                {isUp ? "▲" : "▼"} ${Math.abs(priceChange).toString()}
+                {isUp ? "▲" : "▼"} ${(Math.floor(Math.abs(priceChange) * 10) / 10).toString()}
               </p>
             </div>
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1.5 rounded-full hover:bg-muted">
@@ -728,16 +728,16 @@ export function BettingGame() {
               <div>
                 <p className="text-[9px] text-muted-foreground">배팅 기준가</p>
                 <p className="text-xs font-semibold tabular-nums text-foreground">
-                  ${basePrice.toString()}
+                  ${(Math.floor(basePrice * 10) / 10).toString()}
                 </p>
               </div>
               <div className={`text-xs font-bold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-                {isUp ? "▲" : "▼"} {Math.abs(priceDiff!).toString()}
+                {isUp ? "▲" : "▼"} {(Math.floor(Math.abs(priceDiff!) * 10) / 10).toString()}
               </div>
               <div className="text-right">
                 <p className="text-[9px] text-muted-foreground">현재가</p>
                 <p className={`text-xs font-semibold tabular-nums ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-                  ${currentPrice.toString()}
+                  ${(Math.floor(currentPrice * 10) / 10).toString()}
                 </p>
               </div>
             </div>

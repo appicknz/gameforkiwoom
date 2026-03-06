@@ -131,7 +131,7 @@ export function BitcoinChart() {
       handleScroll: true,
       handleScale: true,
       localization: {
-        priceFormatter: (p: number) => p.toString(),
+        priceFormatter: (p: number) => (Math.floor(p * 10) / 10).toString(),
       },
     })
     chartRef.current = chart
