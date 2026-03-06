@@ -10,6 +10,18 @@ interface UsePriceWorkerOptions {
   onInitClosing?: (prices: Array<{ time: number; price: number }>) => void
 }
 
+/**
+ * Railway에 배포된 BTC price WebSocket 서버에 연결합니다.
+ *
+ * 서버(price-server/index.js)가 Binance aggTrade WebSocket 하나를 열고
+ * 1초 집계 후 모든 클라이언트에 동시 브로드캐스트합니다.
+ * → 전 세계 모든 사용자가 정확히 동일한 가격을 수신합니다.
+ *
+ * 환경변수: NEXT_PUBLIC_PRICE_SERVER_URL
+ * 예) wss://your-app.railway.app
+ *
+ * 미설정 시 Binance에 직접 연결(개발용 폴백)
+ */
 export function usePriceWorker(options: UsePriceWorkerOptions) {
   const optsRef = useRef(options)
   useEffect(() => { optsRef.current = options })
@@ -20,15 +32,16 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
     const win = window as any
     let ws: WebSocket | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
-    let heartbeatTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
 
     const serverUrl = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
 
     if (serverUrl) {
       // ── Price Server 모드 (프로덕션) ──────────────────────────
-      // 30초 안에 메시지가 없으면 소켓을 강제로 닫고 재연결
-      const HEARTBEAT_TIMEOUT = 30000
+      let heartbeatTimer: ReturnType<typeof setTimeout> | null = null
+
+      // 5초 안에 메시지가 없으면 소켓을 강제로 닫고 재연결
+      const HEARTBEAT_TIMEOUT = 5000
 
       const resetHeartbeat = () => {
         if (heartbeatTimer) clearTimeout(heartbeatTimer)
@@ -89,6 +102,8 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
     } else {
       // ── 개발용 폴백: Binance 직접 연결 ──────────────────────
+      console.warn("[usePriceWorker] NEXT_PUBLIC_PRICE_SERVER_URL not set, falling back to Binance direct connection")
+
       const tradeBuffer: Array<{ price: number; time: number }> = []
       let prevThirtyBucket: number | null = null
 

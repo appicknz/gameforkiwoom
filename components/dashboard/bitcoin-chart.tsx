@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { TrendingUp, TrendingDown, Wifi, WifiOff } from "lucide-react"
 import { createChart, ColorType } from "lightweight-charts"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { ChartBackground } from "@/components/dashboard/chart-background"
 
 interface CandleData {
   time: number
@@ -51,7 +50,7 @@ function formatQuoteVolume(usd: number): string {
   return krw.toLocaleString() + "원"
 }
 
-export function BitcoinChart({ showBackground = false }: { showBackground?: boolean } = {}) {
+export function BitcoinChart() {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
@@ -120,9 +119,6 @@ export function BitcoinChart({ showBackground = false }: { showBackground?: bool
       seriesRef.current = null
     }
 
-    // interval 변경 시 이전 캔들 데이터 초기화 (open/high/low 오염 방지)
-    candleMapRef.current.clear()
-
     const container = chartContainerRef.current
     const chart = createChart(container, {
       layout: {
@@ -138,7 +134,7 @@ export function BitcoinChart({ showBackground = false }: { showBackground?: bool
         vertLine: { color: "rgba(156,163,175,0.5)", labelBackgroundColor: "#1f2937" },
         horzLine: { color: "rgba(156,163,175,0.5)", labelBackgroundColor: "#1f2937" },
       },
-      rightPriceScale: { borderVisible: false, autoScale: true, scaleMargins: { top: 0.15, bottom: 0.15 } },
+      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.1 } },
       timeScale: {
         borderVisible: false,
         timeVisible: true,
@@ -209,7 +205,6 @@ export function BitcoinChart({ showBackground = false }: { showBackground?: bool
       }
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
-      chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
       setLastCandlePrice(price)
     }, [interval]),
     onClosingPrice: useCallback((price, time) => {
@@ -241,7 +236,6 @@ export function BitcoinChart({ showBackground = false }: { showBackground?: bool
         }
         candleMapRef.current.set(candle.time, candle)
         seriesRef.current?.update(candle)
-        chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
       }
       ws.onerror = () => setConnected(false)
       ws.onclose = () => { setConnected(false); setTimeout(connect, 3000) }
@@ -357,8 +351,7 @@ export function BitcoinChart({ showBackground = false }: { showBackground?: bool
 
       {/* 차트 */}
       <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
-        {showBackground && <ChartBackground />}
-        <div ref={chartContainerRef} className="relative w-full h-full z-[1]" />
+        <div ref={chartContainerRef} className="w-full h-full" />
         
         {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래, 시간 위) */}
         {ticker && (
