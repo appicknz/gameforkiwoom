@@ -3,76 +3,38 @@ import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   try {
-    // Authorization 헤더에서 access_token 추출
-    const authHeader = request.headers.get("authorization")
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null
+    const token = request.headers.get("authorization")?.replace("Bearer ", "")
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // admin Supabase로 user 식별
     const adminSupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const { data: { user }, error: userError } = await adminSupabase.auth.admin.getUserById(token.split(":")[0] || token)
-    
-    // token으로 직접 user 확인 (더 안정적)
-    const { data, error } = await adminSupabase.rpc("get_user_from_jwt", { jwt: token })
-    
-    if (error) {
-      // JWT 파싱 실패 시 Authorization Bearer 토큰으로 직접 user 확인
-      const { data: sessionData, error: sessionError } = await adminSupabase.auth.getUser(token)
-      if (sessionError || !sessionData.user) {
-        return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-      }
+    const { data: { user }, error } = await adminSupabase.auth.getUser(token)
+    if (error || !user) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
-      const userId = sessionData.user.id
-      const { profit, newBalance } = await request.json()
+    const { profit } = await request.json()
+    if (!profit || profit <= 0) return NextResponse.json({ success: true }) // 진 경우는 이미 bet API에서 차감
 
-      // balances 테이블 업데이트
-      const { data: existing } = await adminSupabase
-        .from("balances")
-        .select("amount")
-        .eq("user_id", userId)
-        .single()
-
-      if (existing) {
-        await adminSupabase
-          .from("balances")
-          .update({ amount: newBalance })
-          .eq("user_id", userId)
-      } else {
-        await adminSupabase.from("balances").insert({ user_id: userId, amount: newBalance })
-      }
-
-      return NextResponse.json({ success: true })
-    }
-
-    const userId = data.user_id
-    const { profit, newBalance } = await request.json()
-
-    // balances 테이블 업데이트
-    const { data: existing } = await adminSupabase
+    // 현재 잔고에 이긴 금액 추가
+    const { data: balanceData } = await adminSupabase
       .from("balances")
       .select("amount")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .single()
 
-    if (existing) {
-      await adminSupabase
-        .from("balances")
-        .update({ amount: newBalance })
-        .eq("user_id", userId)
-    } else {
-      await adminSupabase.from("balances").insert({ user_id: userId, amount: newBalance })
-    }
+    const currentBalance = balanceData?.amount ?? 0
+    const newBalance = currentBalance + profit
 
-    return NextResponse.json({ success: true })
+    await adminSupabase
+      .from("balances")
+      .update({ amount: newBalance })
+      .eq("user_id", user.id)
+
+    return NextResponse.json({ success: true, newBalance })
   } catch (error) {
     console.error("[v0] Game play error:", error)
-    return NextResponse.json({ error: "Failed to save game result" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to save result" }, { status: 500 })
   }
 }

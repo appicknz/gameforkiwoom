@@ -3,12 +3,14 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { TrendingUp, TrendingDown, Clock } from "lucide-react"
+import { TrendingUp, TrendingDown, Clock, X, RotateCcw } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+import { createClient } from "@supabase/supabase-js"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
 type BetParity = "odd" | "even" | null
+type BetType = "direction" | "digit" | "parity"
 
 interface RoundResult {
   round: number
@@ -22,12 +24,181 @@ interface RoundResult {
   wonParity: boolean
 }
 
+// 금액 칩
+const CHIPS = [
+  { label: "1만", value: 10_000 },
+  { label: "5만", value: 50_000 },
+  { label: "10만", value: 100_000 },
+  { label: "50만", value: 500_000 },
+  { label: "100만", value: 1_000_000 },
+]
+
+// PAYOUT_RATIO: 배팅 금액 × 1.95 지급
+const PAYOUT_RATIO = 1.95
+
+// 모듈 레벨 싱글톤
+let _supabase: ReturnType<typeof createClient> | null = null
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+  }
+  return _supabase
+}
+
+interface BetDialogProps {
+  open: boolean
+  betType: BetType | null
+  selectedValue: string | null       // "long"|"short"|"over"|"under"|"odd"|"even"
+  onClose: () => void
+  onConfirm: (amount: number) => void
+  isLoading: boolean
+}
+
+function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading }: BetDialogProps) {
+  const [selectedChip, setSelectedChip] = useState<number | null>(null)
+  const [amount, setAmount] = useState(0)
+
+  // 다이얼로그 열릴 때마다 초기화
+  useEffect(() => {
+    if (open) {
+      setSelectedChip(null)
+      setAmount(0)
+    }
+  }, [open])
+
+  const handleChip = (value: number) => {
+    if (selectedChip === value) {
+      setAmount((prev) => prev + value)
+    } else {
+      setSelectedChip(value)
+      setAmount(value)
+    }
+  }
+
+  const handleReset = () => {
+    setSelectedChip(null)
+    setAmount(0)
+  }
+
+  const labelMap: Record<string, { text: string; color: string; bg: string; border: string }> = {
+    long:  { text: "롱",   color: "#10b981", bg: "rgba(16,185,129,0.12)", border: "#10b981" },
+    short: { text: "숏",   color: "#ef4444", bg: "rgba(239,68,68,0.12)",  border: "#ef4444" },
+    over:  { text: "오버", color: "#f97316", bg: "rgba(249,115,22,0.12)", border: "#f97316" },
+    under: { text: "언더", color: "#60a5fa", bg: "rgba(96,165,250,0.12)", border: "#60a5fa" },
+    odd:   { text: "홀",   color: "#8b5cf6", bg: "rgba(139,92,246,0.12)", border: "#8b5cf6" },
+    even:  { text: "짝",   color: "#ec4899", bg: "rgba(236,72,153,0.12)", border: "#ec4899" },
+  }
+
+  const meta = selectedValue ? labelMap[selectedValue] : null
+
+  if (!open) return null
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/50 z-40"
+        onClick={onClose}
+      />
+      {/* Bottom sheet */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background rounded-t-2xl shadow-2xl border-t border-border max-w-lg mx-auto">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <span
+              className="px-3 py-1 rounded-full text-sm font-bold"
+              style={{ background: meta?.bg, color: meta?.color, border: `1px solid ${meta?.border}` }}
+            >
+              {meta?.text}
+            </span>
+            <span className="text-sm font-semibold text-foreground">배팅</span>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* 현재 배팅 금액 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">배팅 금액</span>
+            <div className="flex items-center gap-2">
+              <span
+                className="text-xl font-bold tabular-nums"
+                style={{ color: amount > 0 ? meta?.color : "hsl(var(--muted-foreground))" }}
+              >
+                ₩{amount.toLocaleString()}
+              </span>
+              {amount > 0 && (
+                <span className="text-[10px] text-muted-foreground">
+                  → ₩{Math.floor(amount * PAYOUT_RATIO).toLocaleString()} 예상
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* 금액 칩 버튼 */}
+          <div className="grid grid-cols-5 gap-2">
+            {CHIPS.map(({ label, value }) => {
+              const isActive = selectedChip === value
+              return (
+                <button
+                  key={value}
+                  onClick={() => handleChip(value)}
+                  className="py-2.5 rounded-xl text-xs font-bold border transition-all duration-150 active:scale-95"
+                  style={{
+                    background: isActive ? "rgba(16,185,129,0.15)" : "hsl(var(--muted))",
+                    borderColor: isActive ? "#10b981" : "transparent",
+                    color: isActive ? "#10b981" : "hsl(var(--muted-foreground))",
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* 초기화 + 배팅 버튼 */}
+          <div className="flex gap-2 pb-safe">
+            <button
+              onClick={handleReset}
+              className="flex items-center justify-center gap-1 px-4 py-3 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-all text-sm"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              초기화
+            </button>
+            <button
+              onClick={() => amount > 0 && onConfirm(amount)}
+              disabled={amount <= 0 || isLoading}
+              className="flex-1 py-3 rounded-xl text-sm font-bold transition-all duration-150 active:scale-[0.98] disabled:opacity-40"
+              style={{
+                background: amount > 0 ? meta?.color : "hsl(var(--muted))",
+                color: amount > 0 ? "#fff" : "hsl(var(--muted-foreground))",
+              }}
+            >
+              {isLoading ? "처리 중..." : `₩${amount.toLocaleString()} 배팅`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 export function BettingGame() {
+  const supabase = getSupabase()
+
   const [timeLeft, setTimeLeft] = useState(30)
   const [roundNumber, setRoundNumber] = useState(0)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
   const [betDigit, setBetDigit] = useState<BetDigit>(null)
   const [betParity, setBetParity] = useState<BetParity>(null)
+  const [betDirectionAmount, setBetDirectionAmount] = useState(0)
+  const [betDigitAmount, setBetDigitAmount] = useState(0)
+  const [betParityAmount, setBetParityAmount] = useState(0)
   const [basePrice, setBasePrice] = useState<number | null>(null)
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
   const [phase, setPhase] = useState<"betting" | "waiting" | "result">("betting")
@@ -36,29 +207,33 @@ export function BettingGame() {
   const [wins, setWins] = useState(0)
   const [losses, setLosses] = useState(0)
 
+  // 다이얼로그 상태
+  const [dialog, setDialog] = useState<{ open: boolean; type: BetType; value: string } | null>(null)
+  const [isPlacingBet, setIsPlacingBet] = useState(false)
+
   const prevRoundRef = useRef<number | null>(null)
   const betRef = useRef<BetDirection>(null)
   const betDigitRef = useRef<BetDigit>(null)
   const betParityRef = useRef<BetParity>(null)
+  const betDirectionAmountRef = useRef(0)
+  const betDigitAmountRef = useRef(0)
+  const betParityAmountRef = useRef(0)
   const basePriceRef = useRef<number | null>(null)
   const roundRef = useRef<number>(0)
   const closingPricesRef = useRef<Array<{ time: number; price: number }>>([])
   const currentPriceRef = useRef<number | null>(null)
 
-  // 서버 시간 기준 현재 라운드 번호 (00초 또는 30초 기준)
   const getRoundNumber = useCallback(() => {
     const now = Math.floor(Date.now() / 1000)
     return Math.floor(now / 30)
   }, [])
 
-  // usePriceWorker로 현재가 직접 수신 (window 폴링 완전 제거)
   usePriceWorker({
     onPrice: useCallback((price: number) => {
       setCurrentPrice(price)
       currentPriceRef.current = price
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
-      // closingPrices를 ref로 관리해 라운드 정산에 사용
       closingPricesRef.current = [...closingPricesRef.current, { time, price }].slice(-100)
     }, []),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
@@ -66,7 +241,7 @@ export function BettingGame() {
     }, []),
   })
 
-  // 라운드 관리 타이머
+  // 라운드 타이머 + 결산
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Math.floor(Date.now() / 1000)
@@ -77,32 +252,34 @@ export function BettingGame() {
       const round = getRoundNumber()
       setRoundNumber(round)
 
-      // 새 라운드 시작 시
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        // 이전 라운드 결산 — window 폴링 없이 ref에서 직접 읽음
         const prices = closingPricesRef.current
-        const latestClose =
-          prices.length > 0
-            ? prices[prices.length - 1].price
-            : currentPriceRef.current
+        const latestClose = prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
 
         if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null && latestClose !== null) {
           const lastDigit = Math.floor(latestClose * 10) % 10
-          const wonDirection = betRef.current
-            ? betRef.current === "long"
-              ? latestClose > basePriceRef.current
-              : latestClose < basePriceRef.current
-            : false
-          const wonDigit = betDigitRef.current
-            ? betDigitRef.current === "under"
-              ? lastDigit <= 4
-              : lastDigit >= 5
-            : false
-          const wonParity = betParityRef.current
-            ? betParityRef.current === "odd"
-              ? lastDigit % 2 !== 0
-              : lastDigit % 2 === 0
-            : false
+          const wonDirection = betRef.current ? (betRef.current === "long" ? latestClose > basePriceRef.current : latestClose < basePriceRef.current) : false
+          const wonDigit = betDigitRef.current ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
+          const wonParity = betParityRef.current ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
+
+          // 이긴 배팅은 +PAYOUT_RATIO, 진 배팅은 이미 차감됨 → 이긴 경우에만 지급
+          const profit =
+            (betRef.current && wonDirection ? Math.floor(betDirectionAmountRef.current * PAYOUT_RATIO) : 0) +
+            (betDigitRef.current && wonDigit ? Math.floor(betDigitAmountRef.current * PAYOUT_RATIO) : 0) +
+            (betParityRef.current && wonParity ? Math.floor(betParityAmountRef.current * PAYOUT_RATIO) : 0)
+
+          // 이긴 경우 잔고 지급 (배팅 시 이미 차감됨)
+          if (profit > 0) {
+            supabase.auth.getSession().then(async ({ data: { session } }) => {
+              const token = session?.access_token ?? sessionStorage.getItem("supabase_token")
+              if (!token) return
+              fetch("/api/user/game/play", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ profit }),
+              }).catch(console.error)
+            })
+          }
 
           const result: RoundResult = {
             round: roundRef.current,
@@ -128,13 +305,19 @@ export function BettingGame() {
         betRef.current = null
         betDigitRef.current = null
         betParityRef.current = null
+        betDirectionAmountRef.current = 0
+        betDigitAmountRef.current = 0
+        betParityAmountRef.current = 0
         setBetDirection(null)
         setBetDigit(null)
         setBetParity(null)
+        setBetDirectionAmount(0)
+        setBetDigitAmount(0)
+        setBetParityAmount(0)
         setBasePrice(null)
         basePriceRef.current = null
+        setDialog(null)
 
-        // 1.5초 후 배팅 단계로 전환
         setTimeout(() => setPhase("betting"), 1500)
       }
 
@@ -143,67 +326,80 @@ export function BettingGame() {
     }, 200)
 
     return () => clearInterval(tick)
-  }, [getRoundNumber])
+  }, [getRoundNumber, supabase])
 
-  // 공통 기준가 세팅 — ref에서 직접 읽음, window 불필요
   const getBase = () => {
     const prices = closingPricesRef.current
     return prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
   }
 
-  // 배팅 가능: 30~18초 구간 (timeLeft > 15 && timeLeft > 18 즉 18초 초과)
-  // 배팅 마감 3초 전(18~15초)에도 이미 한 배팅 외 추가 배팅 불가
-  // 15초 이하는 게임 중 - 절대 배팅 불가
   const canBet = timeLeft > 15 && phase !== "result"
 
-  // 롱/숏 배팅 처리
-  const placeBet = (direction: BetDirection) => {
-    if (!canBet || betDirection !== null) return
-    const base = getBase()
-    if (!base) return
-    betRef.current = direction
-    basePriceRef.current = base
-    setBetDirection(direction)
-    setBasePrice(base)
-    setPhase("waiting")
+  // 종목 버튼 클릭 → 다이얼로그 열기
+  const openDialog = (type: BetType, value: string) => {
+    if (!canBet) return
+    if (type === "direction" && betDirection !== null) return
+    if (type === "digit" && betDigit !== null) return
+    if (type === "parity" && betParity !== null) return
+    setDialog({ open: true, type, value })
   }
 
-  // 언더/오버 배팅 처리
-  const placeDigitBet = (digit: BetDigit) => {
-    if (!canBet || betDigit !== null) return
-    const base = getBase()
-    if (!base) return
-    betDigitRef.current = digit
-    basePriceRef.current = base
-    setBetDigit(digit)
-    setBasePrice(base)
-    setPhase("waiting")
+  // 배팅 확정 → 즉시 잔고 차감 → DB 반영
+  const handleConfirmBet = async (amount: number) => {
+    if (!dialog) return
+    setIsPlacingBet(true)
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token ?? sessionStorage.getItem("supabase_token")
+      if (!token) throw new Error("No token")
+
+      const res = await fetch("/api/user/game/bet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ betAmount: amount }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Bet failed")
+
+      // 배팅 성공 → 상태 업데이트
+      const base = getBase()
+      if (!base) throw new Error("No base price")
+
+      if (dialog.type === "direction") {
+        betRef.current = dialog.value as BetDirection
+        betDirectionAmountRef.current = amount
+        setBetDirection(dialog.value as BetDirection)
+        setBetDirectionAmount(amount)
+      } else if (dialog.type === "digit") {
+        betDigitRef.current = dialog.value as BetDigit
+        betDigitAmountRef.current = amount
+        setBetDigit(dialog.value as BetDigit)
+        setBetDigitAmount(amount)
+      } else {
+        betParityRef.current = dialog.value as BetParity
+        betParityAmountRef.current = amount
+        setBetParity(dialog.value as BetParity)
+        setBetParityAmount(amount)
+      }
+
+      if (!basePriceRef.current) {
+        basePriceRef.current = base
+        setBasePrice(base)
+      }
+      setPhase("waiting")
+      setDialog(null)
+    } catch (err) {
+      console.error("[v0] Bet error:", err)
+    } finally {
+      setIsPlacingBet(false)
+    }
   }
 
-  // 홀/짝 배팅 처리
-  const placeParityBet = (parity: BetParity) => {
-    if (!canBet || betParity !== null) return
-    const base = getBase()
-    if (!base) return
-    betParityRef.current = parity
-    basePriceRef.current = base
-    setBetParity(parity)
-    setBasePrice(base)
-    setPhase("waiting")
-  }
-
-  const priceDiff =
-    currentPrice !== null && basePrice !== null
-      ? currentPrice - basePrice
-      : null
+  const priceDiff = currentPrice !== null && basePrice !== null ? currentPrice - basePrice : null
   const isUp = priceDiff !== null && priceDiff >= 0
   const timerPercent = (timeLeft / 30) * 100
 
-  // 색상 로직
-  // 30~18초: 초록 (배팅 가능)
-  // 18~15초: 빨강 (배팅 마감 3초 전)
-  // 15~3초: 주황 (게임 중)
-  // 3~0초: 빨강 (다음 게임까지 3초 전)
   const timerColor =
     timeLeft > 18 ? "#22c55e"
     : timeLeft > 15 ? "#ef4444"
@@ -216,193 +412,207 @@ export function BettingGame() {
     : timeLeft > 3  ? "게임 중"
     : "다음 게임까지 3초 전"
 
+  const betAmountLabel = (amount: number) =>
+    amount > 0 ? `₩${amount >= 10000 ? `${amount / 10000}만` : amount.toLocaleString()}` : null
+
   return (
-    <Card className="p-4 bg-background border border-border/60">
-      {/* 타이틀 + 라운드 — 배팅/결과 정보는 이 영역에 오버레이 */}
-      <div className="relative mb-3">
-        {/* 기본: 타이틀 + 승패 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-foreground">배팅 게임</h3>
-            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-              #{roundNumber}
+    <>
+      <Card className="p-4 bg-background border border-border/60">
+        {/* 타이틀 + 승패 */}
+        <div className="relative mb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground">배팅 게임</h3>
+              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                #{roundNumber}
+              </span>
+            </div>
+            <span className="text-[11px] text-muted-foreground">
+              <span className="text-emerald-500 font-semibold">{wins}승</span>
+              {" / "}
+              <span className="text-red-500 font-semibold">{losses}패</span>
             </span>
           </div>
-          <span className="text-[11px] text-muted-foreground">
-            <span className="text-emerald-500 font-semibold">{wins}승</span>
-            {" / "}
-            <span className="text-red-500 font-semibold">{losses}패</span>
-          </span>
-        </div>
 
-        {/* 오버레이: 배팅 기준가 / 현재가 */}
-        {basePrice !== null && currentPrice !== null && phase !== "result" && (
-          <div className="absolute inset-0 flex items-center justify-between bg-background/95 rounded-lg px-1">
-            <div>
-              <p className="text-[9px] text-muted-foreground">배팅 기준가</p>
-              <p className="text-xs font-semibold tabular-nums text-foreground">
-                ${basePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+          {/* 기준가 / 현재가 */}
+          {basePrice !== null && currentPrice !== null && phase !== "result" && (
+            <div className="absolute inset-0 flex items-center justify-between bg-background/95 rounded-lg px-1">
+              <div>
+                <p className="text-[9px] text-muted-foreground">배팅 기준가</p>
+                <p className="text-xs font-semibold tabular-nums text-foreground">
+                  ${basePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </p>
+              </div>
+              <div className={`text-xs font-bold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
+                {isUp ? "▲" : "▼"} {Math.abs(priceDiff!).toFixed(1)}
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] text-muted-foreground">현재가</p>
+                <p className={`text-xs font-semibold tabular-nums ${isUp ? "text-emerald-500" : "text-red-500"}`}>
+                  ${currentPrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* 라운드 결과 */}
+          {phase === "result" && lastResult && (
+            <div className="absolute inset-0 flex items-center justify-between bg-background/95 rounded-lg px-1 gap-1">
+              <p className="text-[10px] text-muted-foreground shrink-0">
+                끝자리 {Math.floor(lastResult.closePrice * 10) % 10}
               </p>
+              <div className="flex gap-1">
+                {lastResult.direction && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonDirection ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                    {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
+                  </span>
+                )}
+                {lastResult.digit && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonDigit ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                    {lastResult.digit === "over" ? "오버" : "언더"} {lastResult.wonDigit ? "승" : "패"}
+                  </span>
+                )}
+                {lastResult.parity && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonParity ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                    {lastResult.parity === "odd" ? "홀" : "짝"} {lastResult.wonParity ? "승" : "패"}
+                  </span>
+                )}
+              </div>
             </div>
-            <div className={`text-xs font-bold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-              {isUp ? "▲" : "▼"} {Math.abs(priceDiff!).toFixed(1)}
+          )}
+        </div>
+
+        {/* 타이머 바 */}
+        <div className="relative mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1 text-[11px]" style={{ color: timerColor }}>
+              <Clock className="w-3 h-3" />
+              <span className="font-medium">{timerLabel}</span>
             </div>
-            <div className="text-right">
-              <p className="text-[9px] text-muted-foreground">현재가</p>
-              <p className={`text-xs font-semibold tabular-nums ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-                ${currentPrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-              </p>
-            </div>
+            <span className="text-sm font-bold tabular-nums" style={{ color: timerColor }}>
+              {timeLeft}초
+            </span>
           </div>
-        )}
-
-        {/* 오버레이: 라운드 결과 */}
-        {phase === "result" && lastResult && (
-          <div className="absolute inset-0 flex items-center justify-between bg-background/95 rounded-lg px-1 gap-1">
-            <p className="text-[10px] text-muted-foreground shrink-0">
-              끝자리 {Math.floor(lastResult.closePrice * 10) % 10}
-            </p>
-            <div className="flex gap-1">
-              {lastResult.direction && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonDirection ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
-                  {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
-                </span>
-              )}
-              {lastResult.digit && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonDigit ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
-                  {lastResult.digit === "over" ? "오버" : "언더"} {lastResult.wonDigit ? "승" : "패"}
-                </span>
-              )}
-              {lastResult.parity && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonParity ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
-                  {lastResult.parity === "odd" ? "홀" : "짝"} {lastResult.wonParity ? "승" : "패"}
-                </span>
-              )}
-            </div>
+          <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-200"
+              style={{ width: `${timerPercent}%`, backgroundColor: timerColor }}
+            />
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* 타이머 바 */}
-      <div className="relative mb-3">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-1 text-[11px]" style={{ color: timerColor }}>
-            <Clock className="w-3 h-3" />
-            <span className="font-medium">{timerLabel}</span>
+        {/* 3그룹 배팅 버튼 */}
+        <div className="grid grid-cols-3 gap-2">
+          {/* 롱 / 숏 */}
+          <div className="flex flex-col gap-2">
+            {(["long", "short"] as const).map((dir) => {
+              const isSelected = betDirection === dir
+              const isResult = phase === "result" && lastResult?.direction === dir
+              const won = isResult && (dir === "long" ? lastResult?.wonDirection : !lastResult?.wonDirection)
+              const color = dir === "long" ? "#10b981" : "#ef4444"
+              const label = betAmountLabel(betDirectionAmount)
+              return (
+                <button
+                  key={dir}
+                  onClick={() => openDialog("direction", dir)}
+                  disabled={!canBet || betDirection !== null}
+                  className="h-14 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50"
+                  style={{
+                    background: isSelected ? `${color}20` : isResult ? (won ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)") : "hsl(var(--muted))",
+                    borderColor: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "transparent",
+                    color: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "hsl(var(--muted-foreground))",
+                  }}
+                >
+                  <div className="flex items-center gap-1">
+                    {dir === "long" ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                    <span>{dir === "long" ? "롱" : "숏"}</span>
+                  </div>
+                  {isSelected && label && <span className="text-[9px] opacity-70">{label}</span>}
+                  {isResult && <span className="text-[9px]">{won ? "승" : "패"}</span>}
+                </button>
+              )
+            })}
           </div>
-          <span
-            className="text-sm font-bold tabular-nums"
-            style={{ color: timerColor }}
-          >
-            {timeLeft}초
-          </span>
-        </div>
-        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-200"
-            style={{
-              width: `${timerPercent}%`,
-              backgroundColor: timerColor,
-            }}
-          />
-        </div>
-      </div>
 
-      {/* 3그룹 버튼: 롱/숏 | 오버/언더 | 홀/짝 */}
-      <div className="grid grid-cols-3 gap-2">
-        {/* 그룹 1: 롱 / 숏 */}
-        <div className="flex flex-col gap-2">
-          <Button
-            onClick={() => placeBet("long")}
-            disabled={!canBet || betDirection !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1 ${
-              betDirection === "long"
-                ? "bg-emerald-600 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 scale-[1.02]"
-                : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30"
-            }`}
-          >
-            <TrendingUp className="w-3.5 h-3.5" />
-            롱
-          </Button>
-          <Button
-            onClick={() => placeBet("short")}
-            disabled={!canBet || betDirection !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1 ${
-              betDirection === "short"
-                ? "bg-red-600 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 scale-[1.02]"
-                : "bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30"
-            }`}
-          >
-            <TrendingDown className="w-3.5 h-3.5" />
-            숏
-          </Button>
-        </div>
+          {/* 오버 / 언더 */}
+          <div className="flex flex-col gap-2">
+            {(["over", "under"] as const).map((dig) => {
+              const isSelected = betDigit === dig
+              const isResult = phase === "result" && lastResult?.digit === dig
+              const won = isResult && (dig === "over" ? lastResult?.wonDigit : !lastResult?.wonDigit)
+              const color = dig === "over" ? "#f97316" : "#60a5fa"
+              const label = betAmountLabel(betDigitAmount)
+              return (
+                <button
+                  key={dig}
+                  onClick={() => openDialog("digit", dig)}
+                  disabled={!canBet || betDigit !== null}
+                  className="h-14 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50"
+                  style={{
+                    background: isSelected ? `${color}20` : isResult ? (won ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)") : "hsl(var(--muted))",
+                    borderColor: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "transparent",
+                    color: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "hsl(var(--muted-foreground))",
+                  }}
+                >
+                  <span>{dig === "over" ? "오버" : "언더"}</span>
+                  <span className="text-[9px] opacity-60">{dig === "over" ? "5~9" : "0~4"}</span>
+                  {isSelected && label && <span className="text-[9px] opacity-70">{label}</span>}
+                  {isResult && <span className="text-[9px]">{won ? "승" : "패"}</span>}
+                </button>
+              )
+            })}
+          </div>
 
-        {/* 그룹 2: 오버 / 언더 */}
-        <div className="flex flex-col gap-2">
-          <Button
-            onClick={() => placeDigitBet("over")}
-            disabled={!canBet || betDigit !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
-              betDigit === "over"
-                ? "bg-orange-600 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/30 scale-[1.02]"
-                : "bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 border border-orange-500/30"
-            }`}
-          >
-            <span>오버</span>
-            <span className="text-[9px] opacity-70">5~9</span>
-          </Button>
-          <Button
-            onClick={() => placeDigitBet("under")}
-            disabled={!canBet || betDigit !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
-              betDigit === "under"
-                ? "bg-blue-600 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-[1.02]"
-                : "bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/30"
-            }`}
-          >
-            <span>언더</span>
-            <span className="text-[9px] opacity-70">0~4</span>
-          </Button>
+          {/* 홀 / 짝 */}
+          <div className="flex flex-col gap-2">
+            {(["odd", "even"] as const).map((par) => {
+              const isSelected = betParity === par
+              const isResult = phase === "result" && lastResult?.parity === par
+              const won = isResult && (par === "odd" ? lastResult?.wonParity : !lastResult?.wonParity)
+              const color = par === "odd" ? "#8b5cf6" : "#ec4899"
+              const label = betAmountLabel(betParityAmount)
+              return (
+                <button
+                  key={par}
+                  onClick={() => openDialog("parity", par)}
+                  disabled={!canBet || betParity !== null}
+                  className="h-14 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50"
+                  style={{
+                    background: isSelected ? `${color}20` : isResult ? (won ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)") : "hsl(var(--muted))",
+                    borderColor: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "transparent",
+                    color: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "hsl(var(--muted-foreground))",
+                  }}
+                >
+                  <span>{par === "odd" ? "홀" : "짝"}</span>
+                  <span className="text-[9px] opacity-60">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
+                  {isSelected && label && <span className="text-[9px] opacity-70">{label}</span>}
+                  {isResult && <span className="text-[9px]">{won ? "승" : "패"}</span>}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
-        {/* 그룹 3: 홀 / 짝 */}
-        <div className="flex flex-col gap-2">
-          <Button
-            onClick={() => placeParityBet("odd")}
-            disabled={!canBet || betParity !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
-              betParity === "odd"
-                ? "bg-violet-600 hover:bg-violet-600 text-white shadow-lg shadow-violet-500/30 scale-[1.02]"
-                : "bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 border border-violet-500/30"
-            }`}
-          >
-            <span>홀</span>
-            <span className="text-[9px] opacity-70">1·3·5·7·9</span>
-          </Button>
-          <Button
-            onClick={() => placeParityBet("even")}
-            disabled={!canBet || betParity !== null}
-            className={`h-11 text-xs font-bold rounded-xl transition-all duration-200 flex flex-col items-center justify-center ${
-              betParity === "even"
-                ? "bg-pink-600 hover:bg-pink-600 text-white shadow-lg shadow-pink-500/30 scale-[1.02]"
-                : "bg-pink-500/10 hover:bg-pink-500/20 text-pink-500 border border-pink-500/30"
-            }`}
-          >
-            <span>짝</span>
-            <span className="text-[9px] opacity-70">0·2·4·6·8</span>
-          </Button>
-        </div>
-      </div>
+        {/* 안내 텍스트 */}
+        <p className="text-center text-[10px] text-muted-foreground mt-3">
+          {canBet && !betDirection && !betDigit && !betParity && "종목을 눌러 배팅하세요"}
+          {canBet && (betDirection || betDigit || betParity) && "다른 종목 추가 배팅 가능"}
+          {!canBet && phase !== "result" && (timeLeft > 3 ? "게임 중 — 배팅 불가" : "다음 게임까지 3초 전")}
+          {phase === "result" && "새 라운드 준비 중..."}
+        </p>
+      </Card>
 
-      {/* 배팅 상태 안내 */}
-      <p className="text-center text-[10px] text-muted-foreground mt-2">
-        {canBet && !betDirection && !betDigit && !betParity && "롱/숏, 언더/오버, 홀/짝 각각 독립 배팅 가능"}
-        {canBet && (betDirection || betDigit || betParity) && "추가 배팅 가능"}
-        {timeLeft <= 15 && timeLeft > 3 && phase !== "result" && "게임 중 - 배팅 불가"}
-        {timeLeft <= 3 && phase !== "result" && "다음 게임까지 3초 전"}
-        {phase === "result" && "새 라운드 준비 중..."}
-      </p>
-    </Card>
+      {/* 배팅 다이얼로그 */}
+      {dialog && (
+        <BetDialog
+          open={dialog.open}
+          betType={dialog.type}
+          selectedValue={dialog.value}
+          onClose={() => setDialog(null)}
+          onConfirm={handleConfirmBet}
+          isLoading={isPlacingBet}
+        />
+      )}
+    </>
   )
 }
