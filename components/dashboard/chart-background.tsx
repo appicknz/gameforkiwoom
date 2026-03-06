@@ -16,6 +16,9 @@ interface Radar {
   maxR: number
   angle: number
   speed: number
+  alpha: number        // 현재 투명도 (0~1)
+  state: "in" | "hold" | "out"  // 페이드 상태
+  holdTimer: number    // hold 남은 시간(ms)
 }
 
 interface Jet {
@@ -40,19 +43,19 @@ export function ChartBackground() {
     const dots: Dot[] = []
     const jets: Jet[] = []
 
-    // 레이더: 1~3개, 각각 랜덤 위치/크기/속도
-    let radars: Radar[] = []
+    // 레이더: 1개, 랜덤 위치/크기로 나타났다 사라짐
+    let radar: Radar | null = null
 
-    const initRadars = (w: number, h: number) => {
-      const count = 1 + Math.floor(Math.random() * 3) // 1~3개
-      radars = Array.from({ length: count }, () => ({
-        cx: w * (0.15 + Math.random() * 0.7),
-        cy: h * (0.15 + Math.random() * 0.7),
-        maxR: Math.min(w, h) * (0.12 + Math.random() * 0.28),
-        angle: Math.random() * Math.PI * 2,
-        speed: 0.010 + Math.random() * 0.022,
-      }))
-    }
+    const spawnRadar = (w: number, h: number): Radar => ({
+      cx: w * (0.12 + Math.random() * 0.76),
+      cy: h * (0.12 + Math.random() * 0.76),
+      maxR: Math.min(w, h) * (0.10 + Math.random() * 0.32),
+      angle: Math.random() * Math.PI * 2,
+      speed: 0.010 + Math.random() * 0.022,
+      alpha: 0,
+      state: "in",
+      holdTimer: 3000 + Math.random() * 5000,  // 3~8초 유지
+    })
 
     const spawnJet = (w: number, h: number) => {
       const fromLeft = Math.random() > 0.35
@@ -161,7 +164,7 @@ export function ChartBackground() {
       canvas.width = rect.width * window.devicePixelRatio
       canvas.height = rect.height * window.devicePixelRatio
       ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-      initRadars(rect.width, rect.height)
+      if (!radar) radar = spawnRadar(rect.width, rect.height)
     }
     resize()
 
@@ -186,11 +189,34 @@ export function ChartBackground() {
 
       ctx.clearRect(0, 0, w, h)
 
-      // ── 레이더들 ──────────────────────────────────────────
-      for (const radar of radars) {
-        const { cx, cy, maxR } = radar
+      // ── 레이더 (1개, fade in → hold → fade out → 새 위치 재등장) ──
+      const FADE_SPEED = 0.012
+      if (!radar) radar = spawnRadar(w, h)
+
+      // 상태 전환
+      if (radar.state === "in") {
+        radar.alpha = Math.min(1, radar.alpha + FADE_SPEED)
+        if (radar.alpha >= 1) radar.state = "hold"
+      } else if (radar.state === "hold") {
+        radar.holdTimer -= 16
+        if (radar.holdTimer <= 0) radar.state = "out"
+      } else {
+        radar.alpha = Math.max(0, radar.alpha - FADE_SPEED)
+        if (radar.alpha <= 0) {
+          // 사라지면 잠깐 쉬었다가 새 위치/크기로 다시 등장
+          setTimeout(() => {
+            radar = spawnRadar(w, h)
+          }, 500 + Math.random() * 1500)
+          radar = null
+        }
+      }
+
+      if (radar) {
+        const { cx, cy, maxR, alpha } = radar
         radar.angle = (radar.angle + radar.speed) % (Math.PI * 2)
         const ra = radar.angle
+
+        ctx.globalAlpha = alpha
 
         // 동심원
         for (let i = 1; i <= 3; i++) {
@@ -238,11 +264,13 @@ export function ChartBackground() {
           dots.push({
             x: cx + Math.cos(angle) * dist,
             y: cy + Math.sin(angle) * dist,
-            opacity: 1,
+            opacity: alpha,
             size: 1.2 + Math.random() * 2.5,
             birth: ts,
           })
         }
+
+        ctx.globalAlpha = 1
       }
 
       // ── 점 그리기 & 페이드 ──────────────────────────────
