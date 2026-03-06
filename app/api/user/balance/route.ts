@@ -1,10 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from "@/lib/supabase-admin"
 import { NextResponse } from 'next/server'
-
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function GET(request: Request) {
   // Authorization: Bearer <access_token> 헤더에서 토큰 추출

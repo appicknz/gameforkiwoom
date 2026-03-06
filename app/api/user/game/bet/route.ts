@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { adminSupabase } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 
@@ -8,10 +8,7 @@ const redis = new Redis({
 })
 
 export async function POST(request: Request) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const supabase = adminSupabase
 
   try {
     const { betAmount } = await request.json()

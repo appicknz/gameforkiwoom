@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 
@@ -8,11 +8,6 @@ const redis = new Redis({
 })
 
 const PAYOUT_RATIO = 1.95 // 배당률 (서버에서만 정의)
-
-const admin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 /**
  * 게임 정산 API - 서버에서 승패와 수익을 직접 계산 (위변조 방지)

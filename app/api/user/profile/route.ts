@@ -1,10 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from "@/lib/supabase-admin"
 import { NextResponse } from 'next/server'
-
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 // access_token으로 유저 인증
 async function getUserFromToken(req: Request) {

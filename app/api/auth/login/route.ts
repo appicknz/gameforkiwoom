@@ -1,11 +1,15 @@
-import { createClient } from '@supabase/supabase-js'
+import "server-only"
+import { adminSupabase } from "@/lib/supabase-admin"
+import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from 'next/server'
 
-// 서버 전용 admin client (SERVICE_ROLE_KEY 사용)
-const admin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// anon client는 signInWithPassword 전용으로만 사용 (서버에서만 실행)
+function getAnonClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 
 export async function POST(req: Request) {
   const { username, password } = await req.json()
@@ -15,7 +19,7 @@ export async function POST(req: Request) {
   }
 
   // 1) profiles에서 user_id 조회
-  const { data: profile, error: profileError } = await admin
+  const { data: profile, error: profileError } = await adminSupabase
     .from('profiles')
     .select('id, username, role')
     .eq('username', username)
@@ -26,18 +30,13 @@ export async function POST(req: Request) {
   }
 
   // 2) auth.users에서 이메일 조회
-  const { data: userData, error: userError } = await admin.auth.admin.getUserById(profile.id)
+  const { data: userData, error: userError } = await adminSupabase.auth.admin.getUserById(profile.id)
   if (userError || !userData.user?.email) {
     return NextResponse.json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
   }
 
-  // 3) 서버에서 직접 signInWithPassword → access_token 반환
-  //    클라이언트에서 supabase.auth.signInWithPassword() 호출 불필요
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-  const { data: signIn, error: signInError } = await anonClient.auth.signInWithPassword({
+  // 3) 서버에서 signInWithPassword → access_token 반환
+  const { data: signIn, error: signInError } = await getAnonClient().auth.signInWithPassword({
     email: userData.user.email,
     password,
   })

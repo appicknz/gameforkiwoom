@@ -1,15 +1,10 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { adminSupabase as supabase } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
   token: process.env.KV_REST_API_TOKEN!,
 })
-
-const supabase = createSupabaseClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
