@@ -40,8 +40,16 @@ function pickCreatureType(level: "mega" | "high" | "mid" | "low" | "tiny"): Crea
 }
 
 function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
-  // 원본 SVG들은 대부분 오른쪽을 바라보는 형태 → dir=1(오른쪽이동)이면 그대로, dir=-1(왼쪽이동)이면 반전
-  const flip = dir === 1 ? "scale(-1,1)" : undefined
+  // 대부분의 SVG는 오른쪽을 바라봄 → dir=-1(왼쪽 이동)일 때 scaleX(-1) 반전
+  // 고래 SVG 원본은 왼쪽을 바라보므로 dir=1(오른쪽 이동)일 때 반전
+  const isWhale = type === "whale"
+  const needsFlip = isWhale ? dir === 1 : dir === -1
+  const flipStyle = needsFlip
+    ? { transform: "scaleX(-1)", transformOrigin: "center" } as React.CSSProperties
+    : undefined
+  // SVG transform 어트리뷰트용 (비-고래 SVG에서 사용)
+  const flip = needsFlip ? "scale(-1,1)" : undefined
+  void flip // suppress unused warning — individual SVGs use flipStyle or flip as needed
 
   switch (type) {
     case "whale":
@@ -50,7 +58,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
         <svg
           width="420" height="160"
           viewBox="0 0 7908 2987"
-          style={{ display: "block" }}
+          style={{ display: "block", ...(flipStyle ?? {}) }}
           preserveAspectRatio="xMidYMid meet"
         >
           <g transform="translate(0,2987) scale(0.1,-0.1)" fill="#1a4480" stroke="none">
@@ -61,7 +69,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "shark":
       return (
-        <svg width="90" height="50" viewBox="0 0 90 50" transform={flip}>
+        <svg width="90" height="50" viewBox="0 0 90 50" style={flipStyle}>
           <ellipse cx="42" cy="28" rx="38" ry="16" fill="#6b7280" opacity="0.9" />
           <ellipse cx="42" cy="32" rx="28" ry="9" fill="#9ca3af" opacity="0.6" />
           <path d="M4 28 Q0 16 12 22 Q6 28 12 34 Q0 40 4 28Z" fill="#6b7280" />
@@ -74,7 +82,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "dolphin":
       return (
-        <svg width="80" height="45" viewBox="0 0 80 45" transform={flip}>
+        <svg width="80" height="45" viewBox="0 0 80 45" style={flipStyle}>
           <ellipse cx="38" cy="26" rx="32" ry="14" fill="#0ea5e9" opacity="0.85" />
           <ellipse cx="38" cy="30" rx="22" ry="8" fill="#7dd3fc" opacity="0.6" />
           <path d="M6 26 Q0 14 14 20 Q8 26 14 32 Q0 38 6 26Z" fill="#0ea5e9" />
@@ -86,7 +94,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "fish":
       return (
-        <svg width="55" height="32" viewBox="0 0 55 32" transform={flip}>
+        <svg width="55" height="32" viewBox="0 0 55 32" style={flipStyle}>
           <ellipse cx="28" cy="16" rx="22" ry="11" fill="#f97316" opacity="0.85" />
           <ellipse cx="28" cy="18" rx="15" ry="6" fill="#fed7aa" opacity="0.6" />
           <path d="M6 16 Q0 8 12 12 Q6 16 12 20 Q0 24 6 16Z" fill="#f97316" />
@@ -100,7 +108,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "smallfish":
       return (
-        <svg width="36" height="22" viewBox="0 0 36 22" transform={flip}>
+        <svg width="36" height="22" viewBox="0 0 36 22" style={flipStyle}>
           <ellipse cx="18" cy="11" rx="14" ry="7" fill="#a855f7" opacity="0.8" />
           <path d="M4 11 Q0 6 8 8 Q4 11 8 14 Q0 16 4 11Z" fill="#a855f7" />
           <circle cx="26" cy="9" r="2" fill="white" />
@@ -109,7 +117,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "shrimp":
       return (
-        <svg width="30" height="28" viewBox="0 0 30 28" transform={flip}>
+        <svg width="30" height="28" viewBox="0 0 30 28" style={flipStyle}>
           <path d="M8 20 Q4 14 8 8 Q14 4 20 8 Q24 12 22 18 Q18 24 12 24 Q8 24 8 20Z" fill="#f87171" opacity="0.85" />
           <path d="M20 8 Q24 4 26 10" stroke="#f87171" strokeWidth="2" fill="none" />
           <path d="M8 20 Q4 24 6 26" stroke="#f87171" strokeWidth="1.5" fill="none" />
@@ -123,7 +131,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "seahorse":
       return (
-        <svg width="24" height="48" viewBox="0 0 24 48" transform={flip}>
+        <svg width="24" height="48" viewBox="0 0 24 48" style={flipStyle}>
           <path d="M12 6 Q18 6 18 12 Q18 18 12 20 Q8 22 8 28 Q8 36 12 40 Q14 44 12 46 Q10 42 10 38 Q6 32 6 26 Q6 18 12 14 Q16 12 14 8 Q12 4 12 6Z" fill="#22c55e" opacity="0.85" />
           <circle cx="15" cy="7" r="4" fill="#22c55e" />
           <circle cx="16" cy="6" r="1.5" fill="white" />
@@ -136,7 +144,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
     case "anglerfish":
       // 아귀 — 큰 입, 이마 낚싯대 발광체
       return (
-        <svg width="52" height="44" viewBox="0 0 52 44" transform={flip}>
+        <svg width="52" height="44" viewBox="0 0 52 44" style={flipStyle}>
           {/* 몸 — 둥글고 납작한 형태 */}
           <ellipse cx="26" cy="26" rx="20" ry="16" fill="#2d3a1e" opacity="0.9"/>
           <ellipse cx="26" cy="28" rx="14" ry="9" fill="#3d4f28" opacity="0.5"/>
@@ -163,7 +171,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
     case "lionfish":
       // 쏠배감펭 — 화려한 줄무늬와 독침 지느러미
       return (
-        <svg width="60" height="52" viewBox="0 0 60 52" transform={flip}>
+        <svg width="60" height="52" viewBox="0 0 60 52" style={flipStyle}>
           {/* 몸 */}
           <ellipse cx="32" cy="30" rx="22" ry="16" fill="#c2410c" opacity="0.88"/>
           <ellipse cx="32" cy="32" rx="15" ry="9" fill="#fed7aa" opacity="0.45"/>
@@ -193,7 +201,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
     case "swordfish":
       // 황새치 — 길고 뾰족한 주둥이, 초승달 꼬리
       return (
-        <svg width="100" height="36" viewBox="0 0 100 36" transform={flip}>
+        <svg width="100" height="36" viewBox="0 0 100 36" style={flipStyle}>
           {/* 몸 */}
           <ellipse cx="52" cy="18" rx="32" ry="12" fill="#1e3a5f" opacity="0.9"/>
           <ellipse cx="52" cy="20" rx="22" ry="7" fill="#3b82f6" opacity="0.35"/>
@@ -216,7 +224,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
     case "turtle":
       // 바다거북
       return (
-        <svg width="64" height="54" viewBox="0 0 64 54" transform={flip}>
+        <svg width="64" height="54" viewBox="0 0 64 54" style={flipStyle}>
           {/* 등껍질 */}
           <ellipse cx="32" cy="28" rx="22" ry="18" fill="#15803d" opacity="0.88"/>
           {/* 등껍질 무늬 */}
@@ -245,7 +253,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "jellyfish":
       return (
-        <svg width="36" height="44" viewBox="0 0 36 44" transform={flip}>
+        <svg width="36" height="44" viewBox="0 0 36 44" style={flipStyle}>
           {/* bell */}
           <ellipse cx="18" cy="16" rx="16" ry="14" fill="#d946ef" opacity="0.6" />
           <ellipse cx="18" cy="14" rx="12" ry="8" fill="#e879f9" opacity="0.4" />
@@ -259,7 +267,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "crab":
       return (
-        <svg width="40" height="30" viewBox="0 0 40 30" transform={flip}>
+        <svg width="40" height="30" viewBox="0 0 40 30" style={flipStyle}>
           {/* body */}
           <ellipse cx="20" cy="18" rx="12" ry="9" fill="#dc2626" opacity="0.85" />
           {/* claws */}
@@ -281,7 +289,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "tuna":
       return (
-        <svg width="62" height="28" viewBox="0 0 62 28" transform={flip}>
+        <svg width="62" height="28" viewBox="0 0 62 28" style={flipStyle}>
           <ellipse cx="30" cy="14" rx="26" ry="10" fill="#1d4ed8" opacity="0.85"/>
           <ellipse cx="30" cy="16" rx="18" ry="6" fill="#60a5fa" opacity="0.5"/>
           {/* 초승달 꼬리 */}
@@ -296,7 +304,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "puffer":
       return (
-        <svg width="44" height="40" viewBox="0 0 44 40" transform={flip}>
+        <svg width="44" height="40" viewBox="0 0 44 40" style={flipStyle}>
           {/* 둥근 몸 */}
           <circle cx="22" cy="22" r="17" fill="#fbbf24" opacity="0.85"/>
           <circle cx="22" cy="22" r="12" fill="#fde68a" opacity="0.5"/>
@@ -321,7 +329,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "tropical":
       return (
-        <svg width="50" height="36" viewBox="0 0 50 36" transform={flip}>
+        <svg width="50" height="36" viewBox="0 0 50 36" style={flipStyle}>
           {/* 몸 */}
           <ellipse cx="25" cy="18" rx="20" ry="14" fill="#ec4899" opacity="0.85"/>
           {/* 세로줄 무늬 */}
@@ -339,7 +347,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "ray":
       return (
-        <svg width="80" height="50" viewBox="0 0 80 50" transform={flip}>
+        <svg width="80" height="50" viewBox="0 0 80 50" style={flipStyle}>
           {/* 마름모 몸체 */}
           <path d="M70 25 L40 5 L10 25 L40 45 Z" fill="#6366f1" opacity="0.8"/>
           <path d="M70 25 L40 12 L10 25 L40 38 Z" fill="#818cf8" opacity="0.4"/>
@@ -357,7 +365,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
       )
     case "octopus":
       return (
-        <svg width="52" height="60" viewBox="0 0 52 60" transform={flip}>
+        <svg width="52" height="60" viewBox="0 0 52 60" style={flipStyle}>
           {/* 머리 */}
           <ellipse cx="26" cy="18" rx="18" ry="16" fill="#7c3aed" opacity="0.85"/>
           <ellipse cx="26" cy="16" rx="13" ry="10" fill="#a78bfa" opacity="0.4"/>
