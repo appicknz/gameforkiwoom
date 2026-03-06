@@ -30,8 +30,8 @@ export async function POST(req: Request) {
   if (pw !== ADMIN_PASSWORD) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  if (!name || !code) {
-    return NextResponse.json({ error: "지점명과 코드를 입력하세요." }, { status: 400 })
+  if (!name || !code || !ownerUsername) {
+    return NextResponse.json({ error: "지점명, 코드, 관리자 아이디를 모두 입력하세요." }, { status: 400 })
   }
 
   // 코드 중복 확인
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
 
   const { data, error } = await adminSupabase
     .from("branches")
-    .insert({ name, code: code.toUpperCase(), status: "active", owner_email: ownerEmail })
+    .insert({ name, code: code.toUpperCase(), status: "approved", owner_email: ownerEmail })
     .select()
     .single()
 

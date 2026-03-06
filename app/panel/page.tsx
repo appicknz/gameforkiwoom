@@ -56,6 +56,8 @@ export default function PanelPage() {
   const [newBranchName, setNewBranchName] = useState("")
   const [newBranchCode, setNewBranchCode] = useState("")
   const [newBranchOwner, setNewBranchOwner] = useState("")
+  const [ownerSearch, setOwnerSearch] = useState("")
+  const [ownerDropdownOpen, setOwnerDropdownOpen] = useState(false)
   const [branchMsg, setBranchMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [branchLoading, setBranchLoading] = useState(false)
 
@@ -153,7 +155,7 @@ export default function PanelPage() {
         pw: adminPw,
         name: newBranchName,
         code: newBranchCode.trim().toUpperCase(),
-        ownerUsername: newBranchOwner.trim() || null,
+        ownerUsername: newBranchOwner.trim(),
       }),
     })
     const data = await res.json()
@@ -164,6 +166,7 @@ export default function PanelPage() {
       setNewBranchName("")
       setNewBranchCode("")
       setNewBranchOwner("")
+      setOwnerSearch("")
       loadBranches(adminPw)
       loadUsers(adminPw)
     }
@@ -378,18 +381,55 @@ export default function PanelPage() {
                   value={newBranchCode}
                   onChange={e => setNewBranchCode(e.target.value.toUpperCase())}
                 />
+                {/* 지점관리자 검색 (필수) */}
                 <div className="relative">
-                  <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
                   <Input
                     className="pl-9"
-                    placeholder="지점관리자 아이디 (선택사항)"
-                    value={newBranchOwner}
-                    onChange={e => setNewBranchOwner(e.target.value)}
+                    placeholder="지점관리자 아이디 검색 (필수)"
+                    value={ownerSearch}
+                    onChange={e => {
+                      setOwnerSearch(e.target.value)
+                      setNewBranchOwner("")
+                      setOwnerDropdownOpen(true)
+                    }}
+                    onFocus={() => setOwnerDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setOwnerDropdownOpen(false), 150)}
                   />
+                  {newBranchOwner && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-primary font-medium">
+                      {newBranchOwner} 선택됨
+                    </span>
+                  )}
+                  {ownerDropdownOpen && ownerSearch.length >= 1 && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {users
+                        .filter(u => u.username.toLowerCase().includes(ownerSearch.toLowerCase()) && u.role !== "master")
+                        .slice(0, 10)
+                        .map(u => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted flex items-center justify-between"
+                            onMouseDown={() => {
+                              setNewBranchOwner(u.username)
+                              setOwnerSearch(u.username)
+                              setOwnerDropdownOpen(false)
+                            }}
+                          >
+                            <span>{u.username}</span>
+                            <span className="text-xs text-muted-foreground">{roleLabel[u.role]?.label ?? u.role}</span>
+                          </button>
+                        ))}
+                      {users.filter(u => u.username.toLowerCase().includes(ownerSearch.toLowerCase()) && u.role !== "master").length === 0 && (
+                        <p className="px-4 py-3 text-sm text-muted-foreground">검색 결과 없음</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               {branchMsg && <p className={`text-xs mb-3 ${branchMsg.ok ? "text-primary" : "text-destructive"}`}>{branchMsg.text}</p>}
-              <Button onClick={handleCreateBranch} disabled={branchLoading || !newBranchName || !newBranchCode} className="gap-1.5 text-sm">
+              <Button onClick={handleCreateBranch} disabled={branchLoading || !newBranchName || !newBranchCode || !newBranchOwner} className="gap-1.5 text-sm">
                 <Plus className="w-4 h-4" /> 지점 생성
               </Button>
             </div>
