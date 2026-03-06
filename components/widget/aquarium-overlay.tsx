@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 
 interface Creature {
   id: number
-  type: "whale" | "shark" | "dolphin" | "fish" | "smallfish" | "shrimp" | "seahorse" | "diver" | "jellyfish" | "crab"
+  type: "whale" | "shark" | "dolphin" | "fish" | "smallfish" | "shrimp" | "seahorse" | "diver" | "jellyfish" | "crab" | "tuna" | "puffer" | "tropical" | "ray" | "octopus"
   x: number
   y: number
   speed: number
@@ -15,22 +15,25 @@ interface Creature {
   yPhase: number
 }
 
-function getVolumeLevel(quoteVol: number): "mega" | "high" | "mid" | "low" | "tiny" {
-  // quoteAssetVolume은 USD 기준 24시간 거래대금
-  if (quoteVol > 5_000_000_000) return "mega"
-  if (quoteVol > 2_000_000_000) return "high"
-  if (quoteVol > 800_000_000)   return "mid"
-  if (quoteVol > 200_000_000)   return "low"
+const MAX_CREATURES = 6
+
+// 1초당 거래대금 변화량(KRW 기준: USDT * 1350)
+// 10억 원 = ~740,000 USDT/s
+function getDeltaLevel(deltaUsdt: number): "mega" | "high" | "mid" | "low" | "tiny" {
+  if (deltaUsdt >= 740_000)  return "mega"  // 10억원/s 이상 → 대형 고래
+  if (deltaUsdt >= 220_000)  return "high"  // 3억원/s 이상
+  if (deltaUsdt >= 74_000)   return "mid"   // 1억원/s 이상
+  if (deltaUsdt >= 15_000)   return "low"   // 2천만원/s 이상
   return "tiny"
 }
 
 function pickCreatureType(level: "mega" | "high" | "mid" | "low" | "tiny"): Creature["type"] {
   const pools: Record<string, Creature["type"][]> = {
-    mega:  ["whale", "shark", "whale", "dolphin"],
-    high:  ["dolphin", "shark", "fish", "dolphin"],
-    mid:   ["fish", "fish", "smallfish", "diver"],
-    low:   ["shrimp", "seahorse", "smallfish", "jellyfish"],
-    tiny:  ["shrimp", "crab", "jellyfish", "seahorse"],
+    mega:  ["whale", "whale", "shark", "dolphin"],
+    high:  ["tuna", "dolphin", "shark", "ray"],
+    mid:   ["fish", "tuna", "tropical", "diver", "octopus"],
+    low:   ["smallfish", "tropical", "puffer", "jellyfish", "seahorse"],
+    tiny:  ["shrimp", "crab", "jellyfish", "seahorse", "smallfish"],
   }
   const pool = pools[level]
   return pool[Math.floor(Math.random() * pool.length)]
@@ -191,6 +194,103 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
           <circle cx="24.5" cy="12" r="1.2" fill="#1a1a2e" />
         </svg>
       )
+    case "tuna":
+      return (
+        <svg width="62" height="28" viewBox="0 0 62 28" transform={flip}>
+          <ellipse cx="30" cy="14" rx="26" ry="10" fill="#1d4ed8" opacity="0.85"/>
+          <ellipse cx="30" cy="16" rx="18" ry="6" fill="#60a5fa" opacity="0.5"/>
+          {/* 초승달 꼬리 */}
+          <path d="M4 14 Q0 6 10 10 Q5 14 10 18 Q0 22 4 14Z" fill="#1d4ed8"/>
+          {/* 등지느러미 삼각 */}
+          <path d="M28 4 Q36 0 42 8 Q36 6 28 4Z" fill="#2563eb" opacity="0.9"/>
+          {/* 옆줄 */}
+          <path d="M12 13 Q26 11 44 13" stroke="#93c5fd" strokeWidth="0.8" fill="none" opacity="0.6"/>
+          <circle cx="46" cy="12" r="2.5" fill="white"/>
+          <circle cx="47" cy="12" r="1.2" fill="#1a1a2e"/>
+        </svg>
+      )
+    case "puffer":
+      return (
+        <svg width="44" height="40" viewBox="0 0 44 40" transform={flip}>
+          {/* 둥근 몸 */}
+          <circle cx="22" cy="22" r="17" fill="#fbbf24" opacity="0.85"/>
+          <circle cx="22" cy="22" r="12" fill="#fde68a" opacity="0.5"/>
+          {/* 가시들 */}
+          {[30,60,90,120,150,210,240,270,300,330].map((deg, i) => (
+            <line key={i}
+              x1={22 + Math.cos(deg*Math.PI/180)*17}
+              y1={22 + Math.sin(deg*Math.PI/180)*17}
+              x2={22 + Math.cos(deg*Math.PI/180)*22}
+              y2={22 + Math.sin(deg*Math.PI/180)*22}
+              stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round"/>
+          ))}
+          {/* 꼬리 */}
+          <path d="M5 22 Q0 16 8 19 Q4 22 8 25 Q0 28 5 22Z" fill="#fbbf24"/>
+          {/* 눈 */}
+          <circle cx="32" cy="18" r="4" fill="white"/>
+          <circle cx="33" cy="18" r="2" fill="#1a1a2e"/>
+          <circle cx="34" cy="17" r="0.8" fill="white"/>
+          {/* 입 */}
+          <path d="M36 23 Q38 25 36 26" stroke="#92400e" strokeWidth="1.2" fill="none"/>
+        </svg>
+      )
+    case "tropical":
+      return (
+        <svg width="50" height="36" viewBox="0 0 50 36" transform={flip}>
+          {/* 몸 */}
+          <ellipse cx="25" cy="18" rx="20" ry="14" fill="#ec4899" opacity="0.85"/>
+          {/* 세로줄 무늬 */}
+          <path d="M20 5 Q20 31 20 31" stroke="#be185d" strokeWidth="3" opacity="0.5"/>
+          <path d="M28 5 Q28 31 28 31" stroke="#be185d" strokeWidth="2" opacity="0.4"/>
+          {/* 꼬리 */}
+          <path d="M5 18 Q0 8 12 13 Q6 18 12 23 Q0 28 5 18Z" fill="#ec4899"/>
+          {/* 등지느러미 */}
+          <path d="M22 4 Q30 0 36 8 Q30 6 22 4Z" fill="#f472b6" opacity="0.8"/>
+          {/* 배지느러미 */}
+          <path d="M22 32 Q28 36 32 30 Q28 30 22 32Z" fill="#f472b6" opacity="0.7"/>
+          <circle cx="38" cy="15" r="3" fill="white"/>
+          <circle cx="39" cy="15" r="1.5" fill="#1a1a2e"/>
+        </svg>
+      )
+    case "ray":
+      return (
+        <svg width="80" height="50" viewBox="0 0 80 50" transform={flip}>
+          {/* 마름모 몸체 */}
+          <path d="M70 25 L40 5 L10 25 L40 45 Z" fill="#6366f1" opacity="0.8"/>
+          <path d="M70 25 L40 12 L10 25 L40 38 Z" fill="#818cf8" opacity="0.4"/>
+          {/* 꼬리 — 길고 얇은 채찍 */}
+          <path d="M10 25 Q0 22 -10 28" stroke="#6366f1" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+          {/* 눈 두 개 */}
+          <circle cx="55" cy="21" r="2.5" fill="white"/>
+          <circle cx="55.5" cy="21" r="1.2" fill="#1a1a2e"/>
+          <circle cx="55" cy="29" r="2.5" fill="white"/>
+          <circle cx="55.5" cy="29" r="1.2" fill="#1a1a2e"/>
+          {/* 아가미 선 */}
+          <path d="M48 22 Q50 25 48 28" stroke="#4f46e5" strokeWidth="1" fill="none" opacity="0.7"/>
+          <path d="M52 22 Q54 25 52 28" stroke="#4f46e5" strokeWidth="1" fill="none" opacity="0.7"/>
+        </svg>
+      )
+    case "octopus":
+      return (
+        <svg width="52" height="60" viewBox="0 0 52 60" transform={flip}>
+          {/* 머리 */}
+          <ellipse cx="26" cy="18" rx="18" ry="16" fill="#7c3aed" opacity="0.85"/>
+          <ellipse cx="26" cy="16" rx="13" ry="10" fill="#a78bfa" opacity="0.4"/>
+          {/* 다리 8개 */}
+          {[-3,-1.5,0,1.5,3,4.5,6,7.5].map((offset, i) => (
+            <path key={i}
+              d={`M${14 + i*3.5} 32 Q${12+i*3.5+offset} 44 ${13+i*3.5} 56`}
+              stroke="#7c3aed" strokeWidth="3.5" fill="none" strokeLinecap="round" opacity="0.8"/>
+          ))}
+          {/* 눈 두 개 */}
+          <circle cx="20" cy="14" r="4" fill="white"/>
+          <circle cx="20.5" cy="14" r="2" fill="#1a1a2e"/>
+          <circle cx="22" cy="12.5" r="0.8" fill="white"/>
+          <circle cx="32" cy="14" r="4" fill="white"/>
+          <circle cx="32.5" cy="14" r="2" fill="#1a1a2e"/>
+          <circle cx="34" cy="12.5" r="0.8" fill="white"/>
+        </svg>
+      )
     default:
       return null
   }
@@ -200,21 +300,28 @@ let creatureId = 0
 
 export function AquariumOverlay() {
   const [creatures, setCreatures] = useState<Creature[]>([])
-  const [volumeLevel, setVolumeLevel] = useState<"mega" | "high" | "mid" | "low" | "tiny">("mid")
+  const [volumeLevel, setVolumeLevel] = useState<"mega" | "high" | "mid" | "low" | "tiny">("tiny")
   const animFrameRef = useRef<number>(0)
   const lastSpawnRef = useRef<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  const prevVolRef = useRef<number>(0)
+  const prevTimeRef = useRef<number>(Date.now())
 
-  // 거래대금 폴링
+  // 1초당 거래대금 변화량으로 레벨 결정
   useEffect(() => {
     const id = setInterval(() => {
-      if (typeof window !== "undefined") {
-        const data = (window as any).__tickerData
-        if (data?.quoteAssetVolume) {
-          setVolumeLevel(getVolumeLevel(data.quoteAssetVolume))
-        }
-      }
-    }, 2000)
+      if (typeof window === "undefined") return
+      const data = (window as any).__tickerData
+      if (!data?.quoteAssetVolume) return
+      const now = Date.now()
+      const elapsedSec = (now - prevTimeRef.current) / 1000
+      const deltaUsdt = elapsedSec > 0
+        ? Math.abs(data.quoteAssetVolume - prevVolRef.current) / elapsedSec
+        : 0
+      prevVolRef.current = data.quoteAssetVolume
+      prevTimeRef.current = now
+      if (deltaUsdt > 0) setVolumeLevel(getDeltaLevel(deltaUsdt))
+    }, 1500)
     return () => clearInterval(id)
   }, [])
 
@@ -224,29 +331,28 @@ export function AquariumOverlay() {
     const H = containerRef.current?.clientHeight ?? 280
 
     const spawnInterval: Record<string, number> = {
-      mega: 1500, high: 2500, mid: 4000, low: 6000, tiny: 8000,
-    }
-    const maxCount: Record<string, number> = {
-      mega: 8, high: 6, mid: 4, low: 3, tiny: 2,
+      mega: 1200, high: 2000, mid: 3500, low: 5500, tiny: 7000,
     }
 
     const loop = (ts: number) => {
-      // 생성
+      // 생성 — 최대 6마리 고정
       if (ts - lastSpawnRef.current > spawnInterval[volumeLevel]) {
         lastSpawnRef.current = ts
         setCreatures(prev => {
-          if (prev.length >= maxCount[volumeLevel]) return prev
+          if (prev.length >= MAX_CREATURES) return prev
           const dir: 1 | -1 = Math.random() > 0.5 ? 1 : -1
           const type = pickCreatureType(volumeLevel)
           const sizeMap: Record<Creature["type"], number> = {
-            whale: 1.0, shark: 0.85, dolphin: 0.75, diver: 0.65,
+            whale: 1.1, shark: 0.85, dolphin: 0.75, diver: 0.65,
             fish: 0.6, smallfish: 0.5, shrimp: 0.45, seahorse: 0.4,
             jellyfish: 0.5, crab: 0.45,
+            tuna: 0.7, puffer: 0.55, tropical: 0.65, ray: 0.8, octopus: 0.6,
           }
           const speedMap: Record<Creature["type"], number> = {
-            whale: 0.4, shark: 0.7, dolphin: 0.65, diver: 0.2,
+            whale: 0.35, shark: 0.7, dolphin: 0.65, diver: 0.2,
             fish: 0.55, smallfish: 0.5, shrimp: 0.3, seahorse: 0.15,
             jellyfish: 0.1, crab: 0.25,
+            tuna: 0.75, puffer: 0.3, tropical: 0.5, ray: 0.6, octopus: 0.25,
           }
           const c: Creature = {
             id: creatureId++,
@@ -363,11 +469,11 @@ export function AquariumOverlay() {
       {/* 거래량 레벨 표시 */}
       <div className="absolute top-2 right-2 text-[9px] text-sky-300/60 font-medium tracking-wider">
         {{
-          mega: "🐳 MEGA VOL",
-          high: "🐬 HIGH VOL",
-          mid:  "🐟 MID VOL",
-          low:  "🦐 LOW VOL",
-          tiny: "🦀 TINY VOL",
+          mega: "고래 출현 (10억+/s)",
+          high: "돌고래 떼 (3억+/s)",
+          mid:  "물고기 (1억+/s)",
+          low:  "새우·해마 (2천만+/s)",
+          tiny: "조용한 수족관",
         }[volumeLevel]}
       </div>
 
