@@ -86,29 +86,36 @@ export default function PanelPage() {
   // 회원 목록 로드 (branch_admin은 자기 지점만)
   const loadUsers = useCallback(async (pw: string) => {
     setUsersLoading(true)
-    const params = new URLSearchParams({ pw })
-    if (myRole === "branch_admin" && myBranchCode) {
-      params.set("branch_code", myBranchCode)
-    }
-    const res = await fetch(`/api/admin/users?${params}`)
+    // JWT 토큰은 userId:password 형식
+    const token = localStorage.getItem("supabase_token") || `${userId}:${pw}`
+    const res = await fetch(`/api/admin/users`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    })
     const data = await res.json()
     if (!res.ok) {
-      setPwError("비밀번호가 올바르지 않습니다.")
+      setPwError("인증에 실패했습니다.")
       setAdminPw("")
     } else {
       setUsers(data.users ?? [])
     }
     setUsersLoading(false)
-  }, [myRole, myBranchCode])
+  }, [userId])
 
   // 지점 목록 로드
   const loadBranches = useCallback(async (pw: string) => {
     setBranchesLoading(true)
-    const res = await fetch(`/api/admin/branches?pw=${encodeURIComponent(pw)}`)
+    const token = localStorage.getItem("supabase_token") || `${userId}:${pw}`
+    const res = await fetch(`/api/admin/branches`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    })
     const data = await res.json()
     if (res.ok) setBranches(data.branches ?? [])
     setBranchesLoading(false)
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     if (adminPw) {
@@ -157,11 +164,14 @@ export default function PanelPage() {
   const handleCreateBranch = async () => {
     setBranchLoading(true)
     setBranchMsg(null)
+    const token = localStorage.getItem("supabase_token") || `${userId}:${adminPw}`
     const res = await fetch("/api/admin/branches", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
       body: JSON.stringify({
-        pw: adminPw,
         name: newBranchName,
         code: newBranchCode.trim().toUpperCase(),
         ownerUsername: newBranchOwner.trim(),
@@ -185,7 +195,13 @@ export default function PanelPage() {
   // 지점 삭제
   const handleDeleteBranch = async (id: string) => {
     if (!confirm("지점을 삭제하시겠습니까? 소속 회원의 지점코드가 해제됩니다.")) return
-    await fetch(`/api/admin/branches?pw=${encodeURIComponent(adminPw)}&id=${id}`, { method: "DELETE" })
+    const token = localStorage.getItem("supabase_token") || `${userId}:${adminPw}`
+    await fetch(`/api/admin/branches?id=${id}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    })
     loadBranches(adminPw)
   }
 
@@ -210,7 +226,7 @@ export default function PanelPage() {
   if (!adminPw) {
     const isBranchAdmin = myRole === "branch_admin"
     const pwLabel = isBranchAdmin ? "본인 비밀번호" : "마스터 비밀번호"
-    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력하세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
+    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본�� 비밀번호를 입력하세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
