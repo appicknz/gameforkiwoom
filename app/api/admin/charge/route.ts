@@ -1,54 +1,54 @@
+import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
+import { createClient } from "@supabase/supabase-js"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from 'next/server'
-
-const ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD ?? ''
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
   token: process.env.KV_REST_API_TOKEN!,
 })
 
+// 토큰으로 user 검증하는 헬퍼
+async function getUserFromToken(token: string) {
+  const anonClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+  const { data, error } = await anonClient.auth.getUser(token)
+  if (error || !data.user) return null
+  return data.user
+}
+
 export async function POST(req: Request) {
   const authHeader = req.headers.get('authorization')
-  const { userId, amount } = await req.json()
-
   if (!authHeader?.startsWith('Bearer ')) {
     return NextResponse.json({ error: 'JWT token required' }, { status: 401 })
   }
 
   const token = authHeader.slice(7)
+  const authUser = await getUserFromToken(token)
+  if (!authUser) return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
 
-  // JWT에서 user 정보 조회 (token = userId:password)
-  const [tokenUserId, tokenPassword] = token.split(':')
-  if (!tokenUserId || !tokenPassword) {
-    return NextResponse.json({ error: 'Invalid token format' }, { status: 401 })
-  }
-
-  // 요청자의 프로필 조회
   const { data: requester } = await adminSupabase
     .from('profiles')
-    .select('id, username, role, branch_code')
-    .eq('id', tokenUserId)
+    .select('id, role, branch_code')
+    .eq('id', authUser.id)
     .single()
 
-  if (!requester) {
-    return NextResponse.json({ error: 'User not found' }, { status: 401 })
+  if (!requester || !['master', 'super_admin', 'branch_admin'].includes(requester.role)) {
+    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
-  // master: master 비번으로만 충전/차감 가능
-  // branch_admin: 자신의 비번으로 자신의 지점 회원만 충전/차감 가능
-  if (requester.role === 'master' || requester.role === 'super_admin') {
-    if (tokenPassword !== ADMIN_PASSWORD) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-  } else if (requester.role === 'branch_admin') {
-    // branch_admin은 JWT 토큰 검증만 (로그인 시 이미 비번 검증됨)
-    // 자신의 지점 회원인지 확인
-    if (!userId || typeof amount !== 'number') {
-      return NextResponse.json({ error: 'userId와 amount가 필요합니다.' }, { status: 400 })
-    }
+  const { userId, amount } = await req.json()
 
+  if (!userId || typeof amount !== 'number') {
+    return NextResponse.json({ error: 'userId와 amount가 필요합니다.' }, { status: 400 })
+  }
+
+  // branch_admin은 자신의 지점 회원만 충전/차감 가능
+  if (requester.role === 'branch_admin') {
     const { data: targetUser } = await adminSupabase
       .from('profiles')
       .select('branch_code')
@@ -58,15 +58,8 @@ export async function POST(req: Request) {
     if (!targetUser || targetUser.branch_code !== requester.branch_code) {
       return NextResponse.json({ error: '자신의 지점 회원만 충전/차감할 수 있습니다.' }, { status: 403 })
     }
-  } else {
-    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
-  if (!userId || typeof amount !== 'number') {
-    return NextResponse.json({ error: 'userId와 amount가 필요합니다.' }, { status: 400 })
-  }
-
-  // 기존 잔고 조회
   const { data: existing } = await adminSupabase
     .from('balances')
     .select('amount')
@@ -80,17 +73,14 @@ export async function POST(req: Request) {
       .from('balances')
       .update({ amount: newBalance })
       .eq('user_id', userId)
-
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   } else {
     const { error } = await adminSupabase
       .from('balances')
       .insert({ user_id: userId, amount: newBalance })
-
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Redis 갱신 → SSE 스트림이 변경 감지해 클라이언트에 즉시 push
   await Promise.all([
     redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),
     redis.incr(`balance_version:${userId}`),

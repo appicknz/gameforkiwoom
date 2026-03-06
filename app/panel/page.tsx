@@ -88,8 +88,8 @@ export default function PanelPage() {
   // 회원 목록 로드 (branch_admin은 자기 지점만)
   const loadUsers = useCallback(async (pw: string) => {
     setUsersLoading(true)
-    // JWT 토큰은 userId:password 형식
-    const token = localStorage.getItem("app_token") || `${myUserId}:${pw}`
+    const token = getToken()
+    if (!token) { setUsersLoading(false); return }
     const res = await fetch(`/api/admin/users`, {
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -108,7 +108,8 @@ export default function PanelPage() {
   // 지점 목록 로드
   const loadBranches = useCallback(async (pw: string) => {
     setBranchesLoading(true)
-    const token = localStorage.getItem("app_token") || `${myUserId}:${pw}`
+    const token = getToken()
+    if (!token) { setBranchesLoading(false); return }
     const res = await fetch(`/api/admin/branches`, {
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -166,7 +167,8 @@ export default function PanelPage() {
   const handleCreateBranch = async () => {
     setBranchLoading(true)
     setBranchMsg(null)
-    const token = localStorage.getItem("app_token") || `${myUserId}:${adminPw}`
+    const token = getToken()
+    if (!token) { setBranchLoading(false); return }
     const res = await fetch("/api/admin/branches", {
       method: "POST",
       headers: { 
@@ -197,7 +199,8 @@ export default function PanelPage() {
   // 지점 삭제
   const handleDeleteBranch = async (id: string) => {
     if (!confirm("지점을 삭제하시겠습니까? 소속 회원의 지점코드가 해제됩니다.")) return
-    const token = localStorage.getItem("app_token") || `${myUserId}:${adminPw}`
+    const token = getToken()
+    if (!token) return
     await fetch(`/api/admin/branches?id=${id}`, {
       method: "DELETE",
       headers: {
@@ -374,7 +377,7 @@ export default function PanelPage() {
                           <div className="mt-3 p-3 bg-muted rounded-lg">
                             <p className="text-xs font-medium text-foreground mb-2">잔고 충전 / 차감</p>
                             <div className="flex gap-2">
-                              <Input type="number" placeholder="금��� 입력" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} className="h-8 text-sm" />
+                              <Input type="number" placeholder="금����� 입력" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} className="h-8 text-sm" />
                               <Button size="sm" className="gap-1 h-8 text-xs" onClick={() => handleCharge(user.id, 1)} disabled={chargeLoading}>
                                 <Plus className="w-3 h-3" /> 충전
                               </Button>
