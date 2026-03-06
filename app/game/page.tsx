@@ -97,10 +97,6 @@ export default function GamePage() {
   const [betDirectionAmount, setBetDirectionAmount] = useState<BetAmount>(10000)
   const [betDigitAmount, setBetDigitAmount] = useState<BetAmount>(10000)
   const [betParityAmount, setBetParityAmount] = useState<BetAmount>(10000)
-  // 누적식 금액 선택용
-  const [lastClickedAmountButton, setLastClickedAmountButton] = useState<number | null>(null)
-  const [accumulatedAmount, setAccumulatedAmount] = useState<number>(0)
-  const [activeAmountType, setActiveAmountType] = useState<"direction" | "digit" | "parity" | null>(null)
   const [basePrice, setBasePrice] = useState<number | null>(null)
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
   const [phase, setPhase] = useState<"betting" | "waiting" | "result">("betting")
@@ -126,26 +122,6 @@ export default function GamePage() {
   const currentPriceRef = useRef<number | null>(null)
 
   const getRoundNumber = useCallback(() => Math.floor(Date.now() / 1000 / 30), [])
-
-  // 누적식 금액 버튼 핸들러
-  const handleAccumulateAmount = useCallback((amount: number, type: "direction" | "digit" | "parity") => {
-    if (activeAmountType === type && lastClickedAmountButton === amount) {
-      // 같은 버튼 재클릭 → 누적
-      const newAmount = accumulatedAmount + amount
-      setAccumulatedAmount(newAmount)
-      if (type === "direction") setBetDirectionAmount(newAmount)
-      else if (type === "digit") setBetDigitAmount(newAmount)
-      else setBetParityAmount(newAmount)
-    } else {
-      // 다른 버튼 또는 타입 변경 → 초기화 후 해당 금액 설정
-      setLastClickedAmountButton(amount)
-      setAccumulatedAmount(amount)
-      setActiveAmountType(type)
-      if (type === "direction") setBetDirectionAmount(amount)
-      else if (type === "digit") setBetDigitAmount(amount)
-      else setBetParityAmount(amount)
-    }
-  }, [activeAmountType, lastClickedAmountButton, accumulatedAmount])
 
   // usePriceWorker를 game page에서 직접 구독 — GameChart prop 콜백과 동일 소스
   usePriceWorker({
@@ -425,7 +401,7 @@ export default function GamePage() {
 
       {/* 상단 헤더: grid-cols-3으로 타이머를 정확히 가운데 고정 */}
       <div className="px-4 pt-3 pb-1 grid grid-cols-3 items-center shrink-0">
-        {/* 왼쪽: 잔��� */}
+        {/* 왼쪽: 잔고 */}
         <div>
           <p className="text-[8px] text-white/30 uppercase tracking-widest">잔고 BALANCE</p>
           <p className="text-[13px] font-bold text-white tabular-nums leading-tight">
@@ -509,37 +485,6 @@ export default function GamePage() {
         <p className="text-[9px] font-semibold" style={{ color: timerColor }}>
           {timerLabel}
         </p>
-      </div>
-
-      {/* 누적식 금액 선택 버튼 */}
-      <div className="mx-4 mb-2 shrink-0">
-        <div className="flex gap-1.5">
-          {[10000, 50000, 100000, 500000, 1000000].map((amt) => {
-            const isActive = lastClickedAmountButton === amt && activeAmountType !== null
-            return (
-              <button
-                key={amt}
-                onClick={() => {
-                  const type = activeAmountType ?? "direction"
-                  handleAccumulateAmount(amt, type)
-                }}
-                className="flex-1 py-2 rounded-xl text-[10px] font-bold transition-all duration-150 border"
-                style={{
-                  background: isActive ? "rgba(0,230,118,0.18)" : "rgba(255,255,255,0.04)",
-                  borderColor: isActive ? "#00e676" : "rgba(255,255,255,0.08)",
-                  color: isActive ? "#00e676" : "rgba(255,255,255,0.45)",
-                }}
-              >
-                {amt >= 1000000 ? "100만" : amt >= 500000 ? "50만" : amt >= 100000 ? "10만" : amt >= 50000 ? "5만" : "1만"}
-                {isActive && (
-                  <span className="block text-[8px] opacity-60 mt-0.5">
-                    ×{Math.round(accumulatedAmount / amt)}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
       </div>
 
       {/* 배팅 버튼 영역 */}
@@ -742,6 +687,7 @@ export default function GamePage() {
         </div>
       </div>
 
+      {/* CTA 버튼 */}
       <div className="mx-4 mt-2 mb-1 shrink-0">
         <button
           disabled={selectedCount === 0 || !canBet}
