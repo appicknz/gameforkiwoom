@@ -65,11 +65,9 @@ export function TopBar() {
   const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [pwLoading, setPwLoading] = useState(false)
 
-  // ── 초기화: 페이지 로드 시 세션 1회 확인 ─────────────────────
+  // ── 초기화: localStorage에서 직접 토큰 읽기 (getSession lock 경합 방지) ──
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session?.user || !session.access_token) return
-      const token = session.access_token
+    const loadFromToken = async (token: string) => {
       setIsLoggedIn(true)
       const [profileRes, balanceRes] = await Promise.all([
         fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
@@ -83,7 +81,35 @@ export function TopBar() {
         const d = await balanceRes.json()
         setBalance(d.balance ?? 0)
       }
-    })
+    }
+
+    // 1) sessionStorage 캐시 확인
+    const cached = sessionStorage.getItem("supabase_token")
+    if (cached) { loadFromToken(cached); return }
+
+    // 2) Supabase가 localStorage에 저장한 세션에서 직접 파싱
+    try {
+      const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/https:\/\/([^.]+)/)?.[1] ?? ""
+      const raw = localStorage.getItem(`sb-${projectRef}-auth-token`)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        const token = parsed?.access_token
+        if (token) {
+          sessionStorage.setItem("supabase_token", token)
+          loadFromToken(token)
+        }
+      }
+    } catch {}
+  }, [])
+
+  // ── balance:update 이벤트 수신 (betting-game에서 배팅/정산 후 발생) ──
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<number>).detail
+      if (typeof detail === "number") setBalance(detail)
+    }
+    window.addEventListener("balance:update", handler)
+    return () => window.removeEventListener("balance:update", handler)
   }, [])
 
   // 드롭다운 외부 클릭 닫기

@@ -306,7 +306,11 @@ export function BettingGame() {
 
           // 이긴 경우 잔고 지급 + 클라이언트 state 업데이트
           if (profit > 0) {
-            setBalance((prev) => (prev ?? 0) + profit)
+            setBalance((prev) => {
+              const next = (prev ?? 0) + profit
+              window.dispatchEvent(new CustomEvent("balance:update", { detail: next }))
+              return next
+            })
             const token = getToken()
             if (token) {
               fetch("/api/user/game/play", {
@@ -398,8 +402,11 @@ export function BettingGame() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Bet failed")
 
-      // DB에서 반환된 실제 잔고로 즉시 클라이언트 state 동기화
-      if (typeof data.newBalance === "number") setBalance(data.newBalance)
+      // DB에서 반환된 실제 잔고로 즉시 동기화 + top-bar에 알림
+      if (typeof data.newBalance === "number") {
+        setBalance(data.newBalance)
+        window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance }))
+      }
 
       // 배팅 성공 → 상태 업데이트
       const base = getBase()
