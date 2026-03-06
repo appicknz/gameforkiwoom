@@ -828,20 +828,22 @@ export function BettingGame() {
       {/* 배팅 다이얼로그 */}
       {dialog && (
         <BetDialog
-          open={dialog?.open ?? false}
-          betType={dialog?.type ?? null}
-          selectedValue={dialog?.value ?? null}
+          open={dialog.open}
+          betType={dialog.type}
+          selectedValue={dialog.value}
           onClose={() => setDialog(null)}
           onConfirm={handleConfirmBet}
           isLoading={isPlacingBet}
           balance={balance}
         />
+      )}
 
-        <ResultSheet
-          result={lastResult}
-          open={showResultSheet}
-          onClose={() => setShowResultSheet(false)}
-        />
+      {/* 결과 시트 */}
+      <ResultSheet
+        result={lastResult}
+        open={showResultSheet}
+        onClose={() => setShowResultSheet(false)}
+      />
     </>
   )
 }
