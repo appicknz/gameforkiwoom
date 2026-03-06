@@ -1,17 +1,14 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { createServerClient } from "@supabase/ssr"
+import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 
 // anon client: signInWithPassword 전용, 서버에서만 실행
 function getAnonClient() {
-  return createServerClient(
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { getAll: () => [], setAll: () => {} },
-      auth: { autoRefreshToken: false, persistSession: false },
-    }
+    { auth: { autoRefreshToken: false, persistSession: false } }
   )
 }
 
