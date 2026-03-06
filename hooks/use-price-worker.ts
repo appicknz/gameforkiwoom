@@ -55,6 +55,7 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         ws = new WebSocket(serverUrl)
 
         ws.onopen = () => {
+          console.log("[v0] PriceWorker connected to", serverUrl)
           optsRef.current.onConnected?.()
           resetHeartbeat()
         }
@@ -63,6 +64,7 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
           resetHeartbeat()
           try {
             const data = JSON.parse(event.data as string)
+            console.log("[v0] PriceWorker message:", data.type, data.type === "price" ? data.price : "")
 
             if (data.type === "init") {
               optsRef.current.onInitClosing?.(data.closingPrices)
@@ -87,13 +89,15 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
           } catch { /* ignore malformed messages */ }
         }
 
-        ws.onclose = () => {
+        ws.onclose = (e) => {
+          console.log("[v0] PriceWorker disconnected, code:", e.code, "reason:", e.reason)
           if (heartbeatTimer) clearTimeout(heartbeatTimer)
           optsRef.current.onDisconnected?.()
           if (!closed) retryTimer = setTimeout(connect, 3000)
         }
 
-        ws.onerror = () => {
+        ws.onerror = (e) => {
+          console.log("[v0] PriceWorker error:", e)
           ws?.close()
         }
       }
