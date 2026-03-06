@@ -221,7 +221,7 @@ export function BitcoinChart() {
 
       ws.onopen = () => setConnected(true)
       ws.onmessage = (e) => {
-        if (!seriesRef.current) return
+        if (!seriesRef.current || !dataReadyRef.current) return
         const k = JSON.parse(e.data).k
         const openTimeSec = Math.floor(k.t / 1000)
 
