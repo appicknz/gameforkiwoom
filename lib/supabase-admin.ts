@@ -1,5 +1,5 @@
 // server-only: 클라이언트 번들에 절대 포함되지 않습니다.
-// next.config.mjs의 serverExternalPackages + --no-turbopack 으로 이중 차단
+// serverExternalPackages + server-only 로 이중 차단
 import "server-only"
 import { createClient } from "@supabase/supabase-js"
 
