@@ -408,47 +408,6 @@ export function BettingGame() {
       .catch(console.error)
   }, [])
 
-  // 새로고침 대비: localStorage에서 이전 배팅 복원
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("game_pending_bet")
-      if (!raw) return
-      const saved = JSON.parse(raw) as {
-        round: number
-        direction: BetDirection
-        digit: BetDigit
-        parity: BetParity
-        basePrice: number
-        directionAmount: number
-        digitAmount: number
-        parityAmount: number
-      }
-      const currentRound = getRoundNumber()
-      // 저장된 라운드와 현재 라운드가 같을 때만 복원 (이미 종료된 라운드는 무시)
-      if (saved.round !== currentRound) {
-        localStorage.removeItem("game_pending_bet")
-        return
-      }
-      // refs 복원
-      betRef.current = saved.direction
-      betDigitRef.current = saved.digit
-      betParityRef.current = saved.parity
-      basePriceRef.current = saved.basePrice
-      betDirectionAmountRef.current = saved.directionAmount
-      betDigitAmountRef.current = saved.digitAmount
-      betParityAmountRef.current = saved.parityAmount
-      // state 복원
-      if (saved.direction) setBetDirection(saved.direction)
-      if (saved.digit) setBetDigit(saved.digit)
-      if (saved.parity) setBetParity(saved.parity)
-      setBasePrice(saved.basePrice)
-      if (saved.directionAmount) setBetDirectionAmount(saved.directionAmount)
-      if (saved.digitAmount) setBetDigitAmount(saved.digitAmount)
-      if (saved.parityAmount) setBetParityAmount(saved.parityAmount)
-      setPhase("waiting")
-    } catch {}
-  }, [getRoundNumber])
-
   // 다이얼로그 상태
   const [dialog, setDialog] = useState<{ open: boolean; type: BetType; value: string } | null>(null)
   const [isPlacingBet, setIsPlacingBet] = useState(false)
@@ -468,6 +427,64 @@ export function BettingGame() {
   const getRoundNumber = useCallback(() => {
     const now = Math.floor(Date.now() / 1000)
     return Math.floor(now / 30)
+  }, [])
+
+  // 새로고침 대비: localStorage에서 이전 배팅 복원 (getRoundNumber 이후에 위치해야 함)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("game_pending_bet")
+      if (!raw) return
+      const saved = JSON.parse(raw) as {
+        round: number
+        direction: BetDirection
+        digit: BetDigit
+        parity: BetParity
+        basePrice: number
+        directionAmount: number
+        digitAmount: number
+        parityAmount: number
+      }
+      const currentRound = getRoundNumber()
+      if (saved.round !== currentRound) {
+        localStorage.removeItem("game_pending_bet")
+        return
+      }
+      betRef.current = saved.direction
+      betDigitRef.current = saved.digit
+      betParityRef.current = saved.parity
+      basePriceRef.current = saved.basePrice
+      betDirectionAmountRef.current = saved.directionAmount
+      betDigitAmountRef.current = saved.digitAmount
+      betParityAmountRef.current = saved.parityAmount
+      if (saved.direction) setBetDirection(saved.direction)
+      if (saved.digit) setBetDigit(saved.digit)
+      if (saved.parity) setBetParity(saved.parity)
+      setBasePrice(saved.basePrice)
+      if (saved.directionAmount) setBetDirectionAmount(saved.directionAmount)
+      if (saved.digitAmount) setBetDigitAmount(saved.digitAmount)
+      if (saved.parityAmount) setBetParityAmount(saved.parityAmount)
+      setPhase("waiting")
+    } catch {}
+  }, [getRoundNumber])
+
+  // 잔고 주기적 DB 동기화 (여러 기기 간 일치 보장, 30초마다)
+  // 위변조 방지: 잔고는 항상 서버가 최종 권한
+  useEffect(() => {
+    const syncBalance = () => {
+      const token = getToken()
+      if (!token) return
+      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          if (d && typeof d.balance === "number") {
+            setBalance(d.balance)
+            window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
+          }
+        })
+        .catch(() => {})
+    }
+    const id = setInterval(syncBalance, 30_000)
+    return () => clearInterval(id)
   }, [])
 
   usePriceWorker({
