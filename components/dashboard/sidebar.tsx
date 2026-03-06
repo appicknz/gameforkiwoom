@@ -9,11 +9,12 @@ import {
   Settings,
   HelpCircle,
   LogOut,
+  LogIn,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 
 const menuItems = [
   { icon: LayoutDashboard, label: "비트벳 공식", href: "/" },
@@ -31,13 +32,33 @@ const menuItems = [
 const generalItems = [
   { icon: Settings,    label: "설정",    href: "/settings" },
   { icon: HelpCircle,  label: "고객센터", href: "/help" },
-  { icon: LogOut,      label: "로그아웃", href: "/logout" },
 ]
 
 export function Sidebar() {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
+
+  useEffect(() => {
+    const check = () => {
+      try {
+        setIsLoggedIn(!!localStorage.getItem("app_token"))
+      } catch {
+        setIsLoggedIn(false)
+      }
+    }
+    check()
+    window.addEventListener("storage", check)
+    return () => window.removeEventListener("storage", check)
+  }, [])
+
+  const handleLogout = () => {
+    try { localStorage.removeItem("app_token") } catch {}
+    setIsLoggedIn(false)
+    router.push("/login")
+  }
 
   return (
     <>
@@ -126,6 +147,36 @@ export function Sidebar() {
                   </Link>
                 )
               })}
+
+              {/* 로그아웃 / 로그인 동적 버튼 */}
+              {isLoggedIn ? (
+                <button
+                  onClick={handleLogout}
+                  onMouseEnter={() => setHoveredItem("auth")}
+                  onMouseLeave={() => setHoveredItem(null)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-all duration-300 text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    hoveredItem === "auth" && "translate-x-1",
+                  )}
+                >
+                  <LogOut className="w-4 h-4 shrink-0" />
+                  <span className="text-sm">로그아웃</span>
+                </button>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={() => setMobileOpen(false)}
+                  onMouseEnter={() => setHoveredItem("auth")}
+                  onMouseLeave={() => setHoveredItem(null)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-all duration-300 text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    hoveredItem === "auth" && "translate-x-1",
+                  )}
+                >
+                  <LogIn className="w-4 h-4 shrink-0" />
+                  <span className="text-sm">로그인</span>
+                </Link>
+              )}
             </nav>
           </div>
         </div>
