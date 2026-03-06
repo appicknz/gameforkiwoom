@@ -6,14 +6,13 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Turbopack은 serverExternalPackages를 지원하지 않아
-  // @supabase/* 가 클라이언트 번들에 포함되고 GoTrueClient가 브라우저에서 생성됨
-  // → webpack으로 전환해서 완전히 차단
-  experimental: {
-    turbo: undefined,
-  },
+  // Next.js 16에서 Turbopack은 serverExternalPackages를 제대로 지원 안 함
+  // package.json "dev": "next dev --no-turbopack" 으로 webpack 강제 사용
+  // webpack 환경에서 아래 패키지들이 클라이언트 번들에서 완전히 제외됨
+  // → 브라우저에서 GoTrueClient 생성 구조적으로 불가
   serverExternalPackages: [
     "@supabase/supabase-js",
+    "@supabase/ssr",
     "@supabase/auth-js",
     "@supabase/gotrue-js",
     "@supabase/postgrest-js",
