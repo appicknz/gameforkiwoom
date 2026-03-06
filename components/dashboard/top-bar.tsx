@@ -38,12 +38,6 @@ export function TopBar() {
   const [regMsg, setRegMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [regLoading, setRegLoading] = useState(false)
 
-  // --- 아이디 변경 상태 (로그인) ---
-  const [editingUsername, setEditingUsername] = useState(false)
-  const [newUsername, setNewUsername] = useState("")
-  const [usernameMsg, setUsernameMsg] = useState<{ text: string; ok: boolean } | null>(null)
-  const [usernameLoading, setUsernameLoading] = useState(false)
-
   // --- 비밀번호 변경 상태 (로그인) ---
   const [showPwForm, setShowPwForm] = useState(false)
   const [newPw, setNewPw] = useState("")
@@ -59,20 +53,20 @@ export function TopBar() {
   )
 
   useEffect(() => {
-    const fetchProfile = async (userId: string) => {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, username, role')
-        .eq('id', userId)
-        .single()
-      if (profileData) setProfile(profileData)
+    // service_role API를 통해 프로필 조회 (RLS 우회)
+    const fetchProfile = async () => {
+      const res = await fetch("/api/user/profile")
+      if (res.ok) {
+        const data = await res.json()
+        if (data.profile) setProfile(data.profile)
+      }
     }
 
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         setIsLoggedIn(true)
-        await fetchProfile(session.user.id)
+        await fetchProfile()
         fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
       } else {
         setIsLoggedIn(false)
@@ -84,7 +78,7 @@ export function TopBar() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setIsLoggedIn(true)
-        await fetchProfile(session.user.id)
+        await fetchProfile()
         fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
       } else {
         setIsLoggedIn(false)
@@ -181,27 +175,6 @@ export function TopBar() {
     setDropdownOpen(false)
     setRegUsername(""); setRegPw(""); setRegConfirmPw("")
     window.location.reload()
-  }
-
-  // 아이디 변경
-  const handleUsernameSave = async () => {
-    if (!newUsername.trim()) return setUsernameMsg({ text: "아이디를 입력해주세요.", ok: false })
-    if (newUsername.length < 2) return setUsernameMsg({ text: "2자 이상 입력해주세요.", ok: false })
-    setUsernameLoading(true)
-    const res = await fetch("/api/user/profile", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ newUsername }),
-    })
-    const data = await res.json()
-    setUsernameLoading(false)
-    if (res.ok) {
-      setProfile(prev => prev ? { ...prev, username: newUsername } : prev)
-      setUsernameMsg({ text: "아이디가 변경되었습니다.", ok: true })
-      setEditingUsername(false)
-    } else {
-      setUsernameMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
-    }
   }
 
   // 비밀번호 변경
@@ -376,45 +349,13 @@ export function TopBar() {
               {/* ===== 로그인: 아이디/비밀번호 변경 + 로그아웃 ===== */}
               {isLoggedIn && (
                 <>
-                  {/* 아이디 */}
+                  {/* 아이디 (읽기 전용) */}
                   <div className="px-4 py-3 border-b border-border">
                     <p className="text-xs text-muted-foreground mb-1">아이디</p>
-                    {editingUsername ? (
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                          <input
-                            autoFocus
-                            type="text"
-                            value={newUsername}
-                            onChange={e => setNewUsername(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && handleUsernameSave()}
-                            placeholder="새 아이디"
-                            className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                        </div>
-                        {usernameMsg && (
-                          <p className={`text-xs ${usernameMsg.ok ? "text-primary" : "text-destructive"}`}>{usernameMsg.text}</p>
-                        )}
-                        <div className="flex gap-2">
-                          <Button size="sm" className="flex-1 h-8 text-xs" onClick={handleUsernameSave} disabled={usernameLoading}>
-                            {usernameLoading ? "저장 중..." : "저장"}
-                          </Button>
-                          <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={() => setEditingUsername(false)}>
-                            취소
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => { setNewUsername(profile?.username ?? ""); setUsernameMsg(null); setEditingUsername(true) }}
-                        className="flex items-center gap-2 w-full px-3 py-2 bg-muted rounded-lg hover:bg-secondary transition-colors text-left"
-                      >
-                        <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                        <span className="text-sm font-medium text-foreground flex-1">{profile?.username ?? "-"}</span>
-                        <span className="text-[10px] text-muted-foreground">수정</span>
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
+                      <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-medium text-foreground flex-1">{profile?.username ?? "-"}</span>
+                    </div>
                   </div>
 
                   {/* 비밀번호 변경 */}

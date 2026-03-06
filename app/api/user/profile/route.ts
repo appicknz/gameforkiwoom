@@ -47,33 +47,7 @@ export async function PATCH(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { newPassword, newUsername } = body
-
-  // 아이디 변경
-  if (newUsername !== undefined) {
-    if (!newUsername || newUsername.length < 2) {
-      return NextResponse.json({ error: '아이디는 2자 이상이어야 합니다.' }, { status: 400 })
-    }
-    // 중복 확인
-    const { data: existing } = await adminSupabase
-      .from('profiles')
-      .select('id')
-      .eq('username', newUsername)
-      .neq('id', user.id)
-      .single()
-
-    if (existing) {
-      return NextResponse.json({ error: '이미 사용 중인 아이디입니다.' }, { status: 409 })
-    }
-
-    const { error } = await adminSupabase
-      .from('profiles')
-      .update({ username: newUsername })
-      .eq('id', user.id)
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ success: true })
-  }
+  const { newPassword } = body
 
   // 비밀번호 변경
   if (!newPassword || newPassword.length < 4) {
