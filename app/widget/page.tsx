@@ -1,96 +1,135 @@
 "use client"
 
-import { BaseballChart } from "@/components/widget/baseball-chart"
-import { BettingGame } from "@/components/dashboard/betting-game"
-import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
-import { ClosingPrices } from "@/components/dashboard/closing-prices"
-import { TopBar } from "@/components/dashboard/top-bar"
+import dynamic from "next/dynamic"
+import { BettingGame }          from "@/components/dashboard/betting-game"
+import { ClosingPricesBadges }  from "@/components/dashboard/closing-prices-badges"
+import { ClosingPrices }        from "@/components/dashboard/closing-prices"
+import { TopBar }               from "@/components/dashboard/top-bar"
+import { SpaceChart }           from "@/components/widget/space-chart"
 
-// /widget — 야구장 테마
+// /widget — 우주 전쟁 테마
 // 모든 가격/로직 컴포넌트는 원본 그대로 import → 로직 변경 자동 반영
-// 디자인만 별도 관리 (야구장 야간 경기 분위기)
+// 디자인만 별도 관리
+
 export default function WidgetPage() {
   return (
     <div
-      className="min-h-screen font-sans"
-      style={{
-        background: "linear-gradient(160deg, #0a1a08 0%, #0e2a0c 35%, #0d1f0b 70%, #080f06 100%)",
-      }}
+      className="min-h-screen font-mono"
+      style={{ background: "#000d00" }}
     >
-      {/* 스타디움 조명 효과 */}
+      {/* 별 배경 */}
       <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
-        <div className="absolute top-0 left-[8%] w-[180px] h-[60%]"
-          style={{ background: "radial-gradient(ellipse 90px 50% at center top, rgba(255,210,60,0.07), transparent)" }} />
-        <div className="absolute top-0 right-[8%] w-[180px] h-[60%]"
-          style={{ background: "radial-gradient(ellipse 90px 50% at center top, rgba(255,210,60,0.07), transparent)" }} />
-        <div className="absolute top-0 left-[30%] w-[200px] h-[40%]"
-          style={{ background: "radial-gradient(ellipse 100px 40% at center top, rgba(255,220,80,0.04), transparent)" }} />
-        <div className="absolute top-0 right-[30%] w-[200px] h-[40%]"
-          style={{ background: "radial-gradient(ellipse 100px 40% at center top, rgba(255,220,80,0.04), transparent)" }} />
+        {Array.from({ length: 80 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              left:    `${Math.random() * 100}%`,
+              top:     `${Math.random() * 100}%`,
+              width:   Math.random() > 0.9 ? 2 : 1,
+              height:  Math.random() > 0.9 ? 2 : 1,
+              background: "#ffffff",
+              opacity: 0.2 + Math.random() * 0.6,
+              animation: `pulse ${2 + Math.random() * 3}s ease-in-out infinite`,
+              animationDelay: `${Math.random() * 3}s`,
+            }}
+          />
+        ))}
       </div>
 
-      {/* 탑바 (원본 로직 그대로) */}
-      <div className="relative z-10">
+      {/* 스캔라인 */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          zIndex: 1,
+          background: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.015) 2px, rgba(0,255,65,0.015) 4px)",
+        }}
+      />
+
+      {/* 탑바 */}
+      <div className="relative z-10" style={{ borderBottom: "1px solid #00ff4120" }}>
         <TopBar />
       </div>
 
-      <main className="relative z-10 p-3 md:p-5 mt-2">
+      <main className="relative z-10 p-3 md:p-4 mt-2">
         <div className="max-w-7xl mx-auto">
 
-          {/* 야구장 타이틀 */}
+          {/* HUD 타이틀 */}
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <svg width="16" height="16" viewBox="0 0 32 32" className="shrink-0">
-                <circle cx="16" cy="16" r="15" fill="#f5f0e8" stroke="#e8dcc8" strokeWidth="1" />
-                <path d="M10 7 Q8 12 10 16 Q8 20 10 25" stroke="#cc2200" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                <path d="M22 7 Q24 12 22 16 Q24 20 22 25" stroke="#cc2200" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-              </svg>
-              <span className="text-xs font-semibold text-white/70 tracking-widest uppercase">Baseball Stadium</span>
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded"
+              style={{
+                background: "rgba(0,255,65,0.05)",
+                border:     "1px solid rgba(0,255,65,0.2)",
+                color:      "#00ff41",
+              }}
+            >
+              <span className="text-[10px] tracking-[0.2em] uppercase font-mono">
+                ◈ BITBET COMMAND CENTER
+              </span>
             </div>
-            <span className="text-[10px] text-white/30 tracking-wider">거래대금 크기에 따라 플레이가 달라집니다</span>
+            <div
+              className="text-[9px] tracking-widest font-mono animate-pulse"
+              style={{ color: "#00ff4166" }}
+            >
+              LIVE · BTCUSDT FUTURES
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-            {/* 왼쪽: 야구장 차트 + 배팅 */}
+            {/* 차트 + 배팅 */}
             <div className="lg:col-span-2 space-y-4">
-              {/* 야구장 차트 — BitcoinChart 원본 위에 야구 오버레이 */}
-              <div className="rounded-2xl overflow-hidden shadow-2xl"
+              <div
+                className="rounded overflow-hidden"
                 style={{
-                  boxShadow: "0 0 0 1px rgba(255,210,60,0.12), 0 20px 60px rgba(0,0,0,0.5)",
-                }}>
-                <BaseballChart />
+                  border:     "1px solid #00ff4122",
+                  boxShadow:  "0 0 30px rgba(0,255,65,0.05), inset 0 0 30px rgba(0,255,65,0.02)",
+                }}
+              >
+                <SpaceChart />
               </div>
-
-              {/* 배팅 게임 원본 */}
-              <div className="rounded-2xl overflow-hidden shadow-xl"
+              <div
+                className="rounded overflow-hidden"
                 style={{
-                  boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 12px 40px rgba(0,0,0,0.4)",
-                }}>
+                  border:    "1px solid #00ff4122",
+                  boxShadow: "0 0 20px rgba(0,255,65,0.04)",
+                }}
+              >
                 <BettingGame />
               </div>
             </div>
 
-            {/* 오른쪽: 끝자리 + 마감가 */}
+            {/* 끝자리 + 마감가 */}
             <div className="space-y-4">
-              <div className="rounded-2xl overflow-hidden shadow-xl"
+              <div
+                className="rounded overflow-hidden"
                 style={{
-                  boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 12px 40px rgba(0,0,0,0.4)",
-                }}>
+                  border:    "1px solid #00ff4122",
+                  boxShadow: "0 0 20px rgba(0,255,65,0.04)",
+                }}
+              >
                 <ClosingPricesBadges />
               </div>
-              <div className="rounded-2xl overflow-hidden shadow-xl"
+              <div
+                className="rounded overflow-hidden"
                 style={{
-                  boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 12px 40px rgba(0,0,0,0.4)",
-                }}>
+                  border:    "1px solid #00ff4122",
+                  boxShadow: "0 0 20px rgba(0,255,65,0.04)",
+                }}
+              >
                 <ClosingPrices />
               </div>
             </div>
-
           </div>
         </div>
       </main>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.2; }
+          50% { opacity: 0.8; }
+        }
+      `}</style>
     </div>
   )
 }
