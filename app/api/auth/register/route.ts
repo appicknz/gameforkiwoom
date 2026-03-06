@@ -1,14 +1,17 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { createClient } from "@supabase/ssr"
+import { createServerClient } from "@supabase/ssr"
 import { NextResponse } from "next/server"
 import { randomUUID } from "crypto"
 
 function getAnonClient() {
-  return createClient(
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
+    {
+      cookies: { getAll: () => [], setAll: () => {} },
+      auth: { autoRefreshToken: false, persistSession: false },
+    }
   )
 }
 
