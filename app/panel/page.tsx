@@ -34,6 +34,7 @@ interface Branch {
 export default function PanelPage() {
   const router = useRouter()
   const [myRole, setMyRole] = useState<string>("")
+  const [myUserId, setMyUserId] = useState<string>("")
   const [myBranchCode, setMyBranchCode] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [adminPw, setAdminPw] = useState("")
@@ -71,6 +72,7 @@ export default function PanelPage() {
         const data = await res.json()
         const role = data.profile?.role ?? ""
         if (!ADMIN_ROLES.includes(role)) { router.replace("/"); return }
+        setMyUserId(data.profile?.id ?? "")
         setMyRole(role)
         setMyBranchCode(data.profile?.branch_code ?? null)
         setLoading(false)
@@ -87,7 +89,7 @@ export default function PanelPage() {
   const loadUsers = useCallback(async (pw: string) => {
     setUsersLoading(true)
     // JWT 토큰은 userId:password 형식
-    const token = localStorage.getItem("supabase_token") || `${userId}:${pw}`
+    const token = localStorage.getItem("app_token") || `${myUserId}:${pw}`
     const res = await fetch(`/api/admin/users`, {
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -101,12 +103,12 @@ export default function PanelPage() {
       setUsers(data.users ?? [])
     }
     setUsersLoading(false)
-  }, [userId])
+  }, [myUserId])
 
   // 지점 목록 로드
   const loadBranches = useCallback(async (pw: string) => {
     setBranchesLoading(true)
-    const token = localStorage.getItem("supabase_token") || `${userId}:${pw}`
+    const token = localStorage.getItem("app_token") || `${myUserId}:${pw}`
     const res = await fetch(`/api/admin/branches`, {
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -115,7 +117,7 @@ export default function PanelPage() {
     const data = await res.json()
     if (res.ok) setBranches(data.branches ?? [])
     setBranchesLoading(false)
-  }, [userId])
+  }, [myUserId])
 
   useEffect(() => {
     if (adminPw) {
@@ -164,7 +166,7 @@ export default function PanelPage() {
   const handleCreateBranch = async () => {
     setBranchLoading(true)
     setBranchMsg(null)
-    const token = localStorage.getItem("supabase_token") || `${userId}:${adminPw}`
+    const token = localStorage.getItem("app_token") || `${myUserId}:${adminPw}`
     const res = await fetch("/api/admin/branches", {
       method: "POST",
       headers: { 
@@ -195,7 +197,7 @@ export default function PanelPage() {
   // 지점 삭제
   const handleDeleteBranch = async (id: string) => {
     if (!confirm("지점을 삭제하시겠습니까? 소속 회원의 지점코드가 해제됩니다.")) return
-    const token = localStorage.getItem("supabase_token") || `${userId}:${adminPw}`
+    const token = localStorage.getItem("app_token") || `${myUserId}:${adminPw}`
     await fetch(`/api/admin/branches?id=${id}`, {
       method: "DELETE",
       headers: {
