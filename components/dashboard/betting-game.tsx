@@ -51,13 +51,14 @@ function getSupabase() {
 interface BetDialogProps {
   open: boolean
   betType: BetType | null
-  selectedValue: string | null       // "long"|"short"|"over"|"under"|"odd"|"even"
+  selectedValue: string | null
   onClose: () => void
   onConfirm: (amount: number) => void
   isLoading: boolean
+  balance: number | null
 }
 
-function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading }: BetDialogProps) {
+function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance }: BetDialogProps) {
   const [selectedChip, setSelectedChip] = useState<number | null>(null)
   const [amount, setAmount] = useState(0)
 
@@ -122,20 +123,31 @@ function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading
         </div>
 
         <div className="px-5 py-4 space-y-4">
+          {/* 잔고 표시 */}
+          {balance !== null && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>잔고</span>
+              <span className="font-semibold tabular-nums">₩{balance.toLocaleString()}</span>
+            </div>
+          )}
+
           {/* 현재 배팅 금액 */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">배팅 금액</span>
             <div className="flex items-center gap-2">
               <span
                 className="text-xl font-bold tabular-nums"
-                style={{ color: amount > 0 ? meta?.color : "hsl(var(--muted-foreground))" }}
+                style={{ color: balance !== null && amount > balance ? "#ef4444" : amount > 0 ? meta?.color : "hsl(var(--muted-foreground))" }}
               >
                 ₩{amount.toLocaleString()}
               </span>
-              {amount > 0 && (
+              {amount > 0 && balance !== null && amount <= balance && (
                 <span className="text-[10px] text-muted-foreground">
                   → ₩{Math.floor(amount * PAYOUT_RATIO).toLocaleString()} 예상
                 </span>
+              )}
+              {balance !== null && amount > balance && (
+                <span className="text-[10px] text-red-500">잔고 부족</span>
               )}
             </div>
           </div>
@@ -172,7 +184,7 @@ function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading
             </button>
             <button
               onClick={() => amount > 0 && onConfirm(amount)}
-              disabled={amount <= 0 || isLoading}
+              disabled={amount <= 0 || isLoading || (balance !== null && amount > balance)}
               className="flex-1 py-3 rounded-xl text-sm font-bold transition-all duration-150 active:scale-[0.98] disabled:opacity-40"
               style={{
                 background: amount > 0 ? meta?.color : "hsl(var(--muted))",
@@ -206,6 +218,20 @@ export function BettingGame() {
   const [results, setResults] = useState<RoundResult[]>([])
   const [wins, setWins] = useState(0)
   const [losses, setLosses] = useState(0)
+  const [balance, setBalance] = useState<number | null>(null)
+
+  // 로그인 시 잔고 로드
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const token = session?.access_token ?? sessionStorage.getItem("supabase_token")
+      if (!token) return
+      const res = await fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
+      if (res.ok) {
+        const d = await res.json()
+        setBalance(d.balance ?? 0)
+      }
+    })
+  }, [supabase])
 
   // 다이얼로그 상태
   const [dialog, setDialog] = useState<{ open: boolean; type: BetType; value: string } | null>(null)
@@ -617,6 +643,7 @@ export function BettingGame() {
           onClose={() => setDialog(null)}
           onConfirm={handleConfirmBet}
           isLoading={isPlacingBet}
+          balance={balance}
         />
       )}
     </>
