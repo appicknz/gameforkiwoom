@@ -268,8 +268,10 @@ export function BettingGame() {
             (betDigitRef.current && wonDigit ? Math.floor(betDigitAmountRef.current * PAYOUT_RATIO) : 0) +
             (betParityRef.current && wonParity ? Math.floor(betParityAmountRef.current * PAYOUT_RATIO) : 0)
 
-          // 이긴 경우 잔고 지급 (배팅 시 이미 차감됨)
+          // 이긴 경우 잔고 지급 + 클라이언트 state 업데이트
           if (profit > 0) {
+            // 클라이언트 잔고 즉시 반영 (배팅 시 차감된 잔고 + 수익)
+            setBalance((prev) => prev + profit)
             supabase.auth.getSession().then(async ({ data: { session } }) => {
               const token = session?.access_token ?? sessionStorage.getItem("supabase_token")
               if (!token) return
@@ -280,6 +282,7 @@ export function BettingGame() {
               }).catch(console.error)
             })
           }
+          // 진 경우: 배팅 시 이미 차감됐으므로 클라이언트 state 추가 변경 없음
 
           const result: RoundResult = {
             round: roundRef.current,
@@ -361,6 +364,9 @@ export function BettingGame() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Bet failed")
+
+      // DB에서 반환된 실제 잔고로 즉시 클라이언트 state 동기화
+      if (typeof data.newBalance === "number") setBalance(data.newBalance)
 
       // 배팅 성공 → 상태 업데이트
       const base = getBase()
