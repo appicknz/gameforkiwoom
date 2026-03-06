@@ -18,9 +18,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-// React Strict Mode 에서 중복 구독 방지
-let authSubscriptionUnsubscribe: (() => void) | null = null
-
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
 
 export function TopBar() {
@@ -60,58 +57,25 @@ export function TopBar() {
   const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [pwLoading, setPwLoading] = useState(false)
 
-  // ── 초기화: 세션 확인 ──────────────────────────────────────
+  // ── 초기화: 페이지 로드 시 세션 1회 확인 ─────────────────────
   useEffect(() => {
-    const loadSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user && session.access_token) {
-        setIsLoggedIn(true)
-        // profiles 테이블에서 username/role 조회 (access_token으로 인증)
-        const token = session.access_token
-        const [profileRes, balanceRes] = await Promise.all([
-          fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
-          fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
-        ])
-        if (profileRes.ok) {
-          const d = await profileRes.json()
-          if (d.profile) setProfile({ username: d.profile.username, role: d.profile.role })
-        }
-        if (balanceRes.ok) {
-          const d = await balanceRes.json()
-          setBalance(d.balance ?? 0)
-        }
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user || !session.access_token) return
+      const token = session.access_token
+      setIsLoggedIn(true)
+      const [profileRes, balanceRes] = await Promise.all([
+        fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
+      ])
+      if (profileRes.ok) {
+        const d = await profileRes.json()
+        if (d.profile) setProfile({ username: d.profile.username, role: d.profile.role })
       }
-    }
-    loadSession()
-
-    // React Strict Mode에서 중복 구독 방지
-    if (!authSubscriptionUnsubscribe) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (session?.user && session.access_token) {
-          setIsLoggedIn(true)
-          const token = session.access_token
-          const [profileRes, balanceRes] = await Promise.all([
-            fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
-            fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
-          ])
-          if (profileRes.ok) {
-            const d = await profileRes.json()
-            if (d.profile) setProfile({ username: d.profile.username, role: d.profile.role })
-          }
-          if (balanceRes.ok) {
-            const d = await balanceRes.json()
-            setBalance(d.balance ?? 0)
-          }
-        } else {
-          setIsLoggedIn(false)
-          setProfile(null)
-          setBalance(0)
-        }
-      })
-      authSubscriptionUnsubscribe = () => subscription.unsubscribe()
-    }
-
-    return () => {}
+      if (balanceRes.ok) {
+        const d = await balanceRes.json()
+        setBalance(d.balance ?? 0)
+      }
+    })
   }, [])
 
   // 드롭다운 외부 클릭 닫기
@@ -164,7 +128,12 @@ export function TopBar() {
     setDropdownOpen(false)
     setLoginUsername("")
     setLoginPw("")
-    fetch("/api/user/balance").then(r => r.json()).then(d => setBalance(d.balance ?? 0))
+    // signInWithPassword 반환 토큰으로 즉시 balance 조회
+    const token = signInData.session?.access_token
+    if (token) {
+      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json()).then(d => setBalance(d.balance ?? 0))
+    }
   }
 
   // ── 가입 ───────────────────────────────────────────────────
