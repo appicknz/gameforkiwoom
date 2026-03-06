@@ -192,7 +192,9 @@ export function BitcoinChart() {
     onPrice: useCallback((price, time) => {
       if (interval !== "1s" && interval !== "30s") return
       const bucketSize = interval === "30s" ? 30 : 1
-      const bucket = time - (time % bucketSize)
+      // time이 밀리초로 오는 경우 초 단위로 변환
+      const timeSec = time > 1e10 ? Math.floor(time / 1000) : time
+      const bucket = timeSec - (timeSec % bucketSize)
 
       // 기존 캔들에서 open 유지, close/high/low 업데이트
       const existing = candleMapRef.current.get(bucket)
@@ -205,7 +207,6 @@ export function BitcoinChart() {
       }
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
-      chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
       setLastCandlePrice(price)
     }, [interval]),
     onClosingPrice: useCallback((price, time) => {
@@ -237,7 +238,6 @@ export function BitcoinChart() {
         }
         candleMapRef.current.set(candle.time, candle)
         seriesRef.current?.update(candle)
-        chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
       }
       ws.onerror = () => setConnected(false)
       ws.onclose = () => { setConnected(false); setTimeout(connect, 3000) }
