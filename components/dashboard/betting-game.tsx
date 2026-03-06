@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { TrendingUp, TrendingDown, Clock, X, RotateCcw } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { createClient } from "@supabase/supabase-js"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
@@ -36,16 +35,11 @@ const CHIPS = [
 // PAYOUT_RATIO: 배팅 금액 × 1.95 지급
 const PAYOUT_RATIO = 1.95
 
-// 모듈 레벨 싱글톤
-let _supabase: ReturnType<typeof createClient> | null = null
-function getSupabase() {
-  if (!_supabase) {
-    _supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-  }
-  return _supabase
+// sessionStorage에서 토큰 직접 읽기 (supabase.auth.getSession() 미사용 - lock 경합 방지)
+function getToken(): string | null {
+  if (typeof window === "undefined") return null
+  // top-bar에서 로그인 시 저장한 access_token
+  return sessionStorage.getItem("supabase_token")
 }
 
 interface BetDialogProps {
@@ -201,8 +195,6 @@ function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading
 }
 
 export function BettingGame() {
-  const supabase = getSupabase()
-
   const [timeLeft, setTimeLeft] = useState(30)
   const [roundNumber, setRoundNumber] = useState(0)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
@@ -220,18 +212,15 @@ export function BettingGame() {
   const [losses, setLosses] = useState(0)
   const [balance, setBalance] = useState<number | null>(null)
 
-  // 로그인 시 잔고 로드
+  // 로그인 시 잔고 로드 (supabase.auth 사용 안 함 - lock 경합 방지)
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const token = session?.access_token ?? sessionStorage.getItem("supabase_token")
-      if (!token) return
-      const res = await fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
-      if (res.ok) {
-        const d = await res.json()
-        setBalance(d.balance ?? 0)
-      }
-    })
-  }, [supabase])
+    const token = getToken()
+    if (!token) return
+    fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setBalance(d.balance ?? 0))
+      .catch(console.error)
+  }, [])
 
   // 다이얼로그 상태
   const [dialog, setDialog] = useState<{ open: boolean; type: BetType; value: string } | null>(null)
@@ -296,17 +285,15 @@ export function BettingGame() {
 
           // 이긴 경우 잔고 지급 + 클라이언트 state 업데이트
           if (profit > 0) {
-            // 클라이언트 잔고 즉시 반영 (배팅 시 차감된 잔고 + 수익)
-            setBalance((prev) => prev + profit)
-            supabase.auth.getSession().then(async ({ data: { session } }) => {
-              const token = session?.access_token ?? sessionStorage.getItem("supabase_token")
-              if (!token) return
+            setBalance((prev) => (prev ?? 0) + profit)
+            const token = getToken()
+            if (token) {
               fetch("/api/user/game/play", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ profit }),
               }).catch(console.error)
-            })
+            }
           }
           // 진 경우: 배팅 시 이미 차감됐으므로 클라이언트 state 추가 변경 없음
 
@@ -355,7 +342,7 @@ export function BettingGame() {
     }, 200)
 
     return () => clearInterval(tick)
-  }, [getRoundNumber, supabase])
+  }, [getRoundNumber])
 
   const getBase = () => {
     const prices = closingPricesRef.current
@@ -379,9 +366,8 @@ export function BettingGame() {
     setIsPlacingBet(true)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token ?? sessionStorage.getItem("supabase_token")
-      if (!token) throw new Error("No token")
+      const token = getToken()
+      if (!token) throw new Error("로그인이 필요합니다")
 
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
