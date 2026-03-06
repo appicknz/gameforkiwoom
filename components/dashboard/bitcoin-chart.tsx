@@ -28,7 +28,7 @@ interface TickerData {
 type Interval = "1s" | "30s" | "1m" | "1h" | "1d"
 
 const INTERVAL_CONFIG: Record<Interval, { label: string; binance: string; limit: number; seconds: number }> = {
-  "1s":  { label: "1초",   binance: "1m",  limit: 60,  seconds: 1 },
+  "1s":  { label: "1초",   binance: "1m",  limit: 30,  seconds: 1 },
   "30s": { label: "30초",  binance: "1m",  limit: 60,  seconds: 30 },
   "1m":  { label: "1분",   binance: "1m",  limit: 200, seconds: 60 },
   "1h":  { label: "1시간", binance: "1h",  limit: 168, seconds: 3600 },
@@ -58,6 +58,7 @@ export function BitcoinChart() {
   const wsRef = useRef<WebSocket | null>(null)         // kline WS (1m/1h/1d)
   const tickerWsRef = useRef<WebSocket | null>(null)   // ticker WS (변동률)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
+  const tradeBufferRef = useRef<any[]>([])
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [interval, setIntervalState] = useState<Interval>("1s")
@@ -351,7 +352,7 @@ export function BitcoinChart() {
       </div>
 
       {/* 차트 */}
-      <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
+      <div className="relative w-full h-[260px] rounded-lg overflow-hidden">
         <div ref={chartContainerRef} className="w-full h-full" />
         
         {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래, 시간 위) */}
