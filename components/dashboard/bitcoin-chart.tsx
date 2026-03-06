@@ -147,7 +147,7 @@ export function BitcoinChart() {
     const startWS = () => {
       if (cancelled) return
       const wsInterval = interval === "1s" || interval === "30s" ? "1s" : INTERVAL_CONFIG[interval].binance
-      const url = `wss://fstream.binance.com/ws/btcusdt@kline_${wsInterval}`
+      const url = `wss://stream.binance.com:9443/ws/btcusdt@kline_${wsInterval}`
       const ws = new WebSocket(url)
       wsRef.current = ws
 
@@ -203,7 +203,7 @@ export function BitcoinChart() {
         const cfg = INTERVAL_CONFIG[interval]
         // spot API — CORS 허용, futures와 동일 가격
         const res = await fetch(
-          `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${cfg.binance}&limit=${cfg.limit}`
+          `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${cfg.binance}&limit=${cfg.limit}`
         )
         if (!res.ok) throw new Error(`fetch failed: ${res.status}`)
         const data = await res.json()
