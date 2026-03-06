@@ -114,15 +114,16 @@ export function TopBar() {
       return setLoginMsg({ text: data.error ?? "로그인에 실패했습니다.", ok: false })
     }
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: loginPw,
+    // magic link 토큰으로 세션 생성 (Email 프로바이더 불필요)
+    const { error: otpError } = await supabase.auth.verifyOtp({
+      token_hash: data.token_hash,
+      type: 'magiclink',
     })
 
     setLoginLoading(false)
 
-    if (signInError) {
-      return setLoginMsg({ text: "아이디 또는 비밀번호가 올바르지 않습니다.", ok: false })
+    if (otpError) {
+      return setLoginMsg({ text: "로그인에 실패했습니다: " + otpError.message, ok: false })
     }
 
     setIsLoggedIn(true)
@@ -152,16 +153,17 @@ export function TopBar() {
       return setRegMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
     }
 
-    // 가입 성공 → 자동 로그인
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: regPw,
-    })
-
     setRegLoading(false)
 
-    if (signInError) {
-      return setRegMsg({ text: "가입은 완료됐으나 로그인에 실패했습니다.", ok: false })
+    // 가입 성공 → magic link 토큰으로 자동 로그인
+    if (data.token_hash) {
+      const { error: otpError } = await supabase.auth.verifyOtp({
+        token_hash: data.token_hash,
+        type: 'magiclink',
+      })
+      if (otpError) {
+        return setRegMsg({ text: "가입은 완료됐으나 로그인에 실패했습니다.", ok: false })
+      }
     }
 
     // 상태 갱신

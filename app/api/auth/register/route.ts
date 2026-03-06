@@ -60,5 +60,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: profileError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, email })
+  // magic link 토큰 발급 (가입 직후 자동 로그인용)
+  const { data: linkData, error: linkError } = await adminSupabase.auth.admin.generateLink({
+    type: 'magiclink',
+    email,
+  })
+
+  if (linkError || !linkData) {
+    // 토큰 발급 실패해도 가입은 성공 처리
+    return NextResponse.json({ success: true, token_hash: null })
+  }
+
+  return NextResponse.json({
+    success: true,
+    username,
+    token_hash: linkData.properties?.hashed_token,
+  })
 }
