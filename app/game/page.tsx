@@ -244,10 +244,36 @@ export default function GamePage() {
     return prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
   }
 
-  const placeBet = (direction: BetDirection) => {
+  const placeBet = async (direction: BetDirection) => {
     if (!canBet || betDirection !== null) return
     const base = getBase()
     if (!base) return
+    
+    // 배팅 금액을 DB에 차감하는 API 호출
+    const token = typeof window !== "undefined" ? sessionStorage.getItem("supabase_token") : null
+    if (!token) return
+    
+    try {
+      const res = await fetch("/api/user/game/bet", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ betAmount: betAmountRef.current }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        console.error("[v0] Bet failed:", data.error)
+        return
+      }
+      // DB 차감 성공 → UI 업데이트
+      setBalance(data.newBalance)
+    } catch (err) {
+      console.error("[v0] Bet API error:", err)
+      return
+    }
+    
     betRef.current = direction
     basePriceRef.current = base
     setBetDirection(direction)
@@ -255,10 +281,34 @@ export default function GamePage() {
     setPhase("waiting")
   }
 
-  const placeDigitBet = (digit: BetDigit) => {
+  const placeDigitBet = async (digit: BetDigit) => {
     if (!canBet || betDigit !== null) return
     const base = getBase()
     if (!base) return
+    
+    const token = typeof window !== "undefined" ? sessionStorage.getItem("supabase_token") : null
+    if (!token) return
+    
+    try {
+      const res = await fetch("/api/user/game/bet", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ betAmount: betAmountRef.current }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        console.error("[v0] Bet failed:", data.error)
+        return
+      }
+      setBalance(data.newBalance)
+    } catch (err) {
+      console.error("[v0] Bet API error:", err)
+      return
+    }
+    
     betDigitRef.current = digit
     basePriceRef.current = base
     setBetDigit(digit)
@@ -266,10 +316,34 @@ export default function GamePage() {
     setPhase("waiting")
   }
 
-  const placeParityBet = (parity: BetParity) => {
+  const placeParityBet = async (parity: BetParity) => {
     if (!canBet || betParity !== null) return
     const base = getBase()
     if (!base) return
+    
+    const token = typeof window !== "undefined" ? sessionStorage.getItem("supabase_token") : null
+    if (!token) return
+    
+    try {
+      const res = await fetch("/api/user/game/bet", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ betAmount: betAmountRef.current }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        console.error("[v0] Bet failed:", data.error)
+        return
+      }
+      setBalance(data.newBalance)
+    } catch (err) {
+      console.error("[v0] Bet API error:", err)
+      return
+    }
+    
     betParityRef.current = parity
     basePriceRef.current = base
     setBetParity(parity)
