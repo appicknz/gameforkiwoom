@@ -6,16 +6,18 @@ import {
   Hash,
   BookOpen,
   ExternalLink,
-  Settings,
-  HelpCircle,
   LogOut,
   LogIn,
   X,
+  Mail,
+  Bell,
+  MessageCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { ChatPanel } from "@/components/dashboard/chat-panel"
 
 const menuItems = [
   { icon: LayoutDashboard, label: "비트벳 공식", href: "/" },
@@ -30,16 +32,13 @@ const menuItems = [
   },
 ]
 
-const generalItems = [
-  { icon: Settings,    label: "설정",    href: "/settings" },
-  { icon: HelpCircle,  label: "고객센터", href: "/help" },
-]
-
 export function Sidebar() {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [chatOpen] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
+  const [initials, setInitials] = useState("?")
   const pathname = usePathname()
   const router = useRouter()
 
@@ -54,13 +53,24 @@ export function Sidebar() {
         const hasLocal = !!localStorage.getItem("app_token")
         const hasSession = !!sessionStorage.getItem("guest_token")
         setIsLoggedIn(hasLocal || hasSession)
+        if (hasSession) setInitials("게스트")
+        else if (hasLocal) {
+          try {
+            const nick = localStorage.getItem("bitbet:chat:nickname")
+            setInitials(nick ? nick.slice(0, 2) : "U")
+          } catch { setInitials("U") }
+        }
       } catch {
         setIsLoggedIn(false)
       }
     }
     check()
     window.addEventListener("storage", check)
-    return () => window.removeEventListener("storage", check)
+    window.addEventListener("guest-login", check)
+    return () => {
+      window.removeEventListener("storage", check)
+      window.removeEventListener("guest-login", check)
+    }
   }, [])
 
   const handleGuestLogin = () => {
@@ -69,6 +79,7 @@ export function Sidebar() {
       sessionStorage.setItem("guest_balance", "100000")
     } catch {}
     setIsLoggedIn(true)
+    setInitials("게스트")
     setMobileOpen(false)
     showToast("테스트 게임이 시작됩니다. 10만 포인트가 지급되었습니다.")
     window.dispatchEvent(new Event("guest-login"))
@@ -81,6 +92,7 @@ export function Sidebar() {
       sessionStorage.removeItem("guest_balance")
     } catch {}
     setIsLoggedIn(false)
+    setChatOpen(false)
     router.push("/")
   }
 
@@ -94,23 +106,50 @@ export function Sidebar() {
       )}
 
       <aside className={cn(
-        "fixed top-0 left-0 w-64 bg-card border-r border-border p-4 h-screen overflow-y-auto z-40 transition-transform duration-300",
-        "hidden lg:block",
-        mobileOpen && "block -translate-x-0",
-        !mobileOpen && "lg:block -translate-x-full lg:translate-x-0"
+        "fixed top-0 left-0 w-64 bg-card border-r border-border h-screen z-40 transition-transform duration-300 flex flex-col",
+        "hidden lg:flex",
+        mobileOpen && "flex -translate-x-0",
+        !mobileOpen && "lg:flex -translate-x-full lg:translate-x-0"
       )}>
-        <div className="flex items-center gap-2 mb-6 group cursor-pointer">
-          <Link href="/" className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center transition-transform group-hover:scale-110 duration-300 relative">
+        {/* 로고 + 아이콘 헤더 */}
+        <div className="flex items-center justify-between px-4 py-4 border-b border-border shrink-0">
+          <Link href="/" className="flex items-center gap-2 group" onClick={() => setMobileOpen(false)}>
+            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center transition-transform group-hover:scale-110 duration-300 relative shrink-0">
               <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground absolute" style={{ top: "30%", left: "30%" }} />
               <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground absolute" style={{ top: "30%", right: "30%" }} />
               <div className="w-3 h-1.5 border-b-2 border-primary-foreground rounded-full absolute bottom-2.5" />
             </div>
             <span className="text-lg font-semibold text-foreground">BitBet</span>
           </Link>
+
+          {/* 아이콘 그룹 */}
+          <div className="flex items-center gap-1.5">
+            <button className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+              <Mail className="w-4 h-4" />
+            </button>
+            <button className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors relative">
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full" />
+            </button>
+            <div className="w-px h-4 bg-border mx-0.5" />
+            {isLoggedIn ? (
+              <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center">
+                <span className="text-[9px] font-bold text-primary">{initials.slice(0, 2)}</span>
+              </div>
+            ) : (
+              <button
+                onClick={handleGuestLogin}
+                className="w-7 h-7 rounded-full bg-secondary border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="space-y-4">
+        {/* 스크롤 영역 */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* 메뉴 */}
           <div>
             <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">메뉴</p>
             <nav className="space-y-0.5">
@@ -146,66 +185,17 @@ export function Sidebar() {
             </nav>
           </div>
 
-          <div>
-            <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">General</p>
-            <nav className="space-y-0.5">
-              {generalItems.map((item) => {
-                const isActive = pathname === item.href
-                return (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    onClick={() => setMobileOpen(false)}
-                    onMouseEnter={() => setHoveredItem(item.label)}
-                    onMouseLeave={() => setHoveredItem(null)}
-                    className={cn(
-                      "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-all duration-300",
-                      isActive
-                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                      hoveredItem === item.label && !isActive && "translate-x-1",
-                    )}
-                  >
-                    <item.icon className="w-4 h-4 shrink-0" />
-                    <span className="text-sm">{item.label}</span>
-                  </Link>
-                )
-              })}
-
-              {/* 로그아웃 / 로그인 동적 버튼 */}
-              {isLoggedIn ? (
-                <button
-                  onClick={handleLogout}
-                  onMouseEnter={() => setHoveredItem("auth")}
-                  onMouseLeave={() => setHoveredItem(null)}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-all duration-300 text-muted-foreground hover:bg-secondary hover:text-foreground",
-                    hoveredItem === "auth" && "translate-x-1",
-                  )}
-                >
-                  <LogOut className="w-4 h-4 shrink-0" />
-                  <span className="text-sm">로그아웃</span>
-                </button>
-              ) : (
-                <button
-                  onClick={handleGuestLogin}
-                  onMouseEnter={() => setHoveredItem("auth")}
-                  onMouseLeave={() => setHoveredItem(null)}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-all duration-300 text-muted-foreground hover:bg-secondary hover:text-foreground",
-                    hoveredItem === "auth" && "translate-x-1",
-                  )}
-                >
-                  <LogIn className="w-4 h-4 shrink-0" />
-                  <span className="text-sm">로그인</span>
-                </button>
-              )}
-            </nav>
+          {/* 채팅 섹션 - 항상 표시 */}
+          <div className="flex flex-col flex-1 min-h-0">
+            <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">채팅</p>
+            <div className="flex-1 min-h-0">
+              <ChatPanel />
+            </div>
           </div>
         </div>
       </aside>
 
-      {/* 토스트 알림 */}
+      {/* 토스트 */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-foreground text-background px-5 py-3.5 rounded-xl shadow-2xl text-sm font-medium animate-in slide-in-from-bottom-4 duration-300 max-w-xs w-full">
           <span className="flex-1">{toast}</span>
