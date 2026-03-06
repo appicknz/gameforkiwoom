@@ -120,6 +120,7 @@ export function BitcoinChart() {
         autoScale: true,
         borderVisible: false,
         scaleMargins: { top: 0.1, bottom: 0.1 },
+        mode: 2,  // 로그 스케일 (1 = 선형, 2 = 로그)
       },
       timeScale: {
         borderVisible: false,
@@ -140,6 +141,14 @@ export function BitcoinChart() {
       upColor: "#22c55e", downColor: "#ef4444",
       borderUpColor: "#22c55e", borderDownColor: "#ef4444",
       wickUpColor: "#22c55e", wickDownColor: "#ef4444",
+      priceScaleId: "right",
+    })
+    series.applyOptions({
+      priceFormat: {
+        type: "price",
+        precision: 2,
+        minMove: 0.01,
+      },
     })
     seriesRef.current = series
 
