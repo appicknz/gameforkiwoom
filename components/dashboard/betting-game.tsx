@@ -35,32 +35,14 @@ const CHIPS = [
 // PAYOUT_RATIO: 배팅 금액 × 1.95 지급
 const PAYOUT_RATIO = 1.95
 
-// 토큰 읽기: sessionStorage → Supabase localStorage 순으로 폴백
-// supabase.auth.getSession() 미사용 (GoTrueClient lock 경합 방지)
+// 토큰 읽기 - top-bar1.tsx와 동일한 키("app_token") 사용
 function getToken(): string | null {
   if (typeof window === "undefined") return null
-
-  // 1) top-bar 로그인 시 저장한 토큰
-  const cached = sessionStorage.getItem("supabase_token")
-  if (cached) return cached
-
-  // 2) Supabase가 자동으로 localStorage에 저장한 세션에서 추출
   try {
-    const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/https:\/\/([^.]+)/)?.[1] ?? ""
-    const key = `sb-${projectRef}-auth-token`
-    const raw = localStorage.getItem(key)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      const token = parsed?.access_token
-      if (token) {
-        // sessionStorage에 캐시해 다음 호출 속도 향상
-        sessionStorage.setItem("supabase_token", token)
-        return token
-      }
-    }
-  } catch {}
-
-  return null
+    return localStorage.getItem("app_token")
+  } catch {
+    return null
+  }
 }
 
 interface BetDialogProps {
