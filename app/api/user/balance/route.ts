@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
 export async function GET(request: Request) {
   const supabase = createClient(
@@ -8,41 +9,32 @@ export async function GET(request: Request) {
   )
 
   try {
-    // 현재 로그인한 사용자 정보 얻기 (Authorization 헤더에서)
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      // 클라이언트 쪽에서 직접 호출하면 session이 없으므로, anon key로 현재 사용자 조회
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
-      if (sessionError || !session?.user) {
-        return NextResponse.json({ balance: 0, error: 'Not authenticated' }, { status: 401 })
-      }
+    // 쿠키에서 세션 가져오기
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get(`sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('.')[0]}-auth-token`)?.value
 
-      const { data: balance, error } = await supabase
-        .from('balances')
-        .select('amount')
-        .eq('user_id', session.user.id)
-        .single()
-
-      if (error) {
-        return NextResponse.json({ balance: 0 }, { status: 200 })
-      }
-
-      return NextResponse.json({ balance: balance?.amount ?? 0 })
+    if (!sessionCookie) {
+      return NextResponse.json({ balance: 0, error: 'Not authenticated' }, { status: 401 })
     }
 
-    // Bearer token에서 사용자 ID 추출
-    const token = authHeader.substring(7)
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token)
-
-    if (userError || !user) {
-      return NextResponse.json({ balance: 0, error: 'Invalid token' }, { status: 401 })
+    // 세션 쿠키 파싱 (JSON 형식)
+    let session
+    try {
+      session = JSON.parse(sessionCookie)
+    } catch {
+      return NextResponse.json({ balance: 0, error: 'Invalid session' }, { status: 401 })
     }
 
+    const userId = session?.[0]?.user?.id
+    if (!userId) {
+      return NextResponse.json({ balance: 0, error: 'No user ID' }, { status: 401 })
+    }
+
+    // balances 테이블에서 조회
     const { data: balance, error } = await supabase
       .from('balances')
       .select('amount')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (error) {
