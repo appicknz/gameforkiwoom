@@ -58,6 +58,7 @@ export function BitcoinChart() {
   const wsRef = useRef<WebSocket | null>(null)         // kline WS (1m/1h/1d)
   const tickerWsRef = useRef<WebSocket | null>(null)   // ticker WS (변동률)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
+  const dataReadyRef = useRef<boolean>(false)  // setData 완료 전 onPrice 차단
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [interval, setIntervalState] = useState<Interval>("1s")
@@ -112,6 +113,8 @@ export function BitcoinChart() {
   // 차트 초기화 (interval 변경 시 재생성)
   useEffect(() => {
     if (!chartContainerRef.current) return
+
+    dataReadyRef.current = false  // interval 변경 시 데이터 준비 전까지 onPrice 차단
 
     if (chartRef.current) {
       chartRef.current.remove()
@@ -172,6 +175,7 @@ export function BitcoinChart() {
         seriesRef.current.setData(candles)
         chartRef.current?.timeScale().fitContent()
       }
+      dataReadyRef.current = true  // 이후 onPrice 업데이트 허용
     })
 
     return () => {
@@ -191,6 +195,7 @@ export function BitcoinChart() {
     }, []),
     onPrice: useCallback((price, time) => {
       if (interval !== "1s" && interval !== "30s") return
+      if (!dataReadyRef.current) return  // 초기 데이터 로딩 완료 전 무시
       const bucketSize = interval === "30s" ? 30 : 1
       // time이 밀리초로 오는 경우 초 단위로 변환
       const timeSec = time > 1e10 ? Math.floor(time / 1000) : time
