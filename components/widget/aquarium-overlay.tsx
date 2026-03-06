@@ -44,125 +44,113 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
 
   switch (type) {
     case "whale":
-      // 혹등고래 (Humpback Whale) 실측 비율 측면 실루엣
+      // 혹등고래 (Humpback Whale) — 참조 이미지 스타일: 꼬리가 위로 올라가고 플루크가 수평
       return (
-        <svg width="380" height="160" viewBox="0 0 380 160" style={{ transform: flip ? "scaleX(-1)" : undefined, display: "block" }}>
+        <svg width="400" height="180" viewBox="0 0 400 180" style={{ transform: flip ? "scaleX(-1)" : undefined, display: "block" }}>
+          {/* 단색 네이비 블루 (참조 이미지 스타일) */}
           <defs>
-            <linearGradient id="wbody" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#1a3a6e"/>
-              <stop offset="55%" stopColor="#1e3f75"/>
-              <stop offset="100%" stopColor="#4a85c0"/>
+            <linearGradient id="wbody" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#1e4a7a"/>
+              <stop offset="100%" stopColor="#163d68"/>
             </linearGradient>
-            <linearGradient id="wbelly" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#4a85c0" stopOpacity="0"/>
-              <stop offset="100%" stopColor="#c8e6fa" stopOpacity="0.7"/>
-            </linearGradient>
-            <filter id="wglow">
-              <feGaussianBlur stdDeviation="3" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
           </defs>
 
-          {/* ── 주 동체: 혹등고래 특유의 등이 볼록하고 배가 길게 늘어진 실루엣 ── */}
+          {/* ── 메인 몸체: 둥근 머리 + 유선형 몸통 + 꼬리가 위로 올라가는 형태 ── */}
           <path d="
-            M340,72
-            C330,55 310,44 285,40
-            C260,36 230,38 200,40
-            C170,42 140,46 110,52
-            C80,58 55,65 38,72
-            C24,78 16,84 14,90
-            C18,100 26,106 40,108
-            C60,112 90,110 120,106
-            C150,102 180,96 210,92
-            C240,88 268,86 292,86
-            C314,86 330,88 342,92
-            C350,88 354,82 350,76
-            C348,74 344,72 340,72Z
+            M365,95
+            C360,85 350,75 335,68
+            C320,62 300,58 280,56
+            C260,54 240,54 220,56
+            C200,58 180,62 160,68
+            C140,74 120,82 100,88
+            C80,94 65,98 55,100
+            C45,102 38,102 32,100
+            C26,98 22,94 20,88
+            C18,82 20,74 26,66
+            C32,58 42,50 55,44
+            C68,38 82,34 95,34
+            C108,34 120,38 130,44
+            C140,50 148,58 155,68
+            C160,75 168,85 180,92
+            C195,100 215,106 240,110
+            C265,114 295,114 320,110
+            C340,106 355,100 365,95
+            Z
           " fill="url(#wbody)"/>
 
-          {/* ── 배 부분 크림/흰색 줄무늬 (혹등고래 특징) ── */}
+          {/* ── 꼬리 (위로 올라가는 형태 + 수평 플루크) ── */}
+          {/* 꼬리 줄기 (위로 휘어짐) */}
           <path d="
-            M40,108 C60,116 100,118 140,114
-            C180,110 220,104 260,100
-            C290,97 315,96 342,96
-            C342,92 330,88 292,86
-            C268,86 240,88 210,92
-            C180,96 150,102 120,106
-            C90,110 60,112 40,108Z
-          " fill="url(#wbelly)"/>
-
-          {/* 배 홈 줄무늬 (throat grooves) */}
-          {[0,4,8,12,16].map((offset,i) => (
-            <path key={i}
-              d={`M${60+offset*3},106 C${120+offset*2},112 ${200+offset},108 ${300+offset*0.5},96`}
-              stroke="#7db8e8" strokeWidth="0.6" fill="none" opacity={0.25 - i*0.04}
-              strokeLinecap="round"/>
-          ))}
-
-          {/* ── 꼬리 (Fluke): 혹등고래 꼬리는 넓고 중앙에 깊은 노치 ── */}
-          {/* 위쪽 플루크 */}
+            M20,88
+            C16,78 10,65 6,52
+            C4,45 4,38 8,34
+            C12,30 18,30 24,34
+            C28,38 30,46 30,56
+            C30,66 28,76 26,84
+            L20,88
+            Z
+          " fill="#163d68"/>
+          
+          {/* 플루크 상단 (수평으로 넓게 펼침) */}
           <path d="
-            M38,80 C28,68 10,54 4,42
-            C2,36 6,32 12,36
-            C20,42 30,56 38,72Z
-          " fill="#17304f"/>
-          {/* 아래쪽 플루크 */}
+            M8,34
+            C4,28 -4,20 -12,16
+            C-20,12 -30,12 -36,18
+            C-40,24 -38,32 -32,38
+            C-26,44 -16,46 -6,44
+            C2,42 8,38 8,34
+            Z
+          " fill="#1e4a7a"/>
+          
+          {/* 플루크 하단 (수평으로 넓게 펼침) */}
           <path d="
-            M38,100 C28,112 10,126 4,136
-            C2,142 6,144 12,140
-            C20,134 30,120 38,108Z
-          " fill="#17304f"/>
-          {/* 플루크 중앙 노치 */}
-          <path d="M38,80 C32,86 30,90 32,90 C30,90 28,94 32,100 C34,102 36,104 38,100" fill="#132840"/>
-          {/* 플루크 흰 무늬 (혹등 특징) */}
-          <path d="M10,42 C18,50 28,62 36,75" stroke="#c8e6fa" strokeWidth="1.5" fill="none" opacity="0.4" strokeLinecap="round"/>
-          <path d="M10,136 C18,128 28,116 36,103" stroke="#c8e6fa" strokeWidth="1.5" fill="none" opacity="0.4" strokeLinecap="round"/>
+            M6,52
+            C2,58 -6,66 -14,70
+            C-22,74 -32,74 -38,68
+            C-42,62 -40,54 -34,48
+            C-28,42 -18,40 -8,42
+            C0,44 6,48 6,52
+            Z
+          " fill="#1e4a7a"/>
 
-          {/* ── 등지느러미 (Dorsal fin): 혹등고래는 작고 혹처럼 생긴 등지느러미 ── */}
+          {/* ── 등지느러미 (작고 뒤쪽에 위치) ── */}
           <path d="
-            M180,40 C186,28 196,22 206,26
-            C212,30 214,36 210,40
-            C202,40 192,40 180,40Z
-          " fill="#16305a"/>
+            M95,34
+            C98,24 106,18 114,22
+            C120,26 120,34 115,38
+            C110,42 102,42 95,38
+            L95,34
+            Z
+          " fill="#163d68"/>
 
-          {/* 등 혹 (hump, 혹등고래 이름의 유래) */}
-          <path d="M155,42 C162,38 172,38 180,40 C188,42 190,44 185,45 C175,46 160,45 155,42Z"
-            fill="#162d56" opacity="0.7"/>
-
-          {/* ── 가슴지느러미 (Pectoral fin): 혹등고래 특징 — 매우 길고 흰 무늬 ── */}
+          {/* ── 긴 가슴지느러미 (혹등고래 특징) — 아래로 늘어뜨린 형태 ── */}
           <path d="
-            M230,68 C240,52 256,36 270,28
-            C278,24 284,26 282,34
-            C278,44 264,58 248,70
-            C242,74 234,74 230,68Z
-          " fill="#163060"/>
-          {/* 가슴지느러미 흰 선 무늬 */}
-          <path d="M234,68 C244,54 258,40 270,32" stroke="#7db8e8" strokeWidth="1.2" fill="none" opacity="0.45" strokeLinecap="round"/>
-          <path d="M240,70 C250,57 262,44 272,36" stroke="#7db8e8" strokeWidth="0.8" fill="none" opacity="0.3" strokeLinecap="round"/>
+            M280,68
+            C275,78 268,95 260,115
+            C255,130 252,145 256,152
+            C262,158 272,155 280,145
+            C288,135 294,120 298,105
+            C302,90 302,78 296,72
+            C290,66 284,66 280,68
+            Z
+          " fill="#163d68"/>
+          {/* 지느러미 디테일 라인 */}
+          <path d="M278,75 C274,90 268,110 262,130" stroke="#1a3a5f" strokeWidth="1.5" fill="none" opacity="0.5"/>
+          <path d="M284,72 C280,88 274,108 268,128" stroke="#1a3a5f" strokeWidth="1" fill="none" opacity="0.35"/>
+
+          {/* ── 머리/입 부분 주름선 (throat grooves) ── */}
+          <path d="M320,85 C340,92 355,96 365,95" stroke="#1a3a5f" strokeWidth="2" fill="none" opacity="0.5"/>
+          <path d="M310,90 C330,98 350,102 365,100" stroke="#1a3a5f" strokeWidth="1.8" fill="none" opacity="0.4"/>
+          <path d="M300,95 C320,103 345,107 365,105" stroke="#1a3a5f" strokeWidth="1.5" fill="none" opacity="0.35"/>
+          <path d="M290,100 C310,108 340,112 365,108" stroke="#1a3a5f" strokeWidth="1.3" fill="none" opacity="0.3"/>
+          <path d="M280,104 C300,112 335,116 365,112" stroke="#1a3a5f" strokeWidth="1" fill="none" opacity="0.25"/>
 
           {/* ── 눈 ── */}
-          <circle cx="308" cy="62" r="6" fill="#0f2040"/>
-          <circle cx="308" cy="62" r="4.5" fill="#1a1a2e"/>
-          <circle cx="310" cy="60" r="1.8" fill="white" opacity="0.9"/>
+          <circle cx="340" cy="72" r="5" fill="#0d2840"/>
+          <circle cx="341" cy="71" r="2" fill="white" opacity="0.7"/>
 
-          {/* ── 입 주름선 ── */}
-          <path d="M318,74 C328,80 336,84 340,88" stroke="#2a5080" strokeWidth="1.5" fill="none" opacity="0.6" strokeLinecap="round"/>
-          <path d="M320,78 C330,83 337,87 340,90" stroke="#2a5080" strokeWidth="1" fill="none" opacity="0.4" strokeLinecap="round"/>
-
-          {/* ── 따개비 (barnacles) ── */}
-          {[[190,44],[200,42],[175,44],[210,43],[165,46]].map(([x,y],i)=>(
-            <circle key={i} cx={x} cy={y} r={1.5+i*0.3} fill="#2a5c8a" opacity="0.55"/>
-          ))}
-
-          {/* ── 분수공 물줄기 ── */}
-          <path d="M312,44 Q316,24 322,10 Q326,4 330,10 Q334,22 330,38"
-            stroke="#bae6fd" strokeWidth="4" fill="none" opacity="0.6" strokeLinecap="round"/>
-          <path d="M322,10 Q328,2 334,8" stroke="#e0f2fe" strokeWidth="2.5" fill="none" opacity="0.45" strokeLinecap="round"/>
-          <path d="M316,38 Q312,26 314,18" stroke="#7dd3fc" strokeWidth="2" fill="none" opacity="0.35" strokeLinecap="round"/>
-          {/* 물방울 */}
-          {[[326,6],[320,8],[332,12],[318,16]].map(([x,y],i)=>(
-            <circle key={i} cx={x} cy={y} r={1.5-i*0.2} fill="#bae6fd" opacity={0.7-i*0.1}/>
-          ))}
+          {/* ── 분수공 ── */}
+          <ellipse cx="175" cy="56" rx="4" ry="2.5" fill="#0d2840" opacity="0.4"/>
         </svg>
       )
     case "shark":
