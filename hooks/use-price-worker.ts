@@ -38,15 +38,29 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
     if (serverUrl) {
       // ── Price Server 모드 (프로덕션) ──────────────────────────
+      let heartbeatTimer: ReturnType<typeof setTimeout> | null = null
+
+      // 5초 안에 메시지가 없으면 소켓을 강제로 닫고 재연결
+      const HEARTBEAT_TIMEOUT = 5000
+
+      const resetHeartbeat = () => {
+        if (heartbeatTimer) clearTimeout(heartbeatTimer)
+        heartbeatTimer = setTimeout(() => {
+          ws?.close()
+        }, HEARTBEAT_TIMEOUT)
+      }
+
       const connect = () => {
         if (closed) return
         ws = new WebSocket(serverUrl)
 
         ws.onopen = () => {
           optsRef.current.onConnected?.()
+          resetHeartbeat()
         }
 
         ws.onmessage = (event) => {
+          resetHeartbeat()
           try {
             const data = JSON.parse(event.data as string)
 
@@ -74,6 +88,7 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         }
 
         ws.onclose = () => {
+          if (heartbeatTimer) clearTimeout(heartbeatTimer)
           optsRef.current.onDisconnected?.()
           if (!closed) retryTimer = setTimeout(connect, 3000)
         }
@@ -151,6 +166,7 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
     return () => {
       closed = true
       if (retryTimer) clearTimeout(retryTimer)
+      if (heartbeatTimer) clearTimeout(heartbeatTimer)
       ws?.close()
     }
   }, [])
