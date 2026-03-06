@@ -7,7 +7,7 @@
  * - 잔고: balance:update 커스텀 이벤트로 betting-game과 동기화
  */
 
-import { Menu, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield } from "lucide-react"
+import { Menu, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield, GitBranch } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState, useEffect, useRef } from "react"
@@ -17,7 +17,7 @@ const STORAGE_KEY = "app_token"
 const PROFILE_KEY = "app_profile"
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
 
-interface Profile { username: string; role: string }
+interface Profile { username: string; role: string; branch_code?: string | null }
 
 function saveToken(token: string) {
   try { localStorage.setItem(STORAGE_KEY, token) } catch {}
@@ -56,6 +56,12 @@ export function TopBar() {
   const [regMsg, setRegMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [regLoading, setRegLoading] = useState(false)
 
+  // 지점코드 입력
+  const [showBranchForm, setShowBranchForm] = useState(false)
+  const [branchCodeInput, setBranchCodeInput] = useState("")
+  const [branchMsg, setBranchMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [branchLoading, setBranchLoading] = useState(false)
+
   // 비밀번호 변경
   const [showPwForm, setShowPwForm] = useState(false)
   const [newPw, setNewPw] = useState("")
@@ -78,7 +84,7 @@ export function TopBar() {
       if (pr.ok) {
         const d = await pr.json()
         if (d.profile) {
-          setProfile({ username: d.profile.username, role: d.profile.role })
+          setProfile({ username: d.profile.username, role: d.profile.role, branch_code: d.profile.branch_code ?? null })
           setIsLoggedIn(true)
         }
       }
@@ -186,7 +192,7 @@ export function TopBar() {
     if (!regUsername.trim()) return setRegMsg({ text: "아이디를 입력해주세요.", ok: false })
     if (regUsername.length < 2) return setRegMsg({ text: "아이디는 2자 이상이어야 합니다.", ok: false })
     if (!regPw) return setRegMsg({ text: "비밀번호를 입력해주세요.", ok: false })
-    if (regPw.length < 4) return setRegMsg({ text: "비밀번호는 4자 이상이어야 합니다.", ok: false })
+    if (regPw.length < 4) return setRegMsg({ text: "비밀번호는 4자 이��이어야 합니다.", ok: false })
     if (regPw !== regConfirmPw) return setRegMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false })
 
     setRegLoading(true)
@@ -258,6 +264,27 @@ export function TopBar() {
     setProfile(null)
     setBalance(0)
     setDropdownOpen(false)
+  }
+
+  const handleBranchJoin = async () => {
+    setBranchLoading(true)
+    setBranchMsg(null)
+    const token = getToken()
+    if (!token) { setBranchLoading(false); return }
+    const res = await fetch("/api/user/branch/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ branchCode: branchCodeInput.trim().toUpperCase() }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setBranchMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
+    } else {
+      setBranchMsg({ text: `${data.branchName} 지점에 가입됐습니다.`, ok: true })
+      setBranchCodeInput("")
+      setProfile(prev => prev ? { ...prev, branch_code: branchCodeInput.trim().toUpperCase() } : prev)
+    }
+    setBranchLoading(false)
   }
 
   const initials = profile?.username?.slice(0, 2).toUpperCase() ?? "?"
@@ -357,6 +384,38 @@ export function TopBar() {
                       </div>
                     )}
                   </div>
+
+                  {/* 지점코드 입력 (일반회원만) */}
+                  {profile?.role === "user" && (
+                    <div className="border-b border-border">
+                      <button
+                        onClick={() => { setShowBranchForm(v => !v); setBranchMsg(null) }}
+                        className="flex items-center justify-between w-full px-4 py-3 hover:bg-muted transition-colors"
+                      >
+                        <div className="flex items-center gap-2 text-sm text-foreground">
+                          <GitBranch className="w-3.5 h-3.5 text-muted-foreground" />
+                          {profile.branch_code ? `지점: ${profile.branch_code}` : "지점코드 입력"}
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showBranchForm ? "rotate-180" : ""}`} />
+                      </button>
+                      {showBranchForm && (
+                        <div className="px-4 pb-3 space-y-2">
+                          <input
+                            type="text"
+                            placeholder="지점코드 입력 (예: YS001)"
+                            value={branchCodeInput}
+                            onChange={e => setBranchCodeInput(e.target.value.toUpperCase())}
+                            onKeyDown={e => e.key === "Enter" && handleBranchJoin()}
+                            className="w-full h-9 px-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          {branchMsg && <p className={`text-xs ${branchMsg.ok ? "text-primary" : "text-destructive"}`}>{branchMsg.text}</p>}
+                          <Button className="w-full h-9 text-sm" onClick={handleBranchJoin} disabled={branchLoading || !branchCodeInput}>
+                            {branchLoading ? "처리 중..." : "확인"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* 관리자 패널 */}
                   {ADMIN_ROLES.includes(profile?.role ?? "") && (
