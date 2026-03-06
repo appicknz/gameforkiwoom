@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '아이디와 비밀번호를 입력해주세요.' }, { status: 400 })
   }
 
-  // profiles에서 username → id 조회
+  // profiles 테이블에서 username으로 user_id 조회
   const { data: profile, error: profileError } = await adminSupabase
     .from('profiles')
     .select('id')
@@ -24,12 +24,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
   }
 
-  // user id로 이메일 조회
-  const { data: userData } = await adminSupabase.auth.admin.getUserById(profile.id)
-  if (!userData?.user?.email) {
-    return NextResponse.json({ error: '사용자 정보를 찾을 수 없습니다.' }, { status: 500 })
+  // auth.users에서 이메일 조회
+  const { data: userData, error: userError } = await adminSupabase.auth.admin.getUserById(profile.id)
+
+  if (userError || !userData.user?.email) {
+    return NextResponse.json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
   }
 
-  // 이메일을 클라이언트로 전달 (클라이언트에서 signInWithPassword 호출)
   return NextResponse.json({ email: userData.user.email })
 }

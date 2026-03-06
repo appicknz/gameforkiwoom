@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,11 +28,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '이미 사용 중인 아이디입니다.' }, { status: 409 })
   }
 
-  // 페이크 이메일로 Supabase Auth 가입 (이메일 형식만 맞으면 OK)
-  const fakeEmail = `${username}@yourapp.fake`
-
+  // Supabase Auth 유저 생성
+  // 이메일 검증 우회: uuid@noreply.app 형식 사용 후 phone_confirmed 처리
+  const uid = randomUUID()
+  const email = `${uid}@noreply.app`
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
-    email: fakeEmail,
+    email,
     password,
     email_confirm: true,
     user_metadata: { username },
@@ -46,12 +48,17 @@ export async function POST(req: Request) {
   // profiles 테이블에 저장
   const { error: profileError } = await adminSupabase
     .from('profiles')
-    .upsert({ id: userId, username, role: 'user' })
+    .upsert({
+      id: userId,
+      username,
+      role: 'user',
+    })
 
   if (profileError) {
+    // 롤백: auth 유저 삭제
     await adminSupabase.auth.admin.deleteUser(userId)
     return NextResponse.json({ error: profileError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, email: fakeEmail })
+  return NextResponse.json({ success: true, email })
 }
