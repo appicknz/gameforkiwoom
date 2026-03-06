@@ -28,7 +28,7 @@ interface TickerData {
 type Interval = "1s" | "30s" | "1m" | "1h" | "1d"
 
 const INTERVAL_CONFIG: Record<Interval, { label: string; binance: string; limit: number }> = {
-  "1s":  { label: "1초",   binance: "1s", limit: 200 },
+  "1s":  { label: "1초",   binance: "1s", limit: 44 },
   "30s": { label: "30초",  binance: "1s", limit: 200 },
   "1m":  { label: "1분",   binance: "1m", limit: 200 },
   "1h":  { label: "1시간", binance: "1h", limit: 168 },
