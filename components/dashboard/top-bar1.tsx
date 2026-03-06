@@ -26,7 +26,7 @@ function getToken(): string | null {
   try { return localStorage.getItem(STORAGE_KEY) } catch { return null }
 }
 function clearToken() {
-  try { localStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem("supabase_token") } catch {}
+  try { localStorage.removeItem(STORAGE_KEY) } catch {}
 }
 
 export function TopBar() {
@@ -162,9 +162,8 @@ export function TopBar() {
 
       if (!res.ok) return setLoginMsg({ text: data.error ?? "로그인 실패", ok: false })
 
-      // 서버가 발급한 토큰 저장
+      // 서버가 발급한 토큰 저장 (localStorage["app_token"] 전용)
       saveToken(data.token)
-      sessionStorage.setItem("supabase_token", data.token)
 
       setProfile({ username: data.username, role: data.role ?? "user" })
       setIsLoggedIn(true)
@@ -208,9 +207,8 @@ export function TopBar() {
         return
       }
 
-      // 서버가 발급한 토큰 저장
+      // 서버가 발급한 토큰 저장 (localStorage["app_token"] 전용)
       saveToken(data.token)
-      sessionStorage.setItem("supabase_token", data.token)
 
       setProfile({ username: data.username, role: data.role ?? "user" })
       setIsLoggedIn(true)

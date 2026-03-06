@@ -220,8 +220,8 @@ export default function GamePage() {
           setPhase("result")
           setShowResult(true)
 
-          // DB에 결과 저장 (비동기, 실패해도 UI는 진행)
-          const token = typeof window !== "undefined" ? sessionStorage.getItem("supabase_token") : null
+          // 서버에 원본 데이터 전송 → 서버가 승패/수익 직접 계산 (위변조 방지)
+          const token = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
           if (token) {
             fetch("/api/user/game/play", {
               method: "POST",
@@ -229,8 +229,27 @@ export default function GamePage() {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${token}`,
               },
-              body: JSON.stringify({ profit, newBalance }),
-            }).catch((err) => console.error("Game result save failed:", err))
+              body: JSON.stringify({
+                basePrice: basePriceRef.current,
+                closePrice: latestClose,
+                bets: {
+                  direction: betRef.current ?? undefined,
+                  directionAmount: betRef.current ? betDirectionAmountRef.current : undefined,
+                  digit: betDigitRef.current ?? undefined,
+                  digitAmount: betDigitRef.current ? betDigitAmountRef.current : undefined,
+                  parity: betParityRef.current ?? undefined,
+                  parityAmount: betParityRef.current ? betParityAmountRef.current : undefined,
+                },
+              }),
+            })
+              .then(r => r.json())
+              .then(data => {
+                if (typeof data.newBalance === "number") {
+                  setBalance(data.newBalance)
+                  window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance }))
+                }
+              })
+              .catch(console.error)
           }
 
           setTimeout(() => {
@@ -267,9 +286,9 @@ export default function GamePage() {
     const base = getBase()
     if (!base) return
     
-    const token = typeof window !== "undefined" ? sessionStorage.getItem("supabase_token") : null
+    const token = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
     if (!token) return
-    
+
     try {
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
@@ -303,9 +322,9 @@ export default function GamePage() {
     const base = getBase()
     if (!base) return
     
-    const token = typeof window !== "undefined" ? sessionStorage.getItem("supabase_token") : null
+    const token = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
     if (!token) return
-    
+
     try {
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
@@ -339,9 +358,9 @@ export default function GamePage() {
     const base = getBase()
     if (!base) return
     
-    const token = typeof window !== "undefined" ? sessionStorage.getItem("supabase_token") : null
+    const token = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
     if (!token) return
-    
+
     try {
       const res = await fetch("/api/user/game/bet", {
         method: "POST",

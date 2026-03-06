@@ -1,18 +1,16 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { createClient } from "@supabase/supabase-js"
 import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
+
+function getToken(): string | null {
+  try { return localStorage.getItem("app_token") } catch { return null }
+}
 
 interface User {
   id: string
@@ -39,25 +37,20 @@ export default function PanelPage() {
   const [chargeLoading, setChargeLoading] = useState(false)
   const [chargeMsg, setChargeMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
-  // 권한 확인: access_token으로 profiles 테이블에서 role 조회
+  // 권한 확인: localStorage["app_token"]으로 role 조회 (createClient 미사용)
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session?.user || !session.access_token) {
-        router.replace("/")
-        return
-      }
-      const res = await fetch("/api/user/profile", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+    const token = getToken()
+    if (!token) { router.replace("/"); return }
+
+    fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (res) => {
+        if (!res.ok) { router.replace("/"); return }
+        const data = await res.json()
+        const role = data.profile?.role ?? ""
+        if (!ADMIN_ROLES.includes(role)) { router.replace("/"); return }
+        setLoading(false)
       })
-      if (!res.ok) { router.replace("/"); return }
-      const data = await res.json()
-      const role = data.profile?.role ?? ""
-      if (!ADMIN_ROLES.includes(role)) {
-        router.replace("/")
-        return
-      }
-      setLoading(false)
-    })
+      .catch(() => router.replace("/"))
   }, [router])
 
   // 관리자 비밀번호 확인
