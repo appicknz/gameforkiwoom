@@ -151,108 +151,121 @@ function CarrierSVG({ flip }: { flip: boolean }) {
   )
 }
 
-// 제트기: Su-27 스타일 중형 전투기 (옆면 실루엣)
+// 제트기: Su-27 스타일 — 이미지 실루엣 기반 측면뷰
 function JetSVG({ flip }: { flip: boolean }) {
+  const c = "#1aff7a" // 레이더 그린
   return (
-    <svg width="100" height="40" viewBox="0 0 100 40"
+    <svg width="110" height="38" viewBox="0 0 110 38"
       style={{ transform: flip ? "scaleX(-1)" : undefined, display: "block" }}>
       <defs>
-        <filter id="jgl"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        <linearGradient id="jbody" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#1a3a6a"/>
-          <stop offset="100%" stopColor="#0a1e40"/>
-        </linearGradient>
+        <filter id="jgl2">
+          <feGaussianBlur stdDeviation="2.5" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
       </defs>
-      {/* 주익 — 넓고 뒤로 쓸린 */}
-      <path d="M75,19 L30,6 L18,12 L55,19" fill="#0d2245" stroke="#3366aa" strokeWidth="0.7"/>
-      <path d="M75,21 L30,34 L18,28 L55,21" fill="#0d2245" stroke="#3366aa" strokeWidth="0.7"/>
-      {/* 동체 핵심 — 날카로운 앞/넓은 중간 */}
-      <path d="M95,19 L90,15 L78,14 L20,15 L12,19 L20,23 L78,24 L90,23 Z" fill="url(#jbody)" stroke="#3a6090" strokeWidth="0.6"/>
-      {/* 노즈콘 */}
-      <path d="M95,19 L100,19" stroke="#4488cc" strokeWidth="1.5" strokeLinecap="round"/>
-      {/* 수직 꼬리 (위/아래 대칭) */}
-      <path d="M22,15 L14,6 L10,10 L18,15" fill="#0a1e3a" stroke="#1e4080" strokeWidth="0.5"/>
-      <path d="M22,23 L14,32 L10,28 L18,23" fill="#0a1e3a" stroke="#1e4080" strokeWidth="0.5"/>
-      {/* 수평 꼬리 소익 */}
-      <path d="M28,17 L14,12 L12,15 L24,17" fill="#081a30"/>
-      <path d="M28,21 L14,26 L12,23 L24,21" fill="#081a30"/>
-      {/* 쌍발 엔진 — 두 개 원형 노즐 */}
-      <ellipse cx="13" cy="16.5" rx="4.5" ry="3"   fill="#ffaa00" opacity="0.95" filter="url(#jgl)"/>
-      <ellipse cx="13" cy="16.5" rx="8"   ry="5.5" fill="#ff6600" opacity="0.35" filter="url(#jgl)"/>
-      <ellipse cx="13" cy="21.5" rx="4.5" ry="3"   fill="#ffaa00" opacity="0.95" filter="url(#jgl)"/>
-      <ellipse cx="13" cy="21.5" rx="8"   ry="5.5" fill="#ff6600" opacity="0.35" filter="url(#jgl)"/>
-      {/* 캐노피 */}
-      <path d="M83,14 Q88,13 92,15 Q88,17 83,17 Z" fill="#66ddff" opacity="0.85"/>
-    </svg>
-  )
-}
-
-// 전투기1: F-22 스텔스기 옆면 (길쭉한 다이아몬드 동체 + 크랭크드 델타익)
-function FighterSVG({ flip }: { flip: boolean }) {
-  return (
-    <svg width="70" height="30" viewBox="0 0 70 30"
-      style={{ transform: flip ? "scaleX(-1)" : undefined, display: "block" }}>
-      <defs>
-        <filter id="fgl"><feGaussianBlur stdDeviation="1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        <linearGradient id="fbody" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#1e3d70"/>
-          <stop offset="100%" stopColor="#0c1e45"/>
-        </linearGradient>
-      </defs>
-      {/* 크랭크드 델타 주익 — 앞전 꺾임 */}
-      <path d="M58,14 L40,4 L20,8 L12,13 L40,14" fill="#0d2040" stroke="#2a5088" strokeWidth="0.6"/>
-      <path d="M58,16 L40,26 L20,22 L12,17 L40,16" fill="#0d2040" stroke="#2a5088" strokeWidth="0.6"/>
-      {/* 동체 — 앞이 뾰족하고 중간이 두꺼운 마름모 */}
-      <path d="M68,14 L62,11 L40,12 L14,13 L8,15 L14,17 L40,18 L62,19 L68,16 Z" fill="url(#fbody)" stroke="#3a5a90" strokeWidth="0.5"/>
-      {/* 노즈 */}
-      <path d="M68,15 L72,14.5 L72,15.5 Z" fill="#4488cc"/>
-      {/* V자 꼬리 (위/아래 외향) */}
-      <path d="M18,13 L6,6  L4,10 L14,13" fill="#081830"/>
-      <path d="M18,17 L6,24 L4,20 L14,17" fill="#081830"/>
-      {/* 엔진 — 단발, 사각 노즐 */}
-      <rect x="2" y="12" width="9" height="6" rx="1.5" fill="#ffbb00" opacity="0.9" filter="url(#fgl)"/>
-      <ellipse cx="3" cy="15" rx="9" ry="6" fill="#ff7700" opacity="0.3" filter="url(#fgl)"/>
-      {/* 캐노피 — 버블형 */}
-      <path d="M60,11 Q65,10 68,12 Q65,14 60,14 Z" fill="#55ccff" opacity="0.85"/>
-      {/* 엔진 흡기구 */}
-      <path d="M50,13 L45,11 L40,12" fill="none" stroke="#224488" strokeWidth="0.8"/>
-      <path d="M50,17 L45,19 L40,18" fill="none" stroke="#224488" strokeWidth="0.8"/>
-    </svg>
-  )
-}
-
-// 전투기2: MiG-29 스타일 (넓은 LEX + 이중 엔진)
-function Fighter2SVG({ flip }: { flip: boolean }) {
-  return (
-    <svg width="64" height="28" viewBox="0 0 64 28"
-      style={{ transform: flip ? "scaleX(-1)" : undefined, display: "block" }}>
-      <defs>
-        <filter id="f2gl"><feGaussianBlur stdDeviation="0.9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        <linearGradient id="f2body" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#182f58"/>
-          <stop offset="100%" stopColor="#0a1830"/>
-        </linearGradient>
-      </defs>
-      {/* LEX (Leading Edge eXtension) — 날개 앞부분 삼각 확장 */}
-      <path d="M54,13 L32,5 L16,9 L38,13" fill="#0b1c3a" stroke="#1e406a" strokeWidth="0.5"/>
-      <path d="M54,15 L32,23 L16,19 L38,15" fill="#0b1c3a" stroke="#1e406a" strokeWidth="0.5"/>
-      {/* 주익 — 상대적으로 짧고 뒤쪽 */}
-      <path d="M44,13 L26,4 L18,8 L34,13"  fill="#0c2040" stroke="#285090" strokeWidth="0.6"/>
-      <path d="M44,15 L26,24 L18,20 L34,15" fill="#0c2040" stroke="#285090" strokeWidth="0.6"/>
+      {/* 전체 실루엣 — Su-27 옆면, 노즈가 오른쪽 */}
       {/* 동체 */}
-      <path d="M62,13 L56,10 L36,11 L12,12 L7,14 L12,16 L36,17 L56,18 L62,15 Z" fill="url(#f2body)" stroke="#2a4880" strokeWidth="0.5"/>
-      {/* 노즈 */}
-      <path d="M62,14 L66,13.5 L66,14.5 Z" fill="#3a6aaa"/>
-      {/* 꼬리 수직미익 두 개 (V꼴 외향) */}
-      <path d="M18,12 L8,5  L6,9  L14,12" fill="#071525"/>
-      <path d="M18,16 L8,23 L6,19 L14,16" fill="#071525"/>
-      {/* 쌍발 엔진 */}
-      <ellipse cx="8"  cy="12.5" rx="4" ry="2.5" fill="#ffaa00" opacity="0.9" filter="url(#f2gl)"/>
-      <ellipse cx="8"  cy="12.5" rx="7" ry="5"   fill="#ff6600" opacity="0.3" filter="url(#f2gl)"/>
-      <ellipse cx="8"  cy="15.5" rx="4" ry="2.5" fill="#ffaa00" opacity="0.9" filter="url(#f2gl)"/>
-      <ellipse cx="8"  cy="15.5" rx="7" ry="5"   fill="#ff6600" opacity="0.3" filter="url(#f2gl)"/>
+      <path d="
+        M106,18 L100,15 L88,13 L70,12 L55,13
+        L40,11 L25,14 L15,18 L25,22 L40,25
+        L55,25 L70,26 L88,25 L100,23 Z
+      " fill={c} opacity="0.9"/>
+      {/* 노즈 뾰족하게 */}
+      <path d="M100,15 L108,18 L100,21 Z" fill={c} opacity="0.9"/>
+      {/* 주익 — 넓고 뒤로 쓸린 델타 */}
+      <path d="M72,12 L38,1 L20,10 L52,13 Z" fill={c} opacity="0.85"/>
+      <path d="M72,26 L38,37 L20,28 L52,25 Z" fill={c} opacity="0.85"/>
+      {/* 수직 꼬리 위아래 */}
+      <path d="M30,14 L18,4  L14,9  L24,14 Z" fill={c} opacity="0.8"/>
+      <path d="M30,24 L18,34 L14,29 L24,24 Z" fill={c} opacity="0.8"/>
+      {/* 수평 꼬리 소익 */}
+      <path d="M36,15 L18,11 L16,14 L30,15 Z" fill={c} opacity="0.75"/>
+      <path d="M36,23 L18,27 L16,24 L30,23 Z" fill={c} opacity="0.75"/>
       {/* 캐노피 */}
-      <path d="M55,10 Q59,9 62,11 Q59,13 55,13 Z" fill="#55bbee" opacity="0.85"/>
+      <ellipse cx="93" cy="13" rx="7" ry="3" fill="#002200" opacity="0.7"/>
+      <ellipse cx="93" cy="13" rx="6" ry="2.2" fill={c} opacity="0.4"/>
+      {/* 엔진 불꽃 */}
+      <ellipse cx="15" cy="17" rx="7" ry="4" fill="#ff8800" opacity="0.9" filter="url(#jgl2)"/>
+      <ellipse cx="15" cy="21" rx="7" ry="4" fill="#ff8800" opacity="0.9" filter="url(#jgl2)"/>
+    </svg>
+  )
+}
+
+// 전투기1: F-16 스타일 — 이미지 실루엣 기반 (단발, 날카로운 델타+후퇴익)
+function FighterSVG({ flip }: { flip: boolean }) {
+  const c = "#1aff7a"
+  return (
+    <svg width="80" height="32" viewBox="0 0 80 32"
+      style={{ transform: flip ? "scaleX(-1)" : undefined, display: "block" }}>
+      <defs>
+        <filter id="fgl2">
+          <feGaussianBlur stdDeviation="2" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      {/* 동체 */}
+      <path d="
+        M76,15 L70,12 L58,11 L40,12 L26,13
+        L14,15 L8,16 L14,17 L26,19
+        L40,20 L58,21 L70,20 L76,17 Z
+      " fill={c} opacity="0.9"/>
+      {/* 노즈 */}
+      <path d="M70,12 L80,15.5 L70,19 Z" fill={c} opacity="0.9"/>
+      {/* 주익 — LEX + 크랭크드 델타 */}
+      <path d="M60,12 L42,2  L24,8  L15,14 L44,12 Z" fill={c} opacity="0.85"/>
+      <path d="M60,20 L42,30 L24,24 L15,18 L44,20 Z" fill={c} opacity="0.85"/>
+      {/* 수평 꼬리 */}
+      <path d="M28,14 L12,9  L10,13 L22,14 Z" fill={c} opacity="0.8"/>
+      <path d="M28,18 L12,23 L10,19 L22,18 Z" fill={c} opacity="0.8"/>
+      {/* 수직 꼬리 단발 (위쪽만) */}
+      <path d="M24,13 L14,5 L11,9 L20,13 Z" fill={c} opacity="0.8"/>
+      {/* 캐노피 버블 */}
+      <ellipse cx="67" cy="12" rx="6" ry="2.5" fill="#001a00" opacity="0.7"/>
+      <ellipse cx="67" cy="12" rx="5" ry="1.8" fill={c} opacity="0.35"/>
+      {/* 흡기구 */}
+      <path d="M55,16 L50,19 L45,18 L50,15 Z" fill="#002200" opacity="0.9"/>
+      {/* 엔진 */}
+      <ellipse cx="9" cy="16" rx="8" ry="5" fill="#ff8800" opacity="0.9" filter="url(#fgl2)"/>
+    </svg>
+  )
+}
+
+// 전투기2: F/A-18 스타일 — 쌍발 쌍미익, 꺾인 날개
+function Fighter2SVG({ flip }: { flip: boolean }) {
+  const c = "#1aff7a"
+  return (
+    <svg width="74" height="30" viewBox="0 0 74 30"
+      style={{ transform: flip ? "scaleX(-1)" : undefined, display: "block" }}>
+      <defs>
+        <filter id="f2gl2">
+          <feGaussianBlur stdDeviation="1.8" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      {/* 동체 */}
+      <path d="
+        M70,14 L64,11 L50,10 L34,11 L20,13
+        L10,15 L20,17 L34,19 L50,20 L64,19 L70,16 Z
+      " fill={c} opacity="0.9"/>
+      {/* 노즈 */}
+      <path d="M64,11 L74,14.5 L64,18 Z" fill={c} opacity="0.9"/>
+      {/* 주익 — 앞전 꺾임(크랭크) */}
+      <path d="M54,11 L40,2  L22,7  L14,13 L42,11 Z" fill={c} opacity="0.85"/>
+      <path d="M54,19 L40,28 L22,23 L14,17 L42,19 Z" fill={c} opacity="0.85"/>
+      {/* 수평 꼬리 */}
+      <path d="M26,13 L10,8  L8,12 L20,13 Z" fill={c} opacity="0.8"/>
+      <path d="M26,17 L10,22 L8,18 L20,17 Z" fill={c} opacity="0.8"/>
+      {/* 수직 꼬리 두 개 (V 외향) */}
+      <path d="M22,13 L13,5  L10,9  L18,13 Z" fill={c} opacity="0.8"/>
+      <path d="M22,17 L13,25 L10,21 L18,17 Z" fill={c} opacity="0.8"/>
+      {/* 캐노피 */}
+      <ellipse cx="62" cy="11" rx="6" ry="2.5" fill="#001500" opacity="0.8"/>
+      <ellipse cx="62" cy="11" rx="5" ry="1.8" fill={c} opacity="0.3"/>
+      {/* 흡기구 2개 */}
+      <path d="M48,14 L43,17 L39,15 L43,12 Z" fill="#002200" opacity="0.9"/>
+      {/* 쌍발 엔진 */}
+      <ellipse cx="10" cy="13" rx="7" ry="3.5" fill="#ff8800" opacity="0.9" filter="url(#f2gl2)"/>
+      <ellipse cx="10" cy="17" rx="7" ry="3.5" fill="#ff8800" opacity="0.9" filter="url(#f2gl2)"/>
     </svg>
   )
 }
@@ -540,7 +553,7 @@ export function SpaceOverlay() {
         </div>
       ))}
 
-      {/* HUD 거래대금 */}
+      {/* HUD 거���대금 */}
       {volumeLabel && (
         <div className="absolute top-2 right-2 font-mono text-[10px] tracking-widest px-2 py-1 rounded" style={{
           color:      "#00ff41",
