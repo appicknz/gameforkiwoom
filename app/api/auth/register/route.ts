@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 
-const adminSupabase = createClient(
+const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   }
 
   // 아이디 중복 확인
-  const { data: existing } = await adminSupabase
+  const { data: existing } = await admin
     .from('profiles')
     .select('id')
     .eq('username', username)
@@ -29,10 +29,9 @@ export async function POST(req: Request) {
   }
 
   // Supabase Auth 유저 생성
-  // 이메일 검증 우회: uuid@noreply.app 형식 사용 후 phone_confirmed 처리
   const uid = randomUUID()
   const email = `${uid}@noreply.app`
-  const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
+  const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
@@ -45,20 +44,34 @@ export async function POST(req: Request) {
 
   const userId = authData.user.id
 
-  // profiles 테이블에 저장
-  const { error: profileError } = await adminSupabase
+  // profiles 저장
+  const { error: profileError } = await admin
     .from('profiles')
-    .upsert({
-      id: userId,
-      username,
-      role: 'user',
-    })
+    .upsert({ id: userId, username, role: 'user' })
 
   if (profileError) {
-    // 롤백: auth 유저 삭제
-    await adminSupabase.auth.admin.deleteUser(userId)
+    await admin.auth.admin.deleteUser(userId)
     return NextResponse.json({ error: profileError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, email, username })
+  // 가입 직후 서버에서 로그인해 토큰 반환 (클라이언트에서 signInWithPassword 불필요)
+  const anonClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+  const { data: signIn, error: signInError } = await anonClient.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (signInError || !signIn.session) {
+    // 토큰 발급 실패해도 가입은 성공 - 클라이언트에서 로그인 유도
+    return NextResponse.json({ success: true, username, needsLogin: true })
+  }
+
+  return NextResponse.json({
+    token: signIn.session.access_token,
+    username,
+    role: 'user',
+  })
 }

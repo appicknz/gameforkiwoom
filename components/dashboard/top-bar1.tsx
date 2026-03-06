@@ -1,35 +1,36 @@
 "use client"
 
+/**
+ * TopBar - Supabase 클라이언트 SDK 완전 미사용
+ * - 로그인/가입: 서버 API 호출 → 서버에서 토큰 발급 → localStorage 저장
+ * - GoTrueClient 인스턴스 0개 → lock 경합 없음
+ * - 잔고: balance:update 커스텀 이벤트로 betting-game과 동기화
+ */
+
 import { Menu, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useState, useEffect, useRef, useMemo } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 
-interface Profile {
-  username: string
-  role: string
-}
-
-// 싱글톤: 이 값은 모듈 로드 시점에 한 번만 생성됨
-let supabaseInstance: ReturnType<typeof createClient> | null = null
-
-function getSupabaseClient() {
-  if (!supabaseInstance) {
-    supabaseInstance = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-  }
-  return supabaseInstance
-}
-
+const STORAGE_KEY = "app_token"
+const PROFILE_KEY = "app_profile"
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
+
+interface Profile { username: string; role: string }
+
+function saveToken(token: string) {
+  try { localStorage.setItem(STORAGE_KEY, token) } catch {}
+}
+function getToken(): string | null {
+  try { return localStorage.getItem(STORAGE_KEY) } catch { return null }
+}
+function clearToken() {
+  try { localStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem("supabase_token") } catch {}
+}
 
 export function TopBar() {
   const router = useRouter()
-  const supabase = useMemo(() => getSupabaseClient(), [])
   const [menuOpen, setMenuOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [balance, setBalance] = useState(0)
@@ -37,7 +38,6 @@ export function TopBar() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // 비로그인 탭
   const [authTab, setAuthTab] = useState<"login" | "register">("login")
 
   // 로그인 폼
@@ -56,7 +56,7 @@ export function TopBar() {
   const [regMsg, setRegMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [regLoading, setRegLoading] = useState(false)
 
-  // 비밀번호 변경 (로그인)
+  // 비밀번호 변경
   const [showPwForm, setShowPwForm] = useState(false)
   const [newPw, setNewPw] = useState("")
   const [confirmPw, setConfirmPw] = useState("")
@@ -65,54 +65,43 @@ export function TopBar() {
   const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [pwLoading, setPwLoading] = useState(false)
 
-  // ── 초기화: localStorage에서 직접 토큰 읽기 (getSession lock 경합 방지) ──
+  // ── 초기화: localStorage 토큰으로 프로필 + 잔고 복원 ──────────────
   useEffect(() => {
-    const loadFromToken = async (token: string) => {
-      setIsLoggedIn(true)
-      const [profileRes, balanceRes] = await Promise.all([
-        fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
-      ])
-      if (profileRes.ok) {
-        const d = await profileRes.json()
-        if (d.profile) setProfile({ username: d.profile.username, role: d.profile.role })
-      }
-      if (balanceRes.ok) {
-        const d = await balanceRes.json()
-        setBalance(d.balance ?? 0)
-      }
-    }
+    const token = getToken()
+    if (!token) return
+    // sessionStorage에도 캐시 (betting-game에서 사용)
+    try { sessionStorage.setItem("supabase_token", token) } catch {}
 
-    // 1) sessionStorage 캐시 확인
-    const cached = sessionStorage.getItem("supabase_token")
-    if (cached) { loadFromToken(cached); return }
-
-    // 2) Supabase가 localStorage에 저장한 세션에서 직접 파싱
-    try {
-      const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/https:\/\/([^.]+)/)?.[1] ?? ""
-      const raw = localStorage.getItem(`sb-${projectRef}-auth-token`)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        const token = parsed?.access_token
-        if (token) {
-          sessionStorage.setItem("supabase_token", token)
-          loadFromToken(token)
+    Promise.all([
+      fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
+      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
+    ]).then(async ([pr, br]) => {
+      if (pr.status === 401) { clearToken(); return } // 토큰 만료
+      if (pr.ok) {
+        const d = await pr.json()
+        if (d.profile) {
+          setProfile({ username: d.profile.username, role: d.profile.role })
+          setIsLoggedIn(true)
         }
       }
-    } catch {}
+      if (br.ok) {
+        const d = await br.json()
+        setBalance(d.balance ?? 0)
+      }
+    }).catch(() => {})
   }, [])
 
-  // ── balance:update 이벤트 수신 (betting-game에서 배팅/정산 후 발생) ──
+  // ── balance:update 이벤트 수신 ────────────────────────────────────
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<number>).detail
-      if (typeof detail === "number") setBalance(detail)
+      const v = (e as CustomEvent<number>).detail
+      if (typeof v === "number") setBalance(v)
     }
     window.addEventListener("balance:update", handler)
     return () => window.removeEventListener("balance:update", handler)
   }, [])
 
-  // 드롭다운 외부 클릭 닫기
+  // ── 외부 클릭 닫기 ──────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -123,57 +112,44 @@ export function TopBar() {
     return () => document.removeEventListener("mousedown", handler)
   }, [])
 
-  // ── 로그인 ─────────────────────────────────────────────────
+  // ── 로그인: 서버 API가 토큰 반환 ─────────────────────────────────
   const handleLogin = async () => {
     setLoginMsg(null)
     if (!loginUsername.trim()) return setLoginMsg({ text: "아이디를 입력해주세요.", ok: false })
     if (!loginPw) return setLoginMsg({ text: "비밀번호를 입력해주세요.", ok: false })
 
     setLoginLoading(true)
-
-    // 1) 서버에서 username → email 조회
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: loginUsername, password: loginPw }),
-    })
-    const data = await res.json()
-
-    if (!res.ok) {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: loginUsername, password: loginPw }),
+      })
+      const data = await res.json()
       setLoginLoading(false)
-      return setLoginMsg({ text: data.error ?? "로그인에 실패했습니다.", ok: false })
-    }
 
-    // 2) 클라이언트에서 signInWithPassword
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: loginPw,
-    })
+      if (!res.ok) return setLoginMsg({ text: data.error ?? "로그인 실패", ok: false })
 
-    setLoginLoading(false)
+      // 서버가 발급한 토큰 저장
+      saveToken(data.token)
+      sessionStorage.setItem("supabase_token", data.token)
 
-    if (signInError) {
-      return setLoginMsg({ text: "아이디 또는 비밀번호가 올바르지 않습니다.", ok: false })
-    }
+      setProfile({ username: data.username, role: data.role ?? "user" })
+      setIsLoggedIn(true)
+      setDropdownOpen(false)
+      setLoginUsername("")
+      setLoginPw("")
 
-    // 3) username을 API 응답에서 직접 받아 state에 저장 (DB/쿠키 읽기 불필요)
-    setProfile({ username: data.username, role: data.role ?? "user" })
-    setIsLoggedIn(true)
-    setDropdownOpen(false)
-    setLoginUsername("")
-    setLoginPw("")
-    // access_token을 sessionStorage에 저장 (게임/다른 페이지에서 사용)
-    if (signInData.session?.access_token) {
-      sessionStorage.setItem("supabase_token", signInData.session.access_token)
-    }
-    const token = signInData.session?.access_token
-    if (token) {
-      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
+      // 잔고 로드
+      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${data.token}` } })
         .then(r => r.json()).then(d => setBalance(d.balance ?? 0))
+    } catch {
+      setLoginLoading(false)
+      setLoginMsg({ text: "네트워크 오류가 발생했습니다.", ok: false })
     }
   }
 
-  // ── 가입 ───────────────────────────────────────────────────
+  // ── 가입: 서버 API가 토큰 반환 ───────────────────────────────────
   const handleRegister = async () => {
     setRegMsg(null)
     if (!regUsername.trim()) return setRegMsg({ text: "아이디를 입력해주세요.", ok: false })
@@ -183,48 +159,41 @@ export function TopBar() {
     if (regPw !== regConfirmPw) return setRegMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false })
 
     setRegLoading(true)
-
-    // 1) 서버에서 가입 처리
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: regUsername, password: regPw }),
-    })
-    const data = await res.json()
-
-    if (!res.ok) {
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: regUsername, password: regPw }),
+      })
+      const data = await res.json()
       setRegLoading(false)
-      return setRegMsg({ text: data.error ?? "가입에 실패했습니다.", ok: false })
-    }
 
-    // 2) 가입 성공 → signInWithPassword로 자동 로그인
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: regPw,
-    })
+      if (!res.ok) return setRegMsg({ text: data.error ?? "가입 실패", ok: false })
 
-    setRegLoading(false)
-
-    if (signInError) {
-      return setRegMsg({ text: "가입은 완료됐으나 로그인에 실패했습니다.", ok: false })
-    }
-
-    // 3) username을 API 응답에서 직접 받아 state에 저장
-    setProfile({ username: data.username ?? regUsername, role: "user" })
-    setIsLoggedIn(true)
-    setDropdownOpen(false)
-    setRegUsername(""); setRegPw(""); setRegConfirmPw("")
-    // access_token을 sessionStorage에 저장 (게임/다른 페이지에서 사용)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) {
-        sessionStorage.setItem("supabase_token", session.access_token)
-        fetch("/api/user/balance", { headers: { Authorization: `Bearer ${session.access_token}` } })
-          .then(r => r.json()).then(d => setBalance(d.balance ?? 0))
+      if (data.needsLogin) {
+        setRegMsg({ text: "가입 완료! 로그인해주세요.", ok: true })
+        setAuthTab("login")
+        return
       }
-    })
+
+      // 서버가 발급한 토큰 저장
+      saveToken(data.token)
+      sessionStorage.setItem("supabase_token", data.token)
+
+      setProfile({ username: data.username, role: data.role ?? "user" })
+      setIsLoggedIn(true)
+      setDropdownOpen(false)
+      setRegUsername(""); setRegPw(""); setRegConfirmPw("")
+
+      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${data.token}` } })
+        .then(r => r.json()).then(d => setBalance(d.balance ?? 0))
+    } catch {
+      setRegLoading(false)
+      setRegMsg({ text: "네트워크 오류가 발생했습니다.", ok: false })
+    }
   }
 
-  // ── 비밀번호 변경 ──────────────────────────────────────────
+  // ── 비밀번호 변경 ─────────────────────────────────────────────────
   const handlePwChange = async () => {
     setPwMsg(null)
     if (!newPw) return setPwMsg({ text: "새 비밀번호를 입력해주세요.", ok: false })
@@ -232,12 +201,12 @@ export function TopBar() {
     if (newPw !== confirmPw) return setPwMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false })
 
     setPwLoading(true)
-    const { data: { session: pwSession } } = await supabase.auth.getSession()
+    const token = getToken()
     const res = await fetch("/api/user/profile", {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        ...(pwSession?.access_token ? { Authorization: `Bearer ${pwSession.access_token}` } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ newPassword: newPw }),
     })
@@ -252,9 +221,9 @@ export function TopBar() {
     }
   }
 
-  // ── 로그아웃 ───────────────────────────────────────────────
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
+  // ── 로그아웃 ─────────────────────────────────────────────────────
+  const handleLogout = () => {
+    clearToken()
     setIsLoggedIn(false)
     setProfile(null)
     setBalance(0)
@@ -281,7 +250,7 @@ export function TopBar() {
           <span className="text-sm font-semibold text-primary">₩ {balance.toLocaleString()}</span>
         </button>
 
-        {/* 우측 */}
+        {/* 우측 프로필 */}
         <div className="flex items-center gap-2" ref={dropdownRef}>
           <button
             onClick={() => setDropdownOpen(v => !v)}
@@ -299,10 +268,8 @@ export function TopBar() {
           {dropdownOpen && (
             <div className="absolute top-14 right-4 w-72 bg-background border border-border rounded-xl shadow-lg overflow-hidden z-50">
 
-              {/* ── 로그인 상태 ── */}
               {isLoggedIn ? (
                 <>
-                  {/* 아이디 (읽기 전용) */}
                   <div className="px-4 py-3 border-b border-border">
                     <p className="text-xs text-muted-foreground mb-1">아이디</p>
                     <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
@@ -361,7 +328,7 @@ export function TopBar() {
                     )}
                   </div>
 
-                  {/* 관리자 패널 (master/super_admin/branch_admin만) */}
+                  {/* 관리자 패널 */}
                   {ADMIN_ROLES.includes(profile?.role ?? "") && (
                     <button
                       onClick={() => { setDropdownOpen(false); router.push("/panel") }}
@@ -382,9 +349,7 @@ export function TopBar() {
                   </button>
                 </>
               ) : (
-                /* ── 비로그인 상태 ── */
                 <>
-                  {/* 탭 */}
                   <div className="flex border-b border-border">
                     <button
                       onClick={() => { setAuthTab("login"); setLoginMsg(null) }}
@@ -401,7 +366,6 @@ export function TopBar() {
                   </div>
 
                   <div className="px-4 py-3 space-y-2">
-                    {/* 로그인 폼 */}
                     {authTab === "login" && (
                       <>
                         <div className="relative">
@@ -429,7 +393,6 @@ export function TopBar() {
                       </>
                     )}
 
-                    {/* 가입 폼 */}
                     {authTab === "register" && (
                       <>
                         <div className="relative">
@@ -462,7 +425,7 @@ export function TopBar() {
                         </div>
                         {regMsg && <p className={`text-xs ${regMsg.ok ? "text-primary" : "text-destructive"}`}>{regMsg.text}</p>}
                         <Button className="w-full h-9 text-sm" onClick={handleRegister} disabled={regLoading}>
-                          {regLoading ? "처리 중..." : "가입하기"}
+                          {regLoading ? "가입 중..." : "회원가입"}
                         </Button>
                       </>
                     )}

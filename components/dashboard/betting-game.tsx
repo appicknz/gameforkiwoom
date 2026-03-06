@@ -293,34 +293,41 @@ export function BettingGame() {
         const latestClose = prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
 
         if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null && latestClose !== null) {
-          const lastDigit = Math.floor(latestClose * 10) % 10
-          const wonDirection = betRef.current ? (betRef.current === "long" ? latestClose > basePriceRef.current : latestClose < basePriceRef.current) : false
+          // 클라이언트에서도 UI 표시용으로 계산 (신뢰 X, 서버가 최종 권한)
+          const lastDigit = Math.floor(Math.abs(latestClose * 10)) % 10
+          const wonDirection = betRef.current ? (betRef.current === "long" ? latestClose >= basePriceRef.current : latestClose < basePriceRef.current) : false
           const wonDigit = betDigitRef.current ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
           const wonParity = betParityRef.current ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
 
-          // 이긴 배팅은 +PAYOUT_RATIO, 진 배팅은 이미 차감됨 → 이긴 경우에만 지급
-          const profit =
-            (betRef.current && wonDirection ? Math.floor(betDirectionAmountRef.current * PAYOUT_RATIO) : 0) +
-            (betDigitRef.current && wonDigit ? Math.floor(betDigitAmountRef.current * PAYOUT_RATIO) : 0) +
-            (betParityRef.current && wonParity ? Math.floor(betParityAmountRef.current * PAYOUT_RATIO) : 0)
-
-          // 이긴 경우 잔고 지급 + 클라이언트 state 업데이트
-          if (profit > 0) {
-            setBalance((prev) => {
-              const next = (prev ?? 0) + profit
-              window.dispatchEvent(new CustomEvent("balance:update", { detail: next }))
-              return next
+          // 서버에 원본 데이터 전송 → 서버가 승패/수익 직접 계산 (위변조 방지)
+          const token = getToken()
+          if (token) {
+            fetch("/api/user/game/play", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                basePrice: basePriceRef.current,
+                closePrice: latestClose,
+                bets: {
+                  direction: betRef.current ?? undefined,
+                  directionAmount: betRef.current ? betDirectionAmountRef.current : undefined,
+                  digit: betDigitRef.current ?? undefined,
+                  digitAmount: betDigitRef.current ? betDigitAmountRef.current : undefined,
+                  parity: betParityRef.current ?? undefined,
+                  parityAmount: betParityRef.current ? betParityAmountRef.current : undefined,
+                },
+              }),
             })
-            const token = getToken()
-            if (token) {
-              fetch("/api/user/game/play", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ profit }),
-              }).catch(console.error)
-            }
+              .then(r => r.json())
+              .then(data => {
+                // 서버가 계산한 최종 잔고로 UI 업데이트
+                if (typeof data.newBalance === "number") {
+                  setBalance(data.newBalance)
+                  window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance }))
+                }
+              })
+              .catch(console.error)
           }
-          // 진 경우: 배팅 시 이미 차감됐으므로 클라이언트 state 추가 변경 없음
 
           const result: RoundResult = {
             round: roundRef.current,
