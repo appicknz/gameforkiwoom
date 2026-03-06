@@ -1,5 +1,11 @@
 import { createClient } from "@supabase/supabase-js"
+import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+})
 
 const PAYOUT_RATIO = 1.95 // 배당률 (서버에서만 정의)
 
@@ -92,6 +98,12 @@ export async function POST(request: Request) {
         .from("balances")
         .update({ amount: newBalance })
         .eq("user_id", user.id)
+
+      // Redis 갱신 + version increment → 모든 기기의 SSE 스트림이 변경 감지
+      await Promise.all([
+        redis.set(`balance:${user.id}`, newBalance, { ex: 3600 }),
+        redis.incr(`balance_version:${user.id}`),
+      ])
     }
 
     return NextResponse.json({

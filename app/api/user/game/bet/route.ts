@@ -1,5 +1,11 @@
 import { createClient } from "@supabase/supabase-js"
+import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+})
 
 export async function POST(request: Request) {
   const supabase = createClient(
@@ -53,6 +59,12 @@ export async function POST(request: Request) {
     if (updateError) {
       return NextResponse.json({ error: "Failed to update balance" }, { status: 500 })
     }
+
+    // Redis에 최신 잔고 저장 + version increment → SSE 스트림이 변경 감지
+    await Promise.all([
+      redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),
+      redis.incr(`balance_version:${userId}`),
+    ])
 
     return NextResponse.json({ success: true, newBalance })
   } catch (error) {

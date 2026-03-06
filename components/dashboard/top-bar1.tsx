@@ -69,8 +69,6 @@ export function TopBar() {
   useEffect(() => {
     const token = getToken()
     if (!token) return
-    // sessionStorage에도 캐시 (betting-game에서 사용)
-    try { sessionStorage.setItem("supabase_token", token) } catch {}
 
     Promise.all([
       fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
@@ -91,7 +89,7 @@ export function TopBar() {
     }).catch(() => {})
   }, [])
 
-  // ── balance:update 이벤트 수신 ────────────────────────────────────
+  // ── balance:update 이벤트 수신 (같은 기기 내 betting-game → top-bar) ──
   useEffect(() => {
     const handler = (e: Event) => {
       const v = (e as CustomEvent<number>).detail
@@ -100,6 +98,40 @@ export function TopBar() {
     window.addEventListener("balance:update", handler)
     return () => window.removeEventListener("balance:update", handler)
   }, [])
+
+  // ── SSE 잔고 스트림: 서버에서 push (다기기 실시간 동기화, 폴링 없음) ──
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+
+    let es: EventSource | null = null
+    let retry: ReturnType<typeof setTimeout> | null = null
+
+    const connect = () => {
+      // EventSource는 헤더를 지원 안 하므로 토큰을 쿼리 파라미터로 전달
+      es = new EventSource(`/api/user/balance/stream?token=${encodeURIComponent(token)}`)
+      es.onmessage = (e) => {
+        try {
+          const d = JSON.parse(e.data)
+          if (typeof d.balance === "number") {
+            setBalance(d.balance)
+            window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
+          }
+        } catch {}
+      }
+      es.onerror = () => {
+        es?.close()
+        // 연결 끊기면 5초 후 재연결
+        retry = setTimeout(connect, 5_000)
+      }
+    }
+
+    connect()
+    return () => {
+      es?.close()
+      if (retry) clearTimeout(retry)
+    }
+  }, [isLoggedIn])
 
   // ── 외부 클릭 닫기 ──────────────────────────────────────────────
   useEffect(() => {

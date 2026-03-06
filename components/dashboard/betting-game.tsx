@@ -467,24 +467,14 @@ export function BettingGame() {
     } catch {}
   }, [getRoundNumber])
 
-  // 잔고 주기적 DB 동기화 (여러 기기 간 일치 보장, 30초마다)
-  // 위변조 방지: 잔고는 항상 서버가 최종 권한
+  // 잔고 동기화: SSE는 top-bar1.tsx에서 담당, balance:update 이벤트로 수신
   useEffect(() => {
-    const syncBalance = () => {
-      const token = getToken()
-      if (!token) return
-      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => r.ok ? r.json() : null)
-        .then((d) => {
-          if (d && typeof d.balance === "number") {
-            setBalance(d.balance)
-            window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
-          }
-        })
-        .catch(() => {})
+    const handler = (e: Event) => {
+      const v = (e as CustomEvent<number>).detail
+      if (typeof v === "number") setBalance(v)
     }
-    const id = setInterval(syncBalance, 30_000)
-    return () => clearInterval(id)
+    window.addEventListener("balance:update", handler)
+    return () => window.removeEventListener("balance:update", handler)
   }, [])
 
   usePriceWorker({
