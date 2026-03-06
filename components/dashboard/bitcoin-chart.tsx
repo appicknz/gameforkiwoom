@@ -331,11 +331,10 @@ export function BitcoinChart() {
 
         {/* 오른쪽: 현재가 + 변동률 */}
         <div className="shrink-0 text-right">
-          {lastCandlePrice ?? ticker?.price ? (
+          {lastCandlePrice ? (
             <>
-              <p className="text-[11px] text-muted-foreground font-medium mb-0.5">현재가</p>
               <p className="text-sm font-bold text-foreground tabular-nums leading-tight">
-                ${(lastCandlePrice ?? ticker?.price ?? 0).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                ${lastCandlePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </p>
               {ticker && (
                 <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold mt-0.5 ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
