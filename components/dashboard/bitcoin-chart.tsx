@@ -58,7 +58,6 @@ export function BitcoinChart() {
   const wsRef = useRef<WebSocket | null>(null)         // kline WS (1m/1h/1d)
   const tickerWsRef = useRef<WebSocket | null>(null)   // ticker WS (변동률)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
-  const dataReadyRef = useRef<boolean>(false)  // setData 완료 전 onPrice 차단
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [interval, setIntervalState] = useState<Interval>("1s")
@@ -114,8 +113,6 @@ export function BitcoinChart() {
   useEffect(() => {
     if (!chartContainerRef.current) return
 
-    dataReadyRef.current = false  // interval 변경 시 데이터 준비 전까지 onPrice 차단
-
     if (chartRef.current) {
       chartRef.current.remove()
       chartRef.current = null
@@ -137,7 +134,7 @@ export function BitcoinChart() {
         vertLine: { color: "rgba(156,163,175,0.5)", labelBackgroundColor: "#1f2937" },
         horzLine: { color: "rgba(156,163,175,0.5)", labelBackgroundColor: "#1f2937" },
       },
-      rightPriceScale: { borderVisible: false, autoScale: true, scaleMargins: { top: 0.15, bottom: 0.15 } },
+      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.1 } },
       timeScale: {
         borderVisible: false,
         timeVisible: true,
@@ -175,7 +172,6 @@ export function BitcoinChart() {
         seriesRef.current.setData(candles)
         chartRef.current?.timeScale().fitContent()
       }
-      dataReadyRef.current = true  // 이후 onPrice 업데이트 허용
     })
 
     return () => {
@@ -186,18 +182,30 @@ export function BitcoinChart() {
     }
   }, [interval, fetchInitialCandles])
 
-  // Price Server — 배팅 기준가(closingPrice) 수신 전용, 차트 캔들과 분리
+  // SSE를 통해 서버가 집계한 가격을 수신 — 모든 사용자 동일 가격 보장
   usePriceWorker({
-    onConnected: useCallback(() => {}, []),
-    onDisconnected: useCallback(() => {}, []),
+    onConnected: useCallback(() => setConnected(true), []),
+    onDisconnected: useCallback(() => setConnected(false), []),
     onInitClosing: useCallback((prices) => {
       setClosingPrices(prices)
     }, []),
-    onPrice: useCallback((price) => {
-      // 현재가 표시 전용 (차트 캔들은 Binance kline WS에서 직접 그림)
-      if (interval === "1s" || interval === "30s") {
-        setLastCandlePrice(price)
+    onPrice: useCallback((price, time) => {
+      if (interval !== "1s" && interval !== "30s") return
+      const bucketSize = interval === "30s" ? 30 : 1
+      const bucket = time - (time % bucketSize)
+
+      // 기존 캔들에서 open 유지, close/high/low 업데이트
+      const existing = candleMapRef.current.get(bucket)
+      const candle: CandleData = {
+        time:  bucket,
+        open:  existing?.open ?? price,
+        high:  existing ? Math.max(existing.high, price) : price,
+        low:   existing ? Math.min(existing.low, price)  : price,
+        close: price,
       }
+      candleMapRef.current.set(bucket, candle)
+      seriesRef.current?.update(candle)
+      setLastCandlePrice(price)
     }, [interval]),
     onClosingPrice: useCallback((price, time) => {
       setClosingPrices((prev) => {
@@ -208,50 +216,26 @@ export function BitcoinChart() {
     }, []),
   })
 
-  // kline WebSocket — 1s/30s/1m/1h/1d 모두 Binance에서 직접 OHLC 수신
+  // kline WebSocket (1m, 1h, 1d)
   useEffect(() => {
+    if (interval === "1s" || interval === "30s") return
+    const cfg = INTERVAL_CONFIG[interval]
 
     const connect = () => {
-      // 1s, 30s 모두 kline_1s 스트림 사용 (OHLC가 이미 계산된 채로 수신)
-      const binanceInterval = (interval === "1s" || interval === "30s")
-        ? "1s"
-        : INTERVAL_CONFIG[interval].binance
-      const ws = new WebSocket(`wss://fstream.binance.com/ws/btcusdt@kline_${binanceInterval}`)
+      const ws = new WebSocket(`wss://fstream.binance.com/ws/btcusdt@kline_${cfg.binance}`)
       wsRef.current = ws
-
       ws.onopen = () => setConnected(true)
       ws.onmessage = (e) => {
-        if (!seriesRef.current || !dataReadyRef.current) return
         const k = JSON.parse(e.data).k
-        const openTimeSec = Math.floor(k.t / 1000)
-
-        if (interval === "30s") {
-          // 30초 버킷: 30초 단위로 집계
-          const bucket = openTimeSec - (openTimeSec % 30)
-          const existing = candleMapRef.current.get(bucket)
-          const candle: CandleData = {
-            time:  bucket,
-            open:  existing?.open ?? parseFloat(k.o),
-            high:  existing ? Math.max(existing.high, parseFloat(k.h)) : parseFloat(k.h),
-            low:   existing ? Math.min(existing.low, parseFloat(k.l))  : parseFloat(k.l),
-            close: parseFloat(k.c),
-          }
-          candleMapRef.current.set(bucket, candle)
-          seriesRef.current.update(candle)
-          setLastCandlePrice(parseFloat(k.c))
-        } else {
-          // 1s, 1m, 1h, 1d: Binance OHLC 그대로 사용
-          const candle: CandleData = {
-            time:  openTimeSec,
-            open:  parseFloat(k.o),
-            high:  parseFloat(k.h),
-            low:   parseFloat(k.l),
-            close: parseFloat(k.c),
-          }
-          candleMapRef.current.set(candle.time, candle)
-          seriesRef.current.update(candle)
-          if (interval === "1s") setLastCandlePrice(parseFloat(k.c))
+        const candle: CandleData = {
+          time:  Math.floor(k.t / 1000),
+          open:  parseFloat(k.o),
+          high:  parseFloat(k.h),
+          low:   parseFloat(k.l),
+          close: parseFloat(k.c),
         }
+        candleMapRef.current.set(candle.time, candle)
+        seriesRef.current?.update(candle)
       }
       ws.onerror = () => setConnected(false)
       ws.onclose = () => { setConnected(false); setTimeout(connect, 3000) }
@@ -309,7 +293,7 @@ export function BitcoinChart() {
 
   return (
     <Card className="p-4 bg-background border border-border/60">
-      {/* 헤더 1���: 배팅 기준가(왼) + 현재가(오) */}
+      {/* 헤더 1행: 배팅 기준가(왼) + 현재가(오) */}
       <div className="flex items-start justify-between gap-2 mb-[6px]">
         {/* 왼쪽: 로고 + 배팅 기준가 + 인터벌 버튼 */}
         <div className="flex items-start gap-2.5 min-w-0">
