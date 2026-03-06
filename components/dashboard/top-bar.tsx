@@ -11,7 +11,14 @@ interface Profile {
   role: string
 }
 
+// 싱글톤 클라이언트 (렌더링마다 새로 생성하지 않음)
+const supabaseClient = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
 export function TopBar() {
+  const supabase = supabaseClient
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [balance, setBalance] = useState(0)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -52,11 +59,6 @@ export function TopBar() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [pwLoading, setPwLoading] = useState(false)
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
 
   useEffect(() => {
     const init = async () => {
