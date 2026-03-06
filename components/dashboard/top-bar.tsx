@@ -1,10 +1,11 @@
 "use client"
 
-import { Menu, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn } from "lucide-react"
+import { Menu, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState, useEffect, useRef } from "react"
 import { createClient } from "@supabase/supabase-js"
+import { useRouter } from "next/navigation"
 
 interface Profile {
   username: string
@@ -20,7 +21,10 @@ const supabase = createClient(
 // React Strict Mode 에서 중복 구독 방지
 let authSubscriptionUnsubscribe: (() => void) | null = null
 
+const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
+
 export function TopBar() {
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [balance, setBalance] = useState(0)
@@ -322,6 +326,17 @@ export function TopBar() {
                       </div>
                     )}
                   </div>
+
+                  {/* 관리자 패널 (master/super_admin/branch_admin만) */}
+                  {ADMIN_ROLES.includes(profile?.role ?? "") && (
+                    <button
+                      onClick={() => { setDropdownOpen(false); router.push("/panel") }}
+                      className="flex items-center gap-2 w-full px-4 py-3 text-sm text-primary hover:bg-primary/10 transition-colors border-b border-border"
+                    >
+                      <Shield className="w-3.5 h-3.5" />
+                      관리자 패널
+                    </button>
+                  )}
 
                   {/* 로그아웃 */}
                   <button
