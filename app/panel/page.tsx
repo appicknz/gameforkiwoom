@@ -253,7 +253,7 @@ export default function PanelPage() {
   if (!adminPw) {
     const isBranchAdmin = myRole === "branch_admin"
     const pwLabel = isBranchAdmin ? "본인 비밀번호" : "마스터 비밀번호"
-    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본�� 비밀번호를 입력하세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
+    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력하세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
