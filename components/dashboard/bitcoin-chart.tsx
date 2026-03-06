@@ -212,6 +212,7 @@ export function BitcoinChart() {
       }
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
+      chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
       setLastCandlePrice(price)
     }, [interval]),
     onClosingPrice: useCallback((price, time) => {
@@ -300,7 +301,7 @@ export function BitcoinChart() {
 
   return (
     <Card className="p-4 bg-background border border-border/60">
-      {/* 헤더 1행: 배팅 기준가(왼) + 현재가(오) */}
+      {/* 헤더 1���: 배팅 기준가(왼) + 현재가(오) */}
       <div className="flex items-start justify-between gap-2 mb-[6px]">
         {/* 왼쪽: 로고 + 배팅 기준가 + 인터벌 버튼 */}
         <div className="flex items-start gap-2.5 min-w-0">
