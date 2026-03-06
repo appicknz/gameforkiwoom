@@ -26,9 +26,9 @@ interface Branch {
   id: string
   code: string
   name: string
-  admin_id: string | null
+  status: string
+  owner_email: string | null
   created_at: string
-  profiles?: { username: string } | null
 }
 
 export default function PanelPage() {
@@ -55,7 +55,7 @@ export default function PanelPage() {
   const [branchesLoading, setBranchesLoading] = useState(false)
   const [newBranchName, setNewBranchName] = useState("")
   const [newBranchCode, setNewBranchCode] = useState("")
-  const [newBranchAdminId, setNewBranchAdminId] = useState("")
+  const [newBranchOwner, setNewBranchOwner] = useState("")
   const [branchMsg, setBranchMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [branchLoading, setBranchLoading] = useState(false)
 
@@ -153,7 +153,7 @@ export default function PanelPage() {
         pw: adminPw,
         name: newBranchName,
         code: newBranchCode.trim().toUpperCase(),
-        adminId: newBranchAdminId || null,
+        ownerUsername: newBranchOwner.trim() || null,
       }),
     })
     const data = await res.json()
@@ -163,7 +163,7 @@ export default function PanelPage() {
       setBranchMsg({ text: `지점 '${newBranchName}'이 생성됐습니다.`, ok: true })
       setNewBranchName("")
       setNewBranchCode("")
-      setNewBranchAdminId("")
+      setNewBranchOwner("")
       loadBranches(adminPw)
       loadUsers(adminPw)
     }
@@ -380,16 +380,12 @@ export default function PanelPage() {
                 />
                 <div className="relative">
                   <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <select
-                    className="w-full h-10 pl-9 pr-3 text-sm border border-input rounded-md bg-background text-foreground"
-                    value={newBranchAdminId}
-                    onChange={e => setNewBranchAdminId(e.target.value)}
-                  >
-                    <option value="">지점관리자 선택 (선택사항)</option>
-                    {users.filter(u => u.role !== "master").map(u => (
-                      <option key={u.id} value={u.id}>{u.username} ({roleLabel[u.role]?.label ?? u.role})</option>
-                    ))}
-                  </select>
+                  <Input
+                    className="pl-9"
+                    placeholder="지점관리자 아이디 (선택사항)"
+                    value={newBranchOwner}
+                    onChange={e => setNewBranchOwner(e.target.value)}
+                  />
                 </div>
               </div>
               {branchMsg && <p className={`text-xs mb-3 ${branchMsg.ok ? "text-primary" : "text-destructive"}`}>{branchMsg.text}</p>}
@@ -430,7 +426,7 @@ export default function PanelPage() {
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            관리자: {branch.profiles?.username ?? "미지정"} · {formatDate(branch.created_at)}
+                            관리자: {branch.owner_email ?? "미지정"} · {formatDate(branch.created_at)}
                           </p>
                         </div>
                       </div>
