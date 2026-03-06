@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { Check, X } from "lucide-react"
 import { GameChart } from "@/components/game/game-chart"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+import { createClient } from "@supabase/supabase-js"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
@@ -89,6 +90,11 @@ function expectedReturn(betCount: number, amount: number) {
 }
 
 export default function GamePage() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+
   const [timeLeft, setTimeLeft] = useState(30)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
   const [betDigit, setBetDigit] = useState<BetDigit>(null)
@@ -182,6 +188,7 @@ export default function GamePage() {
 
           // 정산: 이긴 배팅 +95%, 진 배팅 -100%
           const profit = Math.floor(wonCount * betAmountRef.current * PAYOUT_RATIO) - lostCount * betAmountRef.current
+          const newBalance = Math.max(0, balance + profit)
 
           const result: RoundResult = {
             direction: betRef.current,
@@ -197,9 +204,23 @@ export default function GamePage() {
           }
           setLastResult(result)
           setRoundCount((c) => c + 1)
-          setBalance((b) => Math.max(0, b + profit))
+          setBalance(newBalance)
           setPhase("result")
           setShowResult(true)
+
+          // DB에 결과 저장 (비동기, 실패해도 UI는 진행)
+          const session = await supabase.auth.getSession().catch(() => ({ data: { session: null } }))
+          const token = session?.data?.session?.access_token
+          if (token) {
+            fetch("/api/user/game/play", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ profit, newBalance }),
+            }).catch((err) => console.error("Game result save failed:", err))
+          }
 
           setTimeout(() => {
             setShowResult(false)
