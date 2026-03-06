@@ -408,6 +408,47 @@ export function BettingGame() {
       .catch(console.error)
   }, [])
 
+  // 새로고침 대비: localStorage에서 이전 배팅 복원
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("game_pending_bet")
+      if (!raw) return
+      const saved = JSON.parse(raw) as {
+        round: number
+        direction: BetDirection
+        digit: BetDigit
+        parity: BetParity
+        basePrice: number
+        directionAmount: number
+        digitAmount: number
+        parityAmount: number
+      }
+      const currentRound = getRoundNumber()
+      // 저장된 라운드와 현재 라운드가 같을 때만 복원 (이미 종료된 라운드는 무시)
+      if (saved.round !== currentRound) {
+        localStorage.removeItem("game_pending_bet")
+        return
+      }
+      // refs 복원
+      betRef.current = saved.direction
+      betDigitRef.current = saved.digit
+      betParityRef.current = saved.parity
+      basePriceRef.current = saved.basePrice
+      betDirectionAmountRef.current = saved.directionAmount
+      betDigitAmountRef.current = saved.digitAmount
+      betParityAmountRef.current = saved.parityAmount
+      // state 복원
+      if (saved.direction) setBetDirection(saved.direction)
+      if (saved.digit) setBetDigit(saved.digit)
+      if (saved.parity) setBetParity(saved.parity)
+      setBasePrice(saved.basePrice)
+      if (saved.directionAmount) setBetDirectionAmount(saved.directionAmount)
+      if (saved.digitAmount) setBetDigitAmount(saved.digitAmount)
+      if (saved.parityAmount) setBetParityAmount(saved.parityAmount)
+      setPhase("waiting")
+    } catch {}
+  }, [getRoundNumber])
+
   // 다이얼로그 상태
   const [dialog, setDialog] = useState<{ open: boolean; type: BetType; value: string } | null>(null)
   const [isPlacingBet, setIsPlacingBet] = useState(false)
@@ -456,6 +497,9 @@ export function BettingGame() {
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
         const prices = closingPricesRef.current
         const latestClose = prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
+
+        // 결산 시작 전 localStorage 초기화 (어떤 경우든)
+        try { localStorage.removeItem("game_pending_bet") } catch {}
 
         if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null && latestClose !== null) {
           // 클라이언트에서도 UI 표시용으로 계산 (신뢰 X, 서버가 최종 권한)
@@ -609,6 +653,21 @@ export function BettingGame() {
         basePriceRef.current = base
         setBasePrice(base)
       }
+
+      // localStorage에 배팅 상태 저장 (새로고침 대비)
+      try {
+        localStorage.setItem("game_pending_bet", JSON.stringify({
+          round: getRoundNumber(),
+          direction: betRef.current,
+          digit: betDigitRef.current,
+          parity: betParityRef.current,
+          basePrice: basePriceRef.current,
+          directionAmount: betDirectionAmountRef.current,
+          digitAmount: betDigitAmountRef.current,
+          parityAmount: betParityAmountRef.current,
+        }))
+      } catch {}
+
       setPhase("waiting")
       setDialog(null)
     } catch (err) {
