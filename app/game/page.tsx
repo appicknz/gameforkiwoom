@@ -425,7 +425,7 @@ export default function GamePage() {
 
       {/* 상단 헤더: grid-cols-3으로 타이머를 정확히 가운데 고정 */}
       <div className="px-4 pt-3 pb-1 grid grid-cols-3 items-center shrink-0">
-        {/* 왼쪽: 잔고 */}
+        {/* 왼쪽: 잔��� */}
         <div>
           <p className="text-[8px] text-white/30 uppercase tracking-widest">잔고 BALANCE</p>
           <p className="text-[13px] font-bold text-white tabular-nums leading-tight">
@@ -509,6 +509,37 @@ export default function GamePage() {
         <p className="text-[9px] font-semibold" style={{ color: timerColor }}>
           {timerLabel}
         </p>
+      </div>
+
+      {/* 누적식 금액 선택 버튼 */}
+      <div className="mx-4 mb-2 shrink-0">
+        <div className="flex gap-1.5">
+          {[10000, 50000, 100000, 500000, 1000000].map((amt) => {
+            const isActive = lastClickedAmountButton === amt && activeAmountType !== null
+            return (
+              <button
+                key={amt}
+                onClick={() => {
+                  const type = activeAmountType ?? "direction"
+                  handleAccumulateAmount(amt, type)
+                }}
+                className="flex-1 py-2 rounded-xl text-[10px] font-bold transition-all duration-150 border"
+                style={{
+                  background: isActive ? "rgba(0,230,118,0.18)" : "rgba(255,255,255,0.04)",
+                  borderColor: isActive ? "#00e676" : "rgba(255,255,255,0.08)",
+                  color: isActive ? "#00e676" : "rgba(255,255,255,0.45)",
+                }}
+              >
+                {amt >= 1000000 ? "100만" : amt >= 500000 ? "50만" : amt >= 100000 ? "10만" : amt >= 50000 ? "5만" : "1만"}
+                {isActive && (
+                  <span className="block text-[8px] opacity-60 mt-0.5">
+                    ×{Math.round(accumulatedAmount / amt)}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* 배팅 버튼 영역 */}
@@ -711,32 +742,6 @@ export default function GamePage() {
         </div>
       </div>
 
-      {/* 누적식 금액 선택 버튼 */}
-      <div className="mx-4 mt-3 rounded-xl border border-white/8 bg-[#0f1527] px-3 py-2 shrink-0">
-        <p className="text-[8px] text-white/30 mb-2">금액 누적 선택</p>
-        <div className="grid grid-cols-5 gap-1.5">
-          {[10000, 50000, 100000, 500000, 1000000].map((amt) => (
-            <button
-              key={amt}
-              onClick={() => {
-                if (activeAmountType === "direction") handleAccumulateAmount(amt, "direction")
-                else if (activeAmountType === "digit") handleAccumulateAmount(amt, "digit")
-                else if (activeAmountType === "parity") handleAccumulateAmount(amt, "parity")
-              }}
-              disabled={activeAmountType === null || phase !== "betting" || canBet === false}
-              className="rounded-lg py-2 text-[9px] font-semibold transition-all duration-200 border disabled:opacity-30"
-              style={{
-                background: lastClickedAmountButton === amt && activeAmountType ? "rgba(0,230,118,0.15)" : "rgba(255,255,255,0.03)",
-                borderColor: lastClickedAmountButton === amt && activeAmountType ? "#00e676" : "rgba(255,255,255,0.08)",
-                color: lastClickedAmountButton === amt && activeAmountType ? "#00e676" : "rgba(255,255,255,0.4)",
-              }}
-            >
-              {amt === 1000000 ? "100만" : amt === 500000 ? "50만" : amt === 100000 ? "10만" : amt === 50000 ? "5만" : "1만"}
-            </button>
-          ))}
-        </div>
-        {activeAmountType && <p className="text-[8px] text-white/40 mt-2 text-center">현재: ₩{accumulatedAmount.toLocaleString()}</p>}
-      </div>
       <div className="mx-4 mt-2 mb-1 shrink-0">
         <button
           disabled={selectedCount === 0 || !canBet}
