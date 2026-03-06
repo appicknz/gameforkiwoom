@@ -58,10 +58,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "해당 아이디의 회원을 찾을 수 없습니다." }, { status: 404 })
     }
 
-    // 지점 관리자로 role 승격
+    // 지점 관리자로 role 승격 및 branch_code 설정
     await adminSupabase
       .from("profiles")
-      .update({ role: "branch_admin" })
+      .update({ role: "branch_admin", branch_code: code.toUpperCase() })
       .eq("id", ownerProfile.id)
 
     ownerEmail = ownerProfile.username
