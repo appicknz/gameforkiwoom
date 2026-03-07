@@ -401,3 +401,5 @@ export default function RadarOverlay({ priceData }: { priceData?: { volume: numb
     </div>
   )
 }
+
+export { RadarOverlay as AquariumOverlay }
