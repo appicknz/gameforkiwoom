@@ -1,52 +1,63 @@
 "use client"
 
-import { AquariumChart } from "@/components/widget/aquarium-chart"
-import { BettingGame } from "@/components/dashboard/betting-game"
+import { NeonBettingGame } from "@/components/widget/neon-betting-game"
+import { NeonChart } from "@/components/widget/neon-chart"
 import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { TopBar } from "@/components/dashboard/top-bar"
 
-// /widget 경로
-// - 로직(가격 파싱, 인터벌, 배팅 기준가, 거래대금 등)은 원본 컴포넌트를 그대로 import
-// - 디자인만 별도 관리: 수족관 오버레이 + 딥씨 테마
+// /widget — 네온 사이버펑크 테마
+// 로직: 원본 컴포넌트(BettingGame 로직) 그대로 NeonBettingGame으로 이식
+// 디자인: 완전히 새로운 다크 네온 테마, 원본 / (메인 페이지) 유지
 export default function WidgetPage() {
   return (
     <div
-      className="min-h-screen"
-      style={{
-        background: "linear-gradient(160deg, #0c1445 0%, #0a3252 40%, #053d5a 70%, #062d42 100%)",
-      }}
+      className="min-h-screen font-sans"
+      style={{ background: "#080c18" }}
     >
-      <TopBar />
+      {/* 네온 TopBar — 배경 오버라이드 */}
+      <div style={{ background: "#0d1526", borderBottom: "1px solid rgba(0,255,136,0.1)" }}>
+        <TopBar />
+      </div>
 
-      <main className="p-3 md:p-5 mt-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <main className="max-w-7xl mx-auto p-3 md:p-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
 
-            {/* 왼쪽: 차트 + 배팅 */}
-            <div className="lg:col-span-2 space-y-4">
-              {/* 수족관 차트 */}
-              <div className="rounded-2xl overflow-hidden ring-1 ring-sky-500/20 shadow-2xl shadow-sky-900/40">
-                <AquariumChart />
-              </div>
-
-              {/* 배팅 게임 - 딥씨 스타일 */}
-              <div className="rounded-2xl overflow-hidden ring-1 ring-sky-500/20 shadow-xl shadow-sky-900/30">
-                <BettingGame />
-              </div>
+          {/* 왼쪽: 차트 + 배팅 패널 */}
+          <div className="lg:col-span-2 space-y-3">
+            {/* 네온 차트 */}
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ border: "1px solid rgba(0,255,136,0.12)", boxShadow: "0 0 40px rgba(0,255,136,0.06)" }}
+            >
+              <NeonChart />
             </div>
 
-            {/* 오른쪽: 끝자리 + 마감가 */}
-            <div className="space-y-4">
-              <div className="rounded-2xl overflow-hidden ring-1 ring-sky-500/20 shadow-xl shadow-sky-900/30">
-                <ClosingPricesBadges />
-              </div>
-              <div className="rounded-2xl overflow-hidden ring-1 ring-sky-500/20 shadow-xl shadow-sky-900/30">
-                <ClosingPrices />
-              </div>
+            {/* 네온 배팅 게임 */}
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ border: "1px solid rgba(0,255,136,0.12)", boxShadow: "0 0 40px rgba(0,255,136,0.05)" }}
+            >
+              <NeonBettingGame />
             </div>
-
           </div>
+
+          {/* 오른쪽: 끝자리 + 마감가 */}
+          <div className="space-y-3">
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ background: "#0d1526", border: "1px solid rgba(0,255,136,0.12)", boxShadow: "0 0 30px rgba(0,255,136,0.05)" }}
+            >
+              <ClosingPricesBadges />
+            </div>
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ background: "#0d1526", border: "1px solid rgba(0,255,136,0.12)", boxShadow: "0 0 30px rgba(0,255,136,0.05)" }}
+            >
+              <ClosingPrices />
+            </div>
+          </div>
+
         </div>
       </main>
     </div>
