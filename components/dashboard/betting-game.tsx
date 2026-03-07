@@ -514,6 +514,16 @@ export function BettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
+        // 라운드 전환 순간의 현재가를 새 라운드 배팅 기준가로 즉시 고정
+        const newBase = currentPriceRef.current
+        if (newBase !== null) {
+          basePriceRef.current = newBase
+          setBasePrice(newBase)
+          window.dispatchEvent(new CustomEvent("round:basePrice", {
+            detail: { price: newBase, time: Math.floor(Date.now() / 1000) },
+          }))
+        }
+
         const prices = closingPricesRef.current
         const latestClose = prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
 
