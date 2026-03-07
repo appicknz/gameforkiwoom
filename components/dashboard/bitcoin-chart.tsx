@@ -75,36 +75,42 @@ export function BitcoinChart({
   const [lastCandlePrice, setLastCandlePrice] = useState<number | null>(null)
   const [connected, setConnected] = useState(false)
 
-  // 배팅 기준가 수평선 + 차트 픽셀 좌표 계산 (onBasePriceCoord가 있을 때만)
+  // 배팅 기준가 수평선 — 라운드 전환 순간(round:basePrice 이벤트)에만 업데이트
   useEffect(() => {
-    if (!seriesRef.current || closingPrices.length === 0) return
-    const latest = closingPrices[closingPrices.length - 1]
-    const latestPrice = latest.price
-    if (priceLineRef.current) {
-      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch {}
-    }
-    priceLineRef.current = seriesRef.current.createPriceLine({
-      price: latestPrice,
-      color: "#facc15",
-      lineWidth: 1,
-      lineStyle: 2,
-      axisLabelVisible: true,
-      title: "배팅 기준가",
-    })
-    if (onBasePriceCoord && chartRef.current) {
-      try {
-        const y = chartRef.current.priceScale("right").priceToCoordinate(latestPrice)
-        const x = chartRef.current.timeScale().timeToCoordinate(latest.time as any)
-        if (y !== null && x !== null) {
-          onBasePriceCoord({ x: Number(x), y: Number(y) })
-        } else {
+    const handler = (e: Event) => {
+      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
+      if (!seriesRef.current) return
+
+      if (priceLineRef.current) {
+        try { seriesRef.current.removePriceLine(priceLineRef.current) } catch {}
+      }
+      priceLineRef.current = seriesRef.current.createPriceLine({
+        price,
+        color: "#facc15",
+        lineWidth: 1,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: "배팅 기준가",
+      })
+
+      if (onBasePriceCoord && chartRef.current) {
+        try {
+          const y = chartRef.current.priceScale("right").priceToCoordinate(price)
+          const x = chartRef.current.timeScale().timeToCoordinate(time as any)
+          if (y !== null && x !== null) {
+            onBasePriceCoord({ x: Number(x), y: Number(y) })
+          } else {
+            onBasePriceCoord(null)
+          }
+        } catch {
           onBasePriceCoord(null)
         }
-      } catch {
-        onBasePriceCoord(null)
       }
     }
-  }, [closingPrices, onBasePriceCoord])
+
+    window.addEventListener("round:basePrice", handler)
+    return () => window.removeEventListener("round:basePrice", handler)
+  }, [onBasePriceCoord])
 
   // 차트 + WebSocket 초기화 (interval 변경 시 재실행)
   useEffect(() => {
@@ -217,14 +223,7 @@ export function BitcoinChart({
           candleMapRef.current.set(candle.time, candle)
           seriesRef.current.update(candle)
 
-          // 1초봉 기준: 정확히 30초 전 캔들 종가를 배팅 기준가로 사용
-          if (interval === "1s") {
-            const target = kOpenTimeSec - 30
-            const ref = candleMapRef.current.get(target)
-            if (ref) {
-              setClosingPrices([{ time: target, price: ref.close }])
-            }
-          }
+
         }
 
         setLastCandlePrice(closePrice)

@@ -502,6 +502,12 @@ export function BettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
+        // 새 라운드 시작 순간의 현재가 = 이번 라운드 배팅 기준가
+        const newBasePrice = currentPriceRef.current
+        if (newBasePrice !== null) {
+          window.dispatchEvent(new CustomEvent("round:basePrice", { detail: { price: newBasePrice, time: Math.floor(Date.now() / 1000) } }))
+        }
+
         const prices = closingPricesRef.current
         const latestClose = prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
 
@@ -569,7 +575,7 @@ export function BettingGame() {
           setPhase("result")
         }
 
-        // 새 라운드 초기화 (결과 시트는 닫지 않음 - 유저가 직접 닫거나 배팅 시 닫힘)
+        // 새 라운드 초기화 (결과 시트�� 닫지 않음 - 유저가 직접 닫거나 배팅 시 닫힘)
         betRef.current = null
         betDigitRef.current = null
         betParityRef.current = null
@@ -595,10 +601,8 @@ export function BettingGame() {
     return () => clearInterval(tick)
   }, [getRoundNumber])
 
-  const getBase = () => {
-    const prices = closingPricesRef.current
-    return prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
-  }
+  // 배팅 시 기준가: 항상 현재가 (라운드 시작 시점에 price line과 동기화됨)
+  const getBase = () => currentPriceRef.current
 
   const canBet = timeLeft > 15 && phase !== "result"
 
