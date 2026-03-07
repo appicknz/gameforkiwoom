@@ -3,18 +3,37 @@
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 
+function extractDigit(price: number): number {
+  const priceStr = price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return parseInt(priceStr[priceStr.length - 1]) || 0
+}
+
 export function ClosingPricesBadges() {
   const [lastDigits, setLastDigits] = useState<number[]>([])
 
+  // 새로고침 시 DB에서 초기 끝자리 데이터 로드
+  useEffect(() => {
+    fetch("/api/closing-price")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.prices && data.prices.length > 0) {
+          const existing: any[] = (window as any).__bitcoinClosingPrices ?? []
+          if (existing.length === 0) {
+            ;(window as any).__bitcoinClosingPrices = data.prices
+          }
+          const digits = data.prices.map((item: { price: number }) => extractDigit(item.price))
+          setLastDigits(digits.slice(-10).reverse())
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // 이후 실시간 업데이트는 window 폴링
   useEffect(() => {
     const updateDigits = () => {
       const closingPrices = (window as any).__bitcoinClosingPrices || []
-      const digits = closingPrices.map((item: { price: number }) => {
-        const priceStr = item.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-        const lastChar = priceStr[priceStr.length - 1]
-        return parseInt(lastChar) || 0
-      })
-      setLastDigits(digits.slice(-10).reverse()) // 최근 10개
+      const digits = closingPrices.map((item: { price: number }) => extractDigit(item.price))
+      setLastDigits(digits.slice(-10).reverse())
     }
 
     updateDigits()

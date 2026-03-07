@@ -70,12 +70,8 @@ export function BitcoinChart() {
   const [closingPrices, setClosingPrices] = useState<Array<{ time: number; price: number }>>([])
   const prevBucketRef = useRef<number | null>(null)
 
-  // closingPrices를 window 객체에 저장해서 다른 컴포넌트에서 접근 가능하게
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).__bitcoinClosingPrices = closingPrices
-    }
-  }, [closingPrices])
+  // 차트 내 "배팅가" 수평선용으로만 closingPrices state를 사용합니다.
+  // window.__bitcoinClosingPrices 관리는 use-price-worker(betting-game)가 단독으로 담당합니다.
 
   // 현재가를 window 객체에 저장
   useEffect(() => {
@@ -241,13 +237,14 @@ export function BitcoinChart() {
       candleMapRef.current.set(bucket, candle)
       seriesRef.current?.update(candle)
 
-      // 30초마다 마감 가격 기록 (모든 인터벌에서)
+      // 30초마다 배팅 기준가 업데이트 (window.__bitcoinClosingPrices는 use-price-worker가 관리)
+      // 차트 내 "배팅가" 수평선 표시를 위해서만 local state 업데이트
       const thirtySecBucket = now - (now % 30)
       if (prevBucketRef.current === null || thirtySecBucket !== prevBucketRef.current) {
         prevBucketRef.current = thirtySecBucket
         setClosingPrices((prev) => {
           const updated = [...prev, { time: thirtySecBucket, price: closingPrice }]
-          return updated.slice(-100) // 최근 100개만 유지
+          return updated.slice(-100)
         })
       }
 

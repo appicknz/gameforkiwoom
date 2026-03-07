@@ -95,6 +95,17 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
       // ── 개발용 폴백: Binance 직접 연결 ──────────────────────
       console.warn("[usePriceWorker] NEXT_PUBLIC_PRICE_SERVER_URL not set, falling back to Binance direct connection")
 
+      // Railway 서버 없을 때 DB에서 초기 마감가 로드 (새로고침 대응)
+      fetch("/api/closing-price")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.prices && data.prices.length > 0 && !win.__bitcoinClosingPrices?.length) {
+            win.__bitcoinClosingPrices = data.prices
+            optsRef.current.onInitClosing?.(data.prices)
+          }
+        })
+        .catch(() => {})
+
       let tradeWs: WebSocket | null = null
       let klineWs: WebSocket | null = null
       let tradeRetry: ReturnType<typeof setTimeout> | null = null

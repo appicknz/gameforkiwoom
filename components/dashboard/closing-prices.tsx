@@ -11,6 +11,24 @@ interface ClosingPrice {
 export function ClosingPrices() {
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
 
+  // 새로고침 시 DB에서 초기 데이터 로드
+  useEffect(() => {
+    fetch("/api/closing-price")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.prices && data.prices.length > 0) {
+          // DB 데이터를 window에도 반영해서 다른 컴포넌트가 바로 사용 가능하게
+          const existing: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
+          if (existing.length === 0) {
+            ;(window as any).__bitcoinClosingPrices = data.prices
+            setClosingPrices(data.prices)
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // 이후 실시간 업데이트는 window 폴링
   useEffect(() => {
     const interval = setInterval(() => {
       if (typeof window !== 'undefined' && (window as any).__bitcoinClosingPrices) {
