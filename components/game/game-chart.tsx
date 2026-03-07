@@ -124,36 +124,26 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
     }
   }, [fetchInitialCandles])
 
-  // setInterval 폴링 완전 제거 — onClosingPrice 콜백에서 배팅가 수평선을 직접 업데이트
-  // basePriceCoord: 차트 내에서 배팅가 라인의 실제 픽셀 위치 (레이더 target용)
+  // basePriceCoord: 배팅가 라인의 픽셀 위치 (레이더 target용)
   const updateBasePriceCoord = useCallback(() => {
     if (!chartRef.current || !seriesRef.current || !priceLineRef.current) {
       onBasePriceCoordRef.current?.(null)
       return
     }
     try {
-      const chart = chartRef.current
-      const series = seriesRef.current
       const priceLine = priceLineRef.current
       const price = priceLine.options().price as number
-      
-      // price → y 픽셀 좌표 (series 기준)
-      const y = series.priceToCoordinate?.(price)
+      const y = seriesRef.current.priceToCoordinate?.(price)
       if (y === null || y === undefined) {
         onBasePriceCoordRef.current?.(null)
         return
       }
-
-      // chart 우측 끝 기준 x 좌표
       const container = containerRef.current
       if (!container) {
         onBasePriceCoordRef.current?.(null)
         return
       }
-
-      const x = container.clientWidth - 40
-
-      onBasePriceCoordRef.current?.({ x, y })
+      onBasePriceCoordRef.current?.({ x: container.clientWidth - 40, y })
     } catch {
       onBasePriceCoordRef.current?.(null)
     }
@@ -167,7 +157,7 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
   const updateBaseLine = useCallback((price: number) => {
     if (!seriesRef.current) return
     if (priceLineRef.current) {
-      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
+      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { /* ignore */ }
     }
     priceLineRef.current = seriesRef.current.createPriceLine({
       price,
@@ -177,11 +167,9 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
       axisLabelVisible: true,
       title: "배팅가",
     })
-    // 새 price line이 생기면 좌표 업데이트
     updateBasePriceCoord()
   }, [updateBasePriceCoord])
 
-  // usePriceWorker 콜백 — 인라인 useCallback 금지 (Turbopack 파싱 에러 방지)
   const handlePrice = useCallback((price: number, time: number) => {
     const bucket = time - (time % 1)
     const existing = candleMapRef.current.get(bucket)
@@ -208,7 +196,6 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
     }
   }, [updateBaseLine])
 
-  // 모든 사용자 동일 가격 보장 — usePriceWorker 단일 소스
   usePriceWorker({
     onPrice: handlePrice,
     onClosingPrice: handleClosingPrice,
