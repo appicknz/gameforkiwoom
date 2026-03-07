@@ -471,7 +471,7 @@ export function NeonBettingGame() {
           {/* 좌: 잔고 + 배팅 + 예상수익 */}
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-0.5">잔고 BALANCE</p>
-            <p className="text-lg font-black tabular-nums text-white leading-none" style={{ fontFamily: "var(--font-orbitron, monospace)" }}>
+            <p className="text-xs font-black tabular-nums text-white leading-none" style={{ fontFamily: "var(--font-orbitron, monospace)" }}>
               {balance !== null ? `${balance.toLocaleString()}원` : "—"}
             </p>
             {totalBet > 0 && (
@@ -504,8 +504,8 @@ export function NeonBettingGame() {
               </p>
               {basePrice !== null && (
                 <>
-                  <p className="text-[10px] text-white/20 text-right">vs 배팅가</p>
-                  <p className="text-base font-bold tabular-nums text-right text-white/60">
+                  <p className="text-[10px] text-white/20 text-right mt-1.5">마감 기준가</p>
+                  <p className="text-sm font-black tabular-nums text-right" style={{ color: "#00ff88", textShadow: "0 0 8px rgba(0,255,136,0.4)", fontFamily: "var(--font-orbitron, monospace)" }}>
                     {fmt(basePrice)}
                   </p>
                 </>
