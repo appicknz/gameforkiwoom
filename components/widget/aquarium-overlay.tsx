@@ -53,6 +53,45 @@ function rnd(a: number, b: number) { return a + Math.random() * (b - a) }
 const TWO_PI = Math.PI * 2
 
 // Draw a small aircraft silhouette on canvas ctx
+// ── Radar blip — small top-view F-22 silhouette shown on radar ────────────────
+function drawRadarBlip(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number,
+  opacity: number,
+  isLocked = false,
+) {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.globalAlpha = opacity
+
+  const s = 0.25
+  ctx.scale(s, s)
+
+  ctx.beginPath()
+  ctx.moveTo(0, -40)
+  ctx.lineTo(-30, -15)
+  ctx.lineTo(-50, 0)
+  ctx.lineTo(-30, 15)
+  ctx.lineTo(0, 30)
+  ctx.lineTo(30, 15)
+  ctx.lineTo(50, 0)
+  ctx.lineTo(30, -15)
+  ctx.closePath()
+  ctx.fillStyle   = isLocked ? "#ffcc00" : "#00ff00"
+  ctx.fill()
+  ctx.strokeStyle = "#003300"
+  ctx.lineWidth   = 2
+  ctx.stroke()
+
+  // Center blip dot
+  ctx.beginPath()
+  ctx.arc(0, 0, 8, 0, Math.PI * 2)
+  ctx.fillStyle = "white"
+  ctx.fill()
+
+  ctx.restore()
+}
+
 // F-22 top-view — nose at (0, -140) in local space before scale
 // `size` is a scale factor (0.12 – 0.32). heading = radians, nose points in direction of travel.
 // The original drawF22TopView has nose at y=-140, tail at y=+100.
@@ -235,7 +274,7 @@ export default function RadarOverlay({
         x: sx, y: sy,
         vx: (dx - sx) / dist * spd,
         vy: (dy - sy) / dist * spd,
-        heading: Math.atan2(dy - sy, dx - sx) - Math.PI / 2,
+            heading: Math.atan2(dy - sy, dx - sx) + Math.PI / 2,
         size: rnd(0.12, 0.30),  // F-22 scale factor (local coords ±140px → ~34–84px on screen)
         type: Math.floor(Math.random() * 3) as 0 | 1 | 2,
         state: "cruising",
@@ -363,20 +402,8 @@ export default function RadarOverlay({
         const dotAlpha = dotDelta < fadeWindow ? Math.max(0, 1 - dotDelta / fadeWindow) : 0
 
         if (dotAlpha > 0) {
-          const dotColor = r.dotColor === "red" ? "255,60,60" : "255,220,0"
-          // Glow
-          const grd = ctx.createRadialGradient(dx, dy, 0, dx, dy, 10)
-          grd.addColorStop(0, `rgba(${dotColor},${dotAlpha * 0.9})`)
-          grd.addColorStop(1, `rgba(${dotColor},0)`)
-          ctx.beginPath()
-          ctx.arc(dx, dy, 10, 0, TWO_PI)
-          ctx.fillStyle = grd
-          ctx.fill()
-          // Core
-          ctx.beginPath()
-          ctx.arc(dx, dy, 3, 0, TWO_PI)
-          ctx.fillStyle = `rgba(${dotColor},${dotAlpha})`
-          ctx.fill()
+          const isLocked = r.dotColor === "yellow"
+          drawRadarBlip(ctx, dx, dy, dotAlpha, isLocked)
         }
 
         ctx.restore()
@@ -407,7 +434,7 @@ export default function RadarOverlay({
           ac.x += ac.vx * dt
           ac.y += ac.vy * dt
           if (Math.abs(ac.vx) > 0.01 || Math.abs(ac.vy) > 0.01) {
-            ac.heading = Math.atan2(ac.vy, ac.vx) - Math.PI / 2
+            ac.heading = Math.atan2(ac.vy, ac.vx) + Math.PI / 2
           }
           const offscreen = ac.x < -100 || ac.x > W + 100 || ac.y < -100 || ac.y > H + 100
           if (!offscreen) drawAircraft(ctx, ac.x, ac.y, ac.heading, ac.size, ac.type)
@@ -428,7 +455,7 @@ export default function RadarOverlay({
         ac.y += ac.vy * dt
         // Keep heading aligned to velocity so nose always points in direction of travel
         if (Math.abs(ac.vx) > 0.01 || Math.abs(ac.vy) > 0.01) {
-          ac.heading = Math.atan2(ac.vy, ac.vx) - Math.PI / 2
+          ac.heading = Math.atan2(ac.vy, ac.vx) + Math.PI / 2
         }
 
         const { dx, dy } = getDotPos(radar)
