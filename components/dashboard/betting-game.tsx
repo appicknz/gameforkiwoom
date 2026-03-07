@@ -502,9 +502,11 @@ export function BettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        // 새 라운드 시작 순간의 현재가 = 이번 라운드 배팅 기준가
+        // 새 라운드 시작 순간의 현재가를 배팅 기준가로 고정 (차트 + 게임 판정 동일 기준)
         const newBasePrice = currentPriceRef.current
         if (newBasePrice !== null) {
+          basePriceRef.current = newBasePrice
+          setBasePrice(newBasePrice)
           window.dispatchEvent(new CustomEvent("round:basePrice", { detail: { price: newBasePrice, time: Math.floor(Date.now() / 1000) } }))
         }
 
