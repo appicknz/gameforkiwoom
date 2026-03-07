@@ -491,21 +491,16 @@ export function BettingGame() {
     }, []),
   })
 
-  // currentPrice가 업데이트된 직후 pending 라운드가 있으면 배팅 기준가 확정
-  // (setInterval 타이밍과 WebSocket price 수신 타이밍 불일치 해결)
+  // round:basePrice 이벤트 수신 — bitcoin-chart의 usePriceWorker onClosingPrice가 단일 소스
   useEffect(() => {
-    if (pendingBasePriceRoundRef.current === null) return
-    if (currentPrice === null) return
-    // 이미 이번 라운드 기준가가 세팅됐으면 무시
-    if (basePriceRef.current !== null && pendingBasePriceRoundRef.current === prevRoundRef.current) return
-
-    basePriceRef.current = currentPrice
-    setBasePrice(currentPrice)
-    window.dispatchEvent(new CustomEvent("round:basePrice", {
-      detail: { price: currentPrice, time: Math.floor(Date.now() / 1000) }
-    }))
-    pendingBasePriceRoundRef.current = null
-  }, [currentPrice])
+    const handler = (e: Event) => {
+      const { price } = (e as CustomEvent<{ price: number; time: number }>).detail
+      basePriceRef.current = price
+      setBasePrice(price)
+    }
+    window.addEventListener("round:basePrice", handler)
+    return () => window.removeEventListener("round:basePrice", handler)
+  }, [])
 
   // 라운드 타이머 + 결산
   useEffect(() => {
@@ -519,10 +514,6 @@ export function BettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        // 라운드 전환 감지 — 기준가 세팅은 currentPrice state 업데이트 후 별도 useEffect에서 처리
-        // (setInterval 타이밍과 WebSocket 수신 타이밍 불일치 방지)
-        pendingBasePriceRoundRef.current = round
-
         const prices = closingPricesRef.current
         const latestClose = prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
 
