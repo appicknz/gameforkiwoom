@@ -19,9 +19,10 @@ const TEXT = "rgba(255,255,255,0.35)"
 interface GameChartProps {
   onPrice?: (price: number) => void
   onClosingPrice?: (price: number, bucket: number) => void
+  onBasePriceCoord?: (coord: { x: number; y: number } | null) => void
 }
 
-export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
+export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
@@ -29,9 +30,11 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
   const onPriceRef = useRef(onPrice)
   const onClosingPriceRef = useRef(onClosingPrice)
+  const onBasePriceCoordRef = useRef(onBasePriceCoord)
 
   useEffect(() => { onPriceRef.current = onPrice }, [onPrice])
   useEffect(() => { onClosingPriceRef.current = onClosingPrice }, [onClosingPrice])
+  useEffect(() => { onBasePriceCoordRef.current = onBasePriceCoord }, [onBasePriceCoord])
 
   const fetchInitialCandles = useCallback(async (): Promise<CandleData[]> => {
     try {
@@ -122,7 +125,44 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
   }, [fetchInitialCandles])
 
   // setInterval 폴링 완전 제거 — onClosingPrice 콜백에서 배팅가 수평선을 직접 업데이트
-  const updateBaseLine = useCallback((price: number) => {
+  // basePriceCoord: 차트 내에서 배팅가 라인의 실제 픽셀 위치 (레이더 target용)
+  const updateBasePriceCoord = useCallback(() => {
+    if (!chartRef.current || !seriesRef.current || !priceLineRef.current) {
+      onBasePriceCoordRef.current?.(null)
+      return
+    }
+    try {
+      const chart = chartRef.current
+      const series = seriesRef.current
+      const priceLine = priceLineRef.current
+      const price = priceLine.options().price as number
+      
+      // price → y 픽셀 좌표 (series 기준)
+      const y = series.priceToCoordinate?.(price)
+      if (y === null || y === undefined) {
+        onBasePriceCoordRef.current?.(null)
+        return
+      }
+
+      // chart 우측 끝 기준 x 좌표
+      const container = containerRef.current
+      if (!container) {
+        onBasePriceCoordRef.current?.(null)
+        return
+      }
+
+      const x = container.clientWidth - 40
+
+      onBasePriceCoordRef.current?.({ x, y })
+    } catch {
+      onBasePriceCoordRef.current?.(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    const interval = setInterval(updateBasePriceCoord, 500)
+    return () => clearInterval(interval)
+  }, [updateBasePriceCoord])
     if (!seriesRef.current) return
     if (priceLineRef.current) {
       try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
@@ -135,7 +175,9 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
       axisLabelVisible: true,
       title: "배팅가",
     })
-  }, [])
+    // 새 price line이 생기면 좌표 업데이트
+    updateBasePriceCoord()
+  }, [updateBasePriceCoord])
 
   // 모든 사용자 동일 가격 보장 — usePriceWorker 단일 소스
   usePriceWorker({
