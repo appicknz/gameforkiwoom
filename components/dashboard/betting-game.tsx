@@ -413,6 +413,7 @@ export function BettingGame() {
   const [isPlacingBet, setIsPlacingBet] = useState(false)
 
   const prevRoundRef = useRef<number | null>(null)
+  const pendingBasePriceRoundRef = useRef<number | null>(null)  // 라운드 전환 감지됐지만 아직 가격 확정 안된 라운드
   const betRef = useRef<BetDirection>(null)
   const betDigitRef = useRef<BetDigit>(null)
   const betParityRef = useRef<BetParity>(null)
@@ -490,6 +491,22 @@ export function BettingGame() {
     }, []),
   })
 
+  // currentPrice가 업데이트된 직후 pending 라운드가 있으면 배팅 기준가 확정
+  // (setInterval 타이밍과 WebSocket price 수신 타이밍 불일치 해결)
+  useEffect(() => {
+    if (pendingBasePriceRoundRef.current === null) return
+    if (currentPrice === null) return
+    // 이미 이번 라운드 기준가가 세팅됐으면 무시
+    if (basePriceRef.current !== null && pendingBasePriceRoundRef.current === prevRoundRef.current) return
+
+    basePriceRef.current = currentPrice
+    setBasePrice(currentPrice)
+    window.dispatchEvent(new CustomEvent("round:basePrice", {
+      detail: { price: currentPrice, time: Math.floor(Date.now() / 1000) }
+    }))
+    pendingBasePriceRoundRef.current = null
+  }, [currentPrice])
+
   // 라운드 타이머 + 결산
   useEffect(() => {
     const tick = setInterval(() => {
@@ -502,13 +519,9 @@ export function BettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        // 새 라운드 시작 순간의 현재가를 배팅 기준가로 고정 (차트 + 게임 판정 동일 기준)
-        const newBasePrice = currentPriceRef.current
-        if (newBasePrice !== null) {
-          basePriceRef.current = newBasePrice
-          setBasePrice(newBasePrice)
-          window.dispatchEvent(new CustomEvent("round:basePrice", { detail: { price: newBasePrice, time: Math.floor(Date.now() / 1000) } }))
-        }
+        // 라운드 전환 감지 — 기준가 세팅은 currentPrice state 업데이트 후 별도 useEffect에서 처리
+        // (setInterval 타이밍과 WebSocket 수신 타이밍 불일치 방지)
+        pendingBasePriceRoundRef.current = round
 
         const prices = closingPricesRef.current
         const latestClose = prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
