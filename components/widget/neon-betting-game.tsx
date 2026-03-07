@@ -499,7 +499,7 @@ export function NeonBettingGame() {
             </div>
             <div>
               <p className="text-[10px] text-white/30 text-right">실시간</p>
-              <p className="text-lg font-black tabular-nums text-right" style={{ color: "#00ffcc", textShadow: "0 0 8px rgba(0,255,200,0.5)", fontFamily: "var(--font-orbitron, monospace)" }}>
+              <p className="text-base font-black tabular-nums text-right" style={{ color: "#00ffcc", textShadow: "0 0 8px rgba(0,255,200,0.5)", fontFamily: "var(--font-orbitron, monospace)" }}>
                 {currentPrice !== null ? fmt(currentPrice) : "—"}
               </p>
               {basePrice !== null && (
