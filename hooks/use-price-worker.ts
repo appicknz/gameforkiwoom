@@ -68,6 +68,12 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
               const last = prev[prev.length - 1]
               if (!last || last.time !== data.time) {
                 win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
+                // 마감가 확정 → DB 저장 (서버에 한 번만 저장, fire-and-forget)
+                fetch("/api/closing-price", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ price: data.price, time: data.time }),
+                }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
               }
             }
           } catch { /* ignore malformed messages */ }
@@ -135,6 +141,12 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             optsRef.current.onClosingPrice?.(closePrice, closeTime)
             const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
             win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
+            // 마감가 확정 → DB 저장 (fire-and-forget)
+            fetch("/api/closing-price", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ price: closePrice, time: closeTime }),
+            }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
           } catch { /* ignore */ }
         }
 

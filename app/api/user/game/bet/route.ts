@@ -57,6 +57,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to update balance" }, { status: 500 })
     }
 
+    // 유저의 branch_id 조회 (balance_transactions FK 필요)
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("branch_id")
+      .eq("id", userId)
+      .single()
+
+    // balance_transactions 기록 (배팅 차감 이력)
+    await supabase.from("balance_transactions").insert({
+      user_id: userId,
+      branch_id: profileData?.branch_id ?? null,
+      type: "bet",
+      amount: -betAmount,
+      balance_before: currentBalance,
+      balance_after: newBalance,
+      note: `배팅 차감`,
+    })
+
     // Redis에 최신 잔고 저장 + version increment → SSE 스트림이 변경 감지
     await Promise.all([
       redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),

@@ -77,6 +77,92 @@ export async function POST(request: Request) {
       }
     }
 
+    // ── 유저 profile (branch_id) 조회 ───────────────────────
+    const { data: profileData } = await admin
+      .from("profiles")
+      .select("branch_id")
+      .eq("id", user.id)
+      .single()
+
+    const branchId = profileData?.branch_id ?? null
+
+    // ── rounds 테이블에 라운드 기록 ──────────────────────────
+    const { data: roundData } = await admin
+      .from("rounds")
+      .insert({
+        base_price: basePrice,
+        result_price: closePrice,
+        result_digit: lastDigit,
+        started_at: new Date(Math.floor(Date.now() / 1000 / 30) * 30 * 1000 - 30000).toISOString(),
+        ended_at: new Date(Math.floor(Date.now() / 1000 / 30) * 30 * 1000).toISOString(),
+      })
+      .select("id")
+      .single()
+
+    const roundId = roundData?.id ?? null
+
+    // ── bet_history 각 종목별 INSERT ─────────────────────────
+    const betHistoryRows: {
+      user_id: string
+      branch_id: string | null
+      round_id: string | null
+      bet_direction: string | null
+      bet_digit: string | null
+      bet_parity: string | null
+      bet_amount: number
+      payout: number
+      result: string
+    }[] = []
+
+    if (bets.direction && bets.directionAmount > 0) {
+      const won = bets.direction === wonDirection
+      betHistoryRows.push({
+        user_id: user.id,
+        branch_id: branchId,
+        round_id: roundId,
+        bet_direction: bets.direction,
+        bet_digit: null,
+        bet_parity: null,
+        bet_amount: bets.directionAmount,
+        payout: won ? Math.floor(bets.directionAmount * PAYOUT_RATIO) : 0,
+        result: won ? "win" : "lose",
+      })
+    }
+
+    if (bets.digit && bets.digitAmount > 0) {
+      const won = bets.digit === wonDigit
+      betHistoryRows.push({
+        user_id: user.id,
+        branch_id: branchId,
+        round_id: roundId,
+        bet_direction: null,
+        bet_digit: bets.digit,
+        bet_parity: null,
+        bet_amount: bets.digitAmount,
+        payout: won ? Math.floor(bets.digitAmount * PAYOUT_RATIO) : 0,
+        result: won ? "win" : "lose",
+      })
+    }
+
+    if (bets.parity && bets.parityAmount > 0) {
+      const won = bets.parity === wonParity
+      betHistoryRows.push({
+        user_id: user.id,
+        branch_id: branchId,
+        round_id: roundId,
+        bet_direction: null,
+        bet_digit: null,
+        bet_parity: bets.parity,
+        bet_amount: bets.parityAmount,
+        payout: won ? Math.floor(bets.parityAmount * PAYOUT_RATIO) : 0,
+        result: won ? "win" : "lose",
+      })
+    }
+
+    if (betHistoryRows.length > 0) {
+      await admin.from("bet_history").insert(betHistoryRows)
+    }
+
     // ── 이긴 경우만 잔고에 수익 추가 ────────────────────────
     let newBalance: number | null = null
     if (totalPayout > 0) {
@@ -93,6 +179,17 @@ export async function POST(request: Request) {
         .from("balances")
         .update({ amount: newBalance })
         .eq("user_id", user.id)
+
+      // 당첨 수익도 balance_transactions에 기록
+      await admin.from("balance_transactions").insert({
+        user_id: user.id,
+        branch_id: branchId,
+        type: "win",
+        amount: totalPayout,
+        balance_before: currentBalance,
+        balance_after: newBalance,
+        note: `게임 당첨 수익`,
+      })
 
       // Redis 갱신 + version increment → 모든 기기의 SSE 스트림이 변경 감지
       await Promise.all([
