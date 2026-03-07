@@ -75,24 +75,26 @@ export function BitcoinChart({
   const [lastCandlePrice, setLastCandlePrice] = useState<number | null>(null)
   const [connected, setConnected] = useState(false)
 
-  // 배팅 기준가 수평선 업데이트 (usePriceWorker onClosingPrice 콜백에서 호출)
-  const updateBaseLine = useCallback((price: number, time: number) => {
-    if (!seriesRef.current) return
+  // 배팅 기준가 수평선 + 차트 픽셀 좌표 계산 (onBasePriceCoord가 있을 때만)
+  useEffect(() => {
+    if (!seriesRef.current || closingPrices.length === 0) return
+    const latest = closingPrices[closingPrices.length - 1]
+    const latestPrice = latest.price
     if (priceLineRef.current) {
       try { seriesRef.current.removePriceLine(priceLineRef.current) } catch {}
     }
     priceLineRef.current = seriesRef.current.createPriceLine({
-      price,
+      price: latestPrice,
       color: "#facc15",
       lineWidth: 1,
       lineStyle: 2,
       axisLabelVisible: true,
-      title: "배팅 기준가",
+      title: "배팅가",
     })
     if (onBasePriceCoord && chartRef.current) {
       try {
-        const y = chartRef.current.priceScale("right").priceToCoordinate(price)
-        const x = chartRef.current.timeScale().timeToCoordinate(time as any)
+        const y = chartRef.current.priceScale("right").priceToCoordinate(latestPrice)
+        const x = chartRef.current.timeScale().timeToCoordinate(latest.time as any)
         if (y !== null && x !== null) {
           onBasePriceCoord({ x: Number(x), y: Number(y) })
         } else {
@@ -102,7 +104,7 @@ export function BitcoinChart({
         onBasePriceCoord(null)
       }
     }
-  }, [onBasePriceCoord])
+  }, [closingPrices, onBasePriceCoord])
 
   // 차트 + WebSocket 초기화 (interval 변경 시 재실행)
   useEffect(() => {
@@ -214,8 +216,6 @@ export function BitcoinChart({
           }
           candleMapRef.current.set(candle.time, candle)
           seriesRef.current.update(candle)
-
-
         }
 
         setLastCandlePrice(closePrice)
@@ -313,12 +313,7 @@ export function BitcoinChart({
     onDisconnected: useCallback(() => {}, []),
     onInitClosing: useCallback((prices) => {
       setClosingPrices(prices)
-      // 초기 로드 시 마지막 배팅 기준가 수평선 설정
-      if (prices.length > 0) {
-        const last = prices[prices.length - 1]
-        updateBaseLine(last.price, last.time)
-      }
-    }, [updateBaseLine]),
+    }, []),
     onPrice: useCallback(() => {}, []),
     onClosingPrice: useCallback((price, time) => {
       setClosingPrices((prev) => {
@@ -326,11 +321,7 @@ export function BitcoinChart({
         if (last?.time === time) return prev
         return [...prev, { time, price }].slice(-100)
       })
-      // 30초 기준가 확정 — usePriceWorker가 정확한 타이밍에 콜백 호출
-      updateBaseLine(price, time)
-      // betting-game.tsx도 같은 소스를 쓰도록 이벤트 발행
-      window.dispatchEvent(new CustomEvent("round:basePrice", { detail: { price, time } }))
-    }, [updateBaseLine]),
+    }, []),
   })
 
   // 티커 WebSocket (변동률 + 거래대금)

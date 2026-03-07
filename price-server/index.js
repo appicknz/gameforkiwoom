@@ -27,7 +27,6 @@ const clients = new Set()
 // 집계 상태
 const tradeBuffer = []
 let prevThirtyBucket = null
-let lastPriceOfBucket = null  // 직전 버킷이 진행되는 동안 갱신된 마지막 거래가
 const closingPrices = [] // 최근 100개 유지
 let latestPrice = null
 
@@ -123,25 +122,15 @@ setInterval(() => {
 
   // 30초 마감가 처리
   const thirtyBucket = now - (now % 30)
-  if (prevThirtyBucket === null) {
-    // 최초 진입: 버킷만 기록, 아직 방금 끝난 버킷이 없으므로 closing 미발행
+  if (prevThirtyBucket === null || thirtyBucket !== prevThirtyBucket) {
     prevThirtyBucket = thirtyBucket
-    lastPriceOfBucket = closingPrice
-  } else if (thirtyBucket !== prevThirtyBucket) {
-    // 버킷 전환: 방금 끝난 버킷의 마지막 거래가를 배팅 기준가로 확정
-    const basePrice = lastPriceOfBucket ?? closingPrice
-    prevThirtyBucket = thirtyBucket
-    lastPriceOfBucket = closingPrice
 
-    const entry = { time: thirtyBucket, price: basePrice }
+    const entry = { time: thirtyBucket, price: closingPrice }
     closingPrices.push(entry)
     if (closingPrices.length > 100) closingPrices.shift()
 
-    broadcast({ type: "closing", price: basePrice, time: thirtyBucket })
-    console.log(`[server] closing price: ${basePrice} at ${new Date(thirtyBucket * 1000).toISOString()}`)
-  } else {
-    // 버킷 진행 중: 현재가 계속 갱신
-    lastPriceOfBucket = closingPrice
+    broadcast({ type: "closing", price: closingPrice, time: thirtyBucket })
+    console.log(`[server] closing price: ${closingPrice} at ${new Date(thirtyBucket * 1000).toISOString()}`)
   }
 
   // 버퍼 정리 (5분 이전 데이터 제거)
