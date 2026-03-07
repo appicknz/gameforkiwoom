@@ -38,8 +38,10 @@ interface Missile {
   id: number
   x: number
   y: number
-  tx: number             // target x
-  ty: number             // target y
+  tx: number             // aimed x (may have jitter)
+  ty: number             // aimed y (may have jitter)
+  dotX: number           // exact dot x for hit detection
+  dotY: number           // exact dot y for hit detection
   vx: number
   vy: number
   startTime: number
@@ -142,21 +144,19 @@ export default function RadarOverlay({ priceData: _priceData }: { priceData?: { 
       const W = containerRef.current?.clientWidth  ?? 600
       const H = containerRef.current?.clientHeight ?? 300
 
-      // ── Spawn radar — natural pace, one every 2s max 6 simultaneous ────
-      if (now - lastSpawnRef.current > 2000 && radarsRef.current.length < 6) {
+      // ── Spawn radar — max 1 on screen at a time ────────────────────────
+      if (radarsRef.current.length === 0 && now - lastSpawnRef.current > 1500) {
         lastSpawnRef.current = now
         const targetAngle = rnd(0, 360)
-        // Random radius — some large enough to exceed canvas edge
-        const radius = rnd(70, 300)
-
+        // Random radius — some large enough to exceed canvas edge (50~320)
+        const radius = rnd(50, 320)
         const r: RadarObj = {
           id: radarIdRef.current++,
-          x: rnd(W * 0.1, W * 0.9),
-          y: rnd(H * 0.1, H * 0.9),
+          x: rnd(W * 0.15, W * 0.85),
+          y: rnd(H * 0.15, H * 0.85),
           radius,
           angle: 0,
-          // Each radar gets its own random duration 2–5s — no price dependency
-          duration: rnd(2000, 5000),
+          duration: rnd(3000, 6000),
           spawnTime: now,
           targetAngle,
           targetColor: Math.random() > 0.4 ? "red" : "yellow",
@@ -168,29 +168,27 @@ export default function RadarOverlay({ priceData: _priceData }: { priceData?: { 
         radarsRef.current.push(r)
       }
 
-      // ── Spawn aircraft — outside radar boundaries ────────────────────────
-      // up to 6 total; spawn one when a radar exists without an attacking aircraft
-      if (aircraftRef.current.length < 6) {
+      // ── Spawn aircraft — max 3 total, from outside canvas edge ─────────
+      if (aircraftRef.current.filter(a => a.state !== "done").length < 3) {
         for (const r of radarsRef.current) {
           if (r.phase !== "spinning") continue
-          // Allow a new aircraft to attack a radar as long as no ACTIVE one is already targeting it
-          const alreadyTargeting = aircraftRef.current.some(
+          const activeForRadar = aircraftRef.current.filter(
             (a) => a.targetId === r.id && a.state !== "done"
-          )
-          if (!alreadyTargeting) {
-            // Spawn outside the canvas edge
+          ).length
+          // Allow up to 3 aircraft total targeting the same radar
+          if (activeForRadar < 3 && aircraftRef.current.filter(a => a.state !== "done").length < 3) {
             const edge = Math.floor(rnd(0, 4))
             let sx = 0, sy = 0
-            if (edge === 0) { sx = rnd(-60, W + 60); sy = -60 }
-            else if (edge === 1) { sx = W + 60; sy = rnd(-60, H + 60) }
-            else if (edge === 2) { sx = rnd(-60, W + 60); sy = H + 60 }
-            else { sx = -60; sy = rnd(-60, H + 60) }
+            if (edge === 0)      { sx = rnd(0, W);  sy = -60 }
+            else if (edge === 1) { sx = W + 60;     sy = rnd(0, H) }
+            else if (edge === 2) { sx = rnd(0, W);  sy = H + 60 }
+            else                 { sx = -60;         sy = rnd(0, H) }
 
             // Target dot world position
             const tdx = r.x + Math.cos(deg2rad(r.targetAngle)) * r.radius * 0.72
             const tdy = r.y + Math.sin(deg2rad(r.targetAngle)) * r.radius * 0.72
             const dist = Math.hypot(tdx - sx, tdy - sy)
-            const speed = rnd(90, 160) // px/s
+            const speed = rnd(100, 180)
             const ac: Aircraft = {
               id: acIdRef.current++,
               x: sx,
@@ -206,7 +204,7 @@ export default function RadarOverlay({ priceData: _priceData }: { priceData?: { 
               lastMissile: 0,
             }
             aircraftRef.current.push(ac)
-            if (aircraftRef.current.length >= 6) break
+            break
           }
         }
       }
@@ -276,21 +274,32 @@ export default function RadarOverlay({ priceData: _priceData }: { priceData?: { 
           ac.x += ac.vx * dt * 0.4
           ac.y += ac.vy * dt * 0.4
 
-          // Fire missile
-          if (ac.missilesFired < 5 && now - ac.lastMissile > 500 && radar) {
-            const spd = rnd(180, 280)
+          // Fire missile — add inaccuracy so some miss
+          if (ac.missilesFired < 5 && now - ac.lastMissile > 600 && radar) {
+            const spd = rnd(200, 320)
             const dist2 = Math.hypot(dTx, dTy)
+            // Random accuracy jitter: ±20px offset on the target
+            const jitterX = rnd(-20, 20)
+            const jitterY = rnd(-20, 20)
+            const aimX = tdx + jitterX
+            const aimY = tdy + jitterY
+            const dAX = aimX - ac.x
+            const dAY = aimY - ac.y
+            const distAim = Math.hypot(dAX, dAY)
             const m: Missile = {
               id: msIdRef.current++,
               x: ac.x,
               y: ac.y,
-              tx: tdx,
-              ty: tdy,
-              vx: (dTx / dist2) * spd,
-              vy: (dTy / dist2) * spd,
+              tx: aimX,  // where the missile is aimed (with jitter)
+              ty: aimY,
+              vx: (dAX / distAim) * spd,
+              vy: (dAY / distAim) * spd,
               startTime: now,
               radarId: radar.id,
               hit: false,
+              // Store exact dot position for hit detection
+              dotX: tdx,
+              dotY: tdy,
             }
             missilesRef.current.push(m)
             ac.lastMissile = now
@@ -309,29 +318,31 @@ export default function RadarOverlay({ priceData: _priceData }: { priceData?: { 
         m.x += m.vx * dt
         m.y += m.vy * dt
 
-        const distLeft = Math.hypot(m.tx - m.x, m.ty - m.y)
-        if (distLeft < 12) {
-          // Missile reached target dot — spawn explosion
-          m.hit = true
-          explosionsRef.current.push({
-            id: exIdRef.current++,
-            x: m.tx,
-            y: m.ty,
-            startTime: now,
-            duration: 600,
-          })
-          // Only destroy radar immediately when the target dot is hit.
-          // The dot is always hit when a missile reaches tx/ty (that IS the dot).
-          // So: destroy radar + related aircraft immediately, regardless of other missiles.
-          radarsRef.current   = radarsRef.current.filter((r) => r.id !== m.radarId)
-          aircraftRef.current = aircraftRef.current.filter((a) => a.targetId !== m.radarId)
-          // Cancel remaining in-flight missiles for the same radar so they disappear too
-          missilesRef.current = missilesRef.current.filter(
-            (ms) => ms === m || ms.radarId !== m.radarId
-          )
+        // Check proximity to aimed target (missile expired at destination)
+        const distToAim = Math.hypot(m.tx - m.x, m.ty - m.y)
+        if (distToAim < 10) {
+          // Missile reached its aimed point — check if it actually hit the dot
+          const distToDot = Math.hypot(m.dotX - m.x, m.dotY - m.y)
+          if (distToDot < 18) {
+            // DIRECT HIT on the dot — destroy radar immediately
+            m.hit = true
+            explosionsRef.current.push({
+              id: exIdRef.current++,
+              x: m.dotX,
+              y: m.dotY,
+              startTime: now,
+              duration: 700,
+            })
+            radarsRef.current   = radarsRef.current.filter((r) => r.id !== m.radarId)
+            aircraftRef.current = aircraftRef.current.filter((a) => a.targetId !== m.radarId)
+            missilesRef.current = missilesRef.current.filter(
+              (ms) => ms === m || ms.radarId !== m.radarId
+            )
+          }
+          // Whether hit or miss, this missile is done
           return false
         }
-        // Missile missed (went out of bounds) — radar stays alive, keeps spinning
+        // Missile still in flight — radar untouched
 
         // Out of bounds
         if (m.x < -100 || m.x > W + 100 || m.y < -100 || m.y > H + 100) return false
