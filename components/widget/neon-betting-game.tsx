@@ -316,6 +316,21 @@ export function NeonBettingGame() {
       .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
   }, [])
 
+  // ── 마운트 시 최근 마감가 초기화 (항상 basePrice를 표시하기 위함) ───
+  useEffect(() => {
+    fetch("/api/closing-price")
+      .then(r => r.json())
+      .then(data => {
+        if (data.prices && data.prices.length > 0) {
+          const latestPrice = data.prices[data.prices.length - 1].price
+          setBasePrice(latestPrice)
+          basePriceRef.current = latestPrice
+          closingPricesRef.current = data.prices
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem("game_pending_bet")
