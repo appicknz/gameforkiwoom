@@ -545,17 +545,6 @@ export function NeonBettingGame() {
         )}
       </div>
 
-      {/* ── 타이머 바 ── */}
-      <div className="px-4 py-2">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] font-semibold tracking-wide" style={{ color: timerColor }}>{timerLabel}</span>
-          <span className="text-xs font-black tabular-nums" style={{ color: timerColor, textShadow: `0 0 8px ${timerColor}88` }}>{timeLeft}초</span>
-        </div>
-        <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
-          <div className="h-full rounded-full transition-all duration-200" style={{ width: `${(timeLeft / 30) * 100}%`, background: timerColor, boxShadow: `0 0 8px ${timerColor}` }} />
-        </div>
-      </div>
-
       {/* ── 배팅 버튼 그리드 ── */}
       <div className="px-4 pb-4">
         {/* 헤더 라벨 */}
