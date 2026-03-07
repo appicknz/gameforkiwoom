@@ -1,11 +1,16 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Geist, Geist_Mono, Orbitron } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const _geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
+const _orbitron = Orbitron({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  weight: ["400", "500", "600", "700", "800", "900"],
+})
 
 export const metadata: Metadata = {
   title: "Donezo - Project Management Dashboard",
@@ -37,7 +42,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`font-sans antialiased`}>
+      <body className={`${_orbitron.variable} ${_geistMono.variable} font-sans antialiased`}>
         <ThemeProvider defaultTheme="light" storageKey="tasko-theme">
           {children}
         </ThemeProvider>
