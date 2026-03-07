@@ -316,19 +316,21 @@ export function NeonBettingGame() {
       .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
   }, [])
 
-  // ── 마운트 시 최근 마감가 초기화 (항상 basePrice를 표시하기 위함) ───
+  // ── 마감 기준가: window.__bitcoinClosingPrices 마지막 값 (차트 노란 라인과 동일 조건) ───
   useEffect(() => {
-    fetch("/api/closing-price")
-      .then(r => r.json())
-      .then(data => {
-        if (data.prices && data.prices.length > 0) {
-          const latestPrice = data.prices[data.prices.length - 1].price
-          setBasePrice(latestPrice)
-          basePriceRef.current = latestPrice
-          closingPricesRef.current = data.prices
-        }
-      })
-      .catch(() => {})
+    const sync = () => {
+      const prices: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
+      if (prices.length === 0) return
+      const latest = prices[prices.length - 1].price
+      // 배팅 중이 아닐 때만 최신 마감가로 업데이트 (배팅 중엔 기준가 유지)
+      if (!betRef.current && !betDigitRef.current && !betParityRef.current) {
+        setBasePrice(latest)
+        basePriceRef.current = latest
+      }
+    }
+    sync()
+    const interval = setInterval(sync, 500)
+    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
