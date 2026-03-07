@@ -6,36 +6,29 @@ import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badge
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { TopBar } from "@/components/dashboard/top-bar"
 
-// 사이버펑크 네온 테마 CSS 토큰 — /widget 전용 (oklch 포맷)
-// Orbitron 폰트는 Google Fonts에서 직접 로드해 /widget에만 적용
+// 사이버펑크 네온 테마 CSS 토큰 — /widget 전용
 const CYBER_THEME = `
-  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600;700&display=swap');
-
   :root {
-    --background:           oklch(0.08 0.02 220);
-    --foreground:           oklch(0.97 0.01 180);
-    --card:                 oklch(0.10 0.02 220);
-    --card-foreground:      oklch(0.97 0.01 180);
-    --popover:              oklch(0.10 0.02 220);
-    --popover-foreground:   oklch(0.97 0.01 180);
-    --primary:              oklch(0.85 0.22 174);
-    --primary-foreground:   oklch(0.08 0.02 220);
-    --secondary:            oklch(0.15 0.03 220);
-    --secondary-foreground: oklch(0.97 0.01 180);
-    --muted:                oklch(0.14 0.03 220);
-    --muted-foreground:     oklch(0.92 0.01 180);
-    --accent:               oklch(0.85 0.22 174);
-    --accent-foreground:    oklch(0.08 0.02 220);
-    --destructive:          oklch(0.60 0.22 27);
-    --destructive-foreground: oklch(0.97 0.01 0);
-    --border:               oklch(0.28 0.05 174);
-    --input:                oklch(0.14 0.03 220);
-    --ring:                 oklch(0.85 0.22 174);
-    --radius:               0.75rem;
-    --neon-green:           #00ff88;
-    --neon-cyan:            #00e5ff;
-    --font-sans:            'Orbitron', sans-serif;
-    --font-mono:            'Geist Mono', monospace;
+    --background: 222 47% 5%;
+    --foreground: 180 100% 90%;
+    --card: 220 40% 8%;
+    --card-foreground: 180 100% 90%;
+    --popover: 220 40% 8%;
+    --popover-foreground: 180 100% 90%;
+    --primary: 174 100% 50%;
+    --primary-foreground: 222 47% 5%;
+    --secondary: 220 30% 14%;
+    --secondary-foreground: 174 80% 70%;
+    --muted: 220 35% 12%;
+    --muted-foreground: 210 30% 55%;
+    --accent: 174 100% 50%;
+    --accent-foreground: 222 47% 5%;
+    --destructive: 0 85% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 174 40% 18%;
+    --input: 220 35% 12%;
+    --ring: 174 100% 50%;
+    --radius: 0.75rem;
   }
 `
 
