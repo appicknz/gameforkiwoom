@@ -22,31 +22,19 @@ export function ClosingPricesBadges() {
     return () => clearInterval(interval)
   }, [])
 
-  const digitColor = (d: number) => {
-    if (d <= 4) return "#00aaff"  // 언더
-    return "#ff3355"              // 오버
-  }
-
   return (
-    <div className="p-4">
-      <p className="text-[10px] mb-3" style={{ color: "rgba(0,255,200,0.45)" }}>30초 끝자리</p>
+    <Card className="p-6 transition-all duration-500 hover:shadow-xl animate-slide-in-up" style={{ animationDelay: "500ms" }}>
+      <h2 className="text-xl font-semibold text-foreground mb-3">30초 끝자리</h2>
       <div className="flex flex-wrap gap-2">
         {lastDigits.map((digit, idx) => (
           <div
             key={idx}
-            className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-sm transition-all duration-200"
-            style={{
-              background: `${digitColor(digit)}15`,
-              border: `1.5px solid ${digitColor(digit)}60`,
-              color: digitColor(digit),
-              boxShadow: `0 0 8px ${digitColor(digit)}30`,
-              opacity: 1 - idx * 0.06,
-            }}
+            className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm transition-all duration-300 hover:scale-110 hover:shadow-lg"
           >
             {digit}
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   )
 }

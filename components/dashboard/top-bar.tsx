@@ -301,18 +301,10 @@ export function TopBar() {
           {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
 
-        {/* 중앙 잔고 — 네온 테두리 */}
-        <button
-          className="flex items-center gap-2 px-4 py-2 rounded-full transition-all"
-          style={{
-            border: "1px solid rgba(0,255,200,0.4)",
-            background: "rgba(0,255,200,0.06)",
-            boxShadow: "0 0 12px rgba(0,255,200,0.12)",
-            color: "#00ffc8",
-          }}
-        >
-          <Wallet className="w-4 h-4" />
-          <span className="text-sm font-bold tabular-nums">₩ {balance.toLocaleString()}</span>
+        {/* 중앙 잔고 */}
+        <button className="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full hover:bg-primary/20 transition-colors">
+          <Wallet className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold text-primary">₩ {balance.toLocaleString()}</span>
         </button>
 
         {/* 우측 프로필 */}

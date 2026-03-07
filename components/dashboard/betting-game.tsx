@@ -703,181 +703,148 @@ export function BettingGame() {
   const betAmountLabel = (amount: number) =>
     amount > 0 ? `₩${amount >= 10000 ? `${amount / 10000}만` : amount.toLocaleString()}` : null
 
-  // 네온 버튼 스타일 헬퍼
-  const neonBtn = (
-    color: string,
-    isSelected: boolean,
-    isResult: boolean,
-    won: boolean | undefined,
-  ) => {
-    if (isResult) {
-      const rc = won ? "#00ff88" : "#ff3355"
-      return {
-        background: won ? "rgba(0,255,136,0.08)" : "rgba(255,51,85,0.08)",
-        border: `1.5px solid ${rc}`,
-        color: rc,
-        boxShadow: `0 0 10px ${rc}40`,
-      }
-    }
-    if (isSelected) {
-      return {
-        background: `${color}15`,
-        border: `1.5px solid ${color}`,
-        color,
-        boxShadow: `0 0 14px ${color}50`,
-      }
-    }
-    return {
-      background: "rgba(255,255,255,0.04)",
-      border: "1.5px solid rgba(255,255,255,0.1)",
-      color: "rgba(180,220,255,0.55)",
-      boxShadow: "none",
-    }
-  }
-
   return (
     <>
-      <div className="p-4" style={{ background: "transparent" }}>
-
-        {/* 상단: 승패 + 타이머 */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] tabular-nums" style={{ color: "rgba(0,255,200,0.5)" }}>
-              #{roundNumber}
-            </span>
-            <span className="text-[11px]">
-              <span style={{ color: "#00ff88" }}>{wins}승</span>
-              <span style={{ color: "rgba(255,255,255,0.3)" }}> / </span>
-              <span style={{ color: "#ff3355" }}>{losses}패</span>
+      <Card className="p-4 bg-background border border-border/60">
+        {/* 타이틀 + 승패 */}
+        <div className="relative mb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground">배팅 게임</h3>
+              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                #{roundNumber}
+              </span>
+            </div>
+            <span className="text-[11px] text-muted-foreground">
+              <span className="text-emerald-500 font-semibold">{wins}승</span>
+              {" / "}
+              <span className="text-red-500 font-semibold">{losses}패</span>
             </span>
           </div>
 
-          {/* 타이머 */}
-          <div className="flex items-center gap-2">
-            <div className="w-28 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
-              <div
-                className="h-full rounded-full transition-all duration-200"
-                style={{
-                  width: `${timerPercent}%`,
-                  background: timerColor,
-                  boxShadow: `0 0 6px ${timerColor}`,
-                }}
-              />
+          {/* 기준가 / 현재가 */}
+          {basePrice !== null && currentPrice !== null && phase !== "result" && (
+            <div className="absolute inset-0 flex items-center justify-between bg-background/95 rounded-lg px-1">
+              <div>
+                <p className="text-[9px] text-muted-foreground">배팅 기준가</p>
+                <p className="text-xs font-semibold tabular-nums text-foreground">
+                  ${(Math.floor(basePrice * 10) / 10).toString()}
+                </p>
+              </div>
+              <div className={`text-xs font-bold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
+                {isUp ? "▲" : "▼"} {(Math.floor(Math.abs(priceDiff!) * 10) / 10).toString()}
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] text-muted-foreground">현재가</p>
+                <p className={`text-xs font-semibold tabular-nums ${isUp ? "text-emerald-500" : "text-red-500"}`}>
+                  ${(Math.floor(currentPrice * 10) / 10).toString()}
+                </p>
+              </div>
             </div>
-            <span className="text-xs font-bold tabular-nums w-6 text-right" style={{ color: timerColor }}>
-              {timeLeft}
+          )}
+
+          {/* 라운드 결과 */}
+          {phase === "result" && lastResult && (
+            <div className="absolute inset-0 flex items-center justify-between bg-background/95 rounded-lg px-1 gap-1">
+              <p className="text-[10px] text-muted-foreground shrink-0">
+                끝자리 {Math.floor(lastResult.closePrice * 10) % 10}
+              </p>
+              <div className="flex gap-1">
+                {lastResult.direction && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonDirection ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                    {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
+                  </span>
+                )}
+                {lastResult.digit && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonDigit ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                    {lastResult.digit === "over" ? "오버" : "언더"} {lastResult.wonDigit ? "승" : "패"}
+                  </span>
+                )}
+                {lastResult.parity && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lastResult.wonParity ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                    {lastResult.parity === "odd" ? "홀" : "짝"} {lastResult.wonParity ? "승" : "패"}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 타이머 바 */}
+        <div className="relative mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1 text-[11px]" style={{ color: timerColor }}>
+              <Clock className="w-3 h-3" />
+              <span className="font-medium">{timerLabel}</span>
+            </div>
+            <span className="text-sm font-bold tabular-nums" style={{ color: timerColor }}>
+              {timeLeft}초
             </span>
+          </div>
+          <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-200"
+              style={{ width: `${timerPercent}%`, backgroundColor: timerColor }}
+            />
           </div>
         </div>
 
-        {/* 기준가 / 현재가 */}
-        {basePrice !== null && currentPrice !== null && phase !== "result" && (
-          <div className="flex items-center justify-between mb-3 px-1 py-2 rounded-lg"
-            style={{ background: "rgba(0,255,200,0.04)", border: "1px solid rgba(0,255,200,0.1)" }}>
-            <div>
-              <p className="text-[9px] mb-0.5" style={{ color: "rgba(0,255,200,0.4)" }}>배팅 기준가</p>
-              <p className="text-xs font-bold tabular-nums" style={{ color: "rgba(180,220,255,0.9)" }}>
-                ${(Math.floor(basePrice * 10) / 10).toString()}
-              </p>
-            </div>
-            <div className="text-sm font-black tabular-nums" style={{ color: isUp ? "#00ff88" : "#ff3355" }}>
-              {isUp ? "▲" : "▼"} {(Math.floor(Math.abs(priceDiff!) * 10) / 10).toString()}
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] mb-0.5" style={{ color: "rgba(0,255,200,0.4)" }}>현재가</p>
-              <p className="text-xs font-bold tabular-nums" style={{ color: isUp ? "#00ff88" : "#ff3355" }}>
-                ${(Math.floor(currentPrice * 10) / 10).toString()}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* 라운드 결과 */}
-        {phase === "result" && lastResult && (
-          <div className="flex items-center justify-between mb-3 px-2 py-2 rounded-lg"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <span className="text-[10px]" style={{ color: "rgba(0,255,200,0.6)" }}>
-              끝자리 <span className="font-bold text-white">{Math.floor(lastResult.closePrice * 10) % 10}</span>
-            </span>
-            <div className="flex gap-1">
-              {lastResult.direction && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: lastResult.wonDirection ? "rgba(0,255,136,0.12)" : "rgba(255,51,85,0.12)", color: lastResult.wonDirection ? "#00ff88" : "#ff3355" }}>
-                  {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
-                </span>
-              )}
-              {lastResult.digit && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: lastResult.wonDigit ? "rgba(0,255,136,0.12)" : "rgba(255,51,85,0.12)", color: lastResult.wonDigit ? "#00ff88" : "#ff3355" }}>
-                  {lastResult.digit === "over" ? "오버" : "언더"} {lastResult.wonDigit ? "승" : "패"}
-                </span>
-              )}
-              {lastResult.parity && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: lastResult.wonParity ? "rgba(0,255,136,0.12)" : "rgba(255,51,85,0.12)", color: lastResult.wonParity ? "#00ff88" : "#ff3355" }}>
-                  {lastResult.parity === "odd" ? "홀" : "짝"} {lastResult.wonParity ? "승" : "패"}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 3그룹 배팅 버튼 — 레퍼런스 이미지 스타일 */}
+        {/* 3그룹 배팅 버튼 */}
         <div className="grid grid-cols-3 gap-2">
-          {/* 헤더 라벨 */}
-          {(["롱 / 숏", "언더 / 오버", "홀 / 짝"] as const).map((label) => (
-            <p key={label} className="text-center text-[10px] pb-1" style={{ color: "rgba(0,255,200,0.45)" }}>
-              {label}
-            </p>
-          ))}
-
           {/* 롱 / 숏 */}
           <div className="flex flex-col gap-2">
             {(["long", "short"] as const).map((dir) => {
               const isSelected = betDirection === dir
               const isResult = phase === "result" && lastResult?.direction === dir
-              const won = isResult ? (dir === "long" ? lastResult?.wonDirection : !lastResult?.wonDirection) : undefined
-              const color = dir === "long" ? "#00ff88" : "#ff3355"
+              const won = isResult && (dir === "long" ? lastResult?.wonDirection : !lastResult?.wonDirection)
+              const color = dir === "long" ? "#10b981" : "#ef4444"
               const label = betAmountLabel(betDirectionAmount)
               return (
                 <button
                   key={dir}
                   onClick={() => openDialog("direction", dir)}
                   disabled={!canBet || betDirection !== null}
-                  className="h-16 rounded-xl text-sm font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-150 active:scale-95 disabled:opacity-40"
-                  style={neonBtn(color, isSelected, isResult, won)}
+                  className="h-14 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50"
+                  style={{
+                    background: isSelected ? `${color}20` : isResult ? (won ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)") : "hsl(var(--muted))",
+                    borderColor: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "transparent",
+                    color: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "hsl(var(--muted-foreground))",
+                  }}
                 >
                   <div className="flex items-center gap-1">
                     {dir === "long" ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                     <span>{dir === "long" ? "롱" : "숏"}</span>
                   </div>
-                  <span className="text-[9px] opacity-60">{dir === "long" ? "직전 대비 상승" : "직전 대비 하락"}</span>
-                  {isSelected && label && <span className="text-[9px] opacity-80">{label}</span>}
+                  {isSelected && label && <span className="text-[9px] opacity-70">{label}</span>}
                   {isResult && <span className="text-[9px]">{won ? "승" : "패"}</span>}
                 </button>
               )
             })}
           </div>
 
-          {/* 언더 / 오버 */}
+          {/* 오버 / 언더 */}
           <div className="flex flex-col gap-2">
-            {(["under", "over"] as const).map((dig) => {
+            {(["over", "under"] as const).map((dig) => {
               const isSelected = betDigit === dig
               const isResult = phase === "result" && lastResult?.digit === dig
-              const won = isResult ? (dig === "over" ? lastResult?.wonDigit : !lastResult?.wonDigit) : undefined
-              const color = dig === "over" ? "#ff3355" : "#00aaff"
+              const won = isResult && (dig === "over" ? lastResult?.wonDigit : !lastResult?.wonDigit)
+              const color = dig === "over" ? "#f97316" : "#60a5fa"
               const label = betAmountLabel(betDigitAmount)
               return (
                 <button
                   key={dig}
                   onClick={() => openDialog("digit", dig)}
                   disabled={!canBet || betDigit !== null}
-                  className="h-16 rounded-xl text-sm font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-150 active:scale-95 disabled:opacity-40"
-                  style={neonBtn(color, isSelected, isResult, won)}
+                  className="h-14 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50"
+                  style={{
+                    background: isSelected ? `${color}20` : isResult ? (won ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)") : "hsl(var(--muted))",
+                    borderColor: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "transparent",
+                    color: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "hsl(var(--muted-foreground))",
+                  }}
                 >
                   <span>{dig === "over" ? "오버" : "언더"}</span>
-                  <span className="text-[9px] opacity-60">{dig === "over" ? "5 ~ 9" : "0 ~ 4"}</span>
-                  {isSelected && label && <span className="text-[9px] opacity-80">{label}</span>}
+                  <span className="text-[9px] opacity-60">{dig === "over" ? "5~9" : "0~4"}</span>
+                  {isSelected && label && <span className="text-[9px] opacity-70">{label}</span>}
                   {isResult && <span className="text-[9px]">{won ? "승" : "패"}</span>}
                 </button>
               )
@@ -889,20 +856,24 @@ export function BettingGame() {
             {(["odd", "even"] as const).map((par) => {
               const isSelected = betParity === par
               const isResult = phase === "result" && lastResult?.parity === par
-              const won = isResult ? (par === "odd" ? lastResult?.wonParity : !lastResult?.wonParity) : undefined
-              const color = par === "odd" ? "#a78bfa" : "#f472b6"
+              const won = isResult && (par === "odd" ? lastResult?.wonParity : !lastResult?.wonParity)
+              const color = par === "odd" ? "#8b5cf6" : "#ec4899"
               const label = betAmountLabel(betParityAmount)
               return (
                 <button
                   key={par}
                   onClick={() => openDialog("parity", par)}
                   disabled={!canBet || betParity !== null}
-                  className="h-16 rounded-xl text-sm font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-150 active:scale-95 disabled:opacity-40"
-                  style={neonBtn(color, isSelected, isResult, won)}
+                  className="h-14 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50"
+                  style={{
+                    background: isSelected ? `${color}20` : isResult ? (won ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)") : "hsl(var(--muted))",
+                    borderColor: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "transparent",
+                    color: isSelected ? color : isResult ? (won ? "#10b981" : "#ef4444") : "hsl(var(--muted-foreground))",
+                  }}
                 >
                   <span>{par === "odd" ? "홀" : "짝"}</span>
                   <span className="text-[9px] opacity-60">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
-                  {isSelected && label && <span className="text-[9px] opacity-80">{label}</span>}
+                  {isSelected && label && <span className="text-[9px] opacity-70">{label}</span>}
                   {isResult && <span className="text-[9px]">{won ? "승" : "패"}</span>}
                 </button>
               )
@@ -911,13 +882,13 @@ export function BettingGame() {
         </div>
 
         {/* 안내 텍스트 */}
-        <p className="text-center text-[10px] mt-3" style={{ color: "rgba(0,255,200,0.35)" }}>
+        <p className="text-center text-[10px] text-muted-foreground mt-3">
           {canBet && !betDirection && !betDigit && !betParity && "종목을 눌러 배팅하세요"}
           {canBet && (betDirection || betDigit || betParity) && "다른 종목 추가 배팅 가능"}
           {!canBet && phase !== "result" && (timeLeft > 3 ? "게임 중 — 배팅 불가" : "다음 게임까지 3초 전")}
           {phase === "result" && "새 라운드 준비 중..."}
         </p>
-      </div>
+      </Card>
 
       {/* 배팅 다이얼로그 */}
       {dialog && (

@@ -53,144 +53,68 @@ function rnd(a: number, b: number) { return a + Math.random() * (b - a) }
 const TWO_PI = Math.PI * 2
 
 // Draw a small aircraft silhouette on canvas ctx
-// ── Radar blip — small top-view F-22 silhouette shown on radar ────────────────
-function drawRadarBlip(
-  ctx: CanvasRenderingContext2D,
-  x: number, y: number,
-  opacity: number,
-  isLocked = false,
-) {
-  ctx.save()
-  ctx.translate(x, y)
-  ctx.globalAlpha = opacity
-
-  const s = 0.25
-  ctx.scale(s, s)
-
-  ctx.beginPath()
-  ctx.moveTo(0, -40)
-  ctx.lineTo(-30, -15)
-  ctx.lineTo(-50, 0)
-  ctx.lineTo(-30, 15)
-  ctx.lineTo(0, 30)
-  ctx.lineTo(30, 15)
-  ctx.lineTo(50, 0)
-  ctx.lineTo(30, -15)
-  ctx.closePath()
-  ctx.fillStyle   = isLocked ? "#ffcc00" : "#00ff00"
-  ctx.fill()
-  ctx.strokeStyle = "#003300"
-  ctx.lineWidth   = 2
-  ctx.stroke()
-
-  // Center blip dot
-  ctx.beginPath()
-  ctx.arc(0, 0, 8, 0, Math.PI * 2)
-  ctx.fillStyle = "white"
-  ctx.fill()
-
-  ctx.restore()
-}
-
-// F-22 top-view — nose at (0, -140) in local space before scale
-// `size` is a scale factor (0.12 – 0.32). heading = radians, nose points in direction of travel.
-// The original drawF22TopView has nose at y=-140, tail at y=+100.
-// We rotate so that nose (local -y) aligns with the heading direction.
 function drawAircraft(
   ctx: CanvasRenderingContext2D,
   x: number, y: number,
   heading: number,
-  size: number,   // used as scale, e.g. 0.15 ~ 0.32
-  _type: 0 | 1 | 2
+  size: number,
+  type: 0 | 1 | 2
 ) {
   ctx.save()
   ctx.translate(x, y)
-  // heading = atan2(vy,vx) - PI/2  →  at heading=0 ctx points "up" which matches nose at -y
   ctx.rotate(heading)
-  ctx.scale(size, size)
-  ctx.globalAlpha = ctx.globalAlpha  // preserve parent alpha
 
-  // ── F-22 Raptor top-view ───────────────────────────────────────────────
-  // Body gradient
-  const grad = ctx.createLinearGradient(-100, -150, 100, 150)
-  grad.addColorStop(0, "#1a2a1a")
-  grad.addColorStop(0.5, "#2a3d2a")
-  grad.addColorStop(1, "#111a11")
+  ctx.shadowBlur = 8
+  ctx.shadowColor = "rgba(0,255,180,0.6)"
+  ctx.strokeStyle = "rgba(0,255,180,0.85)"
+  ctx.fillStyle   = "rgba(0,255,180,0.15)"
+  ctx.lineWidth   = 1
 
-  // Main diamond body / wing
-  ctx.beginPath()
-  ctx.moveTo(0, -140)       // Nose tip
-  ctx.lineTo(-80, -60)
-  ctx.lineTo(-140, 0)       // Left wing tip
-  ctx.lineTo(-100, 60)
-  ctx.lineTo(0, 100)        // Tail center
-  ctx.lineTo(100, 60)
-  ctx.lineTo(140, 0)        // Right wing tip
-  ctx.lineTo(80, -60)
-  ctx.closePath()
-  ctx.fillStyle = grad
-  ctx.fill()
-  ctx.strokeStyle = "rgba(0,255,180,0.7)"
-  ctx.lineWidth = 3
-  ctx.shadowBlur = 10
-  ctx.shadowColor = "rgba(0,255,180,0.5)"
-  ctx.stroke()
+  const s = size
 
-  // Cockpit canopy
-  ctx.beginPath()
-  ctx.ellipse(0, -80, 18, 36, 0, 0, Math.PI * 2)
-  ctx.fillStyle = "rgba(0,220,180,0.22)"
-  ctx.fill()
-  ctx.strokeStyle = "rgba(0,255,200,0.6)"
-  ctx.lineWidth = 1.5
-  ctx.shadowBlur = 6
-  ctx.stroke()
-
-  // Panel / seam lines
-  ctx.beginPath()
-  ctx.moveTo(-50, -100); ctx.lineTo(50, -100)
-  ctx.moveTo(-90, -20);  ctx.lineTo(90, -20)
-  ctx.moveTo(-110, 40);  ctx.lineTo(110, 40)
-  ctx.moveTo(0, -140);   ctx.lineTo(0, 100)
-  ctx.strokeStyle = "rgba(0,180,140,0.3)"
-  ctx.lineWidth = 1
-  ctx.shadowBlur = 0
-  ctx.stroke()
-
-  // Engine intakes
-  ctx.beginPath()
-  ctx.ellipse(-45, 20, 20, 12, 0, 0, Math.PI * 2)
-  ctx.ellipse(45, 20, 20, 12, 0, 0, Math.PI * 2)
-  ctx.fillStyle = "rgba(0,0,0,0.7)"
-  ctx.fill()
-  ctx.strokeStyle = "rgba(0,200,160,0.4)"
-  ctx.lineWidth = 1
-  ctx.stroke()
-
-  // Engine nozzles (afterburner glow)
-  ctx.beginPath()
-  ctx.arc(-35, 82, 10, 0, Math.PI * 2)
-  ctx.arc(35, 82, 10, 0, Math.PI * 2)
-  ctx.fillStyle = "rgba(255,120,0,0.75)"
-  ctx.fill()
-  ctx.strokeStyle = "rgba(255,200,50,0.5)"
-  ctx.lineWidth = 1
-  ctx.stroke()
+  if (type === 0) {
+    // Fighter — delta wing
+    ctx.beginPath()
+    ctx.moveTo(0, -s)
+    ctx.lineTo(-s * 0.5, s * 0.4)
+    ctx.lineTo(0, s * 0.1)
+    ctx.lineTo(s * 0.5, s * 0.4)
+    ctx.closePath()
+    ctx.fill(); ctx.stroke()
+    // tail fins
+    ctx.beginPath()
+    ctx.moveTo(-s * 0.5, s * 0.4)
+    ctx.lineTo(-s * 0.7, s * 0.8)
+    ctx.moveTo(s * 0.5, s * 0.4)
+    ctx.lineTo(s * 0.7, s * 0.8)
+    ctx.stroke()
+  } else if (type === 1) {
+    // Jet — swept wing
+    ctx.beginPath()
+    ctx.moveTo(0, -s)
+    ctx.lineTo(-s * 0.7, s * 0.2)
+    ctx.lineTo(-s * 0.25, s * 0.1)
+    ctx.lineTo(-s * 0.2, s * 0.7)
+    ctx.lineTo(0, s * 0.4)
+    ctx.lineTo(s * 0.2, s * 0.7)
+    ctx.lineTo(s * 0.25, s * 0.1)
+    ctx.lineTo(s * 0.7, s * 0.2)
+    ctx.closePath()
+    ctx.fill(); ctx.stroke()
+  } else {
+    // Stealth — flying wing
+    ctx.beginPath()
+    ctx.moveTo(0, -s * 0.3)
+    ctx.lineTo(-s * 0.9, s * 0.5)
+    ctx.lineTo(-s * 0.3, s * 0.3)
+    ctx.lineTo(0, s * 0.55)
+    ctx.lineTo(s * 0.3, s * 0.3)
+    ctx.lineTo(s * 0.9, s * 0.5)
+    ctx.closePath()
+    ctx.fill(); ctx.stroke()
+  }
 
   ctx.restore()
-}
-
-// Returns world-space nose position for missile spawn.
-// Local nose = (0, -140). After ctx.rotate(heading): local (lx, ly) → world (lx*cos−ly*sin, lx*sin+ly*cos).
-// So (0, -140*size) → world offset = (140*size*sin(heading), -140*size*cos(heading)) ... wait:
-// rotate(θ): x' = x*cosθ - y*sinθ,  y' = x*sinθ + y*cosθ
-// nose local = (0, -140*size) → x' = 0 - (-140s)*sinθ = 140s*sinθ,  y' = 0 + (-140s)*cosθ = -140s*cosθ
-function getNosePosition(x: number, y: number, heading: number, size: number) {
-  const noseLen = 140 * size
-  return {
-    nx: x + noseLen * Math.sin(heading),
-    ny: y - noseLen * Math.cos(heading),
-  }
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -274,8 +198,8 @@ export default function RadarOverlay({
         x: sx, y: sy,
         vx: (dx - sx) / dist * spd,
         vy: (dy - sy) / dist * spd,
-            heading: Math.atan2(dy - sy, dx - sx) + Math.PI / 2,
-        size: rnd(0.12, 0.30),  // F-22 scale factor (local coords ±140px → ~34–84px on screen)
+        heading: Math.atan2(dy - sy, dx - sx) - Math.PI / 2,
+        size: rnd(8, 16),
         type: Math.floor(Math.random() * 3) as 0 | 1 | 2,
         state: "cruising",
         targetId: r.id,
@@ -402,8 +326,20 @@ export default function RadarOverlay({
         const dotAlpha = dotDelta < fadeWindow ? Math.max(0, 1 - dotDelta / fadeWindow) : 0
 
         if (dotAlpha > 0) {
-          const isLocked = r.dotColor === "yellow"
-          drawRadarBlip(ctx, dx, dy, dotAlpha, isLocked)
+          const dotColor = r.dotColor === "red" ? "255,60,60" : "255,220,0"
+          // Glow
+          const grd = ctx.createRadialGradient(dx, dy, 0, dx, dy, 10)
+          grd.addColorStop(0, `rgba(${dotColor},${dotAlpha * 0.9})`)
+          grd.addColorStop(1, `rgba(${dotColor},0)`)
+          ctx.beginPath()
+          ctx.arc(dx, dy, 10, 0, TWO_PI)
+          ctx.fillStyle = grd
+          ctx.fill()
+          // Core
+          ctx.beginPath()
+          ctx.arc(dx, dy, 3, 0, TWO_PI)
+          ctx.fillStyle = `rgba(${dotColor},${dotAlpha})`
+          ctx.fill()
         }
 
         ctx.restore()
@@ -434,7 +370,7 @@ export default function RadarOverlay({
           ac.x += ac.vx * dt
           ac.y += ac.vy * dt
           if (Math.abs(ac.vx) > 0.01 || Math.abs(ac.vy) > 0.01) {
-            ac.heading = Math.atan2(ac.vy, ac.vx) + Math.PI / 2
+            ac.heading = Math.atan2(ac.vy, ac.vx) - Math.PI / 2
           }
           const offscreen = ac.x < -100 || ac.x > W + 100 || ac.y < -100 || ac.y > H + 100
           if (!offscreen) drawAircraft(ctx, ac.x, ac.y, ac.heading, ac.size, ac.type)
@@ -455,7 +391,7 @@ export default function RadarOverlay({
         ac.y += ac.vy * dt
         // Keep heading aligned to velocity so nose always points in direction of travel
         if (Math.abs(ac.vx) > 0.01 || Math.abs(ac.vy) > 0.01) {
-          ac.heading = Math.atan2(ac.vy, ac.vx) + Math.PI / 2
+          ac.heading = Math.atan2(ac.vy, ac.vx) - Math.PI / 2
         }
 
         const { dx, dy } = getDotPos(radar)
@@ -466,21 +402,20 @@ export default function RadarOverlay({
           ac.state = "attacking"
         }
 
-        // Fire missiles from the nose tip
+        // Fire missiles
         if (ac.state === "attacking" && ac.missilesFired < 5 && now - ac.lastMissile > 700) {
           const spd  = rnd(220, 380)
-          const jx   = rnd(-18, 18)
-          const jy   = rnd(-18, 18)
+          // Jitter for realism — some miss
+          const jx   = rnd(-22, 22)
+          const jy   = rnd(-22, 22)
           const tx   = dx + jx
           const ty   = dy + jy
-          // Compute nose world position
-          const { nx, ny } = getNosePosition(ac.x, ac.y, ac.heading, ac.size)
-          const dist2 = Math.hypot(tx - nx, ty - ny)
+          const dist2 = Math.hypot(tx - ac.x, ty - ac.y)
           missilesRef.current.push({
             id: idRef.current++,
-            x: nx, y: ny,
-            vx: (tx - nx) / dist2 * spd,
-            vy: (ty - ny) / dist2 * spd,
+            x: ac.x, y: ac.y,
+            vx: (tx - ac.x) / dist2 * spd,
+            vy: (ty - ac.y) / dist2 * spd,
             tx, ty,
             radarId: radar.id,
           })
