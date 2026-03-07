@@ -569,7 +569,7 @@ export function BettingGame() {
           setPhase("result")
         }
 
-        // 새 라운드 초기화 (결과 시트�� 닫지 않음 - 유저가 직접 닫거나 배팅 시 닫힘)
+        // 새 라운드 초기화 (결과 시트는 닫지 않음 - 유저가 직접 닫거나 배팅 시 닫힘)
         betRef.current = null
         betDigitRef.current = null
         betParityRef.current = null
@@ -728,9 +728,9 @@ export function BettingGame() {
       }
     }
     return {
-      background: "rgba(255,255,255,0.05)",
-      border: "1.5px solid rgba(255,255,255,0.18)",
-      color: "rgba(255,255,255,0.92)",
+      background: "rgba(255,255,255,0.04)",
+      border: "1.5px solid rgba(255,255,255,0.1)",
+      color: "rgba(180,220,255,0.55)",
       boxShadow: "none",
     }
   }
@@ -797,7 +797,7 @@ export function BettingGame() {
           <div className="flex items-center justify-between mb-3 px-2 py-2 rounded-lg"
             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <span className="text-[10px]" style={{ color: "rgba(0,255,200,0.6)" }}>
-              ��자리 <span className="font-bold text-white">{Math.floor(lastResult.closePrice * 10) % 10}</span>
+              끝자리 <span className="font-bold text-white">{Math.floor(lastResult.closePrice * 10) % 10}</span>
             </span>
             <div className="flex gap-1">
               {lastResult.direction && (
@@ -826,7 +826,7 @@ export function BettingGame() {
         <div className="grid grid-cols-3 gap-2">
           {/* 헤더 라벨 */}
           {(["롱 / 숏", "언더 / 오버", "홀 / 짝"] as const).map((label) => (
-            <p key={label} className="text-center text-[10px] pb-1" style={{ color: "rgba(0,255,200,0.85)" }}>
+            <p key={label} className="text-center text-[10px] pb-1" style={{ color: "rgba(0,255,200,0.45)" }}>
               {label}
             </p>
           ))}
@@ -851,7 +851,7 @@ export function BettingGame() {
                     {dir === "long" ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                     <span>{dir === "long" ? "롱" : "숏"}</span>
                   </div>
-                  <span className="text-[9px] opacity-80">{dir === "long" ? "직전 대비 상승" : "직전 대비 하락"}</span>
+                  <span className="text-[9px] opacity-60">{dir === "long" ? "직전 대비 상승" : "직전 대비 하락"}</span>
                   {isSelected && label && <span className="text-[9px] opacity-80">{label}</span>}
                   {isResult && <span className="text-[9px]">{won ? "승" : "패"}</span>}
                 </button>
@@ -876,7 +876,7 @@ export function BettingGame() {
                   style={neonBtn(color, isSelected, isResult, won)}
                 >
                   <span>{dig === "over" ? "오버" : "언더"}</span>
-                  <span className="text-[9px] opacity-80">{dig === "over" ? "5 ~ 9" : "0 ~ 4"}</span>
+                  <span className="text-[9px] opacity-60">{dig === "over" ? "5 ~ 9" : "0 ~ 4"}</span>
                   {isSelected && label && <span className="text-[9px] opacity-80">{label}</span>}
                   {isResult && <span className="text-[9px]">{won ? "승" : "패"}</span>}
                 </button>
@@ -901,7 +901,7 @@ export function BettingGame() {
                   style={neonBtn(color, isSelected, isResult, won)}
                 >
                   <span>{par === "odd" ? "홀" : "짝"}</span>
-                  <span className="text-[9px] opacity-80">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
+                  <span className="text-[9px] opacity-60">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
                   {isSelected && label && <span className="text-[9px] opacity-80">{label}</span>}
                   {isResult && <span className="text-[9px]">{won ? "승" : "패"}</span>}
                 </button>
