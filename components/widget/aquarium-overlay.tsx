@@ -158,29 +158,132 @@ function drawAircraftC(ctx: CanvasRenderingContext2D, s: number) {
   ctx.stroke()
 }
 
-// D: Laser fighter — angular, bright cyan
+// D: Laser fighter — multi-component assembled structure (XB-99 Spectre style)
 function drawAircraftD(ctx: CanvasRenderingContext2D, s: number) {
+  const CYAN = "#00ffff"
+  const DARK = "#020e18"
+  const MID  = "#0a2535"
+  ctx.shadowBlur = 8; ctx.shadowColor = CYAN
+
+  // === Twin engine nacelles (outermost) ===
+  for (const side of [-1, 1]) {
+    ctx.save()
+    ctx.translate(side * s * 0.72, s * 0.1)
+    // Nacelle body
+    ctx.beginPath()
+    ctx.ellipse(0, 0, s * 0.14, s * 0.42, 0, 0, TWO_PI)
+    ctx.fillStyle = MID; ctx.fill()
+    ctx.strokeStyle = CYAN; ctx.lineWidth = 0.6; ctx.stroke()
+    // Intake ring
+    ctx.beginPath()
+    ctx.ellipse(0, -s * 0.38, s * 0.1, s * 0.06, 0, 0, TWO_PI)
+    ctx.strokeStyle = CYAN; ctx.lineWidth = 0.5; ctx.stroke()
+    // Afterburner
+    ctx.beginPath()
+    ctx.arc(0, s * 0.38, s * 0.07, 0, TWO_PI)
+    ctx.fillStyle = "rgba(255,140,0,0.9)"; ctx.fill()
+    ctx.restore()
+  }
+
+  // === Canard delta foreplanes ===
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.1, -s * 0.7)
+    ctx.lineTo(side * s * 0.62, -s * 0.2)
+    ctx.lineTo(side * s * 0.18, -s * 0.1)
+    ctx.closePath()
+    ctx.fillStyle = MID; ctx.fill()
+    ctx.strokeStyle = CYAN; ctx.lineWidth = 0.5; ctx.stroke()
+  }
+
+  // === Main swept delta wings ===
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.18, s * 0.0)
+    ctx.lineTo(side * s * 1.25, s * 0.55)
+    ctx.lineTo(side * s * 0.95, s * 0.65)
+    ctx.lineTo(side * s * 0.28, s * 0.45)
+    ctx.closePath()
+    ctx.fillStyle = "#071a24"; ctx.fill()
+    ctx.strokeStyle = CYAN; ctx.lineWidth = 0.6; ctx.stroke()
+    // Wing LE strake detail
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.18, 0)
+    ctx.lineTo(side * s * 1.1, s * 0.48)
+    ctx.strokeStyle = `rgba(0,255,255,0.25)`; ctx.lineWidth = 0.4; ctx.stroke()
+  }
+
+  // === Tail fins ===
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.15, s * 0.45)
+    ctx.lineTo(side * s * 0.45, s * 0.3)
+    ctx.lineTo(side * s * 0.38, s * 0.75)
+    ctx.closePath()
+    ctx.fillStyle = MID; ctx.fill()
+    ctx.strokeStyle = CYAN; ctx.lineWidth = 0.5; ctx.stroke()
+  }
+
+  // === Fuselage ===
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.2)
-  ctx.lineTo(-s * 0.25, s * 0.1)
-  ctx.lineTo(-s * 0.8, s * 0.6)
-  ctx.lineTo(-s * 0.15, s * 0.35)
-  ctx.lineTo(0, s * 0.8)
-  ctx.lineTo(s * 0.15, s * 0.35)
-  ctx.lineTo(s * 0.8, s * 0.6)
-  ctx.lineTo(s * 0.25, s * 0.1)
+  ctx.moveTo(0, -s * 1.35)          // sharp nose
+  ctx.lineTo(-s * 0.18, -s * 0.6)
+  ctx.lineTo(-s * 0.2,   s * 0.5)
+  ctx.lineTo(-s * 0.12,  s * 0.8)
+  ctx.lineTo(0, s * 0.9)
+  ctx.lineTo(s * 0.12,  s * 0.8)
+  ctx.lineTo(s * 0.2,   s * 0.5)
+  ctx.lineTo(s * 0.18, -s * 0.6)
   ctx.closePath()
-  ctx.fillStyle = "#051a25"
-  ctx.fill()
-  ctx.strokeStyle = "#00ffff"
-  ctx.lineWidth = 0.9
-  ctx.shadowBlur = 10; ctx.shadowColor = "#00ffff"
-  ctx.stroke()
-  // laser emitter tip
+  ctx.fillStyle = DARK; ctx.fill()
+  ctx.strokeStyle = CYAN; ctx.lineWidth = 0.9
+  ctx.shadowBlur = 14; ctx.stroke()
+
+  // === Spine ridge line ===
   ctx.beginPath()
-  ctx.arc(0, -s * 1.22, s * 0.08, 0, TWO_PI)
-  ctx.fillStyle = "#00ffff"
+  ctx.moveTo(0, -s * 1.35); ctx.lineTo(0, s * 0.9)
+  ctx.strokeStyle = `rgba(0,255,255,0.18)`; ctx.lineWidth = 0.4; ctx.stroke()
+
+  // === Cockpit canopy (angular multi-panel) ===
+  ctx.beginPath()
+  ctx.moveTo(0, -s * 1.05)
+  ctx.lineTo(-s * 0.1, -s * 0.7)
+  ctx.lineTo(-s * 0.12, -s * 0.3)
+  ctx.lineTo(0, -s * 0.2)
+  ctx.lineTo(s * 0.12, -s * 0.3)
+  ctx.lineTo(s * 0.1, -s * 0.7)
+  ctx.closePath()
+  ctx.fillStyle = "rgba(0,220,255,0.18)"; ctx.fill()
+  ctx.strokeStyle = "rgba(0,255,255,0.7)"; ctx.lineWidth = 0.6
+  ctx.shadowBlur = 8; ctx.stroke()
+  // canopy panel line
+  ctx.beginPath()
+  ctx.moveTo(0, -s * 1.05); ctx.lineTo(0, -s * 0.2)
+  ctx.strokeStyle = "rgba(0,255,255,0.3)"; ctx.lineWidth = 0.3; ctx.stroke()
+
+  // === Laser emitter assembly (nose tip) ===
+  // Barrel
+  ctx.beginPath()
+  ctx.moveTo(-s * 0.04, -s * 1.35)
+  ctx.lineTo(s * 0.04, -s * 1.35)
+  ctx.lineTo(s * 0.02, -s * 1.65)
+  ctx.lineTo(-s * 0.02, -s * 1.65)
+  ctx.closePath()
+  ctx.fillStyle = CYAN; ctx.shadowBlur = 18; ctx.shadowColor = CYAN
   ctx.fill()
+  // Emitter ring
+  ctx.beginPath()
+  ctx.arc(0, -s * 1.65, s * 0.055, 0, TWO_PI)
+  ctx.fillStyle = "#ffffff"; ctx.fill()
+  ctx.beginPath()
+  ctx.arc(0, -s * 1.65, s * 0.09, 0, TWO_PI)
+  ctx.strokeStyle = CYAN; ctx.lineWidth = 0.7; ctx.stroke()
+  // Side sensor pods
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.ellipse(side * s * 0.06, -s * 1.48, s * 0.025, s * 0.06, 0, 0, TWO_PI)
+    ctx.fillStyle = `rgba(0,255,255,0.6)`; ctx.fill()
+  }
 }
 
 // E: Small patrol scout — tiny diamond
@@ -517,7 +620,9 @@ export default function RadarOverlay({
       })
 
       // ── Spawn aircraft ───────────────────────────────────────────────
-      // max 3 missile jets + 2 patrol + 1 laser simultaneously
+      // Hard cap: total active (non-done) aircraft <= 3, balanced across roles.
+      // Composition: 1 missile-type + 1 laser + 1 patrol (tiny scout)
+      const totalActive = aircraftRef.current.filter(a => a.state !== "done").length
       const activeMissile = aircraftRef.current.filter(
         a => (a.role === "missile-a" || a.role === "missile-b" || a.role === "missile-c") && a.state !== "done"
       ).length
@@ -528,19 +633,18 @@ export default function RadarOverlay({
         a => a.role === "laser" && a.state !== "done"
       ).length
 
-      for (const r of radarsRef.current) {
-        if (r.phase !== "spinning") continue
-        if (activeMissile < 3) {
-          const roles: AircraftRole[] = ["missile-a", "missile-b", "missile-c"]
-          spawnAircraftForRadar(W, H, r, roles[Math.floor(Math.random() * 3)])
-          break
-        }
-        if (activePatrol < 2) {
-          spawnAircraftForRadar(W, H, r, "patrol")
-          break
-        }
-        if (activeLaser < 1) {
-          spawnAircraftForRadar(W, H, r, "laser")
+      if (totalActive < 3) {
+        for (const r of radarsRef.current) {
+          if (r.phase !== "spinning") continue
+          // Priority: one of each type, total ≤ 3
+          if (activeMissile === 0) {
+            const roles: AircraftRole[] = ["missile-a", "missile-b", "missile-c"]
+            spawnAircraftForRadar(W, H, r, roles[Math.floor(Math.random() * 3)])
+          } else if (activeLaser === 0) {
+            spawnAircraftForRadar(W, H, r, "laser")
+          } else if (activePatrol === 0) {
+            spawnAircraftForRadar(W, H, r, "patrol")
+          }
           break
         }
       }

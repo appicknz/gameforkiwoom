@@ -7,7 +7,10 @@ import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { TopBar } from "@/components/dashboard/top-bar"
 
 // 사이버펑크 네온 테마 CSS 토큰 — /widget 전용 (oklch 포맷)
+// Orbitron 폰트는 Google Fonts에서 직접 로드해 /widget에만 적용
 const CYBER_THEME = `
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600;700&display=swap');
+
   :root {
     --background:           oklch(0.08 0.02 220);
     --foreground:           oklch(0.97 0.01 180);
@@ -31,6 +34,8 @@ const CYBER_THEME = `
     --radius:               0.75rem;
     --neon-green:           #00ff88;
     --neon-cyan:            #00e5ff;
+    --font-sans:            'Orbitron', sans-serif;
+    --font-mono:            'Geist Mono', monospace;
   }
 `
 
