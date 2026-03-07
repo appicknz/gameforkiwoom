@@ -58,13 +58,6 @@ interface Explosion {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function rnd(a: number, b: number) { return a + Math.random() * (b - a) }
 function deg2rad(d: number) { return (d * Math.PI) / 180 }
-function durationFromDelta(delta: number): number {
-  if (delta >= 740_000) return 900
-  if (delta >= 220_000) return 1600
-  if (delta >= 74_000)  return 2600
-  if (delta >= 15_000)  return 4000
-  return 5500
-}
 
 // ─── Aircraft SVGs — neon glow, pointing upward (nose at top) ─────────────────
 function AircraftSVG({ type, size }: { type: 0 | 1 | 2; size: number }) {
@@ -117,7 +110,7 @@ function MissileSVG() {
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function RadarOverlay({ priceData }: { priceData?: { volume: number; deltaVolume: number } }) {
+export default function RadarOverlay({ priceData: _priceData }: { priceData?: { volume: number; deltaVolume: number } }) {
   const [mounted, setMounted] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
@@ -132,16 +125,11 @@ export default function RadarOverlay({ priceData }: { priceData?: { volume: numb
   const msIdRef       = useRef(0)
   const exIdRef       = useRef(0)
   const lastSpawnRef  = useRef(0)
-  const baseDurRef    = useRef(5500)
   const prevFrameRef  = useRef(0)
 
   const [tick, setTick] = useState(0) // triggers re-render
 
   useEffect(() => { setMounted(true) }, [])
-
-  useEffect(() => {
-    if (priceData) baseDurRef.current = durationFromDelta(priceData.deltaVolume)
-  }, [priceData])
 
   // ── Simulation loop ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -154,23 +142,21 @@ export default function RadarOverlay({ priceData }: { priceData?: { volume: numb
       const W = containerRef.current?.clientWidth  ?? 600
       const H = containerRef.current?.clientHeight ?? 300
 
-      // ── Spawn radar ──────────────────────────────────────────────────────
-      const spawnGap = baseDurRef.current < 1200 ? 800
-        : baseDurRef.current < 2500 ? 1400
-        : baseDurRef.current < 4000 ? 2200 : 3000
-
-      if (now - lastSpawnRef.current > spawnGap && radarsRef.current.length < 7) {
+      // ── Spawn radar — natural pace, one every 2s max 6 simultaneous ────
+      if (now - lastSpawnRef.current > 2000 && radarsRef.current.length < 6) {
         lastSpawnRef.current = now
         const targetAngle = rnd(0, 360)
-        const radius = rnd(80, 280)
+        // Random radius — some large enough to exceed canvas edge
+        const radius = rnd(70, 300)
 
         const r: RadarObj = {
           id: radarIdRef.current++,
-          x: rnd(radius * 0.3, W - radius * 0.3),
-          y: rnd(radius * 0.3, H - radius * 0.3),
+          x: rnd(W * 0.1, W * 0.9),
+          y: rnd(H * 0.1, H * 0.9),
           radius,
           angle: 0,
-          duration: baseDurRef.current * rnd(0.8, 1.3),
+          // Each radar gets its own random duration 2–5s — no price dependency
+          duration: rnd(2000, 5000),
           spawnTime: now,
           targetAngle,
           targetColor: Math.random() > 0.4 ? "red" : "yellow",
@@ -435,25 +421,39 @@ export default function RadarOverlay({ priceData }: { priceData?: { volume: numb
                 <line x1="36"  y1="36"  x2="164" y2="164" stroke="rgba(34,211,238,0.06)" strokeWidth="0.5" />
                 <line x1="164" y1="36"  x2="36"  y2="164" stroke="rgba(34,211,238,0.06)" strokeWidth="0.5" />
 
-                {/* Sweep trail — 10 fading lines */}
-                {Array.from({ length: 10 }).map((_, i) => {
-                  const a = deg2rad(r.angle - 90 - i * 6)
-                  const ex = 100 + Math.cos(a) * 92
-                  const ey = 100 + Math.sin(a) * 92
+                {/* Sweep trail — single fan arc (40° wide), fading gradient */}
+                {(() => {
+                  const trailDeg = 40
+                  const sweepA = deg2rad(r.angle - 90)
+                  const trailA = deg2rad(r.angle - 90 - trailDeg)
+                  const ex1 = 100 + Math.cos(sweepA) * 92
+                  const ey1 = 100 + Math.sin(sweepA) * 92
+                  const ex2 = 100 + Math.cos(trailA) * 92
+                  const ey2 = 100 + Math.sin(trailA) * 92
+                  const midA = deg2rad(r.angle - 90 - trailDeg / 2)
+                  const mx = 100 + Math.cos(midA) * 92
+                  const my = 100 + Math.sin(midA) * 92
+                  const gradId = `sweep-grad-${r.id}`
                   return (
-                    <line key={i}
-                      x1="100" y1="100" x2={ex} y2={ey}
-                      stroke="rgba(34,211,238,1)"
-                      strokeWidth={2.2 - i * 0.18}
-                      opacity={(10 - i) / 13}
-                    />
+                    <>
+                      <defs>
+                        <linearGradient id={gradId} x1="100" y1="100" x2={mx} y2={my} gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0" />
+                          <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.18" />
+                        </linearGradient>
+                      </defs>
+                      {/* Fan fill */}
+                      <path
+                        d={`M 100 100 L ${ex2} ${ey2} A 92 92 0 0 1 ${ex1} ${ey1} Z`}
+                        fill={`url(#${gradId})`}
+                      />
+                      {/* Single bright sweep line */}
+                      <line x1="100" y1="100" x2={sx} y2={sy}
+                        stroke="#22d3ee" strokeWidth="1.8"
+                        filter={`url(#glow-r${r.id})`} />
+                    </>
                   )
-                })}
-
-                {/* Bright sweep line */}
-                <line x1="100" y1="100" x2={sx} y2={sy}
-                  stroke="#22d3ee" strokeWidth="2"
-                  filter={`url(#glow-r${r.id})`} />
+                })()}
 
                 {/* Expanding wave ring */}
                 {waveRsvg > 2 && waveRsvg < 93 && (
