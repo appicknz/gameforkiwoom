@@ -318,31 +318,18 @@ export default function RadarOverlay({ priceData: _priceData }: { priceData?: { 
         m.x += m.vx * dt
         m.y += m.vy * dt
 
-        // Check proximity to aimed target (missile expired at destination)
+        // Missile reached aimed point — spawn explosion and remove missile
         const distToAim = Math.hypot(m.tx - m.x, m.ty - m.y)
         if (distToAim < 10) {
-          // Missile reached its aimed point — check if it actually hit the dot
-          const distToDot = Math.hypot(m.dotX - m.x, m.dotY - m.y)
-          if (distToDot < 18) {
-            // DIRECT HIT on the dot — destroy radar immediately
-            m.hit = true
-            explosionsRef.current.push({
-              id: exIdRef.current++,
-              x: m.dotX,
-              y: m.dotY,
-              startTime: now,
-              duration: 700,
-            })
-            radarsRef.current   = radarsRef.current.filter((r) => r.id !== m.radarId)
-            aircraftRef.current = aircraftRef.current.filter((a) => a.targetId !== m.radarId)
-            missilesRef.current = missilesRef.current.filter(
-              (ms) => ms === m || ms.radarId !== m.radarId
-            )
-          }
-          // Whether hit or miss, this missile is done
+          explosionsRef.current.push({
+            id: exIdRef.current++,
+            x: m.x,
+            y: m.y,
+            startTime: now,
+            duration: 700,
+          })
           return false
         }
-        // Missile still in flight — radar untouched
 
         // Out of bounds
         if (m.x < -100 || m.x > W + 100 || m.y < -100 || m.y > H + 100) return false
