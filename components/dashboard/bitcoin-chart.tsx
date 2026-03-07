@@ -50,7 +50,17 @@ function formatQuoteVolume(usd: number): string {
   return krw.toLocaleString() + "원"
 }
 
-export function BitcoinChart() {
+// 배팅 기준가의 차트 픽셀 좌표를 외부에 노출 (레이더 타겟 위치에 사용)
+export interface BasePriceCoord {
+  x: number   // 캔버스 내 픽셀 X (최신 캔들 위치)
+  y: number   // 캔버스 내 픽셀 Y (배팅 기준가 price 위치)
+}
+
+interface BitcoinChartProps {
+  onBasePriceCoord?: (coord: BasePriceCoord | null) => void
+}
+
+export function BitcoinChart({ onBasePriceCoord }: BitcoinChartProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -65,10 +75,11 @@ export function BitcoinChart() {
   const [lastCandlePrice, setLastCandlePrice] = useState<number | null>(null)
   const [connected, setConnected] = useState(false)
 
-  // 배팅 기준가 수평선
+  // 배팅 기준가 수평선 + 차트 좌표 계산
   useEffect(() => {
     if (!seriesRef.current || closingPrices.length === 0) return
-    const latestPrice = closingPrices[closingPrices.length - 1].price
+    const latest = closingPrices[closingPrices.length - 1]
+    const latestPrice = latest.price
     if (priceLineRef.current) {
       try { seriesRef.current.removePriceLine(priceLineRef.current) } catch {}
     }
@@ -80,7 +91,23 @@ export function BitcoinChart() {
       axisLabelVisible: true,
       title: "배팅가",
     })
-  }, [closingPrices])
+
+    // 배팅 기준가의 차트 픽셀 좌표 계산 → 레이더 타겟 위치
+    if (onBasePriceCoord && chartRef.current) {
+      try {
+        const y = chartRef.current.priceScale("right").priceToCoordinate(latestPrice)
+        // X: 마지막 캔들의 시간 좌표
+        const x = chartRef.current.timeScale().timeToCoordinate(latest.time as any)
+        if (y !== null && x !== null) {
+          onBasePriceCoord({ x: Number(x), y: Number(y) })
+        } else {
+          onBasePriceCoord(null)
+        }
+      } catch {
+        onBasePriceCoord(null)
+      }
+    }
+  }, [closingPrices, onBasePriceCoord])
 
   // 차트 + WebSocket 초기화 (interval 변경 시 재실행)
   useEffect(() => {

@@ -158,131 +158,124 @@ function drawAircraftC(ctx: CanvasRenderingContext2D, s: number) {
   ctx.stroke()
 }
 
-// D: Laser fighter — multi-component assembled structure (XB-99 Spectre style)
+// D: Battlecruiser — massive wedge-hull capital ship (Starcraft BC style)
+// Nose at local (0, -s*1.1), tail at (0, s*1.1). Very wide, heavily armored.
 function drawAircraftD(ctx: CanvasRenderingContext2D, s: number) {
-  const CYAN = "#00ffff"
-  const DARK = "#020e18"
-  const MID  = "#0a2535"
-  ctx.shadowBlur = 8; ctx.shadowColor = CYAN
+  const HULL   = "#1a2030"
+  const HULL2  = "#252d40"
+  const CYAN   = "#00e5ff"
+  const EDGE   = "rgba(0,229,255,0.55)"
+  const DIM    = "rgba(0,229,255,0.18)"
+  ctx.shadowBlur = 0
 
-  // === Twin engine nacelles (outermost) ===
+  // === Outer sponson pods (port/starboard) ===
   for (const side of [-1, 1]) {
-    ctx.save()
-    ctx.translate(side * s * 0.72, s * 0.1)
-    // Nacelle body
+    // Sponson hull
     ctx.beginPath()
-    ctx.ellipse(0, 0, s * 0.14, s * 0.42, 0, 0, TWO_PI)
-    ctx.fillStyle = MID; ctx.fill()
+    ctx.moveTo(side * s * 0.55, -s * 0.65)
+    ctx.lineTo(side * s * 1.0,  -s * 0.2)
+    ctx.lineTo(side * s * 1.05,  s * 0.4)
+    ctx.lineTo(side * s * 0.7,   s * 0.7)
+    ctx.lineTo(side * s * 0.45,  s * 0.5)
+    ctx.lineTo(side * s * 0.42, -s * 0.4)
+    ctx.closePath()
+    ctx.fillStyle = HULL; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7; ctx.stroke()
+    // Sponson gun barrel
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.78, -s * 0.45)
+    ctx.lineTo(side * s * 1.1,  -s * 0.6)
+    ctx.strokeStyle = CYAN; ctx.lineWidth = 1.0; ctx.stroke()
+    // Engine vent
+    ctx.beginPath()
+    ctx.ellipse(side * s * 0.72, s * 0.55, s * 0.12, s * 0.07, 0, 0, TWO_PI)
+    ctx.fillStyle = "rgba(255,120,0,0.8)"; ctx.fill()
+  }
+
+  // === Main hull (wide trapezoid) ===
+  ctx.beginPath()
+  ctx.moveTo(0,          -s * 1.1)   // prow
+  ctx.lineTo(-s * 0.42,  -s * 0.55)
+  ctx.lineTo(-s * 0.45,   s * 0.6)
+  ctx.lineTo(-s * 0.28,   s * 1.0)
+  ctx.lineTo(0,           s * 1.1)
+  ctx.lineTo(s * 0.28,    s * 1.0)
+  ctx.lineTo(s * 0.45,    s * 0.6)
+  ctx.lineTo(s * 0.42,   -s * 0.55)
+  ctx.closePath()
+  ctx.fillStyle = HULL2; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.9; ctx.stroke()
+
+  // === Deck plating lines ===
+  const deckLines = [-0.3, 0.05, 0.4, 0.75]
+  for (const yf of deckLines) {
+    const hw = yf < 0 ? s * 0.35 : s * 0.42
+    ctx.beginPath()
+    ctx.moveTo(-hw, s * yf); ctx.lineTo(hw, s * yf)
+    ctx.strokeStyle = DIM; ctx.lineWidth = 0.5; ctx.stroke()
+  }
+  // Spine
+  ctx.beginPath()
+  ctx.moveTo(0, -s * 1.1); ctx.lineTo(0, s * 1.1)
+  ctx.strokeStyle = DIM; ctx.lineWidth = 0.5; ctx.stroke()
+
+  // === Command tower (superstructure) ===
+  ctx.beginPath()
+  ctx.moveTo(-s * 0.14, -s * 0.55)
+  ctx.lineTo(-s * 0.18,  s * 0.1)
+  ctx.lineTo(-s * 0.12,  s * 0.3)
+  ctx.lineTo(s * 0.12,   s * 0.3)
+  ctx.lineTo(s * 0.18,   s * 0.1)
+  ctx.lineTo(s * 0.14,  -s * 0.55)
+  ctx.closePath()
+  ctx.fillStyle = "#2a3550"; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7; ctx.stroke()
+  // Bridge window strip
+  ctx.beginPath()
+  ctx.rect(-s * 0.1, -s * 0.4, s * 0.2, s * 0.1)
+  ctx.fillStyle = "rgba(0,229,255,0.25)"; ctx.fill()
+  ctx.strokeStyle = CYAN; ctx.lineWidth = 0.5; ctx.stroke()
+
+  // === Yamato Cannon (primary weapon — centered prow) ===
+  // Barrel housing
+  ctx.beginPath()
+  ctx.moveTo(-s * 0.07, -s * 0.7)
+  ctx.lineTo(s * 0.07,  -s * 0.7)
+  ctx.lineTo(s * 0.05,  -s * 1.35)
+  ctx.lineTo(-s * 0.05, -s * 1.35)
+  ctx.closePath()
+  ctx.fillStyle = "#0d1520"; ctx.fill()
+  ctx.strokeStyle = CYAN; ctx.lineWidth = 0.8; ctx.stroke()
+  // Muzzle rings
+  for (const yOff of [-1.2, -1.28, -1.35]) {
+    ctx.beginPath()
+    ctx.ellipse(0, s * yOff, s * 0.06, s * 0.02, 0, 0, TWO_PI)
     ctx.strokeStyle = CYAN; ctx.lineWidth = 0.6; ctx.stroke()
-    // Intake ring
-    ctx.beginPath()
-    ctx.ellipse(0, -s * 0.38, s * 0.1, s * 0.06, 0, 0, TWO_PI)
-    ctx.strokeStyle = CYAN; ctx.lineWidth = 0.5; ctx.stroke()
-    // Afterburner
-    ctx.beginPath()
-    ctx.arc(0, s * 0.38, s * 0.07, 0, TWO_PI)
-    ctx.fillStyle = "rgba(255,140,0,0.9)"; ctx.fill()
-    ctx.restore()
   }
-
-  // === Canard delta foreplanes ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.1, -s * 0.7)
-    ctx.lineTo(side * s * 0.62, -s * 0.2)
-    ctx.lineTo(side * s * 0.18, -s * 0.1)
-    ctx.closePath()
-    ctx.fillStyle = MID; ctx.fill()
-    ctx.strokeStyle = CYAN; ctx.lineWidth = 0.5; ctx.stroke()
-  }
-
-  // === Main swept delta wings ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.18, s * 0.0)
-    ctx.lineTo(side * s * 1.25, s * 0.55)
-    ctx.lineTo(side * s * 0.95, s * 0.65)
-    ctx.lineTo(side * s * 0.28, s * 0.45)
-    ctx.closePath()
-    ctx.fillStyle = "#071a24"; ctx.fill()
-    ctx.strokeStyle = CYAN; ctx.lineWidth = 0.6; ctx.stroke()
-    // Wing LE strake detail
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.18, 0)
-    ctx.lineTo(side * s * 1.1, s * 0.48)
-    ctx.strokeStyle = `rgba(0,255,255,0.25)`; ctx.lineWidth = 0.4; ctx.stroke()
-  }
-
-  // === Tail fins ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.15, s * 0.45)
-    ctx.lineTo(side * s * 0.45, s * 0.3)
-    ctx.lineTo(side * s * 0.38, s * 0.75)
-    ctx.closePath()
-    ctx.fillStyle = MID; ctx.fill()
-    ctx.strokeStyle = CYAN; ctx.lineWidth = 0.5; ctx.stroke()
-  }
-
-  // === Fuselage ===
+  // Muzzle glow
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.35)          // sharp nose
-  ctx.lineTo(-s * 0.18, -s * 0.6)
-  ctx.lineTo(-s * 0.2,   s * 0.5)
-  ctx.lineTo(-s * 0.12,  s * 0.8)
-  ctx.lineTo(0, s * 0.9)
-  ctx.lineTo(s * 0.12,  s * 0.8)
-  ctx.lineTo(s * 0.2,   s * 0.5)
-  ctx.lineTo(s * 0.18, -s * 0.6)
-  ctx.closePath()
-  ctx.fillStyle = DARK; ctx.fill()
-  ctx.strokeStyle = CYAN; ctx.lineWidth = 0.9
-  ctx.shadowBlur = 14; ctx.stroke()
-
-  // === Spine ridge line ===
-  ctx.beginPath()
-  ctx.moveTo(0, -s * 1.35); ctx.lineTo(0, s * 0.9)
-  ctx.strokeStyle = `rgba(0,255,255,0.18)`; ctx.lineWidth = 0.4; ctx.stroke()
-
-  // === Cockpit canopy (angular multi-panel) ===
-  ctx.beginPath()
-  ctx.moveTo(0, -s * 1.05)
-  ctx.lineTo(-s * 0.1, -s * 0.7)
-  ctx.lineTo(-s * 0.12, -s * 0.3)
-  ctx.lineTo(0, -s * 0.2)
-  ctx.lineTo(s * 0.12, -s * 0.3)
-  ctx.lineTo(s * 0.1, -s * 0.7)
-  ctx.closePath()
-  ctx.fillStyle = "rgba(0,220,255,0.18)"; ctx.fill()
-  ctx.strokeStyle = "rgba(0,255,255,0.7)"; ctx.lineWidth = 0.6
-  ctx.shadowBlur = 8; ctx.stroke()
-  // canopy panel line
-  ctx.beginPath()
-  ctx.moveTo(0, -s * 1.05); ctx.lineTo(0, -s * 0.2)
-  ctx.strokeStyle = "rgba(0,255,255,0.3)"; ctx.lineWidth = 0.3; ctx.stroke()
-
-  // === Laser emitter assembly (nose tip) ===
-  // Barrel
-  ctx.beginPath()
-  ctx.moveTo(-s * 0.04, -s * 1.35)
-  ctx.lineTo(s * 0.04, -s * 1.35)
-  ctx.lineTo(s * 0.02, -s * 1.65)
-  ctx.lineTo(-s * 0.02, -s * 1.65)
-  ctx.closePath()
-  ctx.fillStyle = CYAN; ctx.shadowBlur = 18; ctx.shadowColor = CYAN
+  ctx.arc(0, -s * 1.38, s * 0.045, 0, TWO_PI)
+  ctx.fillStyle = "rgba(0,229,255,0.7)"; ctx.shadowBlur = 6; ctx.shadowColor = CYAN
   ctx.fill()
-  // Emitter ring
-  ctx.beginPath()
-  ctx.arc(0, -s * 1.65, s * 0.055, 0, TWO_PI)
-  ctx.fillStyle = "#ffffff"; ctx.fill()
-  ctx.beginPath()
-  ctx.arc(0, -s * 1.65, s * 0.09, 0, TWO_PI)
-  ctx.strokeStyle = CYAN; ctx.lineWidth = 0.7; ctx.stroke()
-  // Side sensor pods
-  for (const side of [-1, 1]) {
+  ctx.shadowBlur = 0
+
+  // === Secondary gun turrets ===
+  const turretPos = [
+    { x: -s*0.28, y: -s*0.2 },
+    { x:  s*0.28, y: -s*0.2 },
+    { x: -s*0.3,  y:  s*0.35 },
+    { x:  s*0.3,  y:  s*0.35 },
+  ]
+  for (const tp of turretPos) {
     ctx.beginPath()
-    ctx.ellipse(side * s * 0.06, -s * 1.48, s * 0.025, s * 0.06, 0, 0, TWO_PI)
-    ctx.fillStyle = `rgba(0,255,255,0.6)`; ctx.fill()
+    ctx.arc(tp.x, tp.y, s * 0.07, 0, TWO_PI)
+    ctx.fillStyle = "#2a3550"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.6; ctx.stroke()
+    // Barrel
+    ctx.beginPath()
+    ctx.moveTo(tp.x, tp.y)
+    ctx.lineTo(tp.x + (tp.x < 0 ? -s*0.14 : s*0.14), tp.y - s * 0.14)
+    ctx.strokeStyle = CYAN; ctx.lineWidth = 0.8; ctx.stroke()
   }
 }
 
@@ -366,8 +359,10 @@ function drawRadarBlip(
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function RadarOverlay({
   priceData: _p,
+  basePriceCoord,
 }: {
   priceData?: { volume: number; deltaVolume: number }
+  basePriceCoord?: { x: number; y: number } | null
 }) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const rafRef       = useRef<number>(0)
@@ -380,6 +375,12 @@ export default function RadarOverlay({
   const idRef        = useRef(0)
   const lastSpawnRef = useRef(0)
   const prevTsRef    = useRef(0)
+  const basePriceCoordRef = useRef<{ x: number; y: number } | null>(null)
+
+  // basePriceCoord를 ref에 동기화 (RAF 루프에서 직접 접근)
+  useEffect(() => {
+    basePriceCoordRef.current = basePriceCoord ?? null
+  }, [basePriceCoord])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -398,6 +399,11 @@ export default function RadarOverlay({
     if (canvas.parentElement) ro.observe(canvas.parentElement)
 
     function getDotPos(r: RadarObj) {
+      // basePriceCoord가 있으면 실제 차트 좌표 사용, 없으면 랜덤 위치
+      const bpc = basePriceCoordRef.current
+      if (bpc) {
+        return { dx: bpc.x, dy: bpc.y }
+      }
       return {
         dx: r.cx + Math.cos(r.dotAngle) * r.dotR * r.radius,
         dy: r.cy + Math.sin(r.dotAngle) * r.dotR * r.radius,
@@ -405,17 +411,32 @@ export default function RadarOverlay({
     }
 
     function spawnRadar(W: number, H: number, now: number) {
+      const bpc = basePriceCoordRef.current
+      // 레이더 중심: basePriceCoord 주변 or 랜덤
+      const cx = bpc
+        ? Math.max(80, Math.min(W - 80, bpc.x + rnd(-80, 80)))
+        : rnd(W * 0.2, W * 0.8)
+      const cy = bpc
+        ? Math.max(80, Math.min(H - 80, bpc.y + rnd(-60, 60)))
+        : rnd(H * 0.2, H * 0.8)
       const radius = rnd(80, Math.min(W, H) * 0.65)
+      // dotAngle: basePriceCoord 방향 계산
+      const dotAngle = bpc
+        ? Math.atan2(bpc.y - cy, bpc.x - cx)
+        : rnd(0, TWO_PI)
+      const dotR = bpc
+        ? Math.hypot(bpc.x - cx, bpc.y - cy) / radius
+        : rnd(0.5, 0.82)
+
       radarsRef.current.push({
         id: idRef.current++,
-        cx: rnd(W * 0.2, W * 0.8),
-        cy: rnd(H * 0.2, H * 0.8),
+        cx, cy,
         radius,
         angle: 0,
         duration: rnd(3000, 6000),
         spawnTime: now,
-        dotAngle: rnd(0, TWO_PI),
-        dotR: rnd(0.5, 0.82),
+        dotAngle,
+        dotR,
         dotColor: Math.random() > 0.45 ? "red" : "yellow",
         phase: "spinning",
         fadeStart: 0,
