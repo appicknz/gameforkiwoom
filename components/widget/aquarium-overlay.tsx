@@ -173,7 +173,10 @@ export default function RadarOverlay({ priceData: _priceData }: { priceData?: { 
       if (aircraftRef.current.length < 6) {
         for (const r of radarsRef.current) {
           if (r.phase !== "spinning") continue
-          const alreadyTargeting = aircraftRef.current.some((a) => a.targetId === r.id)
+          // Allow a new aircraft to attack a radar as long as no ACTIVE one is already targeting it
+          const alreadyTargeting = aircraftRef.current.some(
+            (a) => a.targetId === r.id && a.state !== "done"
+          )
           if (!alreadyTargeting) {
             // Spawn outside the canvas edge
             const edge = Math.floor(rnd(0, 4))
@@ -308,7 +311,7 @@ export default function RadarOverlay({ priceData: _priceData }: { priceData?: { 
 
         const distLeft = Math.hypot(m.tx - m.x, m.ty - m.y)
         if (distLeft < 12) {
-          // HIT — spawn explosion, remove radar
+          // Missile reached target dot — spawn explosion
           m.hit = true
           explosionsRef.current.push({
             id: exIdRef.current++,
@@ -317,16 +320,19 @@ export default function RadarOverlay({ priceData: _priceData }: { priceData?: { 
             startTime: now,
             duration: 600,
           })
-          // Destroy radar on last missile hit
-          const siblingsLeft = missilesRef.current.filter(
-            (ms) => ms.radarId === m.radarId && !ms.hit
-          ).length
-          if (siblingsLeft <= 1) {
-            radarsRef.current  = radarsRef.current.filter((r) => r.id !== m.radarId)
-            aircraftRef.current = aircraftRef.current.filter((a) => a.targetId !== m.radarId)
-          }
+          // Only destroy radar immediately when the target dot is hit.
+          // The dot is always hit when a missile reaches tx/ty (that IS the dot).
+          // So: destroy radar + related aircraft immediately, regardless of other missiles.
+          radarsRef.current   = radarsRef.current.filter((r) => r.id !== m.radarId)
+          aircraftRef.current = aircraftRef.current.filter((a) => a.targetId !== m.radarId)
+          // Cancel remaining in-flight missiles for the same radar so they disappear too
+          missilesRef.current = missilesRef.current.filter(
+            (ms) => ms === m || ms.radarId !== m.radarId
+          )
           return false
         }
+        // Missile missed (went out of bounds) — radar stays alive, keeps spinning
+
         // Out of bounds
         if (m.x < -100 || m.x > W + 100 || m.y < -100 || m.y > H + 100) return false
         return true
