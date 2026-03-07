@@ -514,26 +514,19 @@ export function BettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        // 라운드 전환 순간의 현재가를 새 라운드 배팅 기준가로 즉시 고정
-        const newBase = currentPriceRef.current
-        if (newBase !== null) {
-          basePriceRef.current = newBase
-          setBasePrice(newBase)
-          window.dispatchEvent(new CustomEvent("round:basePrice", {
-            detail: { price: newBase, time: Math.floor(Date.now() / 1000) },
-          }))
-        }
-
-        const prices = closingPricesRef.current
-        const latestClose = prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
+        // ── 1단계: 이전 라운드 결산 ──────────────────────────────────
+        // 이전 라운드의 배팅 기준가를 캡처 (아직 덮어쓰기 전)
+        const prevBasePrice = basePriceRef.current
+        // 종료 가격 = 전환 순간의 현재가 (= 이전 라운드 마지막 가격)
+        const latestClose = currentPriceRef.current
 
         // 결산 시작 전 localStorage 초기화 (어떤 경우든)
         try { localStorage.removeItem("game_pending_bet") } catch {}
 
-        if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null && latestClose !== null) {
+        if ((betRef.current || betDigitRef.current || betParityRef.current) && prevBasePrice !== null && latestClose !== null) {
           // 클라이언트에서도 UI 표시용으로 계산 (신뢰 X, 서버가 최종 권한)
           const lastDigit = Math.floor(Math.abs(latestClose * 10)) % 10
-          const wonDirection = betRef.current ? (betRef.current === "long" ? latestClose >= basePriceRef.current : latestClose < basePriceRef.current) : false
+          const wonDirection = betRef.current ? (betRef.current === "long" ? latestClose >= prevBasePrice : latestClose < prevBasePrice) : false
           const wonDigit = betDigitRef.current ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
           const wonParity = betParityRef.current ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
 
@@ -544,7 +537,7 @@ export function BettingGame() {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify({
-                basePrice: basePriceRef.current,
+                basePrice: prevBasePrice,
                 closePrice: latestClose,
                 bets: {
                   direction: betRef.current ?? undefined,
@@ -572,7 +565,7 @@ export function BettingGame() {
             direction: betRef.current,
             digit: betDigitRef.current,
             parity: betParityRef.current,
-            basePrice: basePriceRef.current,
+            basePrice: prevBasePrice,
             closePrice: latestClose,
             wonDirection,
             wonDigit,
@@ -591,7 +584,7 @@ export function BettingGame() {
           setPhase("result")
         }
 
-        // 새 라운드 초기화 (결과 시트�� 닫지 않음 - 유저가 직접 닫거나 배팅 시 닫힘)
+        // ── 2단계: 새 라운드 초기화
         betRef.current = null
         betDigitRef.current = null
         betParityRef.current = null
@@ -604,9 +597,21 @@ export function BettingGame() {
         setBetDirectionAmount(0)
         setBetDigitAmount(0)
         setBetParityAmount(0)
-        setBasePrice(null)
-        basePriceRef.current = null
         setDialog(null)
+
+        // ── 3단계: 이전 라운드 마지막 현재가 = 새 라운드 배팅 기준가
+        const newBase = currentPriceRef.current
+        if (newBase !== null) {
+          basePriceRef.current = newBase
+          setBasePrice(newBase)
+          window.dispatchEvent(new CustomEvent("round:basePrice", {
+            detail: { price: newBase, time: Math.floor(Date.now() / 1000) },
+          }))
+        } else {
+          basePriceRef.current = null
+          setBasePrice(null)
+        }
+
         setTimeout(() => setPhase("betting"), 1500)
       }
 
@@ -617,8 +622,8 @@ export function BettingGame() {
     return () => clearInterval(tick)
   }, [getRoundNumber])
 
-  // 배팅 시 기준가: 항상 현재가 (라운드 시작 시점에 price line과 동기화됨)
-  const getBase = () => currentPriceRef.current
+  // 배팅 시 기준가: 라운드 시작 시 고정된 값 사용
+  const getBase = () => basePriceRef.current
 
   const canBet = timeLeft > 15 && phase !== "result"
 
