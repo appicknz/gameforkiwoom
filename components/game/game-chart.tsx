@@ -163,6 +163,8 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
     const interval = setInterval(updateBasePriceCoord, 500)
     return () => clearInterval(interval)
   }, [updateBasePriceCoord])
+
+  const updateBaseLine = useCallback((price: number) => {
     if (!seriesRef.current) return
     if (priceLineRef.current) {
       try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
