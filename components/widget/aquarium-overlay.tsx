@@ -66,23 +66,13 @@ interface Missile {
   lAlpha?: number
 }
 
-interface Spark {
-  x: number; y: number
-  vx: number; vy: number
-  life: number      // 0→1
-  maxLife: number   // seconds
-  size: number
-  color: string
-}
-
 interface Explosion {
   id: number
   x: number; y: number
   t: number
   duration: number
   spawnTime: number
-  kind: "bang" | "laser-hit" | "spark-burst"
-  sparks?: Spark[]
+  kind: "bang" | "laser-hit"
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -416,48 +406,6 @@ export default function RadarOverlay({
     const ro = new ResizeObserver(resize)
     if (canvas.parentElement) ro.observe(canvas.parentElement)
 
-    // 전투기가 레이더 원 내부에 들어왔는지 체크하고 spark 생성 후 제거
-    function checkAircraftRadarCollision(ac: Aircraft, now: number): boolean {
-      for (const r of radarsRef.current) {
-        if (r.id !== ac.targetId) continue
-        if (r.phase !== "spinning") continue
-        const dist = Math.hypot(ac.x - r.cx, ac.y - r.cy)
-        // 레이더 원 반경 이내로 진입 시 충돌
-        if (dist < r.radius * 0.92) {
-          // spark burst 폭발 생성
-          const sparkCount = 12 + Math.floor(Math.random() * 8)
-          const sparks: Spark[] = Array.from({ length: sparkCount }, () => {
-            const ang = rnd(0, TWO_PI)
-            const spd = rnd(40, 160)
-            const colors = ["#00ff88", "#00ffcc", "#ffffff", "#ffff44", "#ff8844"]
-            return {
-              x: ac.x, y: ac.y,
-              vx: Math.cos(ang) * spd,
-              vy: Math.sin(ang) * spd,
-              life: 0,
-              maxLife: rnd(0.4, 0.9),
-              size: rnd(1.5, 3.5),
-              color: colors[Math.floor(Math.random() * colors.length)],
-            }
-          })
-          explosionsRef.current.push({
-            id: idRef.current++,
-            x: ac.x, y: ac.y,
-            t: 0, duration: 900, spawnTime: now,
-            kind: "spark-burst",
-            sparks,
-          })
-          // 레이더 hitCount 증가
-          r.hitCount += 2
-          if (r.hitCount >= 11) {
-            radarsRef.current = radarsRef.current.filter(rv => rv.id !== r.id)
-          }
-          return true // 전투기 제거
-        }
-      }
-      return false
-    }
-
     function getDotPos(r: RadarObj) {
       // basePriceCoord가 있으면 실제 차트 좌표 사용, 없으면 랜덤 위치
       const bpc = basePriceCoordRef.current
@@ -683,7 +631,7 @@ export default function RadarOverlay({
             }
           }
 
-          // sweep ��채꼴 그라데이션
+          // sweep 부채꼴 그라데이션
           const sweepArc = Math.PI * 0.5
           const steps = 40
           for (let s = 0; s < steps; s++) {
@@ -838,7 +786,6 @@ export default function RadarOverlay({
           ac.x += ac.vx * dt; ac.y += ac.vy * dt
           if (Math.abs(ac.vx) > 0.01 || Math.abs(ac.vy) > 0.01)
             ac.heading = Math.atan2(ac.vy, ac.vx) + Math.PI / 2
-          if (checkAircraftRadarCollision(ac, now)) return false
           drawAircraft(ctx, ac.x, ac.y, ac.heading, ac.size, ac.role)
           return true
         }
@@ -886,7 +833,6 @@ export default function RadarOverlay({
             // heading stays fixed — no update
           }
 
-          if (checkAircraftRadarCollision(ac, now)) return false
           drawAircraft(ctx, ac.x, ac.y, ac.heading, ac.size, ac.role)
           const offscreen = ac.x < -150 || ac.x > W + 150 || ac.y < -150 || ac.y > H + 150
           return !offscreen
@@ -928,7 +874,6 @@ export default function RadarOverlay({
           ac.vx = ac.vx / spd * 100; ac.vy = ac.vy / spd * 100
         }
 
-        if (checkAircraftRadarCollision(ac, now)) return false
         drawAircraft(ctx, ac.x, ac.y, ac.heading, ac.size, ac.role)
         return true
       })
@@ -1007,46 +952,6 @@ export default function RadarOverlay({
         const alpha = 1 - ex.t
 
         ctx.save()
-
-        if (ex.kind === "spark-burst" && ex.sparks) {
-          // 불티 파티클 — 각 spark 독립 수명
-          let anyAlive = false
-          for (const sp of ex.sparks) {
-            sp.life += dt
-            if (sp.life >= sp.maxLife) continue
-            anyAlive = true
-            const frac = sp.life / sp.maxLife
-            const spAlpha = 1 - frac
-            // gravity 적용
-            sp.vy += 60 * dt
-            sp.x += sp.vx * dt
-            sp.y += sp.vy * dt
-            // 속도 감쇄
-            sp.vx *= 1 - dt * 1.5
-            sp.vy *= 1 - dt * 0.8
-
-            ctx.save()
-            ctx.globalAlpha = spAlpha
-            ctx.shadowBlur = 6
-            ctx.shadowColor = sp.color
-            ctx.beginPath()
-            ctx.arc(sp.x, sp.y, sp.size * (1 - frac * 0.5), 0, TWO_PI)
-            ctx.fillStyle = sp.color
-            ctx.fill()
-            // 꼬리 선
-            ctx.beginPath()
-            ctx.moveTo(sp.x, sp.y)
-            ctx.lineTo(sp.x - sp.vx * dt * 3, sp.y - sp.vy * dt * 3)
-            ctx.strokeStyle = sp.color
-            ctx.globalAlpha = spAlpha * 0.4
-            ctx.lineWidth = sp.size * 0.5
-            ctx.stroke()
-            ctx.restore()
-          }
-          ctx.restore()
-          return anyAlive
-        }
-
         if (ex.kind === "laser-hit") {
           // Cyan laser impact
           const r1 = ex.t * 16
