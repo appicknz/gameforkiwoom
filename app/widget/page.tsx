@@ -20,7 +20,7 @@ const CYBER_THEME = `
     --secondary: 220 30% 14%;
     --secondary-foreground: 174 80% 70%;
     --muted: 220 35% 12%;
-    --muted-foreground: 210 30% 55%;
+    --muted-foreground: 210 15% 90%;
     --accent: 174 100% 50%;
     --accent-foreground: 222 47% 5%;
     --destructive: 0 85% 55%;
