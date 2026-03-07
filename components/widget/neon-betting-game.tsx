@@ -40,7 +40,7 @@ function getToken(): string | null {
 }
 
 // ── 원형 타이머 ────────────────────────────────────────────────────────────
-function CircularTimer({ timeLeft, digit }: { timeLeft: number; digit: number | null }) {
+function CircularTimer({ timeLeft, statusLabel }: { timeLeft: number; statusLabel: string }) {
   const r = 44
   const circ = 2 * Math.PI * r
   const progress = (timeLeft / 30) * circ
@@ -63,10 +63,14 @@ function CircularTimer({ timeLeft, digit }: { timeLeft: number; digit: number | 
         />
       </svg>
       <div className="flex flex-col items-center z-10">
-        <span className="font-black text-3xl leading-none" style={{ color, fontFamily: "var(--font-orbitron, monospace)" }}>
-          {digit !== null ? digit : "—"}
+        {/* 카운트다운 숫자 (30초부터 감소) */}
+        <span className="font-black text-3xl leading-none tabular-nums" style={{ color, fontFamily: "var(--font-orbitron, monospace)" }}>
+          {timeLeft}
         </span>
-        <span className="text-[9px] text-white/40 mt-0.5 tabular-nums" style={{ fontFamily: "var(--font-orbitron, monospace)" }}>{timeLeft}s</span>
+        {/* 상태 레이블 */}
+        <span className="text-[8px] font-semibold mt-0.5 tracking-tight" style={{ color }}>
+          {statusLabel}
+        </span>
       </div>
     </div>
   )
@@ -467,7 +471,7 @@ export function NeonBettingGame() {
           {/* 좌: 잔고 + 배팅 + 예상수익 */}
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-0.5">잔고 BALANCE</p>
-            <p className="text-2xl font-black tabular-nums text-white leading-none" style={{ fontFamily: "var(--font-orbitron, monospace)" }}>
+            <p className="text-lg font-black tabular-nums text-white leading-none" style={{ fontFamily: "var(--font-orbitron, monospace)" }}>
               {balance !== null ? `${balance.toLocaleString()}원` : "—"}
             </p>
             {totalBet > 0 && (
@@ -485,8 +489,8 @@ export function NeonBettingGame() {
             )}
           </div>
 
-          {/* 중: 원형 타이머 */}
-          <CircularTimer timeLeft={timeLeft} digit={lastDigit} />
+          {/* 중: 원형 타이머 — 카운트다운 + 상태 레이블 */}
+          <CircularTimer timeLeft={timeLeft} statusLabel={timerLabel} />
 
           {/* 우: 실시간 vs 배팅가 */}
           <div className="flex-1 min-w-0 text-right">
