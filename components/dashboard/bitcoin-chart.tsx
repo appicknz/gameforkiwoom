@@ -216,6 +216,15 @@ export function BitcoinChart({
           }
           candleMapRef.current.set(candle.time, candle)
           seriesRef.current.update(candle)
+
+          // 1초봉 기준: 정확히 30초 전 캔들 종가를 배팅 기준가로 사용
+          if (interval === "1s") {
+            const target = kOpenTimeSec - 30
+            const ref = candleMapRef.current.get(target)
+            if (ref) {
+              setClosingPrices([{ time: target, price: ref.close }])
+            }
+          }
         }
 
         setLastCandlePrice(closePrice)
