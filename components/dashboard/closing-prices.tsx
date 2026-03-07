@@ -28,28 +28,30 @@ export function ClosingPrices() {
   const displayPrices = closingPrices.slice(-10).reverse()
 
   return (
-    <Card className="p-4 bg-background border border-border/60">
-      <h3 className="text-sm font-semibold text-foreground mb-3">30초 마감 기준가 (최근 10개)</h3>
-      <div className="grid grid-cols-2 gap-3">
+    <div className="p-4">
+      <p className="text-[10px] mb-3" style={{ color: "rgba(0,255,200,0.45)" }}>30초 마감 기준가</p>
+      <div className="grid grid-cols-2 gap-2">
         {displayPrices.map((item, idx) => {
-          const isUp = idx % 2 === 0
+          const nextItem = displayPrices[idx + 1]
+          const isUp = nextItem ? item.price >= nextItem.price : true
+          const c = isUp ? "#00ff88" : "#ff3355"
           return (
             <div
               key={`${item.time}-${idx}`}
-              className={`p-3 rounded-lg border ${
-                isUp
-                  ? "bg-emerald-500/10 border-emerald-500/30"
-                  : "bg-red-500/10 border-red-500/30"
-              }`}
+              className="p-2.5 rounded-lg"
+              style={{
+                background: `${c}08`,
+                border: `1px solid ${c}30`,
+              }}
             >
-              <div className="text-[10px] text-muted-foreground font-medium mb-1">
-                {new Date(item.time * 1000).toLocaleTimeString('ko-KR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
+              <div className="text-[9px] mb-0.5" style={{ color: "rgba(0,255,200,0.35)" }}>
+                {new Date(item.time * 1000).toLocaleTimeString("ko-KR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
                 })}
               </div>
-              <div className="text-sm font-bold text-foreground">
+              <div className="text-xs font-bold tabular-nums" style={{ color: c }}>
                 ${item.price.toLocaleString("en-US", {
                   minimumFractionDigits: 1,
                   maximumFractionDigits: 1,
@@ -59,6 +61,6 @@ export function ClosingPrices() {
           )
         })}
       </div>
-    </Card>
+    </div>
   )
 }

@@ -6,49 +6,112 @@ import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badge
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { TopBar } from "@/components/dashboard/top-bar"
 
-// /widget 경로
-// - 로직(가격 파싱, 인터벌, 배팅 기준가, 거래대금 등)은 원본 컴포넌트를 그대로 import
-// - 디자인만 별도 관리: 수족관 오버레이 + 딥씨 테마
+// 사이버펑크 네온 테마 CSS 토큰 — /widget 전용
+const CYBER_THEME = `
+  :root {
+    --background: 222 47% 5%;
+    --foreground: 180 100% 90%;
+    --card: 220 40% 8%;
+    --card-foreground: 180 100% 90%;
+    --popover: 220 40% 8%;
+    --popover-foreground: 180 100% 90%;
+    --primary: 174 100% 50%;
+    --primary-foreground: 222 47% 5%;
+    --secondary: 220 30% 14%;
+    --secondary-foreground: 174 80% 70%;
+    --muted: 220 35% 12%;
+    --muted-foreground: 210 30% 55%;
+    --accent: 174 100% 50%;
+    --accent-foreground: 222 47% 5%;
+    --destructive: 0 85% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 174 40% 18%;
+    --input: 220 35% 12%;
+    --ring: 174 100% 50%;
+    --radius: 0.75rem;
+  }
+`
+
 export default function WidgetPage() {
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background: "linear-gradient(160deg, #0c1445 0%, #0a3252 40%, #053d5a 70%, #062d42 100%)",
-      }}
-    >
-      <TopBar />
+    <>
+      {/* 사이버펑크 CSS 변수 주입 — 이 페이지 범위에만 적용 */}
+      <style>{CYBER_THEME}</style>
 
-      <main className="p-3 md:p-5 mt-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div
+        className="min-h-screen font-mono"
+        style={{
+          background: "radial-gradient(ellipse at top, #0d1b2a 0%, #050d14 60%, #020912 100%)",
+        }}
+      >
+        {/* 배경 그리드 패턴 */}
+        <div
+          className="fixed inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(0,255,200,0.03) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0,255,200,0.03) 1px, transparent 1px)
+            `,
+            backgroundSize: "40px 40px",
+          }}
+        />
 
-            {/* 왼쪽: 차트 + 배팅 */}
-            <div className="lg:col-span-2 space-y-4">
-              {/* 수족관 차트 */}
-              <div className="rounded-2xl overflow-hidden ring-1 ring-sky-500/20 shadow-2xl shadow-sky-900/40">
-                <AquariumChart />
-              </div>
+        <TopBar />
 
-              {/* 배팅 게임 - 딥씨 스타일 */}
-              <div className="rounded-2xl overflow-hidden ring-1 ring-sky-500/20 shadow-xl shadow-sky-900/30">
-                <BettingGame />
-              </div>
+        <main className="relative z-10 p-3 md:p-4 pt-2">
+          <div className="max-w-2xl mx-auto space-y-3">
+
+            {/* 차트 */}
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                border: "1px solid rgba(0,255,200,0.2)",
+                boxShadow: "0 0 30px rgba(0,255,200,0.05), inset 0 0 30px rgba(0,0,0,0.3)",
+                background: "rgba(5,15,25,0.95)",
+              }}
+            >
+              <AquariumChart />
             </div>
 
-            {/* 오른쪽: 끝자리 + 마감가 */}
-            <div className="space-y-4">
-              <div className="rounded-2xl overflow-hidden ring-1 ring-sky-500/20 shadow-xl shadow-sky-900/30">
-                <ClosingPricesBadges />
-              </div>
-              <div className="rounded-2xl overflow-hidden ring-1 ring-sky-500/20 shadow-xl shadow-sky-900/30">
-                <ClosingPrices />
-              </div>
+            {/* 배팅 게임 */}
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                border: "1px solid rgba(0,255,200,0.15)",
+                boxShadow: "0 0 20px rgba(0,255,200,0.04)",
+                background: "rgba(5,15,25,0.95)",
+              }}
+            >
+              <BettingGame />
+            </div>
+
+            {/* 끝자리 배지 */}
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                border: "1px solid rgba(0,255,200,0.15)",
+                boxShadow: "0 0 20px rgba(0,255,200,0.04)",
+                background: "rgba(5,15,25,0.95)",
+              }}
+            >
+              <ClosingPricesBadges />
+            </div>
+
+            {/* 마감 기준가 */}
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                border: "1px solid rgba(0,255,200,0.15)",
+                boxShadow: "0 0 20px rgba(0,255,200,0.04)",
+                background: "rgba(5,15,25,0.95)",
+              }}
+            >
+              <ClosingPrices />
             </div>
 
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   )
 }
