@@ -3,6 +3,13 @@
 import { useEffect, useRef } from "react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+interface RadarBlip {
+  angle: number       // 각도 (레이더 원 안)
+  r: number           // 반지름 비율 0~1
+  hitAt: number | null  // sweep이 통과한 타임스탬프 (null=아직 미통과)
+  size: number        // 점 크기 (px)
+}
+
 interface RadarObj {
   id: number
   cx: number; cy: number
@@ -18,6 +25,7 @@ interface RadarObj {
   waveR: number
   waveAlpha: number
   hitCount: number     // destroyed after 11 hits
+  blips: RadarBlip[]   // 여러 개의 점들 (순차 페이드아웃)
 }
 
 type AircraftRole = "missile-a" | "missile-b" | "missile-c" | "laser" | "patrol"
@@ -412,28 +420,35 @@ export default function RadarOverlay({
 
     function spawnRadar(W: number, H: number, now: number) {
       const bpc = basePriceCoordRef.current
-      // 레이더 중심: basePriceCoord 주변 or 랜덤
-      const cx = bpc
-        ? Math.max(80, Math.min(W - 80, bpc.x + rnd(-80, 80)))
-        : rnd(W * 0.2, W * 0.8)
-      const cy = bpc
-        ? Math.max(80, Math.min(H - 80, bpc.y + rnd(-60, 60)))
-        : rnd(H * 0.2, H * 0.8)
-      const radius = rnd(80, Math.min(W, H) * 0.65)
-      // dotAngle: basePriceCoord 방향 계산
+      // 중심: 화면 어디서든 OK (화면 밖까지도)
+      const cx = rnd(W * -0.1, W * 1.1)
+      const cy = rnd(H * -0.1, H * 1.1)
+      // 크기: 화면 대각선의 0.2~1.5배로 아주 다양하게 (화면 밖으로 삐져나올 수 있음)
+      const diag = Math.hypot(W, H)
+      const radius = rnd(diag * 0.2, diag * 1.5)
+
       const dotAngle = bpc
         ? Math.atan2(bpc.y - cy, bpc.x - cx)
         : rnd(0, TWO_PI)
       const dotR = bpc
         ? Math.hypot(bpc.x - cx, bpc.y - cy) / radius
-        : rnd(0.5, 0.82)
+        : rnd(0.4, 0.88)
+
+      // blips: 3~6개의 점을 랜덤 위치에 배치
+      const blipCount = Math.floor(rnd(3, 7))
+      const blips: RadarBlip[] = Array.from({ length: blipCount }, () => ({
+        angle: rnd(0, TWO_PI),
+        r: rnd(0.25, 0.9),
+        hitAt: null,
+        size: rnd(2.5, 6),
+      }))
 
       radarsRef.current.push({
         id: idRef.current++,
         cx, cy,
         radius,
         angle: 0,
-        duration: rnd(3000, 6000),
+        duration: rnd(4000, 7000),
         spawnTime: now,
         dotAngle,
         dotR,
@@ -441,8 +456,9 @@ export default function RadarOverlay({
         phase: "spinning",
         fadeStart: 0,
         waveR: 0,
-        waveAlpha: 0.7,
+        waveAlpha: 0.8,
         hitCount: 0,
+        blips,
       })
     }
 
@@ -547,8 +563,8 @@ export default function RadarOverlay({
       const H = canvas.height
       ctx.clearRect(0, 0, W, H)
 
-      // ── Spawn radar (max 1) ──────────────────────────────────────────
-      if (radarsRef.current.length === 0 && now - lastSpawnRef.current > 1200) {
+      // ── Spawn radar — 한 번에 하나씩, 완전히 사라진 후 0.8s 딜레이 뒤 새로 스폰 ──
+      if (radarsRef.current.length === 0 && now - lastSpawnRef.current > 800) {
         spawnRadar(W, H, now)
         lastSpawnRef.current = now
       }
@@ -573,61 +589,123 @@ export default function RadarOverlay({
         const { cx, cy, radius: rr } = r
         ctx.save()
         ctx.globalAlpha = opacity
+        ctx.shadowBlur = 0
 
-        // Rings
+        const NEON = "#00ff55"
+        const NEON_DIM = "rgba(0,255,85,"
+
+        // ── 동심원 4개 (스파이더 링) ───────────────────────────
         for (let i = 1; i <= 4; i++) {
+          const ringR = (rr / 4) * i
           ctx.beginPath()
-          ctx.arc(cx, cy, (rr / 4) * i, 0, TWO_PI)
-          ctx.strokeStyle = `rgba(0,255,140,${0.06 + i * 0.025})`
-          ctx.lineWidth = 0.7; ctx.stroke()
+          ctx.arc(cx, cy, ringR, 0, TWO_PI)
+          ctx.strokeStyle = `${NEON_DIM}${0.05 + i * 0.035})`
+          ctx.lineWidth = i === 4 ? 1.0 : 0.6
+          ctx.stroke()
         }
-        // Crosshair
-        ctx.strokeStyle = "rgba(0,255,140,0.09)"; ctx.lineWidth = 0.7
-        ctx.beginPath(); ctx.moveTo(cx - rr, cy); ctx.lineTo(cx + rr, cy); ctx.stroke()
-        ctx.beginPath(); ctx.moveTo(cx, cy - rr); ctx.lineTo(cx, cy + rr); ctx.stroke()
 
-        // Sweep trail
+        // ── 스파이더 웹 선 (8방향 spoke) ─────────────────────
+        const spokeCount = 8
+        ctx.strokeStyle = `${NEON_DIM}0.08)`
+        ctx.lineWidth = 0.5
+        for (let i = 0; i < spokeCount; i++) {
+          const a = (i / spokeCount) * TWO_PI
+          ctx.beginPath()
+          ctx.moveTo(cx, cy)
+          ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr)
+          ctx.stroke()
+        }
+
+        // ── Sweep 트레일 ──────────────────────────────────────
         if (r.phase === "spinning") {
-          const sweepArc = Math.PI * 0.55
-          const steps = 36
+          // sweep 통과 시 blip에 hitAt 기록
+          for (const blip of r.blips) {
+            if (blip.hitAt !== null) continue
+            const blipAngle = blip.angle
+            let delta = r.angle - blipAngle
+            while (delta < 0) delta += TWO_PI
+            delta = delta % TWO_PI
+            // sweep 선이 blip 각도를 막 지나쳤을 때 (0~0.15 라디안 이내)
+            if (delta < 0.15) {
+              blip.hitAt = now
+            }
+          }
+
+          // sweep 부채꼴 그라데이션
+          const sweepArc = Math.PI * 0.5
+          const steps = 40
           for (let s = 0; s < steps; s++) {
             const frac = s / steps
             const a0 = r.angle - sweepArc * (1 - frac)
             const a1 = r.angle - sweepArc * (1 - (s + 1) / steps)
             ctx.beginPath(); ctx.moveTo(cx, cy)
             ctx.arc(cx, cy, rr, a0, a1); ctx.closePath()
-            ctx.fillStyle = `rgba(0,255,140,${frac * 0.09})`; ctx.fill()
+            ctx.fillStyle = `${NEON_DIM}${frac * 0.11})`
+            ctx.fill()
           }
+          // sweep 선 (선명한 앞날)
           ctx.beginPath(); ctx.moveTo(cx, cy)
           ctx.lineTo(cx + Math.cos(r.angle) * rr, cy + Math.sin(r.angle) * rr)
-          ctx.strokeStyle = "rgba(0,255,140,0.55)"; ctx.lineWidth = 1.2; ctx.stroke()
+          ctx.strokeStyle = `${NEON_DIM}0.7)`
+          ctx.lineWidth = 1.3
+          ctx.shadowBlur = 8; ctx.shadowColor = NEON
+          ctx.stroke()
+          ctx.shadowBlur = 0
         }
 
-        // Wave ring
+        // ── Wave ring ─────────────────────────────────────────
         if (r.waveAlpha > 0) {
-          r.waveR += dt * rr * 1.1
-          r.waveAlpha = Math.max(0, r.waveAlpha - dt * 0.55)
-          if (r.waveR < rr * 1.5) {
+          r.waveR += dt * rr * 1.2
+          r.waveAlpha = Math.max(0, r.waveAlpha - dt * 0.5)
+          if (r.waveR < rr * 1.8) {
             ctx.beginPath(); ctx.arc(cx, cy, r.waveR, 0, TWO_PI)
-            ctx.strokeStyle = `rgba(0,255,140,${r.waveAlpha * 0.45})`
-            ctx.lineWidth = 1.5; ctx.stroke()
+            ctx.strokeStyle = `${NEON_DIM}${r.waveAlpha * 0.5})`
+            ctx.lineWidth = 1.2; ctx.stroke()
           }
         }
 
-        // Hit count indicator (ring segments showing damage)
-        if (r.hitCount > 0) {
-          const hitFrac = Math.min(r.hitCount / 11, 1)
-          ctx.beginPath()
-          ctx.arc(cx, cy, rr * 0.12, -Math.PI / 2, -Math.PI / 2 + hitFrac * TWO_PI)
-          ctx.strokeStyle = `rgba(255,80,80,${0.6 + hitFrac * 0.4})`
-          ctx.lineWidth = 3; ctx.stroke()
+        // ── 중심점 ────────────────────────────────────────────
+        ctx.beginPath(); ctx.arc(cx, cy, 2, 0, TWO_PI)
+        ctx.fillStyle = NEON
+        ctx.shadowBlur = 8; ctx.shadowColor = NEON
+        ctx.fill(); ctx.shadowBlur = 0
+
+        // ── Blips (여러 점, sweep 통과 후 순차 페이드) ─────────
+        const FADE_DURATION = 2000 // ms 동안 페이드아웃
+        for (const blip of r.blips) {
+          const bx = cx + Math.cos(blip.angle) * blip.r * rr
+          const by = cy + Math.sin(blip.angle) * blip.r * rr
+
+          let blipAlpha = 0
+          if (blip.hitAt !== null) {
+            // sweep이 지나간 후 fadeout
+            const elapsed = now - blip.hitAt
+            blipAlpha = Math.max(0, 1 - elapsed / FADE_DURATION)
+          } else if (r.phase === "spinning") {
+            // sweep 아직 안 지나감 — sweep 반대쪽은 희미하게 유지
+            let delta = r.angle - blip.angle
+            while (delta < 0) delta += TWO_PI
+            delta = delta % TWO_PI
+            blipAlpha = 0.15
+          }
+
+          if (blipAlpha <= 0) continue
+
+          ctx.save()
+          ctx.globalAlpha = opacity * blipAlpha
+          // 외부 글로우
+          ctx.beginPath(); ctx.arc(bx, by, blip.size * 2, 0, TWO_PI)
+          ctx.fillStyle = `rgba(0,255,85,0.12)`; ctx.fill()
+          // 핵심 점
+          ctx.beginPath(); ctx.arc(bx, by, blip.size, 0, TWO_PI)
+          ctx.fillStyle = NEON
+          ctx.shadowBlur = 12; ctx.shadowColor = NEON
+          ctx.fill()
+          ctx.shadowBlur = 0
+          ctx.restore()
         }
 
-        // Center dot
-        ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, TWO_PI)
-        ctx.fillStyle = "rgba(0,255,140,0.7)"; ctx.fill()
-
-        // Target blip
+        // ── 기존 단일 target blip (항공기 타겟용 유지) ───────
         const { dx, dy } = getDotPos(r)
         let dotDelta = r.angle - r.dotAngle
         while (dotDelta < 0) dotDelta += TWO_PI
