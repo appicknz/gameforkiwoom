@@ -91,6 +91,7 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
       const tradeBuffer: Array<{ price: number; time: number }> = []
       let prevThirtyBucket: number | null = null
+      let lastPriceOfBucket: number | null = null  // 직전 버킷의 마지막 거래가
 
       const connect = () => {
         if (closed) return
@@ -128,11 +129,22 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         win.__bitcoinCurrentPrice = closingPrice
 
         const thirtyBucket = now - (now % 30)
-        if (prevThirtyBucket === null || thirtyBucket !== prevThirtyBucket) {
+
+        if (prevThirtyBucket === null) {
+          // 최초 진입: 버킷 기록만 하고 기준가는 내보내지 않음
           prevThirtyBucket = thirtyBucket
-          optsRef.current.onClosingPrice?.(closingPrice, thirtyBucket)
+          lastPriceOfBucket = closingPrice
+        } else if (thirtyBucket !== prevThirtyBucket) {
+          // 버킷 전환: 방금 끝난 버킷의 마지막 거래가를 배팅 기준가로 확정
+          const basePrice = lastPriceOfBucket ?? closingPrice
+          optsRef.current.onClosingPrice?.(basePrice, thirtyBucket)
           const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-          win.__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
+          win.__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: basePrice }].slice(-100)
+          prevThirtyBucket = thirtyBucket
+          lastPriceOfBucket = closingPrice
+        } else {
+          // 버킷 진행 중: 현재가를 계속 갱신
+          lastPriceOfBucket = closingPrice
         }
 
         const cutoff = now - 300
