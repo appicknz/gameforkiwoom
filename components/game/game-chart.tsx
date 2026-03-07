@@ -125,7 +125,7 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
   const updateBaseLine = useCallback((price: number) => {
     if (!seriesRef.current) return
     if (priceLineRef.current) {
-      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch {}
+      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
     }
     priceLineRef.current = seriesRef.current.createPriceLine({
       price,
@@ -143,10 +143,10 @@ export function GameChart({ onPrice, onClosingPrice }: GameChartProps) {
       const bucket = time - (time % 1)
       const existing = candleMapRef.current.get(bucket)
       const candle: CandleData = {
-        time:  bucket,
-        open:  existing?.open ?? price,
-        high:  existing ? Math.max(existing.high, price) : price,
-        low:   existing ? Math.min(existing.low, price)  : price,
+        time: bucket,
+        open: existing?.open ?? price,
+        high: existing ? Math.max(existing.high, price) : price,
+        low: existing ? Math.min(existing.low, price) : price,
         close: price,
       }
       candleMapRef.current.set(bucket, candle)
