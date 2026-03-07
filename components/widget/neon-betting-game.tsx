@@ -468,49 +468,23 @@ export function NeonBettingGame() {
       {/* ── 상단 정보 바 ── */}
       <div className="px-4 pt-4 pb-2">
         <div className="flex items-start justify-between gap-3">
-          {/* 좌: 잔고 + 배팅 + 예상수익 */}
+          {/* 좌: 실시간 가격 */}
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-0.5">잔고 BALANCE</p>
-            <p className="text-xs font-black tabular-nums text-white leading-none" style={{ fontFamily: "var(--font-orbitron, monospace)" }}>
-              {balance !== null ? `${balance.toLocaleString()}원` : "—"}
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-0.5">실시간</p>
+            <p className="text-base font-black tabular-nums text-white leading-none" style={{ color: "#00ffcc", textShadow: "0 0 8px rgba(0,255,200,0.5)", fontFamily: "var(--font-orbitron, monospace)" }}>
+              {currentPrice !== null ? fmt(currentPrice) : "—"}
             </p>
-            {totalBet > 0 && (
-              <div className="mt-1.5 space-y-0.5">
-                <p className="text-xs text-white/50">
-                  배팅 <span className="font-bold text-white">{totalBet >= 10000 ? `${totalBet / 10000}만` : totalBet.toLocaleString()}</span>
-                </p>
-                <p className="text-xs text-white/50">
-                  예상 수익{" "}
-                  <span className="font-black" style={{ color: "#00ff88", textShadow: "0 0 8px rgba(0,255,136,0.6)" }}>
-                    {expectedPayout >= 10000 ? `${(expectedPayout / 10000).toFixed(2)}만` : expectedPayout.toLocaleString()}
-                  </span>
-                </p>
-              </div>
-            )}
           </div>
 
           {/* 중: 원형 타이머 — 카운트다운 + 상태 레이블 */}
           <CircularTimer timeLeft={timeLeft} statusLabel={timerLabel} />
 
-          {/* 우: 실시간 vs 배팅가 */}
+          {/* 우: 마감 기준가 (항상 표시) */}
           <div className="flex-1 min-w-0 text-right">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
-              <span className="text-[10px] text-white/30 tabular-nums">--:--</span>
-            </div>
-            <div>
-              <p className="text-[10px] text-white/30 text-right">실시간</p>
-              <p className="text-base font-black tabular-nums text-right" style={{ color: "#00ffcc", textShadow: "0 0 8px rgba(0,255,200,0.5)", fontFamily: "var(--font-orbitron, monospace)" }}>
-                {currentPrice !== null ? fmt(currentPrice) : "—"}
-              </p>
-              {basePrice !== null && (
-                <>
-                  <p className="text-[10px] text-white/20 text-right mt-1.5">마감 기준가</p>
-                  <p className="text-sm font-black tabular-nums text-right" style={{ color: "#00ff88", textShadow: "0 0 8px rgba(0,255,136,0.4)", fontFamily: "var(--font-orbitron, monospace)" }}>
-                    {fmt(basePrice)}
-                  </p>
-                </>
-              )}
-            </div>
+            <p className="text-[10px] text-white/30 text-right mb-0.5">마감 기준가</p>
+            <p className="text-base font-black tabular-nums text-right" style={{ color: "#00ff88", textShadow: "0 0 8px rgba(0,255,136,0.4)", fontFamily: "var(--font-orbitron, monospace)" }}>
+              {basePrice !== null ? fmt(basePrice) : "—"}
+            </p>
           </div>
         </div>
 
