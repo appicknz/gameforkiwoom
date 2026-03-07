@@ -1,557 +1,521 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RadarObj {
   id: number
-  x: number              // center x in px
-  y: number              // center y in px
-  radius: number         // px — random 80~280, may exceed canvas
-  angle: number          // current sweep angle in degrees (0→360)
-  duration: number       // ms for one full rotation
+  cx: number; cy: number        // center in canvas px
+  radius: number                // may exceed canvas bounds
+  angle: number                 // sweep angle in radians (0 → 2π)
+  duration: number              // ms per full rotation
   spawnTime: number
-  targetAngle: number    // angle where the target dot is placed
-  targetColor: "red" | "yellow"
-  waveR: number          // expanding wave ring radius
-  opacity: number
+  dotAngle: number              // angle of target dot (radians)
+  dotR: number                  // radius fraction (0.55 ~ 0.85)
+  dotColor: "red" | "yellow"
   phase: "spinning" | "fading"
   fadeStart: number
+  waveR: number                 // expanding wave ring
+  waveAlpha: number
 }
 
 interface Aircraft {
   id: number
-  x: number
-  y: number
-  vx: number
-  vy: number
-  size: number
-  type: 0 | 1 | 2
-  angle: number          // visual rotation degrees
+  x: number; y: number
+  vx: number; vy: number
+  heading: number               // radians — nose direction
+  size: number                  // base size px
+  type: 0 | 1 | 2              // fighter / jet / stealth
   state: "cruising" | "attacking" | "done"
-  targetId: number       // radar id to attack
+  targetId: number
   missilesFired: number
   lastMissile: number
 }
 
 interface Missile {
   id: number
-  x: number
-  y: number
-  tx: number             // aimed x (may have jitter)
-  ty: number             // aimed y (may have jitter)
-  dotX: number           // exact dot x for hit detection
-  dotY: number           // exact dot y for hit detection
-  vx: number
-  vy: number
-  startTime: number
+  x: number; y: number
+  vx: number; vy: number
+  tx: number; ty: number        // destination (with jitter)
   radarId: number
-  hit: boolean
 }
 
 interface Explosion {
   id: number
-  x: number
-  y: number
-  startTime: number
+  x: number; y: number
+  t: number                     // 0 → 1 progress
   duration: number
+  spawnTime: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function rnd(a: number, b: number) { return a + Math.random() * (b - a) }
-function deg2rad(d: number) { return (d * Math.PI) / 180 }
+const TWO_PI = Math.PI * 2
 
-// ─── Aircraft SVGs — neon glow, pointing upward (nose at top) ─────────────────
-function AircraftSVG({ type, size }: { type: 0 | 1 | 2; size: number }) {
+// Draw a small aircraft silhouette on canvas ctx
+function drawAircraft(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number,
+  heading: number,
+  size: number,
+  type: 0 | 1 | 2
+) {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(heading)
+
+  ctx.shadowBlur = 8
+  ctx.shadowColor = "rgba(0,255,180,0.6)"
+  ctx.strokeStyle = "rgba(0,255,180,0.85)"
+  ctx.fillStyle   = "rgba(0,255,180,0.15)"
+  ctx.lineWidth   = 1
+
+  const s = size
+
   if (type === 0) {
     // Fighter — delta wing
-    return (
-      <svg width={size} height={size} viewBox="0 0 32 36"
-        style={{ filter: "drop-shadow(0 0 6px #22d3ee)", overflow: "visible" }}>
-        <polygon points="16,1 25,26 16,20 7,26" fill="#22d3ee" />
-        <polygon points="16,20 22,30 16,27 10,30" fill="#075985" />
-        <ellipse cx="16" cy="11" rx="2.5" ry="4" fill="#a5f3fc" opacity="0.9" />
-        <circle cx="16" cy="29" r="3" fill="#f97316" opacity="0.7" />
-        <circle cx="16" cy="29" r="1.5" fill="#fef3c7" />
-      </svg>
-    )
+    ctx.beginPath()
+    ctx.moveTo(0, -s)
+    ctx.lineTo(-s * 0.5, s * 0.4)
+    ctx.lineTo(0, s * 0.1)
+    ctx.lineTo(s * 0.5, s * 0.4)
+    ctx.closePath()
+    ctx.fill(); ctx.stroke()
+    // tail fins
+    ctx.beginPath()
+    ctx.moveTo(-s * 0.5, s * 0.4)
+    ctx.lineTo(-s * 0.7, s * 0.8)
+    ctx.moveTo(s * 0.5, s * 0.4)
+    ctx.lineTo(s * 0.7, s * 0.8)
+    ctx.stroke()
+  } else if (type === 1) {
+    // Jet — swept wing
+    ctx.beginPath()
+    ctx.moveTo(0, -s)
+    ctx.lineTo(-s * 0.7, s * 0.2)
+    ctx.lineTo(-s * 0.25, s * 0.1)
+    ctx.lineTo(-s * 0.2, s * 0.7)
+    ctx.lineTo(0, s * 0.4)
+    ctx.lineTo(s * 0.2, s * 0.7)
+    ctx.lineTo(s * 0.25, s * 0.1)
+    ctx.lineTo(s * 0.7, s * 0.2)
+    ctx.closePath()
+    ctx.fill(); ctx.stroke()
+  } else {
+    // Stealth — flying wing
+    ctx.beginPath()
+    ctx.moveTo(0, -s * 0.3)
+    ctx.lineTo(-s * 0.9, s * 0.5)
+    ctx.lineTo(-s * 0.3, s * 0.3)
+    ctx.lineTo(0, s * 0.55)
+    ctx.lineTo(s * 0.3, s * 0.3)
+    ctx.lineTo(s * 0.9, s * 0.5)
+    ctx.closePath()
+    ctx.fill(); ctx.stroke()
   }
-  if (type === 1) {
-    // Swept-wing jet
-    return (
-      <svg width={size} height={size} viewBox="0 0 34 38"
-        style={{ filter: "drop-shadow(0 0 6px #a78bfa)", overflow: "visible" }}>
-        <polygon points="17,2 21,15 32,21 21,19 19,34 15,34 13,19 2,21 13,15" fill="#a78bfa" />
-        <ellipse cx="17" cy="11" rx="2" ry="5" fill="#ede9fe" opacity="0.8" />
-        <circle cx="17" cy="28" r="3.5" fill="#f97316" opacity="0.6" />
-        <circle cx="17" cy="28" r="1.5" fill="#fef3c7" />
-      </svg>
-    )
-  }
-  // Stealth — B-2 style flying wing
-  return (
-    <svg width={size} height={size} viewBox="0 0 40 30"
-      style={{ filter: "drop-shadow(0 0 6px #4ade80)", overflow: "visible" }}>
-      <polygon points="20,4 38,26 28,22 20,28 12,22 2,26" fill="#4ade80" />
-      <polygon points="20,10 30,22 20,20 10,22" fill="#14532d" opacity="0.7" />
-      <circle cx="20" cy="24" r="2.5" fill="#f97316" opacity="0.6" />
-    </svg>
-  )
+
+  ctx.restore()
 }
 
-// ─── Missile SVG ───────────────────────────────────────────────────────────────
-function MissileSVG() {
-  return (
-    <svg width="20" height="7" viewBox="0 0 20 7"
-      style={{ filter: "drop-shadow(0 0 5px #f97316)", overflow: "visible" }}>
-      <rect x="3" y="2" width="12" height="3" rx="1.5" fill="#fb923c" />
-      <polygon points="15,2 20,3.5 15,5" fill="#fbbf24" />
-      <rect x="0" y="2.5" width="5" height="2" rx="1" fill="#60a5fa" opacity="0.85" />
-    </svg>
-  )
-}
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function RadarOverlay({
+  priceData: _p,
+}: {
+  priceData?: { volume: number; deltaVolume: number }
+}) {
+  const canvasRef   = useRef<HTMLCanvasElement>(null)
+  const rafRef      = useRef<number>(0)
 
-// ─── Main Component ────────────────────────────────────────────────────────────
-export default function RadarOverlay({ priceData: _priceData }: { priceData?: { volume: number; deltaVolume: number } }) {
-  const [mounted, setMounted] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const rafRef = useRef<number>(0)
-
-  // All mutable sim state in refs — never stale inside RAF
+  // Simulation state — all in refs, never causes re-render
   const radarsRef     = useRef<RadarObj[]>([])
   const aircraftRef   = useRef<Aircraft[]>([])
   const missilesRef   = useRef<Missile[]>([])
   const explosionsRef = useRef<Explosion[]>([])
-  const radarIdRef    = useRef(0)
-  const acIdRef       = useRef(0)
-  const msIdRef       = useRef(0)
-  const exIdRef       = useRef(0)
-  const lastSpawnRef  = useRef(0)
-  const prevFrameRef  = useRef(0)
 
-  const [tick, setTick] = useState(0) // triggers re-render
+  const idRef       = useRef(0)
+  const lastSpawnRef = useRef(0)
+  const prevTsRef   = useRef(0)
 
-  useEffect(() => { setMounted(true) }, [])
-
-  // ── Simulation loop ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!mounted) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
 
-    const simulate = (now: number) => {
-      const dt = prevFrameRef.current ? Math.min((now - prevFrameRef.current) / 1000, 0.05) : 0.016
-      prevFrameRef.current = now
+    // ── Resize handler ──────────────────────────────────────────────────
+    const resize = () => {
+      const p = canvas.parentElement
+      if (!p) return
+      canvas.width  = p.clientWidth
+      canvas.height = p.clientHeight
+    }
+    resize()
+    const ro = new ResizeObserver(resize)
+    if (canvas.parentElement) ro.observe(canvas.parentElement)
 
-      const W = containerRef.current?.clientWidth  ?? 600
-      const H = containerRef.current?.clientHeight ?? 300
+    // ── Helpers inside RAF ───────────────────────────────────────────────
+    function getDotPos(r: RadarObj) {
+      return {
+        dx: r.cx + Math.cos(r.dotAngle) * r.dotR * r.radius,
+        dy: r.cy + Math.sin(r.dotAngle) * r.dotR * r.radius,
+      }
+    }
 
-      // ── Spawn radar — max 1 on screen at a time ────────────────────────
-      if (radarsRef.current.length === 0 && now - lastSpawnRef.current > 1500) {
+    function spawnRadar(W: number, H: number, now: number) {
+      const radius  = rnd(80, Math.min(W, H) * 0.65)
+      const cx      = rnd(W * 0.2, W * 0.8)
+      const cy      = rnd(H * 0.2, H * 0.8)
+      radarsRef.current.push({
+        id: idRef.current++,
+        cx, cy, radius,
+        angle: 0,
+        duration: rnd(3000, 6000),
+        spawnTime: now,
+        dotAngle: rnd(0, TWO_PI),
+        dotR: rnd(0.5, 0.82),
+        dotColor: Math.random() > 0.45 ? "red" : "yellow",
+        phase: "spinning",
+        fadeStart: 0,
+        waveR: 0,
+        waveAlpha: 0.7,
+      })
+    }
+
+    function spawnAircraft(W: number, H: number, r: RadarObj) {
+      const edge = Math.floor(rnd(0, 4))
+      let sx = 0, sy = 0
+      if (edge === 0)      { sx = rnd(0, W);  sy = -50 }
+      else if (edge === 1) { sx = W + 50;     sy = rnd(0, H) }
+      else if (edge === 2) { sx = rnd(0, W);  sy = H + 50 }
+      else                 { sx = -50;         sy = rnd(0, H) }
+
+      const { dx, dy } = getDotPos(r)
+      const dist = Math.hypot(dx - sx, dy - sy)
+      const spd  = rnd(80, 160)
+
+      aircraftRef.current.push({
+        id: idRef.current++,
+        x: sx, y: sy,
+        vx: (dx - sx) / dist * spd,
+        vy: (dy - sy) / dist * spd,
+        heading: Math.atan2(dy - sy, dx - sx) + Math.PI / 2,
+        size: rnd(8, 16),
+        type: Math.floor(Math.random() * 3) as 0 | 1 | 2,
+        state: "cruising",
+        targetId: r.id,
+        missilesFired: 0,
+        lastMissile: 0,
+      })
+    }
+
+    // ── Main draw loop ───────────────────────────────────────────────────
+    const draw = (ts: number) => {
+      const dt  = Math.min((ts - (prevTsRef.current || ts)) / 1000, 0.05)
+      prevTsRef.current = ts
+      const now = ts
+
+      const W = canvas.width
+      const H = canvas.height
+
+      ctx.clearRect(0, 0, W, H)
+
+      // ── Spawn radar (max 1) ─────────────────────────────────────────
+      if (radarsRef.current.length === 0 && now - lastSpawnRef.current > 1200) {
+        spawnRadar(W, H, now)
         lastSpawnRef.current = now
-        const targetAngle = rnd(0, 360)
-        // Random radius — some large enough to exceed canvas edge (50~320)
-        const radius = rnd(50, 320)
-        const r: RadarObj = {
-          id: radarIdRef.current++,
-          x: rnd(W * 0.15, W * 0.85),
-          y: rnd(H * 0.15, H * 0.85),
-          radius,
-          angle: 0,
-          duration: rnd(3000, 6000),
-          spawnTime: now,
-          targetAngle,
-          targetColor: Math.random() > 0.4 ? "red" : "yellow",
-          waveR: 0,
-          opacity: 0,
-          phase: "spinning",
-          fadeStart: 0,
-        }
-        radarsRef.current.push(r)
       }
 
-      // ── Spawn aircraft — max 3 total, from outside canvas edge ─────────
-      if (aircraftRef.current.filter(a => a.state !== "done").length < 3) {
+      // ── Update & draw radars ────────────────────────────────────────
+      radarsRef.current = radarsRef.current.filter((r) => {
+        const elapsed = now - r.spawnTime
+        const progress = elapsed / r.duration
+
+        if (r.phase === "spinning") {
+          r.angle = (progress % 1) * TWO_PI
+
+          // Completed one full rotation → start fading
+          if (progress >= 1) {
+            r.phase = "fading"
+            r.fadeStart = now
+          }
+        }
+
+        const opacity =
+          r.phase === "spinning"
+            ? Math.min(1, elapsed / 400)            // fade in
+            : Math.max(0, 1 - (now - r.fadeStart) / 800) // fade out
+
+        if (r.phase === "fading" && opacity <= 0) return false
+
+        // ── Draw radar ────────────────────────────────────────────────
+        const { cx, cy, radius: rr } = r
+
+        ctx.save()
+        ctx.globalAlpha = opacity
+
+        // Concentric rings (4)
+        for (let i = 1; i <= 4; i++) {
+          const ringR = (rr / 4) * i
+          ctx.beginPath()
+          ctx.arc(cx, cy, ringR, 0, TWO_PI)
+          ctx.strokeStyle = `rgba(0,255,140,${0.07 + i * 0.03})`
+          ctx.lineWidth = 0.7
+          ctx.stroke()
+        }
+
+        // Crosshair
+        ctx.strokeStyle = "rgba(0,255,140,0.1)"
+        ctx.lineWidth = 0.7
+        ctx.beginPath(); ctx.moveTo(cx - rr, cy); ctx.lineTo(cx + rr, cy); ctx.stroke()
+        ctx.beginPath(); ctx.moveTo(cx, cy - rr); ctx.lineTo(cx, cy + rr); ctx.stroke()
+        const d45 = rr * 0.707
+        ctx.strokeStyle = "rgba(0,255,140,0.05)"
+        ctx.beginPath(); ctx.moveTo(cx - d45, cy - d45); ctx.lineTo(cx + d45, cy + d45); ctx.stroke()
+        ctx.beginPath(); ctx.moveTo(cx + d45, cy - d45); ctx.lineTo(cx - d45, cy + d45); ctx.stroke()
+
+        // Sweep trail (arc segments, ref style)
+        if (r.phase === "spinning") {
+          const sweepArc = Math.PI * 0.55
+          const steps = 36
+          for (let s = 0; s < steps; s++) {
+            const frac = s / steps
+            const a0   = r.angle - sweepArc * (1 - frac)
+            const a1   = r.angle - sweepArc * (1 - (s + 1) / steps)
+            ctx.beginPath()
+            ctx.moveTo(cx, cy)
+            ctx.arc(cx, cy, rr, a0, a1)
+            ctx.closePath()
+            ctx.fillStyle = `rgba(0,255,140,${frac * 0.10})`
+            ctx.fill()
+          }
+
+          // Leading edge line
+          ctx.beginPath()
+          ctx.moveTo(cx, cy)
+          ctx.lineTo(cx + Math.cos(r.angle) * rr, cy + Math.sin(r.angle) * rr)
+          ctx.strokeStyle = "rgba(0,255,140,0.6)"
+          ctx.lineWidth = 1.2
+          ctx.stroke()
+        }
+
+        // Wave ring (expands once after spawn)
+        if (r.waveAlpha > 0) {
+          r.waveR += dt * rr * 1.1
+          r.waveAlpha = Math.max(0, r.waveAlpha - dt * 0.55)
+          if (r.waveR < rr * 1.5) {
+            ctx.beginPath()
+            ctx.arc(cx, cy, r.waveR, 0, TWO_PI)
+            ctx.strokeStyle = `rgba(0,255,140,${r.waveAlpha * 0.5})`
+            ctx.lineWidth = 1.5
+            ctx.stroke()
+          }
+        }
+
+        // Center dot
+        ctx.beginPath()
+        ctx.arc(cx, cy, 2.5, 0, TWO_PI)
+        ctx.fillStyle = "rgba(0,255,140,0.7)"
+        ctx.fill()
+
+        // Target dot — red or yellow, with sweep-based fade (ref style)
+        const { dx, dy } = getDotPos(r)
+        let dotDelta = r.angle - r.dotAngle
+        while (dotDelta < 0) dotDelta += TWO_PI
+        dotDelta = dotDelta % TWO_PI
+        const fadeWindow = Math.PI * 1.7
+        const dotAlpha = dotDelta < fadeWindow ? Math.max(0, 1 - dotDelta / fadeWindow) : 0
+
+        if (dotAlpha > 0) {
+          const dotColor = r.dotColor === "red" ? "255,60,60" : "255,220,0"
+          // Glow
+          const grd = ctx.createRadialGradient(dx, dy, 0, dx, dy, 10)
+          grd.addColorStop(0, `rgba(${dotColor},${dotAlpha * 0.9})`)
+          grd.addColorStop(1, `rgba(${dotColor},0)`)
+          ctx.beginPath()
+          ctx.arc(dx, dy, 10, 0, TWO_PI)
+          ctx.fillStyle = grd
+          ctx.fill()
+          // Core
+          ctx.beginPath()
+          ctx.arc(dx, dy, 3, 0, TWO_PI)
+          ctx.fillStyle = `rgba(${dotColor},${dotAlpha})`
+          ctx.fill()
+        }
+
+        ctx.restore()
+        return true
+      })
+
+      // ── Spawn aircraft (max 3 active) ───────────────────────────────
+      const activeAC = aircraftRef.current.filter(a => a.state !== "done")
+      if (activeAC.length < 3) {
         for (const r of radarsRef.current) {
           if (r.phase !== "spinning") continue
-          const activeForRadar = aircraftRef.current.filter(
-            (a) => a.targetId === r.id && a.state !== "done"
+          const alreadyOn = aircraftRef.current.filter(
+            a => a.targetId === r.id && a.state !== "done"
           ).length
-          // Allow up to 3 aircraft total targeting the same radar
-          if (activeForRadar < 3 && aircraftRef.current.filter(a => a.state !== "done").length < 3) {
-            const edge = Math.floor(rnd(0, 4))
-            let sx = 0, sy = 0
-            if (edge === 0)      { sx = rnd(0, W);  sy = -60 }
-            else if (edge === 1) { sx = W + 60;     sy = rnd(0, H) }
-            else if (edge === 2) { sx = rnd(0, W);  sy = H + 60 }
-            else                 { sx = -60;         sy = rnd(0, H) }
-
-            // Target dot world position
-            const tdx = r.x + Math.cos(deg2rad(r.targetAngle)) * r.radius * 0.72
-            const tdy = r.y + Math.sin(deg2rad(r.targetAngle)) * r.radius * 0.72
-            const dist = Math.hypot(tdx - sx, tdy - sy)
-            const speed = rnd(100, 180)
-            const ac: Aircraft = {
-              id: acIdRef.current++,
-              x: sx,
-              y: sy,
-              vx: (tdx - sx) / dist * speed,
-              vy: (tdy - sy) / dist * speed,
-              size: rnd(28, 52),
-              type: Math.floor(Math.random() * 3) as 0 | 1 | 2,
-              angle: Math.atan2(tdy - sy, tdx - sx) * (180 / Math.PI) + 90,
-              state: "cruising",
-              targetId: r.id,
-              missilesFired: 0,
-              lastMissile: 0,
-            }
-            aircraftRef.current.push(ac)
+          if (alreadyOn < 3 && activeAC.length < 3) {
+            spawnAircraft(W, H, r)
             break
           }
         }
       }
 
-      // ── Update radars ────────────────────────────────────────────────────
-      radarsRef.current = radarsRef.current.filter((r) => {
-        if (r.phase === "spinning") {
-          const elapsed = now - r.spawnTime
-          const progress = Math.min(elapsed / r.duration, 1)
-          r.angle = progress * 360
-          r.waveR = progress * r.radius
-          // opacity: fade in 0→0.2, hold 0.2→0.75, fade out 0.75→1
-          if (progress < 0.2) r.opacity = progress / 0.2
-          else if (progress < 0.75) r.opacity = 1
-          else r.opacity = 1 - (progress - 0.75) / 0.25
-
-          if (progress >= 1) {
-            r.phase = "fading"
-            r.fadeStart = now
-          }
-        } else {
-          const fadeElapsed = now - r.fadeStart
-          if (fadeElapsed > 600) return false
-          r.opacity = Math.max(0, 1 - fadeElapsed / 600)
-        }
-        return true
-      })
-
-      // ── Update aircraft ──────────────────────────────────────────────────
+      // ── Update & draw aircraft ──────────────────────────────────────
       aircraftRef.current = aircraftRef.current.filter((ac) => {
-        if (ac.state === "done") return false
-        const radar = radarsRef.current.find((r) => r.id === ac.targetId)
-        if (!radar && ac.state === "attacking") return false
+        const radar = radarsRef.current.find(r => r.id === ac.targetId)
 
-        // Target dot world position
-        const tdx = radar
-          ? radar.x + Math.cos(deg2rad(radar.targetAngle)) * radar.radius * 0.72
-          : ac.x + ac.vx * 100
-        const tdy = radar
-          ? radar.y + Math.sin(deg2rad(radar.targetAngle)) * radar.radius * 0.72
-          : ac.y + ac.vy * 100
-
-        const dTx = tdx - ac.x
-        const dTy = tdy - ac.y
-        const distToTarget = Math.hypot(dTx, dTy)
-
-        if (ac.state === "cruising") {
-          // Gradually steer toward target
-          const targetAngle = Math.atan2(dTy, dTx)
-          const speed = Math.hypot(ac.vx, ac.vy)
-          const curAngle = Math.atan2(ac.vy, ac.vx)
-          const turnRate = 2.0 * dt // rad/s
-          let diff = targetAngle - curAngle
-          while (diff > Math.PI) diff -= 2 * Math.PI
-          while (diff < -Math.PI) diff += 2 * Math.PI
-          const newAngle = curAngle + Math.sign(diff) * Math.min(Math.abs(diff), turnRate)
-          ac.vx = Math.cos(newAngle) * speed
-          ac.vy = Math.sin(newAngle) * speed
-          ac.angle = newAngle * (180 / Math.PI) + 90
+        if (ac.state === "done") {
+          // Keep moving until off-screen
           ac.x += ac.vx * dt
           ac.y += ac.vy * dt
-
-          // Within firing range → start attacking
-          if (distToTarget < 120 && radar) ac.state = "attacking"
-        } else if (ac.state === "attacking") {
-          // Orbit around target loosely
-          ac.x += ac.vx * dt * 0.4
-          ac.y += ac.vy * dt * 0.4
-
-          // Fire missile — add inaccuracy so some miss
-          if (ac.missilesFired < 5 && now - ac.lastMissile > 600 && radar) {
-            const spd = rnd(200, 320)
-            const dist2 = Math.hypot(dTx, dTy)
-            // Random accuracy jitter: ±20px offset on the target
-            const jitterX = rnd(-20, 20)
-            const jitterY = rnd(-20, 20)
-            const aimX = tdx + jitterX
-            const aimY = tdy + jitterY
-            const dAX = aimX - ac.x
-            const dAY = aimY - ac.y
-            const distAim = Math.hypot(dAX, dAY)
-            const m: Missile = {
-              id: msIdRef.current++,
-              x: ac.x,
-              y: ac.y,
-              tx: aimX,  // where the missile is aimed (with jitter)
-              ty: aimY,
-              vx: (dAX / distAim) * spd,
-              vy: (dAY / distAim) * spd,
-              startTime: now,
-              radarId: radar.id,
-              hit: false,
-              // Store exact dot position for hit detection
-              dotX: tdx,
-              dotY: tdy,
-            }
-            missilesRef.current.push(m)
-            ac.lastMissile = now
-            ac.missilesFired++
-          }
-          if (ac.missilesFired >= 5) ac.state = "done"
+          const offscreen = ac.x < -100 || ac.x > W + 100 || ac.y < -100 || ac.y > H + 100
+          if (!offscreen) drawAircraft(ctx, ac.x, ac.y, ac.heading, ac.size, ac.type)
+          return !offscreen
         }
 
-        // Remove aircraft that flew way off screen (> 200px outside)
-        if (ac.x < -200 || ac.x > W + 200 || ac.y < -200 || ac.y > H + 200) return false
+        // No radar → peel away
+        if (!radar) {
+          ac.state = "done"
+          // Reverse direction and fly away
+          const spd = Math.hypot(ac.vx, ac.vy)
+          ac.vx = -ac.vx / Math.max(0.1, spd) * 80
+          ac.vy = -ac.vy / Math.max(0.1, spd) * 80
+          return true
+        }
+
+        ac.x += ac.vx * dt
+        ac.y += ac.vy * dt
+
+        const { dx, dy } = getDotPos(radar)
+        const distToDot  = Math.hypot(dx - ac.x, dy - ac.y)
+
+        // Switch to attacking when close enough
+        if (ac.state === "cruising" && distToDot < radar.radius * 1.2) {
+          ac.state = "attacking"
+        }
+
+        // Fire missiles
+        if (ac.state === "attacking" && ac.missilesFired < 5 && now - ac.lastMissile > 700) {
+          const spd  = rnd(220, 380)
+          // Jitter for realism — some miss
+          const jx   = rnd(-22, 22)
+          const jy   = rnd(-22, 22)
+          const tx   = dx + jx
+          const ty   = dy + jy
+          const dist2 = Math.hypot(tx - ac.x, ty - ac.y)
+          missilesRef.current.push({
+            id: idRef.current++,
+            x: ac.x, y: ac.y,
+            vx: (tx - ac.x) / dist2 * spd,
+            vy: (ty - ac.y) / dist2 * spd,
+            tx, ty,
+            radarId: radar.id,
+          })
+          ac.lastMissile   = now
+          ac.missilesFired++
+        }
+
+        if (ac.missilesFired >= 5) {
+          ac.state = "done"
+          // Fly past and away
+          const spd = Math.hypot(ac.vx, ac.vy)
+          const hx  = (ac.vx / Math.max(0.001, spd))
+          const hy  = (ac.vy / Math.max(0.001, spd))
+          ac.vx = hx * 120
+          ac.vy = hy * 120
+        }
+
+        drawAircraft(ctx, ac.x, ac.y, ac.heading, ac.size, ac.type)
         return true
       })
 
-      // ── Update missiles ──────────────────────────────────────────────────
+      // ── Update & draw missiles ──────────────────────────────────────
       missilesRef.current = missilesRef.current.filter((m) => {
         m.x += m.vx * dt
         m.y += m.vy * dt
 
-        // Missile reached aimed point — spawn explosion and remove missile
         const distToAim = Math.hypot(m.tx - m.x, m.ty - m.y)
-        if (distToAim < 10) {
+        if (distToAim < 8) {
+          // Reached destination → spawn explosion, remove missile
           explosionsRef.current.push({
-            id: exIdRef.current++,
-            x: m.x,
-            y: m.y,
-            startTime: now,
-            duration: 700,
+            id: idRef.current++,
+            x: m.x, y: m.y,
+            t: 0,
+            duration: 600,
+            spawnTime: now,
           })
           return false
         }
 
         // Out of bounds
-        if (m.x < -100 || m.x > W + 100 || m.y < -100 || m.y > H + 100) return false
+        if (m.x < -80 || m.x > W + 80 || m.y < -80 || m.y > H + 80) return false
+
+        // Draw missile — small bright dot with trail
+        ctx.save()
+        ctx.shadowBlur  = 6
+        ctx.shadowColor = "rgba(255,180,0,0.8)"
+        ctx.beginPath()
+        ctx.arc(m.x, m.y, 2, 0, TWO_PI)
+        ctx.fillStyle = "rgba(255,220,80,0.95)"
+        ctx.fill()
+        // Short trail
+        ctx.beginPath()
+        ctx.moveTo(m.x, m.y)
+        ctx.lineTo(m.x - m.vx * 0.04, m.y - m.vy * 0.04)
+        ctx.strokeStyle = "rgba(255,120,0,0.45)"
+        ctx.lineWidth = 1
+        ctx.stroke()
+        ctx.restore()
+
         return true
       })
 
-      // ── Update explosions ────────────────────────────────────────────────
-      explosionsRef.current = explosionsRef.current.filter(
-        (e) => now - e.startTime < e.duration
-      )
+      // ── Update & draw explosions ────────────────────────────────────
+      explosionsRef.current = explosionsRef.current.filter((ex) => {
+        ex.t = (now - ex.spawnTime) / ex.duration
+        if (ex.t >= 1) return false
 
-      setTick((n) => n + 1)
-      rafRef.current = requestAnimationFrame(simulate)
+        const alpha = 1 - ex.t
+        const r1    = ex.t * 22
+
+        ctx.save()
+        // Outer ring
+        ctx.beginPath()
+        ctx.arc(ex.x, ex.y, r1, 0, TWO_PI)
+        ctx.strokeStyle = `rgba(255,180,60,${alpha * 0.8})`
+        ctx.lineWidth   = 2
+        ctx.stroke()
+        // Inner flash
+        if (ex.t < 0.3) {
+          const grd = ctx.createRadialGradient(ex.x, ex.y, 0, ex.x, ex.y, r1 * 0.6)
+          grd.addColorStop(0, `rgba(255,255,200,${(0.3 - ex.t) / 0.3})`)
+          grd.addColorStop(1, "rgba(255,120,0,0)")
+          ctx.beginPath()
+          ctx.arc(ex.x, ex.y, r1 * 0.6, 0, TWO_PI)
+          ctx.fillStyle = grd
+          ctx.fill()
+        }
+        ctx.restore()
+        return true
+      })
+
+      rafRef.current = requestAnimationFrame(draw)
     }
 
-    rafRef.current = requestAnimationFrame(simulate)
-    return () => cancelAnimationFrame(rafRef.current)
-  }, [mounted])
+    rafRef.current = requestAnimationFrame(draw)
 
-  if (!mounted) return <div ref={containerRef} className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl" />
-
-  const radars     = radarsRef.current
-  const aircraft   = aircraftRef.current
-  const missiles   = missilesRef.current
-  const explosions = explosionsRef.current
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      ro.disconnect()
+    }
+  }, [])
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl"
-      style={{ background: "transparent" }}
-    >
-      {/* ── Radars ── */}
-      {radars.map((r) => {
-        const d = r.radius * 2
-        // Sweep line end point in SVG coords (viewBox 0 0 200 200, center 100,100)
-        const sweepRad = deg2rad(r.angle - 90)
-        const sx = 100 + Math.cos(sweepRad) * 92
-        const sy = 100 + Math.sin(sweepRad) * 92
-
-        // Target dot in SVG coords
-        const dotRad = deg2rad(r.targetAngle - 90)
-        const dx = 100 + Math.cos(dotRad) * 76
-        const dy = 100 + Math.sin(dotRad) * 76
-
-        // Wave ring in SVG coords (proportional)
-        const waveRsvg = (r.waveR / r.radius) * 92
-
-        const dotColor = r.targetColor === "red" ? "#ef4444" : "#eab308"
-        const dotShadow = r.targetColor === "red" ? "#ef4444" : "#eab308"
-
-        return (
-          <div
-            key={r.id}
-            className="absolute"
-            style={{
-              left: r.x,
-              top: r.y,
-              width: d,
-              height: d,
-              transform: "translate(-50%,-50%)",
-              opacity: r.opacity,
-              pointerEvents: "none",
-            }}
-          >
-            <svg viewBox="0 0 200 200" width={d} height={d} overflow="visible">
-              <defs>
-                <filter id={`glow-r${r.id}`} x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur stdDeviation="3" result="b" />
-                  <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-                </filter>
-                <filter id={`glow-d${r.id}`} x="-100%" y="-100%" width="300%" height="300%">
-                  <feGaussianBlur stdDeviation="4" result="b" />
-                  <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-                </filter>
-                <clipPath id={`clip-${r.id}`}>
-                  <circle cx="100" cy="100" r="92" />
-                </clipPath>
-              </defs>
-
-              {/* ── Radar interior — fully transparent (no fill) ── */}
-              <g clipPath={`url(#clip-${r.id})`}>
-                {/* Concentric range rings */}
-                {[24, 46, 68, 90].map((rr) => (
-                  <circle key={rr} cx="100" cy="100" r={rr}
-                    fill="none" stroke="rgba(34,211,238,0.18)" strokeWidth="0.8"
-                    strokeDasharray={rr < 50 ? "3 6" : "4 8"} />
-                ))}
-
-                {/* Cross hairs */}
-                <line x1="100" y1="8"   x2="100" y2="192" stroke="rgba(34,211,238,0.12)" strokeWidth="0.6" />
-                <line x1="8"   y1="100" x2="192" y2="100" stroke="rgba(34,211,238,0.12)" strokeWidth="0.6" />
-                <line x1="36"  y1="36"  x2="164" y2="164" stroke="rgba(34,211,238,0.06)" strokeWidth="0.5" />
-                <line x1="164" y1="36"  x2="36"  y2="164" stroke="rgba(34,211,238,0.06)" strokeWidth="0.5" />
-
-                {/* Sweep trail — single fan arc (40° wide), fading gradient */}
-                {(() => {
-                  const trailDeg = 40
-                  const sweepA = deg2rad(r.angle - 90)
-                  const trailA = deg2rad(r.angle - 90 - trailDeg)
-                  const ex1 = 100 + Math.cos(sweepA) * 92
-                  const ey1 = 100 + Math.sin(sweepA) * 92
-                  const ex2 = 100 + Math.cos(trailA) * 92
-                  const ey2 = 100 + Math.sin(trailA) * 92
-                  const midA = deg2rad(r.angle - 90 - trailDeg / 2)
-                  const mx = 100 + Math.cos(midA) * 92
-                  const my = 100 + Math.sin(midA) * 92
-                  const gradId = `sweep-grad-${r.id}`
-                  return (
-                    <>
-                      <defs>
-                        <linearGradient id={gradId} x1="100" y1="100" x2={mx} y2={my} gradientUnits="userSpaceOnUse">
-                          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0" />
-                          <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.18" />
-                        </linearGradient>
-                      </defs>
-                      {/* Fan fill */}
-                      <path
-                        d={`M 100 100 L ${ex2} ${ey2} A 92 92 0 0 1 ${ex1} ${ey1} Z`}
-                        fill={`url(#${gradId})`}
-                      />
-                      {/* Single bright sweep line */}
-                      <line x1="100" y1="100" x2={sx} y2={sy}
-                        stroke="#22d3ee" strokeWidth="1.8"
-                        filter={`url(#glow-r${r.id})`} />
-                    </>
-                  )
-                })()}
-
-                {/* Expanding wave ring */}
-                {waveRsvg > 2 && waveRsvg < 93 && (
-                  <circle cx="100" cy="100" r={waveRsvg}
-                    fill="none" stroke="#22d3ee" strokeWidth="1.5"
-                    opacity={Math.max(0, (1 - waveRsvg / 93) * 0.65)} />
-                )}
-
-                {/* Target dot */}
-                <circle cx={dx} cy={dy} r="5" fill={dotColor}
-                  filter={`url(#glow-d${r.id})`} />
-                {/* Pulsing outer ring on dot */}
-                <circle cx={dx} cy={dy} r={5 + (r.waveR / r.radius) * 10}
-                  fill="none" stroke={dotColor} strokeWidth="1"
-                  opacity={Math.max(0, 0.7 - r.waveR / r.radius)} />
-              </g>
-
-              {/* Outer border ring — neon glow */}
-              <circle cx="100" cy="100" r="92"
-                fill="none"
-                stroke="rgba(34,211,238,0.6)"
-                strokeWidth="1.5"
-                filter={`url(#glow-r${r.id})`} />
-            </svg>
-          </div>
-        )
-      })}
-
-      {/* ── Aircraft ── */}
-      {aircraft.map((ac) => (
-        <div
-          key={ac.id}
-          className="absolute"
-          style={{
-            left: ac.x,
-            top: ac.y,
-            transform: `translate(-50%,-50%) rotate(${ac.angle}deg)`,
-            pointerEvents: "none",
-            willChange: "transform",
-          }}
-        >
-          <AircraftSVG type={ac.type} size={ac.size} />
-        </div>
-      ))}
-
-      {/* ── Missiles ── */}
-      {missiles.map((m) => {
-        const angle = Math.atan2(m.vy, m.vx) * (180 / Math.PI)
-        return (
-          <div
-            key={m.id}
-            className="absolute"
-            style={{
-              left: m.x,
-              top: m.y,
-              transform: `translate(-50%,-50%) rotate(${angle}deg)`,
-              pointerEvents: "none",
-              willChange: "transform",
-            }}
-          >
-            <MissileSVG />
-          </div>
-        )
-      })}
-
-      {/* ── Explosions ── */}
-      {explosions.map((e) => {
-        const prog = (Date.now() - e.startTime) / e.duration
-        const r1 = prog * 28
-        const r2 = prog * 18
-        return (
-          <div
-            key={e.id}
-            className="absolute"
-            style={{ left: e.x, top: e.y, pointerEvents: "none" }}
-          >
-            <svg width={60} height={60} viewBox="0 0 60 60"
-              style={{ transform: "translate(-50%,-50%)", overflow: "visible" }}>
-              <circle cx="30" cy="30" r={r1}
-                fill="none" stroke="#f97316"
-                strokeWidth="2"
-                opacity={Math.max(0, 1 - prog)} />
-              <circle cx="30" cy="30" r={r2}
-                fill="none" stroke="#fbbf24"
-                strokeWidth="1.5"
-                opacity={Math.max(0, 0.8 - prog)} />
-              <circle cx="30" cy="30" r={r2 * 0.5}
-                fill="#fef3c7"
-                opacity={Math.max(0, 0.9 - prog * 1.5)} />
-            </svg>
-          </div>
-        )
-      })}
-    </div>
+    <canvas
+      ref={canvasRef}
+      style={{ display: "block", width: "100%", height: "100%", position: "absolute", inset: 0, pointerEvents: "none" }}
+    />
   )
 }
 
