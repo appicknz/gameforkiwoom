@@ -198,7 +198,7 @@ export default function RadarOverlay({
         x: sx, y: sy,
         vx: (dx - sx) / dist * spd,
         vy: (dy - sy) / dist * spd,
-        heading: Math.atan2(dy - sy, dx - sx) + Math.PI / 2,
+        heading: Math.atan2(dy - sy, dx - sx) - Math.PI / 2,
         size: rnd(8, 16),
         type: Math.floor(Math.random() * 3) as 0 | 1 | 2,
         state: "cruising",
@@ -225,7 +225,7 @@ export default function RadarOverlay({
         lastSpawnRef.current = now
       }
 
-      // ── Update & draw radars ────────────────────────────────────────
+      // ── Update & draw radars ─────────────────────��──────────────────
       radarsRef.current = radarsRef.current.filter((r) => {
         const elapsed = now - r.spawnTime
         const progress = elapsed / r.duration
@@ -369,6 +369,9 @@ export default function RadarOverlay({
           // Keep moving until off-screen
           ac.x += ac.vx * dt
           ac.y += ac.vy * dt
+          if (Math.abs(ac.vx) > 0.01 || Math.abs(ac.vy) > 0.01) {
+            ac.heading = Math.atan2(ac.vy, ac.vx) - Math.PI / 2
+          }
           const offscreen = ac.x < -100 || ac.x > W + 100 || ac.y < -100 || ac.y > H + 100
           if (!offscreen) drawAircraft(ctx, ac.x, ac.y, ac.heading, ac.size, ac.type)
           return !offscreen
@@ -386,6 +389,10 @@ export default function RadarOverlay({
 
         ac.x += ac.vx * dt
         ac.y += ac.vy * dt
+        // Keep heading aligned to velocity so nose always points in direction of travel
+        if (Math.abs(ac.vx) > 0.01 || Math.abs(ac.vy) > 0.01) {
+          ac.heading = Math.atan2(ac.vy, ac.vx) - Math.PI / 2
+        }
 
         const { dx, dy } = getDotPos(radar)
         const distToDot  = Math.hypot(dx - ac.x, dy - ac.y)
