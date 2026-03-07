@@ -712,28 +712,20 @@ export default function RadarOverlay({
           return true
         }
 
-        // ── Laser: fast approach, beam attack ────────────────────────
+        // ── Laser: straight approach → hover → beam attack → straight exit
         if (ac.role === "laser") {
-          ac.x += ac.vx * dt; ac.y += ac.vy * dt
-          if (Math.abs(ac.vx) > 0.01 || Math.abs(ac.vy) > 0.01)
-            ac.heading = Math.atan2(ac.vy, ac.vx) + Math.PI / 2
-
           const distToDot = Math.hypot(dx - ac.x, dy - ac.y)
-          if (distToDot < radar.radius * 1.5 && ac.state === "cruising") ac.state = "attacking"
+
+          if (ac.state === "cruising") {
+            // Fly straight toward target area; heading fixed at spawn
+            ac.x += ac.vx * dt; ac.y += ac.vy * dt
+            if (distToDot < radar.radius * 1.2) ac.state = "attacking"
+          }
 
           if (ac.state === "attacking") {
-            // Orbit while firing laser
-            ac.orbitAngle += 0.8 * dt
-            const orbitX = radar.cx + Math.cos(ac.orbitAngle) * (radar.radius * 0.7)
-            const orbitY = radar.cy + Math.sin(ac.orbitAngle) * (radar.radius * 0.7)
-            ac.vx += ((orbitX - ac.x) / Math.max(1, Math.hypot(orbitX - ac.x, orbitY - ac.y)) * 100 - ac.vx) * dt * 2
-            ac.vy += ((orbitY - ac.y) / Math.max(1, Math.hypot(orbitX - ac.x, orbitY - ac.y)) * 100 - ac.vy) * dt * 2
-            ac.x += ac.vx * dt; ac.y += ac.vy * dt
-            if (Math.abs(ac.vx) > 0.01 || Math.abs(ac.vy) > 0.01)
-              ac.heading = Math.atan2(ac.vy, ac.vx) + Math.PI / 2
-
-            // Fire laser every 1.8s
-            if (now - ac.lastShot > 1800 && ac.shotsFired < 6) {
+            // Hold position — no movement, heading stays fixed
+            // Fire laser every 1.6s
+            if (now - ac.lastShot > 1600 && ac.shotsFired < 6) {
               const { nx, ny } = getNose(ac.x, ac.y, ac.heading, ac.size * 1.2)
               missilesRef.current.push({
                 id: idRef.current++,
@@ -751,12 +743,21 @@ export default function RadarOverlay({
             }
             if (ac.shotsFired >= 6) {
               ac.state = "done"
-              const spd = Math.hypot(ac.vx, ac.vy) || 80
-              ac.vx = ac.vx / spd * 130; ac.vy = ac.vy / spd * 130
+              // Exit in the same direction it came from (reverse)
+              const spd = 120
+              ac.vx = -ac.vx / Math.max(0.01, Math.hypot(ac.vx, ac.vy)) * spd
+              ac.vy = -ac.vy / Math.max(0.01, Math.hypot(ac.vx, ac.vy)) * spd
             }
           }
+
+          if (ac.state === "done") {
+            ac.x += ac.vx * dt; ac.y += ac.vy * dt
+            // heading stays fixed — no update
+          }
+
           drawAircraft(ctx, ac.x, ac.y, ac.heading, ac.size, ac.role)
-          return true
+          const offscreen = ac.x < -150 || ac.x > W + 150 || ac.y < -150 || ac.y > H + 150
+          return !offscreen
         }
 
         // ── Missile jets (a / b / c) ──────────────────────────────────
