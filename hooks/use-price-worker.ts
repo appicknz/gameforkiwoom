@@ -89,62 +89,71 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
       // ── 개발용 폴백: Binance 직접 연결 ──────────────────────
       console.warn("[usePriceWorker] NEXT_PUBLIC_PRICE_SERVER_URL not set, falling back to Binance direct connection")
 
-      const tradeBuffer: Array<{ price: number; time: number }> = []
-      let prevThirtyBucket: number | null = null
+      let tradeWs: WebSocket | null = null
+      let klineWs: WebSocket | null = null
+      let tradeRetry: ReturnType<typeof setTimeout> | null = null
+      let klineRetry: ReturnType<typeof setTimeout> | null = null
 
-      const connect = () => {
+      // aggTrade: 현재가 실시간 브로드캐스트
+      const connectTrade = () => {
         if (closed) return
-        ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
+        tradeWs = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
 
-        ws.onopen = () => optsRef.current.onConnected?.()
+        tradeWs.onopen = () => optsRef.current.onConnected?.()
 
-        ws.onmessage = (event) => {
+        tradeWs.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data as string)
-            tradeBuffer.push({
-              price: parseFloat(msg.p),
-              time: Math.floor(msg.T / 1000),
-            })
+            const price = parseFloat(msg.p)
+            const time = Math.floor(msg.T / 1000)
+            optsRef.current.onPrice?.(price, time)
+            win.__bitcoinCurrentPrice = price
           } catch { /* ignore */ }
         }
 
-        ws.onclose = () => {
+        tradeWs.onclose = () => {
           optsRef.current.onDisconnected?.()
-          if (!closed) retryTimer = setTimeout(connect, 3000)
+          if (!closed) tradeRetry = setTimeout(connectTrade, 3000)
         }
 
-        ws.onerror = () => ws?.close()
+        tradeWs.onerror = () => tradeWs?.close()
       }
 
-      connect()
+      // kline_30s: Binance 공식 30초봉 종가 — k.x===true 마감 확정 시만 처리
+      const connectKline = () => {
+        if (closed) return
+        klineWs = new WebSocket("wss://fstream.binance.com/ws/btcusdt@kline_30s")
 
-      const timer = setInterval(() => {
-        const now = Math.floor(Date.now() / 1000)
-        const trades = tradeBuffer.filter((t) => t.time >= now)
-        if (trades.length === 0) return
+        klineWs.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data as string)
+            const k = msg.k
+            if (!k || !k.x) return  // 마감 확정된 캔들만 처리
 
-        const closingPrice = trades[trades.length - 1].price
-        optsRef.current.onPrice?.(closingPrice, now)
-        win.__bitcoinCurrentPrice = closingPrice
-
-        const thirtyBucket = now - (now % 30)
-        if (prevThirtyBucket === null || thirtyBucket !== prevThirtyBucket) {
-          prevThirtyBucket = thirtyBucket
-          optsRef.current.onClosingPrice?.(closingPrice, thirtyBucket)
-          const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-          win.__bitcoinClosingPrices = [...prev, { time: thirtyBucket, price: closingPrice }].slice(-100)
+            const closePrice = parseFloat(k.c)
+            const closeTime = Math.floor(k.T / 1000)
+            optsRef.current.onClosingPrice?.(closePrice, closeTime)
+            const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+            win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
+          } catch { /* ignore */ }
         }
 
-        const cutoff = now - 300
-        const idx = tradeBuffer.findIndex((t) => t.time >= cutoff)
-        if (idx > 0) tradeBuffer.splice(0, idx)
-      }, 1000)
+        klineWs.onclose = () => {
+          if (!closed) klineRetry = setTimeout(connectKline, 3000)
+        }
+
+        klineWs.onerror = () => klineWs?.close()
+      }
+
+      connectTrade()
+      connectKline()
 
       return () => {
         closed = true
-        if (retryTimer) clearTimeout(retryTimer)
-        clearInterval(timer)
-        ws?.close()
+        if (tradeRetry) clearTimeout(tradeRetry)
+        if (klineRetry) clearTimeout(klineRetry)
+        tradeWs?.close()
+        klineWs?.close()
       }
     }
 

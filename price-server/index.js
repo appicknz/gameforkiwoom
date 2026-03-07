@@ -19,14 +19,15 @@
 const { WebSocket, WebSocketServer } = require("ws")
 
 const PORT = process.env.PORT || 8080
-const BINANCE_WS_URL = "wss://fstream.binance.com/ws/btcusdt@aggTrade"
+// 현재가: aggTrade (실시간 체결)
+const BINANCE_TRADE_URL = "wss://fstream.binance.com/ws/btcusdt@aggTrade"
+// 30초봉 마감가: kline_30s (Binance 공식 30초봉, k.x===true 시 종가 확정)
+const BINANCE_KLINE_URL = "wss://fstream.binance.com/ws/btcusdt@kline_30s"
 
 // 연결된 클라이언트 목록
 const clients = new Set()
 
 // 집계 상태
-const tradeBuffer = []
-let prevThirtyBucket = null
 const closingPrices = [] // 최근 100개 유지
 let latestPrice = null
 
@@ -71,73 +72,79 @@ function broadcast(data) {
   }
 }
 
-// ─── Binance WebSocket ────────────────────────────────────────
-let binanceWs = null
+// ─── Binance aggTrade WebSocket (현재가 브로드캐스트용) ───────
+let tradeWs = null
 
-function connectBinance() {
-  console.log("[server] connecting to Binance...")
-  binanceWs = new WebSocket(BINANCE_WS_URL)
+function connectTrade() {
+  console.log("[server] connecting to Binance aggTrade...")
+  tradeWs = new WebSocket(BINANCE_TRADE_URL)
 
-  binanceWs.on("open", () => {
-    console.log("[server] Binance WS connected")
+  tradeWs.on("open", () => {
+    console.log("[server] Binance aggTrade connected")
   })
 
-  binanceWs.on("message", (data) => {
+  tradeWs.on("message", (data) => {
     try {
       const msg = JSON.parse(data.toString())
-      tradeBuffer.push({
-        price: parseFloat(msg.p),
-        time: Math.floor(msg.T / 1000),
-      })
+      const price = parseFloat(msg.p)
+      const time = Math.floor(msg.T / 1000)
+      latestPrice = { price, time }
+      broadcast({ type: "price", price, time })
     } catch {}
   })
 
-  binanceWs.on("close", () => {
-    console.log("[server] Binance WS closed, reconnecting in 2s...")
-    setTimeout(connectBinance, 2000)
+  tradeWs.on("close", () => {
+    console.log("[server] aggTrade WS closed, reconnecting in 2s...")
+    setTimeout(connectTrade, 2000)
   })
 
-  binanceWs.on("error", (err) => {
-    console.error("[server] Binance WS error:", err.message)
-    binanceWs.terminate()
+  tradeWs.on("error", (err) => {
+    console.error("[server] aggTrade WS error:", err.message)
+    tradeWs.terminate()
   })
 }
 
-// ─── 1초 캔들 집계 타이머 ────────────────────────────────────
-setInterval(() => {
-  const now = Math.floor(Date.now() / 1000)
-  const bucket = now // 1초 버킷
+// ─── Binance kline_30s WebSocket (30초봉 공식 종가용) ─────────
+// k.x === true 일 때만 closing을 발행 — 경계 계산 없이 Binance가 확정한 종가 사용
+let klineWs = null
 
-  // 현재 버킷의 체결 데이터
-  const trades = tradeBuffer.filter((t) => t.time >= bucket)
-  if (trades.length === 0) return
+function connectKline() {
+  console.log("[server] connecting to Binance kline_30s...")
+  klineWs = new WebSocket(BINANCE_KLINE_URL)
 
-  const prices = trades.map((t) => t.price)
-  const closingPrice = prices[prices.length - 1]
+  klineWs.on("open", () => {
+    console.log("[server] Binance kline_30s connected")
+  })
 
-  latestPrice = { price: closingPrice, time: now }
+  klineWs.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data.toString())
+      const k = msg.k
+      if (!k || !k.x) return  // 마감 확정된 캔들만 처리
 
-  // 모든 클라이언트에게 현재가 브로드캐스트
-  broadcast({ type: "price", price: closingPrice, time: now })
+      const closePrice = parseFloat(k.c)
+      const closeTime = Math.floor(k.T / 1000) // 캔들 종료 시각(unix seconds)
 
-  // 30초 마감가 처리
-  const thirtyBucket = now - (now % 30)
-  if (prevThirtyBucket === null || thirtyBucket !== prevThirtyBucket) {
-    prevThirtyBucket = thirtyBucket
+      const entry = { time: closeTime, price: closePrice }
+      closingPrices.push(entry)
+      if (closingPrices.length > 100) closingPrices.shift()
 
-    const entry = { time: thirtyBucket, price: closingPrice }
-    closingPrices.push(entry)
-    if (closingPrices.length > 100) closingPrices.shift()
+      broadcast({ type: "closing", price: closePrice, time: closeTime })
+      console.log(`[server] 30s kline closed: ${closePrice} at ${new Date(k.T).toISOString()}`)
+    } catch {}
+  })
 
-    broadcast({ type: "closing", price: closingPrice, time: thirtyBucket })
-    console.log(`[server] closing price: ${closingPrice} at ${new Date(thirtyBucket * 1000).toISOString()}`)
-  }
+  klineWs.on("close", () => {
+    console.log("[server] kline_30s WS closed, reconnecting in 2s...")
+    setTimeout(connectKline, 2000)
+  })
 
-  // 버퍼 정리 (5분 이전 데이터 제거)
-  const cutoff = now - 300
-  const cutoffIdx = tradeBuffer.findIndex((t) => t.time >= cutoff)
-  if (cutoffIdx > 0) tradeBuffer.splice(0, cutoffIdx)
-}, 1000)
+  klineWs.on("error", (err) => {
+    console.error("[server] kline_30s WS error:", err.message)
+    klineWs.terminate()
+  })
+}
 
 // ─── 시작 ─────────────────────────────────────────────────────
-connectBinance()
+connectTrade()
+connectKline()
