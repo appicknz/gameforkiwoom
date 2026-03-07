@@ -89,7 +89,7 @@ export function BitcoinChart({
       lineWidth: 1,
       lineStyle: 2,
       axisLabelVisible: true,
-      title: "배팅가",
+      title: "배팅 기준가",
     })
     if (onBasePriceCoord && chartRef.current) {
       try {
