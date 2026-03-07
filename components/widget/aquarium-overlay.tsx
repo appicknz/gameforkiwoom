@@ -1,20 +1,19 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import type React from "react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RadarObj {
   id: number
-  x: number
-  y: number
-  radius: number        // base radius px (80–240, may exceed canvas)
-  rotation: number      // 0–360 current sweep angle
-  duration: number      // ms for one full rotation
+  x: number              // center x in px
+  y: number              // center y in px
+  radius: number         // px — random 80~280, may exceed canvas
+  angle: number          // current sweep angle in degrees (0→360)
+  duration: number       // ms for one full rotation
   spawnTime: number
-  targetAngle: number   // angle (deg) where the dot lives
+  targetAngle: number    // angle where the target dot is placed
   targetColor: "red" | "yellow"
-  waveRadius: number    // current expanding wave radius
+  waveR: number          // expanding wave ring radius
   opacity: number
   phase: "spinning" | "fading"
   fadeStart: number
@@ -22,35 +21,44 @@ interface RadarObj {
 
 interface Aircraft {
   id: number
-  radarId: number
   x: number
   y: number
-  sizePx: number
-  type: 0 | 1 | 2       // 0=fighter, 1=jet, 2=stealth
-  angle: number         // heading degrees
-  state: "approaching" | "firing" | "done"
-  missileTimer: number  // last missile time
+  vx: number
+  vy: number
+  size: number
+  type: 0 | 1 | 2
+  angle: number          // visual rotation degrees
+  state: "cruising" | "attacking" | "done"
+  targetId: number       // radar id to attack
   missilesFired: number
+  lastMissile: number
 }
 
 interface Missile {
   id: number
   x: number
   y: number
-  tx: number
-  ty: number
+  tx: number             // target x
+  ty: number             // target y
+  vx: number
+  vy: number
+  startTime: number
+  radarId: number
+  hit: boolean
+}
+
+interface Explosion {
+  id: number
+  x: number
+  y: number
   startTime: number
   duration: number
-  radarId: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function rnd(a: number, b: number) { return a + Math.random() * (b - a) }
-function lerp(a: number, b: number, t: number) { return a + (b - a) * t }
 function deg2rad(d: number) { return (d * Math.PI) / 180 }
-
 function durationFromDelta(delta: number): number {
-  // Higher delta → faster spin
   if (delta >= 740_000) return 900
   if (delta >= 220_000) return 1600
   if (delta >= 74_000)  return 2600
@@ -58,41 +66,52 @@ function durationFromDelta(delta: number): number {
   return 5500
 }
 
-// ─── SVG aircraft shapes ───────────────────────────────────────────────────────
+// ─── Aircraft SVGs — neon glow, pointing upward (nose at top) ─────────────────
 function AircraftSVG({ type, size }: { type: 0 | 1 | 2; size: number }) {
-  const s = size
   if (type === 0) {
-    // Fighter — sharp delta wing
+    // Fighter — delta wing
     return (
-      <svg width={s} height={s} viewBox="0 0 40 40" style={{ filter: "drop-shadow(0 0 5px #22d3ee)" }}>
-        <polygon points="20,2 30,28 20,22 10,28" fill="#22d3ee" opacity="0.95" />
-        <polygon points="20,22 26,34 20,30 14,34" fill="#0e7490" />
-        <rect x="19" y="22" width="2" height="8" fill="#67e8f9" />
-        {/* cockpit */}
-        <ellipse cx="20" cy="12" rx="2.5" ry="4" fill="#a5f3fc" opacity="0.8" />
-        {/* engine glow */}
-        <circle cx="20" cy="30" r="3" fill="#f97316" opacity="0.6" />
-        <circle cx="20" cy="30" r="1.5" fill="#fbbf24" opacity="0.9" />
+      <svg width={size} height={size} viewBox="0 0 32 36"
+        style={{ filter: "drop-shadow(0 0 6px #22d3ee)", overflow: "visible" }}>
+        <polygon points="16,1 25,26 16,20 7,26" fill="#22d3ee" />
+        <polygon points="16,20 22,30 16,27 10,30" fill="#075985" />
+        <ellipse cx="16" cy="11" rx="2.5" ry="4" fill="#a5f3fc" opacity="0.9" />
+        <circle cx="16" cy="29" r="3" fill="#f97316" opacity="0.7" />
+        <circle cx="16" cy="29" r="1.5" fill="#fef3c7" />
       </svg>
     )
   }
   if (type === 1) {
-    // Jet — swept wings
+    // Swept-wing jet
     return (
-      <svg width={s} height={s} viewBox="0 0 40 40" style={{ filter: "drop-shadow(0 0 5px #a78bfa)" }}>
-        <polygon points="20,3 24,18 36,24 24,22 22,36 18,36 16,22 4,24 16,18" fill="#a78bfa" opacity="0.95" />
-        <ellipse cx="20" cy="10" rx="2" ry="5" fill="#c4b5fd" opacity="0.7" />
-        <circle cx="20" cy="30" r="3" fill="#f97316" opacity="0.5" />
-        <circle cx="20" cy="30" r="1.5" fill="#fbbf24" opacity="0.85" />
+      <svg width={size} height={size} viewBox="0 0 34 38"
+        style={{ filter: "drop-shadow(0 0 6px #a78bfa)", overflow: "visible" }}>
+        <polygon points="17,2 21,15 32,21 21,19 19,34 15,34 13,19 2,21 13,15" fill="#a78bfa" />
+        <ellipse cx="17" cy="11" rx="2" ry="5" fill="#ede9fe" opacity="0.8" />
+        <circle cx="17" cy="28" r="3.5" fill="#f97316" opacity="0.6" />
+        <circle cx="17" cy="28" r="1.5" fill="#fef3c7" />
       </svg>
     )
   }
-  // Stealth — flat B-2 style
+  // Stealth — B-2 style flying wing
   return (
-    <svg width={s} height={s} viewBox="0 0 40 40" style={{ filter: "drop-shadow(0 0 5px #4ade80)" }}>
-      <polygon points="20,8 38,30 28,26 20,32 12,26 2,30" fill="#4ade80" opacity="0.9" />
-      <polygon points="20,14 30,26 20,24 10,26" fill="#166534" opacity="0.6" />
-      <circle cx="20" cy="28" r="2.5" fill="#f97316" opacity="0.5" />
+    <svg width={size} height={size} viewBox="0 0 40 30"
+      style={{ filter: "drop-shadow(0 0 6px #4ade80)", overflow: "visible" }}>
+      <polygon points="20,4 38,26 28,22 20,28 12,22 2,26" fill="#4ade80" />
+      <polygon points="20,10 30,22 20,20 10,22" fill="#14532d" opacity="0.7" />
+      <circle cx="20" cy="24" r="2.5" fill="#f97316" opacity="0.6" />
+    </svg>
+  )
+}
+
+// ─── Missile SVG ───────────────────────────────────────────────────────────────
+function MissileSVG() {
+  return (
+    <svg width="20" height="7" viewBox="0 0 20 7"
+      style={{ filter: "drop-shadow(0 0 5px #f97316)", overflow: "visible" }}>
+      <rect x="3" y="2" width="12" height="3" rx="1.5" fill="#fb923c" />
+      <polygon points="15,2 20,3.5 15,5" fill="#fbbf24" />
+      <rect x="0" y="2.5" width="5" height="2" rx="1" fill="#60a5fa" opacity="0.85" />
     </svg>
   )
 }
@@ -103,186 +122,249 @@ export default function RadarOverlay({ priceData }: { priceData?: { volume: numb
   const containerRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
 
-  // All mutable state lives in refs so the RAF loop always sees fresh values
-  const radarsRef    = useRef<RadarObj[]>([])
-  const aircraftRef  = useRef<Aircraft[]>([])
-  const missilesRef  = useRef<Missile[]>([])
-  const radarId      = useRef(0)
-  const aircraftId   = useRef(0)
-  const missileId    = useRef(0)
-  const lastSpawn    = useRef(0)
-  const deltaDuration = useRef(5500)
+  // All mutable sim state in refs — never stale inside RAF
+  const radarsRef     = useRef<RadarObj[]>([])
+  const aircraftRef   = useRef<Aircraft[]>([])
+  const missilesRef   = useRef<Missile[]>([])
+  const explosionsRef = useRef<Explosion[]>([])
+  const radarIdRef    = useRef(0)
+  const acIdRef       = useRef(0)
+  const msIdRef       = useRef(0)
+  const exIdRef       = useRef(0)
+  const lastSpawnRef  = useRef(0)
+  const baseDurRef    = useRef(5500)
+  const prevFrameRef  = useRef(0)
 
-  // React state only for triggering re-render
-  const [, forceRender] = useState(0)
-  const renderRef = useRef(0)
+  const [tick, setTick] = useState(0) // triggers re-render
 
   useEffect(() => { setMounted(true) }, [])
 
-  // Sync delta from priceData
   useEffect(() => {
-    if (!priceData) return
-    deltaDuration.current = durationFromDelta(priceData.deltaVolume)
+    if (priceData) baseDurRef.current = durationFromDelta(priceData.deltaVolume)
   }, [priceData])
 
-  // ── Animation loop ──────────────────────────────────────────────────────────
+  // ── Simulation loop ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mounted) return
 
-    const tick = () => {
-      const now = Date.now()
+    const simulate = (now: number) => {
+      const dt = prevFrameRef.current ? Math.min((now - prevFrameRef.current) / 1000, 0.05) : 0.016
+      prevFrameRef.current = now
+
       const W = containerRef.current?.clientWidth  ?? 600
       const H = containerRef.current?.clientHeight ?? 300
 
-      // 1. Spawn new radar
-      const spawnInterval = deltaDuration.current < 1200 ? 1000
-        : deltaDuration.current < 2000 ? 1600
-        : deltaDuration.current < 3000 ? 2400 : 3500
+      // ── Spawn radar ──────────────────────────────────────────────────────
+      const spawnGap = baseDurRef.current < 1200 ? 800
+        : baseDurRef.current < 2500 ? 1400
+        : baseDurRef.current < 4000 ? 2200 : 3000
 
-      if (now - lastSpawn.current > spawnInterval && radarsRef.current.length < 8) {
-        lastSpawn.current = now
+      if (now - lastSpawnRef.current > spawnGap && radarsRef.current.length < 7) {
+        lastSpawnRef.current = now
         const targetAngle = rnd(0, 360)
-        const radius = rnd(80, 240) // some radars will exceed the canvas
+        const radius = rnd(80, 280)
 
         const r: RadarObj = {
-          id: radarId.current++,
-          x: rnd(0, W),
-          y: rnd(0, H),
+          id: radarIdRef.current++,
+          x: rnd(radius * 0.3, W - radius * 0.3),
+          y: rnd(radius * 0.3, H - radius * 0.3),
           radius,
-          rotation: 0,
-          duration: deltaDuration.current,
+          angle: 0,
+          duration: baseDurRef.current * rnd(0.8, 1.3),
           spawnTime: now,
           targetAngle,
-          targetColor: Math.random() > 0.35 ? "red" : "yellow",
-          waveRadius: 0,
+          targetColor: Math.random() > 0.4 ? "red" : "yellow",
+          waveR: 0,
           opacity: 0,
           phase: "spinning",
           fadeStart: 0,
         }
         radarsRef.current.push(r)
-
-        // Spawn aircraft near target dot
-        const tx = r.x + Math.cos(deg2rad(targetAngle)) * radius * 0.8
-        const ty = r.y + Math.sin(deg2rad(targetAngle)) * radius * 0.8
-        const ac: Aircraft = {
-          id: aircraftId.current++,
-          radarId: r.id,
-          x: tx + rnd(-40, 40),
-          y: ty + rnd(-40, 40),
-          sizePx: rnd(28, 48),
-          type: Math.floor(Math.random() * 3) as 0 | 1 | 2,
-          angle: targetAngle + 180,
-          state: "approaching",
-          missileTimer: 0,
-          missilesFired: 0,
-        }
-        aircraftRef.current.push(ac)
       }
 
-      // 2. Update radars
+      // ── Spawn aircraft — outside radar boundaries ────────────────────────
+      // up to 6 total; spawn one when a radar exists without an attacking aircraft
+      if (aircraftRef.current.length < 6) {
+        for (const r of radarsRef.current) {
+          if (r.phase !== "spinning") continue
+          const alreadyTargeting = aircraftRef.current.some((a) => a.targetId === r.id)
+          if (!alreadyTargeting) {
+            // Spawn outside the canvas edge
+            const edge = Math.floor(rnd(0, 4))
+            let sx = 0, sy = 0
+            if (edge === 0) { sx = rnd(-60, W + 60); sy = -60 }
+            else if (edge === 1) { sx = W + 60; sy = rnd(-60, H + 60) }
+            else if (edge === 2) { sx = rnd(-60, W + 60); sy = H + 60 }
+            else { sx = -60; sy = rnd(-60, H + 60) }
+
+            // Target dot world position
+            const tdx = r.x + Math.cos(deg2rad(r.targetAngle)) * r.radius * 0.72
+            const tdy = r.y + Math.sin(deg2rad(r.targetAngle)) * r.radius * 0.72
+            const dist = Math.hypot(tdx - sx, tdy - sy)
+            const speed = rnd(90, 160) // px/s
+            const ac: Aircraft = {
+              id: acIdRef.current++,
+              x: sx,
+              y: sy,
+              vx: (tdx - sx) / dist * speed,
+              vy: (tdy - sy) / dist * speed,
+              size: rnd(28, 52),
+              type: Math.floor(Math.random() * 3) as 0 | 1 | 2,
+              angle: Math.atan2(tdy - sy, tdx - sx) * (180 / Math.PI) + 90,
+              state: "cruising",
+              targetId: r.id,
+              missilesFired: 0,
+              lastMissile: 0,
+            }
+            aircraftRef.current.push(ac)
+            if (aircraftRef.current.length >= 6) break
+          }
+        }
+      }
+
+      // ── Update radars ────────────────────────────────────────────────────
       radarsRef.current = radarsRef.current.filter((r) => {
-        const elapsed = now - r.spawnTime
-        const spinProgress = Math.min(elapsed / r.duration, 1)
-
         if (r.phase === "spinning") {
-          r.rotation = spinProgress * 360
-          r.waveRadius = spinProgress * r.radius
-          // Fade in during first 20%, hold, fade out last 30%
-          if (spinProgress < 0.2) r.opacity = spinProgress / 0.2
-          else if (spinProgress < 0.7) r.opacity = 1
-          else r.opacity = 1 - (spinProgress - 0.7) / 0.3
+          const elapsed = now - r.spawnTime
+          const progress = Math.min(elapsed / r.duration, 1)
+          r.angle = progress * 360
+          r.waveR = progress * r.radius
+          // opacity: fade in 0→0.2, hold 0.2→0.75, fade out 0.75→1
+          if (progress < 0.2) r.opacity = progress / 0.2
+          else if (progress < 0.75) r.opacity = 1
+          else r.opacity = 1 - (progress - 0.75) / 0.25
 
-          if (spinProgress >= 1) {
+          if (progress >= 1) {
             r.phase = "fading"
             r.fadeStart = now
-            r.opacity = 0
           }
         } else {
-          // fading — remove after 500ms
-          if (now - r.fadeStart > 500) return false
+          const fadeElapsed = now - r.fadeStart
+          if (fadeElapsed > 600) return false
+          r.opacity = Math.max(0, 1 - fadeElapsed / 600)
         }
         return true
       })
 
-      // 3. Update aircraft — move toward target dot, then fire
+      // ── Update aircraft ──────────────────────────────────────────────────
       aircraftRef.current = aircraftRef.current.filter((ac) => {
-        const radar = radarsRef.current.find((r) => r.id === ac.radarId)
-        if (!radar) return false // radar gone, remove aircraft
+        if (ac.state === "done") return false
+        const radar = radarsRef.current.find((r) => r.id === ac.targetId)
+        if (!radar && ac.state === "attacking") return false
 
-        const tx = radar.x + Math.cos(deg2rad(radar.targetAngle)) * radar.radius * 0.8
-        const ty = radar.y + Math.sin(deg2rad(radar.targetAngle)) * radar.radius * 0.8
+        // Target dot world position
+        const tdx = radar
+          ? radar.x + Math.cos(deg2rad(radar.targetAngle)) * radar.radius * 0.72
+          : ac.x + ac.vx * 100
+        const tdy = radar
+          ? radar.y + Math.sin(deg2rad(radar.targetAngle)) * radar.radius * 0.72
+          : ac.y + ac.vy * 100
 
-        if (ac.state === "approaching") {
-          // Move toward target at 60px/s
-          const dx = tx - ac.x
-          const dy = ty - ac.y
-          const dist = Math.hypot(dx, dy)
-          if (dist < 60) {
-            ac.state = "firing"
-            ac.missileTimer = now
-          } else {
-            const spd = 60 / 60  // px per frame @60fps
-            ac.x += (dx / dist) * spd
-            ac.y += (dy / dist) * spd
-            ac.angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90
-          }
-        } else if (ac.state === "firing") {
-          // Fire up to 4 missiles, 350ms apart
-          if (ac.missilesFired < 4 && now - ac.missileTimer > 350) {
+        const dTx = tdx - ac.x
+        const dTy = tdy - ac.y
+        const distToTarget = Math.hypot(dTx, dTy)
+
+        if (ac.state === "cruising") {
+          // Gradually steer toward target
+          const targetAngle = Math.atan2(dTy, dTx)
+          const speed = Math.hypot(ac.vx, ac.vy)
+          const curAngle = Math.atan2(ac.vy, ac.vx)
+          const turnRate = 2.0 * dt // rad/s
+          let diff = targetAngle - curAngle
+          while (diff > Math.PI) diff -= 2 * Math.PI
+          while (diff < -Math.PI) diff += 2 * Math.PI
+          const newAngle = curAngle + Math.sign(diff) * Math.min(Math.abs(diff), turnRate)
+          ac.vx = Math.cos(newAngle) * speed
+          ac.vy = Math.sin(newAngle) * speed
+          ac.angle = newAngle * (180 / Math.PI) + 90
+          ac.x += ac.vx * dt
+          ac.y += ac.vy * dt
+
+          // Within firing range → start attacking
+          if (distToTarget < 120 && radar) ac.state = "attacking"
+        } else if (ac.state === "attacking") {
+          // Orbit around target loosely
+          ac.x += ac.vx * dt * 0.4
+          ac.y += ac.vy * dt * 0.4
+
+          // Fire missile
+          if (ac.missilesFired < 5 && now - ac.lastMissile > 500 && radar) {
+            const spd = rnd(180, 280)
+            const dist2 = Math.hypot(dTx, dTy)
             const m: Missile = {
-              id: missileId.current++,
+              id: msIdRef.current++,
               x: ac.x,
               y: ac.y,
-              tx,
-              ty,
+              tx: tdx,
+              ty: tdy,
+              vx: (dTx / dist2) * spd,
+              vy: (dTy / dist2) * spd,
               startTime: now,
-              duration: 700,
               radarId: radar.id,
+              hit: false,
             }
             missilesRef.current.push(m)
-            ac.missileTimer = now
+            ac.lastMissile = now
             ac.missilesFired++
           }
-          if (ac.missilesFired >= 4) ac.state = "done"
+          if (ac.missilesFired >= 5) ac.state = "done"
         }
+
+        // Remove aircraft that flew way off screen (> 200px outside)
+        if (ac.x < -200 || ac.x > W + 200 || ac.y < -200 || ac.y > H + 200) return false
         return true
       })
 
-      // 4. Update missiles — on hit, remove radar → new radar spawns naturally
+      // ── Update missiles ──────────────────────────────────────────────────
       missilesRef.current = missilesRef.current.filter((m) => {
-        const elapsed = now - m.startTime
-        if (elapsed >= m.duration) {
-          // Last missile hits → destroy radar
-          const isLast = missilesRef.current.filter((ms) => ms.radarId === m.radarId).length <= 1
-          if (isLast) {
+        m.x += m.vx * dt
+        m.y += m.vy * dt
+
+        const distLeft = Math.hypot(m.tx - m.x, m.ty - m.y)
+        if (distLeft < 12) {
+          // HIT — spawn explosion, remove radar
+          m.hit = true
+          explosionsRef.current.push({
+            id: exIdRef.current++,
+            x: m.tx,
+            y: m.ty,
+            startTime: now,
+            duration: 600,
+          })
+          // Destroy radar on last missile hit
+          const siblingsLeft = missilesRef.current.filter(
+            (ms) => ms.radarId === m.radarId && !ms.hit
+          ).length
+          if (siblingsLeft <= 1) {
             radarsRef.current  = radarsRef.current.filter((r) => r.id !== m.radarId)
-            aircraftRef.current = aircraftRef.current.filter((a) => a.radarId !== m.radarId)
+            aircraftRef.current = aircraftRef.current.filter((a) => a.targetId !== m.radarId)
           }
           return false
         }
-        const t = elapsed / m.duration
-        // Arc trajectory: slight upward curve
-        m.x = lerp(m.x, m.tx, 0.08)
-        m.y = lerp(m.y, m.ty, 0.08) - Math.sin(t * Math.PI) * 8
+        // Out of bounds
+        if (m.x < -100 || m.x > W + 100 || m.y < -100 || m.y > H + 100) return false
         return true
       })
 
-      // 5. Trigger re-render (throttled to ~60fps)
-      renderRef.current++
-      if (renderRef.current % 1 === 0) forceRender((n) => n + 1)
+      // ── Update explosions ────────────────────────────────────────────────
+      explosionsRef.current = explosionsRef.current.filter(
+        (e) => now - e.startTime < e.duration
+      )
 
-      rafRef.current = requestAnimationFrame(tick)
+      setTick((n) => n + 1)
+      rafRef.current = requestAnimationFrame(simulate)
     }
 
-    rafRef.current = requestAnimationFrame(tick)
+    rafRef.current = requestAnimationFrame(simulate)
     return () => cancelAnimationFrame(rafRef.current)
   }, [mounted])
 
   if (!mounted) return <div ref={containerRef} className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl" />
 
-  const radars   = radarsRef.current
-  const aircraft = aircraftRef.current
-  const missiles = missilesRef.current
+  const radars     = radarsRef.current
+  const aircraft   = aircraftRef.current
+  const missiles   = missilesRef.current
+  const explosions = explosionsRef.current
 
   return (
     <div
@@ -290,26 +372,24 @@ export default function RadarOverlay({ priceData }: { priceData?: { volume: numb
       className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl"
       style={{ background: "transparent" }}
     >
-      {/* Subtle scan-line grid */}
-      <svg className="absolute inset-0 w-full h-full" style={{ opacity: 0.06 }} preserveAspectRatio="none">
-        <defs>
-          <pattern id="rdr-grid" width="50" height="50" patternUnits="userSpaceOnUse">
-            <path d="M50 0L0 0 0 50" fill="none" stroke="#22d3ee" strokeWidth="0.6" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#rdr-grid)" />
-      </svg>
-
-      {/* Radars */}
+      {/* ── Radars ── */}
       {radars.map((r) => {
-        const sweepX2 = 100 + Math.cos(deg2rad(r.rotation - 90)) * 90
-        const sweepY2 = 100 + Math.sin(deg2rad(r.rotation - 90)) * 90
-        const dotX = 100 + Math.cos(deg2rad(r.targetAngle - 90)) * 78
-        const dotY = 100 + Math.sin(deg2rad(r.targetAngle - 90)) * 78
-        const waveR = (r.waveRadius / r.radius) * 90
+        const d = r.radius * 2
+        // Sweep line end point in SVG coords (viewBox 0 0 200 200, center 100,100)
+        const sweepRad = deg2rad(r.angle - 90)
+        const sx = 100 + Math.cos(sweepRad) * 92
+        const sy = 100 + Math.sin(sweepRad) * 92
+
+        // Target dot in SVG coords
+        const dotRad = deg2rad(r.targetAngle - 90)
+        const dx = 100 + Math.cos(dotRad) * 76
+        const dy = 100 + Math.sin(dotRad) * 76
+
+        // Wave ring in SVG coords (proportional)
+        const waveRsvg = (r.waveR / r.radius) * 92
+
         const dotColor = r.targetColor === "red" ? "#ef4444" : "#eab308"
-        const dotGlow  = r.targetColor === "red" ? "rgba(239,68,68,0.8)" : "rgba(234,179,8,0.8)"
-        const diameter = r.radius * 2
+        const dotShadow = r.targetColor === "red" ? "#ef4444" : "#eab308"
 
         return (
           <div
@@ -318,96 +398,91 @@ export default function RadarOverlay({ priceData }: { priceData?: { volume: numb
             style={{
               left: r.x,
               top: r.y,
-              width: diameter,
-              height: diameter,
-              transform: "translate(-50%, -50%)",
+              width: d,
+              height: d,
+              transform: "translate(-50%,-50%)",
               opacity: r.opacity,
               pointerEvents: "none",
             }}
           >
-            <svg viewBox="0 0 200 200" width={diameter} height={diameter}>
+            <svg viewBox="0 0 200 200" width={d} height={d} overflow="visible">
               <defs>
-                {/* Sweep gradient: fan/trail */}
-                <radialGradient id={`sg-${r.id}`} cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
-                </radialGradient>
-                <filter id={`glow-${r.id}`} x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur stdDeviation="3" result="blur" />
-                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                <filter id={`glow-r${r.id}`} x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="3" result="b" />
+                  <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
-                <clipPath id={`cp-${r.id}`}>
-                  <circle cx="100" cy="100" r="95" />
+                <filter id={`glow-d${r.id}`} x="-100%" y="-100%" width="300%" height="300%">
+                  <feGaussianBlur stdDeviation="4" result="b" />
+                  <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+                <clipPath id={`clip-${r.id}`}>
+                  <circle cx="100" cy="100" r="92" />
                 </clipPath>
               </defs>
 
-              {/* Clipped group so sweep stays inside circle */}
-              <g clipPath={`url(#cp-${r.id})`}>
-                {/* Radar fill — very dark */}
-                <circle cx="100" cy="100" r="95" fill="rgba(0,20,30,0.55)" />
-
-                {/* Concentric rings */}
-                {[30, 55, 75, 92].map((rr) => (
-                  <circle key={rr} cx="100" cy="100" r={rr} fill="none"
-                    stroke="rgba(34,211,238,0.22)" strokeWidth="0.8" />
+              {/* ── Radar interior — fully transparent (no fill) ── */}
+              <g clipPath={`url(#clip-${r.id})`}>
+                {/* Concentric range rings */}
+                {[24, 46, 68, 90].map((rr) => (
+                  <circle key={rr} cx="100" cy="100" r={rr}
+                    fill="none" stroke="rgba(34,211,238,0.18)" strokeWidth="0.8"
+                    strokeDasharray={rr < 50 ? "3 6" : "4 8"} />
                 ))}
 
                 {/* Cross hairs */}
-                <line x1="100" y1="8" x2="100" y2="192" stroke="rgba(34,211,238,0.12)" strokeWidth="0.6" />
-                <line x1="8" y1="100" x2="192" y2="100" stroke="rgba(34,211,238,0.12)" strokeWidth="0.6" />
+                <line x1="100" y1="8"   x2="100" y2="192" stroke="rgba(34,211,238,0.12)" strokeWidth="0.6" />
+                <line x1="8"   y1="100" x2="192" y2="100" stroke="rgba(34,211,238,0.12)" strokeWidth="0.6" />
+                <line x1="36"  y1="36"  x2="164" y2="164" stroke="rgba(34,211,238,0.06)" strokeWidth="0.5" />
+                <line x1="164" y1="36"  x2="36"  y2="164" stroke="rgba(34,211,238,0.06)" strokeWidth="0.5" />
 
-                {/* Sweep fan trail (wedge 60°) */}
-                {Array.from({ length: 8 }).map((_, i) => {
-                  const trailAngle = r.rotation - 90 - i * 7
-                  const tx2 = 100 + Math.cos(deg2rad(trailAngle)) * 90
-                  const ty2 = 100 + Math.sin(deg2rad(trailAngle)) * 90
+                {/* Sweep trail — 10 fading lines */}
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const a = deg2rad(r.angle - 90 - i * 6)
+                  const ex = 100 + Math.cos(a) * 92
+                  const ey = 100 + Math.sin(a) * 92
                   return (
                     <line key={i}
-                      x1="100" y1="100" x2={tx2} y2={ty2}
+                      x1="100" y1="100" x2={ex} y2={ey}
                       stroke="rgba(34,211,238,1)"
-                      strokeWidth={1.8 - i * 0.18}
-                      opacity={(8 - i) / 10}
+                      strokeWidth={2.2 - i * 0.18}
+                      opacity={(10 - i) / 13}
                     />
                   )
                 })}
 
                 {/* Bright sweep line */}
-                <line x1="100" y1="100" x2={sweepX2} y2={sweepY2}
-                  stroke="#22d3ee" strokeWidth="1.8"
-                  style={{ filter: `url(#glow-${r.id})` }} />
+                <line x1="100" y1="100" x2={sx} y2={sy}
+                  stroke="#22d3ee" strokeWidth="2"
+                  filter={`url(#glow-r${r.id})`} />
 
                 {/* Expanding wave ring */}
-                {waveR > 0 && waveR < 95 && (
-                  <circle cx="100" cy="100" r={waveR}
-                    fill="none"
-                    stroke="#22d3ee"
-                    strokeWidth="1.5"
-                    opacity={Math.max(0, 1 - waveR / 95) * 0.7}
-                  />
+                {waveRsvg > 2 && waveRsvg < 93 && (
+                  <circle cx="100" cy="100" r={waveRsvg}
+                    fill="none" stroke="#22d3ee" strokeWidth="1.5"
+                    opacity={Math.max(0, (1 - waveRsvg / 93) * 0.65)} />
                 )}
 
                 {/* Target dot */}
-                <circle cx={dotX} cy={dotY} r="5" fill={dotColor}
-                  style={{ filter: `drop-shadow(0 0 6px ${dotGlow})` }}
-                />
-                {/* Dot ping animation — second ring */}
-                <circle cx={dotX} cy={dotY} r={5 + r.waveRadius / r.radius * 8}
+                <circle cx={dx} cy={dy} r="5" fill={dotColor}
+                  filter={`url(#glow-d${r.id})`} />
+                {/* Pulsing outer ring on dot */}
+                <circle cx={dx} cy={dy} r={5 + (r.waveR / r.radius) * 10}
                   fill="none" stroke={dotColor} strokeWidth="1"
-                  opacity={Math.max(0, 0.8 - r.waveRadius / r.radius)}
-                />
+                  opacity={Math.max(0, 0.7 - r.waveR / r.radius)} />
               </g>
 
-              {/* Outer ring border */}
-              <circle cx="100" cy="100" r="95" fill="none"
-                stroke="rgba(34,211,238,0.55)" strokeWidth="1.2"
-                style={{ filter: `drop-shadow(0 0 4px rgba(34,211,238,0.6))` }}
-              />
+              {/* Outer border ring — neon glow */}
+              <circle cx="100" cy="100" r="92"
+                fill="none"
+                stroke="rgba(34,211,238,0.6)"
+                strokeWidth="1.5"
+                filter={`url(#glow-r${r.id})`} />
             </svg>
           </div>
         )
       })}
 
-      {/* Aircraft */}
+      {/* ── Aircraft ── */}
       {aircraft.map((ac) => (
         <div
           key={ac.id}
@@ -415,40 +490,59 @@ export default function RadarOverlay({ priceData }: { priceData?: { volume: numb
           style={{
             left: ac.x,
             top: ac.y,
-            transform: `translate(-50%, -50%) rotate(${ac.angle}deg)`,
+            transform: `translate(-50%,-50%) rotate(${ac.angle}deg)`,
             pointerEvents: "none",
+            willChange: "transform",
           }}
         >
-          <AircraftSVG type={ac.type} size={ac.sizePx} />
+          <AircraftSVG type={ac.type} size={ac.size} />
         </div>
       ))}
 
-      {/* Missiles */}
+      {/* ── Missiles ── */}
       {missiles.map((m) => {
-        const elapsed = Date.now() - m.startTime
-        const t = Math.min(elapsed / m.duration, 1)
-        const mx = m.x + (m.tx - m.x) * t
-        const my = m.y + (m.ty - m.y) * t - Math.sin(t * Math.PI) * 20
-        const angle = Math.atan2(m.ty - m.y, m.tx - m.x) * (180 / Math.PI)
+        const angle = Math.atan2(m.vy, m.vx) * (180 / Math.PI)
         return (
           <div
             key={m.id}
             className="absolute"
             style={{
-              left: mx,
-              top: my,
-              transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+              left: m.x,
+              top: m.y,
+              transform: `translate(-50%,-50%) rotate(${angle}deg)`,
               pointerEvents: "none",
+              willChange: "transform",
             }}
           >
-            <svg width="18" height="6" viewBox="0 0 18 6"
-              style={{ filter: "drop-shadow(0 0 4px #f97316)" }}>
-              {/* Missile body */}
-              <rect x="2" y="1.5" width="13" height="3" rx="1.5" fill="#f97316" />
-              {/* Nose */}
-              <polygon points="15,1.5 18,3 15,4.5" fill="#fbbf24" />
-              {/* Exhaust trail */}
-              <rect x="0" y="2" width="4" height="2" rx="1" fill="#60a5fa" opacity="0.8" />
+            <MissileSVG />
+          </div>
+        )
+      })}
+
+      {/* ── Explosions ── */}
+      {explosions.map((e) => {
+        const prog = (Date.now() - e.startTime) / e.duration
+        const r1 = prog * 28
+        const r2 = prog * 18
+        return (
+          <div
+            key={e.id}
+            className="absolute"
+            style={{ left: e.x, top: e.y, pointerEvents: "none" }}
+          >
+            <svg width={60} height={60} viewBox="0 0 60 60"
+              style={{ transform: "translate(-50%,-50%)", overflow: "visible" }}>
+              <circle cx="30" cy="30" r={r1}
+                fill="none" stroke="#f97316"
+                strokeWidth="2"
+                opacity={Math.max(0, 1 - prog)} />
+              <circle cx="30" cy="30" r={r2}
+                fill="none" stroke="#fbbf24"
+                strokeWidth="1.5"
+                opacity={Math.max(0, 0.8 - prog)} />
+              <circle cx="30" cy="30" r={r2 * 0.5}
+                fill="#fef3c7"
+                opacity={Math.max(0, 0.9 - prog * 1.5)} />
             </svg>
           </div>
         )
