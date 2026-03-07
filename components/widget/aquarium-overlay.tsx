@@ -392,6 +392,7 @@ function CreatureSVG({ type, dir }: { type: Creature["type"]; dir: 1 | -1 }) {
 let creatureId = 0
 
 export function AquariumOverlay() {
+  const [mounted, setMounted] = useState(false)
   const [creatures, setCreatures] = useState<Creature[]>([])
   const [volumeLevel, setVolumeLevel] = useState<"mega" | "high" | "mid" | "low" | "tiny">("tiny")
   const animFrameRef = useRef<number>(0)
@@ -399,6 +400,11 @@ export function AquariumOverlay() {
   const containerRef = useRef<HTMLDivElement>(null)
   const prevVolRef = useRef<number>(0)
   const prevTimeRef = useRef<number>(Date.now())
+
+  // 클라이언트에서만 렌더링 (hydration 불일치 방지)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // 1초당 거래대금 변화량으로 레벨 결정
   useEffect(() => {
@@ -488,16 +494,25 @@ export function AquariumOverlay() {
     return () => cancelAnimationFrame(animFrameRef.current)
   }, [volumeLevel])
 
-  // 거품 버블
-  const [bubbles] = useState(() =>
-    Array.from({ length: 14 }, (_, i) => ({
-      id: i,
-      x: 5 + Math.random() * 90,
-      delay: Math.random() * 8,
-      dur: 4 + Math.random() * 5,
-      size: 3 + Math.random() * 6,
-    }))
-  )
+  // 거품 버블 (클라이언트에서만 생성)
+  const [bubbles, setBubbles] = useState<Array<{id: number; x: number; delay: number; dur: number; size: number}>>([])
+  useEffect(() => {
+    if (!mounted) return
+    setBubbles(
+      Array.from({ length: 14 }, (_, i) => ({
+        id: i,
+        x: 5 + Math.random() * 90,
+        delay: Math.random() * 8,
+        dur: 4 + Math.random() * 5,
+        size: 3 + Math.random() * 6,
+      }))
+    )
+  }, [mounted])
+
+  // SSR에서는 빈 컨테이너만 렌더링 (hydration 불일치 방지)
+  if (!mounted) {
+    return <div ref={containerRef} className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl" />
+  }
 
   return (
     <div ref={containerRef} className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl">
