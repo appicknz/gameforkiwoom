@@ -541,8 +541,7 @@ export function NeonBettingGame() {
         {/* 헤더 라벨 */}
         <div className="grid grid-cols-3 gap-2 mb-2">
           {(["#00ff88", "#ff8800", "#cc88ff"] as const).map((color) => (
-            <p key={color} className="text-center text-[13px] font-black tracking-widest"
-              style={{ color, textShadow: `0 0 6px ${color}, 0 0 14px ${color}` }}>
+            <p key={color} className="text-center text-[13px] font-black tracking-widest" style={{ color }}>
               x1.95
             </p>
           ))}
