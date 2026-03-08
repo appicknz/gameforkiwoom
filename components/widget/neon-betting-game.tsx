@@ -367,12 +367,13 @@ export function NeonBettingGame() {
         closingPricesRef.current = closing
         const latest = closing[closing.length - 1].price
 
-        // 정산 대기 중이면: 새 마감가(배팅 기준가)가 도착했는지 확인
+        // 정산 대기 중이면: 새 마감가가 도착했는지 확인
+        // basePrice와 다른 새 값이 배열 맨 끝에 들어오면 그게 새 마감가
         const ps = pendingSettlementRef.current
-        if (ps && closing.length > ps.prevPriceCount) {
+        const newestPrice = closing[closing.length - 1].price
+        if (ps && newestPrice !== ps.basePrice) {
           // 새 마감가 확정 — 이 값으로 승패 판정
-          // prices[length-1]이 새 마감가 (= 새 라운드 배팅가)
-          const closePrice = closing[closing.length - 1].price
+          const closePrice = newestPrice
           const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
           const wonDirection = ps.betDirection ? (ps.betDirection === "long" ? closePrice >= ps.basePrice : closePrice < ps.basePrice) : false
           const wonDigit = ps.betDigit ? (ps.betDigit === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
