@@ -380,7 +380,10 @@ export function NeonBettingGame() {
         try { localStorage.removeItem("game_pending_bet") } catch {}
 
         if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null && latestClose !== null) {
-          const lastDigit = Math.floor(Math.abs(latestClose * 10)) % 10
+          // 승패 판정: latestClose (직전 라운드 마감가) 기준
+          // 끝자리 표시: 새로 업데이트된 마감 기준가 (prices[length-1]) 기준
+          const newClosingPrice = prices.length > 0 ? prices[prices.length - 1].price : latestClose
+          const lastDigit = Math.floor(Math.abs(newClosingPrice * 10)) % 10
           const wonDirection = betRef.current ? (betRef.current === "long" ? latestClose >= basePriceRef.current : latestClose < basePriceRef.current) : false
           const wonDigit = betDigitRef.current ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
           const wonParity = betParityRef.current ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
@@ -391,7 +394,7 @@ export function NeonBettingGame() {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify({
-                basePrice: basePriceRef.current, closePrice: latestClose,
+                basePrice: basePriceRef.current, closePrice: newClosingPrice,
                 bets: {
                   direction: betRef.current ?? undefined, directionAmount: betRef.current ? betDirectionAmountRef.current : undefined,
                   digit: betDigitRef.current ?? undefined, digitAmount: betDigitRef.current ? betDigitAmountRef.current : undefined,
@@ -405,7 +408,7 @@ export function NeonBettingGame() {
 
           const result: RoundResult = {
             round: roundRef.current, direction: betRef.current, digit: betDigitRef.current, parity: betParityRef.current,
-            basePrice: basePriceRef.current, closePrice: latestClose, wonDirection, wonDigit, wonParity,
+            basePrice: basePriceRef.current, closePrice: newClosingPrice, wonDirection, wonDigit, wonParity,
             directionAmount: betDirectionAmountRef.current, digitAmount: betDigitAmountRef.current, parityAmount: betParityAmountRef.current,
           }
           setLastResult(result); setShowResultSheet(true)
