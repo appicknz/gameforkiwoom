@@ -10,9 +10,9 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] })
 const _orbitron = Orbitron({ subsets: ["latin"], variable: "--font-orbitron", weight: ["400", "700", "900"] })
 
 export const metadata: Metadata = {
-  title: "Donezo - Project Management Dashboard",
-  description: "Plan, prioritize, and accomplish your tasks with ease",
-  generator: "v0.app",
+  title: "비트코인으로 즐기는 실시간 롱,숏,홀짝 게임 ",
+  description: "30초 1라운드 1초 리얼타임 실시간 가격 게임",
+  generator: "bitbet",
   icons: {
     icon: [
       {
