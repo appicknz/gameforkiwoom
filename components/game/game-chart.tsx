@@ -124,26 +124,36 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
     }
   }, [fetchInitialCandles])
 
-  // basePriceCoord: 배팅가 라인의 픽셀 위치 (레이더 target용)
+  // setInterval 폴링 완전 제거 — onClosingPrice 콜백에서 배팅가 수평선을 직접 업데이트
+  // basePriceCoord: 차트 내에서 배팅가 라인의 실제 픽셀 위치 (레이더 target용)
   const updateBasePriceCoord = useCallback(() => {
     if (!chartRef.current || !seriesRef.current || !priceLineRef.current) {
       onBasePriceCoordRef.current?.(null)
       return
     }
     try {
+      const chart = chartRef.current
+      const series = seriesRef.current
       const priceLine = priceLineRef.current
       const price = priceLine.options().price as number
-      const y = seriesRef.current.priceToCoordinate?.(price)
+      
+      // price → y 픽셀 좌표 (series 기준)
+      const y = series.priceToCoordinate?.(price)
       if (y === null || y === undefined) {
         onBasePriceCoordRef.current?.(null)
         return
       }
+
+      // chart 우측 끝 기준 x 좌표
       const container = containerRef.current
       if (!container) {
         onBasePriceCoordRef.current?.(null)
         return
       }
-      onBasePriceCoordRef.current?.({ x: container.clientWidth - 40, y })
+
+      const x = container.clientWidth - 40
+
+      onBasePriceCoordRef.current?.({ x, y })
     } catch {
       onBasePriceCoordRef.current?.(null)
     }
@@ -157,7 +167,7 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
   const updateBaseLine = useCallback((price: number) => {
     if (!seriesRef.current) return
     if (priceLineRef.current) {
-      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { /* ignore */ }
+      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
     }
     priceLineRef.current = seriesRef.current.createPriceLine({
       price,
@@ -167,39 +177,37 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
       axisLabelVisible: true,
       title: "배팅가",
     })
+    // 새 price line이 생기면 좌표 업데이트
     updateBasePriceCoord()
   }, [updateBasePriceCoord])
 
-  const handlePrice = useCallback((price: number, time: number) => {
-    const bucket = time - (time % 1)
-    const existing = candleMapRef.current.get(bucket)
-    const candle: CandleData = {
-      time: bucket,
-      open: existing?.open ?? price,
-      high: existing ? Math.max(existing.high, price) : price,
-      low: existing ? Math.min(existing.low, price) : price,
-      close: price,
-    }
-    candleMapRef.current.set(bucket, candle)
-    seriesRef.current?.update(candle)
-    onPriceRef.current?.(price)
-  }, [])
-
-  const handleClosingPrice = useCallback((price: number, time: number) => {
-    updateBaseLine(price)
-    onClosingPriceRef.current?.(price, time)
-  }, [updateBaseLine])
-
-  const handleInitClosing = useCallback((prices: Array<{ time: number; price: number }>) => {
-    if (prices.length > 0) {
-      updateBaseLine(prices[prices.length - 1].price)
-    }
-  }, [updateBaseLine])
-
+  // 모든 사용자 동일 가격 보장 — usePriceWorker 단일 소스
   usePriceWorker({
-    onPrice: handlePrice,
-    onClosingPrice: handleClosingPrice,
-    onInitClosing: handleInitClosing,
+    onPrice: useCallback((price, time) => {
+      const bucket = time - (time % 1)
+      const existing = candleMapRef.current.get(bucket)
+      const candle: CandleData = {
+        time: bucket,
+        open: existing?.open ?? price,
+        high: existing ? Math.max(existing.high, price) : price,
+        low: existing ? Math.min(existing.low, price) : price,
+        close: price,
+      }
+      candleMapRef.current.set(bucket, candle)
+      seriesRef.current?.update(candle)
+      onPriceRef.current?.(price)
+    }, []),
+    onClosingPrice: useCallback((price, time) => {
+      // 배팅가 수평선을 콜백에서 직접 업데이트 (setInterval 불필요)
+      updateBaseLine(price)
+      onClosingPriceRef.current?.(price, time)
+    }, [updateBaseLine]),
+    onInitClosing: useCallback((prices) => {
+      // 초기 로드 시 마지막 배팅가 수평선 설정
+      if (prices.length > 0) {
+        updateBaseLine(prices[prices.length - 1].price)
+      }
+    }, [updateBaseLine]),
   })
 
   return (

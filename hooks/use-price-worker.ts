@@ -38,102 +38,15 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
     if (serverUrl) {
       // ── Price Server 모드 (프로덕션) ──────────────────────────
-      let retryCount = 0
-      const MAX_RETRIES = 10          // 최대 재시도 횟수 초과 시 Binance 폴백
-      const HEALTH_TIMEOUT = 15000    // ms — 이 시간 동안 메시지 없으면 zombie 판단
-      let lastMsgAt = Date.now()
-      let healthTimer: ReturnType<typeof setInterval> | null = null
-
-      // Exponential backoff + jitter: 동시 재연결 폭풍 방지
-      const getRetryDelay = () => {
-        const base = Math.min(3000 * Math.pow(2, retryCount), 60000)
-        const jitter = Math.random() * 1000 // 0~1초 랜덤 지터
-        return base + jitter
-      }
-
-      const stopHealth = () => {
-        if (healthTimer) { clearInterval(healthTimer); healthTimer = null }
-      }
-
-      const startHealth = () => {
-        stopHealth()
-        lastMsgAt = Date.now()
-        healthTimer = setInterval(() => {
-          if (Date.now() - lastMsgAt > HEALTH_TIMEOUT) {
-            // zombie connection — 강제 재연결
-            ws?.close()
-          }
-        }, 5000)
-      }
-
-      // Binance 직접 폴백 (Railway 10회 실패 시)
-      const fallbackToBinance = () => {
-        stopHealth()
-        let tradeWsFb: WebSocket | null = null
-        let klineWsFb: WebSocket | null = null
-
-        const connectTradeFb = () => {
-          if (closed) return
-          tradeWsFb = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
-          tradeWsFb.onmessage = (e) => {
-            try {
-              const msg = JSON.parse(e.data as string)
-              const price = parseFloat(msg.p)
-              optsRef.current.onPrice?.(price, Math.floor(msg.T / 1000))
-              win.__bitcoinCurrentPrice = price
-            } catch { /* ignore */ }
-          }
-          tradeWsFb.onclose = () => { if (!closed) setTimeout(connectTradeFb, 5000) }
-          tradeWsFb.onerror = () => tradeWsFb?.close()
-        }
-
-        const connectKlineFb = () => {
-          if (closed) return
-          klineWsFb = new WebSocket("wss://fstream.binance.com/ws/btcusdt@kline_30s")
-          klineWsFb.onmessage = (e) => {
-            try {
-              const msg = JSON.parse(e.data as string)
-              const k = msg.k
-              if (!k || !k.x) return
-              const closePrice = parseFloat(k.c)
-              const closeTime = Math.floor(k.T / 1000)
-              optsRef.current.onClosingPrice?.(closePrice, closeTime)
-              const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-              win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
-              fetch("/api/closing-price", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ price: closePrice, time: closeTime }),
-              }).catch(() => {})
-            } catch { /* ignore */ }
-          }
-          klineWsFb.onclose = () => { if (!closed) setTimeout(connectKlineFb, 5000) }
-          klineWsFb.onerror = () => klineWsFb?.close()
-        }
-
-        connectTradeFb()
-        connectKlineFb()
-      }
-
       const connect = () => {
         if (closed) return
-
-        // 최대 재시도 초과 → Binance 직접 폴백
-        if (retryCount >= MAX_RETRIES) {
-          fallbackToBinance()
-          return
-        }
-
         ws = new WebSocket(serverUrl)
 
         ws.onopen = () => {
-          retryCount = 0 // 연결 성공 시 카운터 리셋
-          startHealth()
           optsRef.current.onConnected?.()
         }
 
         ws.onmessage = (event) => {
-          lastMsgAt = Date.now() // 헬스체크 타임스탬프 갱신
           try {
             const data = JSON.parse(event.data as string)
 
@@ -155,23 +68,20 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
               const last = prev[prev.length - 1]
               if (!last || last.time !== data.time) {
                 win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
+                // 마감가 확정 → DB 저장 (서버에 한 번만 저장, fire-and-forget)
                 fetch("/api/closing-price", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ price: data.price, time: data.time }),
-                }).catch(() => {})
+                }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
               }
             }
           } catch { /* ignore malformed messages */ }
         }
 
         ws.onclose = () => {
-          stopHealth()
           optsRef.current.onDisconnected?.()
-          if (!closed) {
-            retryCount++
-            retryTimer = setTimeout(connect, getRetryDelay())
-          }
+          if (!closed) retryTimer = setTimeout(connect, 3000)
         }
 
         ws.onerror = () => {
@@ -272,7 +182,6 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
     return () => {
       closed = true
-      stopHealth?.()
       if (retryTimer) clearTimeout(retryTimer)
       ws?.close()
     }

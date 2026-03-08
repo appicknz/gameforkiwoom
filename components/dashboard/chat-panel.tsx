@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Send, MessageCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ChatMessage } from "@/app/api/chat/route"

@@ -163,36 +163,39 @@ export async function POST(request: Request) {
       await admin.from("bet_history").insert(betHistoryRows)
     }
 
-    // ── 이긴 경우만 잔고에 수익 추가 (atomic) ───────────────
+    // ── 이긴 경우만 잔고에 수익 추가 ────────────────────────
     let newBalance: number | null = null
     if (totalPayout > 0) {
-      // atomic_add_balance: SELECT → UPDATE race condition 없음
-      const { data: rpcData, error: rpcError } = await admin
-        .rpc("atomic_add_balance", { p_user_id: user.id, p_amount: totalPayout })
+      const { data: balanceData } = await admin
+        .from("balances")
+        .select("amount")
+        .eq("user_id", user.id)
+        .single()
 
-      if (rpcError) {
-        console.error("[v0] atomic_add_balance error:", rpcError)
-      } else {
-        newBalance = rpcData as number
-        const balanceBefore = newBalance - totalPayout
+      const currentBalance = balanceData?.amount ?? 0
+      newBalance = currentBalance + totalPayout
 
-        // 당첨 수익도 balance_transactions에 기록
-        await admin.from("balance_transactions").insert({
-          user_id: user.id,
-          branch_id: branchId,
-          type: "win",
-          amount: totalPayout,
-          balance_before: balanceBefore,
-          balance_after: newBalance,
-          note: `게임 당첨 수익`,
-        })
+      await admin
+        .from("balances")
+        .update({ amount: newBalance })
+        .eq("user_id", user.id)
 
-        // Redis 갱신 + version increment → 모든 기기의 SSE 스트림이 변경 감지
-        await Promise.all([
-          redis.set(`balance:${user.id}`, newBalance, { ex: 3600 }),
-          redis.incr(`balance_version:${user.id}`),
-        ])
-      }
+      // 당첨 수익도 balance_transactions에 기록
+      await admin.from("balance_transactions").insert({
+        user_id: user.id,
+        branch_id: branchId,
+        type: "win",
+        amount: totalPayout,
+        balance_before: currentBalance,
+        balance_after: newBalance,
+        note: `게임 당첨 수익`,
+      })
+
+      // Redis 갱신 + version increment → 모든 기기의 SSE 스트림이 변경 감지
+      await Promise.all([
+        redis.set(`balance:${user.id}`, newBalance, { ex: 3600 }),
+        redis.incr(`balance_version:${user.id}`),
+      ])
     }
 
     return NextResponse.json({

@@ -30,22 +30,32 @@ export async function POST(request: Request) {
 
     const userId = userData.user.id
 
-    // ── Atomic 차감 (SELECT → 비교 → UPDATE race condition 방지) ──
-    // amount >= betAmount 조건을 UPDATE WHERE 절에 포함해 단일 쿼리로 처리
-    const { data: rpcData, error: rpcError } = await supabase
-      .rpc("atomic_deduct_balance", { p_user_id: userId, p_amount: betAmount })
+    // 현재 잔고 조회
+    const { data: balanceData, error: balanceError } = await supabase
+      .from("balances")
+      .select("amount")
+      .eq("user_id", userId)
+      .single()
 
-    if (rpcError) {
-      return NextResponse.json({ error: "Failed to update balance" }, { status: 500 })
+    if (balanceError) {
+      return NextResponse.json({ error: "Balance not found" }, { status: 404 })
     }
 
-    const newBalance = rpcData as number
-    if (newBalance === -1) {
-      // 잔고 부족 — atomic 함수가 -1 반환
+    const currentBalance = balanceData?.amount ?? 0
+    if (currentBalance < betAmount) {
       return NextResponse.json({ error: "Insufficient balance" }, { status: 400 })
     }
 
-    const currentBalance = newBalance + betAmount // 차감 전 잔고 역산
+    // 배팅 금액 차감
+    const newBalance = currentBalance - betAmount
+    const { error: updateError } = await supabase
+      .from("balances")
+      .update({ amount: newBalance })
+      .eq("user_id", userId)
+
+    if (updateError) {
+      return NextResponse.json({ error: "Failed to update balance" }, { status: 500 })
+    }
 
     // 유저의 branch_id 조회 (balance_transactions FK 필요)
     const { data: profileData } = await supabase
