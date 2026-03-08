@@ -54,49 +54,55 @@ export function BitcoinChart() {
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
   const priceLineRef = useRef<any>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const tickerWsRef = useRef<WebSocket | null>(null)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
-  // 30초봉 전용: aggTrade 버퍼
-  const tradeBufferRef = useRef<Array<{ price: number; quantity: number; time: number }>>([])
-  const secondTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  // 거래대금 집계 버퍼 (30초 버킷 단위 USD)
-  const volumeBufferRef = useRef<Map<number, number>>(new Map())
 
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
   const [interval, setIntervalState] = useState<Interval>("1s")
-  const [aggVolumes, setAggVolumes] = useState({ "1m": 0, "1h": 0, "1d": 0 })
   const [closingPrices, setClosingPrices] = useState<Array<{ time: number; price: number }>>([])
-  const prevBucketRef = useRef<number | null>(null)
 
   // 차트 내 "배팅가" 수평선용으로만 closingPrices state를 사용합니다.
   // window.__bitcoinClosingPrices 관리는 use-price-worker(betting-game)가 단독으로 담당합니다.
 
-  // 현재가를 window 객체에 저장
+  // ── window.__bitcoinCurrentPrice / __bitcoinClosingPrices 구독 ──
+  // BettingGame의 usePriceWorker(Railway)가 단일 소스로 관리하므로
+  // BitcoinChart는 여기서만 읽어서 차트를 업데이트합니다.
   useEffect(() => {
-    if (typeof window !== 'undefined' && ticker) {
-      (window as any).__bitcoinCurrentPrice = ticker.price
-    }
-  }, [ticker])
+    const win = window as any
+    const interval = setInterval(() => {
+      // 현재가 → 캔들 업데이트
+      const price: number | undefined = win.__bitcoinCurrentPrice
+      if (price && seriesRef.current) {
+        const now = Math.floor(Date.now() / 1000)
+        const bucket = now - (now % 1)
+        const existing = candleMapRef.current.get(bucket)
+        const candle: CandleData = {
+          time: bucket,
+          open: existing?.open ?? price,
+          high: existing ? Math.max(existing.high, price) : price,
+          low: existing ? Math.min(existing.low, price) : price,
+          close: price,
+        }
+        candleMapRef.current.set(bucket, candle)
+        seriesRef.current.update(candle)
+        setTicker(prev => prev ? { ...prev, price } : { price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
+        setConnected(true)
+      }
 
-  // 30초 마감 기준가 노란색 수평선
-  useEffect(() => {
-    if (!seriesRef.current || closingPrices.length === 0) return
-    const latestPrice = closingPrices[closingPrices.length - 1].price
+      // 마감 기준가 → 노란 수평선 + state 업데이트
+      const closingArr: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+      if (closingArr.length > 0) {
+        setClosingPrices(prev => {
+          const last = prev[prev.length - 1]
+          const newLast = closingArr[closingArr.length - 1]
+          if (last?.time === newLast.time) return prev
+          return closingArr
+        })
+      }
+    }, 500)
 
-    if (priceLineRef.current) {
-      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
-    }
-    priceLineRef.current = seriesRef.current.createPriceLine({
-      price: latestPrice,
-      color: "#facc15",
-      lineWidth: 1,
-      lineStyle: 2, // dashed
-      axisLabelVisible: true,
-      title: "배팅가",
-    })
-  }, [closingPrices])
+    return () => clearInterval(interval)
+  }, [])
 
   // 초기 캔들 데이터 로드
   const fetchInitialCandles = useCallback(async (sel: Interval): Promise<CandleData[]> => {
@@ -194,141 +200,8 @@ export function BitcoinChart() {
     }
   }, [interval, fetchInitialCandles])
 
-  // 1초봉 / 30초봉: aggTrade WebSocket
-  useEffect(() => {
-    if (interval !== "1s" && interval !== "30s") return
-
-    const bucketSize = interval === "1s" ? 1 : 30
-
-    const connect = () => {
-      const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
-      wsRef.current = ws
-      ws.onopen = () => setConnected(true)
-      ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data)
-        tradeBufferRef.current.push({
-          price: parseFloat(msg.p),
-          quantity: parseFloat(msg.q),
-          time: Math.floor(msg.T / 1000),
-        })
-      }
-      ws.onerror = () => setConnected(false)
-      ws.onclose = () => { setConnected(false); setTimeout(connect, 3000) }
-    }
-    connect()
-
-    // 버킷 단위로 캔들 집계
-    const processCandle = () => {
-      const now = Math.floor(Date.now() / 1000)
-      const bucket = now - (now % bucketSize)
-      const trades = tradeBufferRef.current.filter((t) => t.time >= bucket)
-      if (trades.length === 0) return
-
-      const prices = trades.map((t) => t.price)
-      const closingPrice = prices[prices.length - 1]
-
-      const candle: CandleData = {
-        time: bucket,
-        open: prices[0],
-        high: Math.max(...prices),
-        low: Math.min(...prices),
-        close: closingPrice,
-      }
-      candleMapRef.current.set(bucket, candle)
-      seriesRef.current?.update(candle)
-
-      // 30초마다 배팅 기준가 업데이트 (window.__bitcoinClosingPrices는 use-price-worker가 관리)
-      // 차트 내 "배팅가" 수평선 표시를 위해서만 local state 업데이트
-      const thirtySecBucket = now - (now % 30)
-      if (prevBucketRef.current === null || thirtySecBucket !== prevBucketRef.current) {
-        prevBucketRef.current = thirtySecBucket
-        setClosingPrices((prev) => {
-          const updated = [...prev, { time: thirtySecBucket, price: closingPrice }]
-          return updated.slice(-100)
-        })
-      }
-
-      const qv = trades.reduce((s, t) => s + t.price * t.quantity, 0)
-      volumeBufferRef.current.set(bucket, qv)
-
-      const cutoff = now - 86400
-      tradeBufferRef.current = tradeBufferRef.current.filter((t) => t.time >= cutoff)
-    }
-
-    secondTimerRef.current = setInterval(processCandle, 1000)
-
-    return () => {
-      wsRef.current?.close()
-      if (secondTimerRef.current) clearInterval(secondTimerRef.current)
-    }
-  }, [interval])
-
-  // kline WebSocket (1m, 1h, 1d)
-  useEffect(() => {
-    if (interval === "1s" || interval === "30s") return
-    const cfg = INTERVAL_CONFIG[interval]
-
-    const connect = () => {
-      const ws = new WebSocket(`wss://fstream.binance.com/ws/btcusdt@kline_${cfg.binance}`)
-      wsRef.current = ws
-      ws.onopen = () => setConnected(true)
-      ws.onmessage = (e) => {
-        const k = JSON.parse(e.data).k
-        const candle: CandleData = {
-          time: Math.floor(k.t / 1000),
-          open: parseFloat(k.o),
-          high: parseFloat(k.h),
-          low: parseFloat(k.l),
-          close: parseFloat(k.c),
-        }
-        candleMapRef.current.set(candle.time, candle)
-        seriesRef.current?.update(candle)
-      }
-      ws.onerror = () => setConnected(false)
-      ws.onclose = () => { setConnected(false); setTimeout(connect, 3000) }
-    }
-    connect()
-
-    return () => { wsRef.current?.close() }
-  }, [interval])
-
-  // 티커 WebSocket (현재가 + 거래대금 집계)
-  useEffect(() => {
-    const connect = () => {
-      const ws = new WebSocket("wss://fstream.binance.com/ws/btcusdt@ticker")
-      tickerWsRef.current = ws
-      ws.onmessage = (e) => {
-        const d = JSON.parse(e.data)
-        const totalQuoteUSD = parseFloat(d.q)
-        const now = Math.floor(Date.now() / 1000)
-
-        const sumVol = (seconds: number) =>
-          Array.from(volumeBufferRef.current.entries())
-            .filter(([t]) => t > now - seconds)
-            .reduce((s, [, v]) => s + v, 0)
-
-        setAggVolumes({
-          "1m": sumVol(60),
-          "1h": sumVol(3600),
-          "1d": totalQuoteUSD,
-        })
-
-        setTicker({
-          price: parseFloat(d.c),
-          change: parseFloat(d.p),
-          changePercent: parseFloat(d.P),
-          high: parseFloat(d.h),
-          low: parseFloat(d.l),
-          volume: parseFloat(d.v),
-          quoteAssetVolume: totalQuoteUSD,
-        })
-      }
-      ws.onerror = () => { }
-      ws.onclose = () => setTimeout(connect, 3000)
-    }
-    connect()
-    return () => { tickerWsRef.current?.close() }
-  }, [])
+  // Binance WebSocket 직접 연결 제거 — Railway usePriceWorker(window) 단일 소스로 통일
+  // 차트 캔들 실시간 업데이트는 위 window 구독 useEffect에서 처리합니다.
 
   const isPositive = (ticker?.changePercent ?? 0) >= 0
 

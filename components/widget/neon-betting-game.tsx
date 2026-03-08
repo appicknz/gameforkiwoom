@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useCallback } from "react"
 import { TrendingUp, TrendingDown, X, RotateCcw } from "lucide-react"
-import { usePriceWorker } from "@/hooks/use-price-worker"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
@@ -341,11 +340,23 @@ export function NeonBettingGame() {
     return () => window.removeEventListener("balance:update", handler)
   }, [])
 
-  usePriceWorker({
-    onPrice: useCallback((price: number) => { setCurrentPrice(price); currentPriceRef.current = price }, []),
-    onClosingPrice: useCallback((price: number, time: number) => { closingPricesRef.current = [...closingPricesRef.current, { time, price }].slice(-100) }, []),
-    onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => { closingPricesRef.current = prices }, []),
-  })
+  // GameChart의 usePriceWorker(Railway)가 단일 소스로 window를 관리
+  // NeonBettingGame은 중복 연결 없이 window만 구독합니다
+  useEffect(() => {
+    const win = window as any
+    const tick = setInterval(() => {
+      const price: number | undefined = win.__bitcoinCurrentPrice
+      if (price) {
+        setCurrentPrice(price)
+        currentPriceRef.current = price
+      }
+      const closing: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+      if (closing.length > 0) {
+        closingPricesRef.current = closing
+      }
+    }, 300)
+    return () => clearInterval(tick)
+  }, [])
 
   useEffect(() => {
     const tick = setInterval(() => {
