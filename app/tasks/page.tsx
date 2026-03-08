@@ -123,9 +123,9 @@ export default function TasksPage() {
 
   useEffect(() => { load() }, [load])
 
-  // window 메모리 폴링 (서버 요청 없음 — 로컬 배열만 읽음)
+  // 매 5초마다 자동 갱신
   useEffect(() => {
-    const t = setInterval(load, 1000)
+    const t = setInterval(load, 5000)
     return () => clearInterval(t)
   }, [load])
 
