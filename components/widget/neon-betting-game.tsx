@@ -371,7 +371,8 @@ export function NeonBettingGame() {
         const ps = pendingSettlementRef.current
         if (ps && closing.length > ps.prevPriceCount) {
           // 새 마감가 확정 — 이 값으로 승패 판정
-          const closePrice = latest
+          // prices[length-1]이 새 마감가 (= 새 라운드 배팅가)
+          const closePrice = closing[closing.length - 1].price
           const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
           const wonDirection = ps.betDirection ? (ps.betDirection === "long" ? closePrice >= ps.basePrice : closePrice < ps.basePrice) : false
           const wonDigit = ps.betDigit ? (ps.betDigit === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
