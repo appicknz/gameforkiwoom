@@ -77,6 +77,7 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
       },
       rightPriceScale: {
         borderVisible: false,
+        autoScale: true,
         scaleMargins: { top: 0.1, bottom: 0.1 },
         textColor: TEXT,
       },

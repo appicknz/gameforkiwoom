@@ -166,7 +166,7 @@ export function BitcoinChart() {
         vertLine: { color: "rgba(156,163,175,0.5)", labelBackgroundColor: "#1f2937" },
         horzLine: { color: "rgba(156,163,175,0.5)", labelBackgroundColor: "#1f2937" },
       },
-      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.1 } },
+      rightPriceScale: { borderVisible: false, autoScale: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
       timeScale: {
         borderVisible: false,
         timeVisible: true,
