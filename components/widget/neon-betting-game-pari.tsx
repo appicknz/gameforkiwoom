@@ -11,8 +11,10 @@ type BetType     = "direction" | "digit" | "parity"
 
 interface PoolState {
   sideA: number; sideB: number
+  lpA: number;   lpB: number
   totalA: number; totalB: number
-  oddsA: number;  oddsB: number
+  oddsA: number | null  // null = 사용자 배팅 없음 → "—" 표시
+  oddsB: number | null
 }
 
 interface Pools {
@@ -83,7 +85,7 @@ const NEON_LABEL: Record<string, { text: string; color: string; glow: string }> 
 interface BetDialogProps {
   open: boolean; betType: BetType | null; selectedValue: string | null
   onClose: () => void; onConfirm: (amount: number) => void
-  isLoading: boolean; balance: number | null; odds: number
+  isLoading: boolean; balance: number | null; odds: number | null
 }
 
 function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, odds }: BetDialogProps) {
@@ -108,10 +110,15 @@ function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
               <span className="text-lg font-black" style={{ color: meta.color }}>{meta.text}</span>
             )}
             <span className="text-sm text-white/50">배팅 금액 선택</span>
-            {/* 예상 배당 표시 */}
-            {amount > 0 && (
+            {/* 예상 배당 — 배팅 후 odds가 확정된 경우에만 표시 */}
+            {amount > 0 && odds != null && (
               <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(255,255,255,0.08)", color: meta?.color ?? "#fff" }}>
-                예상 {(amount * odds).toLocaleString()}원 (x{odds.toFixed(2)})
+                예상 {Math.floor(amount * odds).toLocaleString()}원 (x{odds.toFixed(2)})
+              </span>
+            )}
+            {amount > 0 && odds == null && (
+              <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>
+                배팅 후 배율 확정
               </span>
             )}
           </div>
@@ -181,8 +188,8 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
   const [betDigitAmt, setBetDigitAmt]     = useState(0)
   const [betParityAmt, setBetParityAmt]   = useState(0)
 
-  // 선택된 배당 (다이얼로그에 넘기기 위해)
-  const [selectedOdds, setSelectedOdds]   = useState(1.95)
+  // 선택된 배당 — null이면 배팅 전 미확정 상태
+  const [selectedOdds, setSelectedOdds]   = useState<number | null>(null)
 
   const [dialogOpen, setDialogOpen]       = useState(false)
   const [dialogType, setDialogType]       = useState<BetType | null>(null)
@@ -202,6 +209,10 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
   const roundRef          = useRef(0)
   const poolsRef          = useRef<Pools | null>(null)
   const settledRef        = useRef(false)
+  // 배팅 확정 시 API에서 받은 배율 (balance_lp 조정 반영)
+  const dirOddsRef        = useRef<number>(1.95)
+  const digOddsRef        = useRef<number>(1.95)
+  const parOddsRef        = useRef<number>(1.95)
 
   // ── window 가격 구독 (GameChart의 usePriceWorker 단일 소스) ──────────────
   useEffect(() => {
@@ -305,11 +316,10 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
     const wonParity = betParityRef.current
       ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
 
-    // 현재 풀의 배당률
-    const p = poolsRef.current
-    const dOdds = p ? (betDirectionRef.current === "long" ? p.long_short.oddsA : p.long_short.oddsB) : 1.95
-    const diOdds = p ? (betDigitRef.current   === "under" ? p.under_over.oddsA  : p.under_over.oddsB) : 1.95
-    const paOdds = p ? (betParityRef.current  === "odd"   ? p.odd_even.oddsA    : p.odd_even.oddsB)  : 1.95
+    // 배팅 시 확정된 배율 사용 (balance_lp 조정 후 API 반환값)
+    const dOdds  = dirOddsRef.current
+    const diOdds = digOddsRef.current
+    const paOdds = parOddsRef.current
 
     try {
       await fetch("/api/pari/play", {
@@ -328,7 +338,7 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
           parityAmount: betParityAmtRef.current,
         }),
       })
-    } catch { /* 정산 실패해도 UI 계속 진행 */ }
+    } catch { /* 정산 실패해도 UI ���속 진행 */ }
 
     setResults(prev => [{
       round: roundRef.current,
@@ -339,10 +349,11 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
       directOdds: dOdds, digitOdds: diOdds, parityOdds: paOdds,
     }, ...prev].slice(0, 5))
 
-    // 상태 초기화
+    // 상태 + 확정 배율 초기화
     setBetDirection(null); betDirectionRef.current = null; setBetDirectionAmt(0); betDirAmtRef.current = 0
     setBetDigit(null);     betDigitRef.current = null;     setBetDigitAmt(0);     betDigitAmtRef.current = 0
     setBetParity(null);    betParityRef.current = null;    setBetParityAmt(0);    betParityAmtRef.current = 0
+    dirOddsRef.current = 1.95; digOddsRef.current = 1.95; parOddsRef.current = 1.95
     setBasePrice(null)
     loadBalance()
   }, [branchId, loadBalance])
@@ -376,19 +387,24 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
     if (res.ok) {
       const data = await res.json()
       setBalance(data.newBalance)
+      // API가 balance_lp 조정 후 확정 배율 반환 → 결과 정산에 사용
+      const confirmedOdds: number = data.odds ?? 1.95
 
       if (dialogType === "direction") {
         setBetDirection(dialogValue as BetDirection); betDirectionRef.current = dialogValue as BetDirection
         setBetDirectionAmt(a => a + amount);          betDirAmtRef.current += amount
+        dirOddsRef.current = confirmedOdds
         if (!basePriceRef.current && currentPriceRef.current) {
           const bp = currentPriceRef.current; setBasePrice(bp); basePriceRef.current = bp
         }
       } else if (dialogType === "digit") {
         setBetDigit(dialogValue as BetDigit); betDigitRef.current = dialogValue as BetDigit
         setBetDigitAmt(a => a + amount);      betDigitAmtRef.current += amount
+        digOddsRef.current = confirmedOdds
       } else {
         setBetParity(dialogValue as BetParity); betParityRef.current = dialogValue as BetParity
         setBetParityAmt(a => a + amount);       betParityAmtRef.current += amount
+        parOddsRef.current = confirmedOdds
       }
     }
     setDialogOpen(false); setBetLoading(false)
@@ -398,10 +414,11 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
   const canBet  = timeLeft > 3 && timeLeft <= 30
   const statusLabel = !canBet ? "마감" : timeLeft > 18 ? "배팅 가능" : "마감 임박"
   const fmt = (n: number | null) => n == null ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
-  const fmtOdds = (n: number) => `x${n.toFixed(2)}`
+  // null = 배팅 전 → "—" 표시 (파리뮤추얼 핵심: 배팅 전 배당 미공개)
+  const fmtOdds = (n: number | null) => n == null ? "—" : `x${n.toFixed(2)}`
 
-  const getPoolOdds = (poolType: "long_short" | "under_over" | "odd_even", side: "a" | "b") => {
-    if (!pools) return 1.95
+  const getPoolOdds = (poolType: "long_short" | "under_over" | "odd_even", side: "a" | "b"): number | null => {
+    if (!pools) return null
     return side === "a" ? pools[poolType].oddsA : pools[poolType].oddsB
   }
 
@@ -545,20 +562,57 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
         </div>
       )}
 
-      {/* 최근 결과 */}
+      {/* 최근 결과 카드 (/widget NeonBettingGame과 동일 형식) */}
       {results.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.25)" }}>최근 결과</p>
-          {results.map((r, i) => (
-            <div key={i} className="flex items-center justify-between px-3 py-2 rounded-xl text-[10px]"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <span style={{ color: "rgba(255,255,255,0.4)" }}>{new Date(r.round * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
-              <div className="flex gap-2">
-                {r.directionAmount > 0 && (
-                  <span style={{ color: r.wonDirection ? "#00ff88" : "#ff4444" }}>
-                    {r.wonDirection ? `+${Math.floor(r.directionAmount * r.directOdds - r.directionAmount).toLocaleString()}` : `-${r.directionAmount.toLocaleString()}`}
+        <div className="space-y-2 mt-2">
+          <p className="text-[9px] font-semibold tracking-widest uppercase px-1" style={{ color: "rgba(255,255,255,0.25)" }}>최근 결과</p>
+          {results.map((r, i) => {
+            const totalNet =
+              (r.directionAmount > 0 ? (r.wonDirection ? Math.floor(r.directionAmount * r.directOdds) - r.directionAmount : -r.directionAmount) : 0) +
+              (r.digitAmount > 0     ? (r.wonDigit     ? Math.floor(r.digitAmount     * r.digitOdds)  - r.digitAmount     : -r.digitAmount)     : 0) +
+              (r.parityAmount > 0    ? (r.wonParity    ? Math.floor(r.parityAmount    * r.parityOdds) - r.parityAmount    : -r.parityAmount)    : 0)
+            const isWin = totalNet > 0
+            const cardBg = isWin ? "rgba(0,255,136,0.06)" : "rgba(255,68,68,0.06)"
+            const cardBorder = isWin ? "rgba(0,255,136,0.2)" : "rgba(255,68,68,0.2)"
+            const netColor = isWin ? "#00ff88" : "#ff4444"
+            return (
+              <div key={i} className="rounded-2xl p-3" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    {new Date(r.round * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </span>
-                )}
+                  <span className="text-xs font-black" style={{ color: netColor }}>
+                    {isWin ? `+${totalNet.toLocaleString()}` : `${totalNet.toLocaleString()}`}원
+                  </span>
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  {r.directionAmount > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: r.wonDirection ? "rgba(0,255,136,0.15)" : "rgba(255,68,68,0.15)", color: r.wonDirection ? "#00ff88" : "#ff4444" }}>
+                      {r.direction === "long" ? "롱" : "숏"} x{r.directOdds.toFixed(2)} {r.wonDirection ? "적중" : "미적중"}
+                    </span>
+                  )}
+                  {r.digitAmount > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: r.wonDigit ? "rgba(0,170,255,0.15)" : "rgba(255,68,68,0.15)", color: r.wonDigit ? "#00aaff" : "#ff4444" }}>
+                      {r.digit === "under" ? "언더" : "오버"} x{r.digitOdds.toFixed(2)} {r.wonDigit ? "적중" : "미적중"}
+                    </span>
+                  )}
+                  {r.parityAmount > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: r.wonParity ? "rgba(200,136,255,0.15)" : "rgba(255,68,68,0.15)", color: r.wonParity ? "#cc88ff" : "#ff4444" }}>
+                      {r.parity === "odd" ? "홀" : "짝"} x{r.parityOdds.toFixed(2)} {r.wonParity ? "적중" : "미적중"}
+                    </span>
+                  )}
+                  <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>
+                    마감가 ${r.closePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
                 {r.digitAmount > 0 && (
                   <span style={{ color: r.wonDigit ? "#00ff88" : "#ff4444" }}>
                     {r.wonDigit ? `+${Math.floor(r.digitAmount * r.digitOdds - r.digitAmount).toLocaleString()}` : `-${r.digitAmount.toLocaleString()}`}

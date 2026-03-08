@@ -45,7 +45,22 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "lp">("users")
+
+  // LP 히스토리
+  interface LpTx { id: number; branch_id: string; round_time: number; pool_type: string; side: string; lp_amount: number; user_amount: number; settled_odds: number | null; created_at: string }
+  const [lpHistory, setLpHistory] = useState<LpTx[]>([])
+  const [lpTotal, setLpTotal] = useState(0)
+  const [lpLoading, setLpLoading] = useState(false)
+
+  const loadLpHistory = useCallback(async (branchId?: string) => {
+    const token = getToken(); if (!token) return
+    setLpLoading(true)
+    const url = branchId ? `/api/admin/lp-history?branchId=${branchId}` : "/api/admin/lp-history"
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setLpHistory(d.history ?? []); setLpTotal(d.totalLpUsed ?? 0) }
+    setLpLoading(false)
+  }, [])
 
   // 회원 목록
   const [users, setUsers] = useState<User[]>([])
@@ -344,6 +359,14 @@ export default function PanelPage() {
               <GitBranch className="w-4 h-4" /> 지점관리
             </button>
           )}
+          <button
+            onClick={() => { setActiveTab("lp"); loadLpHistory() }}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "lp" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Wallet className="w-4 h-4" /> LP 히스토리
+          </button>
         </div>
       </div>
 
@@ -646,7 +669,7 @@ export default function PanelPage() {
                                   </div>
                                 )}
                                 <p className="text-[11px] text-muted-foreground">
-                                  LP는 라운드 시작 시 6개 풀에 균등 배분됩니다. 최소 참가자 전에도 자연스러운 배당이 표시됩니다.
+                                  LP는 라��드 시작 시 6개 풀에 균등 배분됩니다. 최소 참가자 전에도 자연스러운 배당이 표시됩니다.
                                 </p>
                               </div>
                             )}
@@ -660,6 +683,57 @@ export default function PanelPage() {
             </div>
           </>
         )}
+      {/* LP 히스토리 탭 */}
+      {activeTab === "lp" && (
+        <div className="space-y-4">
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">LP 유동성 히스토리</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">파리뮤추얼 라운드별 LP 투입 기록</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">총 LP 사용액</p>
+                <p className="text-sm font-bold text-foreground">₩{lpTotal.toLocaleString()}</p>
+              </div>
+            </div>
+
+            {lpLoading ? (
+              <div className="flex justify-center py-10"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+            ) : lpHistory.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">LP 사용 내역이 없습니다.</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {lpHistory.map(tx => {
+                  const poolLabel: Record<string, string> = { long_short: "롱/숏", under_over: "언더/오버", odd_even: "홀/짝" }
+                  const sideLabel = tx.side === "a" ? "A (롱·언더·홀)" : "B (숏·오버·짝)"
+                  return (
+                    <div key={tx.id} className="px-5 py-3 flex items-center justify-between text-sm">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">{poolLabel[tx.pool_type] ?? tx.pool_type}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">{sideLabel}</span>
+                          {tx.settled_odds != null && (
+                            <span className="text-xs text-muted-foreground">확정 x{tx.settled_odds.toFixed(2)}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          라운드 {new Date(tx.round_time * 1000).toLocaleString("ko-KR")} · 사용자 배팅 ₩{tx.user_amount.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-foreground">₩{tx.lp_amount.toLocaleString()}</p>
+                        <p className="text-[11px] text-muted-foreground">{new Date(tx.created_at).toLocaleTimeString("ko-KR")}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       </main>
     </div>
   )

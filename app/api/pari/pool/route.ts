@@ -65,21 +65,35 @@ export async function GET(req: Request) {
 
     if (!pool) continue
 
-    const totalA = (pool.side_a_amount ?? 0) + (pool.lp_a ?? 0)
-    const totalB = (pool.side_b_amount ?? 0) + (pool.lp_b ?? 0)
-    const total = totalA + totalB
+    const userA  = pool.side_a_amount ?? 0
+    const userB  = pool.side_b_amount ?? 0
+    const lpA    = pool.lp_a ?? 0
+    const lpB    = pool.lp_b ?? 0
+    const totalA = userA + lpA
+    const totalB = userB + lpB
+    const total  = totalA + totalB
 
-    // 파리뮤추얼 배당: 총합 / 각 사이드 * 0.95 수수료 적용
-    const oddsA = total > 0 && totalA > 0 ? Math.floor(((total * 0.95) / totalA) * 100) / 100 : 1.95
-    const oddsB = total > 0 && totalB > 0 ? Math.floor(((total * 0.95) / totalB) * 100) / 100 : 1.95
+    // 배당 표시 규칙:
+    //  - 아직 사용자 배팅이 없으면 null (프론트에서 "—" 표시)
+    //  - LP만 있거나 사용자 배팅이 생긴 후에만 배율 표시
+    const HOUSE_EDGE = 0.05
+    const hasUserBet = userA > 0 || userB > 0
+    const oddsA = (hasUserBet && totalA > 0)
+      ? Math.max(Math.floor((total * (1 - HOUSE_EDGE)) / totalA * 100) / 100, 1.01)
+      : null
+    const oddsB = (hasUserBet && totalB > 0)
+      ? Math.max(Math.floor((total * (1 - HOUSE_EDGE)) / totalB * 100) / 100, 1.01)
+      : null
 
     results[poolType] = {
-      sideA: pool.side_a_amount,
-      sideB: pool.side_b_amount,
+      sideA: userA,
+      sideB: userB,
+      lpA,
+      lpB,
       totalA,
       totalB,
-      oddsA: Math.max(oddsA, 1.01),
-      oddsB: Math.max(oddsB, 1.01),
+      oddsA,  // null = 배팅 전 (프론트에서 "—" 표시)
+      oddsB,
     }
   }
 

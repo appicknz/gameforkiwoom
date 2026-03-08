@@ -85,12 +85,35 @@ export async function POST(req: Request) {
       totalPayout += Math.floor(parityAmount * odds)
     }
 
-    // ── 풀 정산 처리 ─────────────────────────────────────────────────────
+    // ── 풀 정산 처리 + LP 이력 기록 ─────────────────────────────────────
     await adminSupabase
       .from("pari_pools")
       .update({ is_settled: true })
       .eq("branch_id", branchId)
       .eq("round_time", rt)
+
+    // lp_transactions에 각 풀의 LP 사용 내역 기록
+    const lpTxRows = []
+    for (const poolType of poolTypes) {
+      const { data: poolSnap } = await adminSupabase
+        .from("pari_pools")
+        .select("side_a_amount, side_b_amount, lp_a, lp_b")
+        .eq("branch_id", branchId)
+        .eq("round_time", rt)
+        .eq("pool_type", poolType)
+        .maybeSingle()
+      if (!poolSnap) continue
+      const pm = poolMap[poolType]
+      if ((poolSnap.lp_a ?? 0) > 0) {
+        lpTxRows.push({ branch_id: branchId, round_time: rt, pool_type: poolType, side: "a", lp_amount: poolSnap.lp_a, user_amount: poolSnap.side_a_amount, settled_odds: pm.oddsA })
+      }
+      if ((poolSnap.lp_b ?? 0) > 0) {
+        lpTxRows.push({ branch_id: branchId, round_time: rt, pool_type: poolType, side: "b", lp_amount: poolSnap.lp_b, user_amount: poolSnap.side_b_amount, settled_odds: pm.oddsB })
+      }
+    }
+    if (lpTxRows.length > 0) {
+      await adminSupabase.from("lp_transactions").insert(lpTxRows)
+    }
 
     // ── 프로필 조회 ──────────────────────────────────────────────────────
     const { data: profileData } = await adminSupabase
