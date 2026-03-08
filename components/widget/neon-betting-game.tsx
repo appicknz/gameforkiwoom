@@ -353,6 +353,12 @@ export function NeonBettingGame() {
       const closing: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
       if (closing.length > 0) {
         closingPricesRef.current = closing
+        // 배팅 중이 아닐 때만 최신 마감가로 배팅 기준가 업데이트
+        if (!betRef.current && !betDigitRef.current && !betParityRef.current) {
+          const latest = closing[closing.length - 1].price
+          setBasePrice(latest)
+          basePriceRef.current = latest
+        }
       }
     }, 300)
     return () => clearInterval(tick)
@@ -492,7 +498,7 @@ export function NeonBettingGame() {
 
           {/* 우: 마감 기준가 (항상 표시) */}
           <div className="flex-1 min-w-0 text-right">
-            <p className="text-[10px] text-white/30 text-right mb-0.5">마감 기준가</p>
+            <p className="text-[10px] text-white/30 text-right mb-0.5">배팅 기준가</p>
             <p className="text-base font-black tabular-nums text-right" style={{ color: "#00ff88", textShadow: "0 0 8px rgba(0,255,136,0.4)", fontFamily: "var(--font-orbitron, monospace)" }}>
               {basePrice !== null ? fmt(basePrice) : "—"}
             </p>
