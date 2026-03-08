@@ -540,11 +540,11 @@ export function NeonBettingGame() {
       <div className="px-4 pb-4">
         {/* 헤더 라벨 */}
         <div className="grid grid-cols-3 gap-2 mb-2">
-          {[["롱 / 숏", "#00ff88"], ["언더 / 오버", "#ff8800"], ["홀 / 짝", "#cc88ff"]].map(([label, color]) => (
-            <div key={label} className="flex flex-col items-center gap-0.5">
-              <p className="text-center text-[10px] font-semibold tracking-wide" style={{ color }}>{label}</p>
-              <p className="text-center text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>x1.95</p>
-            </div>
+          {(["#00ff88", "#ff8800", "#cc88ff"] as const).map((color) => (
+            <p key={color} className="text-center text-[13px] font-black tracking-widest"
+              style={{ color, textShadow: `0 0 6px ${color}, 0 0 14px ${color}` }}>
+              x1.95
+            </p>
           ))}
         </div>
 
