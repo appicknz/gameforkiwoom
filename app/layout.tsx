@@ -17,9 +17,9 @@ export const viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "Donezo - Project Management Dashboard",
-  description: "Plan, prioritize, and accomplish your tasks with ease",
-  generator: "v0.app",
+  title: "비트벳 바이낸스 게임",
+  description: "30초 1라운드 롱/숏,홀/짝,언더/오버 미니게임",
+  generator: "BITBET",
   icons: {
     icon: [
       {
