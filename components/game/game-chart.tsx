@@ -95,12 +95,12 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
     chartRef.current = chart
 
     const series = chart.addCandlestickSeries({
-      upColor: "#00e676",
-      downColor: "#ff3d57",
-      borderUpColor: "#00e676",
-      borderDownColor: "#ff3d57",
-      wickUpColor: "#00e676",
-      wickDownColor: "#ff3d57",
+      upColor: "#facc15",
+      downColor: "#facc15",
+      borderUpColor: "#facc15",
+      borderDownColor: "#facc15",
+      wickUpColor: "#facc15",
+      wickDownColor: "#facc15",
     })
     seriesRef.current = series
 
