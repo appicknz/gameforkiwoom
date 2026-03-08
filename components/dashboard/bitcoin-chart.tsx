@@ -89,13 +89,27 @@ export function BitcoinChart() {
         setConnected(true)
       }
 
-      // 마감 기준가 → 노란 수평선 + state 업데이트
+      // 마감 기준가 → 노란 수평선 (GameChart와 동일 조건)
       const closingArr: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
       if (closingArr.length > 0) {
+        const newLast = closingArr[closingArr.length - 1]
         setClosingPrices(prev => {
           const last = prev[prev.length - 1]
-          const newLast = closingArr[closingArr.length - 1]
           if (last?.time === newLast.time) return prev
+          // 새 마감가 도착 → 노란 수평선 업데이트
+          if (seriesRef.current) {
+            if (priceLineRef.current) {
+              try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
+            }
+            priceLineRef.current = seriesRef.current.createPriceLine({
+              price: newLast.price,
+              color: "#facc15",
+              lineWidth: 1,
+              lineStyle: 2,
+              axisLabelVisible: true,
+              title: "배팅가",
+            })
+          }
           return closingArr
         })
       }
@@ -232,7 +246,6 @@ export function BitcoinChart() {
                   className="h-5 px-1.5 text-[10px]"
                   onClick={() => {
                     candleMapRef.current.clear()
-                    tradeBufferRef.current = []
                     setIntervalState(btn)
                   }}
                 >
