@@ -7,7 +7,6 @@ const redis = new Redis({
 })
 
 const CHAT_KEY = "bitbet:chat:messages"
-const CHAT_VERSION_KEY = "bitbet:chat:version"
 const MAX_MESSAGES = 200
 
 export interface ChatMessage {
@@ -40,8 +39,6 @@ export async function POST(req: NextRequest) {
     }
     await redis.lpush(CHAT_KEY, msg)
     await redis.ltrim(CHAT_KEY, 0, MAX_MESSAGES - 1)
-    // SSE 구독자들이 변경을 감지할 수 있도록 version increment
-    await redis.incr(CHAT_VERSION_KEY)
     return NextResponse.json({ message: msg })
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 })

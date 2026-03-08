@@ -2,8 +2,8 @@
 
 import { NeonBettingGame } from "@/components/widget/neon-betting-game"
 import { NeonChart } from "@/components/widget/neon-chart"
-import { NeonClosingPricesBadges } from "@/components/widget/neon-closing-prices-badges"
-import { NeonClosingPrices } from "@/components/widget/neon-closing-prices"
+import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
+import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { TopBar } from "@/components/dashboard/top-bar"
 
 // /widget — 네온 사이버펑크 테마
@@ -48,13 +48,13 @@ export default function WidgetPage() {
               className="rounded-2xl overflow-hidden"
               style={{ background: "#0d1526", border: "1px solid rgba(0,255,136,0.12)", boxShadow: "0 0 30px rgba(0,255,136,0.05)" }}
             >
-              <NeonClosingPricesBadges />
+              <ClosingPricesBadges />
             </div>
             <div
               className="rounded-2xl overflow-hidden"
-              style={{ background: "#0d1526", border: "1px solid rgba(255,255,255,0.06)", boxShadow: "0 0 20px rgba(0,0,0,0.3)" }}
+              style={{ background: "#0d1526", border: "1px solid rgba(0,255,136,0.12)", boxShadow: "0 0 30px rgba(0,255,136,0.05)" }}
             >
-              <NeonClosingPrices />
+              <ClosingPrices />
             </div>
           </div>
 

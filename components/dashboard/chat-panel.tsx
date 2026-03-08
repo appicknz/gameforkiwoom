@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Send, MessageCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ChatMessage } from "@/app/api/chat/route"
@@ -26,7 +26,9 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
   const [nickInput, setNickInput] = useState("")
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const lastIdRef = useRef<string | null>(null)
+  const pollRef = useRef<NodeJS.Timeout | null>(null)
   const isInitialLoad = useRef(true)
 
   // 닉네임 초기화
@@ -52,28 +54,12 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
     } catch {}
   }, [])
 
-  // SSE 구독 (폴링 대체 — 서버에서 변경 시에만 push)
+  // 폴링 (2초)
   useEffect(() => {
-    const es = new EventSource("/api/chat/stream")
-
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data)
-        const msgs: ChatMessage[] = data.messages ?? []
-        setMessages((prev) => {
-          if (prev.length === msgs.length && prev[prev.length - 1]?.id === msgs[msgs.length - 1]?.id) return prev
-          return msgs
-        })
-      } catch {}
-    }
-
-    es.onerror = () => {
-      // SSE 연결 끊기면 잠시 후 자동 재연결 (브라우저 기본 동작)
-      es.close()
-    }
-
-    return () => { es.close() }
-  }, [])
+    fetchMessages()
+    pollRef.current = setInterval(fetchMessages, 2000)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [fetchMessages])
 
   // 새 메시지 오면 스크롤 (초기: 즉시, 이후: smooth)
   useEffect(() => {
@@ -97,7 +83,7 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
         body: JSON.stringify({ nickname, text }),
       })
       setText("")
-      // SSE가 서버 push로 새 메시지를 받으므로 별도 fetch 불필요
+      await fetchMessages()
     } finally {
       setSending(false)
     }
