@@ -45,7 +45,12 @@ export async function POST(req: Request) {
 
     // ── 풀에서 실시간 배당 계산 ──────────────────────────────────────────
     const poolTypes = ["long_short", "under_over", "odd_even"] as const
-    const poolMap: Record<string, { oddsA: number; oddsB: number }> = {}
+    const HOUSE_EDGE = 0.05
+    // poolMap: 배율 + 원시 풀 데이터(LP 기록용)
+    const poolMap: Record<string, {
+      oddsA: number; oddsB: number
+      userA: number; userB: number; lpA: number; lpB: number
+    }> = {}
 
     for (const poolType of poolTypes) {
       const { data: pool } = await adminSupabase
@@ -57,15 +62,20 @@ export async function POST(req: Request) {
         .maybeSingle()
 
       if (pool) {
-        const totalA = (pool.side_a_amount ?? 0) + (pool.lp_a ?? 0)
-        const totalB = (pool.side_b_amount ?? 0) + (pool.lp_b ?? 0)
+        const userA = pool.side_a_amount ?? 0
+        const userB = pool.side_b_amount ?? 0
+        const lpA   = pool.lp_a ?? 0
+        const lpB   = pool.lp_b ?? 0
+        const totalA = userA + lpA
+        const totalB = userB + lpB
         const total  = totalA + totalB
         poolMap[poolType] = {
-          oddsA: total > 0 && totalA > 0 ? Math.max(Math.floor(total * 0.95 / totalA * 100) / 100, 1.01) : 1.95,
-          oddsB: total > 0 && totalB > 0 ? Math.max(Math.floor(total * 0.95 / totalB * 100) / 100, 1.01) : 1.95,
+          oddsA: total > 0 && totalA > 0 ? Math.max(Math.floor(total * (1 - HOUSE_EDGE) / totalA * 100) / 100, 1.01) : 1.90,
+          oddsB: total > 0 && totalB > 0 ? Math.max(Math.floor(total * (1 - HOUSE_EDGE) / totalB * 100) / 100, 1.01) : 1.90,
+          userA, userB, lpA, lpB,
         }
       } else {
-        poolMap[poolType] = { oddsA: 1.95, oddsB: 1.95 }
+        poolMap[poolType] = { oddsA: 1.90, oddsB: 1.90, userA: 0, userB: 0, lpA: 0, lpB: 0 }
       }
     }
 
@@ -92,23 +102,15 @@ export async function POST(req: Request) {
       .eq("branch_id", branchId)
       .eq("round_time", rt)
 
-    // lp_transactions에 각 풀의 LP 사용 내역 기록
-    const lpTxRows = []
+    // lp_transactions: poolMap에 캐싱된 값 그대로 사용 (재조회 불필요)
+    const lpTxRows: object[] = []
     for (const poolType of poolTypes) {
-      const { data: poolSnap } = await adminSupabase
-        .from("pari_pools")
-        .select("side_a_amount, side_b_amount, lp_a, lp_b")
-        .eq("branch_id", branchId)
-        .eq("round_time", rt)
-        .eq("pool_type", poolType)
-        .maybeSingle()
-      if (!poolSnap) continue
       const pm = poolMap[poolType]
-      if ((poolSnap.lp_a ?? 0) > 0) {
-        lpTxRows.push({ branch_id: branchId, round_time: rt, pool_type: poolType, side: "a", lp_amount: poolSnap.lp_a, user_amount: poolSnap.side_a_amount, settled_odds: pm.oddsA })
+      if (pm.lpA > 0) {
+        lpTxRows.push({ branch_id: branchId, round_time: rt, pool_type: poolType, side: "a", lp_amount: pm.lpA, user_amount: pm.userA, settled_odds: pm.oddsA })
       }
-      if ((poolSnap.lp_b ?? 0) > 0) {
-        lpTxRows.push({ branch_id: branchId, round_time: rt, pool_type: poolType, side: "b", lp_amount: poolSnap.lp_b, user_amount: poolSnap.side_b_amount, settled_odds: pm.oddsB })
+      if (pm.lpB > 0) {
+        lpTxRows.push({ branch_id: branchId, round_time: rt, pool_type: poolType, side: "b", lp_amount: pm.lpB, user_amount: pm.userB, settled_odds: pm.oddsB })
       }
     }
     if (lpTxRows.length > 0) {

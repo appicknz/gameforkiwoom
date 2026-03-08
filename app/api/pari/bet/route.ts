@@ -88,30 +88,23 @@ export async function POST(req: Request) {
       p_amount: betAmount,
     })
 
-    // LP 자동 조정 (balance_lp RPC) — 사용자 배팅 후 반대쪽 LP 재균형
-    await adminSupabase.rpc("balance_lp", {
+    // LP 자동 조정: balance_lp RPC가 반대쪽에 사용자 배팅액만큼 LP 투입 후
+    // odds_a/odds_b 를 직접 반환 → 풀 재조회 불필요
+    const { data: lpResult, error: lpErr } = await adminSupabase.rpc("balance_lp", {
       p_branch_id: branchId,
       p_round_time: rt,
       p_pool_type: poolType,
     })
+    if (lpErr) console.error("[pari/bet] balance_lp error:", lpErr)
 
-    // 조정 후 최신 풀 조회 → 확정 배율 계산해서 클라이언트에 전달
-    const HOUSE_EDGE = 0.05
-    const { data: updatedPool } = await adminSupabase
-      .from("pari_pools")
-      .select("side_a_amount, side_b_amount, lp_a, lp_b")
-      .eq("branch_id", branchId)
-      .eq("round_time", rt)
-      .eq("pool_type", poolType)
-      .single()
-
-    const totalA = (updatedPool?.side_a_amount ?? 0) + (updatedPool?.lp_a ?? 0)
-    const totalB = (updatedPool?.side_b_amount ?? 0) + (updatedPool?.lp_b ?? 0)
-    const totalPool = totalA + totalB
-    const winnerPool = side === "a" ? totalA : totalB
-    const odds = winnerPool > 0
-      ? Math.max(parseFloat(((totalPool * (1 - HOUSE_EDGE)) / winnerPool).toFixed(2)), 1.01)
-      : 1.95
+    // RPC는 TABLE 반환 → rows[0] 로 접근
+    const lpRow = Array.isArray(lpResult) ? lpResult[0] : lpResult
+    const totalA = parseFloat(lpRow?.lp_a ?? 0)
+    const totalB = parseFloat(lpRow?.lp_b ?? 0)
+    // 배팅한 사이드의 확정 배율
+    const odds: number = side === "a"
+      ? parseFloat(lpRow?.odds_a ?? 1.90)
+      : parseFloat(lpRow?.odds_b ?? 1.90)
 
     // 잔고 트랜잭션 기록
     const { data: profileData } = await adminSupabase

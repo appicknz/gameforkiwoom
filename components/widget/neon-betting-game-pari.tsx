@@ -388,7 +388,7 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
       const data = await res.json()
       setBalance(data.newBalance)
       // API가 balance_lp 조정 후 확정 배율 반환 → 결과 정산에 사용
-      const confirmedOdds: number = data.odds ?? 1.95
+      const confirmedOdds: number = data.odds ?? 1.90
 
       if (dialogType === "direction") {
         setBetDirection(dialogValue as BetDirection); betDirectionRef.current = dialogValue as BetDirection
