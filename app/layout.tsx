@@ -9,6 +9,13 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] })
 // Orbitron: /widget 네온 테마 숫자용 — font-mono 클래스로 매핑
 const _orbitron = Orbitron({ subsets: ["latin"], variable: "--font-orbitron", weight: ["400", "700", "900"] })
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+}
+
 export const metadata: Metadata = {
   title: "Donezo - Project Management Dashboard",
   description: "Plan, prioritize, and accomplish your tasks with ease",
