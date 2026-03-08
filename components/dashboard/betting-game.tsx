@@ -554,11 +554,16 @@ export function BettingGame() {
       if (anyLost) setLosses((l) => l + 1)
       setPhase("result")
 
-      // 배팅 초기화
+      // 배팅 초기화 및 다음 라운드 준비
       betRef.current = null; betDigitRef.current = null; betParityRef.current = null
       betDirectionAmountRef.current = 0; betDigitAmountRef.current = 0; betParityAmountRef.current = 0
       setBetDirection(null); setBetDigit(null); setBetParity(null)
       setBetDirectionAmount(0); setBetDigitAmount(0); setBetParityAmount(0)
+      // 정산 완료 후 새 배팅가 설정 (onClosingPrice가 전달한 price가 새 라운드 배팅가)
+      setBasePrice(price)
+      basePriceRef.current = price
+      setDialog(null)
+      setTimeout(() => setPhase("betting"), 1500)
       try { localStorage.removeItem("game_pending_bet") } catch {}
     }, []),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
@@ -578,17 +583,14 @@ export function BettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        // 결산은 onClosingPrice 콜백에서 처리 — 여기선 배팅가만 업데이트
-        setBetDirection(null)
-        setBetDigit(null)
-        setBetParity(null)
-        setBetDirectionAmount(0)
-        setBetDigitAmount(0)
-        setBetParityAmount(0)
-        setBasePrice(null)
-        basePriceRef.current = null
-        setDialog(null)
-        setTimeout(() => setPhase("betting"), 1500)
+        // 결산은 onClosingPrice 콜백에서 처리
+        // 배팅 중이 아닐 때만 여기서 초기화 (배팅 중이면 onClosingPrice가 처리 후 초기화)
+        if (!betRef.current && !betDigitRef.current && !betParityRef.current) {
+          setBasePrice(null)
+          basePriceRef.current = null
+          setDialog(null)
+          setTimeout(() => setPhase("betting"), 1500)
+        }
       }
 
       prevRoundRef.current = round
