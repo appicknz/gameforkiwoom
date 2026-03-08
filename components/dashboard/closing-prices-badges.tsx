@@ -42,13 +42,13 @@ export function ClosingPricesBadges() {
   }, [])
 
   return (
-    <Card className="p-6 bg-slate-950 border border-slate-800 transition-all duration-500 hover:border-slate-700 animate-slide-in-up" style={{ animationDelay: "500ms" }}>
-      <h2 className="text-lg font-bold text-slate-100 mb-4">30초 끝자리</h2>
-      <div className="flex flex-wrap gap-3">
+    <Card className="p-6 transition-all duration-500 hover:shadow-xl animate-slide-in-up" style={{ animationDelay: "500ms" }}>
+      <h2 className="text-xl font-semibold text-foreground mb-3">30초 끝자리</h2>
+      <div className="flex flex-wrap gap-2">
         {lastDigits.map((digit, idx) => (
           <div
             key={idx}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center font-bold text-lg text-slate-950 transition-all duration-300 hover:scale-110 border border-emerald-400/50"
+            className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm transition-all duration-300 hover:scale-110 hover:shadow-lg"
           >
             {digit}
           </div>
