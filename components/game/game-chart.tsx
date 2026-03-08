@@ -40,7 +40,7 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
     try {
       // 실시간 업데이트가 1초 버킷이므로 초기 데이터도 1s 간격으로 맞춤
       const res = await fetch(
-        `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1s&limit=300`
+        `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1s&limit=40`
       )
       const data: any[][] = await res.json()
       const candles: CandleData[] = data.map((k) => ({
