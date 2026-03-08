@@ -15,7 +15,8 @@ const PAYOUT_RATIO = 1.95 // 배당률 (서버에서만 정의)
  *
  * Request body:
  *   basePrice: number       - 배팅 기준가
- *   closePrice: number      - 라운드 종료가
+ *   roundNumber: number     - 라운드 번호 (대체 가능하게 추가, closePrice가 없으면 서버에서 조회)
+ *   closePrice?: number     - 라운드 종료가 (선택사항, 없으면 roundNumber로 조회)
  *   bets: {
  *     direction?: "long" | "short"   - 배팅한 방향
  *     directionAmount?: number
@@ -34,14 +35,40 @@ export async function POST(request: Request) {
     if (authError || !user) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
     const body = await request.json()
-    const { basePrice, closePrice, bets } = body
+    const { basePrice, roundNumber, closePrice: clientClosePrice, bets } = body
 
     // 입력값 검증
-    if (typeof basePrice !== "number" || typeof closePrice !== "number") {
-      return NextResponse.json({ error: "Invalid price data" }, { status: 400 })
+    if (typeof basePrice !== "number") {
+      return NextResponse.json({ error: "Invalid basePrice" }, { status: 400 })
     }
     if (!bets || typeof bets !== "object") {
       return NextResponse.json({ error: "Invalid bets" }, { status: 400 })
+    }
+
+    // closePrice 결정: roundNumber로 서버에서 조회하거나, 클라이언트값 사용
+    let closePrice: number
+    if (typeof roundNumber === "number" && roundNumber > 0) {
+      // 서버에서 정확한 30초 마감가 조회 (roundNumber 기준)
+      // roundNumber를 사용해 30초 정각의 마감 기준가 추출
+      const roundStartTime = roundNumber * 30
+      const roundEndTime = roundStartTime + 30
+      
+      // Redis에서 해당 라운드의 마감 기준가 조회
+      // key: "closing_price:{timestamp}" (30초마다 저장)
+      const closingKey = `closing_price:${roundEndTime}`
+      const storedClosing = await redis.get(closingKey)
+      
+      if (storedClosing && typeof storedClosing === "number") {
+        closePrice = storedClosing
+      } else if (typeof clientClosePrice === "number") {
+        closePrice = clientClosePrice
+      } else {
+        return NextResponse.json({ error: "No closing price available" }, { status: 400 })
+      }
+    } else if (typeof clientClosePrice === "number") {
+      closePrice = clientClosePrice
+    } else {
+      return NextResponse.json({ error: "Invalid price data" }, { status: 400 })
     }
 
     // ── 서버에서 직접 승패 계산 ──────────────────────────────

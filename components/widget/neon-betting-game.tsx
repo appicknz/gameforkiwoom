@@ -390,7 +390,9 @@ export function NeonBettingGame() {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify({
-                basePrice: basePriceRef.current, closePrice: latestClose,
+                basePrice: basePriceRef.current,
+                roundNumber: roundRef.current,  // 서버에서 정확한 30초 마감가 조회용
+                closePrice: latestClose,         // 폴백용 (서버 조회 실패 시)
                 bets: {
                   direction: betRef.current ?? undefined, directionAmount: betRef.current ? betDirectionAmountRef.current : undefined,
                   digit: betDigitRef.current ?? undefined, digitAmount: betDigitRef.current ? betDigitAmountRef.current : undefined,
