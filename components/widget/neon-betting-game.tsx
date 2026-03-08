@@ -374,9 +374,9 @@ export function NeonBettingGame() {
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
         const prices = closingPricesRef.current
-        // 라운드 전환 시점에 prices 배열에는 이미 새 라운드의 첫 종가가 추가되어 있음
-        // 따라서 prices[prices.length - 1]은 새 라운드 종가, prices[prices.length - 2]가 직전 라운드의 마감가
-        const latestClose = prices.length >= 2 ? prices[prices.length - 2].price : prices.length === 1 ? prices[0].price : currentPriceRef.current
+        // 게임 마감가 = 다음 라운드 배팅 기준가 (같은 30초봉 종가)
+        // prices[length-1]이 그 값 (미래를 맞추는 게임)
+        const latestClose = prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
         try { localStorage.removeItem("game_pending_bet") } catch {}
 
         if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null && latestClose !== null) {
