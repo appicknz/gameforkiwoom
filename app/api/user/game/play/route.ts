@@ -14,8 +14,8 @@ const PAYOUT_RATIO = 1.95 // 배당률 (서버에서만 정의)
  * 클라이언트가 보낸 profit 값을 절대 신뢰하지 않음
  *
  * Request body:
- *   basePrice: number       - 배팅 기준가 (라운드 시작 시점의 마감가)
- *   closePrice: number      - 라운드 종료가 (해당 라운드의 마감 기준가)
+ *   basePrice: number       - 배팅 기준가
+ *   closePrice: number      - 라운드 종료가
  *   bets: {
  *     direction?: "long" | "short"   - 배팅한 방향
  *     directionAmount?: number

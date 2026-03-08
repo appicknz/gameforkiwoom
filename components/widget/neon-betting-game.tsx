@@ -305,8 +305,6 @@ export function NeonBettingGame() {
   const roundRef = useRef<number>(0)
   const closingPricesRef = useRef<Array<{ time: number; price: number }>>([])
   const currentPriceRef = useRef<number | null>(null)
-  // 라운드 전환 직전에 스냅샷한 마지막 마감가 (새 라운드 첫 마감가가 섞이지 않도록)
-  const closingSnapshotRef = useRef<number | null>(null)
 
   const getRoundNumber = useCallback(() => Math.floor(Math.floor(Date.now() / 1000) / 30), [])
 
@@ -355,15 +353,8 @@ export function NeonBettingGame() {
       const closing: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
       if (closing.length > 0) {
         closingPricesRef.current = closing
-        // 매 틱마다 현재 라운드의 마지막 마감가를 스냅샷 (라운드 전환 직전 값 보존)
-        const latestInClosing = closing[closing.length - 1]
-        const currentRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
-        // 현재 라운드에 해당하는 마감가만 스냅샷 (새 라운드 첫 값이 섞이지 않도록)
-        if (latestInClosing && Math.floor(latestInClosing.time / 30) <= currentRound) {
-          closingSnapshotRef.current = latestInClosing.price
-        }
-        // 배팅 활성화 중이 아닐 때만 기준가 업데이트 (라운드 시작 가격 보존)
-        if (!betRef.current && !betDigitRef.current && !betParityRef.current && basePriceRef.current === null) {
+        // 배팅 중이 아닐 때만 최신 마감가로 배팅 기준가 업데이트
+        if (!betRef.current && !betDigitRef.current && !betParityRef.current) {
           const latest = closing[closing.length - 1].price
           setBasePrice(latest)
           basePriceRef.current = latest
@@ -382,9 +373,8 @@ export function NeonBettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        // 라운드 전환 직전에 스냅샷한 마감가 사용 (새 라운드 첫 가격 오염 방지)
-        // closingSnapshotRef: 300ms 틱에서 현재 라운드 범위 내 마지막 마감가로 업데이트됨
-        const latestClose = closingSnapshotRef.current ?? (closingPricesRef.current.length > 0 ? closingPricesRef.current[closingPricesRef.current.length - 1].price : currentPriceRef.current)
+        const prices = closingPricesRef.current
+        const latestClose = prices.length > 0 ? prices[prices.length - 1].price : currentPriceRef.current
         try { localStorage.removeItem("game_pending_bet") } catch {}
 
         if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null && latestClose !== null) {
@@ -399,8 +389,7 @@ export function NeonBettingGame() {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify({
-                basePrice: basePriceRef.current,
-                closePrice: latestClose,
+                basePrice: basePriceRef.current, closePrice: latestClose,
                 bets: {
                   direction: betRef.current ?? undefined, directionAmount: betRef.current ? betDirectionAmountRef.current : undefined,
                   digit: betDigitRef.current ?? undefined, digitAmount: betDigitRef.current ? betDigitAmountRef.current : undefined,
@@ -428,7 +417,7 @@ export function NeonBettingGame() {
         betDirectionAmountRef.current = 0; betDigitAmountRef.current = 0; betParityAmountRef.current = 0
         setBetDirection(null); setBetDigit(null); setBetParity(null)
         setBetDirectionAmount(0); setBetDigitAmount(0); setBetParityAmount(0)
-        setBasePrice(null); basePriceRef.current = null; closingSnapshotRef.current = null; setDialog(null)
+        setBasePrice(null); basePriceRef.current = null; setDialog(null)
         setTimeout(() => setPhase("betting"), 1500)
       }
       prevRoundRef.current = round; roundRef.current = round
