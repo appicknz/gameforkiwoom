@@ -183,33 +183,39 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
     updateBasePriceCoord()
   }, [updateBasePriceCoord])
 
+  // usePriceWorker 콜백 — 인라인 useCallback 금지 (Turbopack 파싱 에러 방지)
+  const handlePrice = useCallback((price: number, time: number) => {
+    // 1초 버킷: Math.floor(time) — BitcoinChart의 window 구독과 동일 조건
+    const bucket = Math.floor(time)
+    const existing = candleMapRef.current.get(bucket)
+    const candle: CandleData = {
+      time: bucket,
+      open: existing?.open ?? price,
+      high: existing ? Math.max(existing.high, price) : price,
+      low: existing ? Math.min(existing.low, price) : price,
+      close: price,
+    }
+    candleMapRef.current.set(bucket, candle)
+    seriesRef.current?.update(candle)
+    onPriceRef.current?.(price)
+  }, [])
+
+  const handleClosingPrice = useCallback((price: number, time: number) => {
+    updateBaseLine(price)
+    onClosingPriceRef.current?.(price, time)
+  }, [updateBaseLine])
+
+  const handleInitClosing = useCallback((prices: Array<{ time: number; price: number }>) => {
+    if (prices.length > 0) {
+      updateBaseLine(prices[prices.length - 1].price)
+    }
+  }, [updateBaseLine])
+
   // 모든 사용자 동일 가격 보장 — usePriceWorker 단일 소스
   usePriceWorker({
-    onPrice: useCallback((price, time) => {
-      const bucket = time - (time % 1)
-      const existing = candleMapRef.current.get(bucket)
-      const candle: CandleData = {
-        time: bucket,
-        open: existing?.open ?? price,
-        high: existing ? Math.max(existing.high, price) : price,
-        low: existing ? Math.min(existing.low, price) : price,
-        close: price,
-      }
-      candleMapRef.current.set(bucket, candle)
-      seriesRef.current?.update(candle)
-      onPriceRef.current?.(price)
-    }, []),
-    onClosingPrice: useCallback((price, time) => {
-      // 배팅가 수평선을 콜백에서 직접 업데이트 (setInterval 불필요)
-      updateBaseLine(price)
-      onClosingPriceRef.current?.(price, time)
-    }, [updateBaseLine]),
-    onInitClosing: useCallback((prices) => {
-      // 초기 로드 시 마지막 배팅가 수평선 설정
-      if (prices.length > 0) {
-        updateBaseLine(prices[prices.length - 1].price)
-      }
-    }, [updateBaseLine]),
+    onPrice: handlePrice,
+    onClosingPrice: handleClosingPrice,
+    onInitClosing: handleInitClosing,
   })
 
   return (
