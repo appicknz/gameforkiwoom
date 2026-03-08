@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react"
 import { TrendingUp, TrendingDown, X, RotateCcw } from "lucide-react"
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
@@ -353,74 +354,77 @@ export function NeonBettingGame() {
     return () => window.removeEventListener("balance:update", handler)
   }, [])
 
-  // GameChart의 usePriceWorker(Railway)가 단일 소스로 window를 관리
-  // NeonBettingGame은 중복 연결 없이 window만 구독합니다
-  useEffect(() => {
-    const win = window as any
-    const tick = setInterval(() => {
-      const price: number | undefined = win.__bitcoinCurrentPrice
-      if (price) {
-        setCurrentPrice(price)
-        currentPriceRef.current = price
+  // usePriceWorker로 직접 가격 수신 — window 폴링 제거
+  usePriceWorker({
+    onPrice: useCallback((price: number) => {
+      setCurrentPrice(price)
+      currentPriceRef.current = price
+    }, []),
+    onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
+      closingPricesRef.current = prices
+      if (prices.length > 0 && !betRef.current && !betDigitRef.current && !betParityRef.current) {
+        const latest = prices[prices.length - 1].price
+        setBasePrice(latest)
+        basePriceRef.current = latest
       }
-      const closing: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-      if (closing.length > 0) {
-        closingPricesRef.current = closing
-        const latest = closing[closing.length - 1].price
+    }, []),
+    onClosingPrice: useCallback((price: number, time: number) => {
+      closingPricesRef.current = [...closingPricesRef.current, { time, price }].slice(-100)
 
-        // 정산 대기 중이면: 등록 시점의 마지막 가격(lastKnownPrice)과 다른 값이 왔을 때 판정
-        // lastKnownPrice는 pendingSettlement 등록 시점의 prices 마지막 값
-        // 그것과 달라지면 = 새 30초봉 마감가가 실제로 도착한 것
-        const ps = pendingSettlementRef.current
-        const newestPrice = closing[closing.length - 1].price
-        if (ps && newestPrice !== ps.lastKnownPrice) {
-          // 새 마감가 확정 — 이 값으로 승패 판정
-          const closePrice = newestPrice
-          const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
-          const wonDirection = ps.betDirection ? (ps.betDirection === "long" ? closePrice >= ps.basePrice : closePrice < ps.basePrice) : false
-          const wonDigit = ps.betDigit ? (ps.betDigit === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
-          const wonParity = ps.betParity ? (ps.betParity === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
-
-          const token = getToken()
-          if (token) {
-            fetch("/api/user/game/play", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-              body: JSON.stringify({
-                basePrice: ps.basePrice, closePrice,
-                bets: {
-                  direction: ps.betDirection ?? undefined, directionAmount: ps.betDirection ? ps.directionAmount : undefined,
-                  digit: ps.betDigit ?? undefined, digitAmount: ps.betDigit ? ps.digitAmount : undefined,
-                  parity: ps.betParity ?? undefined, parityAmount: ps.betParity ? ps.parityAmount : undefined,
-                },
-              }),
-            }).then(r => r.json()).then(data => {
-              if (typeof data.newBalance === "number") { setBalance(data.newBalance); window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance })) }
-            }).catch(() => {})
-          }
-
-          const result: RoundResult = {
-            round: ps.round, direction: ps.betDirection, digit: ps.betDigit, parity: ps.betParity,
-            basePrice: ps.basePrice, closePrice, wonDirection, wonDigit, wonParity,
-            directionAmount: ps.directionAmount, digitAmount: ps.digitAmount, parityAmount: ps.parityAmount,
-          }
-          setLastResult(result); setShowResultSheet(true)
-          const anyWon = (ps.betDirection && wonDirection) || (ps.betDigit && wonDigit) || (ps.betParity && wonParity)
-          const anyLost = (ps.betDirection && !wonDirection) || (ps.betDigit && !wonDigit) || (ps.betParity && !wonParity)
-          if (anyWon) setWins(w => w + 1); if (anyLost) setLosses(l => l + 1)
-          setPhase("result")
-          pendingSettlementRef.current = null
-        }
-
-        // 배팅 중이 아니고 정산 대기도 아닐 때만 기준가 업데이트
-        if (!betRef.current && !betDigitRef.current && !betParityRef.current && !pendingSettlementRef.current) {
-          setBasePrice(latest)
-          basePriceRef.current = latest
-        }
+      // 배팅 없으면 새 배팅 기준가로 설정
+      if (!betRef.current && !betDigitRef.current && !betParityRef.current) {
+        setBasePrice(price)
+        basePriceRef.current = price
+        return
       }
-    }, 300)
-    return () => clearInterval(tick)
-  }, [])
+      if (basePriceRef.current === null) return
+
+      // 배팅 있으면 새 마감가로 즉시 정산
+      const closePrice = price
+      const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
+      const wonDirection = betRef.current ? (betRef.current === "long" ? closePrice >= basePriceRef.current : closePrice < basePriceRef.current) : false
+      const wonDigit = betDigitRef.current ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
+      const wonParity = betParityRef.current ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
+
+      const token = getToken()
+      if (token) {
+        fetch("/api/user/game/play", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            basePrice: basePriceRef.current, closePrice,
+            bets: {
+              direction: betRef.current ?? undefined, directionAmount: betRef.current ? betDirectionAmountRef.current : undefined,
+              digit: betDigitRef.current ?? undefined, digitAmount: betDigitRef.current ? betDigitAmountRef.current : undefined,
+              parity: betParityRef.current ?? undefined, parityAmount: betParityRef.current ? betParityAmountRef.current : undefined,
+            },
+          }),
+        }).then(r => r.json()).then(data => {
+          if (typeof data.newBalance === "number") { setBalance(data.newBalance); window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance })) }
+        }).catch(() => {})
+      }
+
+      const result: RoundResult = {
+        round: roundRef.current, direction: betRef.current, digit: betDigitRef.current, parity: betParityRef.current,
+        basePrice: basePriceRef.current, closePrice, wonDirection, wonDigit, wonParity,
+        directionAmount: betDirectionAmountRef.current, digitAmount: betDigitAmountRef.current, parityAmount: betParityAmountRef.current,
+      }
+      setLastResult(result); setShowResultSheet(true)
+      const anyWon = (betRef.current && wonDirection) || (betDigitRef.current && wonDigit) || (betParityRef.current && wonParity)
+      const anyLost = (betRef.current && !wonDirection) || (betDigitRef.current && !wonDigit) || (betParityRef.current && !wonParity)
+      if (anyWon) setWins(w => w + 1); if (anyLost) setLosses(l => l + 1)
+      setPhase("result")
+
+      betRef.current = null; betDigitRef.current = null; betParityRef.current = null
+      betDirectionAmountRef.current = 0; betDigitAmountRef.current = 0; betParityAmountRef.current = 0
+      setBetDirection(null); setBetDigit(null); setBetParity(null)
+      setBetDirectionAmount(0); setBetDigitAmount(0); setBetParityAmount(0)
+      setBasePrice(price); basePriceRef.current = price
+      setDialog(null)
+      setTimeout(() => setPhase("betting"), 1500)
+      try { localStorage.removeItem("game_pending_bet") } catch {}
+    }, []),
+  })
 
   useEffect(() => {
     const tick = setInterval(() => {
@@ -431,33 +435,9 @@ export function NeonBettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
+        // 정산은 onClosingPrice에서 처리 — 여기선 dialog만 닫음
         try { localStorage.removeItem("game_pending_bet") } catch {}
-
-        if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null) {
-          // 즉시 판정하지 않고 정산 대기 등록
-          // 300ms tick에서 새 마감가(= 새 배팅 기준가)가 도착하면 그 값으로 판정
-          const prices = closingPricesRef.current
-          pendingSettlementRef.current = {
-            basePrice: basePriceRef.current,
-            betDirection: betRef.current,
-            betDigit: betDigitRef.current,
-            betParity: betParityRef.current,
-            directionAmount: betDirectionAmountRef.current,
-            digitAmount: betDigitAmountRef.current,
-            parityAmount: betParityAmountRef.current,
-            round: roundRef.current,
-            prevPriceCount: prices.length,
-            // 등록 시점의 마지막 가격 — 이것과 달라지면 새 마감가가 도착한 것
-            lastKnownPrice: prices.length > 0 ? prices[prices.length - 1].price : basePriceRef.current,
-          }
-        }
-
-        betRef.current = null; betDigitRef.current = null; betParityRef.current = null
-        betDirectionAmountRef.current = 0; betDigitAmountRef.current = 0; betParityAmountRef.current = 0
-        setBetDirection(null); setBetDigit(null); setBetParity(null)
-        setBetDirectionAmount(0); setBetDigitAmount(0); setBetParityAmount(0)
-        setBasePrice(null); basePriceRef.current = null; setDialog(null)
-        setTimeout(() => setPhase("betting"), 1500)
+        setDialog(null)
       }
       prevRoundRef.current = round; roundRef.current = round
     }, 200)
