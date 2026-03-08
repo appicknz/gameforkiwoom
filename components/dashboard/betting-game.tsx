@@ -568,6 +568,12 @@ export function BettingGame() {
     }, []),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
       closingPricesRef.current = prices
+      // 초기 로딩 시 가장 최신 마감가를 배팅 기준가로 설정
+      if (prices.length > 0) {
+        const latest = prices[prices.length - 1].price
+        setBasePrice(latest)
+        basePriceRef.current = latest
+      }
     }, []),
   })
 
@@ -583,14 +589,9 @@ export function BettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        // 결산은 onClosingPrice 콜백에서 처리
-        // 배팅 중이 아닐 때만 여기서 초기화 (배팅 중이면 onClosingPrice가 처리 후 초기화)
-        if (!betRef.current && !betDigitRef.current && !betParityRef.current) {
-          setBasePrice(null)
-          basePriceRef.current = null
-          setDialog(null)
-          setTimeout(() => setPhase("betting"), 1500)
-        }
+        // 결산과 basePrice 업데이트는 onClosingPrice 콜백에서 처리
+        // 타이머에서는 basePrice를 절대 건드리지 않음
+        setDialog(null)
       }
 
       prevRoundRef.current = round
