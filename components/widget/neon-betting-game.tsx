@@ -353,8 +353,9 @@ export function NeonBettingGame() {
       const closing: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
       if (closing.length > 0) {
         closingPricesRef.current = closing
-        // 배팅 중이 아닐 때만 최신 마감가로 배팅 기준가 업데이트
-        if (!betRef.current && !betDigitRef.current && !betParityRef.current) {
+        // 배팅 활성화 중이 아닐 때만 기준가 업데이트 (라운드 시작 가격 보존)
+        // betRef/betDigitRef/betParityRef 중 하나라도 활성이면 기준가 변경 금지
+        if (!betRef.current && !betDigitRef.current && !betParityRef.current && basePriceRef.current === null) {
           const latest = closing[closing.length - 1].price
           setBasePrice(latest)
           basePriceRef.current = latest
