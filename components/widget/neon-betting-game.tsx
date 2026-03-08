@@ -315,7 +315,8 @@ export function NeonBettingGame() {
     digitAmount: number
     parityAmount: number
     round: number
-    prevPriceCount: number  // 전환 직전 prices 배열 길이 — 이보다 커지면 새 마감가 도착
+    prevPriceCount: number
+    lastKnownPrice: number  // 등록 시점의 마지막 가격 — 이것과 달라지면 새 마감가 도착
   } | null>(null)
 
   const getRoundNumber = useCallback(() => Math.floor(Math.floor(Date.now() / 1000) / 30), [])
@@ -367,11 +368,12 @@ export function NeonBettingGame() {
         closingPricesRef.current = closing
         const latest = closing[closing.length - 1].price
 
-        // 정산 대기 중이면: 새 마감가가 도착했는지 확인
-        // basePrice와 다른 새 값이 배열 맨 끝에 들어오면 그게 새 마감가
+        // 정산 대기 중이면: 등록 시점의 마지막 가격(lastKnownPrice)과 다른 값이 왔을 때 판정
+        // lastKnownPrice는 pendingSettlement 등록 시점의 prices 마지막 값
+        // 그것과 달라지면 = 새 30초봉 마감가가 실제로 도착한 것
         const ps = pendingSettlementRef.current
         const newestPrice = closing[closing.length - 1].price
-        if (ps && newestPrice !== ps.basePrice) {
+        if (ps && newestPrice !== ps.lastKnownPrice) {
           // 새 마감가 확정 — 이 값으로 승패 판정
           const closePrice = newestPrice
           const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
@@ -434,6 +436,7 @@ export function NeonBettingGame() {
         if ((betRef.current || betDigitRef.current || betParityRef.current) && basePriceRef.current !== null) {
           // 즉시 판정하지 않고 정산 대기 등록
           // 300ms tick에서 새 마감가(= 새 배팅 기준가)가 도착하면 그 값으로 판정
+          const prices = closingPricesRef.current
           pendingSettlementRef.current = {
             basePrice: basePriceRef.current,
             betDirection: betRef.current,
@@ -443,7 +446,9 @@ export function NeonBettingGame() {
             digitAmount: betDigitAmountRef.current,
             parityAmount: betParityAmountRef.current,
             round: roundRef.current,
-            prevPriceCount: closingPricesRef.current.length,  // 이보다 길이가 커지면 새 마감가 도착
+            prevPriceCount: prices.length,
+            // 등록 시점의 마지막 가격 — 이것과 달라지면 새 마감가가 도착한 것
+            lastKnownPrice: prices.length > 0 ? prices[prices.length - 1].price : basePriceRef.current,
           }
         }
 
