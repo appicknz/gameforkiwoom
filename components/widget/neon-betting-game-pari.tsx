@@ -613,22 +613,6 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
           })}
         </div>
       )}
-                {r.digitAmount > 0 && (
-                  <span style={{ color: r.wonDigit ? "#00ff88" : "#ff4444" }}>
-                    {r.wonDigit ? `+${Math.floor(r.digitAmount * r.digitOdds - r.digitAmount).toLocaleString()}` : `-${r.digitAmount.toLocaleString()}`}
-                  </span>
-                )}
-                {r.parityAmount > 0 && (
-                  <span style={{ color: r.wonParity ? "#00ff88" : "#ff4444" }}>
-                    {r.wonParity ? `+${Math.floor(r.parityAmount * r.parityOdds - r.parityAmount).toLocaleString()}` : `-${r.parityAmount.toLocaleString()}`}
-                  </span>
-                )}
-              </div>
-              <span style={{ color: "rgba(255,255,255,0.3)" }}>{r.closePrice.toFixed(1)}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
