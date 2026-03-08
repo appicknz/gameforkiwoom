@@ -222,7 +222,7 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
     return () => clearInterval(tick)
   }, [])
 
-  // ── 잔고 로드 ────────────────────────────────────────────────────────────
+  // ── 잔고 로드 + SSE balance:update 이벤트 구독 (NeonBettingGame과 동일) ──
   const loadBalance = useCallback(async () => {
     const token = getToken()
     if (!token) return
@@ -231,6 +231,17 @@ export function NeonBettingGamePari({ branchId }: NeonBettingGamePariProps) {
   }, [])
 
   useEffect(() => { loadBalance() }, [loadBalance])
+
+  // balance/stream SSE가 window에 balance:update 커스텀 이벤트를 발행
+  // → NeonBettingGame과 동일하게 구독해서 실시간 잔고 반영
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const v = (e as CustomEvent<number>).detail
+      if (typeof v === "number") setBalance(v)
+    }
+    window.addEventListener("balance:update", handler)
+    return () => window.removeEventListener("balance:update", handler)
+  }, [])
 
   // ── 풀 폴링 (500ms) — 배당률 실시간 반영 ────────────────────────────────
   useEffect(() => {
