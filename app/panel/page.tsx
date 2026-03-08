@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -29,6 +29,9 @@ interface Branch {
   status: string
   owner_email: string | null
   created_at: string
+  betting_mode: "fixed" | "pari"
+  lp_enabled: boolean
+  lp_amount: number
 }
 
 export default function PanelPage() {
@@ -62,6 +65,9 @@ export default function PanelPage() {
   const [ownerDropdownOpen, setOwnerDropdownOpen] = useState(false)
   const [branchMsg, setBranchMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [branchLoading, setBranchLoading] = useState(false)
+  const [bettingSettingId, setBettingSettingId] = useState<string | null>(null)
+  const [lpInput, setLpInput] = useState("")
+  const [bettingMsg, setBettingMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
   // 권한 확인
   useEffect(() => {
@@ -216,6 +222,26 @@ export default function PanelPage() {
       loadUsers(adminPw)
     }
     setBranchLoading(false)
+  }
+
+  // 지점 배팅 모드 / LP 설정 변경
+  const handleBettingUpdate = async (branchId: string, updates: { bettingMode?: string; lpEnabled?: boolean; lpAmount?: number }) => {
+    const token = getToken()
+    if (!token) return
+    setBettingMsg(null)
+    const res = await fetch("/api/admin/branches/betting", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ branchId, ...updates }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setBettingMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
+    } else {
+      setBettingMsg({ text: "설정이 저장됐습니다.", ok: true })
+      setBranches(prev => prev.map(b => b.id === branchId ? { ...b, ...data.branch } : b))
+      setLpInput("")
+    }
   }
 
   // 지점 삭제
@@ -509,33 +535,126 @@ export default function PanelPage() {
                   {branches.length === 0 && (
                     <p className="py-10 text-center text-sm text-muted-foreground">생성된 지점이 없습니다.</p>
                   )}
-                  {branches.map(branch => (
-                    <div key={branch.id} className="px-5 py-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                          <GitBranch className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-foreground">{branch.name}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-medium">
-                              {branch.code}
-                            </span>
+                  {bettingMsg && (
+                    <p className={`px-5 py-2 text-xs font-medium ${bettingMsg.ok ? "text-primary bg-primary/5" : "text-destructive bg-destructive/5"}`}>
+                      {bettingMsg.text}
+                    </p>
+                  )}
+                  {branches.map(branch => {
+                    const isSettingOpen = bettingSettingId === branch.id
+                    const isPari = branch.betting_mode === "pari"
+                    return (
+                      <div key={branch.id} className="px-5 py-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                              <GitBranch className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-foreground">{branch.name}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-medium">
+                                  {branch.code}
+                                </span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isPari ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600"}`}>
+                                  {isPari ? "파리뮤추얼" : "고정배당"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                관리자: {branch.owner_email ?? "미지정"} · {formatDate(branch.created_at)}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            관리자: {branch.owner_email ?? "미지정"} · {formatDate(branch.created_at)}
-                          </p>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm" variant="ghost"
+                              className="gap-1 text-xs text-muted-foreground hover:text-foreground"
+                              onClick={() => { setBettingSettingId(isSettingOpen ? null : branch.id); setBettingMsg(null); setLpInput("") }}
+                            >
+                              <Settings className="w-3.5 h-3.5" /> 설정
+                            </Button>
+                            <Button
+                              size="sm" variant="ghost"
+                              className="text-destructive hover:bg-destructive/10 gap-1 text-xs"
+                              onClick={() => handleDeleteBranch(branch.id)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> 삭제
+                            </Button>
+                          </div>
                         </div>
+
+                        {/* 배팅 모드 설정 패널 */}
+                        {isSettingOpen && (
+                          <div className="mt-3 p-4 bg-muted/50 rounded-xl border border-border space-y-4">
+                            <p className="text-xs font-semibold text-foreground">배팅 모드 설정</p>
+
+                            {/* 모드 토글 */}
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-medium text-foreground">
+                                  {isPari ? "파리뮤추얼 (동적 배당)" : "고정 배당 (x1.95)"}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {isPari ? "참가자 풀에 따라 배당이 실시간 변동됩니다." : "모든 배팅에 고정 1.95배가 적용됩니다."}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleBettingUpdate(branch.id, { bettingMode: isPari ? "fixed" : "pari" })}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                style={{ background: isPari ? "#7c3aed20" : "#f3f4f6", color: isPari ? "#7c3aed" : "#6b7280" }}
+                              >
+                                {isPari ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                                {isPari ? "파리뮤추얼 ON" : "고정배당 ON"}
+                              </button>
+                            </div>
+
+                            {/* LP 설정 (파리뮤추얼 모드에서만 표시) */}
+                            {isPari && (
+                              <div className="space-y-3 pt-3 border-t border-border">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm font-medium text-foreground">초기 유동성 (LP)</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      현재: {branch.lp_enabled ? `₩${branch.lp_amount.toLocaleString()} 활성` : "비활성"}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => handleBettingUpdate(branch.id, { lpEnabled: !branch.lp_enabled })}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                    style={{ background: branch.lp_enabled ? "#10b98120" : "#f3f4f6", color: branch.lp_enabled ? "#10b981" : "#6b7280" }}
+                                  >
+                                    {branch.lp_enabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                                    {branch.lp_enabled ? "LP 활성" : "LP 비활성"}
+                                  </button>
+                                </div>
+                                {branch.lp_enabled && (
+                                  <div className="flex gap-2">
+                                    <Input
+                                      type="number"
+                                      placeholder={`LP 금액 (현재: ₩${branch.lp_amount.toLocaleString()})`}
+                                      value={lpInput}
+                                      onChange={e => setLpInput(e.target.value)}
+                                      className="h-8 text-sm"
+                                    />
+                                    <Button
+                                      size="sm" className="h-8 text-xs shrink-0"
+                                      disabled={!lpInput}
+                                      onClick={() => handleBettingUpdate(branch.id, { lpAmount: parseFloat(lpInput) })}
+                                    >
+                                      저장
+                                    </Button>
+                                  </div>
+                                )}
+                                <p className="text-[11px] text-muted-foreground">
+                                  LP는 라운드 시작 시 6개 풀에 균등 배분됩니다. 최소 참가자 전에도 자연스러운 배당이 표시됩니다.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <Button
-                        size="sm" variant="ghost"
-                        className="text-destructive hover:bg-destructive/10 gap-1 text-xs"
-                        onClick={() => handleDeleteBranch(branch.id)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> 삭제
-                      </Button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>

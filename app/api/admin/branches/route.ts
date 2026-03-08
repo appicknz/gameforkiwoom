@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await adminSupabase
     .from("branches")
-    .select("id, code, name, status, owner_email, created_at")
+    .select("id, code, name, status, owner_email, created_at, betting_mode, lp_enabled, lp_amount")
     .order("created_at", { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
