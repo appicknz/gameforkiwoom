@@ -1062,7 +1062,7 @@ export function BettingGame() {
                   } else {
                     autoBetRoundsRef.current = 0; autoBetPnlRef.current = 0
                     setAutoBetRounds(0); setAutoBetPnl(0)
-                    autoBetFiredRef.current = false
+                    autoBetFiredRef.current = true  // 현재 라운드 차단, 다음 라운드 시작 시 false로 리셋됨
                     setAutoBet(prev => ({ ...prev, enabled: true }))
                   }
                 }}

@@ -879,12 +879,12 @@ export function NeonBettingGame() {
                 if (autoBet.enabled) {
                   setAutoBet(prev => ({ ...prev, enabled: false }))
                 } else {
-                  // 리셋 후 시작
+                  // 리셋 후 시작 — 현재 라운드는 건너뛰고 다음 라운드부터 배팅
                   autoBetRoundsRef.current = 0
                   autoBetPnlRef.current = 0
                   setAutoBetRounds(0)
                   setAutoBetPnl(0)
-                  autoBetFiredRef.current = false
+                  autoBetFiredRef.current = true  // 현재 라운드 차단, 다음 라운드 시작 시 false로 리셋됨
                   setAutoBet(prev => ({ ...prev, enabled: true }))
                 }
               }}
@@ -934,7 +934,7 @@ export function NeonBettingGame() {
                     {dir === "long" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                     <span>{dir === "long" ? "롱" : "숏"}</span>
                   </div>
-                  <span className="text-[10px] opacity-60">{dir === "long" ? "직전 대비 상승" : "직전 대비 하락"}</span>
+                  <span className="text-[10px] opacity-60">{dir === "long" ? "직전 대비 상승" : "직전 대��� 하락"}</span>
                   {isSelected && label && <span className="text-[9px]">{label}</span>}
                 </button>
               )
