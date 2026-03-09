@@ -86,14 +86,13 @@ export function NeonClosingPrices() {
       <h3 className="text-sm font-bold mb-4" style={{ color: "#e2e8f0" }}>
         30초 마감 기준가 (최근 {displayLimit}개)
       </h3>
-      <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+      <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
         {displayPrices.map((item, idx) => {
-          const roundInfo = rounds[rounds.length - 1 - idx]
-          const roundNum = roundInfo ? parseInt(roundInfo.id) : idx + 1
+          const roundInfo = rounds[rounds.length - 1 - idx] ?? null
+          const roundNum = roundInfo ? parseInt(roundInfo.id) : "—"
           const betInfo = getBetInfo(roundInfo)
           const hasBet = betInfo.direction || betInfo.digit || betInfo.parity
 
-          // 마감가 기준 결과 계산 (배팅 여부와 무관)
           const digit = getLastDigit(item.price)
           const resultDirection = roundInfo?.base_price != null
             ? (item.price >= roundInfo.base_price ? "롱" : "숏")
@@ -101,19 +100,13 @@ export function NeonClosingPrices() {
           const resultDigit = getDigitType(digit)
           const resultParity = getParityType(digit)
 
-          const Tag = ({
-            label,
-            isBet,
-          }: {
-            label: string
-            isBet: boolean
-          }) => (
+          const Tag = ({ label, isBet }: { label: string; isBet: boolean }) => (
             <span
-              className="px-2 py-1 rounded text-[10px] font-semibold"
+              className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
               style={
                 isBet
                   ? { background: "#00e87a", color: "#0d1526" }
-                  : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)" }
+                  : { background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }
               }
             >
               {label}
@@ -123,36 +116,36 @@ export function NeonClosingPrices() {
           return (
             <div
               key={`${item.time}-${idx}`}
-              className="p-3 rounded-lg transition-all duration-200 flex items-center justify-between text-xs gap-2"
+              className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs"
               style={{
                 background: hasBet ? "rgba(0,232,122,0.08)" : "rgba(255,255,255,0.03)",
                 border: hasBet
-                  ? "1px solid rgba(0,232,122,0.25)"
-                  : "1px solid rgba(255,255,255,0.08)",
+                  ? "1px solid rgba(0,232,122,0.2)"
+                  : "1px solid rgba(255,255,255,0.07)",
               }}
             >
-              {/* 왼쪽: 라운드 번호 + 시간 + 가격 */}
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div style={{ color: "#00e87a", fontWeight: "bold", minWidth: "48px" }}>
+              {/* 왼쪽 */}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-bold tabular-nums w-10 shrink-0" style={{ color: "#00e87a" }}>
                   #{roundNum}
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap" }}>
+                </span>
+                <span className="tabular-nums shrink-0" style={{ color: "rgba(255,255,255,0.4)" }}>
                   {new Date(item.time * 1000).toLocaleTimeString("ko-KR", {
                     hour: "2-digit",
                     minute: "2-digit",
                     second: "2-digit",
                   })}
-                </div>
-                <div style={{ color: "#e2e8f0", fontWeight: "bold", whiteSpace: "nowrap" }}>
+                </span>
+                <span className="font-bold tabular-nums shrink-0" style={{ color: "#e2e8f0" }}>
                   ${item.price.toLocaleString("en-US", {
                     minimumFractionDigits: 1,
                     maximumFractionDigits: 1,
                   })}
-                </div>
+                </span>
               </div>
 
-              {/* 오른쪽: 결과 태그 (배팅한 항목은 채워진 색, 안한 항목은 흐리게) */}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* 오른쪽 태그 */}
+              <div className="flex items-center gap-1 shrink-0">
                 {resultDirection && (
                   <Tag label={resultDirection} isBet={betInfo.direction === resultDirection} />
                 )}

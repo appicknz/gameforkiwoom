@@ -2,22 +2,37 @@
 
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
+import { ChevronDown } from "lucide-react"
 
 interface ClosingPrice {
   time: number
   price: number
 }
 
+interface RoundData {
+  id: string
+  base_price: number
+  result_price: number
+  result_digit: number
+  started_at: string
+  ended_at: string
+  bet_history: Array<{
+    bet_direction?: string | null
+    bet_digit?: string | null
+    bet_parity?: string | null
+  }>
+}
+
 export function ClosingPrices() {
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
+  const [rounds, setRounds] = useState<RoundData[]>([])
+  const [showAll, setShowAll] = useState(false)
 
-  // 새로고침 시 DB에서 초기 데이터 로드
   useEffect(() => {
     fetch("/api/closing-price")
       .then((r) => r.json())
       .then((data) => {
         if (data.prices && data.prices.length > 0) {
-          // DB 데이터를 window에도 반영해서 다른 컴포넌트가 바로 사용 가능하게
           const existing: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
           if (existing.length === 0) {
             ;(window as any).__bitcoinClosingPrices = data.prices
@@ -26,57 +41,122 @@ export function ClosingPrices() {
         }
       })
       .catch(() => {})
+
+    fetch("/api/rounds")
+      .then((r) => r.json())
+      .then((data) => { if (data.rounds) setRounds(data.rounds) })
+      .catch(() => {})
   }, [])
 
-  // 이후 실시간 업데이트는 window 폴링
   useEffect(() => {
     const interval = setInterval(() => {
-      if (typeof window !== 'undefined' && (window as any).__bitcoinClosingPrices) {
+      if (typeof window !== "undefined" && (window as any).__bitcoinClosingPrices) {
         setClosingPrices((window as any).__bitcoinClosingPrices)
       }
     }, 500)
-
     return () => clearInterval(interval)
   }, [])
 
-  if (closingPrices.length === 0) {
-    return null
-  }
+  if (closingPrices.length === 0) return null
 
-  const displayPrices = closingPrices.slice(-10).reverse()
+  const displayLimit = showAll ? 100 : 10
+  const displayPrices = closingPrices.slice(-displayLimit).reverse()
+
+  const getLastDigit = (price: number) => Math.floor(Math.abs(price * 10)) % 10
+  const getDigitType = (digit: number) => (digit <= 4 ? "언더" : "오버")
+  const getParityType = (digit: number) => (digit % 2 === 0 ? "짝" : "홀")
+
+  const getBetInfo = (roundInfo: RoundData | null) => {
+    if (!roundInfo?.bet_history?.length) return { direction: null, digit: null, parity: null }
+    const b = roundInfo.bet_history[0]
+    return {
+      direction: b.bet_direction ? (b.bet_direction === "long" ? "롱" : "숏") : null,
+      digit: b.bet_digit ? (b.bet_digit === "over" ? "오버" : "언더") : null,
+      parity: b.bet_parity ? (b.bet_parity === "odd" ? "홀" : "짝") : null,
+    }
+  }
 
   return (
     <Card className="p-4 bg-background border border-border/60">
-      <h3 className="text-sm font-semibold text-foreground mb-3">30초 마감 기준가 (최근 10개)</h3>
-      <div className="grid grid-cols-2 gap-3">
+      <h3 className="text-sm font-semibold text-foreground mb-3">
+        30초 마감 기준가 (최근 {displayLimit}개)
+      </h3>
+      <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
         {displayPrices.map((item, idx) => {
-          const isUp = idx % 2 === 0
+          const roundInfo = rounds[rounds.length - 1 - idx] ?? null
+          const roundNum = roundInfo ? parseInt(roundInfo.id) : "—"
+          const betInfo = getBetInfo(roundInfo)
+          const hasBet = betInfo.direction || betInfo.digit || betInfo.parity
+
+          const digit = getLastDigit(item.price)
+          const resultDirection = roundInfo?.base_price != null
+            ? (item.price >= roundInfo.base_price ? "롱" : "숏")
+            : null
+          const resultDigit = getDigitType(digit)
+          const resultParity = getParityType(digit)
+
+          const Tag = ({ label, isBet }: { label: string; isBet: boolean }) => (
+            <span
+              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                isBet
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {label}
+            </span>
+          )
+
           return (
             <div
               key={`${item.time}-${idx}`}
-              className={`p-3 rounded-lg border ${
-                isUp
-                  ? "bg-emerald-500/10 border-emerald-500/30"
-                  : "bg-red-500/10 border-red-500/30"
+              className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs transition-colors ${
+                hasBet
+                  ? "bg-emerald-500/5 border-emerald-500/20"
+                  : "bg-muted/30 border-border/40"
               }`}
             >
-              <div className="text-[10px] text-muted-foreground font-medium mb-1">
-                {new Date(item.time * 1000).toLocaleTimeString('ko-KR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                })}
+              {/* 왼쪽 */}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-bold text-primary tabular-nums w-10 shrink-0">
+                  #{roundNum}
+                </span>
+                <span className="text-muted-foreground tabular-nums shrink-0">
+                  {new Date(item.time * 1000).toLocaleTimeString("ko-KR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </span>
+                <span className="font-bold text-foreground tabular-nums shrink-0">
+                  ${item.price.toLocaleString("en-US", {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })}
+                </span>
               </div>
-              <div className="text-sm font-bold text-foreground">
-                ${item.price.toLocaleString("en-US", {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })}
+
+              {/* 오른쪽 태그 */}
+              <div className="flex items-center gap-1 shrink-0">
+                {resultDirection && (
+                  <Tag label={resultDirection} isBet={betInfo.direction === resultDirection} />
+                )}
+                <Tag label={resultDigit} isBet={betInfo.digit === resultDigit} />
+                <Tag label={resultParity} isBet={betInfo.parity === resultParity} />
               </div>
             </div>
           )
         })}
       </div>
+
+      {!showAll && closingPrices.length > 10 && (
+        <button
+          onClick={() => setShowAll(true)}
+          className="w-full mt-2 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:text-foreground border border-border/40 hover:border-border transition-colors flex items-center justify-center gap-1"
+        >
+          더보기 <ChevronDown size={13} />
+        </button>
+      )}
     </Card>
   )
 }
