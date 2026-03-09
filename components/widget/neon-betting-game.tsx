@@ -264,7 +264,7 @@ function NeonResultSheet({ result, open, onClose }: { result: RoundResult | null
           <div>
             <p className="text-[11px] text-white/30 mb-0.5">라운드 #{result.round} · 끝자리 {lastDigit}</p>
             <p className="text-2xl font-black tracking-tight" style={{ color: resultColor, textShadow: `0 0 20px ${resultColor}88` }}>
-              {allWon ? "전체 승리!" : allLost ? "전체 패배" : "부분 승리"}
+              {allWon ? "��체 승리!" : allLost ? "전체 패배" : "부분 승리"}
             </p>
           </div>
           <button onClick={onClose} className="text-white/30 hover:text-white p-1.5 rounded-full hover:bg-white/10"><X className="w-5 h-5" /></button>
@@ -489,6 +489,13 @@ export function NeonBettingGame() {
 
   const getBase = () => { const p = closingPricesRef.current; return p.length > 0 ? p[p.length - 1].price : currentPriceRef.current }
   const canBet = timeLeft > 15 && phase !== "result"
+
+  // 배팅 가능 시간이 끝나면 열려있는 다이얼로그 강제 닫기
+  useEffect(() => {
+    if (!canBet && dialog?.open) {
+      setDialog(null)
+    }
+  }, [canBet])
 
   const openDialog = (type: BetType, value: string) => {
     if (!canBet) return

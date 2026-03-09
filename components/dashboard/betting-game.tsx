@@ -643,6 +643,13 @@ export function BettingGame() {
 
   const canBet = timeLeft > 15 && phase !== "result"
 
+  // 배팅 가능 시간이 끝나면 열려있는 다이얼로그 강제 닫기
+  useEffect(() => {
+    if (!canBet && dialog?.open) {
+      setDialog(null)
+    }
+  }, [canBet])
+
   // 종목 버튼 클릭 → 다이얼로그 열기 (결과 시트가 열려있으면 닫기)
   const openDialog = (type: BetType, value: string) => {
     if (!canBet) return
