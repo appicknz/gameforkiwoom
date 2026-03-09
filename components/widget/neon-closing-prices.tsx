@@ -124,16 +124,14 @@ export function NeonClosingPrices() {
                   : "1px solid rgba(255,255,255,0.07)",
               }}
             >
-              {/* 왼쪽 */}
+              {/* 왼쪽: 시간 + 가격 */}
               <div className="flex items-center gap-2 min-w-0">
-                <span className="font-bold tabular-nums w-10 shrink-0" style={{ color: "#00e87a" }}>
-                  #{roundNum}
-                </span>
                 <span className="tabular-nums shrink-0" style={{ color: "rgba(255,255,255,0.4)" }}>
                   {new Date(item.time * 1000).toLocaleTimeString("ko-KR", {
                     hour: "2-digit",
                     minute: "2-digit",
                     second: "2-digit",
+                    hour12: false,
                   })}
                 </span>
                 <span className="font-bold tabular-nums shrink-0" style={{ color: "#e2e8f0" }}>
@@ -144,11 +142,9 @@ export function NeonClosingPrices() {
                 </span>
               </div>
 
-              {/* 오른쪽 태그 */}
+              {/* 오른쪽: 롱/숏 · 오버/언더 · 홀/짝 */}
               <div className="flex items-center gap-1 shrink-0">
-                {resultDirection && (
-                  <Tag label={resultDirection} isBet={betInfo.direction === resultDirection} />
-                )}
+                <Tag label={resultDirection ?? "—"} isBet={betInfo.direction === resultDirection} />
                 <Tag label={resultDigit} isBet={betInfo.digit === resultDigit} />
                 <Tag label={resultParity} isBet={betInfo.parity === resultParity} />
               </div>

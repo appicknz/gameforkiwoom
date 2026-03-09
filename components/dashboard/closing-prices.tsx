@@ -116,16 +116,14 @@ export function ClosingPrices() {
                   : "bg-muted/30 border-border/40"
               }`}
             >
-              {/* 왼쪽 */}
+              {/* 왼쪽: 시간 + 가격 */}
               <div className="flex items-center gap-2 min-w-0">
-                <span className="font-bold text-primary tabular-nums w-10 shrink-0">
-                  #{roundNum}
-                </span>
                 <span className="text-muted-foreground tabular-nums shrink-0">
                   {new Date(item.time * 1000).toLocaleTimeString("ko-KR", {
                     hour: "2-digit",
                     minute: "2-digit",
                     second: "2-digit",
+                    hour12: false,
                   })}
                 </span>
                 <span className="font-bold text-foreground tabular-nums shrink-0">
@@ -136,11 +134,9 @@ export function ClosingPrices() {
                 </span>
               </div>
 
-              {/* 오른쪽 태그 */}
+              {/* 오른쪽: 롱/숏 · 오버/언더 · 홀/짝 */}
               <div className="flex items-center gap-1 shrink-0">
-                {resultDirection && (
-                  <Tag label={resultDirection} isBet={betInfo.direction === resultDirection} />
-                )}
+                <Tag label={resultDirection ?? "—"} isBet={betInfo.direction === resultDirection} />
                 <Tag label={resultDigit} isBet={betInfo.digit === resultDigit} />
                 <Tag label={resultParity} isBet={betInfo.parity === resultParity} />
               </div>
