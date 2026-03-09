@@ -499,26 +499,39 @@ export function NeonBettingGame() {
   const fmt = (p: number) => `$${(Math.floor(p * 10) / 10).toFixed(1)}`
   const betAmountFmt = (n: number) => n > 0 ? `₩${n >= 10000 ? `${n / 10000}만` : n.toLocaleString()}` : null
 
+  const fmtKRW = (n: number): string => {
+    if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(2)}억`
+    if (n >= 10_000_000) return `${(n / 10_000_000).toFixed(2)}천만`
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}백만`
+    if (n >= 10_000) return `${(n / 10_000).toFixed(2)}만`
+    return n.toLocaleString()
+  }
+
   return (
     <div style={{ background: "#0d1526", minHeight: "100%" }}>
       {/* ── 상단 정보 바 ── */}
       <div className="px-4 pt-4 pb-2">
-        <div className="flex items-start justify-between gap-3">
-          {/* 좌: 실시간 가격 */}
+        <div className="flex items-center justify-between gap-3">
+          {/* 좌: 실시간 가격 + 예상 수익 */}
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-0.5">실시간</p>
-            <p className="text-base font-black tabular-nums text-white leading-none" style={{ color: "#00ffcc", textShadow: "0 0 8px rgba(0,255,200,0.5)", fontFamily: "var(--font-orbitron, monospace)" }}>
+            <p className="text-[10px] font-semibold tracking-widest uppercase mb-0.5" style={{ color: "#ffffff" }}>실시간</p>
+            <p className="text-base font-black tabular-nums leading-none" style={{ color: "#00ffcc", fontFamily: "var(--font-orbitron, monospace)" }}>
               {currentPrice !== null ? fmt(currentPrice) : "—"}
             </p>
+            {expectedPayout > 0 && (
+              <p className="text-[10px] mt-0.5 font-semibold" style={{ color: "#00e87a" }}>
+                예상 수익 ₩{fmtKRW(expectedPayout)}
+              </p>
+            )}
           </div>
 
           {/* 중: 원형 타이머 — 카운트다운 + 상태 레이블 */}
           <CircularTimer timeLeft={timeLeft} statusLabel={timerLabel} />
 
-          {/* 우: 마감 기준가 (항상 표시) */}
+          {/* 우: 배팅 기준가 */}
           <div className="flex-1 min-w-0 text-right">
-            <p className="text-[10px] text-white/30 text-right mb-0.5">배팅 기준가</p>
-            <p className="text-base font-black tabular-nums text-right" style={{ color: "#00ff88", textShadow: "0 0 8px rgba(0,255,136,0.4)", fontFamily: "var(--font-orbitron, monospace)" }}>
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-right mb-0.5" style={{ color: "#ffffff" }}>배팅 기준가</p>
+            <p className="text-base font-black tabular-nums text-right" style={{ color: "#00ff88", fontFamily: "var(--font-orbitron, monospace)" }}>
               {basePrice !== null ? fmt(basePrice) : "—"}
             </p>
           </div>
