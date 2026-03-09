@@ -17,21 +17,21 @@ export function ProjectAnalytics() {
     const interval = setInterval(() => {
       if (typeof window !== 'undefined' && (window as any).__bitcoinClosingPrices) {
         const closingPrices: ClosingPrice[] = (window as any).__bitcoinClosingPrices
-        
+
         // 최근 100개 중에서 끝자리 분포 계산
         const recentPrices = closingPrices.slice(-100)
         const digitCounts = Array(10).fill(0)
-        
+
         recentPrices.forEach((item) => {
           const lastDigit = Math.floor(item.price * 10) % 10
           digitCounts[lastDigit]++
         })
-        
+
         const newChartData = digitCounts.map((count, digit) => ({
           digit: digit.toString(),
           count: count,
         }))
-        
+
         setChartData(newChartData)
       }
     }, 500)
@@ -65,7 +65,7 @@ export function ProjectAnalytics() {
       style={{ animationDelay: "400ms" }}
     >
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-foreground">Project Analytics</h2>
+        <h2 className="text-xl font-semibold text-foreground">끝자리 분포</h2>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <div className="w-2 h-2 rounded-full bg-emerald-600"></div>
           <span>끝자리 분포 (최근 100개)</span>
