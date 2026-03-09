@@ -55,8 +55,8 @@ export function Header({ title, description, actions }: HeaderProps) {
               <AvatarFallback className="text-xs">JS</AvatarFallback>
             </Avatar>
             <div className="text-xs hidden sm:block">
-              <p className="font-semibold text-foreground">Jessin Sam</p>
-              <p className="text-muted-foreground text-[10px]">jessin@gmail.com</p>
+              <p className="font-semibold text-foreground">BITBET</p>
+              <p className="text-muted-foreground text-[10px]"></p>
             </div>
           </div>
         </div>
