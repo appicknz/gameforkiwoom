@@ -89,8 +89,10 @@ export function ClosingPrices() {
           const hasBet = betInfo.direction || betInfo.digit || betInfo.parity
 
           const digit = getLastDigit(item.price)
-          const resultDirection = roundInfo?.base_price != null
-            ? (item.price >= roundInfo.base_price ? "롱" : "숏")
+          // 이전 마감가(배열에서 한 칸 앞 = 시간상 이전)를 기준으로 롱/숏 판정
+          const prevPrice = displayPrices[idx + 1]?.price ?? null
+          const resultDirection = prevPrice != null
+            ? (item.price >= prevPrice ? "롱" : "숏")
             : null
           const resultDigit = getDigitType(digit)
           const resultParity = getParityType(digit)
