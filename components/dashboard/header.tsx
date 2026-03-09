@@ -52,11 +52,11 @@ export function Header({ title, description, actions }: HeaderProps) {
           <div className="flex items-center gap-2 pl-2 md:pl-3 border-l border-border">
             <Avatar className="w-7 h-7 md:w-8 md:h-8 ring-2 ring-primary/20 transition-all duration-300 hover:ring-primary/40">
               <AvatarImage src="/profile.jpg" alt="Jessin Sam" />
-              <AvatarFallback className="text-xs">BITCOIN</AvatarFallback>
+              <AvatarFallback className="text-xs">비트벳</AvatarFallback>
             </Avatar>
             <div className="text-xs hidden sm:block">
               <p className="font-semibold text-foreground">BITBET</p>
-              <p className="text-muted-foreground text-[10px]"></p>
+              <p className="text-muted-foreground text-[10px]">bitbet@bitcoin.com</p>
             </div>
           </div>
         </div>
