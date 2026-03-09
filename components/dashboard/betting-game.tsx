@@ -59,9 +59,10 @@ interface BetDialogProps {
   locked: boolean
   lockedAmount: number | null
   onLockChange: (locked: boolean, amount: number | null) => void
+  canBet: boolean
 }
 
-function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, locked, lockedAmount, onLockChange }: BetDialogProps) {
+function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, locked, lockedAmount, onLockChange, canBet }: BetDialogProps) {
   const [selectedChip, setSelectedChip] = useState<number | null>(null)
   const [amount, setAmount] = useState(0)
 
@@ -216,15 +217,15 @@ function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading
               {locked ? "해제" : "고정"}
             </button>
             <button
-              onClick={() => amount > 0 && onConfirm(amount)}
-              disabled={amount <= 0 || isLoading || (balance !== null && amount > balance)}
+              onClick={() => amount > 0 && canBet && onConfirm(amount)}
+              disabled={amount <= 0 || isLoading || (balance !== null && amount > balance) || !canBet}
               className="flex-1 py-3 rounded-xl text-sm font-bold transition-all duration-150 active:scale-[0.98] disabled:opacity-40"
               style={{
-                background: amount > 0 ? meta?.color : "hsl(var(--muted))",
-                color: amount > 0 ? "#fff" : "hsl(var(--muted-foreground))",
+                background: amount > 0 && canBet ? meta?.color : "hsl(var(--muted))",
+                color: amount > 0 && canBet ? "#fff" : "hsl(var(--muted-foreground))",
               }}
             >
-              {isLoading ? "처리 중..." : `₩${amount.toLocaleString()} 배팅`}
+              {isLoading ? "처리 중..." : !canBet ? "배팅 마감" : `₩${amount.toLocaleString()} 배팅`}
             </button>
           </div>
         </div>
@@ -951,6 +952,7 @@ export function BettingGame() {
           locked={locked}
           lockedAmount={lockedAmount}
           onLockChange={(l, a) => { setLocked(l); setLockedAmount(a) }}
+          canBet={canBet}
         />
       )}
 

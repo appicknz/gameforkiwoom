@@ -97,9 +97,10 @@ interface BetDialogProps {
   locked: boolean
   lockedAmount: number | null
   onLockChange: (locked: boolean, amount: number | null) => void
+  canBet: boolean
 }
 
-function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, locked, lockedAmount, onLockChange }: BetDialogProps) {
+function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, locked, lockedAmount, onLockChange, canBet }: BetDialogProps) {
   const [selectedChip, setSelectedChip] = useState<number | null>(null)
   const [amount, setAmount] = useState(0)
 
@@ -221,16 +222,16 @@ function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
               {locked ? "해제" : "고정"}
             </button>
             <button
-              onClick={() => amount > 0 && !insufficient && onConfirm(amount)}
-              disabled={amount <= 0 || isLoading || insufficient}
+              onClick={() => amount > 0 && !insufficient && canBet && onConfirm(amount)}
+              disabled={amount <= 0 || isLoading || insufficient || !canBet}
               className="flex-1 py-3 rounded-xl text-sm font-black transition-all duration-150 active:scale-[0.98] disabled:opacity-30"
               style={{
-                background: amount > 0 && !insufficient ? `linear-gradient(135deg, ${meta?.color}dd, ${meta?.color}99)` : "rgba(255,255,255,0.08)",
-                color: amount > 0 && !insufficient ? "#000" : "rgba(255,255,255,0.3)",
-                boxShadow: amount > 0 && !insufficient ? `0 0 20px ${meta?.glow}` : "none",
+                background: amount > 0 && !insufficient && canBet ? `linear-gradient(135deg, ${meta?.color}dd, ${meta?.color}99)` : "rgba(255,255,255,0.08)",
+                color: amount > 0 && !insufficient && canBet ? "#000" : "rgba(255,255,255,0.3)",
+                boxShadow: amount > 0 && !insufficient && canBet ? `0 0 20px ${meta?.glow}` : "none",
               }}
             >
-              {isLoading ? "처리 중..." : `₩${amount.toLocaleString()} 배팅`}
+              {isLoading ? "처리 중..." : !canBet ? "배팅 마감" : `₩${amount.toLocaleString()} 배팅`}
             </button>
           </div>
         </div>
@@ -738,6 +739,7 @@ export function NeonBettingGame() {
   isLoading={isPlacingBet} balance={balance}
   locked={locked} lockedAmount={lockedAmount}
   onLockChange={(l, a) => { setLocked(l); setLockedAmount(a) }}
+  canBet={canBet}
   />
       )}
       <NeonResultSheet result={lastResult} open={showResultSheet} onClose={() => setShowResultSheet(false)} />
