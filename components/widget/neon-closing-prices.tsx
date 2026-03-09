@@ -42,29 +42,43 @@ export function NeonClosingPrices() {
       })
       .catch(() => {})
 
-    fetch("/api/rounds")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.rounds) {
-          setRounds(data.rounds)
-        }
-      })
-      .catch(() => {})
   }, [])
 
+  const fetchRounds = () => {
+    fetch("/api/rounds")
+      .then((r) => r.json())
+      .then((data) => { if (data.rounds) setRounds(data.rounds) })
+      .catch(() => {})
+  }
+
   useEffect(() => {
+    fetchRounds()
     const interval = setInterval(() => {
       if (typeof window !== "undefined" && (window as any).__bitcoinClosingPrices) {
         setClosingPrices((window as any).__bitcoinClosingPrices)
       }
     }, 500)
-    return () => clearInterval(interval)
+    // rounds도 5초마다 갱신 (결과 반영)
+    const roundsInterval = setInterval(fetchRounds, 5000)
+    return () => {
+      clearInterval(interval)
+      clearInterval(roundsInterval)
+    }
   }, [])
 
   if (closingPrices.length === 0) return null
 
   const displayLimit = showAll ? 100 : 10
   const displayPrices = closingPrices.slice(-displayLimit).reverse()
+
+  // ended_at → unix timestamp 기준으로 rounds를 Map에 인덱싱
+  const roundByTime = new Map<number, RoundData>()
+  rounds.forEach((r) => {
+    if (r.ended_at) {
+      const ts = Math.floor(new Date(r.ended_at).getTime() / 1000)
+      roundByTime.set(ts, r)
+    }
+  })
 
   const getLastDigit = (price: number) => Math.floor(Math.abs(price * 10)) % 10
   const getDigitType = (digit: number) => (digit <= 4 ? "언더" : "오버")
@@ -92,7 +106,7 @@ export function NeonClosingPrices() {
       </h3>
       <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
         {displayPrices.map((item, idx) => {
-          const roundInfo = rounds[rounds.length - 1 - idx] ?? null
+          const roundInfo = roundByTime.get(item.time) ?? null
           const roundNum = roundInfo ? parseInt(roundInfo.id) : "—"
           const betInfo = getBetInfo(roundInfo)
           const hasBet = betInfo.direction || betInfo.digit || betInfo.parity
