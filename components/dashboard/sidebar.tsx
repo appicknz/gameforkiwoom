@@ -21,9 +21,6 @@ import { ChatPanel } from "@/components/dashboard/chat-panel"
 
 const menuItems = [
   { icon: LayoutDashboard, label: "비트벳 공식", href: "/" },
-  { icon: TrendingUp,      label: "마감가 분석", href: "/tasks" },
-  { icon: Hash,            label: "끝자리 분석", href: "/calendar" },
-  { icon: BookOpen,        label: "게임방법",    href: "/analytics" },
   {
     icon: ExternalLink,
     label: "바이낸스",
