@@ -34,6 +34,15 @@ const CHIPS = [
 
 const PAYOUT_RATIO = 1.95
 
+const NEON_LABEL: Record<string, { text: string; color: string; glow: string }> = {
+  long:  { text: "롱",  color: "#00ff88", glow: "rgba(0,255,136,0.4)" },
+  short: { text: "숏",  color: "#ff4d4f", glow: "rgba(255,77,79,0.4)" },
+  over:  { text: "오버", color: "#00e5ff", glow: "rgba(0,229,255,0.4)" },
+  under: { text: "언더", color: "#ff8800", glow: "rgba(255,136,0,0.4)" },
+  odd:   { text: "홀",  color: "#a78bfa", glow: "rgba(167,139,250,0.4)" },
+  even:  { text: "짝",  color: "#f472b6", glow: "rgba(244,114,182,0.4)" },
+}
+
 function getToken(): string | null {
   if (typeof window === "undefined") return null
   try { return localStorage.getItem("app_token") } catch { return null }
@@ -469,7 +478,7 @@ export function NeonBettingGame() {
       setRoundNumber(round)
 
       if (prevRoundRef.current !== null && round !== prevRoundRef.current) {
-        // 정산은 onClosingPrice에서 처리 — 여기선 dialog만 닫음
+        // 정산��� onClosingPrice에서 처리 — 여기선 dialog만 닫음
         try { localStorage.removeItem("game_pending_bet") } catch {}
         setDialog(null)
       }
