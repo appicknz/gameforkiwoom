@@ -19,6 +19,7 @@ interface RoundData {
     bet_direction?: string | null
     bet_digit?: string | null
     bet_parity?: string | null
+    result?: string | null
   }>
 }
 
@@ -70,14 +71,17 @@ export function NeonClosingPrices() {
   const getParityType = (digit: number) => (digit % 2 === 0 ? "짝" : "홀")
 
   const getBetInfo = (roundInfo: RoundData | null) => {
-    if (!roundInfo || !roundInfo.bet_history || roundInfo.bet_history.length === 0) {
-      return { direction: null, digit: null, parity: null }
-    }
-    const bets = roundInfo.bet_history[0]
+    if (!roundInfo?.bet_history?.length) return { direction: null, digit: null, parity: null, directionWon: null, digitWon: null, parityWon: null }
+    const dirRow = roundInfo.bet_history.find(b => b.bet_direction)
+    const digRow = roundInfo.bet_history.find(b => b.bet_digit)
+    const parRow = roundInfo.bet_history.find(b => b.bet_parity)
     return {
-      direction: bets.bet_direction ? (bets.bet_direction === "long" ? "롱" : "숏") : null,
-      digit: bets.bet_digit ? (bets.bet_digit === "over" ? "오버" : "언더") : null,
-      parity: bets.bet_parity ? (bets.bet_parity === "odd" ? "홀" : "짝") : null,
+      direction: dirRow?.bet_direction ? (dirRow.bet_direction === "long" ? "롱" : "숏") : null,
+      digit: digRow?.bet_digit ? (digRow.bet_digit === "over" ? "오버" : "언더") : null,
+      parity: parRow?.bet_parity ? (parRow.bet_parity === "odd" ? "홀" : "짝") : null,
+      directionWon: dirRow ? dirRow.result === "win" : null,
+      digitWon: digRow ? digRow.result === "win" : null,
+      parityWon: parRow ? parRow.result === "win" : null,
     }
   }
 
@@ -102,28 +106,52 @@ export function NeonClosingPrices() {
           const resultDigit = getDigitType(digit)
           const resultParity = getParityType(digit)
 
-          const Tag = ({ label, isBet }: { label: string; isBet: boolean }) => (
-            <span
-              className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
-              style={
-                isBet
-                  ? { background: "#00e87a", color: "#0d1526" }
-                  : { background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }
-              }
-            >
-              {label}
-            </span>
-          )
+          const dirBetMatch = betInfo.direction === resultDirection
+          const digBetMatch = betInfo.digit === resultDigit
+          const parBetMatch = betInfo.parity === resultParity
+
+          const Tag = ({ label, isBet, won }: { label: string; isBet: boolean; won: boolean | null }) => {
+            if (isBet && won !== null) {
+              return (
+                <span
+                  className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                  style={
+                    won
+                      ? { background: "rgba(0,232,122,0.2)", color: "#00e87a" }
+                      : { background: "rgba(255,68,68,0.2)", color: "#ff4444" }
+                  }
+                >
+                  {label}
+                </span>
+              )
+            }
+            if (isBet) {
+              return (
+                <span
+                  className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                  style={{ background: "#00e87a", color: "#0d1526" }}
+                >
+                  {label}
+                </span>
+              )
+            }
+            return (
+              <span
+                className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}
+              >
+                {label}
+              </span>
+            )
+          }
 
           return (
             <div
               key={`${item.time}-${idx}`}
               className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs"
               style={{
-                background: hasBet ? "rgba(0,232,122,0.08)" : "rgba(255,255,255,0.03)",
-                border: hasBet
-                  ? "1px solid rgba(0,232,122,0.2)"
-                  : "1px solid rgba(255,255,255,0.07)",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.07)",
               }}
             >
               {/* 왼쪽: 시간 + 가격 */}
@@ -146,9 +174,9 @@ export function NeonClosingPrices() {
 
               {/* 오른쪽: 롱/숏 · 오버/언더 · 홀/짝 */}
               <div className="flex items-center gap-1 shrink-0">
-                <Tag label={resultDirection ?? "—"} isBet={betInfo.direction === resultDirection} />
-                <Tag label={resultDigit} isBet={betInfo.digit === resultDigit} />
-                <Tag label={resultParity} isBet={betInfo.parity === resultParity} />
+                <Tag label={resultDirection ?? "—"} isBet={dirBetMatch && !!betInfo.direction} won={dirBetMatch && !!betInfo.direction ? betInfo.directionWon : null} />
+                <Tag label={resultDigit} isBet={digBetMatch && !!betInfo.digit} won={digBetMatch && !!betInfo.digit ? betInfo.digitWon : null} />
+                <Tag label={resultParity} isBet={parBetMatch && !!betInfo.parity} won={parBetMatch && !!betInfo.parity ? betInfo.parityWon : null} />
               </div>
             </div>
           )

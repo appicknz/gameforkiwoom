@@ -13,7 +13,7 @@ export async function GET() {
         result_digit,
         started_at,
         ended_at,
-        bet_history(bet_direction, bet_digit, bet_parity)
+        bet_history(bet_direction, bet_digit, bet_parity, result)
       `
       )
       .order("id", { ascending: false })
