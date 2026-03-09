@@ -44,9 +44,9 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
       const data: any[][] = await res.json()
       const candles: CandleData[] = data.map((k) => ({
         time: Math.floor(k[0] / 1000),
-        open: parseFloat(k[4]),  // 라인 차트는 close 값만 사용
-        high: parseFloat(k[4]),
-        low: parseFloat(k[4]),
+        open: parseFloat(k[1]),
+        high: parseFloat(k[2]),
+        low: parseFloat(k[3]),
         close: parseFloat(k[4]),
       }))
       candleMapRef.current.clear()
@@ -92,12 +92,13 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
     })
     chartRef.current = chart
 
-    const series = chart.addLineSeries({
-      color: "#00e87a",
-      lineWidth: 2,
-      crosshairMarkerVisible: true,
-      lastValueVisible: true,
-      priceLineVisible: false,
+    const series = chart.addCandlestickSeries({
+      upColor: "#00e676",
+      downColor: "#ff3d57",
+      borderUpColor: "#00e676",
+      borderDownColor: "#ff3d57",
+      wickUpColor: "#00e676",
+      wickDownColor: "#ff3d57",
     })
     seriesRef.current = series
 
@@ -187,9 +188,9 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
       const existing = candleMapRef.current.get(bucket)
       const candle: CandleData = {
         time: bucket,
-        open: price,  // 라인 차트는 close 값만 사용
-        high: price,
-        low: price,
+        open: existing?.open ?? price,
+        high: existing ? Math.max(existing.high, price) : price,
+        low: existing ? Math.min(existing.low, price) : price,
         close: price,
       }
       candleMapRef.current.set(bucket, candle)
