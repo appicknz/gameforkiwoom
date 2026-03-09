@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { TrendingUp, TrendingDown, Clock, X, RotateCcw } from "lucide-react"
+import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 
 type BetDirection = "long" | "short" | null
@@ -56,17 +56,24 @@ interface BetDialogProps {
   onConfirm: (amount: number) => void
   isLoading: boolean
   balance: number | null
+  locked: boolean
+  lockedAmount: number | null
+  onLockChange: (locked: boolean, amount: number | null) => void
 }
 
-function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance }: BetDialogProps) {
+function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, locked, lockedAmount, onLockChange }: BetDialogProps) {
   const [selectedChip, setSelectedChip] = useState<number | null>(null)
   const [amount, setAmount] = useState(0)
 
-  // 다이얼로그 열릴 때마다 초기화
   useEffect(() => {
     if (open) {
-      setSelectedChip(null)
-      setAmount(0)
+      if (locked && lockedAmount !== null) {
+        setSelectedChip(lockedAmount)
+        setAmount(lockedAmount)
+      } else {
+        setSelectedChip(null)
+        setAmount(0)
+      }
     }
   }, [open])
 
@@ -173,7 +180,15 @@ function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading
             })}
           </div>
 
-          {/* 초기화 + 배팅 버튼 */}
+          {/* 고정 상태 배너 */}
+          {locked && lockedAmount !== null && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-600">
+              <Lock className="w-3 h-3" />
+              배팅 ₩{lockedAmount.toLocaleString()}으로 고정됨
+            </div>
+          )}
+
+          {/* 초기화 + 고정 + 배팅 버튼 */}
           <div className="flex gap-2 pb-safe">
             <button
               onClick={handleReset}
@@ -181,6 +196,24 @@ function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading
             >
               <RotateCcw className="w-3.5 h-3.5" />
               초기화
+            </button>
+            <button
+              onClick={() => {
+                if (locked) {
+                  onLockChange(false, null)
+                } else if (amount > 0) {
+                  onLockChange(true, amount)
+                }
+              }}
+              className="flex items-center justify-center gap-1 px-4 py-3 rounded-xl border transition-all text-sm font-semibold"
+              style={
+                locked
+                  ? { background: "rgba(16,185,129,0.1)", borderColor: "rgba(16,185,129,0.4)", color: "#10b981" }
+                  : { background: "hsl(var(--muted))", borderColor: "transparent", color: "hsl(var(--muted-foreground))" }
+              }
+            >
+              {locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+              {locked ? "해제" : "고정"}
             </button>
             <button
               onClick={() => amount > 0 && onConfirm(amount)}
@@ -411,6 +444,8 @@ export function BettingGame() {
   // 다이얼로그 상태
   const [dialog, setDialog] = useState<{ open: boolean; type: BetType; value: string } | null>(null)
   const [isPlacingBet, setIsPlacingBet] = useState(false)
+  const [locked, setLocked] = useState(false)
+  const [lockedAmount, setLockedAmount] = useState<number | null>(null)
 
   const prevRoundRef = useRef<number | null>(null)
   const betRef = useRef<BetDirection>(null)
@@ -906,6 +941,9 @@ export function BettingGame() {
           onConfirm={handleConfirmBet}
           isLoading={isPlacingBet}
           balance={balance}
+          locked={locked}
+          lockedAmount={lockedAmount}
+          onLockChange={(l, a) => { setLocked(l); setLockedAmount(a) }}
         />
       )}
 

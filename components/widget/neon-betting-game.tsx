@@ -85,22 +85,14 @@ interface BetDialogProps {
   onConfirm: (amount: number) => void
   isLoading: boolean
   balance: number | null
+  locked: boolean
+  lockedAmount: number | null
+  onLockChange: (locked: boolean, amount: number | null) => void
 }
 
-const NEON_LABEL: Record<string, { text: string; color: string; glow: string }> = {
-  long:  { text: "롱",   color: "#00ff88", glow: "rgba(0,255,136,0.4)" },
-  short: { text: "숏",   color: "#ff4444", glow: "rgba(255,68,68,0.4)" },
-  over:  { text: "오버", color: "#ff8800", glow: "rgba(255,136,0,0.4)" },
-  under: { text: "언더", color: "#00aaff", glow: "rgba(0,170,255,0.4)" },
-  odd:   { text: "홀",   color: "#cc88ff", glow: "rgba(200,136,255,0.4)" },
-  even:  { text: "짝",   color: "#ff44bb", glow: "rgba(255,68,187,0.4)" },
-}
-
-function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance }: BetDialogProps) {
+function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, locked, lockedAmount, onLockChange }: BetDialogProps) {
   const [selectedChip, setSelectedChip] = useState<number | null>(null)
   const [amount, setAmount] = useState(0)
-  const [locked, setLocked] = useState(false)
-  const [lockedAmount, setLockedAmount] = useState<number | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -204,11 +196,9 @@ function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
             <button
               onClick={() => {
                 if (locked) {
-                  setLocked(false)
-                  setLockedAmount(null)
+                  onLockChange(false, null)
                 } else if (amount > 0) {
-                  setLocked(true)
-                  setLockedAmount(amount)
+                  onLockChange(true, amount)
                 }
               }}
               className="flex items-center justify-center gap-1 px-4 py-3 rounded-xl border transition-all text-sm font-semibold"
@@ -336,6 +326,8 @@ export function NeonBettingGame() {
   const [showResultSheet, setShowResultSheet] = useState(false)
   const [dialog, setDialog] = useState<{ open: boolean; type: BetType; value: string } | null>(null)
   const [isPlacingBet, setIsPlacingBet] = useState(false)
+  const [locked, setLocked] = useState(false)
+  const [lockedAmount, setLockedAmount] = useState<number | null>(null)
 
   const prevRoundRef = useRef<number | null>(null)
   const betRef = useRef<BetDirection>(null)
@@ -723,12 +715,14 @@ export function NeonBettingGame() {
         </div>
       </div>
 
-      {dialog && (
-        <NeonBetDialog
-          open={dialog.open} betType={dialog.type} selectedValue={dialog.value}
-          onClose={() => setDialog(null)} onConfirm={handleConfirmBet}
-          isLoading={isPlacingBet} balance={balance}
-        />
+  {dialog && (
+  <NeonBetDialog
+  open={dialog.open} betType={dialog.type} selectedValue={dialog.value}
+  onClose={() => setDialog(null)} onConfirm={handleConfirmBet}
+  isLoading={isPlacingBet} balance={balance}
+  locked={locked} lockedAmount={lockedAmount}
+  onLockChange={(l, a) => { setLocked(l); setLockedAmount(a) }}
+  />
       )}
       <NeonResultSheet result={lastResult} open={showResultSheet} onClose={() => setShowResultSheet(false)} />
     </div>
