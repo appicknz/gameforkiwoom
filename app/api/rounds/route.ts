@@ -5,8 +5,18 @@ export async function GET() {
   try {
     const { data: rounds, error } = await admin
       .from("rounds")
-      .select("*")
-      .order("created_at", { ascending: false })
+      .select(
+        `
+        id,
+        base_price,
+        result_price,
+        result_digit,
+        started_at,
+        ended_at,
+        bet_history(bet_direction, bet_digit, bet_parity)
+      `
+      )
+      .order("id", { ascending: false })
       .limit(100)
 
     if (error) throw error
@@ -19,3 +29,4 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch rounds", rounds: [] }, { status: 500 })
   }
 }
+

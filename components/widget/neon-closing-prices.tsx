@@ -15,6 +15,11 @@ interface RoundData {
   result_digit: number
   started_at: string
   ended_at: string
+  bet_history: Array<{
+    bet_direction?: string | null
+    bet_digit?: string | null
+    bet_parity?: string | null
+  }>
 }
 
 export function NeonClosingPrices() {
@@ -64,10 +69,16 @@ export function NeonClosingPrices() {
   const getDigitType = (digit: number) => (digit <= 4 ? "언더" : "오버")
   const getParityType = (digit: number) => (digit % 2 === 0 ? "짝" : "홀")
 
-  const getRoundInfo = (idx: number) => {
-    const roundIndex = closingPrices.length - displayLimit + idx
-    if (roundIndex < 0 || roundIndex >= rounds.length) return null
-    return rounds[roundIndex]
+  const getBetInfo = (roundInfo: RoundData | null) => {
+    if (!roundInfo || !roundInfo.bet_history || roundInfo.bet_history.length === 0) {
+      return { direction: null, digit: null, parity: null }
+    }
+    const bets = roundInfo.bet_history[0]
+    return {
+      direction: bets.bet_direction ? (bets.bet_direction === "long" ? "롱" : "숏") : null,
+      digit: bets.bet_digit ? (bets.bet_digit === "over" ? "오버" : "언더") : null,
+      parity: bets.bet_parity ? (bets.bet_parity === "odd" ? "홀" : "짝") : null,
+    }
   }
 
   return (
@@ -77,11 +88,9 @@ export function NeonClosingPrices() {
       </h3>
       <div className="space-y-2 max-h-96 overflow-y-auto">
         {displayPrices.map((item, idx) => {
-          const digit = getLastDigit(item.price)
-          const digitType = getDigitType(digit)
-          const parityType = getParityType(digit)
-          const roundInfo = getRoundInfo(idx)
+          const roundInfo = rounds[rounds.length - 1 - idx]
           const roundNum = roundInfo ? parseInt(roundInfo.id) : idx + 1
+          const betInfo = getBetInfo(roundInfo)
 
           return (
             <div
@@ -112,33 +121,39 @@ export function NeonClosingPrices() {
               </div>
 
               <div className="flex items-center gap-2">
-                <span
-                  className="px-2 py-1 rounded text-[10px] font-semibold"
-                  style={{
-                    background: "rgba(0,232,122,0.15)",
-                    color: "#00e87a",
-                  }}
-                >
-                  끝자리 {digit}
-                </span>
-                <span
-                  className="px-2 py-1 rounded text-[10px] font-semibold"
-                  style={{
-                    background: "rgba(0,232,122,0.15)",
-                    color: "#00e87a",
-                  }}
-                >
-                  {digitType}
-                </span>
-                <span
-                  className="px-2 py-1 rounded text-[10px] font-semibold"
-                  style={{
-                    background: "rgba(0,232,122,0.15)",
-                    color: "#00e87a",
-                  }}
-                >
-                  {parityType}
-                </span>
+                {betInfo.direction && (
+                  <span
+                    className="px-2 py-1 rounded text-[10px] font-semibold"
+                    style={{
+                      background: "rgba(0,232,122,0.15)",
+                      color: "#00e87a",
+                    }}
+                  >
+                    {betInfo.direction}
+                  </span>
+                )}
+                {betInfo.digit && (
+                  <span
+                    className="px-2 py-1 rounded text-[10px] font-semibold"
+                    style={{
+                      background: "rgba(0,232,122,0.15)",
+                      color: "#00e87a",
+                    }}
+                  >
+                    {betInfo.digit}
+                  </span>
+                )}
+                {betInfo.parity && (
+                  <span
+                    className="px-2 py-1 rounded text-[10px] font-semibold"
+                    style={{
+                      background: "rgba(0,232,122,0.15)",
+                      color: "#00e87a",
+                    }}
+                  >
+                    {betInfo.parity}
+                  </span>
+                )}
               </div>
             </div>
           )
