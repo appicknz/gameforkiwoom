@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react"
 import { NeonBettingGamePari } from "@/components/widget/neon-betting-game-pari"
 import { NeonChart } from "@/components/widget/neon-chart"
-import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
-import { ClosingPrices } from "@/components/dashboard/closing-prices"
+import { NeonClosingPricesBadges } from "@/components/widget/neon-closing-prices-badges"
+import { NeonClosingPrices } from "@/components/widget/neon-closing-prices"
 import { TopBar } from "@/components/dashboard/top-bar"
 
 // /widget2 — 파리뮤추얼 전용 페이지
@@ -103,12 +103,12 @@ export default function Widget2Page() {
           {/* 오른쪽: 끝자리 + 마감가 */}
           <div className="space-y-3">
             <div className="rounded-2xl overflow-hidden"
-              style={{ background: "#0d1526", border: "1px solid rgba(160,100,255,0.12)", boxShadow: "0 0 30px rgba(160,100,255,0.05)" }}>
-              <ClosingPricesBadges />
+              style={{ border: "1px solid rgba(160,100,255,0.2)" }}>
+              <NeonClosingPricesBadges />
             </div>
             <div className="rounded-2xl overflow-hidden"
-              style={{ background: "#0d1526", border: "1px solid rgba(160,100,255,0.12)", boxShadow: "0 0 30px rgba(160,100,255,0.05)" }}>
-              <ClosingPrices />
+              style={{ border: "1px solid rgba(160,100,255,0.2)" }}>
+              <NeonClosingPrices />
             </div>
           </div>
         </div>
