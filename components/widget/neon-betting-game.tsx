@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from "react"
-import { TrendingUp, TrendingDown, X, RotateCcw } from "lucide-react"
+import { TrendingUp, TrendingDown, X, RotateCcw, Lock, Unlock } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 
 type BetDirection = "long" | "short" | null
@@ -99,9 +99,19 @@ const NEON_LABEL: Record<string, { text: string; color: string; glow: string }> 
 function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance }: BetDialogProps) {
   const [selectedChip, setSelectedChip] = useState<number | null>(null)
   const [amount, setAmount] = useState(0)
+  const [locked, setLocked] = useState(false)
+  const [lockedAmount, setLockedAmount] = useState<number | null>(null)
 
   useEffect(() => {
-    if (open) { setSelectedChip(null); setAmount(0) }
+    if (open) {
+      if (locked && lockedAmount !== null) {
+        setSelectedChip(lockedAmount)
+        setAmount(lockedAmount)
+      } else {
+        setSelectedChip(null)
+        setAmount(0)
+      }
+    }
   }, [open])
 
   const meta = selectedValue ? NEON_LABEL[selectedValue] : null
@@ -171,6 +181,17 @@ function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
             })}
           </div>
 
+          {/* 고정 상태 표시 */}
+          {locked && lockedAmount !== null && (
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold"
+              style={{ background: "rgba(0,232,122,0.12)", border: "1px solid rgba(0,232,122,0.3)", color: "#00e87a" }}
+            >
+              <Lock className="w-3 h-3" />
+              배팅 ₩{lockedAmount.toLocaleString()}으로 고정됨
+            </div>
+          )}
+
           <div className="flex gap-2 pb-safe">
             <button
               onClick={() => { setSelectedChip(null); setAmount(0) }}
@@ -178,6 +199,27 @@ function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
             >
               <RotateCcw className="w-3.5 h-3.5" />
               초기화
+            </button>
+            {/* 고정 토글 버튼 */}
+            <button
+              onClick={() => {
+                if (locked) {
+                  setLocked(false)
+                  setLockedAmount(null)
+                } else if (amount > 0) {
+                  setLocked(true)
+                  setLockedAmount(amount)
+                }
+              }}
+              className="flex items-center justify-center gap-1 px-4 py-3 rounded-xl border transition-all text-sm font-semibold"
+              style={
+                locked
+                  ? { background: "rgba(0,232,122,0.15)", borderColor: "rgba(0,232,122,0.5)", color: "#00e87a" }
+                  : { background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }
+              }
+            >
+              {locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+              {locked ? "해제" : "고정"}
             </button>
             <button
               onClick={() => amount > 0 && !insufficient && onConfirm(amount)}
