@@ -80,90 +80,309 @@ function rnd(a: number, b: number) { return a + Math.random() * (b - a) }
 const TWO_PI = Math.PI * 2
 
 // ─── Aircraft Drawings ────────────────────────────────────────────────────────
+// 노즈는 로컬 -Y 방향(위쪽). s = 스케일 단위.
 
-// A: Swept-delta attack jet (compact)
+// A: F-22 Raptor 스타일 — 델타익 쌍발 스텔스 전투기 (missile-a)
 function drawAircraftA(ctx: CanvasRenderingContext2D, s: number) {
+  const EDGE = "#00ff88"; const GLOW = "#00ff88"
+  const DIM  = "rgba(0,255,136,0.22)"
+  ctx.shadowBlur = 0
+
+  // 주날개 — 곡선 델타
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.15, -s * 0.2)
+    ctx.lineTo(side * s * 1.25, s * 0.55)
+    ctx.lineTo(side * s * 0.85, s * 0.68)
+    ctx.lineTo(side * s * 0.15, s * 0.48)
+    ctx.closePath()
+    ctx.fillStyle = "#0d1e10"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.75
+    ctx.shadowBlur = 5; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
+    // 날개 패널 라인
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.38, s * 0.05)
+    ctx.lineTo(side * s * 1.0, s * 0.5)
+    ctx.strokeStyle = DIM; ctx.lineWidth = 0.45; ctx.stroke()
+  }
+
+  // 동체 — 좁고 날카로운 베지어
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.0)           // nose
-  ctx.lineTo(-s * 1.1, s * 0.5)    // left wing tip
-  ctx.lineTo(-s * 0.35, s * 0.25)
-  ctx.lineTo(-s * 0.25, s * 0.75)  // left tail
-  ctx.lineTo(0, s * 0.5)
-  ctx.lineTo(s * 0.25, s * 0.75)
-  ctx.lineTo(s * 0.35, s * 0.25)
-  ctx.lineTo(s * 1.1, s * 0.5)     // right wing tip
+  ctx.moveTo(0, -s * 1.25)
+  ctx.bezierCurveTo(-s*0.07, -s*0.85, -s*0.17, -s*0.35, -s*0.18, s*0.18)
+  ctx.lineTo(-s*0.17, s*0.8)
+  ctx.lineTo(s*0.17, s*0.8)
+  ctx.lineTo(s*0.18, s*0.18)
+  ctx.bezierCurveTo(s*0.17, -s*0.35, s*0.07, -s*0.85, 0, -s*1.25)
   ctx.closePath()
-  ctx.fillStyle = "#1a2e1a"
-  ctx.fill()
-  ctx.strokeStyle = "#00ff88"
-  ctx.lineWidth = 0.8
-  ctx.shadowBlur = 6; ctx.shadowColor = "#00ff88"
-  ctx.stroke()
-  // cockpit
+  ctx.fillStyle = "#0e2010"; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.85
+  ctx.shadowBlur = 6; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
+
+  // 쌍발 수직 미익 (캔티드)
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.11, s * 0.18)
+    ctx.lineTo(side * s * 0.23, -s * 0.28)
+    ctx.lineTo(side * s * 0.33, -s * 0.08)
+    ctx.lineTo(side * s * 0.21, s * 0.42)
+    ctx.closePath()
+    ctx.fillStyle = "#112018"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.65; ctx.stroke()
+  }
+
+  // DSI 흡입구
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.rect(side * s * 0.1, s * 0.02, side > 0 ? s*0.13 : -s*0.13, s*0.3)
+    ctx.fillStyle = "#040c06"; ctx.fill()
+    ctx.strokeStyle = "rgba(0,255,136,0.38)"; ctx.lineWidth = 0.55; ctx.stroke()
+  }
+
+  // 동체 척추선
   ctx.beginPath()
-  ctx.ellipse(0, -s * 0.45, s * 0.12, s * 0.22, 0, 0, TWO_PI)
-  ctx.fillStyle = "rgba(0,200,255,0.35)"
-  ctx.fill()
-  // afterburner
+  ctx.moveTo(0, -s*1.22); ctx.lineTo(0, s*0.8)
+  ctx.strokeStyle = DIM; ctx.lineWidth = 0.4; ctx.stroke()
+
+  // 캐노피
   ctx.beginPath()
-  ctx.arc(0, s * 0.58, s * 0.1, 0, TWO_PI)
-  ctx.fillStyle = "rgba(255,100,0,0.85)"
-  ctx.fill()
+  ctx.ellipse(0, -s*0.62, s*0.095, s*0.25, 0, 0, TWO_PI)
+  ctx.fillStyle = "rgba(0,200,255,0.42)"
+  ctx.strokeStyle = "rgba(0,229,255,0.78)"; ctx.lineWidth = 0.65
+  ctx.fill(); ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(0, -s*0.87); ctx.lineTo(0, -s*0.37)
+  ctx.strokeStyle = "rgba(0,229,255,0.45)"; ctx.lineWidth = 0.45; ctx.stroke()
+
+  // 쌍발 엔진 노즐
+  for (const side of [-1, 1]) {
+    const nx = side * s * 0.085
+    ctx.beginPath()
+    ctx.ellipse(nx, s*0.82, s*0.065, s*0.038, 0, 0, TWO_PI)
+    ctx.fillStyle = "#000a04"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.65; ctx.stroke()
+    // 애프터버너 오렌지
+    ctx.beginPath()
+    ctx.moveTo(nx - s*0.065, s*0.82)
+    ctx.bezierCurveTo(nx - s*0.038, s*1.0, nx + s*0.038, s*1.0, nx + s*0.065, s*0.82)
+    ctx.fillStyle = "rgba(255,100,0,0.9)"; ctx.fill()
+    // 내부 코어 옐로우
+    ctx.beginPath()
+    ctx.moveTo(nx - s*0.035, s*0.84)
+    ctx.bezierCurveTo(nx - s*0.018, s*0.98, nx + s*0.018, s*0.98, nx + s*0.035, s*0.84)
+    ctx.fillStyle = "rgba(255,220,80,0.88)"; ctx.fill()
+  }
+
+  // 무장 하드포인트
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.rect(side * s * 0.55 - s*0.025, s*0.3, s*0.05, s*0.13)
+    ctx.fillStyle = "#1a2e1a"; ctx.fill()
+    ctx.strokeStyle = "rgba(0,255,136,0.28)"; ctx.lineWidth = 0.45; ctx.stroke()
+  }
 }
 
-// B: Twin-engine interceptor (wide fuselage)
+// B: Su-57 Felon 스타일 — LERX·카나드·쌍발 나셀 (missile-b)
 function drawAircraftB(ctx: CanvasRenderingContext2D, s: number) {
-  // fuselage
+  const EDGE = "#00d4ff"; const GLOW = "#00d4ff"
+  const DIM  = "rgba(0,212,255,0.2)"
+  ctx.shadowBlur = 0
+
+  // LERX 스트레이크
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.05, -s * 1.05)
+    ctx.lineTo(side * s * 0.42, -s * 0.18)
+    ctx.lineTo(side * s * 0.26, s * 0.28)
+    ctx.closePath()
+    ctx.fillStyle = "#0a1825"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.65; ctx.stroke()
+  }
+
+  // 동체
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.1)
-  ctx.lineTo(-s * 0.2, -s * 0.3)
-  ctx.lineTo(-s * 0.2, s * 0.7)
-  ctx.lineTo(s * 0.2, s * 0.7)
-  ctx.lineTo(s * 0.2, -s * 0.3)
+  ctx.moveTo(0, -s * 1.25)
+  ctx.bezierCurveTo(-s*0.11, -s*0.55, -s*0.26, -s*0.08, -s*0.27, s*0.38)
+  ctx.lineTo(-s*0.21, s*0.88)
+  ctx.lineTo(s*0.21, s*0.88)
+  ctx.lineTo(s*0.27, s*0.38)
+  ctx.bezierCurveTo(s*0.26, -s*0.08, s*0.11, -s*0.55, 0, -s*1.25)
   ctx.closePath()
-  ctx.fillStyle = "#0e1e2e"
-  ctx.fill()
-  ctx.strokeStyle = "#00d4ff"
-  ctx.lineWidth = 0.8
-  ctx.shadowBlur = 6; ctx.shadowColor = "#00d4ff"
-  ctx.stroke()
-  // swept wings
+  ctx.fillStyle = "#08101e"; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.88
+  ctx.shadowBlur = 7; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
+
+  // 주날개 — 광폭 델타
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.27, -s * 0.02)
+    ctx.lineTo(side * s * 1.38, s * 0.52)
+    ctx.lineTo(side * s * 1.02, s * 0.7)
+    ctx.lineTo(side * s * 0.21, s * 0.58)
+    ctx.closePath()
+    ctx.fillStyle = "#0a1520"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.78
+    ctx.shadowBlur = 5; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
+    // 에일러론 세그먼트
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.68, s * 0.46)
+    ctx.lineTo(side * s * 1.0, s * 0.57)
+    ctx.lineTo(side * s * 1.02, s * 0.7)
+    ctx.lineTo(side * s * 0.7, s * 0.62)
+    ctx.closePath()
+    ctx.fillStyle = "#0d1c2a"; ctx.fill()
+    ctx.strokeStyle = "rgba(0,212,255,0.38)"; ctx.lineWidth = 0.55; ctx.stroke()
+    // 날개 패널선
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.52, s * 0.08)
+    ctx.lineTo(side * s * 1.18, s * 0.52)
+    ctx.strokeStyle = DIM; ctx.lineWidth = 0.45; ctx.stroke()
+  }
+
+  // 카나드
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.21, -s * 0.52)
+    ctx.lineTo(side * s * 0.62, -s * 0.18)
+    ctx.lineTo(side * s * 0.52, -s * 0.04)
+    ctx.lineTo(side * s * 0.27, -s * 0.28)
+    ctx.closePath()
+    ctx.fillStyle = "#0e1e30"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.68; ctx.stroke()
+  }
+
+  // 외향 수직 미익 (splayed)
+  for (const side of [-1, 1]) {
+    ctx.save()
+    ctx.translate(side * s * 0.14, s * 0.22)
+    ctx.rotate(side * 0.17)
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    ctx.lineTo(side * s * 0.21, -s * 0.52)
+    ctx.lineTo(side * s * 0.27, -s * 0.32)
+    ctx.lineTo(side * s * 0.04, s * 0.2)
+    ctx.closePath()
+    ctx.fillStyle = "#0e1e30"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.68; ctx.stroke()
+    ctx.restore()
+  }
+
+  // 분리형 엔진 나셀
+  for (const side of [-1, 1]) {
+    const nx = side * s * 0.105
+    ctx.beginPath()
+    ctx.rect(nx - s*0.085, s*0.48, s*0.17, s*0.34)
+    ctx.fillStyle = "#060e18"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.68; ctx.stroke()
+    // 노즐
+    ctx.beginPath()
+    ctx.ellipse(nx, s*0.84, s*0.085, s*0.048, 0, 0, TWO_PI)
+    ctx.fillStyle = "#02070f"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.75; ctx.stroke()
+    // 애프터버너
+    ctx.beginPath()
+    ctx.moveTo(nx - s*0.085, s*0.84)
+    ctx.bezierCurveTo(nx - s*0.048, s*1.05, nx + s*0.048, s*1.05, nx + s*0.085, s*0.84)
+    ctx.fillStyle = "rgba(255,110,0,0.9)"; ctx.fill()
+    ctx.beginPath()
+    ctx.moveTo(nx - s*0.045, s*0.86)
+    ctx.bezierCurveTo(nx - s*0.022, s*1.02, nx + s*0.022, s*1.02, nx + s*0.045, s*0.86)
+    ctx.fillStyle = "rgba(255,230,100,0.85)"; ctx.fill()
+  }
+
+  // 흡입구
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.rect(side * s * 0.09, s * 0.04, side > 0 ? s*0.2 : -s*0.2, s*0.26)
+    ctx.fillStyle = "#030b12"; ctx.fill()
+    ctx.strokeStyle = "rgba(0,212,255,0.42)"; ctx.lineWidth = 0.65; ctx.stroke()
+  }
+
+  // 캐노피
   ctx.beginPath()
-  ctx.moveTo(-s * 0.2, 0)
-  ctx.lineTo(-s * 1.2, s * 0.55)
-  ctx.lineTo(-s * 0.35, s * 0.4)
-  ctx.moveTo(s * 0.2, 0)
-  ctx.lineTo(s * 1.2, s * 0.55)
-  ctx.lineTo(s * 0.35, s * 0.4)
-  ctx.strokeStyle = "#00d4ff"
-  ctx.lineWidth = 1
-  ctx.stroke()
-  // twin nozzles
+  ctx.ellipse(0, -s*0.65, s*0.12, s*0.27, 0, 0, TWO_PI)
+  ctx.fillStyle = "rgba(0,200,255,0.38)"
+  ctx.strokeStyle = "rgba(0,229,255,0.82)"; ctx.lineWidth = 0.68
+  ctx.fill(); ctx.stroke()
+
+  // 피토관
   ctx.beginPath()
-  ctx.arc(-s * 0.1, s * 0.72, s * 0.07, 0, TWO_PI)
-  ctx.arc(s * 0.1, s * 0.72, s * 0.07, 0, TWO_PI)
-  ctx.fillStyle = "rgba(255,140,0,0.8)"
-  ctx.fill()
+  ctx.moveTo(0, -s*1.25); ctx.lineTo(0, -s*1.52)
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.75; ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(0, -s*1.53, s*0.018, 0, TWO_PI)
+  ctx.fillStyle = EDGE; ctx.fill()
 }
 
-// C: Stealth flying-wing bomber
+// C: B-2 Spirit 스텔스 플라잉윙 (missile-c)
 function drawAircraftC(ctx: CanvasRenderingContext2D, s: number) {
+  const EDGE = "#aaff00"; const GLOW = "#aaff00"
+  const DIM  = "rgba(170,255,0,0.18)"
+  ctx.shadowBlur = 0
+
+  // 블렌디드 플라잉윙 본체
   ctx.beginPath()
-  ctx.moveTo(0, -s * 0.4)
-  ctx.lineTo(-s * 1.4, s * 0.5)
-  ctx.lineTo(-s * 0.6, s * 0.35)
-  ctx.lineTo(-s * 0.15, s * 0.6)
-  ctx.lineTo(0, s * 0.45)
-  ctx.lineTo(s * 0.15, s * 0.6)
-  ctx.lineTo(s * 0.6, s * 0.35)
-  ctx.lineTo(s * 1.4, s * 0.5)
+  ctx.moveTo(0, -s * 0.52)
+  ctx.bezierCurveTo(-s*0.14, -s*0.48, -s*0.52, -s*0.22, -s*0.72, -s*0.04)
+  ctx.lineTo(-s * 1.45, s * 0.36)
+  ctx.bezierCurveTo(-s*1.45, s*0.48, -s*1.25, s*0.53, -s*1.05, s*0.5)
+  ctx.lineTo(-s * 0.68, s * 0.43)
+  ctx.bezierCurveTo(-s*0.48, s*0.58, -s*0.18, s*0.65, -s*0.07, s*0.65)
+  ctx.lineTo(0, s * 0.6)
+  ctx.lineTo(s * 0.07, s * 0.65)
+  ctx.bezierCurveTo(s*0.18, s*0.65, s*0.48, s*0.58, s*0.68, s*0.43)
+  ctx.lineTo(s * 1.05, s * 0.5)
+  ctx.bezierCurveTo(s*1.25, s*0.53, s*1.45, s*0.48, s*1.45, s*0.36)
+  ctx.lineTo(s * 0.72, -s * 0.04)
+  ctx.bezierCurveTo(s*0.52, -s*0.22, s*0.14, -s*0.48, 0, -s*0.52)
   ctx.closePath()
-  ctx.fillStyle = "#151510"
-  ctx.fill()
-  ctx.strokeStyle = "#aaff00"
-  ctx.lineWidth = 0.7
-  ctx.shadowBlur = 5; ctx.shadowColor = "#aaff00"
-  ctx.stroke()
+  ctx.fillStyle = "#101008"; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.78
+  ctx.shadowBlur = 5; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
+
+  // 날개 패널선 4개
+  const panels: [number, number, number, number][] = [
+    [-s*0.32, s*0.08, -s*1.15, s*0.33],
+    [ s*0.32, s*0.08,  s*1.15, s*0.33],
+    [-s*0.52, -s*0.12, -s*0.18, s*0.58],
+    [ s*0.52, -s*0.12,  s*0.18, s*0.58],
+  ]
+  ctx.strokeStyle = DIM; ctx.lineWidth = 0.45
+  for (const [x1,y1,x2,y2] of panels) {
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke()
+  }
+
+  // 크루 험프
+  ctx.beginPath()
+  ctx.ellipse(0, s*0.04, s*0.17, s*0.35, 0, 0, TWO_PI)
+  ctx.fillStyle = "#181808"; ctx.fill()
+  ctx.strokeStyle = "rgba(170,255,0,0.32)"; ctx.lineWidth = 0.55; ctx.stroke()
+
+  // 조종석 창
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.ellipse(side * s * 0.065, -s * 0.25, s * 0.052, s * 0.075, side * 0.14, 0, TWO_PI)
+    ctx.fillStyle = "rgba(0,200,255,0.48)"; ctx.fill()
+    ctx.strokeStyle = "rgba(0,229,255,0.78)"; ctx.lineWidth = 0.48; ctx.stroke()
+  }
+
+  // 4발 배기구 (매립형)
+  for (const ex of [-s*0.36, -s*0.13, s*0.13, s*0.36]) {
+    ctx.beginPath()
+    ctx.ellipse(ex, s*0.52, s*0.065, s*0.028, 0, 0, TWO_PI)
+    ctx.fillStyle = "#050502"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.58; ctx.stroke()
+    ctx.beginPath()
+    ctx.ellipse(ex, s*0.55, s*0.045, s*0.022, 0, 0, TWO_PI)
+    ctx.fillStyle = "rgba(255,100,0,0.68)"; ctx.fill()
+  }
+
+  // W형 후연 톱니
+  ctx.beginPath()
+  ctx.moveTo(-s*0.07, s*0.65)
+  ctx.lineTo(-s*0.035, s*0.7); ctx.lineTo(0, s*0.6)
+  ctx.lineTo(s*0.035, s*0.7); ctx.lineTo(s*0.07, s*0.65)
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.65; ctx.stroke()
 }
 
 // D: Battlecruiser — massive wedge-hull capital ship (Starcraft BC style)
@@ -287,25 +506,86 @@ function drawAircraftD(ctx: CanvasRenderingContext2D, s: number) {
   }
 }
 
-// E: Small patrol scout — tiny diamond
+// E: F-16/MiG-29 단발 경전투기 — patrol
 function drawAircraftE(ctx: CanvasRenderingContext2D, s: number) {
+  const EDGE = "#ff88ff"; const GLOW = "#ff88ff"
+  const DIM  = "rgba(255,136,255,0.2)"
+  ctx.shadowBlur = 0
+
+  // 동체 — 날카로운 베지어
   ctx.beginPath()
-  ctx.moveTo(0, -s * 0.7)
-  ctx.lineTo(-s * 0.5, 0)
-  ctx.lineTo(0, s * 0.7)
-  ctx.lineTo(s * 0.5, 0)
+  ctx.moveTo(0, -s * 1.15)
+  ctx.bezierCurveTo(-s*0.06, -s*0.65, -s*0.14, -s*0.18, -s*0.15, s*0.28)
+  ctx.lineTo(-s*0.13, s*0.78)
+  ctx.lineTo(s*0.13, s*0.78)
+  ctx.lineTo(s*0.15, s*0.28)
+  ctx.bezierCurveTo(s*0.14, -s*0.18, s*0.06, -s*0.65, 0, -s*1.15)
   ctx.closePath()
-  ctx.fillStyle = "#1a1a2e"
-  ctx.fill()
-  ctx.strokeStyle = "#ff88ff"
-  ctx.lineWidth = 0.8
-  ctx.shadowBlur = 5; ctx.shadowColor = "#ff88ff"
-  ctx.stroke()
-  // pulsing center
+  ctx.fillStyle = "#1a0a2e"; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.82
+  ctx.shadowBlur = 6; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
+
+  // 델타 주날개
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.14, -s * 0.08)
+    ctx.lineTo(side * s * 1.05, s * 0.48)
+    ctx.lineTo(side * s * 0.72, s * 0.58)
+    ctx.lineTo(side * s * 0.14, s * 0.4)
+    ctx.closePath()
+    ctx.fillStyle = "#180828"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.72
+    ctx.shadowBlur = 5; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
+    ctx.beginPath()
+    ctx.moveTo(side * s * 0.35, s * 0.08)
+    ctx.lineTo(side * s * 0.85, s * 0.43)
+    ctx.strokeStyle = DIM; ctx.lineWidth = 0.42; ctx.stroke()
+  }
+
+  // 단발 수직 미익
   ctx.beginPath()
-  ctx.arc(0, 0, s * 0.12, 0, TWO_PI)
-  ctx.fillStyle = "#ff88ff"
-  ctx.fill()
+  ctx.moveTo(0, s * 0.08)
+  ctx.lineTo(-s * 0.075, -s * 0.42)
+  ctx.lineTo(s * 0.075, -s * 0.42)
+  ctx.lineTo(s * 0.038, s * 0.28)
+  ctx.closePath()
+  ctx.fillStyle = "#1e0e38"; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.65; ctx.stroke()
+
+  // 턱 흡입구 (chin intake)
+  ctx.beginPath()
+  ctx.ellipse(0, s * 0.1, s * 0.11, s * 0.065, 0, 0, TWO_PI)
+  ctx.fillStyle = "#0a0212"; ctx.fill()
+  ctx.strokeStyle = "rgba(255,136,255,0.42)"; ctx.lineWidth = 0.65; ctx.stroke()
+
+  // 캐노피
+  ctx.beginPath()
+  ctx.ellipse(0, -s * 0.57, s * 0.085, s * 0.19, 0, 0, TWO_PI)
+  ctx.fillStyle = "rgba(160,100,255,0.42)"
+  ctx.strokeStyle = "rgba(255,136,255,0.82)"; ctx.lineWidth = 0.65
+  ctx.fill(); ctx.stroke()
+
+  // 단발 노즐
+  ctx.beginPath()
+  ctx.ellipse(0, s * 0.8, s * 0.095, s * 0.052, 0, 0, TWO_PI)
+  ctx.fillStyle = "#07020e"; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.75; ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(-s*0.095, s*0.8)
+  ctx.bezierCurveTo(-s*0.055, s*0.98, s*0.055, s*0.98, s*0.095, s*0.8)
+  ctx.fillStyle = "rgba(255,100,0,0.9)"; ctx.fill()
+  ctx.beginPath()
+  ctx.moveTo(-s*0.052, s*0.82)
+  ctx.bezierCurveTo(-s*0.028, s*0.96, s*0.028, s*0.96, s*0.052, s*0.82)
+  ctx.fillStyle = "rgba(255,230,120,0.85)"; ctx.fill()
+
+  // 윙팁 미사일
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.rect(side * s * 0.93 - s*0.018, s * 0.36, s * 0.036, s * 0.14)
+    ctx.fillStyle = "#3a1050"; ctx.fill()
+    ctx.strokeStyle = "rgba(255,136,255,0.38)"; ctx.lineWidth = 0.45; ctx.stroke()
+  }
 }
 
 function drawAircraft(
@@ -945,7 +1225,7 @@ export default function RadarOverlay({
         return true
       })
 
-      // ── Update & draw explosions ─────────────────────────────────────
+      // ── Update & draw explosions ──────────────────────��──────────────
       explosionsRef.current = explosionsRef.current.filter((ex) => {
         ex.t = (now - ex.spawnTime) / ex.duration
         if (ex.t >= 1) return false
