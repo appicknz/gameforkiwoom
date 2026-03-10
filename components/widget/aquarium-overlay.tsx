@@ -617,7 +617,7 @@ function getNose(x: number, y: number, heading: number, noseOffset: number) {
   }
 }
 
-// Radar blip — small silhouette for target dot
+// Radar blip — 오묘한 유기체 형태 (삐죽 없음)
 function drawRadarBlip(
   ctx: CanvasRenderingContext2D,
   x: number, y: number,
@@ -627,20 +627,39 @@ function drawRadarBlip(
   ctx.save()
   ctx.translate(x, y)
   ctx.globalAlpha = opacity
-  const s = 5
+
+  const s = 3  // 더 작게
+  const color  = isLocked ? "#ffcc00" : "#bf80ff"
+  const glow   = isLocked ? "#ffaa00" : "#9933ff"
+  const inner  = isLocked ? "rgba(255,200,0,0.18)" : "rgba(160,80,255,0.15)"
+
+  // 외부 헤일로 — 부드러운 원
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.6)
-  ctx.lineTo(-s * 1.1, s * 0.5)
-  ctx.lineTo(-s * 0.4, s * 0.1)
-  ctx.lineTo(0, s * 0.8)
-  ctx.lineTo(s * 0.4, s * 0.1)
-  ctx.lineTo(s * 1.1, s * 0.5)
-  ctx.closePath()
-  ctx.fillStyle = isLocked ? "#ffcc00" : "#00ff44"
-  ctx.fill()
-  ctx.strokeStyle = isLocked ? "#aa8800" : "#008822"
-  ctx.lineWidth = 0.6
-  ctx.stroke()
+  ctx.arc(0, 0, s * 2.8, 0, TWO_PI)
+  ctx.fillStyle = inner; ctx.fill()
+
+  // 중간 링
+  ctx.beginPath()
+  ctx.arc(0, 0, s * 1.6, 0, TWO_PI)
+  ctx.strokeStyle = `${color}55`; ctx.lineWidth = 0.6; ctx.stroke()
+
+  // 핵심 — 작은 타원 (살짝 기울어진 불규칙 느낌)
+  ctx.beginPath()
+  ctx.ellipse(0, 0, s * 0.85, s * 0.6, Math.PI / 5, 0, TWO_PI)
+  ctx.fillStyle = color
+  ctx.shadowBlur = 8; ctx.shadowColor = glow
+  ctx.fill(); ctx.shadowBlur = 0
+
+  // 4방향 희미한 십자 틱
+  for (let i = 0; i < 4; i++) {
+    const angle = (i * Math.PI) / 2
+    const r1 = s * 1.7; const r2 = s * 2.4
+    ctx.beginPath()
+    ctx.moveTo(Math.cos(angle) * r1, Math.sin(angle) * r1)
+    ctx.lineTo(Math.cos(angle) * r2, Math.sin(angle) * r2)
+    ctx.strokeStyle = `${color}66`; ctx.lineWidth = 0.5; ctx.stroke()
+  }
+
   ctx.restore()
 }
 
@@ -687,7 +706,7 @@ export default function RadarOverlay({
     if (canvas.parentElement) ro.observe(canvas.parentElement)
 
     function getDotPos(r: RadarObj) {
-      // basePriceCoord가 있으면 실제 차트 좌표 사용, 없으��� 랜�� 위치
+      // basePriceCoord가 있으면 실제 차트 좌표 사용, 없으����� 랜�� 위치
       const bpc = basePriceCoordRef.current
       if (bpc) {
         return { dx: bpc.x, dy: bpc.y }
@@ -896,7 +915,7 @@ export default function RadarOverlay({
           ctx.stroke()
         }
 
-        // ── Sweep 트레일 ──────────────────────────────────────
+        // ── Sweep 트레일 ─────────────────────────────────────��
         if (r.phase === "spinning") {
           // sweep 통과 시 blip에 hitAt 기록
           for (const blip of r.blips) {
@@ -905,7 +924,7 @@ export default function RadarOverlay({
             let delta = r.angle - blipAngle
             while (delta < 0) delta += TWO_PI
             delta = delta % TWO_PI
-            // sweep 선이 blip 각도를 막 지나쳤을 때 (0~0.15 라디안 이내)
+            // sweep 선이 blip 각도를 막 지나쳤�� 때 (0~0.15 라디안 이내)
             if (delta < 0.15) {
               blip.hitAt = now
             }
@@ -973,13 +992,13 @@ export default function RadarOverlay({
 
           ctx.save()
           ctx.globalAlpha = opacity * blipAlpha
-          // 외부 글로우
-          ctx.beginPath(); ctx.arc(bx, by, blip.size * 2, 0, TWO_PI)
-          ctx.fillStyle = `rgba(0,255,85,0.12)`; ctx.fill()
-          // 핵심 점
-          ctx.beginPath(); ctx.arc(bx, by, blip.size, 0, TWO_PI)
-          ctx.fillStyle = NEON
-          ctx.shadowBlur = 12; ctx.shadowColor = NEON
+          // 외부 헤일로
+          ctx.beginPath(); ctx.arc(bx, by, blip.size * 2.2, 0, TWO_PI)
+          ctx.fillStyle = "rgba(160,80,255,0.1)"; ctx.fill()
+          // 핵심 점 — 보라
+          ctx.beginPath(); ctx.arc(bx, by, blip.size * 0.75, 0, TWO_PI)
+          ctx.fillStyle = "#bf80ff"
+          ctx.shadowBlur = 8; ctx.shadowColor = "#9933ff"
           ctx.fill()
           ctx.shadowBlur = 0
           ctx.restore()
