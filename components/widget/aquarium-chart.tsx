@@ -13,14 +13,14 @@ export function AquariumChart() {
   return (
     <div className="relative">
       <BitcoinChart onBasePriceCoord={handleCoord} />
-      {/* 차트 영역(h-[260px] + padding)에 맞춰 오버레이 위치 조정 */}
+      {/* 차트 영역 오버레이 — 오른쪽 65px(price scale)는 제외해 라벨을 가리지 않음 */}
       <div
         className="absolute pointer-events-none"
         style={{
           // BitcoinChart Card의 padding(p-4 = 16px) + 헤더 영역(약 70px) 아래부터
           top: "86px",
           left: "16px",
-          right: "16px",
+          right: "81px", // 16px(right padding) + 65px(price scale)
           height: "260px",
           borderRadius: "8px",
           overflow: "hidden",
