@@ -39,7 +39,7 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
   const fetchInitialCandles = useCallback(async (): Promise<CandleData[]> => {
     try {
       const res = await fetch(
-        `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=60`
+        `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1s&limit=300`
       )
       const data: any[][] = await res.json()
       const candles: CandleData[] = data.map((k) => ({
@@ -184,7 +184,7 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
   // 모든 사용자 동일 가격 보장 — usePriceWorker 단일 소스
   usePriceWorker({
     onPrice: useCallback((price, time) => {
-      const bucket = time - (time % 60)  // 1분 단위 버킷으로 OHLC 집계
+      const bucket = Math.floor(time)  // 1초 단위 버킷으로 OHLC 집계
       const existing = candleMapRef.current.get(bucket)
       const candle: CandleData = {
         time: bucket,
