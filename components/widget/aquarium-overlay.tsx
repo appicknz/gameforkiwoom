@@ -81,89 +81,272 @@ const TWO_PI = Math.PI * 2
 
 // ─── Aircraft Drawings ────────────────────────────────────────────────────────
 
-// A: Swept-delta attack jet (compact)
+// A: F-22 Raptor style — delta-canard twin-engine stealth fighter
 function drawAircraftA(ctx: CanvasRenderingContext2D, s: number) {
+  const HULL = "#192818"
+  const EDGE = "#00ff88"
+  const GLOW = "#00ff88"
+  ctx.shadowBlur = 0
+
+  // main delta wing body
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.0)           // nose
-  ctx.lineTo(-s * 1.1, s * 0.5)    // left wing tip
-  ctx.lineTo(-s * 0.35, s * 0.25)
-  ctx.lineTo(-s * 0.25, s * 0.75)  // left tail
-  ctx.lineTo(0, s * 0.5)
-  ctx.lineTo(s * 0.25, s * 0.75)
-  ctx.lineTo(s * 0.35, s * 0.25)
-  ctx.lineTo(s * 1.1, s * 0.5)     // right wing tip
+  ctx.moveTo(0, -s)                   // nose tip
+  ctx.bezierCurveTo(-s*0.15, -s*0.6, -s*0.9, s*0.1, -s*1.05, s*0.45)  // left LE
+  ctx.lineTo(-s*0.55, s*0.5)
+  ctx.lineTo(-s*0.28, s*0.72)         // left tail fin root
+  ctx.lineTo(-s*0.1, s*0.62)
+  ctx.lineTo(0, s*0.68)
+  ctx.lineTo(s*0.1, s*0.62)
+  ctx.lineTo(s*0.28, s*0.72)
+  ctx.lineTo(s*0.55, s*0.5)
+  ctx.bezierCurveTo(s*0.9, s*0.1, s*0.15, -s*0.6, 0, -s)   // right LE
   ctx.closePath()
-  ctx.fillStyle = "#1a2e1a"
+  ctx.fillStyle = HULL
   ctx.fill()
-  ctx.strokeStyle = "#00ff88"
-  ctx.lineWidth = 0.8
-  ctx.shadowBlur = 6; ctx.shadowColor = "#00ff88"
-  ctx.stroke()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7
+  ctx.shadowBlur = 5; ctx.shadowColor = GLOW
+  ctx.stroke(); ctx.shadowBlur = 0
+
+  // canard fins (small forward fins)
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.12, -s*0.55)
+    ctx.lineTo(side*s*0.45, -s*0.15)
+    ctx.lineTo(side*s*0.28, -s*0.08)
+    ctx.lineTo(side*s*0.08, -s*0.42)
+    ctx.closePath()
+    ctx.fillStyle = "#223322"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.5; ctx.stroke()
+  }
+
+  // twin canted vertical tails
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.18, s*0.48)
+    ctx.lineTo(side*s*0.38, s*0.3)
+    ctx.lineTo(side*s*0.32, s*0.72)
+    ctx.closePath()
+    ctx.fillStyle = "#1e301e"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.5; ctx.stroke()
+  }
+
+  // fuselage center spine
+  ctx.beginPath()
+  ctx.moveTo(0, -s*0.95); ctx.lineTo(0, s*0.6)
+  ctx.strokeStyle = "rgba(0,255,136,0.2)"; ctx.lineWidth = 0.5; ctx.stroke()
+
+  // cockpit canopy
+  ctx.beginPath()
+  ctx.ellipse(0, -s*0.52, s*0.11, s*0.24, 0, 0, TWO_PI)
+  ctx.fillStyle = "rgba(0,220,255,0.3)"; ctx.fill()
+  ctx.strokeStyle = "rgba(0,220,255,0.6)"; ctx.lineWidth = 0.5; ctx.stroke()
+
+  // engine panel lines
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.07, s*0.2)
+    ctx.lineTo(side*s*0.22, s*0.52)
+    ctx.strokeStyle = "rgba(0,255,136,0.18)"; ctx.lineWidth = 0.5; ctx.stroke()
+  }
+
+  // twin engine nozzles — canted outward
+  for (const side of [-1, 1]) {
+    // nozzle housing
+    ctx.beginPath()
+    ctx.ellipse(side*s*0.13, s*0.72, s*0.075, s*0.055, 0, 0, TWO_PI)
+    ctx.fillStyle = "#0a1a0a"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.5; ctx.stroke()
+    // afterburner glow
+    ctx.beginPath()
+    ctx.ellipse(side*s*0.13, s*0.76, s*0.048, s*0.035, 0, 0, TWO_PI)
+    ctx.fillStyle = "rgba(255,120,0,0.9)"; ctx.fill()
+    ctx.shadowBlur = 8; ctx.shadowColor = "#ff6600"
+    ctx.fill(); ctx.shadowBlur = 0
+    // exhaust plume
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.09, s*0.78)
+    ctx.lineTo(side*s*0.13, s*0.96)
+    ctx.lineTo(side*s*0.17, s*0.78)
+    ctx.fillStyle = "rgba(255,80,0,0.25)"; ctx.fill()
+  }
+
+  // weapon bay hint
+  ctx.beginPath()
+  ctx.rect(-s*0.06, s*0.05, s*0.12, s*0.18)
+  ctx.strokeStyle = "rgba(0,255,136,0.22)"; ctx.lineWidth = 0.4; ctx.stroke()
+}
+
+// B: Su-57 / MiG-style twin-engine heavy fighter
+function drawAircraftB(ctx: CanvasRenderingContext2D, s: number) {
+  const HULL = "#0d1b2a"
+  const EDGE = "#00d4ff"
+  const GLOW = "#00d4ff"
+  ctx.shadowBlur = 0
+
+  // wide LERX (leading edge root extensions)
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(0, -s*0.85)
+    ctx.lineTo(side*s*0.22, -s*0.45)
+    ctx.lineTo(side*s*0.38, s*0.08)
+    ctx.lineTo(side*s*0.2, s*0.12)
+    ctx.lineTo(side*s*0.1, -s*0.38)
+    ctx.closePath()
+    ctx.fillStyle = "#142030"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.5; ctx.stroke()
+  }
+
+  // main fuselage
+  ctx.beginPath()
+  ctx.moveTo(0, -s)                  // nose
+  ctx.lineTo(-s*0.11, -s*0.55)
+  ctx.lineTo(-s*0.13, s*0.55)
+  ctx.lineTo(-s*0.22, s*0.75)
+  ctx.lineTo(0, s*0.82)
+  ctx.lineTo(s*0.22, s*0.75)
+  ctx.lineTo(s*0.13, s*0.55)
+  ctx.lineTo(s*0.11, -s*0.55)
+  ctx.closePath()
+  ctx.fillStyle = HULL; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7
+  ctx.shadowBlur = 5; ctx.shadowColor = GLOW
+  ctx.stroke(); ctx.shadowBlur = 0
+
+  // main swept wings
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.13, -s*0.1)
+    ctx.lineTo(side*s*1.1, s*0.4)
+    ctx.lineTo(side*s*0.85, s*0.52)
+    ctx.lineTo(side*s*0.42, s*0.35)
+    ctx.lineTo(side*s*0.13, s*0.18)
+    ctx.closePath()
+    ctx.fillStyle = "#0d1b2a"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.6; ctx.stroke()
+  }
+
+  // canards
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.12, -s*0.45)
+    ctx.lineTo(side*s*0.5, -s*0.18)
+    ctx.lineTo(side*s*0.35, -s*0.12)
+    ctx.lineTo(side*s*0.1, -s*0.32)
+    ctx.closePath()
+    ctx.fillStyle = "#142030"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.5; ctx.stroke()
+  }
+
+  // twin vertical stabilizers
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.1, s*0.35)
+    ctx.lineTo(side*s*0.28, s*0.05)
+    ctx.lineTo(side*s*0.28, s*0.6)
+    ctx.closePath()
+    ctx.fillStyle = "#0f2030"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.5; ctx.stroke()
+  }
+
   // cockpit
   ctx.beginPath()
-  ctx.ellipse(0, -s * 0.45, s * 0.12, s * 0.22, 0, 0, TWO_PI)
-  ctx.fillStyle = "rgba(0,200,255,0.35)"
-  ctx.fill()
-  // afterburner
-  ctx.beginPath()
-  ctx.arc(0, s * 0.58, s * 0.1, 0, TWO_PI)
-  ctx.fillStyle = "rgba(255,100,0,0.85)"
-  ctx.fill()
+  ctx.ellipse(0, -s*0.58, s*0.085, s*0.2, 0, 0, TWO_PI)
+  ctx.fillStyle = "rgba(0,200,255,0.28)"; ctx.fill()
+  ctx.strokeStyle = "rgba(0,200,255,0.55)"; ctx.lineWidth = 0.5; ctx.stroke()
+
+  // separate engine nacelles
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.15, s*0.3)
+    ctx.lineTo(side*s*0.28, s*0.32)
+    ctx.lineTo(side*s*0.28, s*0.72)
+    ctx.lineTo(side*s*0.15, s*0.75)
+    ctx.closePath()
+    ctx.fillStyle = "#091520"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.5; ctx.stroke()
+    // nozzle
+    ctx.beginPath()
+    ctx.ellipse(side*s*0.215, s*0.74, s*0.062, s*0.045, 0, 0, TWO_PI)
+    ctx.fillStyle = "rgba(255,130,0,0.88)"; ctx.fill()
+    ctx.shadowBlur = 7; ctx.shadowColor = "#ff6000"
+    ctx.fill(); ctx.shadowBlur = 0
+    // plume
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.175, s*0.76)
+    ctx.lineTo(side*s*0.215, s*0.98)
+    ctx.lineTo(side*s*0.255, s*0.76)
+    ctx.fillStyle = "rgba(255,80,0,0.2)"; ctx.fill()
+  }
 }
 
-// B: Twin-engine interceptor (wide fuselage)
-function drawAircraftB(ctx: CanvasRenderingContext2D, s: number) {
-  // fuselage
-  ctx.beginPath()
-  ctx.moveTo(0, -s * 1.1)
-  ctx.lineTo(-s * 0.2, -s * 0.3)
-  ctx.lineTo(-s * 0.2, s * 0.7)
-  ctx.lineTo(s * 0.2, s * 0.7)
-  ctx.lineTo(s * 0.2, -s * 0.3)
-  ctx.closePath()
-  ctx.fillStyle = "#0e1e2e"
-  ctx.fill()
-  ctx.strokeStyle = "#00d4ff"
-  ctx.lineWidth = 0.8
-  ctx.shadowBlur = 6; ctx.shadowColor = "#00d4ff"
-  ctx.stroke()
-  // swept wings
-  ctx.beginPath()
-  ctx.moveTo(-s * 0.2, 0)
-  ctx.lineTo(-s * 1.2, s * 0.55)
-  ctx.lineTo(-s * 0.35, s * 0.4)
-  ctx.moveTo(s * 0.2, 0)
-  ctx.lineTo(s * 1.2, s * 0.55)
-  ctx.lineTo(s * 0.35, s * 0.4)
-  ctx.strokeStyle = "#00d4ff"
-  ctx.lineWidth = 1
-  ctx.stroke()
-  // twin nozzles
-  ctx.beginPath()
-  ctx.arc(-s * 0.1, s * 0.72, s * 0.07, 0, TWO_PI)
-  ctx.arc(s * 0.1, s * 0.72, s * 0.07, 0, TWO_PI)
-  ctx.fillStyle = "rgba(255,140,0,0.8)"
-  ctx.fill()
-}
-
-// C: Stealth flying-wing bomber
+// C: B-2 Spirit stealth bomber — blended flying wing
 function drawAircraftC(ctx: CanvasRenderingContext2D, s: number) {
+  const HULL = "#121210"
+  const EDGE = "#aaff00"
+  const GLOW = "#aaff00"
+  ctx.shadowBlur = 0
+
+  // main blended wing body (smooth bezier)
   ctx.beginPath()
-  ctx.moveTo(0, -s * 0.4)
-  ctx.lineTo(-s * 1.4, s * 0.5)
-  ctx.lineTo(-s * 0.6, s * 0.35)
-  ctx.lineTo(-s * 0.15, s * 0.6)
-  ctx.lineTo(0, s * 0.45)
-  ctx.lineTo(s * 0.15, s * 0.6)
-  ctx.lineTo(s * 0.6, s * 0.35)
-  ctx.lineTo(s * 1.4, s * 0.5)
+  ctx.moveTo(0, -s*0.32)
+  ctx.bezierCurveTo(-s*0.45, -s*0.4, -s*1.1, -s*0.05, -s*1.42, s*0.38)
+  ctx.lineTo(-s*1.1, s*0.45)
+  ctx.bezierCurveTo(-s*0.85, s*0.4, -s*0.55, s*0.52, -s*0.35, s*0.62)
+  ctx.lineTo(-s*0.12, s*0.52)
+  ctx.lineTo(0, s*0.58)
+  ctx.lineTo(s*0.12, s*0.52)
+  ctx.lineTo(s*0.35, s*0.62)
+  ctx.bezierCurveTo(s*0.55, s*0.52, s*0.85, s*0.4, s*1.1, s*0.45)
+  ctx.lineTo(s*1.42, s*0.38)
+  ctx.bezierCurveTo(s*1.1, -s*0.05, s*0.45, -s*0.4, 0, -s*0.32)
   ctx.closePath()
-  ctx.fillStyle = "#151510"
-  ctx.fill()
-  ctx.strokeStyle = "#aaff00"
-  ctx.lineWidth = 0.7
-  ctx.shadowBlur = 5; ctx.shadowColor = "#aaff00"
-  ctx.stroke()
+  ctx.fillStyle = HULL; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7
+  ctx.shadowBlur = 5; ctx.shadowColor = GLOW
+  ctx.stroke(); ctx.shadowBlur = 0
+
+  // panel lines (W-shape trailing edge detail)
+  ctx.beginPath()
+  ctx.moveTo(-s*0.55, s*0.42)
+  ctx.lineTo(-s*0.35, s*0.58)
+  ctx.lineTo(-s*0.12, s*0.48)
+  ctx.lineTo(0, s*0.55)
+  ctx.lineTo(s*0.12, s*0.48)
+  ctx.lineTo(s*0.35, s*0.58)
+  ctx.lineTo(s*0.55, s*0.42)
+  ctx.strokeStyle = "rgba(170,255,0,0.22)"; ctx.lineWidth = 0.5; ctx.stroke()
+
+  // leading edge panel lines
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.22, -s*0.28)
+    ctx.lineTo(side*s*0.88, s*0.18)
+    ctx.strokeStyle = "rgba(170,255,0,0.15)"; ctx.lineWidth = 0.4; ctx.stroke()
+  }
+
+  // crew compartment bump
+  ctx.beginPath()
+  ctx.ellipse(0, s*0.08, s*0.12, s*0.2, 0, 0, TWO_PI)
+  ctx.fillStyle = "#1a1a14"; ctx.fill()
+  ctx.strokeStyle = "rgba(170,255,0,0.35)"; ctx.lineWidth = 0.5; ctx.stroke()
+
+  // cockpit windows
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.ellipse(side*s*0.045, s*0.0, s*0.03, s*0.05, 0.3*side, 0, TWO_PI)
+    ctx.fillStyle = "rgba(0,220,255,0.28)"; ctx.fill()
+  }
+
+  // 4 engine exhausts (2 per side, flush)
+  for (const side of [-1, 1]) {
+    for (const pos of [0.28, 0.5]) {
+      ctx.beginPath()
+      ctx.ellipse(side*s*pos, s*0.44, s*0.055, s*0.035, 0, 0, TWO_PI)
+      ctx.fillStyle = "rgba(255,110,0,0.75)"; ctx.fill()
+      ctx.shadowBlur = 5; ctx.shadowColor = "#ff6000"
+      ctx.fill(); ctx.shadowBlur = 0
+    }
+  }
 }
 
 // D: Battlecruiser — massive wedge-hull capital ship (Starcraft BC style)
@@ -287,25 +470,75 @@ function drawAircraftD(ctx: CanvasRenderingContext2D, s: number) {
   }
 }
 
-// E: Small patrol scout — tiny diamond
+// E: F-16/MiG-29 single-engine light fighter (patrol)
 function drawAircraftE(ctx: CanvasRenderingContext2D, s: number) {
+  const HULL = "#1a1030"
+  const EDGE = "#ff88ff"
+  const GLOW = "#ff88ff"
+  ctx.shadowBlur = 0
+
+  // main fuselage — slim needle
   ctx.beginPath()
-  ctx.moveTo(0, -s * 0.7)
-  ctx.lineTo(-s * 0.5, 0)
-  ctx.lineTo(0, s * 0.7)
-  ctx.lineTo(s * 0.5, 0)
+  ctx.moveTo(0, -s*0.95)             // sharp nose
+  ctx.lineTo(-s*0.08, -s*0.45)
+  ctx.lineTo(-s*0.1, s*0.5)
+  ctx.lineTo(-s*0.16, s*0.72)
+  ctx.lineTo(0, s*0.65)
+  ctx.lineTo(s*0.16, s*0.72)
+  ctx.lineTo(s*0.1, s*0.5)
+  ctx.lineTo(s*0.08, -s*0.45)
   ctx.closePath()
-  ctx.fillStyle = "#1a1a2e"
-  ctx.fill()
-  ctx.strokeStyle = "#ff88ff"
-  ctx.lineWidth = 0.8
-  ctx.shadowBlur = 5; ctx.shadowColor = "#ff88ff"
-  ctx.stroke()
-  // pulsing center
+  ctx.fillStyle = HULL; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.6
+  ctx.shadowBlur = 4; ctx.shadowColor = GLOW
+  ctx.stroke(); ctx.shadowBlur = 0
+
+  // cranked delta wings
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(side*s*0.1, -s*0.05)
+    ctx.lineTo(side*s*0.88, s*0.32)
+    ctx.lineTo(side*s*0.62, s*0.42)
+    ctx.lineTo(side*s*0.12, s*0.22)
+    ctx.closePath()
+    ctx.fillStyle = "#150e28"; ctx.fill()
+    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.55; ctx.stroke()
+  }
+
+  // single vertical stabilizer
   ctx.beginPath()
-  ctx.arc(0, 0, s * 0.12, 0, TWO_PI)
-  ctx.fillStyle = "#ff88ff"
-  ctx.fill()
+  ctx.moveTo(0, s*0.28)
+  ctx.lineTo(-s*0.1, s*0.0)
+  ctx.lineTo(s*0.1, s*0.0)
+  ctx.closePath()
+  ctx.fillStyle = "#1e1240"; ctx.fill()
+  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.5; ctx.stroke()
+
+  // wingtip missiles
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.ellipse(side*s*0.88, s*0.34, s*0.04, s*0.1, 0.15*side, 0, TWO_PI)
+    ctx.fillStyle = "rgba(255,136,255,0.6)"; ctx.fill()
+  }
+
+  // cockpit
+  ctx.beginPath()
+  ctx.ellipse(0, -s*0.55, s*0.07, s*0.17, 0, 0, TWO_PI)
+  ctx.fillStyle = "rgba(180,120,255,0.32)"; ctx.fill()
+  ctx.strokeStyle = "rgba(200,150,255,0.55)"; ctx.lineWidth = 0.4; ctx.stroke()
+
+  // single engine nozzle
+  ctx.beginPath()
+  ctx.ellipse(0, s*0.73, s*0.08, s*0.06, 0, 0, TWO_PI)
+  ctx.fillStyle = "rgba(255,100,0,0.85)"; ctx.fill()
+  ctx.shadowBlur = 6; ctx.shadowColor = "#ff6600"
+  ctx.fill(); ctx.shadowBlur = 0
+  // plume
+  ctx.beginPath()
+  ctx.moveTo(-s*0.05, s*0.76)
+  ctx.lineTo(0, s*0.95)
+  ctx.lineTo(s*0.05, s*0.76)
+  ctx.fillStyle = "rgba(255,80,0,0.22)"; ctx.fill()
 }
 
 function drawAircraft(
@@ -478,8 +711,8 @@ export default function RadarOverlay({
         : role === "laser" ? rnd(80, 130)
         : rnd(45, 95)  // missile jets: slow
 
-      // Small aircraft for patrol (4-9px), others 10-22px
-      const size = role === "patrol" ? rnd(4, 9) : rnd(10, 22)
+      // 부유선(레이더 블립 ~5px)보다 살짝 큰 균일 크기
+      const size = role === "laser" ? rnd(9, 12) : rnd(7, 11)
 
       aircraftRef.current.push({
         id: idRef.current++,
@@ -751,6 +984,22 @@ export default function RadarOverlay({
       // ── Update & draw aircraft ───────────────────────────────────────
       aircraftRef.current = aircraftRef.current.filter((ac) => {
         const radar = radarsRef.current.find(r => r.id === ac.targetId)
+
+        // 캔들 충돌 감지 — basePriceCoord 근처 20px 이내면 폭발
+        const bpc = basePriceCoordRef.current
+        if (bpc && ac.state !== "done") {
+          const distToCandle = Math.hypot(ac.x - bpc.x, ac.y - bpc.y)
+          if (distToCandle < 20) {
+            explosionsRef.current.push({
+              id: idRef.current++,
+              x: ac.x, y: ac.y,
+              t: 0, duration: 600,
+              spawnTime: now,
+              kind: "bang",
+            })
+            return false  // 항공기 제거
+          }
+        }
 
         // Done — fly off screen
         if (ac.state === "done") {
