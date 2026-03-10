@@ -506,86 +506,75 @@ function drawAircraftD(ctx: CanvasRenderingContext2D, s: number) {
   }
 }
 
-// E: F-16/MiG-29 단발 경전투기 — patrol
+// E: StarCraft Observer 스타일 — 구형 정찰 드론 (patrol)
 function drawAircraftE(ctx: CanvasRenderingContext2D, s: number) {
-  const EDGE = "#ff88ff"; const GLOW = "#ff88ff"
-  const DIM  = "rgba(255,136,255,0.2)"
+  const GOLD  = "#ffd700"
+  const GLOW  = "#ffaa00"
+  const DIM   = "rgba(255,215,0,0.22)"
   ctx.shadowBlur = 0
 
-  // 동체 — 날카로운 베지어
+  // 외부 헤일로 (은은한 글로우 링)
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.15)
-  ctx.bezierCurveTo(-s*0.06, -s*0.65, -s*0.14, -s*0.18, -s*0.15, s*0.28)
-  ctx.lineTo(-s*0.13, s*0.78)
-  ctx.lineTo(s*0.13, s*0.78)
-  ctx.lineTo(s*0.15, s*0.28)
-  ctx.bezierCurveTo(s*0.14, -s*0.18, s*0.06, -s*0.65, 0, -s*1.15)
-  ctx.closePath()
-  ctx.fillStyle = "#1a0a2e"; ctx.fill()
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.82
+  ctx.arc(0, 0, s * 1.55, 0, TWO_PI)
+  ctx.fillStyle = "rgba(255,180,0,0.07)"; ctx.fill()
+
+  // 오비탈 링 — 가로로 납작한 타원
+  ctx.beginPath()
+  ctx.ellipse(0, 0, s * 1.3, s * 0.38, 0, 0, TWO_PI)
+  ctx.strokeStyle = `${GOLD}99`; ctx.lineWidth = 0.9
   ctx.shadowBlur = 6; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
 
-  // 델타 주날개
+  // 링 끝단 노브 (좌우)
   for (const side of [-1, 1]) {
     ctx.beginPath()
-    ctx.moveTo(side * s * 0.14, -s * 0.08)
-    ctx.lineTo(side * s * 1.05, s * 0.48)
-    ctx.lineTo(side * s * 0.72, s * 0.58)
-    ctx.lineTo(side * s * 0.14, s * 0.4)
-    ctx.closePath()
-    ctx.fillStyle = "#180828"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.72
-    ctx.shadowBlur = 5; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.35, s * 0.08)
-    ctx.lineTo(side * s * 0.85, s * 0.43)
-    ctx.strokeStyle = DIM; ctx.lineWidth = 0.42; ctx.stroke()
+    ctx.ellipse(side * s * 1.3, 0, s * 0.18, s * 0.12, 0, 0, TWO_PI)
+    ctx.fillStyle = "#2a1a00"; ctx.fill()
+    ctx.strokeStyle = GOLD; ctx.lineWidth = 0.7; ctx.stroke()
   }
 
-  // 단발 수직 미익
+  // 메인 구체 (중심 돔)
   ctx.beginPath()
-  ctx.moveTo(0, s * 0.08)
-  ctx.lineTo(-s * 0.075, -s * 0.42)
-  ctx.lineTo(s * 0.075, -s * 0.42)
-  ctx.lineTo(s * 0.038, s * 0.28)
-  ctx.closePath()
-  ctx.fillStyle = "#1e0e38"; ctx.fill()
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.65; ctx.stroke()
+  ctx.arc(0, 0, s * 0.82, 0, TWO_PI)
+  ctx.fillStyle = "#1a1000"; ctx.fill()
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 0.85
+  ctx.shadowBlur = 8; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
 
-  // 턱 흡입구 (chin intake)
+  // 구체 상단 하이라이트
   ctx.beginPath()
-  ctx.ellipse(0, s * 0.1, s * 0.11, s * 0.065, 0, 0, TWO_PI)
-  ctx.fillStyle = "#0a0212"; ctx.fill()
-  ctx.strokeStyle = "rgba(255,136,255,0.42)"; ctx.lineWidth = 0.65; ctx.stroke()
+  ctx.ellipse(s * -0.18, s * -0.28, s * 0.28, s * 0.18, -0.5, 0, TWO_PI)
+  ctx.fillStyle = "rgba(255,220,80,0.12)"; ctx.fill()
 
-  // 캐노피
+  // 중앙 센서 렌즈
   ctx.beginPath()
-  ctx.ellipse(0, -s * 0.57, s * 0.085, s * 0.19, 0, 0, TWO_PI)
-  ctx.fillStyle = "rgba(160,100,255,0.42)"
-  ctx.strokeStyle = "rgba(255,136,255,0.82)"; ctx.lineWidth = 0.65
-  ctx.fill(); ctx.stroke()
+  ctx.arc(0, 0, s * 0.32, 0, TWO_PI)
+  ctx.fillStyle = "rgba(255,200,0,0.25)"; ctx.fill()
+  ctx.strokeStyle = `${GOLD}cc`; ctx.lineWidth = 0.6; ctx.stroke()
 
-  // 단발 노즐
   ctx.beginPath()
-  ctx.ellipse(0, s * 0.8, s * 0.095, s * 0.052, 0, 0, TWO_PI)
-  ctx.fillStyle = "#07020e"; ctx.fill()
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.75; ctx.stroke()
-  ctx.beginPath()
-  ctx.moveTo(-s*0.095, s*0.8)
-  ctx.bezierCurveTo(-s*0.055, s*0.98, s*0.055, s*0.98, s*0.095, s*0.8)
-  ctx.fillStyle = "rgba(255,100,0,0.9)"; ctx.fill()
-  ctx.beginPath()
-  ctx.moveTo(-s*0.052, s*0.82)
-  ctx.bezierCurveTo(-s*0.028, s*0.96, s*0.028, s*0.96, s*0.052, s*0.82)
-  ctx.fillStyle = "rgba(255,230,120,0.85)"; ctx.fill()
+  ctx.arc(0, 0, s * 0.14, 0, TWO_PI)
+  ctx.fillStyle = GOLD
+  ctx.shadowBlur = 10; ctx.shadowColor = GLOW; ctx.fill(); ctx.shadowBlur = 0
 
-  // 윙팁 미사일
-  for (const side of [-1, 1]) {
+  // 하단 센서 돌기 3개
+  for (let i = -1; i <= 1; i++) {
+    const ox = i * s * 0.32
     ctx.beginPath()
-    ctx.rect(side * s * 0.93 - s*0.018, s * 0.36, s * 0.036, s * 0.14)
-    ctx.fillStyle = "#3a1050"; ctx.fill()
-    ctx.strokeStyle = "rgba(255,136,255,0.38)"; ctx.lineWidth = 0.45; ctx.stroke()
+    ctx.moveTo(ox - s*0.06, s * 0.8)
+    ctx.lineTo(ox, s * 1.1)
+    ctx.lineTo(ox + s*0.06, s * 0.8)
+    ctx.fillStyle = "#1a1000"; ctx.fill()
+    ctx.strokeStyle = DIM; ctx.lineWidth = 0.55; ctx.stroke()
+    // 돌기 끝 점광
+    ctx.beginPath()
+    ctx.arc(ox, s * 1.1, s * 0.055, 0, TWO_PI)
+    ctx.fillStyle = `${GOLD}bb`
+    ctx.shadowBlur = 5; ctx.shadowColor = GLOW; ctx.fill(); ctx.shadowBlur = 0
   }
+
+  // 패널 분할선 (수직)
+  ctx.beginPath()
+  ctx.moveTo(0, -s * 0.82); ctx.lineTo(0, s * 0.82)
+  ctx.strokeStyle = DIM; ctx.lineWidth = 0.4; ctx.stroke()
 }
 
 function drawAircraft(
@@ -777,8 +766,8 @@ export default function RadarOverlay({
         : role === "laser" ? rnd(80, 130)
         : rnd(45, 95)  // missile jets: slow
 
-      // 부유선(blip) 2.5~6px 보다 명확히 큰 균일 크기
-      const size = rnd(13, 16)
+      // patrol(옵저버)은 더 작게, 나머지 전투기는 부유선보다 명확히 크게
+      const size = role === "patrol" ? rnd(5, 7) : rnd(13, 16)
 
       aircraftRef.current.push({
         id: idRef.current++,
