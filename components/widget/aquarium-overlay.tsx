@@ -80,330 +80,90 @@ function rnd(a: number, b: number) { return a + Math.random() * (b - a) }
 const TWO_PI = Math.PI * 2
 
 // ─── Aircraft Drawings ────────────────────────────────────────────────────────
-// All jets: nose points UP (local -Y). Size s is a scale unit.
-// Each design is clearly more detailed than a toy — fuselage, delta wings,
-// canopy, engine intakes, twin nozzles, vertical stabilizers.
 
-// ── Type A: F-22 Raptor style (twin-engine, twin-tail, delta wing) ────────────
+// A: Swept-delta attack jet (compact)
 function drawAircraftA(ctx: CanvasRenderingContext2D, s: number) {
-  const HULL  = "#0e2010"
-  const EDGE  = "#00ff88"
-  const GLOW  = "#00ff88"
-  const DIM   = "rgba(0,255,136,0.25)"
-
-  ctx.shadowBlur = 0
-
-  // === Main fuselage (narrow tapered body) ===
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.3)             // sharp nose tip
-  ctx.bezierCurveTo(-s*0.08, -s*0.9, -s*0.18, -s*0.4, -s*0.2, s*0.2)
-  ctx.lineTo(-s*0.18, s*0.85)
-  ctx.lineTo(s*0.18, s*0.85)
-  ctx.lineTo(s*0.2, s*0.2)
-  ctx.bezierCurveTo(s*0.18, -s*0.4, s*0.08, -s*0.9, 0, -s*1.3)
+  ctx.moveTo(0, -s * 1.0)           // nose
+  ctx.lineTo(-s * 1.1, s * 0.5)    // left wing tip
+  ctx.lineTo(-s * 0.35, s * 0.25)
+  ctx.lineTo(-s * 0.25, s * 0.75)  // left tail
+  ctx.lineTo(0, s * 0.5)
+  ctx.lineTo(s * 0.25, s * 0.75)
+  ctx.lineTo(s * 0.35, s * 0.25)
+  ctx.lineTo(s * 1.1, s * 0.5)     // right wing tip
   ctx.closePath()
-  ctx.fillStyle = HULL; ctx.fill()
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.9
-  ctx.shadowBlur = 6; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
-
-  // === Delta main wings (large, swept back sharply) ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.18, -s * 0.1)   // wing root leading edge
-    ctx.lineTo(side * s * 1.35, s * 0.65)   // outer wing tip
-    ctx.lineTo(side * s * 0.9,  s * 0.75)   // trailing edge outer
-    ctx.lineTo(side * s * 0.18, s * 0.55)   // wing root trailing edge
-    ctx.closePath()
-    ctx.fillStyle = "#0d1e10"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.8
-    ctx.shadowBlur = 5; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
-    // Wing panel line
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.4, s * 0.1)
-    ctx.lineTo(side * s * 1.1, s * 0.6)
-    ctx.strokeStyle = DIM; ctx.lineWidth = 0.5; ctx.stroke()
-  }
-
-  // === Twin canted vertical stabilizers ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.12, s * 0.2)
-    ctx.lineTo(side * s * 0.25, -s * 0.3)
-    ctx.lineTo(side * s * 0.35, -s * 0.1)
-    ctx.lineTo(side * s * 0.22, s * 0.45)
-    ctx.closePath()
-    ctx.fillStyle = "#112018"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7; ctx.stroke()
-  }
-
-  // === Engine air intakes (DSI-style, under fuselage sides) ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.rect(side * s * 0.12, s * 0.0, side > 0 ? s * 0.15 : -s * 0.15, s * 0.35)
-    ctx.fillStyle = "#051008"; ctx.fill()
-    ctx.strokeStyle = "rgba(0,255,136,0.4)"; ctx.lineWidth = 0.6; ctx.stroke()
-    // intake highlight
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.12, s * 0.02)
-    ctx.lineTo(side * s * (0.12 + (side > 0 ? 0.15 : -0.15)), s * 0.02)
-    ctx.strokeStyle = "rgba(0,229,255,0.5)"; ctx.lineWidth = 0.8; ctx.stroke()
-  }
-
-  // === Spine dorsal line ===
+  ctx.fillStyle = "#1a2e1a"
+  ctx.fill()
+  ctx.strokeStyle = "#00ff88"
+  ctx.lineWidth = 0.8
+  ctx.shadowBlur = 6; ctx.shadowColor = "#00ff88"
+  ctx.stroke()
+  // cockpit
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.3); ctx.lineTo(0, s * 0.85)
-  ctx.strokeStyle = DIM; ctx.lineWidth = 0.5; ctx.stroke()
-
-  // === Canopy (bubble, sits on mid fuselage) ===
+  ctx.ellipse(0, -s * 0.45, s * 0.12, s * 0.22, 0, 0, TWO_PI)
+  ctx.fillStyle = "rgba(0,200,255,0.35)"
+  ctx.fill()
+  // afterburner
   ctx.beginPath()
-  ctx.ellipse(0, -s * 0.65, s * 0.1, s * 0.26, 0, 0, TWO_PI)
-  ctx.fillStyle = "rgba(0,200,255,0.45)"
-  ctx.strokeStyle = "rgba(0,229,255,0.8)"; ctx.lineWidth = 0.7
-  ctx.fill(); ctx.stroke()
-  // Canopy frame
-  ctx.beginPath()
-  ctx.moveTo(0, -s * 0.91); ctx.lineTo(0, -s * 0.39)
-  ctx.strokeStyle = "rgba(0,229,255,0.5)"; ctx.lineWidth = 0.5; ctx.stroke()
-
-  // === Twin engine nozzles ===
-  for (const side of [-1, 1]) {
-    const nx = side * s * 0.09
-    // nozzle ring
-    ctx.beginPath()
-    ctx.ellipse(nx, s * 0.86, s * 0.07, s * 0.04, 0, 0, TWO_PI)
-    ctx.fillStyle = "#000a04"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7; ctx.stroke()
-    // afterburner flame
-    ctx.beginPath()
-    ctx.moveTo(nx - s*0.07, s * 0.86)
-    ctx.bezierCurveTo(nx - s*0.04, s*1.05, nx + s*0.04, s*1.05, nx + s*0.07, s*0.86)
-    ctx.fillStyle = "rgba(255,100,0,0.9)"; ctx.fill()
-    // inner glow
-    ctx.beginPath()
-    ctx.moveTo(nx - s*0.04, s * 0.88)
-    ctx.bezierCurveTo(nx - s*0.02, s*1.02, nx + s*0.02, s*1.02, nx + s*0.04, s*0.88)
-    ctx.fillStyle = "rgba(255,220,80,0.9)"; ctx.fill()
-  }
-
-  // === Weapon hardpoints on wing ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.rect(side * s * 0.6 - s*0.03, s * 0.35, s * 0.06, s * 0.15)
-    ctx.fillStyle = "#203020"; ctx.fill()
-    ctx.strokeStyle = "rgba(0,255,136,0.3)"; ctx.lineWidth = 0.5; ctx.stroke()
-  }
+  ctx.arc(0, s * 0.58, s * 0.1, 0, TWO_PI)
+  ctx.fillStyle = "rgba(255,100,0,0.85)"
+  ctx.fill()
 }
 
-// ── Type B: Su-57 Felon style (twin-engine, forward-swept, canards) ───────────
+// B: Twin-engine interceptor (wide fuselage)
 function drawAircraftB(ctx: CanvasRenderingContext2D, s: number) {
-  const HULL  = "#08101e"
-  const EDGE  = "#00d4ff"
-  const GLOW  = "#00d4ff"
-  const DIM   = "rgba(0,212,255,0.2)"
-
-  ctx.shadowBlur = 0
-
-  // === Main fuselage (wide, flattened) ===
+  // fuselage
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.3)               // sharp nose
-  ctx.bezierCurveTo(-s*0.12, -s*0.6, -s*0.28, -s*0.1, -s*0.28, s*0.4)
-  ctx.lineTo(-s*0.22, s*0.9)
-  ctx.lineTo(s*0.22, s*0.9)
-  ctx.lineTo(s*0.28, s*0.4)
-  ctx.bezierCurveTo(s*0.28, -s*0.1, s*0.12, -s*0.6, 0, -s*1.3)
+  ctx.moveTo(0, -s * 1.1)
+  ctx.lineTo(-s * 0.2, -s * 0.3)
+  ctx.lineTo(-s * 0.2, s * 0.7)
+  ctx.lineTo(s * 0.2, s * 0.7)
+  ctx.lineTo(s * 0.2, -s * 0.3)
   ctx.closePath()
-  ctx.fillStyle = HULL; ctx.fill()
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.9
-  ctx.shadowBlur = 7; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
-
-  // === LERX (Leading Edge Root Extensions) — wide chine strakes ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.05, -s * 1.1)
-    ctx.lineTo(side * s * 0.45, -s * 0.2)
-    ctx.lineTo(side * s * 0.28, s * 0.3)
-    ctx.closePath()
-    ctx.fillStyle = "#0a1825"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7; ctx.stroke()
-  }
-
-  // === Main delta wings (very wide) ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.28, -s * 0.0)
-    ctx.lineTo(side * s * 1.4, s * 0.55)
-    ctx.lineTo(side * s * 1.05, s * 0.72)
-    ctx.lineTo(side * s * 0.22, s * 0.6)
-    ctx.closePath()
-    ctx.fillStyle = "#0a1520"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.8
-    ctx.shadowBlur = 5; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
-    // Panel line
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.55, s * 0.1)
-    ctx.lineTo(side * s * 1.2, s * 0.55)
-    ctx.strokeStyle = DIM; ctx.lineWidth = 0.5; ctx.stroke()
-    // Aileron segment
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.7, s * 0.48)
-    ctx.lineTo(side * s * 1.0, s * 0.58)
-    ctx.lineTo(side * s * 1.05, s * 0.72)
-    ctx.lineTo(side * s * 0.72, s * 0.65)
-    ctx.closePath()
-    ctx.fillStyle = "#0d1c2a"; ctx.fill()
-    ctx.strokeStyle = "rgba(0,212,255,0.4)"; ctx.lineWidth = 0.6; ctx.stroke()
-  }
-
-  // === Canards (small forward fins) ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.22, -s * 0.55)
-    ctx.lineTo(side * s * 0.65, -s * 0.2)
-    ctx.lineTo(side * s * 0.55, -s * 0.05)
-    ctx.lineTo(side * s * 0.28, -s * 0.3)
-    ctx.closePath()
-    ctx.fillStyle = "#0e1e30"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7; ctx.stroke()
-  }
-
-  // === Twin vertical tails (splayed outward) ===
-  for (const side of [-1, 1]) {
-    ctx.save()
-    ctx.translate(side * s * 0.15, s * 0.25)
-    ctx.rotate(side * 0.18)
-    ctx.beginPath()
-    ctx.moveTo(0, 0)
-    ctx.lineTo(side * s * 0.22, -s * 0.55)
-    ctx.lineTo(side * s * 0.28, -s * 0.35)
-    ctx.lineTo(side * s * 0.04, s * 0.22)
-    ctx.closePath()
-    ctx.fillStyle = "#0e1e30"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7; ctx.stroke()
-    ctx.restore()
-  }
-
-  // === Twin engine nacelles (prominent on rear) ===
-  for (const side of [-1, 1]) {
-    const nx = side * s * 0.11
-    // nacelle body
-    ctx.beginPath()
-    ctx.rect(nx - s*0.09, s*0.5, s*0.18, s*0.35)
-    ctx.fillStyle = "#060e18"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7; ctx.stroke()
-    // nozzle ring
-    ctx.beginPath()
-    ctx.ellipse(nx, s * 0.87, s * 0.09, s * 0.05, 0, 0, TWO_PI)
-    ctx.fillStyle = "#02070f"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.8; ctx.stroke()
-    // afterburner
-    ctx.beginPath()
-    ctx.moveTo(nx - s*0.09, s*0.87)
-    ctx.bezierCurveTo(nx - s*0.05, s*1.08, nx + s*0.05, s*1.08, nx + s*0.09, s*0.87)
-    ctx.fillStyle = "rgba(255,110,0,0.9)"; ctx.fill()
-    ctx.beginPath()
-    ctx.moveTo(nx - s*0.05, s*0.89)
-    ctx.bezierCurveTo(nx - s*0.025, s*1.05, nx + s*0.025, s*1.05, nx + s*0.05, s*0.89)
-    ctx.fillStyle = "rgba(255,230,100,0.85)"; ctx.fill()
-  }
-
-  // === Intakes (rectangular, LERX-mounted) ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.rect(side * s * 0.1, s * 0.05, side > 0 ? s*0.22 : -s*0.22, s*0.28)
-    ctx.fillStyle = "#030b12"; ctx.fill()
-    ctx.strokeStyle = "rgba(0,212,255,0.45)"; ctx.lineWidth = 0.7; ctx.stroke()
-  }
-
-  // === Canopy ===
+  ctx.fillStyle = "#0e1e2e"
+  ctx.fill()
+  ctx.strokeStyle = "#00d4ff"
+  ctx.lineWidth = 0.8
+  ctx.shadowBlur = 6; ctx.shadowColor = "#00d4ff"
+  ctx.stroke()
+  // swept wings
   ctx.beginPath()
-  ctx.ellipse(0, -s * 0.68, s * 0.13, s * 0.28, 0, 0, TWO_PI)
-  ctx.fillStyle = "rgba(0,200,255,0.4)"
-  ctx.strokeStyle = "rgba(0,229,255,0.85)"; ctx.lineWidth = 0.7
-  ctx.fill(); ctx.stroke()
-
-  // === Nose pitot ===
+  ctx.moveTo(-s * 0.2, 0)
+  ctx.lineTo(-s * 1.2, s * 0.55)
+  ctx.lineTo(-s * 0.35, s * 0.4)
+  ctx.moveTo(s * 0.2, 0)
+  ctx.lineTo(s * 1.2, s * 0.55)
+  ctx.lineTo(s * 0.35, s * 0.4)
+  ctx.strokeStyle = "#00d4ff"
+  ctx.lineWidth = 1
+  ctx.stroke()
+  // twin nozzles
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.3); ctx.lineTo(0, -s * 1.55)
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.8; ctx.stroke()
-  ctx.beginPath()
-  ctx.arc(0, -s * 1.56, s * 0.02, 0, TWO_PI)
-  ctx.fillStyle = EDGE; ctx.fill()
+  ctx.arc(-s * 0.1, s * 0.72, s * 0.07, 0, TWO_PI)
+  ctx.arc(s * 0.1, s * 0.72, s * 0.07, 0, TWO_PI)
+  ctx.fillStyle = "rgba(255,140,0,0.8)"
+  ctx.fill()
 }
 
-// ── Type C: B-2 Spirit style stealth flying wing (no tail, blended body) ─────
+// C: Stealth flying-wing bomber
 function drawAircraftC(ctx: CanvasRenderingContext2D, s: number) {
-  const HULL = "#101008"
-  const EDGE = "#aaff00"
-  const GLOW = "#aaff00"
-  const DIM  = "rgba(170,255,0,0.2)"
-
-  ctx.shadowBlur = 0
-
-  // === Blended flying wing (complex 12-point outline) ===
   ctx.beginPath()
-  ctx.moveTo(0, -s * 0.55)              // nose center
-  ctx.bezierCurveTo(-s*0.15, -s*0.5, -s*0.55, -s*0.25, -s*0.75, -s*0.05)
-  ctx.lineTo(-s * 1.5, s * 0.38)        // far left tip
-  ctx.bezierCurveTo(-s*1.5, s*0.5, -s*1.3, s*0.55, -s*1.1, s*0.52)
-  ctx.lineTo(-s * 0.7, s * 0.45)
-  ctx.bezierCurveTo(-s*0.5, s*0.6, -s*0.2, s*0.68, -s*0.08, s*0.68)
-  ctx.lineTo(0, s * 0.62)               // center trailing notch
-  ctx.lineTo(s * 0.08, s * 0.68)
-  ctx.bezierCurveTo(s*0.2, s*0.68, s*0.5, s*0.6, s*0.7, s*0.45)
-  ctx.lineTo(s * 1.1, s * 0.52)
-  ctx.bezierCurveTo(s*1.3, s*0.55, s*1.5, s*0.5, s*1.5, s*0.38)
-  ctx.lineTo(s * 0.75, -s * 0.05)
-  ctx.bezierCurveTo(s*0.55, -s*0.25, s*0.15, -s*0.5, 0, -s*0.55)
+  ctx.moveTo(0, -s * 0.4)
+  ctx.lineTo(-s * 1.4, s * 0.5)
+  ctx.lineTo(-s * 0.6, s * 0.35)
+  ctx.lineTo(-s * 0.15, s * 0.6)
+  ctx.lineTo(0, s * 0.45)
+  ctx.lineTo(s * 0.15, s * 0.6)
+  ctx.lineTo(s * 0.6, s * 0.35)
+  ctx.lineTo(s * 1.4, s * 0.5)
   ctx.closePath()
-  ctx.fillStyle = HULL; ctx.fill()
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.8
-  ctx.shadowBlur = 5; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
-
-  // === Wing panel lines (sawtooth-edge stealth) ===
-  const panels = [
-    [[-s*0.35, s*0.1], [-s*1.2, s*0.35]],
-    [[s*0.35, s*0.1], [s*1.2, s*0.35]],
-    [[-s*0.55, -s*0.15], [-s*0.2, s*0.6]],
-    [[s*0.55, -s*0.15], [s*0.2, s*0.6]],
-  ]
-  ctx.strokeStyle = DIM; ctx.lineWidth = 0.5
-  for (const [[x1, y1], [x2, y2]] of panels) {
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
-  }
-
-  // === Crew hump (blended fuselage spine) ===
-  ctx.beginPath()
-  ctx.ellipse(0, s*0.05, s*0.18, s*0.38, 0, 0, TWO_PI)
-  ctx.fillStyle = "#181808"; ctx.fill()
-  ctx.strokeStyle = "rgba(170,255,0,0.35)"; ctx.lineWidth = 0.6; ctx.stroke()
-
-  // === Cockpit windows (two side-by-side) ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.ellipse(side * s * 0.07, -s * 0.28, s * 0.055, s * 0.08, side * 0.15, 0, TWO_PI)
-    ctx.fillStyle = "rgba(0,200,255,0.5)"; ctx.fill()
-    ctx.strokeStyle = "rgba(0,229,255,0.8)"; ctx.lineWidth = 0.5; ctx.stroke()
-  }
-
-  // === 4 engine exhausts (embedded in trailing edge) ===
-  const exhaustX = [-s*0.38, -s*0.14, s*0.14, s*0.38]
-  for (const ex of exhaustX) {
-    ctx.beginPath()
-    ctx.ellipse(ex, s * 0.55, s * 0.07, s * 0.03, 0, 0, TWO_PI)
-    ctx.fillStyle = "#050502"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.6; ctx.stroke()
-    // glow
-    ctx.beginPath()
-    ctx.ellipse(ex, s * 0.58, s * 0.05, s * 0.025, 0, 0, TWO_PI)
-    ctx.fillStyle = "rgba(255,100,0,0.7)"; ctx.fill()
-  }
-
-  // === Sawtooth trailing edge markings ===
-  ctx.beginPath()
-  ctx.moveTo(-s*0.08, s*0.68)
-  ctx.lineTo(-s*0.04, s*0.72); ctx.lineTo(0, s*0.62)
-  ctx.lineTo(s*0.04, s*0.72); ctx.lineTo(s*0.08, s*0.68)
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7; ctx.stroke()
+  ctx.fillStyle = "#151510"
+  ctx.fill()
+  ctx.strokeStyle = "#aaff00"
+  ctx.lineWidth = 0.7
+  ctx.shadowBlur = 5; ctx.shadowColor = "#aaff00"
+  ctx.stroke()
 }
 
 // D: Battlecruiser — massive wedge-hull capital ship (Starcraft BC style)
@@ -527,90 +287,25 @@ function drawAircraftD(ctx: CanvasRenderingContext2D, s: number) {
   }
 }
 
-// ── Type E: MiG-29 / F-16 style lightweight patrol fighter ───────────────────
+// E: Small patrol scout — tiny diamond
 function drawAircraftE(ctx: CanvasRenderingContext2D, s: number) {
-  const HULL = "#1a0a2e"
-  const EDGE = "#ff88ff"
-  const GLOW = "#ff88ff"
-  const DIM  = "rgba(255,136,255,0.2)"
-
-  ctx.shadowBlur = 0
-
-  // === Fuselage (narrow, pointed) ===
   ctx.beginPath()
-  ctx.moveTo(0, -s * 1.2)           // sharp nose
-  ctx.bezierCurveTo(-s*0.07, -s*0.7, -s*0.15, -s*0.2, -s*0.16, s*0.3)
-  ctx.lineTo(-s * 0.14, s * 0.8)
-  ctx.lineTo(s * 0.14, s * 0.8)
-  ctx.lineTo(s * 0.16, s * 0.3)
-  ctx.bezierCurveTo(s*0.15, -s*0.2, s*0.07, -s*0.7, 0, -s*1.2)
+  ctx.moveTo(0, -s * 0.7)
+  ctx.lineTo(-s * 0.5, 0)
+  ctx.lineTo(0, s * 0.7)
+  ctx.lineTo(s * 0.5, 0)
   ctx.closePath()
-  ctx.fillStyle = HULL; ctx.fill()
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.85
-  ctx.shadowBlur = 6; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
-
-  // === Delta wings (moderately swept) ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.15, -s * 0.1)
-    ctx.lineTo(side * s * 1.1, s * 0.5)
-    ctx.lineTo(side * s * 0.75, s * 0.6)
-    ctx.lineTo(side * s * 0.15, s * 0.42)
-    ctx.closePath()
-    ctx.fillStyle = "#180828"; ctx.fill()
-    ctx.strokeStyle = EDGE; ctx.lineWidth = 0.75
-    ctx.shadowBlur = 5; ctx.shadowColor = GLOW; ctx.stroke(); ctx.shadowBlur = 0
-    // wing panel
-    ctx.beginPath()
-    ctx.moveTo(side * s * 0.38, s * 0.1)
-    ctx.lineTo(side * s * 0.9, s * 0.45)
-    ctx.strokeStyle = DIM; ctx.lineWidth = 0.5; ctx.stroke()
-  }
-
-  // === Single vertical stabilizer ===
+  ctx.fillStyle = "#1a1a2e"
+  ctx.fill()
+  ctx.strokeStyle = "#ff88ff"
+  ctx.lineWidth = 0.8
+  ctx.shadowBlur = 5; ctx.shadowColor = "#ff88ff"
+  ctx.stroke()
+  // pulsing center
   ctx.beginPath()
-  ctx.moveTo(0, s * 0.1)
-  ctx.lineTo(-s * 0.08, -s * 0.45)
-  ctx.lineTo(s * 0.08, -s * 0.45)
-  ctx.lineTo(s * 0.04, s * 0.3)
-  ctx.closePath()
-  ctx.fillStyle = "#1e0e38"; ctx.fill()
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.7; ctx.stroke()
-
-  // === Intake (chin intake under nose) ===
-  ctx.beginPath()
-  ctx.ellipse(0, s * 0.12, s * 0.12, s * 0.07, 0, 0, TWO_PI)
-  ctx.fillStyle = "#0a0212"; ctx.fill()
-  ctx.strokeStyle = "rgba(255,136,255,0.45)"; ctx.lineWidth = 0.7; ctx.stroke()
-
-  // === Canopy ===
-  ctx.beginPath()
-  ctx.ellipse(0, -s * 0.6, s * 0.09, s * 0.2, 0, 0, TWO_PI)
-  ctx.fillStyle = "rgba(160,100,255,0.45)"
-  ctx.strokeStyle = "rgba(255,136,255,0.85)"; ctx.lineWidth = 0.7
-  ctx.fill(); ctx.stroke()
-
-  // === Single engine nozzle ===
-  ctx.beginPath()
-  ctx.ellipse(0, s * 0.82, s * 0.1, s * 0.055, 0, 0, TWO_PI)
-  ctx.fillStyle = "#07020e"; ctx.fill()
-  ctx.strokeStyle = EDGE; ctx.lineWidth = 0.8; ctx.stroke()
-  ctx.beginPath()
-  ctx.moveTo(-s*0.1, s*0.82)
-  ctx.bezierCurveTo(-s*0.06, s*1.0, s*0.06, s*1.0, s*0.1, s*0.82)
-  ctx.fillStyle = "rgba(255,100,0,0.9)"; ctx.fill()
-  ctx.beginPath()
-  ctx.moveTo(-s*0.055, s*0.84)
-  ctx.bezierCurveTo(-s*0.03, s*0.98, s*0.03, s*0.98, s*0.055, s*0.84)
-  ctx.fillStyle = "rgba(255,230,120,0.85)"; ctx.fill()
-
-  // === Wingtip missiles ===
-  for (const side of [-1, 1]) {
-    ctx.beginPath()
-    ctx.rect(side * s * 0.98 - s*0.02, s * 0.38, s * 0.04, s * 0.16)
-    ctx.fillStyle = "#3a1050"; ctx.fill()
-    ctx.strokeStyle = "rgba(255,136,255,0.4)"; ctx.lineWidth = 0.5; ctx.stroke()
-  }
+  ctx.arc(0, 0, s * 0.12, 0, TWO_PI)
+  ctx.fillStyle = "#ff88ff"
+  ctx.fill()
 }
 
 function drawAircraft(
@@ -669,7 +364,7 @@ function drawRadarBlip(
   ctx.restore()
 }
 
-// ─── Main Component ────────────────────��─���────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function RadarOverlay({
   priceData: _p,
   basePriceCoord,
@@ -783,10 +478,8 @@ export default function RadarOverlay({
         : role === "laser" ? rnd(80, 130)
         : rnd(45, 95)  // missile jets: slow
 
-      // Jets slightly larger than buoy (D ~ 10-22). Patrol smallest, others a bit bigger.
-      const size = role === "patrol" ? rnd(7, 10)
-        : role === "laser" ? rnd(9, 13)
-        : rnd(9, 13)  // missile jets
+      // Small aircraft for patrol (4-9px), others 10-22px
+      const size = role === "patrol" ? rnd(4, 9) : rnd(10, 22)
 
       aircraftRef.current.push({
         id: idRef.current++,
@@ -1059,31 +752,6 @@ export default function RadarOverlay({
       aircraftRef.current = aircraftRef.current.filter((ac) => {
         const radar = radarsRef.current.find(r => r.id === ac.targetId)
 
-        // ── Candle / basePriceLine collision: 전투기가 배팅가 라인을 교차하면 폭파 ──
-        // basePriceCoord.y 기준으로 전투기 중심이 ±size*0.6 이내에 진입하면 폭파
-        const bpc = basePriceCoordRef.current
-        if (bpc && ac.state !== "done") {
-          const distToLine = Math.abs(ac.y - bpc.y)
-          const hitRadius = ac.size * 1.5
-          if (distToLine < hitRadius) {
-            // 폭파 스폰 (큰 bang)
-            explosionsRef.current.push({
-              id: idRef.current++, x: ac.x, y: ac.y,
-              t: 0, duration: 700, spawnTime: now, kind: "bang",
-            })
-            // 추가 파편 폭발 2개
-            for (let fi = 0; fi < 2; fi++) {
-              explosionsRef.current.push({
-                id: idRef.current++,
-                x: ac.x + rnd(-ac.size, ac.size),
-                y: ac.y + rnd(-ac.size * 0.5, ac.size * 0.5),
-                t: 0, duration: 500, spawnTime: now + fi * 80, kind: "bang",
-              })
-            }
-            return false
-          }
-        }
-
         // Done — fly off screen
         if (ac.state === "done") {
           ac.x += ac.vx * dt; ac.y += ac.vy * dt
@@ -1137,22 +805,15 @@ export default function RadarOverlay({
             // Fire laser every 1.6s
             if (now - ac.lastShot > 1600 && ac.shotsFired < 6) {
               const { nx, ny } = getNose(ac.x, ac.y, ac.heading, ac.size * 1.2)
-              // 레이저는 포(노즈)가 향한 방향으로 일직선 — heading 방향 단위벡터 연장
-              // heading은 위(-Y)가 0이고 시계방향이므로: dx = sin(h), dy = -cos(h)
-              const beamLen = Math.max(W, H) * 2
-              const bDx = Math.sin(ac.heading)
-              const bDy = -Math.cos(ac.heading)
-              const beamEndX = nx + bDx * beamLen
-              const beamEndY = ny + bDy * beamLen
               missilesRef.current.push({
                 id: idRef.current++,
                 x: nx, y: ny,
                 vx: 0, vy: 0,
-                tx: radar.cx, ty: radar.cy,
+                tx: dx, ty: dy,
                 radarId: radar.id,
                 kind: "laser-beam",
                 clustered: false,
-                lx: beamEndX, ly: beamEndY,
+                lx: dx, ly: dy,
                 lAlpha: 1.0,
               })
               ac.lastShot = now
@@ -1189,10 +850,9 @@ export default function RadarOverlay({
           const kind: MissileKind =
             ac.role === "missile-a" ? "standard" :
             ac.role === "missile-b" ? "heat" : "cluster"
-          const spd = rnd(150, 380)
-          // 미사일은 레이더 중심(cx, cy)으로 발사
-          const jx = rnd(-8, 8); const jy = rnd(-8, 8)
-          const tx = radar.cx + jx; const ty = radar.cy + jy
+          const spd = rnd(150, 380) // random missile speed
+          const jx = rnd(-15, 15); const jy = rnd(-15, 15)
+          const tx = dx + jx; const ty = dy + jy
           const { nx, ny } = getNose(ac.x, ac.y, ac.heading, ac.size * 1.0)
           const d = Math.hypot(tx - nx, ty - ny)
           missilesRef.current.push({
@@ -1224,27 +884,18 @@ export default function RadarOverlay({
           // Laser beam: instant hit, fade out over 0.3s
           m.lAlpha = (m.lAlpha ?? 1) - dt * 3.3
           if ((m.lAlpha ?? 0) <= 0) {
-            // 히트 판정: 빔 선분(x,y -> lx,ly)과 레이더 중심(tx,ty) 사이 최단 거리
+            // Register hit
             const radar = radarsRef.current.find(r => r.id === m.radarId)
-            if (radar && m.lx !== undefined && m.ly !== undefined) {
-              const bDx = m.lx - m.x; const bDy = m.ly - m.y
-              const bLen2 = bDx * bDx + bDy * bDy
-              const t = bLen2 > 0
-                ? Math.max(0, Math.min(1, ((radar.cx - m.x) * bDx + (radar.cy - m.y) * bDy) / bLen2))
-                : 0
-              const closestX = m.x + t * bDx
-              const closestY = m.y + t * bDy
-              const dist = Math.hypot(closestX - radar.cx, closestY - radar.cy)
-              if (dist < radar.radius * 1.5) {
-                radar.hitCount++
-                explosionsRef.current.push({
-                  id: idRef.current++, x: closestX, y: closestY,
-                  t: 0, duration: 400, spawnTime: now, kind: "laser-hit",
-                })
-                if (radar.hitCount >= 11) {
-                  radarsRef.current = radarsRef.current.filter(r => r.id !== radar.id)
-                  aircraftRef.current.forEach(a => { if (a.targetId === radar.id) a.state = "done" })
-                }
+            if (radar) {
+              radar.hitCount++
+              explosionsRef.current.push({
+                id: idRef.current++, x: m.tx, y: m.ty,
+                t: 0, duration: 400, spawnTime: now, kind: "laser-hit",
+              })
+              if (radar.hitCount >= 11) {
+                // Remove radar and all associated aircraft
+                radarsRef.current = radarsRef.current.filter(r => r.id !== radar.id)
+                aircraftRef.current.forEach(a => { if (a.targetId === radar.id) a.state = "done" })
               }
             }
             return false
@@ -1314,49 +965,16 @@ export default function RadarOverlay({
             ctx.fill()
           }
         } else {
-          // Enhanced explosion: outer ring + inner fireball + debris rays
-          const r1 = ex.t * 32
-          // Outer shockwave ring
+          const r1 = ex.t * 20
           ctx.beginPath(); ctx.arc(ex.x, ex.y, r1, 0, TWO_PI)
-          ctx.strokeStyle = `rgba(255,200,60,${alpha * 0.7})`
-          ctx.lineWidth = 2.5
-          ctx.shadowBlur = 14; ctx.shadowColor = "#ff8800"
-          ctx.stroke(); ctx.shadowBlur = 0
-
-          // Second inner ring
-          if (ex.t < 0.7) {
-            const r2 = ex.t * 20
-            ctx.beginPath(); ctx.arc(ex.x, ex.y, r2, 0, TWO_PI)
-            ctx.strokeStyle = `rgba(255,100,0,${alpha * 0.55})`
-            ctx.lineWidth = 1.5; ctx.stroke()
-          }
-
-          // Fireball core gradient
-          if (ex.t < 0.45) {
-            const rf = (0.45 - ex.t) / 0.45
-            const grd = ctx.createRadialGradient(ex.x, ex.y, 0, ex.x, ex.y, r1 * 0.55)
-            grd.addColorStop(0, `rgba(255,255,200,${rf * 0.95})`)
-            grd.addColorStop(0.35, `rgba(255,180,40,${rf * 0.75})`)
-            grd.addColorStop(0.7, `rgba(255,60,0,${rf * 0.5})`)
-            grd.addColorStop(1, "rgba(255,20,0,0)")
-            ctx.beginPath(); ctx.arc(ex.x, ex.y, r1 * 0.55, 0, TWO_PI)
+          ctx.strokeStyle = `rgba(255,180,60,${alpha * 0.8})`
+          ctx.lineWidth = 2; ctx.stroke()
+          if (ex.t < 0.3) {
+            const grd = ctx.createRadialGradient(ex.x, ex.y, 0, ex.x, ex.y, r1 * 0.6)
+            grd.addColorStop(0, `rgba(255,255,200,${(0.3 - ex.t) / 0.3})`)
+            grd.addColorStop(1, "rgba(255,120,0,0)")
+            ctx.beginPath(); ctx.arc(ex.x, ex.y, r1 * 0.6, 0, TWO_PI)
             ctx.fillStyle = grd; ctx.fill()
-          }
-
-          // Debris sparks (8 rays)
-          if (ex.t < 0.6) {
-            const sparkLen = r1 * 0.9
-            for (let i = 0; i < 8; i++) {
-              const ang = (i / 8) * TWO_PI + ex.t * 2
-              const sx1 = ex.x + Math.cos(ang) * r1 * 0.3
-              const sy1 = ex.y + Math.sin(ang) * r1 * 0.3
-              const sx2 = ex.x + Math.cos(ang) * (r1 * 0.3 + sparkLen * (0.6 - ex.t) / 0.6)
-              const sy2 = ex.y + Math.sin(ang) * (r1 * 0.3 + sparkLen * (0.6 - ex.t) / 0.6)
-              ctx.beginPath()
-              ctx.moveTo(sx1, sy1); ctx.lineTo(sx2, sy2)
-              ctx.strokeStyle = `rgba(255,200,80,${alpha * 0.6})`
-              ctx.lineWidth = 1; ctx.stroke()
-            }
           }
         }
         ctx.restore()
