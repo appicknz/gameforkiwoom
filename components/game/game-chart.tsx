@@ -112,7 +112,12 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
     fetchInitialCandles().then((candles) => {
       if (candles.length > 0 && seriesRef.current) {
         seriesRef.current.setData(candles)
-        chartRef.current?.timeScale().fitContent()
+        // 최근 120초(2분)만 보이도록 설정 — fitContent하면 300개가 1픽셀 이하로 찌그러짐
+        const last = candles[candles.length - 1]
+        chartRef.current?.timeScale().setVisibleRange({
+          from: (last.time - 120) as any,
+          to: (last.time + 10) as any,
+        })
       }
     })
 
