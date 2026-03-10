@@ -8,6 +8,7 @@ interface RadarBlip {
   r: number           // 반지름 비율 0~1
   hitAt: number | null  // sweep이 통과한 타임스탬프 (null=아직 미통과)
   size: number        // 점 크기 (px)
+  createdAt: number   // 생성 타임스탬프 (페이드 아웃 애니메이션용)
 }
 
 interface RadarObj {
@@ -738,6 +739,7 @@ export default function RadarOverlay({
         r: rnd(0.25, 0.9),
         hitAt: null,
         size: rnd(2.5, 6),
+        createdAt: now,  // 생성 시간 기록
       }))
 
       radarsRef.current.push({
@@ -989,14 +991,37 @@ export default function RadarOverlay({
           if (blipAlpha <= 0) continue
 
           ctx.save()
-          ctx.globalAlpha = opacity * blipAlpha
-          // 외부 헤일로
+          // 블립 생성 이후 경과 시간 계산
+          const blipAge = now - blip.createdAt
+          const BLINK_DURATION = 2000    // 2초간 깜빡임
+          const FADE_DURATION = 1500     // 1.5초간 페이드 아웃
+          const TOTAL_LIFETIME = BLINK_DURATION + FADE_DURATION  // 3.5초 총 수명
+          
+          // 수명이 다한 블립은 스킵
+          if (blipAge > TOTAL_LIFETIME) {
+            ctx.restore()
+            continue
+          }
+          
+          let blipOpacity = 1.0
+          if (blipAge > BLINK_DURATION) {
+            // 2초 이후: 페이드 아웃 구간
+            const fadeProgress = (blipAge - BLINK_DURATION) / FADE_DURATION
+            blipOpacity = 1 - fadeProgress  // 1.0 → 0.0으로 감소
+          } else {
+            // 2초 이내: 깜빡임 (0.15초 주기)
+            const blinkPhase = (blipAge % 150) / 150
+            blipOpacity = blinkPhase < 0.5 ? 1.0 : 0.3
+          }
+          
+          ctx.globalAlpha = opacity * blipOpacity
+          // 외부 헤일로 — 빨간색
           ctx.beginPath(); ctx.arc(bx, by, blip.size * 2.2, 0, TWO_PI)
-          ctx.fillStyle = "rgba(160,80,255,0.1)"; ctx.fill()
-          // 핵심 점 — 보라
+          ctx.fillStyle = "rgba(255,50,50,0.12)"; ctx.fill()
+          // 핵심 점 — 빨간색
           ctx.beginPath(); ctx.arc(bx, by, blip.size * 0.75, 0, TWO_PI)
-          ctx.fillStyle = "#bf80ff"
-          ctx.shadowBlur = 8; ctx.shadowColor = "#9933ff"
+          ctx.fillStyle = "#ff3333"
+          ctx.shadowBlur = 8; ctx.shadowColor = "#ff0000"
           ctx.fill()
           ctx.shadowBlur = 0
           ctx.restore()
