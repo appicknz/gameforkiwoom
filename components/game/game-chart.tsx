@@ -184,7 +184,7 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
   // 모든 사용자 동일 가격 보장 — usePriceWorker 단일 소스
   usePriceWorker({
     onPrice: useCallback((price, time) => {
-      const bucket = time - (time % 1)
+      const bucket = time - (time % 60)  // 1분 단위 버킷으로 OHLC 집계
       const existing = candleMapRef.current.get(bucket)
       const candle: CandleData = {
         time: bucket,
