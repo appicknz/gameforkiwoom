@@ -687,7 +687,7 @@ export default function RadarOverlay({
     if (canvas.parentElement) ro.observe(canvas.parentElement)
 
     function getDotPos(r: RadarObj) {
-      // basePriceCoord가 있으면 실제 차트 좌표 사용, 없으면 랜�� 위치
+      // basePriceCoord가 있으면 실제 차트 좌표 사용, 없으��� 랜�� 위치
       const bpc = basePriceCoordRef.current
       if (bpc) {
         return { dx: bpc.x, dy: bpc.y }
@@ -758,8 +758,8 @@ export default function RadarOverlay({
         : role === "laser" ? rnd(80, 130)
         : rnd(45, 95)  // missile jets: slow
 
-      // 부유선(blip) 2.5~6px 보다 약간 큰 균일 크기
-      const size = rnd(7, 9)
+      // 부유선(blip) 2.5~6px 보다 명확히 큰 균일 크기
+      const size = rnd(13, 16)
 
       aircraftRef.current.push({
         id: idRef.current++,
