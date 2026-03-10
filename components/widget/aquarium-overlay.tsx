@@ -1085,15 +1085,16 @@ export default function RadarOverlay({
             // Fire laser every 1.6s
             if (now - ac.lastShot > 1600 && ac.shotsFired < 6) {
               const { nx, ny } = getNose(ac.x, ac.y, ac.heading, ac.size * 1.2)
+              // 레이저도 레이더 근원지(cx, cy)를 향해 발사
               missilesRef.current.push({
                 id: idRef.current++,
                 x: nx, y: ny,
                 vx: 0, vy: 0,
-                tx: dx, ty: dy,
+                tx: radar.cx, ty: radar.cy,
                 radarId: radar.id,
                 kind: "laser-beam",
                 clustered: false,
-                lx: dx, ly: dy,
+                lx: radar.cx, ly: radar.cy,
                 lAlpha: 1.0,
               })
               ac.lastShot = now
@@ -1130,9 +1131,10 @@ export default function RadarOverlay({
           const kind: MissileKind =
             ac.role === "missile-a" ? "standard" :
             ac.role === "missile-b" ? "heat" : "cluster"
-          const spd = rnd(150, 380) // random missile speed
-          const jx = rnd(-15, 15); const jy = rnd(-15, 15)
-          const tx = dx + jx; const ty = dy + jy
+          const spd = rnd(150, 380)
+          // 레이더 근원지(cx, cy)를 향해 발사, 약간의 지터 추가
+          const jx = rnd(-8, 8); const jy = rnd(-8, 8)
+          const tx = radar.cx + jx; const ty = radar.cy + jy
           const { nx, ny } = getNose(ac.x, ac.y, ac.heading, ac.size * 1.0)
           const d = Math.hypot(tx - nx, ty - ny)
           missilesRef.current.push({
