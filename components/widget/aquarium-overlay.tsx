@@ -669,7 +669,7 @@ function drawRadarBlip(
   ctx.restore()
 }
 
-// ─── Main Component ────────────────────��─���────────────────────────────────────
+// ─── Main Component ────────────────────���─���────────────────────────────────────
 export default function RadarOverlay({
   priceData: _p,
   basePriceCoord,
@@ -1382,3 +1382,4 @@ export default function RadarOverlay({
 }
 
 export { RadarOverlay as AquariumOverlay }
+export default RadarOverlay
