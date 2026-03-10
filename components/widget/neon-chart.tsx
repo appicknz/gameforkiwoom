@@ -23,10 +23,10 @@ export function NeonChart() {
         <GameChart onBasePriceCoord={handleCoord} />
       </div>
 
-      {/* 레이더/전투기 오버레이 — 오른쪽 price scale(약 65px)은 제외해 라벨을 가리지 않음 */}
+      {/* 레이더/전투기 오버레이 */}
       <div
-        className="absolute top-0 left-0 bottom-0 pointer-events-none z-10"
-        style={{ height: "260px", right: "65px", overflow: "hidden" }}
+        className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none z-10"
+        style={{ height: "260px" }}
       >
         <AquariumOverlay basePriceCoord={basePriceCoord} />
       </div>

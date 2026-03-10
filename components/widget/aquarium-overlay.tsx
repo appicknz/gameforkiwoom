@@ -584,7 +584,16 @@ function drawAircraft(
   size: number,
   role: AircraftRole,
 ) {
+  // 오른쪽 price scale 영역(약 65px)에 들어가는 전투기는 투명도 감소
+  const priceScaleX = ctx.canvas.width - 65
+  let alpha = 1.0
+  if (x > priceScaleX) {
+    // x가 priceScaleX를 넘어가면서 점진적으로 투명
+    alpha = Math.max(0, 1 - (x - priceScaleX) / 40)
+  }
+
   ctx.save()
+  ctx.globalAlpha = alpha
   ctx.translate(x, y)
   ctx.rotate(heading)
   ctx.shadowBlur = 0
