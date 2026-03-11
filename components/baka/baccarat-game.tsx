@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type Suit = "♠" | "♥" | "♦" | "♣"
@@ -163,7 +163,14 @@ export default function BaccaratGame() {
   const dealingRef = useRef(false)
   const priceRef = useRef(0)
 
-  // ─── 가격 수신 — window.__bitcoinCurrentPrice 폴링 ("/" 경로와 동일 방식) ──
+  // ─── 가격 수신 — usePriceWorker로 window.__bitcoinCurrentPrice 채우기 ("/", "/widget" 동일 방식) ──
+  usePriceWorker({
+    onPrice: useCallback((price: number) => {
+      ;(window as any).__bitcoinCurrentPrice = price
+    }, []),
+  })
+
+  // window.__bitcoinCurrentPrice 폴링 — 카드용 digit 큐 + priceDisplay 업데이트
   const lastPriceRef = useRef<number | null>(null)
   useEffect(() => {
     const win = window as any
