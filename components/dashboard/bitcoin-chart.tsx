@@ -61,19 +61,6 @@ export function BitcoinChart() {
   const [interval, setIntervalState] = useState<Interval>("1s")
   const [closingPrices, setClosingPrices] = useState<Array<{ time: number; price: number }>>([])
 
-  // 바카라 카드 오버레이 state (window.__baccaratCards 폴링)
-  const [bacCards, setBacCards] = useState<{
-    playerCards: any[], bankerCards: any[], pScore: number, bScore: number, result: string | null, phase: string
-  } | null>(null)
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      const win = window as any
-      if (win.__baccaratCards) setBacCards({ ...win.__baccaratCards })
-    }, 250)
-    return () => clearInterval(t)
-  }, [])
-
   // 선택된 interval의 seconds를 ref로 유지해 콜백 클로저에서 최신값 사용
   const intervalSecondsRef = useRef(INTERVAL_CONFIG["1s"].seconds)
   useEffect(() => {
@@ -272,69 +259,6 @@ export function BitcoinChart() {
       <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
         <div ref={chartContainerRef} className="w-full h-full" />
 
-        {/* 바카라 카드 오버레이 (차트 위 중앙, z-20) */}
-        {bacCards && (bacCards.playerCards.length > 0 || bacCards.bankerCards.length > 0) && (
-          <div
-            className="absolute inset-0 pointer-events-none z-20 flex flex-col items-center justify-start gap-1.5 pt-2"
-          >
-            {(["banker", "player"] as const).map((side) => {
-              const cards = side === "banker" ? bacCards.bankerCards : bacCards.playerCards
-              const score = side === "banker" ? bacCards.bScore : bacCards.pScore
-              const label = side === "banker" ? "BANKER" : "PLAYER"
-              const accent = side === "banker" ? "#ef4444" : "#3b82f6"
-              const isWinner = bacCards.result === side
-              return (
-                <div
-                  key={side}
-                  style={{
-                    borderRadius: 8, border: `1px solid ${isWinner ? accent + "99" : "rgba(212,175,55,0.2)"}`,
-                    background: isWinner ? `${accent}15` : "rgba(9,8,10,0.82)",
-                    backdropFilter: "blur(6px)",
-                    padding: "5px 8px",
-                    boxShadow: isWinner ? `0 0 14px ${accent}30` : "0 2px 8px rgba(0,0,0,0.5)",
-                    display: "flex", alignItems: "center", gap: 8, minWidth: 120,
-                  }}
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 48 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: accent }}>{label}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      {isWinner && <span style={{ fontSize: 8, background: accent, color: "#fff", padding: "1px 4px", borderRadius: 2, fontWeight: 700 }}>WIN</span>}
-                      {cards.length > 0 && <span style={{ fontSize: 14, fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1 }}>{score}</span>}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {cards.map((card: any) => {
-                      const isRed = card.suit === "♥" || card.suit === "♦"
-                      return (
-                        <div key={card.id} style={{
-                          width: 28, height: 40, borderRadius: 5,
-                          background: "linear-gradient(145deg, #1c1408, #12100a)",
-                          border: "1px solid rgba(212,175,55,0.4)",
-                          display: "flex", flexDirection: "column", justifyContent: "space-between",
-                          padding: "2px 3px",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
-                          animation: "cardDeal 0.35s ease forwards",
-                        }}>
-                          <div style={{ fontSize: 8, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>{card.label}<span style={{ fontSize: 7 }}>{card.suit}</span></div>
-                          <div style={{ fontSize: 13, textAlign: "center", color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>{card.suit}</div>
-                          <div style={{ fontSize: 8, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>{card.label}</div>
-                        </div>
-                      )
-                    })}
-                    {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => (
-                      <div key={i} style={{
-                        width: 28, height: 40, borderRadius: 5,
-                        border: "1px dashed rgba(212,175,55,0.15)",
-                        background: "rgba(255,255,255,0.02)",
-                      }} />
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
         {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래, 시간 위) */}
         {ticker && (
           <div className="absolute bottom-8 left-2 bg-background/75 backdrop-blur-sm px-2 py-1 rounded border border-border/40 text-[10px] text-muted-foreground z-10">
@@ -343,7 +267,6 @@ export function BitcoinChart() {
           </div>
         )}
       </div>
-      <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>
     </Card>
   )
 }
