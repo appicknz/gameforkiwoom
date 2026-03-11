@@ -143,8 +143,12 @@ function PlayingCard({
   )
 }
 
+interface BaccaratGameProps {
+  onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"] }) => void
+}
+
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame() {
+export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
@@ -309,6 +313,11 @@ export default function BaccaratGame() {
   const pScore = handScore(state.playerCards)
   const bScore = handScore(state.bankerCards)
   const lastDigit = Math.floor(state.priceDisplay) % 10
+
+  // 카드 상태를 부모로 전달 (차트 오버레이용)
+  useEffect(() => {
+    onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result })
+  }, [state.playerCards, state.bankerCards, state.result, pScore, bScore, onCardsChange])
 
   return (
     <div
