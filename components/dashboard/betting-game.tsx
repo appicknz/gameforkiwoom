@@ -5,6 +5,11 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp, Shuffle } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+import {
+  digitToCard, handScore, shouldPlayerDraw, shouldBankerDraw, BAC_PAYOUT,
+  type BacCard, type BacBetSide, type BacResult, type BacRoundResult,
+} from "@/components/baka/baccarat-utils"
+import BaccaratRoad from "@/components/baka/baccarat-road"
 
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
@@ -495,6 +500,21 @@ export function BettingGame() {
     return Math.floor(now / 30)
   }, [])
 
+  // ── 바카라 state ──────────────────────────────────────────────────────────
+  const [bacBet, setBacBet] = useState<BacBetSide>(null)
+  const [bacBetAmount, setBacBetAmount] = useState(0)
+  const [bacPlayerCards, setBacPlayerCards] = useState<BacCard[]>([])
+  const [bacBankerCards, setBacBankerCards] = useState<BacCard[]>([])
+  const [bacPhase, setBacPhase] = useState<"betting" | "dealing" | "result">("betting")
+  const [bacResult, setBacResult] = useState<BacResult | null>(null)
+  const [bacHistory, setBacHistory] = useState<BacResult[]>([])
+  const [bacLastResult, setBacLastResult] = useState<BacRoundResult | null>(null)
+  const [showBacResult, setShowBacResult] = useState(false)
+  const bacBetRef = useRef<BacBetSide>(null)
+  const bacBetAmountRef = useRef(0)
+  const bacDigitQueueRef = useRef<number[]>([])
+  const bacDealingRef = useRef(false)
+
   // 새로고침 대비: localStorage에서 이전 배팅 복원 (getRoundNumber 이후에 위치해야 함)
   useEffect(() => {
     try {
@@ -547,6 +567,10 @@ export function BettingGame() {
     onPrice: useCallback((price: number) => {
       setCurrentPrice(price)
       currentPriceRef.current = price
+      // 바카라용 끝자리 큐 (최대 20개)
+      const digit = Math.floor(price) % 10
+      bacDigitQueueRef.current.push(digit)
+      if (bacDigitQueueRef.current.length > 20) bacDigitQueueRef.current.shift()
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
       // 새 30초봉 마감가 도착 — 배열에 추가
@@ -631,6 +655,120 @@ export function BettingGame() {
       setDialog(null)
       setTimeout(() => setPhase("betting"), 1500)
       try { localStorage.removeItem("game_pending_bet") } catch {}
+
+      // ── 바카라 딜 (30초봉 마감마다 자동 실행) ──
+      if (bacDealingRef.current) return
+      bacDealingRef.current = true
+
+      const queue = [...bacDigitQueueRef.current]
+      bacDigitQueueRef.current = []
+
+      // 카드 4장 최소 필요 (부족하면 가격에서 추가 생성)
+      while (queue.length < 6) queue.unshift(Math.floor(Math.random() * 10))
+
+      const p1 = digitToCard(queue[0], 0)
+      const b1 = digitToCard(queue[1], 1)
+      const p2 = digitToCard(queue[2], 2)
+      const b2 = digitToCard(queue[3], 3)
+
+      const initP = [p1, p2]
+      const initB = [b1, b2]
+      let pCards = initP
+      let bCards = initB
+      let pThird: BacCard | null = null
+
+      const ps0 = handScore(initP)
+      const bs0 = handScore(initB)
+
+      // 내추럴 (8,9) 체크
+      const natural = ps0 >= 8 || bs0 >= 8
+
+      if (!natural) {
+        if (shouldPlayerDraw(ps0)) {
+          pThird = digitToCard(queue[4] ?? Math.floor(Math.random() * 10), 4)
+          pCards = [...initP, pThird]
+        }
+        if (shouldBankerDraw(bs0, pThird)) {
+          const bThird = digitToCard(queue[5] ?? Math.floor(Math.random() * 10), 5)
+          bCards = [...initB, bThird]
+        }
+      }
+
+      const finalP = handScore(pCards)
+      const finalB = handScore(bCards)
+      const bacRes: BacResult = finalP > finalB ? "player" : finalB > finalP ? "banker" : "tie"
+
+      // 애니메이션 딜 (순차적으로)
+      const dealSequence = [
+        () => setBacPlayerCards([pCards[0]]),
+        () => setBacBankerCards([bCards[0]]),
+        () => setBacPlayerCards(pCards.slice(0, 2)),
+        () => setBacBankerCards(bCards.slice(0, 2)),
+        () => { if (pCards.length > 2) setBacPlayerCards(pCards) },
+        () => { if (bCards.length > 2) setBacBankerCards(bCards) },
+      ]
+
+      setBacPhase("dealing")
+      setBacPlayerCards([])
+      setBacBankerCards([])
+
+      dealSequence.forEach((fn, i) => setTimeout(fn, i * 380))
+
+      setTimeout(() => {
+        setBacResult(bacRes)
+        setBacPhase("result")
+        setBacHistory(prev => [...prev, bacRes])
+
+        const bet = bacBetRef.current
+        const betAmt = bacBetAmountRef.current
+        const won = bet === bacRes
+        const isTieWin = bet === "tie" && bacRes === "tie"
+        const payout = (won || isTieWin) ? Math.floor(betAmt * BAC_PAYOUT[bet!]) - betAmt : 0
+        const net = won ? payout : -betAmt
+
+        // 잔고 정산
+        if (bet && betAmt > 0) {
+          const token = getToken()
+          if (token) {
+            fetch("/api/user/game/play", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                basePrice: price, closePrice: price,
+                bets: { baccarat: bet, baccaratAmount: betAmt },
+              }),
+            })
+              .then(r => r.json())
+              .then(data => {
+                if (typeof data.newBalance === "number") {
+                  setBalance(data.newBalance)
+                  window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance }))
+                }
+              })
+              .catch(() => {
+                // fallback: 로컬에서 정산
+                setBalance(prev => prev !== null ? prev + net : null)
+                window.dispatchEvent(new CustomEvent("balance:update", { detail: (balance ?? 0) + net }))
+              })
+          }
+        }
+
+        const roundResult: BacRoundResult = {
+          round: roundRef.current, result: bacRes,
+          playerCards: pCards, bankerCards: bCards,
+          pScore: finalP, bScore: finalB,
+          bet, betAmount: betAmt, won: won || isTieWin, payout,
+        }
+        setBacLastResult(roundResult)
+        setShowBacResult(true)
+
+        // 초기화
+        bacBetRef.current = null; bacBetAmountRef.current = 0
+        setBacBet(null); setBacBetAmount(0)
+        bacDealingRef.current = false
+
+        setTimeout(() => setBacPhase("betting"), 3000)
+      }, dealSequence.length * 380 + 200)
     }, []),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
       closingPricesRef.current = prices
@@ -767,6 +905,45 @@ export function BettingGame() {
     }
   }, [canBet])
 
+  // 바카라 배팅 핸들러
+  const handleBacBet = async (side: "player" | "banker" | "tie") => {
+    if (!canBet || bacBet !== null || bacPhase !== "betting") return
+    const token = getToken()
+    if (!token || balance === null || balance < 10000) return
+    const amount = lockedAmount ?? 10000
+
+    try {
+      const res = await fetch("/api/user/game/bet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ betAmount: amount }),
+      })
+      const data = await res.json()
+      if (!res.ok) return
+      if (typeof data.newBalance === "number") {
+        setBalance(data.newBalance)
+        window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance }))
+      }
+      bacBetRef.current = side
+      bacBetAmountRef.current = amount
+      setBacBet(side)
+      setBacBetAmount(amount)
+    } catch {}
+  }
+
+  // 바카라 카드 데이터를 외부(bitcoin-chart)로 공개
+  useEffect(() => {
+    const win = window as any
+    win.__baccaratCards = {
+      playerCards: bacPlayerCards,
+      bankerCards: bacBankerCards,
+      pScore: handScore(bacPlayerCards),
+      bScore: handScore(bacBankerCards),
+      result: bacResult,
+      phase: bacPhase,
+    }
+  }, [bacPlayerCards, bacBankerCards, bacResult, bacPhase])
+
   // 종목 버튼 클릭 → 다이얼로그 열기 (결과 시트가 열려있으면 닫기)
   const openDialog = (type: BetType, value: string) => {
     if (!canBet) return
@@ -887,26 +1064,10 @@ export function BettingGame() {
             </span>
           </div>
 
-          {/* 기준가 / 현재가 */}
-          {basePrice !== null && currentPrice !== null && phase !== "result" && (
-            <div className="absolute inset-0 flex items-center justify-between bg-background/95 rounded-lg px-1">
-              <div>
-                <p className="text-[9px] text-muted-foreground">배팅 기준가</p>
-                <p className="text-xs font-semibold tabular-nums text-foreground">
-                  ${(Math.floor(basePrice * 10) / 10).toString()}
-                </p>
-              </div>
-              <div className={`text-xs font-bold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-                {isUp ? "▲" : "▼"} {(Math.floor(Math.abs(priceDiff!) * 10) / 10).toString()}
-              </div>
-              <div className="text-right">
-                <p className="text-[9px] text-muted-foreground">현재가</p>
-                <p className={`text-xs font-semibold tabular-nums ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-                  ${(Math.floor(currentPrice * 10) / 10).toString()}
-                </p>
-              </div>
-            </div>
-          )}
+          {/* 바카라 빅로드 (기준가/현재가 대신) */}
+          <div className="absolute inset-0 bg-background/95 rounded-lg px-1.5 py-1 overflow-hidden">
+            <BaccaratRoad history={bacHistory} />
+          </div>
 
           {/* 라운드 결과 */}
           {phase === "result" && lastResult && (
@@ -1072,6 +1233,68 @@ export function BettingGame() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* 바카라 배팅 버튼 */}
+        <div className="mb-3">
+          <div className="flex items-center gap-1 mb-1.5">
+            <span className="text-[10px] font-bold text-muted-foreground">BACCARAT</span>
+            {bacBet && (
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded font-bold"
+                style={{
+                  background: bacBet === "player" ? "rgba(59,130,246,0.15)" : bacBet === "banker" ? "rgba(239,68,68,0.15)" : "rgba(34,197,94,0.15)",
+                  color: bacBet === "player" ? "#3b82f6" : bacBet === "banker" ? "#ef4444" : "#22c55e",
+                }}
+              >
+                {bacBet === "player" ? "PLAYER" : bacBet === "banker" ? "BANKER" : "TIE"} ₩{bacBetAmount.toLocaleString()}
+              </span>
+            )}
+            {bacPhase === "result" && bacResult && (
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded font-bold ml-auto"
+                style={{
+                  background: bacResult === "player" ? "rgba(59,130,246,0.15)" : bacResult === "banker" ? "rgba(239,68,68,0.15)" : "rgba(34,197,94,0.15)",
+                  color: bacResult === "player" ? "#3b82f6" : bacResult === "banker" ? "#ef4444" : "#22c55e",
+                }}
+              >
+                {bacResult === "player" ? "PLAYER 승" : bacResult === "banker" ? "BANKER 승" : "TIE"}
+                {bacLastResult && bacLastResult.betAmount > 0 && (
+                  <span style={{ color: bacLastResult.won ? "#22c55e" : "#ef4444", marginLeft: 4 }}>
+                    {bacLastResult.won ? `+₩${bacLastResult.payout.toLocaleString()}` : `-₩${bacLastResult.betAmount.toLocaleString()}`}
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {([
+              { side: "player" as const, label: "PLAYER", color: "#3b82f6", payout: "1:1" },
+              { side: "banker" as const, label: "BANKER", color: "#ef4444", payout: "0.95:1" },
+              { side: "tie" as const, label: "TIE", color: "#22c55e", payout: "8:1" },
+            ]).map(({ side, label, color, payout }) => {
+              const isSelected = bacBet === side
+              const isWin = bacPhase === "result" && bacResult === side
+              const canBacBet = canBet && bacBet === null && bacPhase === "betting"
+              return (
+                <button
+                  key={side}
+                  onClick={() => handleBacBet(side)}
+                  disabled={!canBacBet}
+                  className="h-12 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50"
+                  style={{
+                    background: isSelected ? `${color}20` : isWin ? `${color}15` : "hsl(var(--muted))",
+                    borderColor: isSelected ? color : isWin ? color : "transparent",
+                    color: isSelected || isWin ? color : "hsl(var(--muted-foreground))",
+                    boxShadow: isWin ? `0 0 10px ${color}40` : "none",
+                  }}
+                >
+                  <span>{label}</span>
+                  <span className="text-[9px] opacity-60">{payout}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* 3그룹 배팅 버튼 */}
