@@ -1,14 +1,10 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { GameChart } from "@/components/game/game-chart"
 import BaccaratGame from "@/components/baka/baccarat-game"
 import { TopBar } from "@/components/dashboard/top-bar"
+import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 
 export default function BakaPage() {
-  const [basePriceCoord, setBasePriceCoord] = useState<{ x: number; y: number } | null>(null)
-  const handleCoord = useCallback((c: { x: number; y: number } | null) => setBasePriceCoord(c), [])
-
   return (
     <div
       className="min-h-screen font-sans"
@@ -51,31 +47,8 @@ export default function BakaPage() {
               </div>
             </div>
 
-            {/* 차트 */}
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={{
-                border: "1px solid rgba(212,175,55,0.15)",
-                boxShadow: "0 0 40px rgba(212,175,55,0.04)",
-              }}
-            >
-              {/* 차트 헤더 */}
-              <div
-                style={{
-                  padding: "10px 14px",
-                  background: "rgba(212,175,55,0.04)",
-                  borderBottom: "1px solid rgba(212,175,55,0.08)",
-                  fontSize: 11,
-                  color: "rgba(212,175,55,0.6)",
-                  letterSpacing: "0.08em",
-                }}
-              >
-                BTC/USDT · 1초봉
-              </div>
-              <div style={{ height: 260 }}>
-                <GameChart interval="1s" onBasePriceCoord={handleCoord} />
-              </div>
-            </div>
+            {/* 차트 — "/" 경로와 동일한 BitcoinChart */}
+            <BitcoinChart />
 
             {/* 게임 규칙 요약 */}
             <div
