@@ -9,25 +9,21 @@ import { usePriceWorker } from "@/hooks/use-price-worker"
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
 type BetParity = "odd" | "even" | null
-type BetBaccarat = "player" | "banker" | "tie" | null
-type BetType = "direction" | "digit" | "parity" | "baccarat"
+type BetType = "direction" | "digit" | "parity"
 
 interface RoundResult {
   round: number
   direction: BetDirection
   digit: BetDigit
   parity: BetParity
-  baccarat: BetBaccarat
   basePrice: number
   closePrice: number
   wonDirection: boolean
   wonDigit: boolean
   wonParity: boolean
-  wonBaccarat: boolean
   directionAmount: number
   digitAmount: number
   parityAmount: number
-  baccaratAmount: number
 }
 
 // 금액 칩
@@ -123,9 +119,6 @@ function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading
     under: { text: "언더", color: "#60a5fa", bg: "rgba(96,165,250,0.12)", border: "#60a5fa" },
     odd:   { text: "홀",   color: "#8b5cf6", bg: "rgba(139,92,246,0.12)", border: "#8b5cf6" },
     even:  { text: "짝",   color: "#ec4899", bg: "rgba(236,72,153,0.12)", border: "#ec4899" },
-    player: { text: "플레이어", color: "#3b82f6", bg: "rgba(59,130,246,0.12)", border: "#3b82f6" },
-    banker: { text: "뱅커", color: "#ef4444", bg: "rgba(239,68,68,0.12)", border: "#ef4444" },
-    tie:   { text: "타이", color: "#22c55e", bg: "rgba(34,197,94,0.12)", border: "#22c55e" },
   }
 
   const meta = selectedValue ? labelMap[selectedValue] : null
@@ -178,11 +171,7 @@ function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading
               </span>
               {amount > 0 && balance !== null && amount <= balance && (
                 <span className="text-[10px] text-muted-foreground">
-                  → ₩{
-                    betType === "baccarat"
-                      ? Math.floor(amount * (selectedValue === "player" ? 2 : selectedValue === "banker" ? 1.95 : 9)).toLocaleString()
-                      : Math.floor(amount * PAYOUT_RATIO).toLocaleString()
-                  } 예상
+                  → ₩{Math.floor(amount * PAYOUT_RATIO).toLocaleString()} 예상
                 </span>
               )}
               {balance !== null && amount > balance && (
@@ -771,7 +760,7 @@ export function BettingGame() {
     else if (cfg.maxLoss !== null && autoBetPnlRef.current <= -cfg.maxLoss) setAutoBet(prev => ({ ...prev, enabled: false }))
   }, [lastResult])
 
-  // 배팅 가능 시간이 끝나면 열려있는 다이얼로그 강�� 닫기
+  // 배팅 가능 시간이 끝나면 열려있는 다이얼로그 강제 닫기
   useEffect(() => {
     if (!canBet && dialog?.open) {
       setDialog(null)
@@ -784,7 +773,6 @@ export function BettingGame() {
     if (type === "direction" && betDirection !== null) return
     if (type === "digit" && betDigit !== null) return
     if (type === "parity" && betParity !== null) return
-    if (type === "baccarat" && dialog?.type === "baccarat") return
     setShowResultSheet(false)
     setDialog({ open: true, type, value })
   }
@@ -826,15 +814,11 @@ export function BettingGame() {
         betDigitAmountRef.current = amount
         setBetDigit(dialog.value as BetDigit)
         setBetDigitAmount(amount)
-      } else if (dialog.type === "parity") {
+      } else {
         betParityRef.current = dialog.value as BetParity
         betParityAmountRef.current = amount
         setBetParity(dialog.value as BetParity)
         setBetParityAmount(amount)
-      } else if (dialog.type === "baccarat") {
-        // 바카라 배팅 — window에 설정해서 BaccaratGame이 읽도록
-        const win = window as any
-        win.__baccaratBetData = { side: dialog.value as BetBaccarat, amount }
       }
 
       if (!basePriceRef.current) {
@@ -1091,7 +1075,7 @@ export function BettingGame() {
         </div>
 
         {/* 3그룹 배팅 버튼 */}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {/* 롱 / 숏 */}
           <div className="flex flex-col gap-2">
             {(["long", "short"] as const).map((dir) => {
@@ -1176,32 +1160,6 @@ export function BettingGame() {
                   <span className="text-[9px] opacity-60">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
                   {isSelected && label && <span className="text-[9px] opacity-70">{label}</span>}
                   {isResult && <span className="text-[9px]">{won ? "승" : "패"}</span>}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* 바카라: 플레이어 / 뱅커 / 타이 */}
-          <div className="flex flex-col gap-1.5">
-            {(["player", "banker", "tie"] as const).map((bac) => {
-              const isSelected = dialog?.type === "baccarat" && dialog?.value === bac
-              const color = bac === "player" ? "#3b82f6" : bac === "banker" ? "#ef4444" : "#22c55e"
-              const payout = bac === "player" ? "1:1" : bac === "banker" ? "0.95:1" : "8:1"
-              const label = bac === "player" ? "P" : bac === "banker" ? "B" : "T"
-              return (
-                <button
-                  key={bac}
-                  onClick={() => openDialog("baccarat", bac)}
-                  disabled={!canBet}
-                  className="py-2 rounded-lg border text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50"
-                  style={{
-                    background: isSelected ? `${color}20` : "hsl(var(--muted))",
-                    borderColor: isSelected ? color : "transparent",
-                    color: isSelected ? color : "hsl(var(--muted-foreground))",
-                  }}
-                >
-                  <span>{label}</span>
-                  <span className="text-[8px] opacity-60">{payout}</span>
                 </button>
               )
             })}
