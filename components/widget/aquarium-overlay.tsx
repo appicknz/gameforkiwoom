@@ -1148,7 +1148,7 @@ export default function RadarOverlay({
           const kind: MissileKind =
             ac.role === "missile-a" ? "standard" :
             ac.role === "missile-b" ? "heat" : "cluster"
-          const spd = rnd(150, 380)
+          const spd = rnd(400, 750)
           // 레이더 근원지(cx, cy)를 향해 발사, 약간의 지터 추가
           const jx = rnd(-8, 8); const jy = rnd(-8, 8)
           const tx = radar.cx + jx; const ty = radar.cy + jy
@@ -1215,7 +1215,7 @@ export default function RadarOverlay({
               // Spawn 3 sub-shots
               for (let i = 0; i < 3; i++) {
                 const ang = rnd(0, TWO_PI)
-                const spd = rnd(80, 160)
+                const spd = rnd(200, 420)
                 missilesRef.current.push({
                   id: idRef.current++,
                   x: m.x, y: m.y,
