@@ -16,13 +16,24 @@ const BG = "#0a0e1a"
 const GRID = "rgba(255,255,255,0.04)"
 const TEXT = "rgba(255,255,255,0.35)"
 
+export type ChartInterval = "1s" | "30s" | "1m" | "1h" | "1d"
+
+const INTERVAL_CONFIG: Record<ChartInterval, { binance: string; limit: number; seconds: number }> = {
+  "1s":  { binance: "1m",  limit: 60,  seconds: 1 },
+  "30s": { binance: "1m",  limit: 120, seconds: 30 },
+  "1m":  { binance: "1m",  limit: 200, seconds: 60 },
+  "1h":  { binance: "1h",  limit: 168, seconds: 3600 },
+  "1d":  { binance: "1d",  limit: 365, seconds: 86400 },
+}
+
 interface GameChartProps {
+  interval?: ChartInterval
   onPrice?: (price: number) => void
   onClosingPrice?: (price: number, bucket: number) => void
   onBasePriceCoord?: (coord: { x: number; y: number } | null) => void
 }
 
-export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameChartProps) {
+export function GameChart({ interval = "1s", onPrice, onClosingPrice, onBasePriceCoord }: GameChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
@@ -31,15 +42,18 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
   const onPriceRef = useRef(onPrice)
   const onClosingPriceRef = useRef(onClosingPrice)
   const onBasePriceCoordRef = useRef(onBasePriceCoord)
+  const intervalRef = useRef(interval)
 
   useEffect(() => { onPriceRef.current = onPrice }, [onPrice])
   useEffect(() => { onClosingPriceRef.current = onClosingPrice }, [onClosingPrice])
   useEffect(() => { onBasePriceCoordRef.current = onBasePriceCoord }, [onBasePriceCoord])
+  useEffect(() => { intervalRef.current = interval }, [interval])
 
-  const fetchInitialCandles = useCallback(async (): Promise<CandleData[]> => {
+  const fetchInitialCandles = useCallback(async (sel: ChartInterval): Promise<CandleData[]> => {
+    const cfg = INTERVAL_CONFIG[sel]
     try {
       const res = await fetch(
-        `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=60`
+        `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${cfg.binance}&limit=${cfg.limit}`
       )
       const data: any[][] = await res.json()
       const candles: CandleData[] = data.map((k) => ({
@@ -61,68 +75,82 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
     if (!containerRef.current) return
 
     const container = containerRef.current
-    const chart = createChart(container, {
-      layout: {
-        background: { type: ColorType.Solid, color: BG },
-        textColor: TEXT,
-        fontFamily: "inherit",
-      },
-      grid: {
-        vertLines: { color: GRID },
-        horzLines: { color: GRID },
-      },
-      crosshair: {
-        vertLine: { color: "rgba(255,255,255,0.2)", labelBackgroundColor: "#1a2035" },
-        horzLine: { color: "rgba(255,255,255,0.2)", labelBackgroundColor: "#1a2035" },
-      },
-      rightPriceScale: {
-        borderVisible: false,
-        scaleMargins: { top: 0.1, bottom: 0.1 },
-        textColor: TEXT,
-      },
-      timeScale: {
-        borderVisible: false,
-        timeVisible: true,
-        secondsVisible: true,
-        fixLeftEdge: false,
-      },
-      watermark: { visible: false },
-      handleScroll: true,
-      handleScale: true,
-    })
-    chartRef.current = chart
+    const secondsVisible = interval === "1s" || interval === "30s"
 
-    const series = chart.addCandlestickSeries({
-      upColor: "#00e676",
-      downColor: "#ff3d57",
-      borderUpColor: "#00e676",
-      borderDownColor: "#ff3d57",
-      wickUpColor: "#00e676",
-      wickDownColor: "#ff3d57",
-    })
-    seriesRef.current = series
+    // 차트가 이미 있으면 재생성하지 않고 timeScale 옵션만 업데이트
+    if (!chartRef.current) {
+      const chart = createChart(container, {
+        layout: {
+          background: { type: ColorType.Solid, color: BG },
+          textColor: TEXT,
+          fontFamily: "inherit",
+        },
+        grid: {
+          vertLines: { color: GRID },
+          horzLines: { color: GRID },
+        },
+        crosshair: {
+          vertLine: { color: "rgba(255,255,255,0.2)", labelBackgroundColor: "#1a2035" },
+          horzLine: { color: "rgba(255,255,255,0.2)", labelBackgroundColor: "#1a2035" },
+        },
+        rightPriceScale: {
+          borderVisible: false,
+          scaleMargins: { top: 0.1, bottom: 0.1 },
+          textColor: TEXT,
+        },
+        timeScale: {
+          borderVisible: false,
+          timeVisible: true,
+          secondsVisible,
+          fixLeftEdge: false,
+        },
+        watermark: { visible: false },
+        handleScroll: true,
+        handleScale: true,
+      })
+      chartRef.current = chart
 
-    const ro = new ResizeObserver(() => {
-      if (chartRef.current && container) {
-        chartRef.current.applyOptions({ width: container.clientWidth })
-      }
-    })
-    ro.observe(container)
+      const series = chart.addCandlestickSeries({
+        upColor: "#00e676",
+        downColor: "#ff3d57",
+        borderUpColor: "#00e676",
+        borderDownColor: "#ff3d57",
+        wickUpColor: "#00e676",
+        wickDownColor: "#ff3d57",
+      })
+      seriesRef.current = series
 
-    fetchInitialCandles().then((candles) => {
+      const ro = new ResizeObserver(() => {
+        if (chartRef.current && container) {
+          chartRef.current.applyOptions({ width: container.clientWidth })
+        }
+      })
+      ro.observe(container)
+    } else {
+      // 이미 초기화된 차트 — secondsVisible만 업데이트
+      chartRef.current.applyOptions({
+        timeScale: { secondsVisible },
+      })
+    }
+
+    // interval 변경마다 캔들 데이터 새로 로드
+    candleMapRef.current.clear()
+    fetchInitialCandles(interval).then((candles) => {
       if (candles.length > 0 && seriesRef.current) {
         seriesRef.current.setData(candles)
         chartRef.current?.timeScale().fitContent()
       }
     })
 
+  }, [interval, fetchInitialCandles])
+
+  useEffect(() => {
     return () => {
-      ro.disconnect()
-      chart.remove()
+      chartRef.current?.remove()
       chartRef.current = null
       seriesRef.current = null
     }
-  }, [fetchInitialCandles])
+  }, [])
 
   // setInterval 폴링 완전 제거 — onClosingPrice 콜백에서 배팅가 수평선을 직접 업데이트
   // basePriceCoord: 차트 내에서 배팅가 라인의 실제 픽셀 위치 (레이더 target용)
@@ -184,7 +212,8 @@ export function GameChart({ onPrice, onClosingPrice, onBasePriceCoord }: GameCha
   // 모든 사용자 동일 가격 보장 — usePriceWorker 단일 소스
   usePriceWorker({
     onPrice: useCallback((price, time) => {
-      const bucket = time - (time % 1)
+      const seconds = INTERVAL_CONFIG[intervalRef.current].seconds
+      const bucket = time - (time % seconds)
       const existing = candleMapRef.current.get(bucket)
       const candle: CandleData = {
         time: bucket,

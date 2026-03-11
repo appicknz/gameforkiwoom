@@ -61,20 +61,22 @@ export function BitcoinChart() {
   const [interval, setIntervalState] = useState<Interval>("1s")
   const [closingPrices, setClosingPrices] = useState<Array<{ time: number; price: number }>>([])
 
-  // 차트 내 "배팅가" 수평선용으로만 closingPrices state를 사용합니다.
-  // window.__bitcoinClosingPrices 관리는 use-price-worker(betting-game)가 단독으로 담당합니다.
+  // 선택된 interval의 seconds를 ref로 유지해 콜백 클로저에서 최신값 사용
+  const intervalSecondsRef = useRef(INTERVAL_CONFIG["1s"].seconds)
+  useEffect(() => {
+    intervalSecondsRef.current = INTERVAL_CONFIG[interval].seconds
+  }, [interval])
 
   // ── window.__bitcoinCurrentPrice / __bitcoinClosingPrices 구독 ──
-  // BettingGame의 usePriceWorker(Railway)가 단일 소스로 관리하므로
-  // BitcoinChart는 여기서만 읽어서 차트를 업데이트합니다.
   useEffect(() => {
     const win = window as any
     const interval = setInterval(() => {
-      // 현재가 → 캔들 업데이트
+      // 현재가 → 캔들 업데이트 (선택된 타임프레임 버킷 기준)
       const price: number | undefined = win.__bitcoinCurrentPrice
       if (price && seriesRef.current) {
         const now = Math.floor(Date.now() / 1000)
-        const bucket = now - (now % 1)
+        const seconds = intervalSecondsRef.current
+        const bucket = now - (now % seconds)
         const existing = candleMapRef.current.get(bucket)
         const candle: CandleData = {
           time: bucket,
