@@ -2,6 +2,7 @@ import { Sidebar } from "@/components/dashboard/sidebar"
 import { TopBar } from "@/components/dashboard/top-bar"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import { BettingGame } from "@/components/dashboard/betting-game"
+import BaccaratGame from "@/components/baka/baccarat-game"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
@@ -18,6 +19,9 @@ export default function DashboardPage() {
             <div className="lg:col-span-2 space-y-3 md:space-y-4">
               <BitcoinChart />
               <BettingGame />
+              <div className="rounded-xl border border-border/40 overflow-hidden">
+                <BaccaratGame />
+              </div>
               <ProjectAnalytics />
             </div>
 
