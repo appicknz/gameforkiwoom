@@ -1,57 +1,40 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { GameChart, type ChartInterval } from "@/components/game/game-chart"
+import { useRef, useState } from "react"
+import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import AquariumOverlay from "@/components/widget/aquarium-overlay"
 
-const INTERVALS: { key: ChartInterval; label: string }[] = [
-  { key: "1s",  label: "1초" },
-  { key: "30s", label: "30초" },
-  { key: "1m",  label: "1분" },
-  { key: "1h",  label: "1시간" },
-  { key: "1d",  label: "1일" },
-]
-
+// BitcoinChart를 다크 네온 테마로 감싸고 레이더/전투기 오버레이를 얹습니다.
+// BitcoinChart 내부의 Card 배경을 네온 다크로 덮어씁니다.
 export function NeonChart() {
-  const [basePriceCoord, setBasePriceCoord] = useState<{ x: number; y: number } | null>(null)
-  const [interval, setInterval] = useState<ChartInterval>("1s")
-  const handleCoord = useCallback((c: { x: number; y: number } | null) => setBasePriceCoord(c), [])
+  const containerRef = useRef<HTMLDivElement>(null)
+  // BitcoinChart 내부의 배팅가 수평선 Y좌표를 오버레이로 전달하기 위한 state
+  // AquariumOverlay는 basePriceCoord가 null이어도 동작합니다.
+  const [basePriceCoord] = useState<{ x: number; y: number } | null>(null)
 
   return (
     <div
+      ref={containerRef}
       className="relative overflow-hidden"
-      style={{
-        background: "#0d1526",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
-      }}
+      style={{ background: "#0d1526" }}
     >
-      {/* 타임프레임 선택 버튼 */}
-      <div className="flex items-center gap-1 px-3 pt-2 pb-1">
-        {INTERVALS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setInterval(key)}
-            className="px-2 py-0.5 rounded text-[11px] font-medium transition-colors"
-            style={{
-              background: interval === key ? "rgba(0,255,136,0.18)" : "transparent",
-              color: interval === key ? "#00ff88" : "rgba(255,255,255,0.35)",
-              border: interval === key ? "1px solid rgba(0,255,136,0.35)" : "1px solid transparent",
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* 실제 차트 */}
-      <div style={{ height: "260px" }}>
-        <GameChart interval={interval} onBasePriceCoord={handleCoord} />
-      </div>
-
-      {/* 레이더/전투기 오버레이 */}
+      {/* BitcoinChart — 다크 네온 테마 오버라이드 */}
       <div
-        className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none z-10"
-        style={{ height: "260px" }}
+        style={{
+          // Card 컴포넌트의 기본 배경/보더를 네온 테마로 덮어씀
+          "--background": "13 21 38",           // #0d1526
+          "--border": "0 255 136 / 0.12",
+          "--foreground": "255 255 255",
+          "--muted-foreground": "255 255 255 / 0.4",
+          "--card": "13 21 38",
+        } as React.CSSProperties}
+      >
+        <BitcoinChart />
+      </div>
+
+      {/* 레이더/전투기 오버레이 — 차트 영역 위에 절대 배치 */}
+      <div
+        className="absolute inset-0 pointer-events-none z-10"
       >
         <AquariumOverlay basePriceCoord={basePriceCoord} />
       </div>
