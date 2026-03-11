@@ -96,46 +96,52 @@ export default function BakaPage() {
               </div>
             </div>
 
-            {/* BANKER / PLAYER 카드 — 차트 위, 가운데 정렬 */}
+            {/* 차트 + 카드 오버레이 */}
             <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>
-            <div className="flex justify-center gap-4">
-              {(["banker", "player"] as const).map((side) => {
-                const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
-                const score = side === "banker" ? cardData.bScore : cardData.pScore
-                const label = side === "banker" ? "BANKER" : "PLAYER"
-                const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
-                const isWinner = cardData.result === side
-                return (
-                  <div
-                    key={side}
-                    style={{
-                      borderRadius: 10,
-                      border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.18)"}`,
-                      background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.85)",
-                      padding: "8px 12px",
-                      transition: "border-color 0.3s, background 0.3s",
-                      boxShadow: isWinner ? `0 0 18px ${accentColor}28` : "0 2px 12px rgba(0,0,0,0.5)",
-                      minWidth: 140,
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: accentColor }}>{label}</span>
-                      {isWinner && <span style={{ fontSize: 9, background: accentColor, color: "#fff", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>WIN</span>}
-                      {cards.length > 0 && (
-                        <span style={{ fontSize: 16, fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
-                      )}
+            <div className="relative">
+              <BitcoinChart />
+              {/* BANKER / PLAYER 카드 오버레이 */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ top: 56, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8, justifyContent: "flex-start" }}
+              >
+                {(["banker", "player"] as const).map((side) => {
+                  const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
+                  const score = side === "banker" ? cardData.bScore : cardData.pScore
+                  const label = side === "banker" ? "BANKER" : "PLAYER"
+                  const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
+                  const isWinner = cardData.result === side
+                  return (
+                    <div
+                      key={side}
+                      style={{
+                        borderRadius: 10,
+                        border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.18)"}`,
+                        background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.72)",
+                        backdropFilter: "blur(6px)",
+                        padding: "8px 10px",
+                        transition: "border-color 0.3s, background 0.3s",
+                        boxShadow: isWinner ? `0 0 18px ${accentColor}28` : "0 2px 12px rgba(0,0,0,0.5)",
+                        width: "fit-content",
+                        minWidth: 140,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: accentColor }}>{label}</span>
+                        {isWinner && <span style={{ fontSize: 9, background: accentColor, color: "#fff", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>WIN</span>}
+                        {cards.length > 0 && (
+                          <span style={{ fontSize: 16, fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {cards.map(card => <OverlayCard key={card.id} card={card} />)}
+                        {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} />)}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {cards.map(card => <OverlayCard key={card.id} card={card} />)}
-                      {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} />)}
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-
-            {/* 차트 */}
-            <BitcoinChart />
 
             {/* 게임 규칙 요약 */}
             <div
