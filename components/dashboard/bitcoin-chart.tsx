@@ -89,10 +89,10 @@ export function BitcoinChart() {
       if (price && seriesRef.current) {
         const now = Math.floor(Date.now() / 1000)
         const seconds = intervalSecondsRef.current
-        const bucket = now - (now % seconds)
+        const bucket = (now - (now % seconds)) as number
         const existing = candleMapRef.current.get(bucket)
         const candle: CandleData = {
-          time: bucket,
+          time: bucket as any,
           open: existing?.open ?? price,
           high: existing ? Math.max(existing.high, price) : price,
           low: existing ? Math.min(existing.low, price) : price,
