@@ -43,11 +43,34 @@ export function GameChart({ interval = "1s", onPrice, onClosingPrice, onBasePric
   const onClosingPriceRef = useRef(onClosingPrice)
   const onBasePriceCoordRef = useRef(onBasePriceCoord)
   const intervalRef = useRef(interval)
+  const lastPriceRef = useRef<number | null>(null)
 
   useEffect(() => { onPriceRef.current = onPrice }, [onPrice])
   useEffect(() => { onClosingPriceRef.current = onClosingPrice }, [onClosingPrice])
   useEffect(() => { onBasePriceCoordRef.current = onBasePriceCoord }, [onBasePriceCoord])
   useEffect(() => { intervalRef.current = interval }, [interval])
+
+  // 1s 타임프레임: 가격 변동 없어도 매 1초마다 현재 버킷 캔들 강제 업데이트 (/ 경로와 동일 동작)
+  useEffect(() => {
+    if (interval !== "1s") return
+    const id = setInterval(() => {
+      const price = lastPriceRef.current
+      if (!price || !seriesRef.current) return
+      const now = Math.floor(Date.now() / 1000)
+      const bucket = now - (now % 1)
+      const existing = candleMapRef.current.get(bucket)
+      const candle: CandleData = {
+        time: bucket,
+        open: existing?.open ?? price,
+        high: existing ? Math.max(existing.high, price) : price,
+        low: existing ? Math.min(existing.low, price) : price,
+        close: price,
+      }
+      candleMapRef.current.set(bucket, candle)
+      seriesRef.current.update(candle)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [interval])
 
   const fetchInitialCandles = useCallback(async (sel: ChartInterval): Promise<CandleData[]> => {
     const cfg = INTERVAL_CONFIG[sel]
@@ -212,6 +235,7 @@ export function GameChart({ interval = "1s", onPrice, onClosingPrice, onBasePric
   // 모든 사용자 동일 가격 보장 — usePriceWorker 단일 소스
   usePriceWorker({
     onPrice: useCallback((price, time) => {
+      lastPriceRef.current = price
       const seconds = INTERVAL_CONFIG[intervalRef.current].seconds
       const bucket = time - (time % seconds)
       const existing = candleMapRef.current.get(bucket)
