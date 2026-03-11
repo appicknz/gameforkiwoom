@@ -103,7 +103,7 @@ export default function BakaPage() {
               {/* BANKER / PLAYER 카드 오버레이 */}
               <div
                 className="absolute inset-0 pointer-events-none"
-                style={{ top: 56, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8, justifyContent: "flex-start" }}
+                style={{ top: 56, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8, justifyContent: "flex-start", alignItems: "center" }}
               >
                 {(["banker", "player"] as const).map((side) => {
                   const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
