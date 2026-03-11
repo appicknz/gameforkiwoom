@@ -316,7 +316,11 @@ export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) 
 
   // 카드 상태를 부모로 전달 (차트 오버레이용)
   useEffect(() => {
-    onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result })
+    const cardData = { playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result }
+    onCardsChange?.(cardData)
+    // window에도 설정 (BitcoinChart 폴링용)
+    const win = window as any
+    win.__baccaratCardData = cardData
   }, [state.playerCards, state.bankerCards, state.result, pScore, bScore, onCardsChange])
 
   return (

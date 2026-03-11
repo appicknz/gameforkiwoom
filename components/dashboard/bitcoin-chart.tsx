@@ -60,6 +60,17 @@ export function BitcoinChart() {
   const [connected, setConnected] = useState(false)
   const [interval, setIntervalState] = useState<Interval>("1s")
   const [closingPrices, setClosingPrices] = useState<Array<{ time: number; price: number }>>([])
+  
+  // 바카라 카드 오버레이 state (window.__baccaratCardData 폴링)
+  const [bacCards, setBacCards] = useState<any>(null)
+  
+  useEffect(() => {
+    const t = setInterval(() => {
+      const win = window as any
+      if (win.__baccaratCardData) setBacCards(win.__baccaratCardData)
+    }, 250)
+    return () => clearInterval(t)
+  }, [])
 
   // 선택된 interval의 seconds를 ref로 유지해 콜백 클로저에서 최신값 사용
   const intervalSecondsRef = useRef(INTERVAL_CONFIG["1s"].seconds)
@@ -258,6 +269,90 @@ export function BitcoinChart() {
       {/* 차트 */}
       <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
         <div ref={chartContainerRef} className="w-full h-full" />
+
+        {/* 바카라 카드 오버레이 (차트 내 가운데 상단) */}
+        {bacCards && (bacCards.playerCards?.length > 0 || bacCards.bankerCards?.length > 0) && (
+          <div className="absolute inset-0 pointer-events-none z-20 flex flex-col items-center justify-start pt-2 gap-1.5">
+            <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>
+            
+            {/* B/P 빠른 베팅 버튼 (작은 동그라미) */}
+            <div className="flex items-center gap-2">
+              {[
+                { side: "banker", label: "B", color: "#ef4444" },
+                { side: "player", label: "P", color: "#3b82f6" },
+              ].map(({ side, label, color }) => (
+                <button
+                  key={side}
+                  style={{
+                    width: 32, height: 32, borderRadius: "50%",
+                    background: color, color: "#fff",
+                    fontSize: 14, fontWeight: 700,
+                    border: "none", cursor: "pointer",
+                    boxShadow: `0 2px 8px ${color}40`,
+                    transition: "transform 0.2s",
+                  }}
+                  className="hover:scale-110 active:scale-95"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* 카드 섹션들 */}
+            {(["banker", "player"] as const).map((side) => {
+              const cards = side === "banker" ? bacCards.bankerCards : bacCards.playerCards
+              const score = side === "banker" ? bacCards.bScore : bacCards.pScore
+              const label = side === "banker" ? "BANKER" : "PLAYER"
+              const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
+              const isWinner = bacCards.result === side
+              
+              if (!cards || cards.length === 0) return null
+              
+              return (
+                <div
+                  key={side}
+                  style={{
+                    borderRadius: 8, border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.15)"}`,
+                    background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.75)",
+                    backdropFilter: "blur(6px)",
+                    padding: "4px 8px",
+                    display: "flex", alignItems: "center", gap: 6,
+                    minWidth: 100,
+                    boxShadow: isWinner ? `0 0 12px ${accentColor}30` : "0 2px 8px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <span style={{ fontSize: 8, fontWeight: 700, color: accentColor, letterSpacing: "0.1em" }}>{label}</span>
+                    {isWinner && <span style={{ fontSize: 7, background: accentColor, color: "#fff", padding: "1px 3px", borderRadius: 2, fontWeight: 700 }}>WIN</span>}
+                    {score > 0 && <span style={{ fontSize: 12, fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(212,175,55,0.85)", lineHeight: 1 }}>{score}</span>}
+                  </div>
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {cards.map((card: any) => {
+                      const isRed = card.suit === "♥" || card.suit === "♦"
+                      return (
+                        <div key={card.id} style={{
+                          width: 22, height: 32, borderRadius: 4,
+                          background: "linear-gradient(145deg, #1c1408, #12100a)",
+                          border: "1px solid rgba(212,175,55,0.35)",
+                          display: "flex", flexDirection: "column", justifyContent: "space-between",
+                          padding: "1px 2px",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.5)",
+                          animation: "cardDeal 0.35s ease forwards",
+                          fontSize: 7, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37",
+                          textAlign: "center", lineHeight: 1,
+                        }}>
+                          <span>{card.label}</span>
+                          <span>{card.suit}</span>
+                          <span>{card.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래, 시간 위) */}
         {ticker && (
