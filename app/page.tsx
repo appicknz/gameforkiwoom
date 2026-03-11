@@ -7,6 +7,15 @@ import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 
+interface BacCard { id: string; suit: string; value: number; label: string }
+interface BaccaratCardData {
+  playerCards: BacCard[]
+  bankerCards: BacCard[]
+  pScore: number
+  bScore: number
+  result: "player" | "banker" | "tie" | null
+}
+
 export default function DashboardPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">

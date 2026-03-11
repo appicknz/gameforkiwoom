@@ -9,21 +9,25 @@ import { usePriceWorker } from "@/hooks/use-price-worker"
 type BetDirection = "long" | "short" | null
 type BetDigit = "under" | "over" | null
 type BetParity = "odd" | "even" | null
-type BetType = "direction" | "digit" | "parity"
+type BetBaccarat = "player" | "banker" | "tie" | null
+type BetType = "direction" | "digit" | "parity" | "baccarat"
 
 interface RoundResult {
   round: number
   direction: BetDirection
   digit: BetDigit
   parity: BetParity
+  baccarat: BetBaccarat
   basePrice: number
   closePrice: number
   wonDirection: boolean
   wonDigit: boolean
   wonParity: boolean
+  wonBaccarat: boolean
   directionAmount: number
   digitAmount: number
   parityAmount: number
+  baccaratAmount: number
 }
 
 // 금액 칩
