@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react"
 import { createChart, ColorType } from "lightweight-charts"
-import { usePriceWorker } from "@/hooks/use-price-worker"
+
 
 interface CandleData {
   time: number
@@ -209,35 +209,50 @@ export function GameChart({ interval = "1s", onPrice, onClosingPrice, onBasePric
     updateBasePriceCoord()
   }, [updateBasePriceCoord])
 
-  // 모든 사용자 동일 가격 보장 — usePriceWorker 단일 소스
-  usePriceWorker({
-    onPrice: useCallback((price, time) => {
-      const seconds = INTERVAL_CONFIG[intervalRef.current].seconds
-      const bucket = time - (time % seconds)
-      const existing = candleMapRef.current.get(bucket)
-      const candle: CandleData = {
-        time: bucket,
-        open: existing?.open ?? price,
-        high: existing ? Math.max(existing.high, price) : price,
-        low: existing ? Math.min(existing.low, price) : price,
-        close: price,
+  // window.__bitcoinCurrentPrice 폴링 — "/" 경로와 동일 방식
+  const lastPollPriceRef = useRef<number | null>(null)
+  const lastClosingBucketRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const win = window as any
+    const id = setInterval(() => {
+      const price: number | undefined = win.__bitcoinCurrentPrice
+      if (!price || !seriesRef.current) return
+
+      const now = Math.floor(Date.now() / 1000)
+      const seconds = intervalRef.current === "1s"
+        ? 1
+        : INTERVAL_CONFIG[intervalRef.current].seconds
+      const bucket = now - (now % seconds)
+
+      // 가격이 바뀌었거나 1s 모드일 때 캔들 업데이트
+      if (price !== lastPollPriceRef.current || intervalRef.current === "1s") {
+        lastPollPriceRef.current = price
+        const existing = candleMapRef.current.get(bucket)
+        const candle: CandleData = {
+          time: bucket,
+          open: existing?.open ?? price,
+          high: existing ? Math.max(existing.high, price) : price,
+          low: existing ? Math.min(existing.low, price) : price,
+          close: price,
+        }
+        candleMapRef.current.set(bucket, candle)
+        seriesRef.current.update(candle)
+        onPriceRef.current?.(price)
       }
-      candleMapRef.current.set(bucket, candle)
-      seriesRef.current?.update(candle)
-      onPriceRef.current?.(price)
-    }, []),
-    onClosingPrice: useCallback((price, time) => {
-      // 배팅가 수평선을 콜백에서 직접 업데이트 (setInterval 불필요)
-      updateBaseLine(price)
-      onClosingPriceRef.current?.(price, time)
-    }, [updateBaseLine]),
-    onInitClosing: useCallback((prices) => {
-      // 초기 로드 시 마지막 배팅가 수평선 설정
-      if (prices.length > 0) {
-        updateBaseLine(prices[prices.length - 1].price)
+
+      // 배팅가(클로징) 수평선 — 버킷이 바뀌면 직전 버킷을 closing으로 처리
+      if (lastClosingBucketRef.current !== null && bucket !== lastClosingBucketRef.current) {
+        const closingCandle = candleMapRef.current.get(lastClosingBucketRef.current)
+        if (closingCandle) {
+          updateBaseLine(closingCandle.close)
+          onClosingPriceRef.current?.(closingCandle.close, lastClosingBucketRef.current)
+        }
       }
-    }, [updateBaseLine]),
-  })
+      lastClosingBucketRef.current = bucket
+    }, 500)
+    return () => clearInterval(id)
+  }, [interval, updateBaseLine])
 
   return (
     <div

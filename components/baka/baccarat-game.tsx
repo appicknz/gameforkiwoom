@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { usePriceWorker } from "@/hooks/use-price-worker"
+
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type Suit = "♠" | "♥" | "♦" | "♣"
@@ -163,17 +163,23 @@ export default function BaccaratGame() {
   const dealingRef = useRef(false)
   const priceRef = useRef(0)
 
-  // ─── 가격 수신 ───────────────────────────────────────────────────────────
-  usePriceWorker({
-    onPrice: useCallback((price: number) => {
+  // ─── 가격 수신 — window.__bitcoinCurrentPrice 폴링 ("/" 경로와 동일 방식) ──
+  const lastPriceRef = useRef<number | null>(null)
+  useEffect(() => {
+    const win = window as any
+    const id = setInterval(() => {
+      const price: number | undefined = win.__bitcoinCurrentPrice
+      if (!price) return
+      if (price === lastPriceRef.current) return
+      lastPriceRef.current = price
       priceRef.current = price
       const digit = Math.floor(price) % 10
       digitQueueRef.current.push(digit)
-      // 최대 20개 유지
       if (digitQueueRef.current.length > 20) digitQueueRef.current.shift()
       setState(prev => ({ ...prev, priceDisplay: price }))
-    }, []),
-  })
+    }, 500)
+    return () => clearInterval(id)
+  }, [])
 
   // ─── 딜 로직 ─────────────────────────────────────────────────────────────
   const deal = useCallback(async (bet: BetSide, betAmount: number, balance: number) => {
