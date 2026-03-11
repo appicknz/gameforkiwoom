@@ -55,7 +55,6 @@ export function BitcoinChart() {
   const seriesRef = useRef<any>(null)
   const priceLineRef = useRef<any>(null)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
-  const lastPriceRef = useRef<number | null>(null)
 
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
@@ -75,25 +74,21 @@ export function BitcoinChart() {
       // 현재가 → 캔들 업데이트 (선택된 타임프레임 버킷 기준)
       const price: number | undefined = win.__bitcoinCurrentPrice
       if (price && seriesRef.current) {
-        // 가격 변동이 없으면 캔들 업데이트 건너뜀 (/widget 동일 동작)
-        if (price !== lastPriceRef.current) {
-          lastPriceRef.current = price
-          const now = Math.floor(Date.now() / 1000)
-          const seconds = intervalSecondsRef.current
-          const bucket = now - (now % seconds)
-          const existing = candleMapRef.current.get(bucket)
-          const candle: CandleData = {
-            time: bucket,
-            open: existing?.open ?? price,
-            high: existing ? Math.max(existing.high, price) : price,
-            low: existing ? Math.min(existing.low, price) : price,
-            close: price,
-          }
-          candleMapRef.current.set(bucket, candle)
-          seriesRef.current.update(candle)
-          setTicker(prev => prev ? { ...prev, price } : { price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
-          setConnected(true)
+        const now = Math.floor(Date.now() / 1000)
+        const seconds = intervalSecondsRef.current
+        const bucket = now - (now % seconds)
+        const existing = candleMapRef.current.get(bucket)
+        const candle: CandleData = {
+          time: bucket,
+          open: existing?.open ?? price,
+          high: existing ? Math.max(existing.high, price) : price,
+          low: existing ? Math.min(existing.low, price) : price,
+          close: price,
         }
+        candleMapRef.current.set(bucket, candle)
+        seriesRef.current.update(candle)
+        setTicker(prev => prev ? { ...prev, price } : { price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
+        setConnected(true)
       }
 
       // 마감 기준가 → 노란 수평선 (GameChart와 동일 조건)
