@@ -102,7 +102,7 @@ export default function BakaPage() {
               <BitcoinChart />
               {/* BANKER / PLAYER 카드 오버레이 */}
               <div
-                className="absolute inset-0 pointer-events-none"
+                className="absolute inset-0 pointer-events-none z-20"
                 style={{ top: 56, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8, justifyContent: "flex-start", alignItems: "center" }}
               >
                 {(["banker", "player"] as const).map((side) => {
