@@ -49,7 +49,16 @@ function formatQuoteVolume(usd: number): string {
   return krw.toLocaleString() + "원"
 }
 
-export function BitcoinChart() {
+interface BacCard { suit: string; value: number; label: string; id: string }
+interface CardOverlayData {
+  playerCards: BacCard[]
+  bankerCards: BacCard[]
+  pScore: number
+  bScore: number
+  result: "player" | "banker" | "tie" | null
+}
+
+export function BitcoinChart({ cardData }: { cardData?: CardOverlayData | null }) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const seriesRef = useRef<any>(null)
@@ -280,6 +289,71 @@ export function BitcoinChart() {
       {/* 차트 */}
       <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
         <div ref={chartContainerRef} className="w-full h-full" />
+
+        {/* 바카라 카드 오버레이 — /baka와 동일한 방식 */}
+        {cardData && (cardData.playerCards.length > 0 || cardData.bankerCards.length > 0) && (
+          <>
+            <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>
+            <div
+              className="absolute inset-0 pointer-events-none z-20"
+              style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 6, justifyContent: "flex-start", alignItems: "center" }}
+            >
+              {(["banker", "player"] as const).map((side) => {
+                const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
+                const score = side === "banker" ? cardData.bScore : cardData.pScore
+                const label = side === "banker" ? "BANKER" : "PLAYER"
+                const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
+                const isWinner = cardData.result === side
+                return (
+                  <div
+                    key={side}
+                    style={{
+                      borderRadius: 10,
+                      border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.18)"}`,
+                      background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.75)",
+                      backdropFilter: "blur(6px)",
+                      padding: "6px 10px",
+                      boxShadow: isWinner ? `0 0 18px ${accentColor}28` : "0 2px 12px rgba(0,0,0,0.5)",
+                      width: "fit-content",
+                      minWidth: 130,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: accentColor }}>{label}</span>
+                      {isWinner && <span style={{ fontSize: 8, background: accentColor, color: "#fff", padding: "1px 4px", borderRadius: 3, fontWeight: 700 }}>WIN</span>}
+                      {cards.length > 0 && (
+                        <span style={{ fontSize: 14, fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {cards.map((card) => {
+                        const isRed = card.suit === "♥" || card.suit === "♦"
+                        return (
+                          <div key={card.id} style={{
+                            width: 28, height: 40, borderRadius: 5,
+                            background: "linear-gradient(145deg,#1c1408,#12100a)",
+                            border: "1px solid rgba(212,175,55,0.45)",
+                            display: "flex", flexDirection: "column", justifyContent: "space-between",
+                            padding: "2px 3px",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
+                            animation: "cardDeal 0.35s cubic-bezier(0.23,1,0.32,1)",
+                          }}>
+                            <div style={{ fontSize: 8, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>{card.label}<span style={{ fontSize: 7 }}>{card.suit}</span></div>
+                            <div style={{ fontSize: 11, textAlign: "center", color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>{card.suit}</div>
+                            <div style={{ fontSize: 8, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>{card.label}</div>
+                          </div>
+                        )
+                      })}
+                      {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => (
+                        <div key={i} style={{ width: 28, height: 40, borderRadius: 5, border: "1px dashed rgba(212,175,55,0.15)", background: "rgba(212,175,55,0.02)" }} />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
 
         {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래, 시간 위) */}
         {ticker && (

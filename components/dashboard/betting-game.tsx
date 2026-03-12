@@ -113,12 +113,15 @@ function BetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading
   }
 
   const labelMap: Record<string, { text: string; color: string; bg: string; border: string }> = {
-    long:  { text: "롱",   color: "#10b981", bg: "rgba(16,185,129,0.12)", border: "#10b981" },
-    short: { text: "숏",   color: "#ef4444", bg: "rgba(239,68,68,0.12)",  border: "#ef4444" },
-    over:  { text: "오버", color: "#f97316", bg: "rgba(249,115,22,0.12)", border: "#f97316" },
-    under: { text: "언더", color: "#60a5fa", bg: "rgba(96,165,250,0.12)", border: "#60a5fa" },
-    odd:   { text: "홀",   color: "#8b5cf6", bg: "rgba(139,92,246,0.12)", border: "#8b5cf6" },
-    even:  { text: "짝",   color: "#ec4899", bg: "rgba(236,72,153,0.12)", border: "#ec4899" },
+    long:   { text: "롱",    color: "#10b981", bg: "rgba(16,185,129,0.12)",  border: "#10b981" },
+    short:  { text: "숏",    color: "#ef4444", bg: "rgba(239,68,68,0.12)",   border: "#ef4444" },
+    over:   { text: "오버",  color: "#f97316", bg: "rgba(249,115,22,0.12)",  border: "#f97316" },
+    under:  { text: "언더",  color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  border: "#60a5fa" },
+    odd:    { text: "홀",    color: "#8b5cf6", bg: "rgba(139,92,246,0.12)",  border: "#8b5cf6" },
+    even:   { text: "짝",    color: "#ec4899", bg: "rgba(236,72,153,0.12)",  border: "#ec4899" },
+    player: { text: "PLAYER", color: "#3b82f6", bg: "rgba(59,130,246,0.12)", border: "#3b82f6" },
+    banker: { text: "BANKER", color: "#ef4444", bg: "rgba(239,68,68,0.12)",  border: "#ef4444" },
+    tie:    { text: "TIE",    color: "#22c55e", bg: "rgba(34,197,94,0.12)",  border: "#22c55e" },
   }
 
   const meta = selectedValue ? labelMap[selectedValue] : null
@@ -814,6 +817,9 @@ export function BettingGame() {
         betDigitAmountRef.current = amount
         setBetDigit(dialog.value as BetDigit)
         setBetDigitAmount(amount)
+      } else if (dialog.type === "baccarat") {
+        // 바카라 배팅 — BaccaratGame이 window에서 읽어서 처리
+        ;(window as any).__baccaratPendingBet = { side: dialog.value, amount }
       } else {
         betParityRef.current = dialog.value as BetParity
         betParityAmountRef.current = amount
@@ -1072,6 +1078,35 @@ export function BettingGame() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* 바카라 배팅 버튼 */}
+        <div className="mb-3">
+          <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold tracking-widest">BACCARAT</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {(["player", "banker", "tie"] as const).map((side) => {
+              const colors = { player: "#3b82f6", banker: "#ef4444", tie: "#22c55e" }
+              const labels = { player: "PLAYER", banker: "BANKER", tie: "TIE" }
+              const payouts = { player: "1:1", banker: "0.95:1", tie: "8:1" }
+              const color = colors[side]
+              return (
+                <button
+                  key={side}
+                  onClick={() => openDialog("baccarat" as any, side)}
+                  disabled={!canBet}
+                  className="py-3 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50"
+                  style={{
+                    background: `${color}10`,
+                    borderColor: `${color}40`,
+                    color: color,
+                  }}
+                >
+                  <span>{labels[side]}</span>
+                  <span className="text-[9px] opacity-60">{payouts[side]}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* 3그룹 배팅 버튼 */}

@@ -145,23 +145,32 @@ function PlayingCard({
 
 interface BaccaratGameProps {
   onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"] }) => void
+  externalBalance?: number | null
+  onBalanceChange?: (newBalance: number) => void
 }
 
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) {
+export default function BaccaratGame({ onCardsChange, externalBalance, onBalanceChange }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
     bankerCards: [],
     bet: null,
-    betAmount: 1000,
-    balance: 10000,
+    betAmount: 10000,
+    balance: 100000,
     lastDigits: [],
     result: null,
     priceDisplay: 0,
     roundCount: 0,
     history: [],
   })
+
+  // 외부 잔고 동기화
+  useEffect(() => {
+    if (externalBalance !== undefined && externalBalance !== null) {
+      setState(prev => ({ ...prev, balance: externalBalance }))
+    }
+  }, [externalBalance])
 
   const digitQueueRef = useRef<number[]>([])
   const dealingRef = useRef(false)
@@ -173,6 +182,21 @@ export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) 
       ;(window as any).__bitcoinCurrentPrice = price
     }, []),
   })
+
+  // window.__baccaratPendingBet 폴링 — BettingGame에서 배팅 버튼 클릭 시 자동 반영
+  useEffect(() => {
+    const win = window as any
+    const id = setInterval(() => {
+      const pending = win.__baccaratPendingBet
+      if (!pending) return
+      win.__baccaratPendingBet = null
+      setState(prev => {
+        if (prev.phase !== "betting") return prev
+        return { ...prev, bet: pending.side, betAmount: pending.amount }
+      })
+    }, 300)
+    return () => clearInterval(id)
+  }, [])
 
   // window.__bitcoinCurrentPrice 폴링 — 카드용 digit 큐 + priceDisplay 업데이트
   const lastPriceRef = useRef<number | null>(null)
@@ -275,19 +299,21 @@ export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) 
       newBalance -= betAmount
     }
 
+    const safeBalance = Math.max(0, newBalance)
     setState(prev => ({
       ...prev,
       phase: "result",
       result,
-      balance: Math.max(0, newBalance),
+      balance: safeBalance,
       playerCards: finalP,
       bankerCards: finalB,
       roundCount: prev.roundCount + 1,
       history: [...prev.history.slice(-19), result],
     }))
+    onBalanceChange?.(safeBalance)
 
     dealingRef.current = false
-  }, [])
+  }, [onBalanceChange])
 
   const handleBet = (side: BetSide) => {
     if (state.phase !== "betting") return
