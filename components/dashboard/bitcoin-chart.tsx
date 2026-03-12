@@ -76,10 +76,10 @@ export function BitcoinChart() {
       if (price && seriesRef.current) {
         const now = Math.floor(Date.now() / 1000)
         const seconds = intervalSecondsRef.current
-        const bucket = (now - (now % seconds)) as number
+        const bucket = now - (now % seconds)
         const existing = candleMapRef.current.get(bucket)
         const candle: CandleData = {
-          time: bucket as any,
+          time: bucket,
           open: existing?.open ?? price,
           high: existing ? Math.max(existing.high, price) : price,
           low: existing ? Math.min(existing.low, price) : price,
@@ -223,35 +223,57 @@ export function BitcoinChart() {
 
   return (
     <Card className="p-4 bg-background border border-border/60">
-      {/* 헤더 1행: 로고+현재가 왼쪽, 인터벌 버튼 오른쪽 */}
-      <div className="flex items-center justify-between gap-2 mb-[6px]">
-        <div className="flex items-center gap-2 min-w-0">
-          <img src="/bitcoin-logo.png" alt="Bitcoin" className="w-7 h-7 shrink-0" />
-          {ticker ? (
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-sm font-bold text-foreground tabular-nums">
-                ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-              </span>
-              <span className={`text-[11px] font-semibold ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
-                {isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%
-              </span>
+      {/* 헤더 1행: 배팅 기준가(왼) + 현재가(오) */}
+      <div className="flex items-start justify-between gap-2 mb-[6px]">
+        {/* 왼쪽: 로고 + 배팅 기준가 + 인터벌 버튼 */}
+        <div className="flex items-start gap-2.5 min-w-0">
+          <img
+            src="/bitcoin-logo.png"
+            alt="Bitcoin"
+            className="w-9 h-9 shrink-0"
+          />
+          <div className="min-w-0">
+            <p className="text-[11px] text-muted-foreground leading-tight">배팅 기준가</p>
+            <p className="text-sm font-bold text-foreground tabular-nums truncate">
+              ${closingPrices.length > 0
+                ? closingPrices[closingPrices.length - 1].price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+                : "로딩 중..."}
+            </p>
+            <div className="flex items-center gap-0.5 mt-0.5">
+              {INTERVALS.map((btn) => (
+                <Button
+                  key={btn}
+                  variant={interval === btn ? "default" : "ghost"}
+                  size="sm"
+                  className="h-5 px-1.5 text-[10px]"
+                  onClick={() => {
+                    candleMapRef.current.clear()
+                    setIntervalState(btn)
+                  }}
+                >
+                  {INTERVAL_CONFIG[btn].label}
+                </Button>
+              ))}
             </div>
+          </div>
+        </div>
+
+        {/* 오른쪽: 현재가 + 변동률 */}
+        <div className="shrink-0 text-right">
+          {ticker ? (
+            <>
+              <p className="text-[11px] text-muted-foreground font-medium mb-0.5">현재가</p>
+              <p className="text-sm font-bold text-foreground tabular-nums leading-tight">
+                ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              </p>
+              <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold mt-0.5 ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
+                {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
+              </div>
+            </>
           ) : (
             <span className="text-xs text-muted-foreground animate-pulse">로딩 중...</span>
           )}
-        </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-          {INTERVALS.map((btn) => (
-            <Button
-              key={btn}
-              variant={interval === btn ? "default" : "ghost"}
-              size="sm"
-              className="h-5 px-1.5 text-[10px]"
-              onClick={() => { candleMapRef.current.clear(); setIntervalState(btn) }}
-            >
-              {INTERVAL_CONFIG[btn].label}
-            </Button>
-          ))}
         </div>
       </div>
 
