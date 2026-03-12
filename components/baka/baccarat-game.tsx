@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type Suit = "♠" | "♥" | "♦" | "♣"
@@ -143,8 +143,12 @@ function PlayingCard({
   )
 }
 
+interface BaccaratGameProps {
+  onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"] }) => void
+}
+
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame() {
+export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
@@ -163,7 +167,14 @@ export default function BaccaratGame() {
   const dealingRef = useRef(false)
   const priceRef = useRef(0)
 
-  // ─── 가격 수신 — window.__bitcoinCurrentPrice 폴링 ("/" 경로와 동일 방식) ──
+  // ─── 가격 수신 — usePriceWorker로 window.__bitcoinCurrentPrice 채우기 ("/", "/widget" 동일 방식) ──
+  usePriceWorker({
+    onPrice: useCallback((price: number) => {
+      ;(window as any).__bitcoinCurrentPrice = price
+    }, []),
+  })
+
+  // window.__bitcoinCurrentPrice 폴링 — 카드용 digit 큐 + priceDisplay 업데이트
   const lastPriceRef = useRef<number | null>(null)
   useEffect(() => {
     const win = window as any
@@ -302,6 +313,11 @@ export default function BaccaratGame() {
   const pScore = handScore(state.playerCards)
   const bScore = handScore(state.bankerCards)
   const lastDigit = Math.floor(state.priceDisplay) % 10
+
+  // 카드 상태를 부모로 전달 (차트 오버레이용)
+  useEffect(() => {
+    onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result })
+  }, [state.playerCards, state.bankerCards, state.result, pScore, bScore, onCardsChange])
 
   return (
     <div
