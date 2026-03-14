@@ -356,15 +356,13 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 
 // ─── 메인 게임 컴포넌트 ─────────────────────────────────────────────────────
 interface BakaBettingGameProps {
-  /** 바카라 카드 결과 수신용 콜백 등록 (BaccaratGame → BakaBettingGame) */
-  onRegisterResultReceiver?: (fn: (result: "player" | "banker" | "tie") => void) => void
-  /** 15초 시점 딜 시작 신호 (BakaBettingGame → BaccaratGame) */
-  onStartDealRequest?: (handler: () => void) => void
-  /** 0초 끝자리 전달 (BakaBettingGame → BaccaratGame) */
-  onFinalDigitRequest?: (handler: (digit: number) => void) => void
+  /** 15초 시점: page가 주입해 준 startDeal 트리거 */
+  onStartDealTrigger?: () => void
+  /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 */
+  onFinalDigitTrigger?: (digit: number) => void
 }
 
-export function BakaBettingGame({ onRegisterResultReceiver, onStartDealRequest, onFinalDigitRequest }: BakaBettingGameProps = {}) {
+export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger }: BakaBettingGameProps = {}) {
   const [timeLeft, setTimeLeft] = useState(30)
   const [roundNumber, setRoundNumber] = useState(0)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
@@ -403,19 +401,9 @@ export function BakaBettingGame({ onRegisterResultReceiver, onStartDealRequest, 
   // BaccaratGame이 applyFinalDigit 후 setState → onCardsChange → setBaccaratResult 순으로 전달
   // baccaratResultRef는 onClosingPrice 시점에 읽힘 (900ms 딜레이로 카드 완료 대기)
   const baccaratResultRef = useRef<"player" | "banker" | "tie" | null>(null)
-  // BaccaratGame에 등록된 핸들러 ref
-  const startDealHandlerRef = useRef<(() => void) | null>(null)
-  const finalDigitHandlerRef = useRef<((digit: number) => void) | null>(null)
   // 15초 트리거 중복 방지
   const dealTriggeredRoundRef = useRef<number>(-1)
-
-  // BaccaratGame 핸들러 등록
-  useEffect(() => {
-    onStartDealRequest?.((h) => { startDealHandlerRef.current = h })
-  }, [onStartDealRequest])
-  useEffect(() => {
-    onFinalDigitRequest?.((h) => { finalDigitHandlerRef.current = h })
-  }, [onFinalDigitRequest])
+  // onStartDealTrigger / onFinalDigitTrigger는 props로 직접 받으므로 별도 ref 불필요
 
   // baka/page.tsx에서 BaccaratGame 결과를 브로드캐스트 → baccaratResultRef 동기화
   useEffect(() => {
@@ -458,7 +446,7 @@ export function BakaBettingGame({ onRegisterResultReceiver, onStartDealRequest, 
       const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
 
       // 0초 끝자리 → BaccaratGame에 뱅커 최종 카드로 전달
-      finalDigitHandlerRef.current?.(lastDigit)
+      onFinalDigitTrigger?.(lastDigit)
 
       // 배팅 없으면 새 기준가만 업데이트
       const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
@@ -572,11 +560,11 @@ export function BakaBettingGame({ onRegisterResultReceiver, onStartDealRequest, 
       // 15초: 딜 시작 (라운드당 1회)
       if (rem === 15 && dealTriggeredRoundRef.current !== roundNum) {
         dealTriggeredRoundRef.current = roundNum
-        startDealHandlerRef.current?.()
+        onStartDealTrigger?.()
       }
     }, 200)
     return () => clearInterval(tick)
-  }, [])
+  }, [onStartDealTrigger])
 
   // 배팅 가능 시간: 30초~15초 초과 구간
   const canBet = timeLeft > 15

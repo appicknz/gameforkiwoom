@@ -57,25 +57,37 @@ export default function BakaPage() {
   })
   const [baccaratResult, setBaccaratResult] = useState<BaccaratResult>(null)
 
-  const startDealHandlerRef = useRef<(() => void) | null>(null)
-  const finalDigitHandlerRef = useRef<((digit: number) => void) | null>(null)
+  // BaccaratGame이 자신의 startDeal/applyFinalDigit을 여기에 등록
+  // BakaBettingGame의 타이머가 이 ref를 직접 호출
+  const startDealRef = useRef<(() => void) | null>(null)
+  const applyFinalDigitRef = useRef<((digit: number) => void) | null>(null)
 
   const handleCardsChange = useCallback((data: CardOverlayData) => {
     setCardData(data)
     setBaccaratResult(data.result)
-    // BakaBettingGame의 baccaratResultRef 동기화 (window 이벤트)
     if (data.result) {
       window.dispatchEvent(new CustomEvent("baccarat:result", { detail: data.result }))
     }
   }, [])
 
-  // BakaBettingGame이 등록한 핸들러를 BaccaratGame에 연결
-  const handleOnStartDealRequest = useCallback((handler: () => void) => {
-    startDealHandlerRef.current = handler
+  // BaccaratGame → page: startDeal 등록
+  const handleRegisterStartDeal = useCallback((fn: () => void) => {
+    startDealRef.current = fn
   }, [])
 
-  const handleOnFinalDigitRequest = useCallback((handler: (digit: number) => void) => {
-    finalDigitHandlerRef.current = handler
+  // BaccaratGame → page: applyFinalDigit 등록
+  const handleRegisterFinalDigit = useCallback((fn: (digit: number) => void) => {
+    applyFinalDigitRef.current = fn
+  }, [])
+
+  // BakaBettingGame → page: 15초 트리거
+  const handleStartDealTrigger = useCallback(() => {
+    startDealRef.current?.()
+  }, [])
+
+  // BakaBettingGame → page: 0초 끝자리 전달
+  const handleFinalDigitTrigger = useCallback((digit: number) => {
+    applyFinalDigitRef.current?.(digit)
   }, [])
 
   return (
@@ -169,8 +181,8 @@ export default function BakaPage() {
 
             {/* 배팅 게임 (기존 6종목 + 바카라) */}
             <BakaBettingGame
-              onStartDealRequest={handleOnStartDealRequest}
-              onFinalDigitRequest={handleOnFinalDigitRequest}
+              onStartDealTrigger={handleStartDealTrigger}
+              onFinalDigitTrigger={handleFinalDigitTrigger}
             />
           </div>
 
@@ -185,8 +197,8 @@ export default function BakaPage() {
             >
               <BaccaratGame
                 onCardsChange={handleCardsChange}
-                onStartDealRequest={handleOnStartDealRequest}
-                onFinalDigitRequest={handleOnFinalDigitRequest}
+                onStartDealRequest={handleRegisterStartDeal}
+                onFinalDigitRequest={handleRegisterFinalDigit}
               />
             </div>
           </div>
