@@ -175,16 +175,16 @@ export function BitcoinChart() {
     const chart = createChart(container, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#9ca3af",
+        textColor: "rgba(212,175,55,0.55)",
         fontFamily: "inherit",
       },
       grid: {
-        vertLines: { color: "rgba(156,163,175,0.1)" },
-        horzLines: { color: "rgba(156,163,175,0.1)" },
+        vertLines: { color: "rgba(212,175,55,0.07)" },
+        horzLines: { color: "rgba(212,175,55,0.07)" },
       },
       crosshair: {
-        vertLine: { color: "rgba(156,163,175,0.5)", labelBackgroundColor: "#1f2937" },
-        horzLine: { color: "rgba(156,163,175,0.5)", labelBackgroundColor: "#1f2937" },
+        vertLine: { color: "rgba(212,175,55,0.45)", labelBackgroundColor: "#1a3a2a" },
+        horzLine: { color: "rgba(212,175,55,0.45)", labelBackgroundColor: "#1a3a2a" },
       },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.1 } },
       timeScale: {
@@ -240,7 +240,18 @@ export function BitcoinChart() {
   const isPositive = (ticker?.changePercent ?? 0) >= 0
 
   return (
-    <Card className="p-4 bg-background border border-border/60">
+    <Card
+      className="p-4 border-0 overflow-hidden"
+      style={{
+        background: "radial-gradient(ellipse at 50% 0%, #1a4a2e 0%, #0d2e1a 40%, #091f12 100%)",
+        backgroundImage: `
+          radial-gradient(ellipse at 50% 0%, #1a4a2e 0%, #0d2e1a 40%, #091f12 100%),
+          repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(212,175,55,0.03) 28px, rgba(212,175,55,0.03) 29px),
+          repeating-linear-gradient(90deg, transparent, transparent 28px, rgba(212,175,55,0.03) 28px, rgba(212,175,55,0.03) 29px)
+        `,
+        boxShadow: "inset 0 0 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.18)",
+      }}
+    >
       {/* 헤더 1행: 배팅 기준가(왼) + 현재가(오) */}
       <div className="flex items-start justify-between gap-2 mb-[6px]">
         {/* 왼쪽: 로고 + 배팅 기준가 + 인터벌 버튼 */}
@@ -251,26 +262,24 @@ export function BitcoinChart() {
             className="w-9 h-9 shrink-0"
           />
           <div className="min-w-0">
-            <p className="text-[11px] text-muted-foreground leading-tight">배팅 기준가</p>
-            <p className="text-sm font-bold text-foreground tabular-nums truncate">
+            <p className="text-[11px] leading-tight" style={{ color: "rgba(212,175,55,0.5)" }}>배팅 기준가</p>
+            <p className="text-sm font-bold tabular-nums truncate" style={{ color: "#d4af37" }}>
               ${closingPrices.length > 0
                 ? closingPrices[closingPrices.length - 1].price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
                 : "로딩 중..."}
             </p>
             <div className="flex items-center gap-0.5 mt-0.5">
               {INTERVALS.map((btn) => (
-                <Button
+                <button
                   key={btn}
-                  variant={interval === btn ? "default" : "ghost"}
-                  size="sm"
-                  className="h-5 px-1.5 text-[10px]"
-                  onClick={() => {
-                    candleMapRef.current.clear()
-                    setIntervalState(btn)
-                  }}
+                  onClick={() => { candleMapRef.current.clear(); setIntervalState(btn) }}
+                  className="h-5 px-1.5 text-[10px] rounded font-semibold transition-all"
+                  style={interval === btn
+                    ? { background: "rgba(212,175,55,0.2)", color: "#d4af37", border: "1px solid rgba(212,175,55,0.4)" }
+                    : { background: "transparent", color: "rgba(212,175,55,0.4)", border: "1px solid transparent" }}
                 >
                   {INTERVAL_CONFIG[btn].label}
-                </Button>
+                </button>
               ))}
             </div>
           </div>
@@ -280,17 +289,17 @@ export function BitcoinChart() {
         <div className="shrink-0 text-right">
           {ticker ? (
             <>
-              <p className="text-[11px] text-muted-foreground font-medium mb-0.5">현재가</p>
-              <p className="text-sm font-bold text-foreground tabular-nums leading-tight">
+              <p className="text-[11px] font-medium mb-0.5" style={{ color: "rgba(212,175,55,0.5)" }}>현재가</p>
+              <p className="text-sm font-bold tabular-nums leading-tight" style={{ color: "#e8d5a3" }}>
                 ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </p>
-              <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold mt-0.5 ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
+              <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold mt-0.5 ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
                 {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                 <span>{isPositive ? "+" : ""}{ticker.changePercent.toFixed(2)}%</span>
               </div>
             </>
           ) : (
-            <span className="text-xs text-muted-foreground animate-pulse">로딩 중...</span>
+            <span className="text-xs animate-pulse" style={{ color: "rgba(212,175,55,0.4)" }}>로딩 중...</span>
           )}
         </div>
       </div>
@@ -299,13 +308,27 @@ export function BitcoinChart() {
       <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
         <div ref={chartContainerRef} className="w-full h-full" />
 
-        {/* 차트 내 거래량/거래대금 오버레이 (왼쪽 아래, 시간 위) */}
+        {/* 차트 내 거래량/거래대금 오버레이 */}
         {ticker && (
-          <div className="absolute bottom-8 left-2 bg-background/75 backdrop-blur-sm px-2 py-1 rounded border border-border/40 text-[10px] text-muted-foreground z-10">
-            <div>거래량: <span className="text-foreground font-medium">{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
-            <div>거래대금: <span className="text-foreground font-medium">{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
+          <div
+            className="absolute bottom-8 left-2 px-2 py-1 rounded text-[10px] z-10"
+            style={{
+              background: "rgba(9,31,18,0.82)",
+              backdropFilter: "blur(4px)",
+              border: "1px solid rgba(212,175,55,0.15)",
+              color: "rgba(212,175,55,0.45)",
+            }}
+          >
+            <div>거래량: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
+            <div>거래대금: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
           </div>
         )}
+
+        {/* 펠트 테두리 광택 효과 */}
+        <div className="absolute inset-0 pointer-events-none" style={{
+          boxShadow: "inset 0 0 40px rgba(0,0,0,0.3), inset 0 0 1px rgba(212,175,55,0.15)",
+          borderRadius: 8,
+        }} />
       </div>
     </Card>
   )

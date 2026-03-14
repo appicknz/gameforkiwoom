@@ -344,7 +344,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   return (
     <div
       className="font-sans"
-      style={{ background: "#09080a", color: "#e8d5a3" }}
+      style={{
+        background: "radial-gradient(ellipse at 50% 0%, #163828 0%, #0d2318 50%, #091510 100%)",
+        color: "#e8d5a3",
+        boxShadow: "inset 0 0 60px rgba(0,0,0,0.6)",
+      }}
     >
       {/* 컴팩트 가격 헤더 (잔고 없음) */}
       <div

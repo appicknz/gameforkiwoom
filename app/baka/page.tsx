@@ -83,10 +83,10 @@ export default function BakaPage() {
   return (
     <div
       className="min-h-screen font-sans"
-      style={{ background: "#09080a" }}
+      style={{ background: "radial-gradient(ellipse at 50% 30%, #0f2a1a 0%, #081510 60%, #050d0a 100%)" }}
     >
       {/* TopBar */}
-      <div style={{ background: "#0d0b0e", borderBottom: "1px solid rgba(212,175,55,0.1)" }}>
+      <div style={{ background: "rgba(5,13,10,0.95)", borderBottom: "1px solid rgba(212,175,55,0.12)" }}>
         <TopBar />
       </div>
 
