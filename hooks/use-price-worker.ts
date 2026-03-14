@@ -111,10 +111,10 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
       let tradeRetry: ReturnType<typeof setTimeout> | null = null
       let klineRetry: ReturnType<typeof setTimeout> | null = null
 
-      // aggTrade: 현재가 실시간 브로드캐스트
+      // trade: 현물 현재가 실시간 브로드캐스트
       const connectTrade = () => {
         if (closed) return
-        tradeWs = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
+        tradeWs = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@trade")
 
         tradeWs.onopen = () => optsRef.current.onConnected?.()
 
@@ -136,10 +136,10 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         tradeWs.onerror = () => tradeWs?.close()
       }
 
-      // kline_30s: Binance 공식 30초봉 종가 — k.x===true 마감 확정 시만 처리
+      // kline_30s: 현물 Binance 30초봉 종가 — k.x===true 마감 확정 시만 처리
       const connectKline = () => {
         if (closed) return
-        klineWs = new WebSocket("wss://fstream.binance.com/ws/btcusdt@kline_30s")
+        klineWs = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@kline_30s")
 
         klineWs.onmessage = (event) => {
           try {
