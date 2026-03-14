@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 
-// 소수점 첫째 자리를 반올림 없이 버림(floor)으로 추출
 function extractDigit(price: number): number {
-  return Math.floor(Math.abs(price) * 10) % 10
+  const priceStr = price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return parseInt(priceStr[priceStr.length - 1]) || 0
 }
 
 export function ClosingPricesBadges() {
