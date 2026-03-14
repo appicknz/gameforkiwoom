@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import BaccaratGame from "@/components/baka/baccarat-game"
 import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
@@ -57,9 +57,20 @@ export default function BakaPage() {
   })
   const [baccaratResult, setBaccaratResult] = useState<BaccaratResult>(null)
 
+  // BaccaratGame의 triggerDeal 함수를 ref로 보관
+  const dealHandlerRef = useRef<((side: "player" | "banker" | "tie", amount: number) => void) | null>(null)
+
   const handleCardsChange = useCallback((data: CardOverlayData) => {
     setCardData(data)
     setBaccaratResult(data.result)
+  }, [])
+
+  const handleDealRequest = useCallback((handler: (side: "player" | "banker" | "tie", amount: number) => void) => {
+    dealHandlerRef.current = handler
+  }, [])
+
+  const handleBaccaratDeal = useCallback((side: "player" | "banker" | "tie", amount: number) => {
+    dealHandlerRef.current?.(side, amount)
   }, [])
 
   return (
@@ -152,7 +163,10 @@ export default function BakaPage() {
             </div>
 
             {/* 배팅 게임 (기존 6종목 + 바카라) */}
-            <BakaBettingGame baccaratResult={baccaratResult} />
+            <BakaBettingGame
+              baccaratResult={baccaratResult}
+              onBaccaratDeal={handleBaccaratDeal}
+            />
           </div>
 
           {/* 오른쪽: 바카라 카드 딜 게임 */}
@@ -164,7 +178,10 @@ export default function BakaPage() {
                 boxShadow: "0 0 50px rgba(212,175,55,0.06)",
               }}
             >
-              <BaccaratGame onCardsChange={handleCardsChange} />
+              <BaccaratGame
+                onCardsChange={handleCardsChange}
+                onDealRequest={handleDealRequest}
+              />
             </div>
           </div>
 

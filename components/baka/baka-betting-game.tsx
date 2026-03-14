@@ -358,9 +358,11 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 interface BakaBettingGameProps {
   /** 바카라 딜 결과를 받아서 정산에 활용 */
   baccaratResult?: "player" | "banker" | "tie" | null
+  /** 바카라 배팅 확정 시 딜 트리거 — BaccaratGame에 연결 */
+  onBaccaratDeal?: (side: "player" | "banker" | "tie", amount: number) => void
 }
 
-export function BakaBettingGame({ baccaratResult }: BakaBettingGameProps = {}) {
+export function BakaBettingGame({ baccaratResult, onBaccaratDeal }: BakaBettingGameProps = {}) {
   const [timeLeft, setTimeLeft] = useState(30)
   const [roundNumber, setRoundNumber] = useState(0)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
@@ -594,6 +596,8 @@ export function BakaBettingGame({ baccaratResult }: BakaBettingGameProps = {}) {
         betBaccaratAmountRef.current = amount
         setBetBaccarat(dialog.value as BetBaccarat)
         setBetBaccaratAmount(amount)
+        // 바카라 배팅 확정 즉시 딜 트리거
+        onBaccaratDeal?.(dialog.value as "player" | "banker" | "tie", amount)
       }
 
       setPhase("waiting")

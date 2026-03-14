@@ -145,17 +145,19 @@ function PlayingCard({
 
 interface BaccaratGameProps {
   onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"] }) => void
+  /** 외부에서 딜을 트리거 — BakaBettingGame이 배팅 확정 후 호출 */
+  onDealRequest?: (handler: (side: BetSide, amount: number) => void) => void
 }
 
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) {
+export default function BaccaratGame({ onCardsChange, onDealRequest }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
     bankerCards: [],
     bet: null,
-    betAmount: 1000,
-    balance: 10000,
+    betAmount: 0,
+    balance: 0,
     lastDigits: [],
     result: null,
     priceDisplay: 0,
@@ -167,14 +169,7 @@ export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) 
   const dealingRef = useRef(false)
   const priceRef = useRef(0)
 
-  // ─── 가격 수신 — usePriceWorker로 window.__bitcoinCurrentPrice 채우기 ("/", "/widget" 동일 방식) ──
-  usePriceWorker({
-    onPrice: useCallback((price: number) => {
-      ;(window as any).__bitcoinCurrentPrice = price
-    }, []),
-  })
-
-  // window.__bitcoinCurrentPrice 폴링 — 카드용 digit 큐 + priceDisplay 업데이트
+  // ─── 가격 수신 (digit 큐 채우기만) ────────────────────────────────────────
   const lastPriceRef = useRef<number | null>(null)
   useEffect(() => {
     const win = window as any
@@ -188,7 +183,7 @@ export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) 
       digitQueueRef.current.push(digit)
       if (digitQueueRef.current.length > 20) digitQueueRef.current.shift()
       setState(prev => ({ ...prev, priceDisplay: price }))
-    }, 500)
+    }, 300)
     return () => clearInterval(id)
   }, [])
 
@@ -289,76 +284,74 @@ export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) 
     dealingRef.current = false
   }, [])
 
-  const handleBet = (side: BetSide) => {
-    if (state.phase !== "betting") return
-    setState(prev => ({ ...prev, bet: prev.bet === side ? null : side }))
-  }
-
-  const handleDeal = () => {
-    if (!state.bet || state.betAmount <= 0 || state.balance < state.betAmount) return
-    deal(state.bet, state.betAmount, state.balance)
-  }
-
-  const handleNextRound = () => {
+  // 외부 딜 트리거 — BakaBettingGame이 배팅 확정 후 이 함수를 호출
+  const triggerDeal = useCallback((side: BetSide, amount: number) => {
+    if (dealingRef.current) return
+    // 결과 단계면 초기화 후 딜
     setState(prev => ({
       ...prev,
       phase: "betting",
       playerCards: [],
       bankerCards: [],
-      bet: null,
+      bet: side,
+      betAmount: amount,
       result: null,
     }))
-  }
+    // 약간의 딜레이 후 deal 실행 (setState 반영 대기)
+    setTimeout(() => deal(side, amount, 0), 50)
+  }, [deal])
+
+  // onDealRequest 콜백 등록
+  useEffect(() => {
+    onDealRequest?.(triggerDeal)
+  }, [onDealRequest, triggerDeal])
 
   const pScore = handScore(state.playerCards)
   const bScore = handScore(state.bankerCards)
-  const lastDigit = Math.floor(state.priceDisplay) % 10
 
   // 카드 상태를 부모로 전달 (차트 오버레이용)
   useEffect(() => {
     onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result })
   }, [state.playerCards, state.bankerCards, state.result, pScore, bScore, onCardsChange])
 
+  const lastDigit = Math.floor(state.priceDisplay) % 10
+
   return (
     <div
       className="font-sans"
-      style={{ background: "#09080a", minHeight: "100%", color: "#e8d5a3" }}
+      style={{ background: "#09080a", color: "#e8d5a3" }}
     >
-      {/* 가격 헤더 */}
+      {/* 컴팩트 가격 헤더 (잔고 없음) */}
       <div
         style={{
-          borderBottom: "1px solid rgba(212,175,55,0.12)",
-          padding: "10px 16px",
+          borderBottom: "1px solid rgba(212,175,55,0.1)",
+          padding: "8px 14px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "rgba(212,175,55,0.04)",
+          background: "rgba(212,175,55,0.03)",
         }}
       >
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <span style={{ fontSize: 11, color: "rgba(232,213,163,0.5)", letterSpacing: "0.08em" }}>BTC/USDT</span>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#d4af37" }}>
+          <span style={{ fontSize: 10, color: "rgba(232,213,163,0.45)", letterSpacing: "0.08em" }}>BTC/USDT</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#d4af37" }}>
             {state.priceDisplay ? state.priceDisplay.toFixed(1) : "---"}
           </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "rgba(232,213,163,0.4)" }}>끝자리</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#d4af37", lineHeight: 1.1 }}>{state.priceDisplay ? lastDigit : "-"}</div>
+            <div style={{ fontSize: 9, color: "rgba(232,213,163,0.35)" }}>끝자리</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#d4af37", lineHeight: 1.1 }}>{state.priceDisplay ? lastDigit : "-"}</div>
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "rgba(232,213,163,0.4)" }}>잔액</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#a8e6a3" }}>₩{state.balance.toLocaleString()}</div>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "rgba(232,213,163,0.4)" }}>라운드</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "rgba(232,213,163,0.7)" }}>#{state.roundCount}</div>
+            <div style={{ fontSize: 9, color: "rgba(232,213,163,0.35)" }}>라운드</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(232,213,163,0.6)" }}>#{state.roundCount}</div>
           </div>
         </div>
       </div>
 
       {/* 게임 테이블 */}
-      <div style={{ padding: "16px 12px" }}>
+      <div style={{ padding: "14px 12px" }}>
 
         {/* 히스토리 */}
         {state.history.length > 0 && (
@@ -445,154 +438,30 @@ export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) 
           <div
             style={{
               textAlign: "center",
-              padding: "12px",
-              marginBottom: 14,
+              padding: "10px",
+              marginBottom: 12,
               borderRadius: 10,
               border: "1px solid rgba(212,175,55,0.3)",
               background: "rgba(212,175,55,0.06)",
             }}
           >
-            <div style={{ fontSize: 11, color: "rgba(232,213,163,0.5)", marginBottom: 4 }}>결과</div>
+            <div style={{ fontSize: 11, color: "rgba(232,213,163,0.5)", marginBottom: 3 }}>결과</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: "#d4af37", letterSpacing: "0.08em" }}>
               {state.result === "player" ? "PLAYER WIN" : state.result === "banker" ? "BANKER WIN" : "TIE"}
             </div>
-            {state.bet === state.result && (
-              <div style={{ fontSize: 13, color: "#a8e6a3", marginTop: 4 }}>
-                +{state.result === "tie"
-                  ? (state.betAmount * 8).toLocaleString()
-                  : state.result === "banker"
-                    ? Math.floor(state.betAmount * 0.95).toLocaleString()
-                    : state.betAmount.toLocaleString()} 원 획득
-              </div>
-            )}
-            {state.bet !== state.result && state.result !== "tie" && (
-              <div style={{ fontSize: 13, color: "#f87171", marginTop: 4 }}>
-                -{state.betAmount.toLocaleString()} 원 손실
-              </div>
-            )}
           </div>
         )}
 
-        {/* 베팅 영역 */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 10, color: "rgba(232,213,163,0.4)", marginBottom: 8, letterSpacing: "0.08em" }}>베팅 선택</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {(["player", "banker", "tie"] as BetSide[]).map((side) => {
-              const colors = {
-                player: { main: "#3b82f6", label: "PLAYER", sub: "1:1" },
-                banker: { main: "#ef4444", label: "BANKER", sub: "1:0.95" },
-                tie: { main: "#22c55e", label: "TIE", sub: "8:1" },
-              }
-              const c = colors[side!]
-              const isSelected = state.bet === side
-              return (
-                <button
-                  key={side}
-                  onClick={() => handleBet(side)}
-                  disabled={state.phase !== "betting"}
-                  style={{
-                    flex: 1, padding: "10px 6px",
-                    borderRadius: 10,
-                    border: `1px solid ${isSelected ? c.main : "rgba(212,175,55,0.15)"}`,
-                    background: isSelected ? `${c.main}22` : "rgba(255,255,255,0.02)",
-                    color: isSelected ? c.main : "rgba(232,213,163,0.5)",
-                    cursor: state.phase === "betting" ? "pointer" : "not-allowed",
-                    transition: "all 0.18s",
-                    textAlign: "center",
-                    boxShadow: isSelected ? `0 0 12px ${c.main}33` : "none",
-                  }}
-                >
-                  <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em" }}>{c.label}</div>
-                  <div style={{ fontSize: 10, marginTop: 2, opacity: 0.7 }}>{c.sub}</div>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* 베팅 금액 */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 10, color: "rgba(232,213,163,0.4)", marginBottom: 8, letterSpacing: "0.08em" }}>베팅 금액</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {[500, 1000, 5000, 10000, 50000].map((amt) => (
-              <button
-                key={amt}
-                onClick={() => setState(prev => ({ ...prev, betAmount: amt }))}
-                disabled={state.phase !== "betting"}
-                style={{
-                  padding: "5px 10px",
-                  borderRadius: 6,
-                  border: `1px solid ${state.betAmount === amt ? "#d4af37" : "rgba(212,175,55,0.15)"}`,
-                  background: state.betAmount === amt ? "rgba(212,175,55,0.18)" : "rgba(255,255,255,0.02)",
-                  color: state.betAmount === amt ? "#d4af37" : "rgba(232,213,163,0.45)",
-                  fontSize: 11, fontWeight: 600,
-                  cursor: state.phase === "betting" ? "pointer" : "not-allowed",
-                  transition: "all 0.15s",
-                }}
-              >
-                {amt >= 10000 ? `${amt / 10000}만` : amt.toLocaleString()}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 딜 / 다음 라운드 버튼 */}
-        {state.phase === "betting" && (
-          <button
-            onClick={handleDeal}
-            disabled={!state.bet || state.balance < state.betAmount}
-            style={{
-              width: "100%", padding: "13px",
-              borderRadius: 10,
-              border: "1px solid rgba(212,175,55,0.5)",
-              background: state.bet ? "rgba(212,175,55,0.15)" : "rgba(255,255,255,0.02)",
-              color: state.bet ? "#d4af37" : "rgba(232,213,163,0.25)",
-              fontSize: 14, fontWeight: 700, letterSpacing: "0.1em",
-              cursor: state.bet && state.balance >= state.betAmount ? "pointer" : "not-allowed",
-              transition: "all 0.2s",
-              boxShadow: state.bet ? "0 0 20px rgba(212,175,55,0.12)" : "none",
-            }}
-          >
-            DEAL
-          </button>
-        )}
+        {/* 딜링 중 표시 */}
         {state.phase === "dealing" && (
-          <div
-            style={{
-              width: "100%", padding: "13px",
-              borderRadius: 10,
-              border: "1px solid rgba(212,175,55,0.2)",
-              background: "rgba(212,175,55,0.06)",
-              color: "rgba(232,213,163,0.5)",
-              fontSize: 13, fontWeight: 600, textAlign: "center",
-              letterSpacing: "0.08em",
-            }}
-          >
+          <div style={{
+            textAlign: "center", padding: "8px",
+            marginBottom: 10,
+            fontSize: 11, color: "rgba(232,213,163,0.4)", letterSpacing: "0.08em",
+          }}>
             딜링 중...
           </div>
         )}
-        {state.phase === "result" && (
-          <button
-            onClick={handleNextRound}
-            style={{
-              width: "100%", padding: "13px",
-              borderRadius: 10,
-              border: "1px solid rgba(212,175,55,0.5)",
-              background: "rgba(212,175,55,0.15)",
-              color: "#d4af37",
-              fontSize: 14, fontWeight: 700, letterSpacing: "0.1em",
-              cursor: "pointer",
-              transition: "all 0.2s",
-            }}
-          >
-            다음 라운드
-          </button>
-        )}
-
-        {/* 규칙 안내 */}
-        <div style={{ marginTop: 14, fontSize: 10, color: "rgba(232,213,163,0.3)", lineHeight: 1.7 }}>
-          * 비트코인 현재가 끝자리 숫자를 카드 값으로 사용합니다. 뱅커 승리시 5% 커미션. 타이는 8:1 배당.
-        </div>
       </div>
     </div>
   )
