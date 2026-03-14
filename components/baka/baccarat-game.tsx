@@ -179,9 +179,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   const midStateRef = useRef<{
     finalP: Card[]
     finalB: Card[]
-    p3: Card | null
-    isNatural: boolean
-    needsBankerDraw: boolean
+    isNatural: boolean   // true면 0초 대기 없이 즉시 승부
   } | null>(null)
 
   // ─── 가격 수신 (priceDisplay 업데이트) ────────────────────────────────────
@@ -198,23 +196,25 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => clearInterval(id)
   }, [])
 
-  // ─── 15초 딜 시작: P1→B1→P2→B2 (임의), 필요시 P3 ─────────────────────
+  // ─── 15초 딜 시작: P1→B1→P2→B2 (임의), 표준 룰로 P3 처리 ──────────────
+  // 뱅커 3번째 카드는 항상 0초 끝자리로 처리 (단, 내추럴은 즉시 승부)
   const startDeal = useCallback(async () => {
     if (dealingRef.current) return
     dealingRef.current = true
     midStateRef.current = null
 
     const rand = () => Math.floor(Math.random() * 10)
+    const randSuit = () => Math.floor(Math.random() * 4)
 
-    const p1 = digitToCard(rand(), Math.floor(Math.random() * 4))
-    const b1 = digitToCard(rand(), Math.floor(Math.random() * 4))
-    const p2 = digitToCard(rand(), Math.floor(Math.random() * 4))
-    const b2 = digitToCard(rand(), Math.floor(Math.random() * 4))
+    const p1 = digitToCard(rand(), randSuit())
+    const b1 = digitToCard(rand(), randSuit())
+    const p2 = digitToCard(rand(), randSuit())
+    const b2 = digitToCard(rand(), randSuit())
 
     setState(prev => ({ ...prev, phase: "dealing", playerCards: [], bankerCards: [], result: null }))
     await sleep(80)
 
-    // P1 → B1 → P2 → B2 순서로 착착 딜
+    // P1 -> B1 -> P2 -> B2 순서로 착착 딜
     setState(prev => ({ ...prev, playerCards: [p1] }))
     await sleep(350)
     setState(prev => ({ ...prev, bankerCards: [b1] }))
@@ -225,50 +225,56 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     await sleep(400)
 
     let finalP: Card[] = [p1, p2]
-    let finalB: Card[] = [b1, b2]
+    const finalB: Card[] = [b1, b2]
     const pScore = handScore(finalP)
     const bScore = handScore(finalB)
+
+    // 내추럴 (8 or 9): 추가 카드 없이 즉시 승부 준비
     const isNatural = pScore >= 8 || bScore >= 8
 
-    let p3: Card | null = null
-
     if (!isNatural) {
-      // 플레이어 3번째 카드 (표준 바카라 룰)
+      // 플레이어 3번째 카드: 점수 5 이하면 임의 카드 1장 추가
       if (shouldPlayerDraw(pScore)) {
-        p3 = digitToCard(rand(), Math.floor(Math.random() * 4))
+        const p3 = digitToCard(rand(), randSuit())
         finalP = [...finalP, p3]
         setState(prev => ({ ...prev, playerCards: finalP }))
         await sleep(380)
       }
-      // 뱅커 3번째 카드 필요 여부 계산 (실제 카드는 0초에 끝자리로 부여)
-      const needsBankerDraw = shouldBankerDraw(bScore, pScore, p3)
-      midStateRef.current = { finalP, finalB, p3, isNatural, needsBankerDraw }
-    } else {
-      // 내추럴 — 뱅커 추가 카드 없이 바로 대기
-      midStateRef.current = { finalP, finalB, p3: null, isNatural: true, needsBankerDraw: false }
+      // 뱅커 3번째 카드: 항상 0초 끝자리로 처리 (룰 계산은 applyFinalDigit에서)
     }
 
-    // 0초 끝자리 카드를 기다리는 상태 유지 (dealingRef 유지)
+    // 중간 상태 저장 후 0초 끝자리 대기
+    midStateRef.current = { finalP, finalB, isNatural }
     setState(prev => ({ ...prev, playerCards: finalP, bankerCards: finalB }))
   }, [])
 
-  // ─── 0초 끝자리 카드 → 뱅커에게 부여 → 최종 승부 ────────────────────────
+  // ─── 0초 끝자리 카드 → 승부 결정 ────────────────────────────────────────
+  // - 내추럴: 끝자리 카드 없이 즉시 승부
+  // - 비내추럴: 표준 바카라 룰로 뱅커 3번째 카드 필요 여부 판단 후 끝자리 부여
   const applyFinalDigit = useCallback(async (digit: number) => {
     const mid = midStateRef.current
     if (!mid) return
 
-    let { finalP, finalB, p3, isNatural, needsBankerDraw } = mid
+    const { finalP, isNatural } = mid
+    let { finalB } = mid
     midStateRef.current = null
 
-    if (!isNatural && needsBankerDraw) {
-      // 끝자리 숫자를 뱅커 3번째 카드로
-      const b3 = digitToCard(digit, Math.floor(Math.random() * 4))
-      finalB = [...finalB, b3]
-      setState(prev => ({ ...prev, bankerCards: finalB }))
-      await sleep(400)
+    if (!isNatural) {
+      const pScore = handScore(finalP)
+      const bScore = handScore(finalB)
+      // 플레이어 3번째 카드 값 (있으면)
+      const p3 = finalP.length === 3 ? finalP[2] : null
+      // 표준 바카라 룰: 뱅커가 3번째 카드를 받아야 하면 끝자리 숫자를 뱅커 카드로 부여
+      const bankerShouldDraw = shouldBankerDraw(bScore, pScore, p3)
+      if (bankerShouldDraw) {
+        const b3 = digitToCard(digit, Math.floor(Math.random() * 4))
+        finalB = [...finalB, b3]
+        setState(prev => ({ ...prev, bankerCards: finalB }))
+        await sleep(420)
+      }
     }
 
-    await sleep(200)
+    await sleep(180)
 
     const finalPScore = handScore(finalP)
     const finalBScore = handScore(finalB)
