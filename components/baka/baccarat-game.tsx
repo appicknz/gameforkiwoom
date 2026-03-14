@@ -1,5 +1,6 @@
 "use client"
 
+// baccarat-game v2
 import { useState, useEffect, useRef, useCallback } from "react"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -195,7 +196,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => clearInterval(id)
   }, [])
 
-  // ─── 15초 딜 시작 ─────────────────────────────────────────────────────────
+  // ─── 15초 딜 시작 ───────────────────────────────────────��─────────────────
   // 규칙:
   //   - 플레이어/타이 베팅: Player 1장(임의), Banker 2장(임의)
   //   - 뱅커 베팅:          Banker 1장(임의), Player 2장(임의)
