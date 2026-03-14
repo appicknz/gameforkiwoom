@@ -102,11 +102,10 @@ export default function BakaPage() {
 
       <main className="max-w-7xl mx-auto p-3 md:p-5">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-          {/* 왼쪽: 차트 */}
-          <div className="lg:col-span-2 space-y-4">
+          {/* 왼쪽: 차트 + 오버레이 (고정) */}
+          <div className="lg:col-span-2">
             {/* 타이틀 */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
               <h1
                 style={{
                   fontSize: 18,
@@ -130,6 +129,92 @@ export default function BakaPage() {
               >
                 BTC 끝자리 기반
               </div>
+            </div>
+
+            {/* 차트 + 카드 오버레이 (sticky로 상단 고정) */}
+            <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>
+            <div className="sticky top-4 z-10" style={{ marginBottom: 24 }}>
+              <div className="relative">
+                <BitcoinChart />
+                {/* BANKER / PLAYER 카드 오버레이 */}
+                <div
+                  className="absolute inset-0 pointer-events-none z-20"
+                  style={{
+                    top: 56,
+                    padding: `${Math.round(10 * S)}px ${Math.round(12 * S)}px`,
+                    display: "flex", flexDirection: "column",
+                    gap: Math.round(8 * S),
+                    justifyContent: "flex-start", alignItems: "center",
+                  }}
+                >
+                  {(["banker", "player"] as const).map((side) => {
+                    const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
+                    const score = side === "banker" ? cardData.bScore : cardData.pScore
+                    const label = side === "banker" ? "BANKER" : "PLAYER"
+                    const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
+                    const isWinner = cardData.result === side
+                    return (
+                      <div
+                        key={side}
+                        style={{
+                          borderRadius: Math.round(10 * S),
+                          border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.18)"}`,
+                          background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.82)",
+                          backdropFilter: "blur(6px)",
+                          padding: `${Math.round(8 * S)}px ${Math.round(10 * S)}px`,
+                          transition: "border-color 0.3s, background 0.3s",
+                          boxShadow: isWinner ? `0 0 ${Math.round(18 * S)}px ${accentColor}28` : `0 2px ${Math.round(12 * S)}px rgba(0,0,0,0.5)`,
+                          width: "fit-content",
+                          minWidth: Math.round(140 * S),
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: Math.round(8 * S), marginBottom: Math.round(7 * S) }}>
+                          <span style={{ fontSize: Math.round(10 * S), fontWeight: 700, letterSpacing: "0.12em", color: accentColor }}>{label}</span>
+                          {isWinner && <span style={{ fontSize: Math.round(9 * S), background: accentColor, color: "#fff", padding: `1px ${Math.round(5 * S)}px`, borderRadius: 3, fontWeight: 700 }}>WIN</span>}
+                          {cards.length > 0 && (
+                            <span style={{ fontSize: Math.round(16 * S), fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", gap: Math.round(6 * S) }}>
+                          {cards.map(card => <OverlayCard key={card.id} card={card} s={S} />)}
+                          {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} s={S} />)}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 오른쪽 위: 바카라 카드 딜 게임 */}
+          <div className="lg:col-span-1">
+            <div
+              className="rounded-2xl overflow-hidden sticky top-4"
+              style={{
+                border: "1px solid rgba(212,175,55,0.2)",
+                boxShadow: "0 0 50px rgba(212,175,55,0.06)",
+              }}
+            >
+              <BaccaratGame
+                onCardsChange={handleCardsChange}
+                onStartDealRequest={handleRegisterStartDeal}
+                onFinalDigitRequest={handleRegisterFinalDigit}
+                onBetSideRequest={handleRegisterBetSide}
+              />
+            </div>
+          </div>
+
+          {/* 왼쪽 아래: 배팅 게임 (스크롤 영역) */}
+          <div className="lg:col-span-2">
+            <BakaBettingGame
+              onStartDealTrigger={handleStartDealTrigger}
+              onFinalDigitTrigger={handleFinalDigitTrigger}
+              onBetSideTrigger={handleBetSideTrigger}
+            />
+          </div>
+
+        </div>
             </div>
 
             {/* 차트 + 카드 오버레이 */}
