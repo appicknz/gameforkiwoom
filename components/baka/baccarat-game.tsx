@@ -1,6 +1,5 @@
 "use client"
 
-// baccarat-game v2
 import { useState, useEffect, useRef, useCallback } from "react"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -79,17 +78,13 @@ function PlayingCard({
   card,
   delay = 0,
   visible = true,
-  scale = 1,
 }: {
   card: Card
   delay?: number
   visible?: boolean
-  scale?: number
 }) {
   const [show, setShow] = useState(false)
   const isRed = card.suit === "♥" || card.suit === "♦"
-  const W = Math.round(52 * scale)
-  const H = Math.round(74 * scale)
 
   useEffect(() => {
     if (!visible) { setShow(false); return }
@@ -101,8 +96,8 @@ function PlayingCard({
     <div
       className="relative"
       style={{
-        width: W,
-        height: H,
+        width: 52,
+        height: 74,
         perspective: 600,
       }}
     >
@@ -132,16 +127,16 @@ function PlayingCard({
             boxShadow: "0 4px 16px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(212,175,55,0.08)",
           }}
         >
-          <div style={{ fontSize: Math.round(13 * scale), fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
             {card.label}
-            <span style={{ fontSize: Math.round(10 * scale), marginLeft: 1 }}>{card.suit}</span>
+            <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
           </div>
-          <div style={{ fontSize: Math.round(22 * scale), textAlign: "center", color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
+          <div style={{ fontSize: 22, textAlign: "center", color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
             {card.suit}
           </div>
-          <div style={{ fontSize: Math.round(13 * scale), fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
             {card.label}
-            <span style={{ fontSize: Math.round(10 * scale), marginLeft: 1 }}>{card.suit}</span>
+            <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
           </div>
         </div>
       </div>
@@ -151,15 +146,16 @@ function PlayingCard({
 
 interface BaccaratGameProps {
   onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"] }) => void
+  /** BaccaratGame이 page에 startDeal 함수를 등록 */
   onStartDealRequest?: (handler: () => void) => void
+  /** BaccaratGame이 page에 applyFinalDigit 함수를 등록 */
   onFinalDigitRequest?: (handler: (digit: number) => void) => void
+  /** BaccaratGame이 page에 setBetSide 함수를 등록 — 배팅 사이드를 딜 전에 주입 */
   onBetSideRequest?: (handler: (side: BetSide) => void) => void
-  /** PC에서 카드/패널을 크게 표시 */
-  large?: boolean
 }
 
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest, large = false }: BaccaratGameProps = {}) {
+export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
@@ -199,7 +195,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => clearInterval(id)
   }, [])
 
-  // ─── 15초 딜 시작 ────────────────────────────────��──────��─────────────────
+  // ─── 15초 딜 시작 ─────────────────────────────────────────────────────────
   // 규칙:
   //   - 플레이어/타이 베팅: Player 1장(임의), Banker 2장(임의)
   //   - 뱅커 베팅:          Banker 1장(임의), Player 2장(임의)
@@ -344,8 +340,6 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   }, [state.playerCards, state.bankerCards, state.result, pScore, bScore, onCardsChange])
 
   const lastDigit = Math.floor(state.priceDisplay) % 10
-  // large 모드에서 카드·패널 1.4배 확대
-  const C = large ? 1.4 : 1
 
   return (
     <div
@@ -415,48 +409,49 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
           const label = side === "banker" ? "BANKER" : "PLAYER"
           const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
           const isWinner = state.result === side
+          const isBetting = state.bet === side
 
           return (
             <div
               key={side}
               style={{
-                marginBottom: Math.round(12 * C),
-                borderRadius: Math.round(12 * C),
+                marginBottom: 12,
+                borderRadius: 12,
                 border: `1px solid ${isWinner ? accentColor + "88" : "rgba(212,175,55,0.12)"}`,
                 background: isWinner ? `${accentColor}08` : "rgba(255,255,255,0.015)",
-                padding: `${Math.round(12 * C)}px ${Math.round(14 * C)}px`,
+                padding: "12px 14px",
                 transition: "border-color 0.3s, background 0.3s",
                 boxShadow: isWinner ? `0 0 20px ${accentColor}22` : "none",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: Math.round(10 * C) }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: Math.round(11 * C), fontWeight: 700, letterSpacing: "0.1em", color: accentColor }}>{label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: accentColor }}>{label}</span>
                   {isWinner && (
-                    <span style={{ fontSize: Math.round(10 * C), background: accentColor, color: "#fff", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>WIN</span>
+                    <span style={{ fontSize: 10, background: accentColor, color: "#fff", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>WIN</span>
                   )}
                 </div>
                 {cards.length > 0 && (
                   <span style={{
-                    fontSize: Math.round(22 * C), fontWeight: 800,
+                    fontSize: 22, fontWeight: 800,
                     color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.8)",
                     lineHeight: 1,
                   }}>
                     {score}
-                    {score >= 8 && <span style={{ fontSize: Math.round(10 * C), marginLeft: 4, color: "#d4af37" }}>NATURAL</span>}
+                    {score >= 8 && <span style={{ fontSize: 10, marginLeft: 4, color: "#d4af37" }}>NATURAL</span>}
                   </span>
                 )}
               </div>
-              <div style={{ display: "flex", gap: Math.round(8 * C) }}>
-                {cards.map((card) => (
-                  <PlayingCard key={card.id} card={card} delay={0} visible={true} scale={C} />
+              <div style={{ display: "flex", gap: 8 }}>
+                {cards.map((card, ci) => (
+                  <PlayingCard key={card.id} card={card} delay={0} visible={true} />
                 ))}
                 {/* 빈 슬롯 */}
                 {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => (
                   <div
                     key={`empty-${i}`}
                     style={{
-                      width: Math.round(52 * C), height: Math.round(74 * C), borderRadius: 8,
+                      width: 52, height: 74, borderRadius: 8,
                       border: "1px dashed rgba(212,175,55,0.15)",
                       background: "rgba(212,175,55,0.03)",
                     }}

@@ -3,13 +3,6 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp, Shuffle } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { createClient } from "@supabase/supabase-js"
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const _supabaseClient = typeof window !== "undefined"
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type BetDirection = "long" | "short" | null
@@ -73,19 +66,9 @@ const LABEL_MAP: Record<string, { text: string; color: string; bg: string; borde
   tie:    { text: "TIE",    color: "#22c55e", bg: "rgba(34,197,94,0.15)",  border: "rgba(34,197,94,0.4)"   },
 }
 
-function getTokenSync(): string | null {
+function getToken(): string | null {
   if (typeof window === "undefined") return null
   try { return localStorage.getItem("app_token") } catch { return null }
-}
-
-async function getToken(): Promise<string | null> {
-  const local = getTokenSync()
-  if (local) return local
-  // localStorage에 없으면 Supabase 세션에서 직접 가져옴
-  try {
-    const { data } = await _supabaseClient!.auth.getSession()
-    return data.session?.access_token ?? null
-  } catch { return null }
 }
 
 // ─── 자동 배팅 설정 ────────────────────────────────────────────────────────
@@ -466,13 +449,12 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   // 잔고 초기 로드
   useEffect(() => {
-    getToken().then(token => {
-      if (!token) return
-      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(d => setBalance(d.balance ?? 0))
-        .catch(() => {})
-    })
+    const token = getToken()
+    if (!token) return
+    fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setBalance(d.balance ?? 0))
+      .catch(() => {})
   }, [])
 
   // SSE 잔고 동기화
@@ -514,12 +496,12 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
       // 바카라 결과: BaccaratGame이 applyFinalDigit 후 결과를 반환하기까지 약간의 딜레이 필요
       // → 500ms 후 baccaratResultRef 읽기 (카드 딜 애니메이션 완료 대기)
-      const settleAfterDelay = async (bacResult: "player" | "banker" | "tie" | null) => {
+      const settleAfterDelay = (bacResult: "player" | "banker" | "tie" | null) => {
         const wonBaccarat = betBaccaratRef.current ? betBaccaratRef.current === bacResult : false
         const baccaratRefund = !wonBaccarat && bacResult === "tie" && (betBaccaratRef.current === "player" || betBaccaratRef.current === "banker")
 
         // 서버 정산
-        const token = await getToken()
+        const token = getToken()
         if (token) {
           fetch("/api/user/game/play", {
             method: "POST",
@@ -662,7 +644,10 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     const bac = pick(cfg.baccarat, ["player", "banker", "tie"])
     if (!dir && !dig && !par && !bac) return
 
-    const placeSingle = async (type: BetType, value: string, token: string) => {
+    const token = getToken()
+    if (!token) return
+
+    const placeSingle = async (type: BetType, value: string) => {
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -696,12 +681,10 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
     ;(async () => {
       try {
-        const token = await getToken()
-        if (!token) return
-        if (dir) await placeSingle("direction", dir, token)
-        if (dig) await placeSingle("digit", dig, token)
-        if (par) await placeSingle("parity", par, token)
-        if (bac) await placeSingle("baccarat", bac, token)
+        if (dir) await placeSingle("direction", dir)
+        if (dig) await placeSingle("digit", dig)
+        if (par) await placeSingle("parity", par)
+        if (bac) await placeSingle("baccarat", bac)
         setPhase("waiting")
       } catch (e) { console.error("[v0 autoBet]", e) }
     })()
@@ -755,7 +738,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     if (!dialog) return
     setIsPlacingBet(true)
     try {
-      const token = await getToken()
+      const token = getToken()
       if (!token) throw new Error("로그인이 필요합니다")
 
       const res = await fetch("/api/user/game/bet", {
