@@ -57,20 +57,25 @@ export default function BakaPage() {
   })
   const [baccaratResult, setBaccaratResult] = useState<BaccaratResult>(null)
 
-  // BaccaratGame의 triggerDeal 함수를 ref로 보관
-  const dealHandlerRef = useRef<((side: "player" | "banker" | "tie", amount: number) => void) | null>(null)
+  const startDealHandlerRef = useRef<(() => void) | null>(null)
+  const finalDigitHandlerRef = useRef<((digit: number) => void) | null>(null)
 
   const handleCardsChange = useCallback((data: CardOverlayData) => {
     setCardData(data)
     setBaccaratResult(data.result)
+    // BakaBettingGame의 baccaratResultRef 동기화 (window 이벤트)
+    if (data.result) {
+      window.dispatchEvent(new CustomEvent("baccarat:result", { detail: data.result }))
+    }
   }, [])
 
-  const handleDealRequest = useCallback((handler: (side: "player" | "banker" | "tie", amount: number) => void) => {
-    dealHandlerRef.current = handler
+  // BakaBettingGame이 등록한 핸들러를 BaccaratGame에 연결
+  const handleOnStartDealRequest = useCallback((handler: () => void) => {
+    startDealHandlerRef.current = handler
   }, [])
 
-  const handleBaccaratDeal = useCallback((side: "player" | "banker" | "tie", amount: number) => {
-    dealHandlerRef.current?.(side, amount)
+  const handleOnFinalDigitRequest = useCallback((handler: (digit: number) => void) => {
+    finalDigitHandlerRef.current = handler
   }, [])
 
   return (
@@ -164,8 +169,8 @@ export default function BakaPage() {
 
             {/* 배팅 게임 (기존 6종목 + 바카라) */}
             <BakaBettingGame
-              baccaratResult={baccaratResult}
-              onBaccaratDeal={handleBaccaratDeal}
+              onStartDealRequest={handleOnStartDealRequest}
+              onFinalDigitRequest={handleOnFinalDigitRequest}
             />
           </div>
 
@@ -180,7 +185,8 @@ export default function BakaPage() {
             >
               <BaccaratGame
                 onCardsChange={handleCardsChange}
-                onDealRequest={handleDealRequest}
+                onStartDealRequest={handleOnStartDealRequest}
+                onFinalDigitRequest={handleOnFinalDigitRequest}
               />
             </div>
           </div>

@@ -29,6 +29,8 @@ interface GameState {
   history: Array<"player" | "banker" | "tie">
 }
 
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
+
 // ─── 카드 유틸 ─────────────────────────────────────────────────────────────
 const SUITS: Suit[] = ["♠", "♥", "♦", "♣"]
 const LABELS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
@@ -145,12 +147,19 @@ function PlayingCard({
 
 interface BaccaratGameProps {
   onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"] }) => void
-  /** 외부에서 딜을 트리거 — BakaBettingGame이 배팅 확정 후 호출 */
-  onDealRequest?: (handler: (side: BetSide, amount: number) => void) => void
+  /**
+   * 15초 시점에 호출 — 임의 카드로 P1/B1/P2/B2 딜 시작
+   * 핸들러를 등록해서 외부(BakaBettingGame)로부터 신호를 받는다
+   */
+  onStartDealRequest?: (handler: () => void) => void
+  /**
+   * 0초(종가) 시점에 호출 — 끝자리 숫자를 뱅커 마지막 카드로 사용해 최종 승부
+   */
+  onFinalDigitRequest?: (handler: (digit: number) => void) => void
 }
 
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame({ onCardsChange, onDealRequest }: BaccaratGameProps = {}) {
+export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
@@ -165,91 +174,103 @@ export default function BaccaratGame({ onCardsChange, onDealRequest }: BaccaratG
     history: [],
   })
 
-  const digitQueueRef = useRef<number[]>([])
   const dealingRef = useRef(false)
   const priceRef = useRef(0)
+  // 딜 중간 상태 보관 (finalDigit 수신 시 이어서 계산)
+  const midStateRef = useRef<{
+    finalP: Card[]
+    finalB: Card[]
+    p3: Card | null
+    isNatural: boolean
+    needsBankerDraw: boolean
+  } | null>(null)
 
-  // ─── 가격 수신 (digit 큐 채우기만) ────────────────────────────────────────
+  // ─── 가격 수신 (priceDisplay 업데이트) ────────────────────────────────────
   const lastPriceRef = useRef<number | null>(null)
   useEffect(() => {
     const win = window as any
     const id = setInterval(() => {
       const price: number | undefined = win.__bitcoinCurrentPrice
-      if (!price) return
-      if (price === lastPriceRef.current) return
+      if (!price || price === lastPriceRef.current) return
       lastPriceRef.current = price
       priceRef.current = price
-      const digit = Math.floor(price) % 10
-      digitQueueRef.current.push(digit)
-      if (digitQueueRef.current.length > 20) digitQueueRef.current.shift()
       setState(prev => ({ ...prev, priceDisplay: price }))
     }, 300)
     return () => clearInterval(id)
   }, [])
 
-  // ─── 딜 로직 ─────────────────────────────────────────────────────────────
-  const deal = useCallback(async (bet: BetSide, betAmount: number, balance: number) => {
+  // ─── 15초 딜 시작: P1→B1→P2→B2 (임의), 필요시 P3 ─────────────────────
+  const startDeal = useCallback(async () => {
     if (dealingRef.current) return
     dealingRef.current = true
+    midStateRef.current = null
 
-    // 큐에서 숫자 소비 (부족하면 현재 가격 끝자리 반복 사용)
-    const getDigit = (seed: number): number => {
-      if (digitQueueRef.current.length > 0) {
-        return digitQueueRef.current.shift()!
-      }
-      return (Math.floor(priceRef.current) + seed) % 10
-    }
+    const rand = () => Math.floor(Math.random() * 10)
 
-    // 초기 2장씩
-    const p1 = digitToCard(getDigit(0), 0)
-    const b1 = digitToCard(getDigit(1), 1)
-    const p2 = digitToCard(getDigit(2), 2)
-    const b2 = digitToCard(getDigit(3), 3)
+    const p1 = digitToCard(rand(), Math.floor(Math.random() * 4))
+    const b1 = digitToCard(rand(), Math.floor(Math.random() * 4))
+    const p2 = digitToCard(rand(), Math.floor(Math.random() * 4))
+    const b2 = digitToCard(rand(), Math.floor(Math.random() * 4))
 
-    setState(prev => ({ ...prev, phase: "dealing", playerCards: [], bankerCards: [] }))
-    await sleep(50)
+    setState(prev => ({ ...prev, phase: "dealing", playerCards: [], bankerCards: [], result: null }))
+    await sleep(80)
 
-    // 착착 딜: P1 → B1 → P2 → B2
+    // P1 → B1 → P2 → B2 순서로 착착 딜
     setState(prev => ({ ...prev, playerCards: [p1] }))
-    await sleep(320)
+    await sleep(350)
     setState(prev => ({ ...prev, bankerCards: [b1] }))
-    await sleep(320)
+    await sleep(350)
     setState(prev => ({ ...prev, playerCards: [p1, p2] }))
-    await sleep(320)
+    await sleep(350)
     setState(prev => ({ ...prev, bankerCards: [b1, b2] }))
-    await sleep(500)
-
-    let finalP = [p1, p2]
-    let finalB = [b1, b2]
-
-    const pScore = handScore(finalP)
-    const bScore = handScore(finalB)
-
-    // 내추럴 체크
-    const isNatural = pScore >= 8 || bScore >= 8
-
-    if (!isNatural) {
-      // 플레이어 3번째
-      let p3: Card | null = null
-      if (shouldPlayerDraw(pScore)) {
-        p3 = digitToCard(getDigit(4), 4)
-        finalP = [...finalP, p3]
-        setState(prev => ({ ...prev, playerCards: finalP }))
-        await sleep(350)
-      }
-
-      // 뱅커 3번째
-      if (shouldBankerDraw(bScore, pScore, p3)) {
-        const b3 = digitToCard(getDigit(5), 5)
-        finalB = [...finalB, b3]
-        setState(prev => ({ ...prev, bankerCards: finalB }))
-        await sleep(350)
-      }
-    }
-
     await sleep(400)
 
-    // 결과 계산
+    let finalP: Card[] = [p1, p2]
+    let finalB: Card[] = [b1, b2]
+    const pScore = handScore(finalP)
+    const bScore = handScore(finalB)
+    const isNatural = pScore >= 8 || bScore >= 8
+
+    let p3: Card | null = null
+
+    if (!isNatural) {
+      // 플레이어 3번째 카드 (표준 바카라 룰)
+      if (shouldPlayerDraw(pScore)) {
+        p3 = digitToCard(rand(), Math.floor(Math.random() * 4))
+        finalP = [...finalP, p3]
+        setState(prev => ({ ...prev, playerCards: finalP }))
+        await sleep(380)
+      }
+      // 뱅커 3번째 카드 필요 여부 계산 (실제 카드는 0초에 끝자리로 부여)
+      const needsBankerDraw = shouldBankerDraw(bScore, pScore, p3)
+      midStateRef.current = { finalP, finalB, p3, isNatural, needsBankerDraw }
+    } else {
+      // 내추럴 — 뱅커 추가 카드 없이 바로 대기
+      midStateRef.current = { finalP, finalB, p3: null, isNatural: true, needsBankerDraw: false }
+    }
+
+    // 0초 끝자리 카드를 기다리는 상태 유지 (dealingRef 유지)
+    setState(prev => ({ ...prev, playerCards: finalP, bankerCards: finalB }))
+  }, [])
+
+  // ─── 0초 끝자리 카드 → 뱅커에게 부여 → 최종 승부 ────────────────────────
+  const applyFinalDigit = useCallback(async (digit: number) => {
+    const mid = midStateRef.current
+    if (!mid) return
+
+    let { finalP, finalB, p3, isNatural, needsBankerDraw } = mid
+    midStateRef.current = null
+
+    if (!isNatural && needsBankerDraw) {
+      // 끝자리 숫자를 뱅커 3번째 카드로
+      const b3 = digitToCard(digit, Math.floor(Math.random() * 4))
+      finalB = [...finalB, b3]
+      setState(prev => ({ ...prev, bankerCards: finalB }))
+      await sleep(400)
+    }
+
+    await sleep(200)
+
     const finalPScore = handScore(finalP)
     const finalBScore = handScore(finalB)
     let result: "player" | "banker" | "tie"
@@ -257,24 +278,10 @@ export default function BaccaratGame({ onCardsChange, onDealRequest }: BaccaratG
     else if (finalBScore > finalPScore) result = "banker"
     else result = "tie"
 
-    // 수익 계산
-    let newBalance = balance
-    if (bet === result) {
-      if (result === "player") newBalance += betAmount
-      else if (result === "banker") newBalance += Math.floor(betAmount * 0.95) // 5% 커미션
-      else if (result === "tie") newBalance += betAmount * 8
-    } else if (result === "tie" && (bet === "player" || bet === "banker")) {
-      // 타이시 player/banker 베팅 반환
-      newBalance = balance
-    } else {
-      newBalance -= betAmount
-    }
-
     setState(prev => ({
       ...prev,
       phase: "result",
       result,
-      balance: Math.max(0, newBalance),
       playerCards: finalP,
       bankerCards: finalB,
       roundCount: prev.roundCount + 1,
@@ -284,27 +291,9 @@ export default function BaccaratGame({ onCardsChange, onDealRequest }: BaccaratG
     dealingRef.current = false
   }, [])
 
-  // 외부 딜 트리거 — BakaBettingGame이 배팅 확정 후 이 함수를 호출
-  const triggerDeal = useCallback((side: BetSide, amount: number) => {
-    if (dealingRef.current) return
-    // 결과 단계면 초기화 후 딜
-    setState(prev => ({
-      ...prev,
-      phase: "betting",
-      playerCards: [],
-      bankerCards: [],
-      bet: side,
-      betAmount: amount,
-      result: null,
-    }))
-    // 약간의 딜레이 후 deal 실행 (setState 반영 대기)
-    setTimeout(() => deal(side, amount, 0), 50)
-  }, [deal])
-
-  // onDealRequest 콜백 등록
-  useEffect(() => {
-    onDealRequest?.(triggerDeal)
-  }, [onDealRequest, triggerDeal])
+  // 콜백 등록
+  useEffect(() => { onStartDealRequest?.(startDeal) }, [onStartDealRequest, startDeal])
+  useEffect(() => { onFinalDigitRequest?.(applyFinalDigit) }, [onFinalDigitRequest, applyFinalDigit])
 
   const pScore = handScore(state.playerCards)
   const bScore = handScore(state.bankerCards)
