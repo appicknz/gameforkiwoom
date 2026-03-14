@@ -83,7 +83,14 @@ export function BitcoinChart() {
       close: price,
     }
     candleMapRef.current.set(bucket, candle)
-    try { seriesRef.current.update(candle) } catch { /* 시간 역순 방어 */ }
+    try {
+      seriesRef.current.update(candle)
+    } catch {
+      // lightweight-charts는 이전 시간 캔들 update를 거부함 → setData 재동기화
+      const allCandles = Array.from(candleMapRef.current.values())
+        .sort((a, b) => a.time - b.time)
+      try { seriesRef.current.setData(allCandles) } catch { /* ignore */ }
+    }
     setTicker(prev => prev ? { ...prev, price } : { price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
     setConnected(true)
   }, [])
@@ -147,9 +154,10 @@ export function BitcoinChart() {
     const cfg = INTERVAL_CONFIG[sel]
     try {
       if (!cfg.binance) {
-        // 1s or 30s: 최근 5분(=5개 1분봉)을 받아 초/30초 단위로 분해
+        // 1s or 30s: 최근 10분(=10개 1분봉)을 받아 초/30초 단위로 분해
+        // 현재 시간 직전까지 seed를 채워 실시간 틱이 연속으로 이어지게 함
         const res = await fetch(
-          `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=5`
+          `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=10`
         )
         const data: any[][] = await res.json()
         if (!Array.isArray(data)) return []
@@ -161,14 +169,18 @@ export function BitcoinChart() {
           const h = parseFloat(k[2])
           const l = parseFloat(k[3])
           const c = parseFloat(k[4])
-          // 1분봉을 step 단위 슬롯으로 분할 — 각 슬롯은 동일 OHLC 사용
+          // 1분봉을 step 단위 슬롯으로 분할 — 실제 OHLC 값 사용
           for (let s = 0; s < 60; s += step) {
             candles.push({ time: minStart + s, open: o, high: h, low: l, close: c })
           }
         }
+        // 중복 time 제거 후 오름차순 정렬 (lightweight-charts 요구사항)
+        const seen = new Set<number>()
+        const unique = candles.filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true })
+        unique.sort((a, b) => a.time - b.time)
         candleMapRef.current.clear()
-        candles.forEach((c) => candleMapRef.current.set(c.time, c))
-        return candles
+        unique.forEach((c) => candleMapRef.current.set(c.time, c))
+        return unique
       }
       // 1m / 1h / 1d
       const res = await fetch(

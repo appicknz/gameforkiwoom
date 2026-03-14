@@ -66,6 +66,7 @@ const LABEL_MAP: Record<string, { text: string; color: string; bg: string; borde
   tie:    { text: "TIE",    color: "#22c55e", bg: "rgba(34,197,94,0.15)",  border: "rgba(34,197,94,0.4)"   },
 }
 
+// getToken: localStorage에서 JWT 동기적으로 조회
 function getToken(): string | null {
   if (typeof window === "undefined") return null
   try { return localStorage.getItem("app_token") } catch { return null }
