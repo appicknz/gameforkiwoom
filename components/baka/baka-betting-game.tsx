@@ -641,8 +641,6 @@ export function BakaBettingGame({ onRegisterResultReceiver, onStartDealRequest, 
         betBaccaratAmountRef.current = amount
         setBetBaccarat(dialog.value as BetBaccarat)
         setBetBaccaratAmount(amount)
-        // 바카라 배팅 확정 즉시 딜 트리거
-        onBaccaratDeal?.(dialog.value as "player" | "banker" | "tie", amount)
       }
 
       setPhase("waiting")
