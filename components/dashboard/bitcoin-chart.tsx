@@ -27,13 +27,12 @@ interface TickerData {
 
 type Interval = "1s" | "30s" | "1m" | "1h" | "1d"
 
-const INTERVAL_CONFIG: Record<Interval, { label: string; binance: string | null; limit: number; seconds: number }> = {
-  // 1s/30s: 바이낸스 API에 해당 간격봉이 없으므로 REST 초기 로드 없이 WebSocket 틱으로만 쌓음
-  "1s":  { label: "1초",   binance: null,  limit: 0,   seconds: 1     },
-  "30s": { label: "30초",  binance: null,  limit: 0,   seconds: 30    },
-  "1m":  { label: "1분",   binance: "1m",  limit: 200, seconds: 60    },
-  "1h":  { label: "1시간", binance: "1h",  limit: 168, seconds: 3600  },
-  "1d":  { label: "1일",   binance: "1d",  limit: 365, seconds: 86400 },
+const INTERVAL_CONFIG: Record<Interval, { label: string; binance: string; limit: number; seconds: number }> = {
+  "1s": { label: "1초", binance: "1m", limit: 60, seconds: 1 },
+  "30s": { label: "30초", binance: "1m", limit: 60, seconds: 30 },
+  "1m": { label: "1분", binance: "1m", limit: 200, seconds: 60 },
+  "1h": { label: "1시간", binance: "1h", limit: 168, seconds: 3600 },
+  "1d": { label: "1일", binance: "1d", limit: 365, seconds: 86400 },
 }
 
 const INTERVALS: Interval[] = ["1s", "30s", "1m", "1h", "1d"]
@@ -83,14 +82,7 @@ export function BitcoinChart() {
       close: price,
     }
     candleMapRef.current.set(bucket, candle)
-    try {
-      seriesRef.current.update(candle)
-    } catch {
-      // lightweight-charts는 이전 시간 캔들 update를 거부함 → setData 재동기화
-      const allCandles = Array.from(candleMapRef.current.values())
-        .sort((a, b) => a.time - b.time)
-      try { seriesRef.current.setData(allCandles) } catch { /* ignore */ }
-    }
+    try { seriesRef.current.update(candle) } catch { /* 시간 역순 방어 */ }
     setTicker(prev => prev ? { ...prev, price } : { price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
     setConnected(true)
   }, [])
@@ -147,47 +139,13 @@ export function BitcoinChart() {
   })
 
   // 초기 캔들 데이터 로드
-  // 1s/30s: fapi 1분봉을 받아서 bucket 단위로 쪼개 seed 데이터를 만든다
-  //         (open=high=low=close=해당 분봉 close 로 채워, 실시간 틱이 들어오면 갱신)
-  // 1m/1h/1d: fapi 해당 봉 그대로 사용
   const fetchInitialCandles = useCallback(async (sel: Interval): Promise<CandleData[]> => {
     const cfg = INTERVAL_CONFIG[sel]
     try {
-      if (!cfg.binance) {
-        // 1s or 30s: 최근 10분(=10개 1분봉)을 받아 초/30초 단위로 분해
-        // 현재 시간 직전까지 seed를 채워 실시간 틱이 연속으로 이어지게 함
-        const res = await fetch(
-          `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=10`
-        )
-        const data: any[][] = await res.json()
-        if (!Array.isArray(data)) return []
-        const candles: CandleData[] = []
-        const step = cfg.seconds  // 1 or 30
-        for (const k of data) {
-          const minStart = Math.floor(k[0] / 1000)
-          const o = parseFloat(k[1])
-          const h = parseFloat(k[2])
-          const l = parseFloat(k[3])
-          const c = parseFloat(k[4])
-          // 1분봉을 step 단위 슬롯으로 분할 — 실제 OHLC 값 사용
-          for (let s = 0; s < 60; s += step) {
-            candles.push({ time: minStart + s, open: o, high: h, low: l, close: c })
-          }
-        }
-        // 중복 time 제거 후 오름차순 정렬 (lightweight-charts 요구사항)
-        const seen = new Set<number>()
-        const unique = candles.filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true })
-        unique.sort((a, b) => a.time - b.time)
-        candleMapRef.current.clear()
-        unique.forEach((c) => candleMapRef.current.set(c.time, c))
-        return unique
-      }
-      // 1m / 1h / 1d
       const res = await fetch(
-        `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${cfg.binance}&limit=${cfg.limit}`
+        `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${cfg.binance}&limit=${cfg.limit}`
       )
       const data: any[][] = await res.json()
-      if (!Array.isArray(data)) return []
       const candles: CandleData[] = data.map((k) => ({
         time: Math.floor(k[0] / 1000),
         open: parseFloat(k[1]),
@@ -232,7 +190,7 @@ export function BitcoinChart() {
       timeScale: {
         borderVisible: false,
         timeVisible: true,
-        secondsVisible: true,  // 1s/30s 봉에서 초 단위 시각 표시
+        secondsVisible: interval === "1s" || interval === "30s",
       },
       watermark: {
         color: "rgba(156, 163, 175, 0.5)",
