@@ -55,6 +55,10 @@ export async function POST(request: Request) {
     // 3) 홀/짝: 같은 자릿수 기준
     const wonParity = lastDigit % 2 === 0 ? "even" : "odd"
 
+    // 4) 바카라: bets.baccaratResult가 서버에서 검증용으로 전달됨
+    //    (카드 딜 결과는 클라이언트에서 이미 완료 — 결과만 검증)
+    const baccaratResult: string | undefined = bets.baccaratResult // "player" | "banker" | "tie"
+
     // ── 수익 계산 (서버에서만) ───────────────────────────────
     let totalPayout = 0
 
@@ -62,7 +66,6 @@ export async function POST(request: Request) {
       if (bets.direction === wonDirection) {
         totalPayout += Math.floor(bets.directionAmount * PAYOUT_RATIO)
       }
-      // 패배: 이미 bet API에서 차감됨, 추가 처리 없음
     }
 
     if (bets.digit && bets.digitAmount > 0) {
@@ -74,6 +77,22 @@ export async function POST(request: Request) {
     if (bets.parity && bets.parityAmount > 0) {
       if (bets.parity === wonParity) {
         totalPayout += Math.floor(bets.parityAmount * PAYOUT_RATIO)
+      }
+    }
+
+    // 바카라 정산: baccaratSide = 유저가 배팅한 면, baccaratResult = 실제 결과
+    if (bets.baccaratSide && bets.baccaratAmount > 0 && baccaratResult) {
+      const side = bets.baccaratSide
+      const wonBaccarat = side === baccaratResult
+      const isTieResult = baccaratResult === "tie"
+      // 타이 결과 시 player/banker 배팅은 반환 (패배 아님)
+      if (wonBaccarat) {
+        if (side === "player") totalPayout += Math.floor(bets.baccaratAmount * 2) // 1:1
+        else if (side === "banker") totalPayout += Math.floor(bets.baccaratAmount * 1.95) // 5% 커미션
+        else if (side === "tie") totalPayout += Math.floor(bets.baccaratAmount * 9) // 8:1 + 원금
+      } else if (isTieResult && (side === "player" || side === "banker")) {
+        // 타이 결과 시 원금 반환
+        totalPayout += bets.baccaratAmount
       }
     }
 
@@ -156,6 +175,31 @@ export async function POST(request: Request) {
         bet_amount: bets.parityAmount,
         payout: won ? Math.floor(bets.parityAmount * PAYOUT_RATIO) : 0,
         result: won ? "win" : "lose",
+      })
+    }
+
+    if (bets.baccaratSide && bets.baccaratAmount > 0 && baccaratResult) {
+      const won = bets.baccaratSide === baccaratResult
+      const isTieResult = baccaratResult === "tie"
+      const refund = isTieResult && (bets.baccaratSide === "player" || bets.baccaratSide === "banker")
+      let payout = 0
+      if (won) {
+        if (bets.baccaratSide === "player") payout = Math.floor(bets.baccaratAmount * 2)
+        else if (bets.baccaratSide === "banker") payout = Math.floor(bets.baccaratAmount * 1.95)
+        else if (bets.baccaratSide === "tie") payout = Math.floor(bets.baccaratAmount * 9)
+      } else if (refund) {
+        payout = bets.baccaratAmount
+      }
+      betHistoryRows.push({
+        user_id: user.id,
+        branch_id: branchId,
+        round_id: roundId,
+        bet_direction: `baccarat_${bets.baccaratSide}`,
+        bet_digit: null,
+        bet_parity: null,
+        bet_amount: bets.baccaratAmount,
+        payout,
+        result: won ? "win" : refund ? "tie" : "lose",
       })
     }
 

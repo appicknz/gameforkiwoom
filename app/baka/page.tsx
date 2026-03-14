@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react"
 import BaccaratGame from "@/components/baka/baccarat-game"
+import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 
@@ -13,6 +14,8 @@ interface CardOverlayData {
   bScore: number
   result: "player" | "banker" | "tie" | null
 }
+
+type BaccaratResult = "player" | "banker" | "tie" | null
 
 // 카드 슬롯 — 차트 위 오버레이용 (compact)
 function OverlayCard({ card }: { card: Card }) {
@@ -52,7 +55,12 @@ export default function BakaPage() {
   const [cardData, setCardData] = useState<CardOverlayData>({
     playerCards: [], bankerCards: [], pScore: 0, bScore: 0, result: null,
   })
-  const handleCardsChange = useCallback((data: CardOverlayData) => setCardData(data), [])
+  const [baccaratResult, setBaccaratResult] = useState<BaccaratResult>(null)
+
+  const handleCardsChange = useCallback((data: CardOverlayData) => {
+    setCardData(data)
+    setBaccaratResult(data.result)
+  }, [])
 
   return (
     <div
@@ -143,51 +151,11 @@ export default function BakaPage() {
               </div>
             </div>
 
-            {/* 게임 규칙 요약 */}
-            <div
-              className="rounded-2xl"
-              style={{
-                border: "1px solid rgba(212,175,55,0.1)",
-                background: "rgba(212,175,55,0.03)",
-                padding: "14px 16px",
-              }}
-            >
-              <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(212,175,55,0.7)", letterSpacing: "0.1em", marginBottom: 10 }}>
-                게임 방식
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {[
-                  {
-                    title: "카드 생성",
-                    desc: "비트코인 실시간 가격의 1의 자리 숫자가 카드 값으로 사용됩니다. (예: 68944.31 → 4)",
-                  },
-                  {
-                    title: "바카라 규칙",
-                    desc: "9에 가까운 쪽이 승리. 10·J·Q·K = 0점, A = 1점. 합산은 10으로 나눈 나머지.",
-                  },
-                  {
-                    title: "배당",
-                    desc: "Player 1:1 · Banker 1:0.95 (5% 커미션) · Tie 8:1",
-                  },
-                ].map(({ title, desc }) => (
-                  <div
-                    key={title}
-                    style={{
-                      background: "rgba(212,175,55,0.04)",
-                      border: "1px solid rgba(212,175,55,0.1)",
-                      borderRadius: 8,
-                      padding: "10px 12px",
-                    }}
-                  >
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#d4af37", marginBottom: 5 }}>{title}</div>
-                    <div style={{ fontSize: 11, color: "rgba(232,213,163,0.5)", lineHeight: 1.6 }}>{desc}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* 배팅 게임 (기존 6종목 + 바카라) */}
+            <BakaBettingGame baccaratResult={baccaratResult} />
           </div>
 
-          {/* 오른쪽: 바카라 게임 */}
+          {/* 오른쪽: 바카라 카드 딜 게임 */}
           <div>
             <div
               className="rounded-2xl overflow-hidden sticky top-4"
