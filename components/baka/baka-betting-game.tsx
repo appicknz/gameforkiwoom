@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from "react"
-import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp } from "lucide-react"
+import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp, Shuffle } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -69,6 +69,29 @@ const LABEL_MAP: Record<string, { text: string; color: string; bg: string; borde
 function getToken(): string | null {
   if (typeof window === "undefined") return null
   try { return localStorage.getItem("app_token") } catch { return null }
+}
+
+// ─── 자동 배팅 설정 ────────────────────────────────────────────────────────
+interface AutoBetConfig {
+  enabled: boolean
+  direction: "long" | "short" | "random" | null
+  digit: "over" | "under" | "random" | null
+  parity: "odd" | "even" | "random" | null
+  baccarat: "player" | "banker" | "tie" | "random" | null
+  amount: number
+  maxRounds: number | null
+  maxLoss: number | null
+}
+
+const DEFAULT_AUTO_BET: AutoBetConfig = {
+  enabled: false,
+  direction: null,
+  digit: null,
+  parity: null,
+  baccarat: "random",
+  amount: 10_000,
+  maxRounds: 10,
+  maxLoss: 100_000,
 }
 
 // ─── 금액 선택 바텀 시트 (황금 테마) ──────────────────────────────────────
@@ -387,7 +410,15 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   const [isPlacingBet, setIsPlacingBet] = useState(false)
   const [locked, setLocked] = useState(false)
   const [lockedAmount, setLockedAmount] = useState<number | null>(null)
+  // 자동 배팅
+  const [autoBet, setAutoBet] = useState<AutoBetConfig>(DEFAULT_AUTO_BET)
   const [autoBetOpen, setAutoBetOpen] = useState(false)
+  const [autoBetRounds, setAutoBetRounds] = useState(0)
+  const [autoBetPnl, setAutoBetPnl] = useState(0)
+  const autoBetRef = useRef<AutoBetConfig>(DEFAULT_AUTO_BET)
+  const autoBetRoundsRef = useRef(0)
+  const autoBetPnlRef = useRef(0)
+  const autoBetFiredRef = useRef(false)
 
   const betRef = useRef<BetDirection>(null)
   const betDigitRef = useRef<BetDigit>(null)
@@ -571,6 +602,123 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   // 배팅 가능 시간: 30초~15초 초과 구간
   const canBet = timeLeft > 15
 
+  // autoBet state → ref 동기화
+  useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
+
+  // 자동 배팅: canBet false→true 전환 시 새 라운드 플래그 초기화
+  const prevCanBetRef = useRef(false)
+  useEffect(() => {
+    const was = prevCanBetRef.current
+    prevCanBetRef.current = canBet
+    if (!canBet || was) return
+    autoBetFiredRef.current = false
+  }, [canBet])
+
+  // 자동 배팅 실행
+  useEffect(() => {
+    if (!canBet) return
+    if (autoBetFiredRef.current) return
+    const cfg = autoBetRef.current
+    if (!cfg.enabled) return
+    if (cfg.amount <= 0) return
+    if (balance !== null && balance < cfg.amount) return
+    if (cfg.maxRounds !== null && autoBetRoundsRef.current >= cfg.maxRounds) {
+      setAutoBet(prev => ({ ...prev, enabled: false }))
+      return
+    }
+    if (cfg.maxLoss !== null && autoBetPnlRef.current <= -cfg.maxLoss) {
+      setAutoBet(prev => ({ ...prev, enabled: false }))
+      return
+    }
+
+    autoBetFiredRef.current = true
+
+    const pick = <T extends string>(val: T | "random" | null, opts: T[]): T | null => {
+      if (val === null) return null
+      if (val === "random") return opts[Math.floor(Math.random() * opts.length)]
+      return val
+    }
+    const dir = pick(cfg.direction, ["long", "short"])
+    const dig = pick(cfg.digit, ["over", "under"])
+    const par = pick(cfg.parity, ["odd", "even"])
+    const bac = pick(cfg.baccarat, ["player", "banker", "tie"])
+    if (!dir && !dig && !par && !bac) return
+
+    const token = getToken()
+    if (!token) return
+
+    const placeSingle = async (type: BetType, value: string) => {
+      const res = await fetch("/api/user/game/bet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ betAmount: cfg.amount }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      if (typeof data.newBalance === "number") {
+        setBalance(data.newBalance)
+        window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance }))
+      }
+      if (type === "direction") {
+        betRef.current = value as BetDirection; betDirectionAmountRef.current = cfg.amount
+        setBetDirection(value as BetDirection); setBetDirectionAmount(cfg.amount)
+      } else if (type === "digit") {
+        betDigitRef.current = value as BetDigit; betDigitAmountRef.current = cfg.amount
+        setBetDigit(value as BetDigit); setBetDigitAmount(cfg.amount)
+      } else if (type === "parity") {
+        betParityRef.current = value as BetParity; betParityAmountRef.current = cfg.amount
+        setBetParity(value as BetParity); setBetParityAmount(cfg.amount)
+      } else if (type === "baccarat") {
+        betBaccaratRef.current = value as BetBaccarat; betBaccaratAmountRef.current = cfg.amount
+        setBetBaccarat(value as BetBaccarat); setBetBaccaratAmount(cfg.amount)
+        onBetSideTrigger?.(value as "player" | "banker" | "tie")
+      }
+      if (!basePriceRef.current && currentPriceRef.current) {
+        basePriceRef.current = currentPriceRef.current
+        setBasePrice(currentPriceRef.current)
+      }
+    }
+
+    ;(async () => {
+      try {
+        if (dir) await placeSingle("direction", dir)
+        if (dig) await placeSingle("digit", dig)
+        if (par) await placeSingle("parity", par)
+        if (bac) await placeSingle("baccarat", bac)
+        setPhase("waiting")
+      } catch (e) { console.error("[v0 autoBet]", e) }
+    })()
+  }, [canBet, balance, onBetSideTrigger])
+
+  // 자동 배팅 결과 트래킹
+  useEffect(() => {
+    if (!lastResult || !autoBetRef.current.enabled) return
+    const cfg = autoBetRef.current
+    let pnl = 0
+    if (lastResult.direction && lastResult.directionAmount > 0)
+      pnl += lastResult.wonDirection ? Math.floor(lastResult.directionAmount * (PAYOUT_RATIO - 1)) : -lastResult.directionAmount
+    if (lastResult.digit && lastResult.digitAmount > 0)
+      pnl += lastResult.wonDigit ? Math.floor(lastResult.digitAmount * (PAYOUT_RATIO - 1)) : -lastResult.digitAmount
+    if (lastResult.parity && lastResult.parityAmount > 0)
+      pnl += lastResult.wonParity ? Math.floor(lastResult.parityAmount * (PAYOUT_RATIO - 1)) : -lastResult.parityAmount
+    if (lastResult.baccarat && lastResult.baccaratAmount > 0) {
+      if (lastResult.wonBaccarat) {
+        const mult = lastResult.baccarat === "player" ? 1 : lastResult.baccarat === "banker" ? 0.95 : 8
+        pnl += Math.floor(lastResult.baccaratAmount * mult)
+      } else if (!lastResult.baccaratRefund) {
+        pnl -= lastResult.baccaratAmount
+      }
+    }
+    autoBetRoundsRef.current += 1
+    autoBetPnlRef.current += pnl
+    setAutoBetRounds(autoBetRoundsRef.current)
+    setAutoBetPnl(autoBetPnlRef.current)
+    if (cfg.maxRounds !== null && autoBetRoundsRef.current >= cfg.maxRounds)
+      setAutoBet(prev => ({ ...prev, enabled: false }))
+    else if (cfg.maxLoss !== null && autoBetPnlRef.current <= -cfg.maxLoss)
+      setAutoBet(prev => ({ ...prev, enabled: false }))
+  }, [lastResult])
+
   // 다이얼로그 강제 닫기
   useEffect(() => {
     if (!canBet && dialog?.open) setDialog(null)
@@ -739,22 +887,165 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </div>
         </div>
 
-        {/* 자동 배팅 토글 (접기) */}
+        {/* 자동 배팅 패널 */}
         <div className="mb-3">
-          <button onClick={() => setAutoBetOpen(o => !o)}
+          {/* 토글 헤더 */}
+          <button
+            onClick={() => setAutoBetOpen(o => !o)}
             className="w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all"
-            style={{ background: G.bgMuted, border: `1px solid ${G.goldBorder}` }}>
+            style={{
+              background: autoBet.enabled ? "rgba(212,175,55,0.12)" : G.bgMuted,
+              border: `1px solid ${autoBet.enabled ? G.gold : G.goldBorder}`,
+            }}
+          >
             <div className="flex items-center gap-2">
-              <Bot className="w-3.5 h-3.5" style={{ color: G.goldDim }} />
-              <span className="text-xs font-bold" style={{ color: G.goldDim }}>자동 배팅</span>
+              <Bot className="w-3.5 h-3.5" style={{ color: autoBet.enabled ? G.gold : G.goldDim }} />
+              <span className="text-xs font-bold" style={{ color: autoBet.enabled ? G.gold : G.goldDim }}>자동 배팅</span>
+              {autoBet.enabled && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: G.gold, color: "#000" }}>ON</span>
+              )}
             </div>
-            {autoBetOpen
-              ? <ChevronUp className="w-3.5 h-3.5" style={{ color: G.textDim }} />
-              : <ChevronDown className="w-3.5 h-3.5" style={{ color: G.textDim }} />}
+            <div className="flex items-center gap-2">
+              {autoBet.enabled && (
+                <span className="text-[10px] font-semibold tabular-nums" style={{ color: autoBetPnl >= 0 ? "#10b981" : "#ef4444" }}>
+                  {autoBetRounds}R / {autoBetPnl >= 0 ? "+" : ""}₩{Math.abs(autoBetPnl).toLocaleString()}
+                </span>
+              )}
+              {autoBetOpen
+                ? <ChevronUp className="w-3.5 h-3.5" style={{ color: G.textDim }} />
+                : <ChevronDown className="w-3.5 h-3.5" style={{ color: G.textDim }} />}
+            </div>
           </button>
+
+          {/* 설정 패널 */}
           {autoBetOpen && (
-            <div className="mt-2 px-3 py-2 rounded-xl text-xs" style={{ border: `1px solid ${G.goldBorder}`, background: G.bgMuted, color: G.textDim }}>
-              자동 배팅 기능은 준비 중입니다.
+            <div className="mt-2 rounded-xl p-3 space-y-3" style={{ background: G.bgMuted, border: `1px solid ${G.goldBorder}` }}>
+
+              {/* 방향 / 크기 / 홀짝 */}
+              {(["direction", "digit", "parity"] as const).map((type) => {
+                const meta: Record<typeof type, { opts: string[]; labels: string[]; nullLabel: string }> = {
+                  direction: { opts: ["long", "short", "random"], labels: ["롱", "숏", "랜덤"], nullLabel: "방향" },
+                  digit:     { opts: ["over", "under", "random"],  labels: ["오버", "언더", "랜덤"], nullLabel: "크기" },
+                  parity:    { opts: ["odd", "even", "random"],    labels: ["홀", "짝", "랜덤"],  nullLabel: "홀짝" },
+                }
+                const { opts, labels, nullLabel } = meta[type]
+                const current = autoBet[type]
+                return (
+                  <div key={type} className="flex items-center gap-2">
+                    <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>{nullLabel}</span>
+                    <div className="flex gap-1 flex-1">
+                      <button
+                        onClick={() => setAutoBet(prev => ({ ...prev, [type]: null }))}
+                        className="px-2 py-1 rounded text-[10px] font-semibold transition-all"
+                        style={current === null
+                          ? { background: G.goldFaint, color: G.gold, border: `1px solid ${G.gold}` }
+                          : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
+                      >없음</button>
+                      {opts.map((opt, i) => (
+                        <button key={opt}
+                          onClick={() => setAutoBet(prev => ({ ...prev, [type]: opt as any }))}
+                          className="flex-1 px-1 py-1 rounded text-[10px] font-semibold transition-all flex items-center justify-center gap-0.5"
+                          style={current === opt
+                            ? { background: G.goldFaint, color: G.gold, border: `1px solid ${G.gold}` }
+                            : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
+                        >
+                          {labels[i]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* 바카라 */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>바카라</span>
+                <div className="flex gap-1 flex-1">
+                  <button
+                    onClick={() => setAutoBet(prev => ({ ...prev, baccarat: null }))}
+                    className="px-2 py-1 rounded text-[10px] font-semibold transition-all"
+                    style={autoBet.baccarat === null
+                      ? { background: G.goldFaint, color: G.gold, border: `1px solid ${G.gold}` }
+                      : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
+                  >없음</button>
+                  {(["player", "banker", "tie", "random"] as const).map((opt) => {
+                    const labels: Record<typeof opt, string> = { player: "플레이어", banker: "뱅커", tie: "타이", random: "랜덤" }
+                    return (
+                      <button key={opt}
+                        onClick={() => setAutoBet(prev => ({ ...prev, baccarat: opt }))}
+                        className="flex-1 px-1 py-1 rounded text-[10px] font-semibold transition-all"
+                        style={autoBet.baccarat === opt
+                          ? { background: G.goldFaint, color: G.gold, border: `1px solid ${G.gold}` }
+                          : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
+                      >{labels[opt]}</button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* 배팅 금액 */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>금액</span>
+                <div className="flex gap-1 flex-1 flex-wrap">
+                  {CHIPS.map(c => (
+                    <button key={c.value}
+                      onClick={() => setAutoBet(prev => ({ ...prev, amount: c.value }))}
+                      className="px-2 py-1 rounded text-[10px] font-semibold transition-all"
+                      style={autoBet.amount === c.value
+                        ? { background: G.goldFaint, color: G.gold, border: `1px solid ${G.gold}` }
+                        : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
+                    >{c.label}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 종료 조건 */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[10px] mb-1" style={{ color: G.textDim }}>최대 라운드 (빈 칸=무제한)</p>
+                  <input
+                    type="number" min={1} max={100}
+                    value={autoBet.maxRounds ?? ""}
+                    onChange={e => setAutoBet(prev => ({ ...prev, maxRounds: e.target.value === "" ? null : Number(e.target.value) }))}
+                    placeholder="무제한"
+                    className="w-full px-2 py-1.5 rounded text-[11px] font-semibold tabular-nums"
+                    style={{ background: G.bgMuted, border: `1px solid ${G.goldBorder}`, color: G.text, outline: "none" }}
+                  />
+                </div>
+                <div>
+                  <p className="text-[10px] mb-1" style={{ color: G.textDim }}>손실 한도 ₩ (빈 칸=무제한)</p>
+                  <input
+                    type="number" min={0}
+                    value={autoBet.maxLoss ?? ""}
+                    onChange={e => setAutoBet(prev => ({ ...prev, maxLoss: e.target.value === "" ? null : Number(e.target.value) }))}
+                    placeholder="무제한"
+                    className="w-full px-2 py-1.5 rounded text-[11px] font-semibold tabular-nums"
+                    style={{ background: G.bgMuted, border: `1px solid ${G.goldBorder}`, color: G.text, outline: "none" }}
+                  />
+                </div>
+              </div>
+
+              {/* ON/OFF 버튼 */}
+              <button
+                onClick={() => {
+                  if (autoBet.enabled) {
+                    setAutoBet(prev => ({ ...prev, enabled: false }))
+                  } else {
+                    autoBetRoundsRef.current = 0
+                    autoBetPnlRef.current = 0
+                    setAutoBetRounds(0)
+                    setAutoBetPnl(0)
+                    autoBetFiredRef.current = true
+                    setAutoBet(prev => ({ ...prev, enabled: true }))
+                  }
+                }}
+                className="w-full py-2.5 rounded-xl text-sm font-bold transition-all"
+                style={autoBet.enabled
+                  ? { background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.4)", color: "#ef4444" }
+                  : { background: G.goldFaint, border: `1px solid ${G.gold}`, color: G.gold }}
+              >
+                {autoBet.enabled ? "자동 배팅 중단" : "자동 배팅 시작"}
+              </button>
             </div>
           )}
         </div>
