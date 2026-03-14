@@ -5,6 +5,7 @@ import BaccaratGame from "@/components/baka/baccarat-game"
 import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 interface Card { suit: string; value: number; label: string; id: string }
 interface CardOverlayData {
@@ -52,6 +53,7 @@ function EmptySlot() {
 }
 
 export default function BakaPage() {
+  const isMobile = useIsMobile()
   const [cardData, setCardData] = useState<CardOverlayData>({
     playerCards: [], bankerCards: [], pScore: 0, bScore: 0, result: null,
   })
@@ -123,13 +125,21 @@ export default function BakaPage() {
             </div>
 
             {/* 차트 + 카드 오버레이 */}
-            <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>
+            <style>{`
+              @keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}
+            `}</style>
             <div className="relative">
               <BitcoinChart />
-              {/* BANKER / PLAYER 카드 오버레이 */}
+              {/* BANKER / PLAYER 카드 오버레이
+                  - 모바일: 기존 크기 유지 (scale-100)
+                  - md 이상: 1.45배 확대, origin-top 유지하여 차트 상단 공간 활용
+              */}
               <div
-                className="absolute inset-0 pointer-events-none z-20"
-                style={{ top: 56, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8, justifyContent: "flex-start", alignItems: "center" }}
+                className="absolute inset-0 pointer-events-none z-20
+                  flex flex-col items-center justify-start gap-2
+                  md:scale-[1.45] md:origin-top
+                  scale-100 origin-top"
+                style={{ top: 56, padding: "10px 12px" }}
               >
                 {(["banker", "player"] as const).map((side) => {
                   const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
@@ -143,11 +153,11 @@ export default function BakaPage() {
                       style={{
                         borderRadius: 10,
                         border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.18)"}`,
-                        background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.72)",
-                        backdropFilter: "blur(6px)",
+                        background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.82)",
+                        backdropFilter: "blur(8px)",
                         padding: "8px 10px",
                         transition: "border-color 0.3s, background 0.3s",
-                        boxShadow: isWinner ? `0 0 18px ${accentColor}28` : "0 2px 12px rgba(0,0,0,0.5)",
+                        boxShadow: isWinner ? `0 0 24px ${accentColor}30` : "0 4px 20px rgba(0,0,0,0.65)",
                         width: "fit-content",
                         minWidth: 140,
                       }}
@@ -191,6 +201,7 @@ export default function BakaPage() {
                 onStartDealRequest={handleRegisterStartDeal}
                 onFinalDigitRequest={handleRegisterFinalDigit}
                 onBetSideRequest={handleRegisterBetSide}
+                large={!isMobile}
               />
             </div>
           </div>
