@@ -681,7 +681,7 @@ export function NeonBettingGame() {
   const timerColor = timeLeft > 18 ? "#00ff88" : timeLeft > 15 ? "#ff4444" : timeLeft > 3 ? "#ff8800" : "#ff4444"
   const timerLabel = timeLeft > 18 ? "배팅 가능" : timeLeft > 15 ? "배팅 마감" : timeLeft > 3 ? "게임 중" : "준비 중"
 
-  const fmt = (p: number) => `$${(Math.floor(p * 10) / 10).toFixed(1)}`
+  const fmt = (p: number) => `$${p.toFixed(1)}`
   const betAmountFmt = (n: number) => n > 0 ? `₩${n >= 10000 ? `${n / 10000}만` : n.toLocaleString()}` : null
 
   const fmtKRW = (n: number): string => {

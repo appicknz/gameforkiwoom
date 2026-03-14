@@ -338,7 +338,7 @@ export default function BaccaratGame({ onCardsChange }: BaccaratGameProps = {}) 
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           <span style={{ fontSize: 11, color: "rgba(232,213,163,0.5)", letterSpacing: "0.08em" }}>BTC/USDT</span>
           <span style={{ fontSize: 18, fontWeight: 700, color: "#d4af37" }}>
-            {state.priceDisplay ? state.priceDisplay.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "---"}
+            {state.priceDisplay ? state.priceDisplay.toFixed(1) : "---"}
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

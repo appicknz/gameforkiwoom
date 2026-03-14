@@ -164,7 +164,7 @@ export default function TasksPage() {
           <Badge variant="outline">총 {stats.total}회 분석</Badge>
           {prices.length > 0 && (
             <span className="text-xs text-muted-foreground">
-              마지막 마감가: ${(Math.floor(prices[prices.length - 1]?.price * 10) / 10).toString()}
+              마지막 마감가: ${prices[prices.length - 1]?.price.toFixed(1)}
             </span>
           )}
         </div>
@@ -224,7 +224,7 @@ export default function TasksPage() {
                       <span className="text-muted-foreground text-xs w-20 shrink-0">
                         {new Date(p.time * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                       </span>
-                      <span className="font-mono font-semibold">${(Math.floor(p.price * 10) / 10).toString()}</span>
+                      <span className="font-mono font-semibold">${p.price.toFixed(1)}</span>
                     </div>
                     <div className="flex gap-1 shrink-0">
                       {prev && (
