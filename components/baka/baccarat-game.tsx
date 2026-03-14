@@ -146,19 +146,16 @@ function PlayingCard({
 
 interface BaccaratGameProps {
   onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"] }) => void
-  /**
-   * 15초 시점에 호출 — 임의 카드로 P1/B1/P2/B2 딜 시작
-   * 핸들러를 등록해서 외부(BakaBettingGame)로부터 신호를 받는다
-   */
+  /** BaccaratGame이 page에 startDeal 함수를 등록 */
   onStartDealRequest?: (handler: () => void) => void
-  /**
-   * 0초(종가) 시점에 호출 — 끝자리 숫자를 뱅커 마지막 카드로 사용해 최종 승부
-   */
+  /** BaccaratGame이 page에 applyFinalDigit 함수를 등록 */
   onFinalDigitRequest?: (handler: (digit: number) => void) => void
+  /** BaccaratGame이 page에 setBetSide 함수를 등록 — 배팅 사이드를 딜 전에 주입 */
+  onBetSideRequest?: (handler: (side: BetSide) => void) => void
 }
 
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest }: BaccaratGameProps = {}) {
+export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
@@ -175,11 +172,13 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
   const dealingRef = useRef(false)
   const priceRef = useRef(0)
+  // 현재 라운드 배팅 사이드 (BakaBettingGame이 15초 전에 주입)
+  const betSideRef = useRef<BetSide>(null)
   // 딜 중간 상태 보관 (finalDigit 수신 시 이어서 계산)
   const midStateRef = useRef<{
     finalP: Card[]
     finalB: Card[]
-    isNatural: boolean   // true면 0초 대기 없이 즉시 승부
+    betSide: BetSide   // 이 라운드 배팅 사이드 스냅샷
   } | null>(null)
 
   // ─── 가격 수신 (priceDisplay 업데이트) ────────────────────────────────────
@@ -196,86 +195,115 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => clearInterval(id)
   }, [])
 
-  // ─── 15초 딜 시작: P1→B1→P2→B2 (임의), 표준 룰로 P3 처리 ──────────────
-  // 뱅커 3번째 카드는 항상 0초 끝자리로 처리 (단, 내추럴은 즉시 승부)
+  // ─── 15초 딜 시작 ─────────────────────────────────────────────────────────
+  // 규칙:
+  //   - 플레이어/타이 베팅: Player 1장(임의), Banker 2장(임의)
+  //   - 뱅커 베팅:          Banker 1장(임의), Player 2장(임의)
+  //   - 0초 끝자리 카드: 베팅 사이드(Player/Banker)의 마지막 카드 → 승부 결정
+  //   - 끝자리 카드 받은 쪽 최종 점수 ≤5 → 상대방이 임의 1장 추가 (단, 이미 3장이면 스킵)
   const startDeal = useCallback(async () => {
     if (dealingRef.current) return
     dealingRef.current = true
     midStateRef.current = null
 
+    const side = betSideRef.current  // null이면 배팅 없음 (관전 모드)
     const rand = () => Math.floor(Math.random() * 10)
     const randSuit = () => Math.floor(Math.random() * 4)
-
-    const p1 = digitToCard(rand(), randSuit())
-    const b1 = digitToCard(rand(), randSuit())
-    const p2 = digitToCard(rand(), randSuit())
-    const b2 = digitToCard(rand(), randSuit())
 
     setState(prev => ({ ...prev, phase: "dealing", playerCards: [], bankerCards: [], result: null }))
     await sleep(80)
 
-    // P1 -> B1 -> P2 -> B2 순서로 착착 딜
-    setState(prev => ({ ...prev, playerCards: [p1] }))
-    await sleep(350)
-    setState(prev => ({ ...prev, bankerCards: [b1] }))
-    await sleep(350)
-    setState(prev => ({ ...prev, playerCards: [p1, p2] }))
-    await sleep(350)
-    setState(prev => ({ ...prev, bankerCards: [b1, b2] }))
-    await sleep(400)
+    // 베팅 사이드에 따라 카드 수 결정
+    // betTarget: 0초 끝자리를 받을 쪽 (베팅 사이드)
+    // betTarget이 player(또는 tie/null): player 1장, banker 2장
+    // betTarget이 banker: banker 1장, player 2장
+    const betTarget: "player" | "banker" = (side === "banker") ? "banker" : "player"
 
-    let finalP: Card[] = [p1, p2]
-    const finalB: Card[] = [b1, b2]
-    const pScore = handScore(finalP)
-    const bScore = handScore(finalB)
+    let finalP: Card[] = []
+    let finalB: Card[] = []
 
-    // 내추럴 (8 or 9): 추가 카드 없이 즉시 승부 준비
-    const isNatural = pScore >= 8 || bScore >= 8
+    if (betTarget === "player") {
+      // Player 1장, Banker 2장
+      const p1 = digitToCard(rand(), randSuit())
+      const b1 = digitToCard(rand(), randSuit())
+      const b2 = digitToCard(rand(), randSuit())
 
-    if (!isNatural) {
-      // 플레이어 3번째 카드: 점수 5 이하면 임의 카드 1장 추가
-      if (shouldPlayerDraw(pScore)) {
-        const p3 = digitToCard(rand(), randSuit())
-        finalP = [...finalP, p3]
-        setState(prev => ({ ...prev, playerCards: finalP }))
-        await sleep(380)
-      }
-      // 뱅커 3번째 카드: 항상 0초 끝자리로 처리 (룰 계산은 applyFinalDigit에서)
+      setState(prev => ({ ...prev, playerCards: [p1] }))
+      await sleep(350)
+      setState(prev => ({ ...prev, bankerCards: [b1] }))
+      await sleep(350)
+      setState(prev => ({ ...prev, bankerCards: [b1, b2] }))
+      await sleep(350)
+
+      finalP = [p1]
+      finalB = [b1, b2]
+    } else {
+      // Banker 1장, Player 2장
+      const b1 = digitToCard(rand(), randSuit())
+      const p1 = digitToCard(rand(), randSuit())
+      const p2 = digitToCard(rand(), randSuit())
+
+      setState(prev => ({ ...prev, bankerCards: [b1] }))
+      await sleep(350)
+      setState(prev => ({ ...prev, playerCards: [p1] }))
+      await sleep(350)
+      setState(prev => ({ ...prev, playerCards: [p1, p2] }))
+      await sleep(350)
+
+      finalP = [p1, p2]
+      finalB = [b1]
     }
 
-    // 중간 상태 저장 후 0초 끝자리 대기
-    midStateRef.current = { finalP, finalB, isNatural }
+    // 중간 상태 저장 → 0초 끝자리 카드 대기
+    midStateRef.current = { finalP, finalB, betSide: side }
     setState(prev => ({ ...prev, playerCards: finalP, bankerCards: finalB }))
   }, [])
 
-  // ─── 0초 끝자리 카드 → 승부 결정 ────────────────────────────────────────
-  // - 내추럴: 끝자리 카드 없이 즉시 승부
-  // - 비내추럴: 표준 바카라 룰로 뱅커 3번째 카드 필요 여부 판단 후 끝자리 부여
+  // ─── 0초 끝자리 카드 → 베팅 사이드에 부여 → 추가 카드 판정 → 최종 승부 ──
+  // 규칙:
+  //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여
+  //   2. betTarget 최종 점수 ≤5 → 상대방이 임의 1장 추가 (추가 카드가 없는 경우에만)
+  //   3. 점수 비교 → 승부
   const applyFinalDigit = useCallback(async (digit: number) => {
     const mid = midStateRef.current
     if (!mid) return
 
-    const { finalP, isNatural } = mid
-    let { finalB } = mid
+    let { finalP, finalB } = mid
+    const { betSide } = mid
     midStateRef.current = null
 
-    if (!isNatural) {
-      const pScore = handScore(finalP)
-      const bScore = handScore(finalB)
-      // 플레이어 3번째 카드 값 (있으면)
-      const p3 = finalP.length === 3 ? finalP[2] : null
-      // 표준 바카라 룰: 뱅커가 3번째 카드를 받아야 하면 끝자리 숫자를 뱅커 카드로 부여
-      const bankerShouldDraw = shouldBankerDraw(bScore, pScore, p3)
-      if (bankerShouldDraw) {
-        const b3 = digitToCard(digit, Math.floor(Math.random() * 4))
-        finalB = [...finalB, b3]
+    const betTarget: "player" | "banker" = (betSide === "banker") ? "banker" : "player"
+    const randSuit = () => Math.floor(Math.random() * 4)
+    const finalCard = digitToCard(digit, randSuit())
+
+    // 1. 끝자리 카드를 betTarget에게 부여
+    if (betTarget === "player") {
+      finalP = [...finalP, finalCard]
+      setState(prev => ({ ...prev, playerCards: finalP }))
+    } else {
+      finalB = [...finalB, finalCard]
+      setState(prev => ({ ...prev, bankerCards: finalB }))
+    }
+    await sleep(420)
+
+    // 2. betTarget 점수 ≤5 → 상대방 추가 1장 (이미 추가 카드가 있는 경우 스킵)
+    const targetScore = betTarget === "player" ? handScore(finalP) : handScore(finalB)
+    if (targetScore <= 5) {
+      const extraCard = digitToCard(Math.floor(Math.random() * 10), randSuit())
+      if (betTarget === "player" && finalB.length < 3) {
+        finalB = [...finalB, extraCard]
         setState(prev => ({ ...prev, bankerCards: finalB }))
-        await sleep(420)
+        await sleep(380)
+      } else if (betTarget === "banker" && finalP.length < 3) {
+        finalP = [...finalP, extraCard]
+        setState(prev => ({ ...prev, playerCards: finalP }))
+        await sleep(380)
       }
     }
 
-    await sleep(180)
+    await sleep(200)
 
+    // 3. 최종 승부
     const finalPScore = handScore(finalP)
     const finalBScore = handScore(finalB)
     let result: "player" | "banker" | "tie"
@@ -299,6 +327,9 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   // 콜백 등록
   useEffect(() => { onStartDealRequest?.(startDeal) }, [onStartDealRequest, startDeal])
   useEffect(() => { onFinalDigitRequest?.(applyFinalDigit) }, [onFinalDigitRequest, applyFinalDigit])
+  useEffect(() => {
+    onBetSideRequest?.((side) => { betSideRef.current = side })
+  }, [onBetSideRequest])
 
   const pScore = handScore(state.playerCards)
   const bScore = handScore(state.bankerCards)

@@ -360,9 +360,11 @@ interface BakaBettingGameProps {
   onStartDealTrigger?: () => void
   /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 */
   onFinalDigitTrigger?: (digit: number) => void
+  /** 바카라 배팅 확정 시 선택 사이드를 BaccaratGame에 전달 */
+  onBetSideTrigger?: (side: "player" | "banker" | "tie" | null) => void
 }
 
-export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger }: BakaBettingGameProps = {}) {
+export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBetSideTrigger }: BakaBettingGameProps = {}) {
   const [timeLeft, setTimeLeft] = useState(30)
   const [roundNumber, setRoundNumber] = useState(0)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
@@ -629,6 +631,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger }: Bak
         betBaccaratAmountRef.current = amount
         setBetBaccarat(dialog.value as BetBaccarat)
         setBetBaccaratAmount(amount)
+        // 배팅 사이드를 BaccaratGame에 즉시 전달 (15초 딜 시 카드 분배 기준)
+        onBetSideTrigger?.(dialog.value as "player" | "banker" | "tie")
       }
 
       setPhase("waiting")

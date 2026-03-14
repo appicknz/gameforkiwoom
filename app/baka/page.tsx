@@ -57,10 +57,10 @@ export default function BakaPage() {
   })
   const [baccaratResult, setBaccaratResult] = useState<BaccaratResult>(null)
 
-  // BaccaratGame이 자신의 startDeal/applyFinalDigit을 여기에 등록
-  // BakaBettingGame의 타이머가 이 ref를 직접 호출
+  // BaccaratGame이 자신의 함수를 여기에 등록 → BakaBettingGame 트리거가 호출
   const startDealRef = useRef<(() => void) | null>(null)
   const applyFinalDigitRef = useRef<((digit: number) => void) | null>(null)
+  const setBetSideRef = useRef<((side: "player" | "banker" | "tie" | null) => void) | null>(null)
 
   const handleCardsChange = useCallback((data: CardOverlayData) => {
     setCardData(data)
@@ -70,25 +70,15 @@ export default function BakaPage() {
     }
   }, [])
 
-  // BaccaratGame → page: startDeal 등록
-  const handleRegisterStartDeal = useCallback((fn: () => void) => {
-    startDealRef.current = fn
-  }, [])
+  // BaccaratGame → page: 함수 등록
+  const handleRegisterStartDeal = useCallback((fn: () => void) => { startDealRef.current = fn }, [])
+  const handleRegisterFinalDigit = useCallback((fn: (digit: number) => void) => { applyFinalDigitRef.current = fn }, [])
+  const handleRegisterBetSide = useCallback((fn: (side: "player" | "banker" | "tie" | null) => void) => { setBetSideRef.current = fn }, [])
 
-  // BaccaratGame → page: applyFinalDigit 등록
-  const handleRegisterFinalDigit = useCallback((fn: (digit: number) => void) => {
-    applyFinalDigitRef.current = fn
-  }, [])
-
-  // BakaBettingGame → page: 15초 트리거
-  const handleStartDealTrigger = useCallback(() => {
-    startDealRef.current?.()
-  }, [])
-
-  // BakaBettingGame → page: 0초 끝자리 전달
-  const handleFinalDigitTrigger = useCallback((digit: number) => {
-    applyFinalDigitRef.current?.(digit)
-  }, [])
+  // BakaBettingGame → page: 트리거
+  const handleStartDealTrigger = useCallback(() => { startDealRef.current?.() }, [])
+  const handleFinalDigitTrigger = useCallback((digit: number) => { applyFinalDigitRef.current?.(digit) }, [])
+  const handleBetSideTrigger = useCallback((side: "player" | "banker" | "tie" | null) => { setBetSideRef.current?.(side) }, [])
 
   return (
     <div
@@ -183,6 +173,7 @@ export default function BakaPage() {
             <BakaBettingGame
               onStartDealTrigger={handleStartDealTrigger}
               onFinalDigitTrigger={handleFinalDigitTrigger}
+              onBetSideTrigger={handleBetSideTrigger}
             />
           </div>
 
@@ -199,6 +190,7 @@ export default function BakaPage() {
                 onCardsChange={handleCardsChange}
                 onStartDealRequest={handleRegisterStartDeal}
                 onFinalDigitRequest={handleRegisterFinalDigit}
+                onBetSideRequest={handleRegisterBetSide}
               />
             </div>
           </div>
