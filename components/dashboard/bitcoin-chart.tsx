@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { TrendingUp, TrendingDown, Wifi, WifiOff } from "lucide-react"
+import { TrendingUp, TrendingDown } from "lucide-react"
 import { createChart, ColorType } from "lightweight-charts"
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 interface CandleData {
   time: number
@@ -67,58 +68,75 @@ export function BitcoinChart() {
     intervalSecondsRef.current = INTERVAL_CONFIG[interval].seconds
   }, [interval])
 
-  // ── window.__bitcoinCurrentPrice / __bitcoinClosingPrices 구독 ──
-  useEffect(() => {
-    const win = window as any
-    const interval = setInterval(() => {
-      // 현재가 → 캔들 업데이트 (선택된 타임프레임 버킷 기준)
-      const price: number | undefined = win.__bitcoinCurrentPrice
-      if (price && seriesRef.current) {
-        const now = Math.floor(Date.now() / 1000)
-        const seconds = intervalSecondsRef.current
-        const bucket = now - (now % seconds)
-        const existing = candleMapRef.current.get(bucket)
-        const candle: CandleData = {
-          time: bucket,
-          open: existing?.open ?? price,
-          high: existing ? Math.max(existing.high, price) : price,
-          low: existing ? Math.min(existing.low, price) : price,
-          close: price,
-        }
-        candleMapRef.current.set(bucket, candle)
-        seriesRef.current.update(candle)
-        setTicker(prev => prev ? { ...prev, price } : { price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
-        setConnected(true)
-      }
+  // 틱마다 즉시 캔들 업데이트 — 바이낸스와 동일한 실시간성
+  const handlePrice = useCallback((price: number, tradeTime: number) => {
+    if (!seriesRef.current) return
+    const seconds = intervalSecondsRef.current
+    const bucket = tradeTime - (tradeTime % seconds)
+    const existing = candleMapRef.current.get(bucket)
+    const candle: CandleData = {
+      time: bucket,
+      open: existing?.open ?? price,
+      high: existing ? Math.max(existing.high, price) : price,
+      low: existing ? Math.min(existing.low, price) : price,
+      close: price,
+    }
+    candleMapRef.current.set(bucket, candle)
+    try { seriesRef.current.update(candle) } catch { /* 시간 역순 방어 */ }
+    setTicker(prev => prev ? { ...prev, price } : { price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
+    setConnected(true)
+  }, [])
 
-      // 마감 기준가 → 노란 수평선 (GameChart와 동일 조건)
-      const closingArr: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-      if (closingArr.length > 0) {
-        const newLast = closingArr[closingArr.length - 1]
-        setClosingPrices(prev => {
-          const last = prev[prev.length - 1]
-          if (last?.time === newLast.time) return prev
-          // 새 마감가 도착 → 노란 수평선 업데이트
-          if (seriesRef.current) {
-            if (priceLineRef.current) {
-              try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
-            }
-            priceLineRef.current = seriesRef.current.createPriceLine({
-              price: newLast.price,
-              color: "#facc15",
-              lineWidth: 1,
-              lineStyle: 2,
-              axisLabelVisible: true,
-              title: "배팅가",
-            })
-          }
-          return closingArr
+  // 30초봉 마감가 → 노란 수평선
+  const handleClosingPrice = useCallback((price: number, time: number) => {
+    setClosingPrices(prev => {
+      const last = prev[prev.length - 1]
+      if (last?.time === time) return prev
+      if (seriesRef.current) {
+        if (priceLineRef.current) {
+          try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
+        }
+        priceLineRef.current = seriesRef.current.createPriceLine({
+          price,
+          color: "#facc15",
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: "배팅가",
         })
       }
-    }, 500)
-
-    return () => clearInterval(interval)
+      const next = [...prev, { time, price }].slice(-100)
+      return next
+    })
   }, [])
+
+  // 초기 마감가 배열 수신
+  const handleInitClosing = useCallback((prices: Array<{ time: number; price: number }>) => {
+    if (prices.length === 0) return
+    setClosingPrices(prices)
+    const last = prices[prices.length - 1]
+    if (seriesRef.current && last) {
+      if (priceLineRef.current) {
+        try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
+      }
+      priceLineRef.current = seriesRef.current.createPriceLine({
+        price: last.price,
+        color: "#facc15",
+        lineWidth: 1,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: "배팅가",
+      })
+    }
+  }, [])
+
+  usePriceWorker({
+    onConnected: useCallback(() => setConnected(true), []),
+    onDisconnected: useCallback(() => setConnected(false), []),
+    onPrice: handlePrice,
+    onClosingPrice: handleClosingPrice,
+    onInitClosing: handleInitClosing,
+  })
 
   // 초기 캔들 데이터 로드
   const fetchInitialCandles = useCallback(async (sel: Interval): Promise<CandleData[]> => {
