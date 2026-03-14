@@ -466,12 +466,13 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   // 잔고 초기 로드
   useEffect(() => {
-    const token = await getToken()
-    if (!token) return
-    fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(d => setBalance(d.balance ?? 0))
-      .catch(() => {})
+    getToken().then(token => {
+      if (!token) return
+      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(d => setBalance(d.balance ?? 0))
+        .catch(() => {})
+    })
   }, [])
 
   // SSE 잔고 동기화
@@ -513,7 +514,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
       // 바카라 결과: BaccaratGame이 applyFinalDigit 후 결과를 반환하기까지 약간의 딜레이 필요
       // → 500ms 후 baccaratResultRef 읽기 (카드 딜 애니메이션 완료 대기)
-      const settleAfterDelay = (bacResult: "player" | "banker" | "tie" | null) => {
+      const settleAfterDelay = async (bacResult: "player" | "banker" | "tie" | null) => {
         const wonBaccarat = betBaccaratRef.current ? betBaccaratRef.current === bacResult : false
         const baccaratRefund = !wonBaccarat && bacResult === "tie" && (betBaccaratRef.current === "player" || betBaccaratRef.current === "banker")
 
@@ -661,10 +662,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     const bac = pick(cfg.baccarat, ["player", "banker", "tie"])
     if (!dir && !dig && !par && !bac) return
 
-    const token = await getToken()
-    if (!token) return
-
-    const placeSingle = async (type: BetType, value: string) => {
+    const placeSingle = async (type: BetType, value: string, token: string) => {
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -698,10 +696,12 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
     ;(async () => {
       try {
-        if (dir) await placeSingle("direction", dir)
-        if (dig) await placeSingle("digit", dig)
-        if (par) await placeSingle("parity", par)
-        if (bac) await placeSingle("baccarat", bac)
+        const token = await getToken()
+        if (!token) return
+        if (dir) await placeSingle("direction", dir, token)
+        if (dig) await placeSingle("digit", dig, token)
+        if (par) await placeSingle("parity", par, token)
+        if (bac) await placeSingle("baccarat", bac, token)
         setPhase("waiting")
       } catch (e) { console.error("[v0 autoBet]", e) }
     })()
