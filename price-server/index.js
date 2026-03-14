@@ -19,10 +19,10 @@
 const { WebSocket, WebSocketServer } = require("ws")
 
 const PORT = process.env.PORT || 8080
-// 현재가: 현물 trade (실시간 체결)
-const BINANCE_TRADE_URL = "wss://stream.binance.com:9443/ws/btcusdt@trade"
-// 30초봉 마감가: 현물 kline_30s (Binance 공식 30초봉, k.x===true 시 종가 확정)
-const BINANCE_KLINE_URL = "wss://stream.binance.com:9443/ws/btcusdt@kline_30s"
+// 현재가: 선물 aggTrade — 현물 @trade 대비 레이턴시 최저, 바이낸스 선물 차트와 동일 소스
+const BINANCE_TRADE_URL = "wss://fstream.binance.com/ws/btcusdt@aggTrade"
+// 30초봉 마감가: 선물 kline_30s (k.x===true 시 종가 확정)
+const BINANCE_KLINE_URL = "wss://fstream.binance.com/ws/btcusdt@kline_30s"
 
 // 연결된 클라이언트 목록
 const clients = new Set()
@@ -86,9 +86,13 @@ function connectTrade() {
   tradeWs.on("message", (data) => {
     try {
       const msg = JSON.parse(data.toString())
+      // 선물 aggTrade: p=price, T=tradeTime(ms)
+      // 현물 aggTrade도 동일 구조
       const price = parseFloat(msg.p)
       const time = Math.floor(msg.T / 1000)
+      if (isNaN(price) || price <= 0) return
       latestPrice = { price, time }
+      // 즉각 브로드캐스트 — 버퍼링/집계 없이 수신 즉시 전송
       broadcast({ type: "price", price, time })
     } catch {}
   })
