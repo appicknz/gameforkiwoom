@@ -5,6 +5,7 @@ import BaccaratGame from "@/components/baka/baccarat-game"
 import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 interface Card { suit: string; value: number; label: string; id: string }
 interface CardOverlayData {
@@ -17,41 +18,50 @@ interface CardOverlayData {
 
 type BaccaratResult = "player" | "banker" | "tie" | null
 
-// 카드 슬롯 — 차트 위 오버레이용 (compact)
-function OverlayCard({ card }: { card: Card }) {
+// 카드 슬롯 — 차트 위 오버레이용 (scale 지원)
+function OverlayCard({ card, s = 1 }: { card: Card; s?: number }) {
   const isRed = card.suit === "♥" || card.suit === "♦"
+  const W = Math.round(36 * s)
+  const H = Math.round(52 * s)
+  const R = Math.round(6 * s)
+  const P = `${Math.round(3 * s)}px ${Math.round(4 * s)}px`
   return (
     <div style={{
-      width: 36, height: 52, borderRadius: 6,
+      width: W, height: H, borderRadius: R,
       background: "linear-gradient(145deg,#1c1408,#12100a)",
       border: "1px solid rgba(212,175,55,0.5)",
       display: "flex", flexDirection: "column", justifyContent: "space-between",
-      padding: "3px 4px",
+      padding: P,
       boxShadow: "0 2px 8px rgba(0,0,0,0.7)",
       animation: "cardDeal 0.35s cubic-bezier(0.23,1,0.32,1)",
+      flexShrink: 0,
     }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
-        {card.label}<span style={{ fontSize: 8 }}>{card.suit}</span>
+      <div style={{ fontSize: Math.round(11 * s), fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
+        {card.label}<span style={{ fontSize: Math.round(8 * s) }}>{card.suit}</span>
       </div>
-      <div style={{ fontSize: 15, textAlign: "center", color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>{card.suit}</div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
+      <div style={{ fontSize: Math.round(15 * s), textAlign: "center", color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>{card.suit}</div>
+      <div style={{ fontSize: Math.round(11 * s), fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
         {card.label}
       </div>
     </div>
   )
 }
 
-function EmptySlot() {
+function EmptySlot({ s = 1 }: { s?: number }) {
   return (
     <div style={{
-      width: 36, height: 52, borderRadius: 6,
+      width: Math.round(36 * s), height: Math.round(52 * s), borderRadius: Math.round(6 * s),
       border: "1px dashed rgba(212,175,55,0.2)",
       background: "rgba(212,175,55,0.02)",
+      flexShrink: 0,
     }} />
   )
 }
 
 export default function BakaPage() {
+  const isMobile = useIsMobile()
+  // PC: 1.6배 확대, 모바일: 1배 유지
+  const S = isMobile ? 1 : 1.6
   const [cardData, setCardData] = useState<CardOverlayData>({
     playerCards: [], bankerCards: [], pScore: 0, bScore: 0, result: null,
   })
@@ -129,7 +139,13 @@ export default function BakaPage() {
               {/* BANKER / PLAYER 카드 오버레이 */}
               <div
                 className="absolute inset-0 pointer-events-none z-20"
-                style={{ top: 56, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8, justifyContent: "flex-start", alignItems: "center" }}
+                style={{
+                  top: 56,
+                  padding: `${Math.round(10 * S)}px ${Math.round(12 * S)}px`,
+                  display: "flex", flexDirection: "column",
+                  gap: Math.round(8 * S),
+                  justifyContent: "flex-start", alignItems: "center",
+                }}
               >
                 {(["banker", "player"] as const).map((side) => {
                   const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
@@ -141,27 +157,27 @@ export default function BakaPage() {
                     <div
                       key={side}
                       style={{
-                        borderRadius: 10,
+                        borderRadius: Math.round(10 * S),
                         border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.18)"}`,
                         background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.72)",
                         backdropFilter: "blur(6px)",
-                        padding: "8px 10px",
+                        padding: `${Math.round(8 * S)}px ${Math.round(10 * S)}px`,
                         transition: "border-color 0.3s, background 0.3s",
-                        boxShadow: isWinner ? `0 0 18px ${accentColor}28` : "0 2px 12px rgba(0,0,0,0.5)",
+                        boxShadow: isWinner ? `0 0 ${Math.round(18 * S)}px ${accentColor}28` : `0 2px ${Math.round(12 * S)}px rgba(0,0,0,0.5)`,
                         width: "fit-content",
-                        minWidth: 140,
+                        minWidth: Math.round(140 * S),
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: accentColor }}>{label}</span>
-                        {isWinner && <span style={{ fontSize: 9, background: accentColor, color: "#fff", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>WIN</span>}
+                      <div style={{ display: "flex", alignItems: "center", gap: Math.round(8 * S), marginBottom: Math.round(7 * S) }}>
+                        <span style={{ fontSize: Math.round(10 * S), fontWeight: 700, letterSpacing: "0.12em", color: accentColor }}>{label}</span>
+                        {isWinner && <span style={{ fontSize: Math.round(9 * S), background: accentColor, color: "#fff", padding: `1px ${Math.round(5 * S)}px`, borderRadius: 3, fontWeight: 700 }}>WIN</span>}
                         {cards.length > 0 && (
-                          <span style={{ fontSize: 16, fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
+                          <span style={{ fontSize: Math.round(16 * S), fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
                         )}
                       </div>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        {cards.map(card => <OverlayCard key={card.id} card={card} />)}
-                        {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} />)}
+                      <div style={{ display: "flex", gap: Math.round(6 * S) }}>
+                        {cards.map(card => <OverlayCard key={card.id} card={card} s={S} />)}
+                        {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} s={S} />)}
                       </div>
                     </div>
                   )
