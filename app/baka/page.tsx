@@ -140,7 +140,7 @@ export default function BakaPage() {
               <div
                 className="absolute inset-0 pointer-events-none z-20"
                 style={{
-                  top: 20,
+                  top: 8,
                   padding: `${Math.round(10 * S)}px ${Math.round(12 * S)}px`,
                   display: "flex", flexDirection: "column",
                   gap: Math.round(8 * S),
