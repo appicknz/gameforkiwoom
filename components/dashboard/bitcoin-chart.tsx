@@ -59,6 +59,8 @@ export function BitcoinChart() {
 
   const [ticker, setTicker] = useState<TickerData | null>(null)
   const [connected, setConnected] = useState(false)
+  const [stale, setStale] = useState(false)
+  const lastTickAtRef = useRef<number>(Date.now())
   const [interval, setIntervalState] = useState<Interval>("1s")
   const [closingPrices, setClosingPrices] = useState<Array<{ time: number; price: number }>>([])
 
@@ -68,9 +70,19 @@ export function BitcoinChart() {
     intervalSecondsRef.current = INTERVAL_CONFIG[interval].seconds
   }, [interval])
 
+  // 3초 이상 틱이 없으면 stale 표시
+  useEffect(() => {
+    const id = setInterval(() => {
+      const age = Date.now() - lastTickAtRef.current
+      setStale(age > 3000)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [])
+
   // 틱마다 즉시 캔들 업데이트 — 바이낸스와 동일한 실시간성
   const handlePrice = useCallback((price: number, tradeTime: number) => {
     if (!seriesRef.current) return
+    lastTickAtRef.current = Date.now()
     const seconds = intervalSecondsRef.current
     const bucket = tradeTime - (tradeTime % seconds)
     const existing = candleMapRef.current.get(bucket)
@@ -289,7 +301,28 @@ export function BitcoinChart() {
         <div className="shrink-0 text-right">
           {ticker ? (
             <>
-              <p className="text-[11px] font-medium mb-0.5" style={{ color: "rgba(212,175,55,0.5)" }}>현재가</p>
+              <p className="text-[11px] font-medium mb-0.5 flex items-center justify-end gap-1" style={{ color: "rgba(212,175,55,0.5)" }}>
+                {/* 연결 상태 표시등: 초록 점멸=정상, 노랑=stale, 빨강=연결끊김 */}
+                <span
+                  title={!connected ? "연결 끊김" : stale ? "업데이트 지연" : "실시간 연결 중"}
+                  style={{
+                    display: "inline-block",
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    background: !connected ? "#ef4444" : stale ? "#f59e0b" : "#22c55e",
+                    boxShadow: !connected
+                      ? "0 0 4px #ef4444"
+                      : stale
+                      ? "0 0 4px #f59e0b"
+                      : "0 0 6px #22c55e",
+                    animation: connected && !stale ? "pricePulse 1.4s ease-in-out infinite" : "none",
+                  }}
+                />
+                현재가
+              </p>
+              <style>{`@keyframes pricePulse{0%,100%{opacity:1}50%{opacity:0.35}}`}</style>
               <p className="text-sm font-bold tabular-nums leading-tight" style={{ color: "#e8d5a3" }}>
                 ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </p>
