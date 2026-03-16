@@ -1111,7 +1111,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                    color: isSelected ? meta.color : G.textDim,
+                    color: isSelected ? meta.color : G.gold,
                   }}>
                   <span>{meta.text}</span>
                   <span className="text-[8px] opacity-60">{payout}</span>
@@ -1141,7 +1141,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                    color: isSelected ? meta.color : G.textDim,
+                    color: isSelected ? meta.color : G.gold,
                   }}>
                   <div className="flex items-center gap-1">
                     {dir === "long" ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
@@ -1170,7 +1170,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                    color: isSelected ? meta.color : G.textDim,
+                    color: isSelected ? meta.color : G.gold,
                   }}>
                   <span>{dig === "over" ? "오버" : "언더"}</span>
                   <span className="text-[9px] opacity-60">{dig === "over" ? "5~9" : "0~4"}</span>
@@ -1197,7 +1197,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                    color: isSelected ? meta.color : G.textDim,
+                    color: isSelected ? meta.color : G.gold,
                   }}>
                   <span>{par === "odd" ? "홀" : "짝"}</span>
                   <span className="text-[9px] opacity-60">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
