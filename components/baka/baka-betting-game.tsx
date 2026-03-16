@@ -849,7 +849,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           {/* 중앙: 상태 텍스트 또는 결과 뱃지 */}
           <div style={{ textAlign: "center", flex: 1 }}>
             {phase === "result" && lastResult ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: G.goldDim }}>
                   끝자리 <span style={{ color: G.gold }}>{Math.floor(lastResult.closePrice * 10) % 10}</span>
                 </span>
@@ -1058,7 +1058,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                   />
                 </div>
                 <div>
-                  <p className="text-[10px] mb-1" style={{ color: G.textDim }}>손실 한도 ₩ (빈 칸=무제한)</p>
+                  <p className="text-[10px] mb-1" style={{ color: G.textDim }}>손실 한도 ₩ (빈 ��=무제한)</p>
                   <input
                     type="number" min={0}
                     value={autoBet.maxLoss ?? ""}

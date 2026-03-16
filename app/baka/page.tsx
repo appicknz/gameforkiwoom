@@ -109,34 +109,38 @@ export default function BakaPage() {
           {/* 왼쪽: 차트 */}
           <div className="lg:col-span-2 space-y-4">
             {/* 타이틀 */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <h1
-                style={{
-                  fontSize: 18,
-                  fontWeight: 800,
-                  color: "#d4af37",
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Baccarat
-              </h1>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "rgba(212,175,55,0.5)",
-                  border: "1px solid rgba(212,175,55,0.2)",
-                  padding: "2px 8px",
-                  borderRadius: 4,
-                  letterSpacing: "0.1em",
-                }}
-              >
-                BTC 끝자리 기반
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <h1
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    color: "#d4af37",
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    margin: 0,
+                  }}
+                >
+                  Baccarat
+                </h1>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "rgba(212,175,55,0.5)",
+                    border: "1px solid rgba(212,175,55,0.2)",
+                    padding: "2px 8px",
+                    borderRadius: 4,
+                    letterSpacing: "0.1em",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  BTC 끝자리 기반
+                </div>
               </div>
 
-              {/* 게임 결과 */}
+              {/* 게임 결과 — 오른쪽 정렬 */}
               {cardData.result && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {/* 결과 뱃지 */}
                   <span style={{
                     fontSize: 11,
@@ -151,10 +155,10 @@ export default function BakaPage() {
                     {cardData.result === "banker" ? "BANKER WIN" : cardData.result === "player" ? "PLAYER WIN" : "TIE"}
                   </span>
                   {/* 스코어 */}
-                  <span style={{ fontSize: 11, color: "rgba(212,175,55,0.55)" }}>
-                    <span style={{ color: "#ef4444", fontWeight: 700 }}>{cardData.bScore}</span>
-                    <span style={{ margin: "0 4px", color: "rgba(212,175,55,0.3)" }}>:</span>
-                    <span style={{ color: "#3b82f6", fontWeight: 700 }}>{cardData.pScore}</span>
+                  <span style={{ fontSize: 13, color: "rgba(212,175,55,0.65)", fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ color: "#ef4444", fontWeight: 800 }}>{cardData.bScore}</span>
+                    <span style={{ margin: "0 6px", color: "rgba(212,175,55,0.3)" }}>:</span>
+                    <span style={{ color: "#3b82f6", fontWeight: 800 }}>{cardData.pScore}</span>
                   </span>
                 </div>
               )}
