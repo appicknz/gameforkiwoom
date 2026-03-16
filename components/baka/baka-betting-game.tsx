@@ -297,7 +297,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
         <div className="px-5 pt-5 pb-4 flex items-center justify-between"
           style={{ background: allWon ? "rgba(212,175,55,0.08)" : allLost ? "rgba(239,68,68,0.08)" : "rgba(212,175,55,0.04)" }}>
           <div>
-            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라운드 #{result.round} 결과</p>
+            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>���운드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight"
               style={{ color: allWon ? G.gold : allLost ? "#ef4444" : "#f97316" }}>
               {allWon ? "승리!" : allLost ? "패배" : "부분 승리"}
@@ -808,7 +808,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
       }}>
 
-        {/* ── 헤더: 타이틀 + 승패 ── */}
+        {/* ── 헤더: 타이틀 + 초 ── */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>배팅</h3>
@@ -816,11 +816,11 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
               #{roundNumber}
             </span>
           </div>
-          <span style={{ fontSize: 11 }}>
-            <span style={{ fontWeight: 700, color: G.gold }}>{wins}승</span>
-            <span style={{ color: G.textDim }}> / </span>
-            <span style={{ fontWeight: 700, color: "#ef4444" }}>{losses}패</span>
-          </span>
+          {phase !== "result" && (
+            <span style={{ fontSize: 14, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>
+              {timeLeft}초
+            </span>
+          )}
         </div>
 
         {/* ── 기준가 / 상태 / 현재가 — 카운트다운 pill ── */}
@@ -890,16 +890,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </div>
         </div>
 
-        {/* ── 초 카운트 표시 (pill 아래 우측) ── */}
-        {phase !== "result" && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, marginTop: -4, paddingLeft: 4, paddingRight: 4 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: timerColor, fontWeight: 600 }}>
-              <Clock style={{ width: 11, height: 11 }} />
-              <span>{timerLabel}</span>
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>{timeLeft}초</span>
-          </div>
-        )}
+
 
         {/* 자동 배팅 패널 */}
         <div className="mb-3">
