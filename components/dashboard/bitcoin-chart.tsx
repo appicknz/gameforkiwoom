@@ -89,10 +89,22 @@ export function BitcoinChart() {
     return () => clearInterval(id)
   }, [])
 
-  // Railway aggTrade → 연결 상태 감지 전용 (현재가 표시는 Binance kline WS에서 처리)
-  // kline과 aggTrade가 동시에 priceDisplayRef를 업데이트하면 불일치 발생하므로 여기서는 DOM 업데이트 제거
-  const handlePrice = useCallback((_price: number, _tradeTime: number) => {
+  // Railway aggTrade → 가격 표시 전용 (캔들은 Binance kline WS가 담당)
+  // aggTrade는 체결 틱이라 OHLC 없음 → 이걸로 캔들 그리면 납작한 선이 됨
+  const handlePrice = useCallback((price: number, _tradeTime: number) => {
     lastTickAtRef.current = Date.now()
+
+    // DOM 직접 업데이트 — React 리렌더 없이 즉각 반영
+    if (priceDisplayRef.current) {
+      priceDisplayRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+    }
+
+    // 첫 틱 수신 시 한 번만 state 업데이트 (초기 렌더용)
+    if (!connectedRef.current) {
+      connectedRef.current = true
+      setTicker({ price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
+      setConnected(true)
+    }
   }, [])
 
   // 수평선 그리기 헬퍼 — seriesRef가 살아있을 때만 동작
@@ -250,34 +262,15 @@ export function BitcoinChart() {
         try {
           const { k } = JSON.parse(ev.data)
           const barTime = Math.floor(k.t / 1000) as any
-          const closePrice = parseFloat(k.c)
           const candle: CandleData = {
             time: barTime,
             open: parseFloat(k.o),
             high: parseFloat(k.h),
             low: parseFloat(k.l),
-            close: closePrice,
+            close: parseFloat(k.c),
           }
           candleMapRef.current.set(barTime, candle)
           try { seriesRef.current.update(candle) } catch { /* 역순 방어 */ }
-
-          // 헤더 현재가를 kline close 가격으로 동기화 — aggTrade와 불일치 해소
-          lastTickAtRef.current = Date.now()
-          if (priceDisplayRef.current) {
-            priceDisplayRef.current.textContent = `$${closePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}`
-          }
-          if (!connectedRef.current) {
-            connectedRef.current = true
-            setTicker({ price: closePrice, change: 0, changePercent: 0, high: closePrice, low: closePrice, volume: 0, quoteAssetVolume: 0 })
-            setConnected(true)
-          }
-
-          // 30초봉 마감 확정(k.x===true, 1초봉 interval일 때만) → spot:closing 이벤트 발행
-          // 배팅게임·closing-prices 모두 이 이벤트를 수신해 현물 종가로 통일
-          if (k.x && interval === "1s") {
-            const closeTime = Math.floor(k.T / 1000)
-            window.dispatchEvent(new CustomEvent("spot:closing", { detail: { price: closePrice, time: closeTime } }))
-          }
         } catch { /* JSON parse 오류 무시 */ }
       }
 
@@ -362,7 +355,7 @@ export function BitcoinChart() {
             <p className="text-[11px] leading-tight" style={{ color: "rgba(212,175,55,0.5)" }}>배팅 기준가</p>
             <p className="text-sm font-bold tabular-nums truncate" style={{ color: "#d4af37" }}>
               ${closingPrices.length > 0
-                ? closingPrices[closingPrices.length - 1].price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 })
+                ? closingPrices[closingPrices.length - 1].price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
                 : "로딩 중..."}
             </p>
             <div className="flex items-center gap-0.5 mt-0.5">
@@ -410,7 +403,7 @@ export function BitcoinChart() {
               <style>{`@keyframes pricePulse{0%,100%{opacity:1}50%{opacity:0.35}}`}</style>
               <p className="text-sm font-bold tabular-nums leading-tight" style={{ color: "#e8d5a3" }}>
                 <span ref={priceDisplayRef}>
-                  ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}
+                  ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 </span>
               </p>
               <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold mt-0.5 ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
