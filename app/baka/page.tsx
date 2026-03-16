@@ -226,10 +226,10 @@ export default function BakaPage() {
             />
           </div>
 
-          {/* 오른쪽: 바카라 카드 딜 게임 */}
-          <div>
+          {/* 오른쪽: 바카라 카드 딜 게임 + 끝자리 히스토리 */}
+          <div className="flex flex-col gap-3 sticky top-4">
             <div
-              className="rounded-2xl overflow-hidden sticky top-4"
+              className="rounded-2xl overflow-hidden"
               style={{
                 border: "1px solid rgba(212,175,55,0.2)",
                 boxShadow: "0 0 50px rgba(212,175,55,0.06)",
@@ -242,6 +242,8 @@ export default function BakaPage() {
                 onBetSideRequest={handleRegisterBetSide}
               />
             </div>
+            {/* 30초 끝자리 히스토리 — 카드 아래 빈 공간 */}
+            <ClosingPricesBadges compact />
           </div>
 
         </div>
