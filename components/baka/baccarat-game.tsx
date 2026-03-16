@@ -30,7 +30,8 @@ interface GameState {
   priceDisplay: number
   roundCount: number
   history: Array<"player" | "banker" | "tie">
-  finalCard: Card | null  // 0초 끝자리 카드 → 이미지 오버레이 표시용
+  finalCard: Card | null       // 0초 끝자리 카드 → 이미지 오버레이 표시용
+  betTarget: "player" | "banker" | null  // 끝자리 카드가 배정된 사이드
 }
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
@@ -404,7 +405,7 @@ function PlayingCard({
 }
 
 interface BaccaratGameProps {
-  onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"] }) => void
+  onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"]; finalCard: Card | null; betTarget: "player" | "banker" | null }) => void
   /** BaccaratGame이 page에 startDeal 함수를 등록 */
   onStartDealRequest?: (handler: () => void) => void
   /** BaccaratGame이 page에 applyFinalDigit 함수를 등록 */
@@ -428,6 +429,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     roundCount: 0,
     history: [],
     finalCard: null,
+    betTarget: null,
   })
 
   const dealingRef = useRef(false)
@@ -597,7 +599,8 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       bankerCards: finalB,
       roundCount: prev.roundCount + 1,
       history: [...prev.history.slice(-49), result],
-      finalCard,  // 이미지 오버레이에 끝자리 카드 정보 전달
+      finalCard,
+      betTarget,
     }))
 
     dealingRef.current = false
@@ -617,7 +620,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
   // 카드 상태를 부모로 전달 (차트 오버레이용)
   useEffect(() => {
-    onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result })
+    onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result, finalCard: state.finalCard, betTarget: state.betTarget })
   }, [state.playerCards, state.bankerCards, state.result, pScore, bScore, onCardsChange])
 
   const lastDigit = Math.floor(state.priceDisplay) % 10
