@@ -107,11 +107,14 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         .catch(() => {})
 
       let tradeWs: WebSocket | null = null
-      let klineWs: WebSocket | null = null
       let tradeRetry: ReturnType<typeof setTimeout> | null = null
-      let klineRetry: ReturnType<typeof setTimeout> | null = null
 
-      // aggTrade: 현물 현재가 실시간 (stream.binance.com — 차트와 동일 소스)
+      // Binance 현물은 30초봉 kline이 없으므로 aggTrade spot 스트림에서
+      // 30초 경계(Unix timestamp % 30 === 0)를 직접 감지해 closing price 추출
+      let lastBucket = -1
+      let lastPrice = 0
+
+      // aggTrade: 현물 현재가 실시간 (stream.binance.com — 차트·Railway와 동일 소스)
       const connectTrade = () => {
         if (closed) return
         tradeWs = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@aggTrade")
@@ -124,8 +127,29 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             const price = parseFloat(msg.p)
             const time = Math.floor(msg.T / 1000)
             if (isNaN(price) || price <= 0) return
+
             optsRef.current.onPrice?.(price, time)
             win.__bitcoinCurrentPrice = price
+
+            // 30초 버킷 경계 감지 — 이전 버킷 종가를 배팅 기준가로 확정
+            const bucket = Math.floor(time / 30)
+            if (lastBucket !== -1 && bucket !== lastBucket && lastPrice > 0) {
+              const closeTime = lastBucket * 30 + 29  // 버킷 마지막 초
+              optsRef.current.onClosingPrice?.(lastPrice, closeTime)
+              const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+              const alreadySaved = prev[prev.length - 1]?.time === closeTime
+              if (!alreadySaved) {
+                win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: lastPrice }].slice(-100)
+                // 마감가 확정 → DB 저장 (fire-and-forget)
+                fetch("/api/closing-price", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ price: lastPrice, time: closeTime }),
+                }).catch(() => {})
+              }
+            }
+            lastBucket = bucket
+            lastPrice = price
           } catch { /* ignore */ }
         }
 
@@ -137,47 +161,12 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         tradeWs.onerror = () => tradeWs?.close()
       }
 
-      // kline_30s: 선물 30초봉 종가 — k.x===true 마감 확정 시만 처리
-      const connectKline = () => {
-        if (closed) return
-        klineWs = new WebSocket("wss://fstream.binance.com/ws/btcusdt@kline_30s")
-
-        klineWs.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data as string)
-            const k = msg.k
-            if (!k || !k.x) return  // 마감 확정된 캔들만 처리
-
-            const closePrice = parseFloat(k.c)
-            const closeTime = Math.floor(k.T / 1000)
-            optsRef.current.onClosingPrice?.(closePrice, closeTime)
-            const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-            win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
-            // 마감가 확정 → DB 저장 (fire-and-forget)
-            fetch("/api/closing-price", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ price: closePrice, time: closeTime }),
-            }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
-          } catch { /* ignore */ }
-        }
-
-        klineWs.onclose = () => {
-          if (!closed) klineRetry = setTimeout(connectKline, 3000)
-        }
-
-        klineWs.onerror = () => klineWs?.close()
-      }
-
       connectTrade()
-      connectKline()
 
       return () => {
         closed = true
         if (tradeRetry) clearTimeout(tradeRetry)
-        if (klineRetry) clearTimeout(klineRetry)
         tradeWs?.close()
-        klineWs?.close()
       }
     }
 
