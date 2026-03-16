@@ -337,14 +337,13 @@ function PlayingCard({
   card,
   delay = 0,
   visible = true,
-  imgSrc,
 }: {
   card: Card
   delay?: number
   visible?: boolean
-  imgSrc?: string
 }) {
   const [show, setShow] = useState(false)
+  const isRed = card.suit === "♥" || card.suit === "♦"
 
   useEffect(() => {
     if (!visible) { setShow(false); return }
@@ -355,7 +354,11 @@ function PlayingCard({
   return (
     <div
       className="relative"
-      style={{ width: 52, height: 74, perspective: 600 }}
+      style={{
+        width: 52,
+        height: 74,
+        perspective: 600,
+      }}
     >
       <div
         style={{
@@ -364,6 +367,7 @@ function PlayingCard({
           transformStyle: "preserve-3d",
           transition: "transform 0.38s cubic-bezier(0.23, 1, 0.32, 1)",
           transform: show ? "rotateY(0deg)" : "rotateY(90deg)",
+          transitionDelay: show ? "0ms" : "0ms",
         }}
       >
         {/* 앞면 */}
@@ -372,39 +376,26 @@ function PlayingCard({
             position: "absolute",
             inset: 0,
             backfaceVisibility: "hidden",
-            background: "#12100a",
+            background: "linear-gradient(145deg, #1c1408, #12100a)",
             border: "1px solid rgba(212,175,55,0.45)",
             borderRadius: 8,
-            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            padding: "5px 6px",
             boxShadow: "0 4px 16px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(212,175,55,0.08)",
           }}
         >
-          {/* 캐릭터 이미지 배경 */}
-          {imgSrc && (
-            <img
-              src={imgSrc}
-              alt=""
-              style={{
-                position: "absolute", inset: 0,
-                width: "100%", height: "100%",
-                objectFit: "cover", objectPosition: "top",
-                opacity: 0.75,
-              }}
-            />
-          )}
-          {/* 숫자+무늬 오버레이 */}
-          <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%", padding: "4px 5px" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffff", lineHeight: 1 }}>
-              {card.label}
-              <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
-            </div>
-            <div style={{ fontSize: 22, textAlign: "center", color: "#ffffff", lineHeight: 1 }}>
-              {card.suit}
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffff", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
-              {card.label}
-              <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
-            </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
+            {card.label}
+            <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
+          </div>
+          <div style={{ fontSize: 22, textAlign: "center", color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
+            {card.suit}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
+            {card.label}
+            <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
           </div>
         </div>
       </div>
