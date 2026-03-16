@@ -128,30 +128,69 @@ function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
   return cells
 }
 
-function BigRoad({ history }: { history: RoadResult[] }) {
+function BigRoad({ history, round }: { history: RoadResult[]; round: number }) {
   const cells = buildBigRoad(history)
   const maxCol = cells.length > 0 ? Math.max(...cells.map(c => c.col)) : 0
   const totalCols = Math.max(maxCol + 1, 14)  // 최소 14열 표시
   const width = totalCols * (CELL + GAP)
   const height = MAX_ROWS * (CELL + GAP)
 
+  // 카운트 집계
+  const pCount = history.filter(r => r === "player").length
+  const bCount = history.filter(r => r === "banker").length
+  const tCount = history.filter(r => r === "tie").length
+
+  const StatChip = ({
+    color, label, count,
+  }: { color: string; label: string; count: number }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <div style={{
+        width: 18, height: 18, borderRadius: "50%",
+        background: color,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 9, fontWeight: 800, color: "#fff", flexShrink: 0,
+      }}>
+        {label}
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,213,163,0.9)" }}>{count}</span>
+    </div>
+  )
+
   return (
     <div style={{ marginBottom: 14 }}>
-      {/* 헤더 */}
+      {/* 라운드 + 카운트 헤더 */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+        marginBottom: 6,
+        padding: "5px 8px",
+        background: "rgba(0,0,0,0.35)",
+        borderRadius: 7,
+        border: "1px solid rgba(212,175,55,0.1)",
+        flexWrap: "wrap",
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,213,163,0.7)", marginRight: 2 }}>
+          #{round}
+        </span>
+        <StatChip color="#3b82f6" label="P" count={pCount} />
+        <StatChip color="#ef4444" label="B" count={bCount} />
+        <StatChip color="#22c55e" label="T" count={tCount} />
+      </div>
+
+      {/* BIG ROAD 레전드 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 6,
+        marginBottom: 5,
       }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(212,175,55,0.6)", letterSpacing: "0.1em" }}>
           BIG ROAD
         </span>
         <div style={{ display: "flex", gap: 8 }}>
           <span style={{ fontSize: 9, color: "#3b82f6", display: "flex", alignItems: "center", gap: 3 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", border: "1.5px solid #3b82f6", display: "inline-block" }} />
+            <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #3b82f6", display: "inline-block" }} />
             P
           </span>
           <span style={{ fontSize: 9, color: "#ef4444", display: "flex", alignItems: "center", gap: 3 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", border: "1.5px solid #ef4444", display: "inline-block" }} />
+            <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #ef4444", display: "inline-block" }} />
             B
           </span>
           <span style={{ fontSize: 9, color: "#22c55e", display: "flex", alignItems: "center", gap: 3 }}>
@@ -553,7 +592,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
         {/* Big Road */}
         {state.history.length > 0 && (
-          <BigRoad history={state.history} />
+          <BigRoad history={state.history} round={state.roundCount} />
         )}
 
         {/* 딜링 중 표시 */}
