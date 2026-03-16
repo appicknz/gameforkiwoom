@@ -403,6 +403,20 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => clearInterval(id)
   }, [])
 
+  // ─── 초기 history 불러오기 (DB에서) ───────────────────────────────────────
+  useEffect(() => {
+    fetch("/api/baccarat/road")
+      .then(r => r.json())
+      .then(data => {
+        if (data.road && Array.isArray(data.road)) {
+          // 최근 50개만 유지 (클라이언트 메모리 절약)
+          const recent = data.road.slice(-50)
+          setState(prev => ({ ...prev, history: recent }))
+        }
+      })
+      .catch(err => console.error("[v0] Failed to load initial BigRoad history:", err))
+  }, [])
+
   // ─── 15초 딜 시작 ───────────────────────────────────────��─────────────────
   // 규칙:
   //   - 플레이어/타이 베팅: Player 1장(임의), Banker 2장(임의)
