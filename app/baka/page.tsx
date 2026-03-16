@@ -9,6 +9,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
+import { DraggablePanel } from "@/components/ui/draggable-panel"
 
 interface Card { suit: string; value: number; label: string; id: string }
 interface CardOverlayData {
@@ -141,7 +142,6 @@ export default function BakaPage() {
               {/* 게임 결과 — 오른쪽 정렬 */}
               {cardData.result && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {/* 결과 뱃지 */}
                   <span style={{
                     fontSize: 11,
                     fontWeight: 800,
@@ -154,7 +154,6 @@ export default function BakaPage() {
                   }}>
                     {cardData.result === "banker" ? "BANKER WIN" : cardData.result === "player" ? "PLAYER WIN" : "TIE"}
                   </span>
-                  {/* 스코어 */}
                   <span style={{ fontSize: 13, color: "rgba(212,175,55,0.65)", fontVariantNumeric: "tabular-nums" }}>
                     <span style={{ color: "#ef4444", fontWeight: 800 }}>{cardData.bScore}</span>
                     <span style={{ margin: "0 6px", color: "rgba(212,175,55,0.3)" }}>:</span>
@@ -164,75 +163,102 @@ export default function BakaPage() {
               )}
             </div>
 
-            {/* 차트 + 카드 오버레이 */}
-            <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>
-            <div className="relative">
-              <BitcoinChart />
-              {/* BANKER / PLAYER 카드 오버레이 */}
-              <div
-                className="absolute inset-0 pointer-events-none z-20"
-                style={{
-                  top: 0,
-                  padding: `${Math.round(10 * S)}px ${Math.round(12 * S)}px`,
-                  display: "flex", flexDirection: "column",
-                  gap: Math.round(8 * S),
-                  justifyContent: isMobile ? "center" : "flex-start",
-                  alignItems: "center",
-                }}
-              >
-                {(["banker", "player"] as const).map((side) => {
-                  const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
-                  const score = side === "banker" ? cardData.bScore : cardData.pScore
-                  const label = side === "banker" ? "BANKER" : "PLAYER"
-                  const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
-                  const isWinner = cardData.result === side
-                  return (
-                    <div
-                      key={side}
-                      style={{
-                        borderRadius: Math.round(10 * S),
-                        border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.18)"}`,
-                        background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.72)",
-                        backdropFilter: "blur(6px)",
-                        padding: `${Math.round(8 * S)}px ${Math.round(10 * S)}px`,
-                        transition: "border-color 0.3s, background 0.3s",
-                        boxShadow: isWinner ? `0 0 ${Math.round(18 * S)}px ${accentColor}28` : `0 2px ${Math.round(12 * S)}px rgba(0,0,0,0.5)`,
-                        width: "fit-content",
-                        minWidth: Math.round(140 * S),
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: Math.round(8 * S), marginBottom: Math.round(7 * S) }}>
-                        <span style={{ fontSize: Math.round(10 * S), fontWeight: 700, letterSpacing: "0.12em", color: accentColor }}>{label}</span>
-                        {isWinner && <span style={{ fontSize: Math.round(9 * S), background: accentColor, color: "#fff", padding: `1px ${Math.round(5 * S)}px`, borderRadius: 3, fontWeight: 700 }}>WIN</span>}
-                        {cards.length > 0 && (
-                          <span style={{ fontSize: Math.round(16 * S), fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
-                        )}
+            {/* 차트 패널 */}
+            <DraggablePanel
+              id="baka-chart"
+              title="차트"
+              style={{
+                borderRadius: 12,
+                border: "1px solid rgba(212,175,55,0.18)",
+                background: "rgba(5,13,10,0.85)",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+                overflow: "visible",
+              }}
+            >
+              <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>
+              <div className="relative">
+                <BitcoinChart />
+                <div
+                  className="absolute inset-0 pointer-events-none z-20"
+                  style={{
+                    top: 0,
+                    padding: `${Math.round(10 * S)}px ${Math.round(12 * S)}px`,
+                    display: "flex", flexDirection: "column",
+                    gap: Math.round(8 * S),
+                    justifyContent: isMobile ? "center" : "flex-start",
+                    alignItems: "center",
+                  }}
+                >
+                  {(["banker", "player"] as const).map((side) => {
+                    const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
+                    const score = side === "banker" ? cardData.bScore : cardData.pScore
+                    const label = side === "banker" ? "BANKER" : "PLAYER"
+                    const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
+                    const isWinner = cardData.result === side
+                    return (
+                      <div
+                        key={side}
+                        style={{
+                          borderRadius: Math.round(10 * S),
+                          border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.18)"}`,
+                          background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.72)",
+                          backdropFilter: "blur(6px)",
+                          padding: `${Math.round(8 * S)}px ${Math.round(10 * S)}px`,
+                          transition: "border-color 0.3s, background 0.3s",
+                          boxShadow: isWinner ? `0 0 ${Math.round(18 * S)}px ${accentColor}28` : `0 2px ${Math.round(12 * S)}px rgba(0,0,0,0.5)`,
+                          width: "fit-content",
+                          minWidth: Math.round(140 * S),
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: Math.round(8 * S), marginBottom: Math.round(7 * S) }}>
+                          <span style={{ fontSize: Math.round(10 * S), fontWeight: 700, letterSpacing: "0.12em", color: accentColor }}>{label}</span>
+                          {isWinner && <span style={{ fontSize: Math.round(9 * S), background: accentColor, color: "#fff", padding: `1px ${Math.round(5 * S)}px`, borderRadius: 3, fontWeight: 700 }}>WIN</span>}
+                          {cards.length > 0 && (
+                            <span style={{ fontSize: Math.round(16 * S), fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", gap: Math.round(6 * S) }}>
+                          {cards.map(card => <OverlayCard key={card.id} card={card} s={S} />)}
+                          {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} s={S} />)}
+                        </div>
                       </div>
-                      <div style={{ display: "flex", gap: Math.round(6 * S) }}>
-                        {cards.map(card => <OverlayCard key={card.id} card={card} s={S} />)}
-                        {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} s={S} />)}
-                      </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            </DraggablePanel>
 
-            {/* 배팅 게임 (기존 6종목 + 바카라) */}
-            <BakaBettingGame
-              onStartDealTrigger={handleStartDealTrigger}
-              onFinalDigitTrigger={handleFinalDigitTrigger}
-              onBetSideTrigger={handleBetSideTrigger}
-            />
+            {/* 배팅 패널 */}
+            <DraggablePanel
+              id="baka-betting"
+              title="베팅"
+              style={{
+                borderRadius: 12,
+                border: "1px solid rgba(212,175,55,0.18)",
+                background: "rgba(5,13,10,0.85)",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+                overflow: "visible",
+              }}
+            >
+              <BakaBettingGame
+                onStartDealTrigger={handleStartDealTrigger}
+                onFinalDigitTrigger={handleFinalDigitTrigger}
+                onBetSideTrigger={handleBetSideTrigger}
+              />
+            </DraggablePanel>
           </div>
 
-          {/* 오른쪽: 바카라 카드 딜 게임 + 끝자리 히스토리 */}
-          <div className="flex flex-col gap-3 sticky top-4">
-            <div
-              className="rounded-2xl overflow-hidden"
+          {/* 오른쪽: 바카라 카드 + 끝자리 히스토리 */}
+          <div className="flex flex-col gap-3">
+            <DraggablePanel
+              id="baka-card"
+              title="카드 딜"
               style={{
+                borderRadius: 12,
                 border: "1px solid rgba(212,175,55,0.2)",
                 boxShadow: "0 0 50px rgba(212,175,55,0.06)",
+                background: "rgba(5,13,10,0.85)",
+                overflow: "visible",
               }}
             >
               <BaccaratGame
@@ -241,19 +267,69 @@ export default function BakaPage() {
                 onFinalDigitRequest={handleRegisterFinalDigit}
                 onBetSideRequest={handleRegisterBetSide}
               />
-            </div>
-            {/* 30초 끝자리 히스토리 — 카드 아래 빈 공간 */}
-            <ClosingPricesBadges compact />
+            </DraggablePanel>
+
+            <DraggablePanel
+              id="baka-digits"
+              title="30초 끝자리"
+              style={{
+                borderRadius: 12,
+                border: "1px solid rgba(212,175,55,0.18)",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+                background: "rgba(5,13,10,0.85)",
+                overflow: "visible",
+              }}
+            >
+              <ClosingPricesBadges compact />
+            </DraggablePanel>
           </div>
 
         </div>
 
         {/* 하단 통계 섹션 */}
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ClosingPrices />
+          <DraggablePanel
+            id="baka-closing-prices"
+            title="마감가 히스토리"
+            style={{
+              borderRadius: 12,
+              border: "1px solid rgba(212,175,55,0.18)",
+              background: "rgba(5,13,10,0.85)",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+              overflow: "visible",
+            }}
+          >
+            <ClosingPrices />
+          </DraggablePanel>
+
           <div className="flex flex-col gap-4">
-            <ClosingPricesBadges />
-            <ProjectAnalytics />
+            <DraggablePanel
+              id="baka-digits-bottom"
+              title="30초 끝자리 (전체)"
+              style={{
+                borderRadius: 12,
+                border: "1px solid rgba(212,175,55,0.18)",
+                background: "rgba(5,13,10,0.85)",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+                overflow: "visible",
+              }}
+            >
+              <ClosingPricesBadges />
+            </DraggablePanel>
+
+            <DraggablePanel
+              id="baka-analytics"
+              title="통계"
+              style={{
+                borderRadius: 12,
+                border: "1px solid rgba(212,175,55,0.18)",
+                background: "rgba(5,13,10,0.85)",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+                overflow: "visible",
+              }}
+            >
+              <ProjectAnalytics />
+            </DraggablePanel>
           </div>
         </div>
 
