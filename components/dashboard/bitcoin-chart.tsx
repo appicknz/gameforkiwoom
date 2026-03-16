@@ -27,11 +27,11 @@ interface TickerData {
 type Interval = "1s" | "30s" | "1m" | "1h" | "1d"
 
 const INTERVAL_CONFIG: Record<Interval, { label: string; binance: string; limit: number; seconds: number }> = {
-  "1s": { label: "1초", binance: "1m", limit: 60, seconds: 1 },
-  "30s": { label: "30초", binance: "1m", limit: 60, seconds: 30 },
-  "1m": { label: "1분", binance: "1m", limit: 200, seconds: 60 },
-  "1h": { label: "1시간", binance: "1h", limit: 168, seconds: 3600 },
-  "1d": { label: "1일", binance: "1d", limit: 365, seconds: 86400 },
+  "1s":  { label: "1초",   binance: "1s", limit: 500, seconds: 1 },
+  "30s": { label: "30초",  binance: "1s", limit: 500, seconds: 1 },   // 1s봉 REST+WS, 표시만 30s 단위
+  "1m":  { label: "1분",   binance: "1m", limit: 200, seconds: 60 },
+  "1h":  { label: "1시간", binance: "1h", limit: 168, seconds: 3600 },
+  "1d":  { label: "1일",   binance: "1d", limit: 365, seconds: 86400 },
 }
 
 const INTERVALS: Interval[] = ["1s", "30s", "1m", "1h", "1d"]
