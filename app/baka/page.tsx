@@ -6,6 +6,9 @@ import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { ClosingPrices } from "@/components/dashboard/closing-prices"
+import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
+import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
 
 interface Card { suit: string; value: number; label: string; id: string }
 interface CardOverlayData {
@@ -212,6 +215,16 @@ export default function BakaPage() {
           </div>
 
         </div>
+
+        {/* 하단 통계 섹션 */}
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ClosingPrices />
+          <div className="flex flex-col gap-4">
+            <ClosingPricesBadges />
+            <ProjectAnalytics />
+          </div>
+        </div>
+
       </main>
     </div>
   )
