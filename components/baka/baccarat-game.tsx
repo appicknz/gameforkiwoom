@@ -666,17 +666,6 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         {/* Big Road — 항상 표시, DB 초기 로드 데이터 포함 */}
         <BigRoad history={state.history} round={state.roundCount} />
 
-        {/* 딜링 중 표시 */}
-        {state.phase === "dealing" && (
-          <div style={{
-            textAlign: "center", padding: "8px",
-            marginBottom: 10,
-            fontSize: 11, color: "rgba(232,213,163,0.4)", letterSpacing: "0.08em",
-          }}>
-            딜링 중...
-          </div>
-        )}
-
         {/* 카드 캐릭터 이미지 (관리자 업로드 이미지 오버레이) */}
         <CardCharacterDisplay roundSeed={getRoundSeed()} card={state.finalCard} />
       </div>
