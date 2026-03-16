@@ -73,6 +73,175 @@ function shouldBankerDraw(bScore: number, pScore: number, pThird: Card | null): 
   return false
 }
 
+// ─── Big Road 컴포넌트 ────────────────────────────────────────────────────
+// 실제 바카라 Big Road 규칙:
+//   1. 타이는 독립 열을 차지하지 않음 → 직전 결과 칸에 초록 사선(/)으로 표시
+//   2. 뱅커/플레이어가 같은 결과면 같은 열에 아래로 쌓임 (최대 MAX_ROWS행)
+//   3. MAX_ROWS를 초과하거나 결과가 바뀌면 새 열 시작
+//   4. 빨간=뱅커, 파란=플레이어
+const MAX_ROWS = 6
+const CELL = 22   // 셀 크기 px
+const GAP = 2
+
+type RoadResult = "player" | "banker" | "tie"
+
+interface BigRoadCell {
+  col: number
+  row: number
+  result: "player" | "banker"
+  tieCount: number   // 이 칸 위에 쌓인 타이 수
+}
+
+function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
+  const cells: BigRoadCell[] = []
+  let col = -1
+  let row = 0
+  let lastNonTie: "player" | "banker" | null = null
+
+  for (const result of history) {
+    if (result === "tie") {
+      // 타이: 직전 non-tie 칸의 tieCount 증가
+      if (cells.length > 0) {
+        cells[cells.length - 1].tieCount += 1
+      }
+      continue
+    }
+
+    if (result !== lastNonTie) {
+      // 결과가 바뀜 → 새 열
+      col += 1
+      row = 0
+      lastNonTie = result
+    } else {
+      // 같은 결과 → 아래로
+      row += 1
+      if (row >= MAX_ROWS) {
+        // 최대 행 초과 → 오른쪽으로 밀기
+        col += 1
+        row = MAX_ROWS - 1
+      }
+    }
+
+    cells.push({ col, row, result, tieCount: 0 })
+  }
+
+  return cells
+}
+
+function BigRoad({ history }: { history: RoadResult[] }) {
+  const cells = buildBigRoad(history)
+  const maxCol = cells.length > 0 ? Math.max(...cells.map(c => c.col)) : 0
+  const totalCols = Math.max(maxCol + 1, 14)  // 최소 14열 표시
+  const width = totalCols * (CELL + GAP)
+  const height = MAX_ROWS * (CELL + GAP)
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {/* 헤더 */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 6,
+      }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(212,175,55,0.6)", letterSpacing: "0.1em" }}>
+          BIG ROAD
+        </span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <span style={{ fontSize: 9, color: "#3b82f6", display: "flex", alignItems: "center", gap: 3 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", border: "1.5px solid #3b82f6", display: "inline-block" }} />
+            P
+          </span>
+          <span style={{ fontSize: 9, color: "#ef4444", display: "flex", alignItems: "center", gap: 3 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", border: "1.5px solid #ef4444", display: "inline-block" }} />
+            B
+          </span>
+          <span style={{ fontSize: 9, color: "#22c55e", display: "flex", alignItems: "center", gap: 3 }}>
+            <span style={{ fontSize: 8 }}>╱</span>
+            T
+          </span>
+        </div>
+      </div>
+
+      {/* 그리드 */}
+      <div style={{
+        overflowX: "auto",
+        borderRadius: 8,
+        border: "1px solid rgba(212,175,55,0.12)",
+        background: "rgba(0,0,0,0.25)",
+        padding: 4,
+      }}>
+        <div style={{ position: "relative", width, height, flexShrink: 0 }}>
+          {/* 격자 배경 */}
+          {Array.from({ length: MAX_ROWS }).map((_, r) =>
+            Array.from({ length: totalCols }).map((_, c) => (
+              <div
+                key={`grid-${r}-${c}`}
+                style={{
+                  position: "absolute",
+                  left: c * (CELL + GAP),
+                  top: r * (CELL + GAP),
+                  width: CELL,
+                  height: CELL,
+                  border: "1px solid rgba(212,175,55,0.06)",
+                  borderRadius: 3,
+                }}
+              />
+            ))
+          )}
+
+          {/* 결과 원 */}
+          {cells.map((cell, i) => {
+            const color = cell.result === "banker" ? "#ef4444" : "#3b82f6"
+            const isLatest = i === cells.length - 1
+            return (
+              <div
+                key={i}
+                style={{
+                  position: "absolute",
+                  left: cell.col * (CELL + GAP),
+                  top: cell.row * (CELL + GAP),
+                  width: CELL,
+                  height: CELL,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {/* 원 */}
+                <div style={{
+                  width: CELL - 4,
+                  height: CELL - 4,
+                  borderRadius: "50%",
+                  border: `2px solid ${color}`,
+                  background: isLatest ? `${color}22` : "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                  boxShadow: isLatest ? `0 0 6px ${color}66` : "none",
+                  transition: "box-shadow 0.3s",
+                }}>
+                  {/* 타이 사선 표시 */}
+                  {cell.tieCount > 0 && (
+                    <svg
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+                      viewBox="0 0 18 18"
+                    >
+                      <line x1="2" y1="16" x2="16" y2="2" stroke="#22c55e" strokeWidth="1.8" strokeLinecap="round" />
+                      {cell.tieCount > 1 && (
+                        <text x="13" y="6" fontSize="5" fill="#22c55e" fontWeight="bold">{cell.tieCount}</text>
+                      )}
+                    </svg>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── 카드 컴포넌트 ─────────────────────────────────────────────────────────
 function PlayingCard({
   card,
@@ -195,7 +364,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => clearInterval(id)
   }, [])
 
-  // ─── 15초 딜 시작 ─────────────────────────────────────────────────────────
+  // ─── 15초 딜 시작 ───────────────────────────────────────��─────────────────
   // 규칙:
   //   - 플레이어/타이 베팅: Player 1장(임의), Banker 2장(임의)
   //   - 뱅커 베팅:          Banker 1장(임의), Player 2장(임의)
@@ -318,7 +487,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       playerCards: finalP,
       bankerCards: finalB,
       roundCount: prev.roundCount + 1,
-      history: [...prev.history.slice(-19), result],
+      history: [...prev.history.slice(-49), result],
     }))
 
     dealingRef.current = false
@@ -382,24 +551,9 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       {/* 게임 테이블 */}
       <div style={{ padding: "14px 12px" }}>
 
-        {/* 히스토리 */}
+        {/* Big Road */}
         {state.history.length > 0 && (
-          <div style={{ display: "flex", gap: 4, marginBottom: 14, flexWrap: "wrap" }}>
-            {state.history.map((r, i) => (
-              <div
-                key={i}
-                style={{
-                  width: 18, height: 18, borderRadius: "50%",
-                  background: r === "player" ? "#3b82f6" : r === "banker" ? "#ef4444" : "#22c55e",
-                  fontSize: 8, fontWeight: 700, color: "#fff",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  opacity: i === state.history.length - 1 ? 1 : 0.55,
-                }}
-              >
-                {r === "player" ? "P" : r === "banker" ? "B" : "T"}
-              </div>
-            ))}
-          </div>
+          <BigRoad history={state.history} />
         )}
 
         {/* 뱅커 / 플레이어 영역 */}
