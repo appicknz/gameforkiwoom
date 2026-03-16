@@ -100,20 +100,33 @@ export function ClosingPrices() {
     }
   }
 
+  const GOLD = "#d4af37"
+  const GOLD_DIM = "rgba(212,175,55,0.5)"
+  const GOLD_BORDER = "rgba(212,175,55,0.18)"
+  const CARD_BG = "rgba(5,13,10,0.85)"
+  const ROW_BG = "rgba(212,175,55,0.04)"
+  const ROW_BORDER = "rgba(212,175,55,0.1)"
+
   return (
-    <Card className="p-4 bg-background border border-border/60">
-      <h3 className="text-sm font-semibold text-foreground mb-3">
+    <div
+      style={{
+        background: CARD_BG,
+        border: `1px solid ${GOLD_BORDER}`,
+        borderRadius: 14,
+        padding: "16px",
+        boxShadow: "0 2px 24px rgba(0,0,0,0.5)",
+      }}
+    >
+      <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 12, letterSpacing: "0.04em" }}>
         30초 마감 기준가 (최근 {displayLimit}개)
       </h3>
-      <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 400, overflowY: "auto" }}>
         {displayPrices.map((item, idx) => {
           const roundInfo = roundByTime.get(item.time) ?? null
-          const roundNum = roundInfo ? parseInt(roundInfo.id) : "—"
           const betInfo = getBetInfo(roundInfo)
           const hasBet = betInfo.direction || betInfo.digit || betInfo.parity
 
           const digit = getLastDigit(item.price)
-          // 이전 마감가(배열에서 한 칸 앞 = 시간상 이전)를 기준으로 롱/숏 판정
           const prevPrice = displayPrices[idx + 1]?.price ?? null
           const resultDirection = prevPrice != null
             ? (item.price >= prevPrice ? "롱" : "숏")
@@ -121,78 +134,43 @@ export function ClosingPrices() {
           const resultDigit = getDigitType(digit)
           const resultParity = getParityType(digit)
 
-          // 배팅한 태그의 승/패 판단
           const dirBetMatch = betInfo.direction === resultDirection
           const digBetMatch = betInfo.digit === resultDigit
           const parBetMatch = betInfo.parity === resultParity
 
-          const Tag = ({
-            label,
-            isBet,
-            won,
-          }: {
-            label: string
-            isBet: boolean
-            won: boolean | null
-          }) => {
-            if (isBet && won !== null) {
-              // 배팅한 항목 + 결과 있음 → 승/패 색상
-              return (
-                <span
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                    won
-                      ? "bg-emerald-500/15 text-emerald-600"
-                      : "bg-red-500/15 text-red-500"
-                  }`}
-                >
-                  {label}
-                </span>
-              )
-            }
-            if (isBet) {
-              // 배팅했지만 아직 결과 없음 (진행중)
-              return (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary text-primary-foreground">
-                  {label}
-                </span>
-              )
-            }
+          const Tag = ({ label, isBet, won }: { label: string; isBet: boolean; won: boolean | null }) => {
+            let bg = "rgba(212,175,55,0.08)"
+            let color = GOLD_DIM
+            if (isBet && won === true)  { bg = "rgba(34,197,94,0.15)";  color = "#22c55e" }
+            if (isBet && won === false) { bg = "rgba(239,68,68,0.15)";  color = "#ef4444" }
+            if (isBet && won === null)  { bg = "rgba(212,175,55,0.18)"; color = GOLD }
             return (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground">
-                {label}
-              </span>
+              <span style={{
+                padding: "1px 7px", borderRadius: 4, fontSize: 10, fontWeight: 700,
+                background: bg, color,
+              }}>{label}</span>
             )
           }
 
           return (
             <div
               key={`${item.time}-${idx}`}
-              className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs transition-colors ${
-                hasBet
-                  ? "bg-muted/30 border-border/40"
-                  : "bg-muted/30 border-border/40"
-              }`}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                gap: 8, padding: "7px 10px", borderRadius: 8,
+                background: ROW_BG, border: `1px solid ${ROW_BORDER}`,
+                fontSize: 12,
+              }}
             >
-              {/* 왼쪽: 시간 + 가격 */}
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-muted-foreground tabular-nums shrink-0">
-                  {new Date(item.time * 1000).toLocaleTimeString("ko-KR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                    hour12: false,
-                  })}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ color: GOLD_DIM, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                  {new Date(item.time * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                 </span>
-                <span className="font-bold text-foreground tabular-nums shrink-0">
-                  ${item.price.toLocaleString("en-US", {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
-                  })}
+                <span style={{ fontWeight: 700, color: "rgba(232,213,163,0.9)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                  ${item.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 </span>
               </div>
-
-              {/* 오른쪽: 롱/숏 · 오버/언더 · 홀/짝 */}
-              <div className="flex items-center gap-1 shrink-0">
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                 <Tag label={resultDirection ?? "—"} isBet={dirBetMatch && !!betInfo.direction} won={dirBetMatch && !!betInfo.direction ? betInfo.directionWon : null} />
                 <Tag label={resultDigit} isBet={digBetMatch && !!betInfo.digit} won={digBetMatch && !!betInfo.digit ? betInfo.digitWon : null} />
                 <Tag label={resultParity} isBet={parBetMatch && !!betInfo.parity} won={parBetMatch && !!betInfo.parity ? betInfo.parityWon : null} />
@@ -205,11 +183,19 @@ export function ClosingPrices() {
       {!showAll && closingPrices.length > 10 && (
         <button
           onClick={() => setShowAll(true)}
-          className="w-full mt-2 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:text-foreground border border-border/40 hover:border-border transition-colors flex items-center justify-center gap-1"
+          style={{
+            width: "100%", marginTop: 8, padding: "7px 0", borderRadius: 8,
+            fontSize: 12, fontWeight: 600, color: GOLD_DIM,
+            background: "transparent", border: `1px solid ${GOLD_BORDER}`,
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+            transition: "color 0.2s, border-color 0.2s",
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = GOLD; (e.currentTarget as HTMLElement).style.borderColor = "rgba(212,175,55,0.4)" }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = GOLD_DIM; (e.currentTarget as HTMLElement).style.borderColor = GOLD_BORDER }}
         >
           더보기 <ChevronDown size={13} />
         </button>
       )}
-    </Card>
+    </div>
   )
 }

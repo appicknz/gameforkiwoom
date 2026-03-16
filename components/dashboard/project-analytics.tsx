@@ -50,70 +50,73 @@ export function ProjectAnalytics() {
       const count = payload[0].value
       const percentage = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0
       return (
-        <div className="bg-foreground text-background px-3 py-2 rounded-lg text-xs font-semibold shadow-lg">
-          <p className="font-bold">{count}개</p>
-          <p className="text-[10px] opacity-80">{percentage}%</p>
+        <div style={{ background: "rgba(5,13,10,0.97)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 8, padding: "6px 12px" }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#d4af37", margin: 0 }}>{count}개</p>
+          <p style={{ fontSize: 11, color: "rgba(212,175,55,0.55)", margin: 0 }}>{percentage}%</p>
         </div>
       )
     }
     return null
   }
 
+  const GOLD = "#d4af37"
+  const GOLD_DIM = "rgba(212,175,55,0.5)"
+  const GOLD_BORDER = "rgba(212,175,55,0.18)"
+  const CARD_BG = "rgba(5,13,10,0.85)"
+
   return (
-    <Card
-      className="p-6 transition-all duration-500 hover:shadow-xl animate-slide-in-up bg-gradient-to-br from-background to-muted/20"
-      style={{ animationDelay: "400ms" }}
+    <div
+      style={{
+        background: CARD_BG,
+        border: `1px solid ${GOLD_BORDER}`,
+        borderRadius: 14,
+        padding: "16px",
+        boxShadow: "0 2px 24px rgba(0,0,0,0.5)",
+      }}
     >
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-foreground">끝자리 분포</h2>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className="w-2 h-2 rounded-full bg-emerald-600"></div>
-          <span>끝자리 분포 (최근 100개)</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, letterSpacing: "0.04em" }}>끝자리 분포</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: GOLD_DIM }}>
+          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e" }} />
+          끝자리 분포 (최근 100개)
         </div>
       </div>
 
-      <div className="h-64 mb-4 relative">
+      <div style={{ height: 220, marginBottom: 12 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+          <BarChart data={chartData} margin={{ top: 10, right: 4, left: -24, bottom: 0 }}>
             <defs>
-              <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" />
-                <stop offset="100%" stopColor="#047857" />
+              <linearGradient id="bakaBarGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#22c55e" />
+                <stop offset="100%" stopColor="#15803d" />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted/20" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(212,175,55,0.08)" />
             <XAxis
               dataKey="digit"
               axisLine={false}
               tickLine={false}
-              tick={{ fill: "currentColor", fontSize: 14 }}
-              className="text-muted-foreground"
+              tick={{ fill: "rgba(212,175,55,0.5)", fontSize: 12 }}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fill: "currentColor", fontSize: 12 }}
-              className="text-muted-foreground"
+              tick={{ fill: "rgba(212,175,55,0.5)", fontSize: 11 }}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: "transparent" }} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(212,175,55,0.04)" }} />
             <Bar
               dataKey="count"
-              fill="url(#barGradient)"
-              radius={[12, 12, 12, 12]}
-              maxBarSize={60}
-              onMouseEnter={(data, index) => setHoveredBar(index)}
+              fill="url(#bakaBarGrad)"
+              radius={[6, 6, 6, 6]}
+              maxBarSize={48}
+              onMouseEnter={(_, index) => setHoveredBar(index)}
               onMouseLeave={() => setHoveredBar(null)}
             >
-              {chartData.map((entry, index) => (
+              {chartData.map((_, index) => (
                 <Cell
                   key={`cell-${index}`}
-                  fill={barColors[index]}
-                  className="transition-all duration-300"
-                  style={{
-                    filter:
-                      hoveredBar === index ? "brightness(1.2) drop-shadow(0 4px 8px rgba(5, 150, 105, 0.4))" : "none",
-                    transformOrigin: "center bottom",
-                  }}
+                  fill={hoveredBar === index ? "#4ade80" : "url(#bakaBarGrad)"}
+                  style={{ filter: hoveredBar === index ? "drop-shadow(0 0 6px rgba(34,197,94,0.5))" : "none" }}
                 />
               ))}
             </Bar>
@@ -121,17 +124,16 @@ export function ProjectAnalytics() {
         </ResponsiveContainer>
       </div>
 
-      {/* Summary stats */}
-      <div className="pt-4 border-t border-muted/50 flex items-center justify-between">
-        <div className="text-sm">
-          <span className="text-muted-foreground">평균: </span>
-          <span className="font-semibold text-foreground">{average}개</span>
+      <div style={{ paddingTop: 10, borderTop: `1px solid rgba(212,175,55,0.12)`, display: "flex", justifyContent: "space-between" }}>
+        <div style={{ fontSize: 12 }}>
+          <span style={{ color: GOLD_DIM }}>평균: </span>
+          <span style={{ fontWeight: 700, color: "rgba(232,213,163,0.9)" }}>{average}개</span>
         </div>
-        <div className="text-sm">
-          <span className="text-muted-foreground">최대: </span>
-          <span className="font-semibold text-emerald-600">{maxValue}개</span>
+        <div style={{ fontSize: 12 }}>
+          <span style={{ color: GOLD_DIM }}>최대: </span>
+          <span style={{ fontWeight: 700, color: "#22c55e" }}>{maxValue}개</span>
         </div>
       </div>
-    </Card>
+    </div>
   )
 }
