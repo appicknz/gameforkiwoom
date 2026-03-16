@@ -1,16 +1,34 @@
 import { put, del, list } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
+import { adminSupabase } from "@/lib/supabase-admin"
 
-const ADMIN_PW = process.env.SUPER_ADMIN_PASSWORD ?? ""
+const SUPER_ROLES = ["master", "super_admin"]
 
-function checkAuth(req: NextRequest): boolean {
-  const pw = req.nextUrl.searchParams.get("pw") ?? req.headers.get("x-admin-pw") ?? ""
-  return pw === ADMIN_PW
+async function checkAuth(req: NextRequest): Promise<boolean> {
+  // JWT Bearer 토큰 방식 (panel 페이지)
+  const authHeader = req.headers.get("authorization")
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7)
+    const anonClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+    const { data } = await anonClient.auth.getUser(token)
+    if (!data.user) return false
+    const { data: profile } = await adminSupabase
+      .from("profiles").select("role").eq("id", data.user.id).single()
+    return SUPER_ROLES.includes(profile?.role ?? "")
+  }
+  // 레거시 ?pw= 방식 (mas 페이지)
+  const pw = req.nextUrl.searchParams.get("pw") ?? ""
+  return pw === (process.env.SUPER_ADMIN_PASSWORD ?? "")
 }
 
-// GET — 목록 조회 (관리자 인증 필요)
+// GET — 목록 조회
 export async function GET(req: NextRequest) {
-  if (!checkAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!(await checkAuth(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
     const { blobs } = await list({ prefix: "card-images/" })
     const images = blobs
@@ -25,7 +43,7 @@ export async function GET(req: NextRequest) {
 
 // POST — 업로드 (순번은 현재 이미지 수 + 1)
 export async function POST(req: NextRequest) {
-  if (!checkAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!(await checkAuth(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
     const formData = await req.formData()
     const file = formData.get("file") as File | null
@@ -47,7 +65,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE — 특정 이미지 삭제
 export async function DELETE(req: NextRequest) {
-  if (!checkAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!(await checkAuth(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
     const { url } = await req.json()
     if (!url) return NextResponse.json({ error: "No url" }, { status: 400 })

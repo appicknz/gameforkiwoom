@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight } from "lucide-react"
+import { useEffect, useState, useCallback, useRef } from "react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -45,7 +45,15 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "lp">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "lp" | "cards">("users")
+
+  // 카드 이미지 관리
+  interface CardImage { url: string; pathname: string; uploadedAt: string }
+  const [cardImages, setCardImages] = useState<CardImage[]>([])
+  const [cardLoading, setCardLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // LP 히스토리
   interface LpTx { id: number; branch_id: string; round_time: number; pool_type: string; side: string; lp_amount: number; user_amount: number; settled_odds: number | null; created_at: string }
@@ -162,6 +170,44 @@ export default function PanelPage() {
     if (res.ok) setBranches(data.branches ?? [])
     setBranchesLoading(false)
   }, [myUserId])
+
+  const loadCardImages = useCallback(async () => {
+    setCardLoading(true)
+    const token = getToken(); if (!token) { setCardLoading(false); return }
+    const res = await fetch("/api/admin/card-images", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setCardImages(d.images ?? []) }
+    setCardLoading(false)
+  }, [])
+
+  const handleCardUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setUploading(true); setUploadError("")
+    const token = getToken()
+    try {
+      for (const file of Array.from(files)) {
+        const fd = new FormData(); fd.append("file", file)
+        const res = await fetch("/api/admin/card-images", {
+          method: "POST", body: fd,
+          headers: { Authorization: `Bearer ${token ?? ""}` },
+        })
+        if (!res.ok) throw new Error("업로드 실패")
+      }
+      await loadCardImages()
+    } catch { setUploadError("업로드 중 오류가 발생했습니다.") }
+    finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = "" }
+  }
+
+  const handleCardDelete = async (url: string) => {
+    if (!confirm("이 이미지를 삭제하시겠습니까?")) return
+    const token = getToken()
+    const res = await fetch("/api/admin/card-images", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+      body: JSON.stringify({ url }),
+    })
+    if (res.ok) await loadCardImages()
+  }
 
   useEffect(() => {
     if (adminPw && myUserId) {
@@ -367,6 +413,16 @@ export default function PanelPage() {
           >
             <Wallet className="w-4 h-4" /> LP 히스토리
           </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => { setActiveTab("cards"); loadCardImages() }}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ImageIcon className="w-4 h-4" /> 카드관리
+            </button>
+          )}
         </div>
       </div>
 
@@ -728,6 +784,97 @@ export default function PanelPage() {
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 카드관리 탭 */}
+      {activeTab === "cards" && (
+        <div className="space-y-4">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">카드 이미지 관리</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">바카라 게임에 표시될 카드 이미지를 업로드하세요</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleCardUpload}
+                  className="hidden"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="gap-1.5 text-xs"
+                >
+                  {uploading ? "업로드 중..." : "이미지 추가"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadCardImages}
+                  disabled={cardLoading}
+                  className="gap-1.5 text-xs"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${cardLoading ? "animate-spin" : ""}`} /> 새로고침
+                </Button>
+              </div>
+            </div>
+
+            {uploadError && (
+              <div className="px-5 py-2 bg-destructive/10 border-b border-border">
+                <p className="text-xs text-destructive">{uploadError}</p>
+              </div>
+            )}
+
+            {cardLoading ? (
+              <div className="flex justify-center py-10">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : cardImages.length === 0 ? (
+              <div className="py-16 text-center">
+                <ImageIcon className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+                <p className="text-sm text-muted-foreground">등록된 카드 이미지가 없습니다.</p>
+                <p className="text-xs text-muted-foreground mt-1">이미지를 추가해주세요.</p>
+              </div>
+            ) : (
+              <div className="p-5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {cardImages.map((img, idx) => (
+                    <div key={img.url} className="relative group">
+                      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-muted border border-border relative">
+                        <img
+                          src={img.url}
+                          alt={`Card ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center">
+                          <button
+                            onClick={() => handleCardDelete(img.url)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-2 hover:bg-destructive/90"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="absolute top-2 left-2 bg-background/90 backdrop-blur-sm text-foreground text-xs font-semibold px-2 py-1 rounded-full">
+                          #{idx + 1}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 pt-4 border-t border-border">
+                  <p className="text-xs text-muted-foreground">
+                    총 {cardImages.length}개 카드 이미지 • 라운드마다 순번 기반 랜덤 표시
+                  </p>
+                </div>
               </div>
             )}
           </div>
