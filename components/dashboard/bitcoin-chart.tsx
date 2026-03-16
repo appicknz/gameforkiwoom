@@ -55,6 +55,9 @@ export function BitcoinChart() {
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
   const priceLineRef = useRef<any>(null)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
+  // Binance kline WS — 캔들 OHLC 전용 (마감 이벤트 처리 안 함)
+  const klineWsRef = useRef<WebSocket | null>(null)
+  const klineReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 현재가 표시: React state 대신 DOM 직접 업데이트 → 매 틱마다 리렌더 없음
   const [ticker, setTicker] = useState<TickerData | null>(null)
@@ -82,25 +85,10 @@ export function BitcoinChart() {
     return () => clearInterval(id)
   }, [])
 
-  // Railway usePriceWorker → 캔들 업데이트 + 가격 표시 (단일 소스)
-  const handlePrice = useCallback((price: number, tradeTime: number) => {
+  // Railway aggTrade → 가격 표시 전용 (캔들은 Binance kline WS가 담당)
+  // aggTrade는 체결 틱이라 OHLC 없음 → 이걸로 캔들 그리면 납작한 선이 됨
+  const handlePrice = useCallback((price: number, _tradeTime: number) => {
     lastTickAtRef.current = Date.now()
-
-    // 캔들 업데이트: bucket = tradeTime을 interval seconds에 맞춰 정렬
-    if (seriesRef.current) {
-      const seconds = intervalSecondsRef.current
-      const bucket = (tradeTime - (tradeTime % seconds)) as any
-      const existing = candleMapRef.current.get(bucket)
-      const candle: CandleData = {
-        time: bucket,
-        open: existing?.open ?? price,
-        high: existing ? Math.max(existing.high, price) : price,
-        low: existing ? Math.min(existing.low, price) : price,
-        close: price,
-      }
-      candleMapRef.current.set(bucket, candle)
-      try { seriesRef.current.update(candle) } catch { /* 시간 역순 방어 */ }
-    }
 
     // DOM 직접 업데이트 — React 리렌더 없이 즉각 반영
     if (priceDisplayRef.current) {
@@ -113,8 +101,6 @@ export function BitcoinChart() {
       setTicker({ price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
       setConnected(true)
     }
-  // intervalSecondsRef/seriesRef/candleMapRef 는 ref라 deps 불필요
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 30초봉 마감가 → 노란 수평선
@@ -249,14 +235,56 @@ export function BitcoinChart() {
     })
     resizeObserver.observe(container)
 
+    let cancelled = false
+
+    // Binance kline WS — 캔들 OHLC 전용 (마감 트리거 없음, 그것은 Railway 담당)
+    const startKlineWS = () => {
+      if (cancelled) return
+      // 현물 스팟 kline 스트림: 1s/30s→1s봉, 1m→1m봉, 1h→1h봉, 1d→1d봉
+      const wsInterval = INTERVAL_CONFIG[interval].binance
+      const url = `wss://stream.binance.com:9443/ws/btcusdt@kline_${wsInterval}`
+      const ws = new WebSocket(url)
+      klineWsRef.current = ws
+
+      ws.onmessage = (ev) => {
+        if (cancelled || !seriesRef.current) return
+        try {
+          const { k } = JSON.parse(ev.data)
+          const barTime = Math.floor(k.t / 1000) as any
+          const candle: CandleData = {
+            time: barTime,
+            open: parseFloat(k.o),
+            high: parseFloat(k.h),
+            low: parseFloat(k.l),
+            close: parseFloat(k.c),
+          }
+          candleMapRef.current.set(barTime, candle)
+          try { seriesRef.current.update(candle) } catch { /* 역순 방어 */ }
+        } catch { /* JSON parse 오류 무시 */ }
+      }
+
+      ws.onclose = (e) => {
+        if (!cancelled && e.code !== 1000) {
+          klineReconnectRef.current = setTimeout(startKlineWS, 3000)
+        }
+      }
+      ws.onerror = () => ws.close()
+    }
+
     fetchInitialCandles(interval).then((candles) => {
+      if (cancelled) return
       if (candles.length > 0 && seriesRef.current) {
         seriesRef.current.setData(candles)
-        chartRef.current?.timeScale().fitContent()
+        chartRef.current?.timeScale().scrollToRealTime()
       }
+      startKlineWS()
     })
 
     return () => {
+      cancelled = true
+      if (klineReconnectRef.current) clearTimeout(klineReconnectRef.current)
+      klineWsRef.current?.close(1000)
+      klineWsRef.current = null
       resizeObserver.disconnect()
       chart.remove()
       chartRef.current = null
