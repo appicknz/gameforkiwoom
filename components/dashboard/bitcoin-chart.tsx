@@ -122,7 +122,7 @@ export function BitcoinChart() {
     })
   }, [])
 
-  // 30초봉 마감가 수신 → ref 저장 + 노란 수평선 갱신
+  // 30초봉 마감가 수신 → ref 저장 + 노란 수평선 즉각 갱신
   const handleClosingPrice = useCallback((price: number, time: number) => {
     latestClosingPriceRef.current = price
     setClosingPrices(prev => {
@@ -133,14 +133,18 @@ export function BitcoinChart() {
     drawPriceLine(price)
   }, [drawPriceLine])
 
-  // 초기 마감가 배열 수신 → 마지막 값으로 수평선
+  // 초기 마감가 배열 수신 (새로고침 복원) → 마지막 값으로 수평선
   const handleInitClosing = useCallback((prices: Array<{ time: number; price: number }>) => {
     if (prices.length === 0) return
     setClosingPrices(prices)
     const last = prices[prices.length - 1]
     if (last) {
       latestClosingPriceRef.current = last.price
-      drawPriceLine(last.price)
+      // seriesRef가 아직 준비됐으면 즉각 그리고, 아직 초기화 중이면
+      // 차트 useEffect 내 fetchInitialCandles.then()에서 복원
+      if (seriesRef.current) {
+        drawPriceLine(last.price)
+      }
     }
   }, [drawPriceLine])
 
@@ -276,10 +280,29 @@ export function BitcoinChart() {
         chartRef.current?.timeScale().scrollToRealTime()
       }
       // 차트 재생성 후 기존 배팅 기준가 수평선 복원
+      // latestClosingPriceRef가 이미 세팅돼 있으면 즉각 복원,
+      // init 메시지가 아직 안 왔으면 handleInitClosing에서 나중에 그림
       if (latestClosingPriceRef.current !== null) {
         drawPriceLine(latestClosingPriceRef.current)
       }
       startKlineWS()
+      // 폴백: init 메시지가 차트보다 늦게 도착하는 경우를 대비해
+      // DB에서 직접 최신 마감가를 조회해 수평선 복원
+      if (latestClosingPriceRef.current === null) {
+        fetch("/api/closing-price")
+          .then(r => r.json())
+          .then((data: { prices?: Array<{ time: number; price: number }> }) => {
+            if (cancelled) return
+            const prices = data.prices ?? []
+            const last = prices[prices.length - 1]
+            if (last && latestClosingPriceRef.current === null) {
+              latestClosingPriceRef.current = last.price
+              setClosingPrices(prices)
+              drawPriceLine(last.price)
+            }
+          })
+          .catch(() => {})
+      }
     })
 
     return () => {
