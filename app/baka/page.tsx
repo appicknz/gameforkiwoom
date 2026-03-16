@@ -109,7 +109,7 @@ export default function BakaPage() {
           {/* 왼쪽: 차트 */}
           <div className="lg:col-span-2 space-y-4">
             {/* 타이틀 */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <h1
                 style={{
                   fontSize: 18,
@@ -133,6 +133,31 @@ export default function BakaPage() {
               >
                 BTC 끝자리 기반
               </div>
+
+              {/* 게임 결과 */}
+              {cardData.result && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 4 }}>
+                  {/* 결과 뱃지 */}
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: "0.1em",
+                    color: cardData.result === "banker" ? "#ef4444" : cardData.result === "player" ? "#3b82f6" : "#22c55e",
+                    background: cardData.result === "banker" ? "rgba(239,68,68,0.12)" : cardData.result === "player" ? "rgba(59,130,246,0.12)" : "rgba(34,197,94,0.12)",
+                    border: `1px solid ${cardData.result === "banker" ? "rgba(239,68,68,0.35)" : cardData.result === "player" ? "rgba(59,130,246,0.35)" : "rgba(34,197,94,0.35)"}`,
+                    padding: "2px 10px",
+                    borderRadius: 6,
+                  }}>
+                    {cardData.result === "banker" ? "BANKER WIN" : cardData.result === "player" ? "PLAYER WIN" : "TIE"}
+                  </span>
+                  {/* 스코어 */}
+                  <span style={{ fontSize: 11, color: "rgba(212,175,55,0.55)" }}>
+                    <span style={{ color: "#ef4444", fontWeight: 700 }}>{cardData.bScore}</span>
+                    <span style={{ margin: "0 4px", color: "rgba(212,175,55,0.3)" }}>:</span>
+                    <span style={{ color: "#3b82f6", fontWeight: 700 }}>{cardData.pScore}</span>
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* 차트 + 카드 오버레이 */}
