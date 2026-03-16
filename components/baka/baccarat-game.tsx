@@ -605,6 +605,21 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
             딜링 중...
           </div>
         )}
+
+        {/* 카드 캐릭터 이미지 */}
+        <div style={{
+          marginTop: 12,
+          borderRadius: 12,
+          overflow: "hidden",
+          border: "1px solid rgba(212,175,55,0.2)",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+        }}>
+          <img
+            src="/images/baccarat-card-girl.jpg"
+            alt="Baccarat card character"
+            style={{ width: "100%", display: "block", objectFit: "cover" }}
+          />
+        </div>
       </div>
     </div>
   )
