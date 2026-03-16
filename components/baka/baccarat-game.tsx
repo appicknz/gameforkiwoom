@@ -30,6 +30,7 @@ interface GameState {
   priceDisplay: number
   roundCount: number
   history: Array<"player" | "banker" | "tie">
+  finalCard: Card | null  // 0초 끝자리 카드 → 이미지 오버레이 표시용
 }
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
@@ -426,6 +427,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     priceDisplay: 0,
     roundCount: 0,
     history: [],
+    finalCard: null,
   })
 
   const dealingRef = useRef(false)
@@ -595,6 +597,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       bankerCards: finalB,
       roundCount: prev.roundCount + 1,
       history: [...prev.history.slice(-49), result],
+      finalCard,  // 이미지 오버레이에 끝자리 카드 정보 전달
     }))
 
     dealingRef.current = false
@@ -675,16 +678,15 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         )}
 
         {/* 카드 캐릭터 이미지 (관리자 업로드 이미지 오버레이) */}
-        <CardCharacterDisplay roundSeed={getRoundSeed()} />
+        <CardCharacterDisplay roundSeed={getRoundSeed()} card={state.finalCard} />
       </div>
     </div>
   )
 }
 
 // ─── 카드 캐릭터 오버레이 컴포넌트 ──────────────────────────────────────────
-// 관리자가 업로드한 이미지 목록을 SWR로 fetch, 라운드 seed로 결정론적 선택
-// 이미지 없으면 기존 정적 이미지로 폴백
-function CardCharacterDisplay({ roundSeed }: { roundSeed: number }) {
+// 포커 카드 스타일: 좌상/우하 카드 정보(숫자+무늬) + 중앙 캐릭터 이미지
+function CardCharacterDisplay({ roundSeed, card }: { roundSeed: number; card: Card | null }) {
   const { data } = useSWR<{ images: Array<{ url: string; pathname: string }> }>(
     "/api/card-images",
     swrFetcher,
@@ -693,21 +695,83 @@ function CardCharacterDisplay({ roundSeed }: { roundSeed: number }) {
 
   const images = data?.images ?? []
   const selectedImage = images.length > 0 ? images[roundSeed % images.length] : null
+  const imgSrc = selectedImage?.url ?? "/images/baccarat-card-girl.jpg"
+
+  const isRed = card ? (card.suit === "♥" || card.suit === "♦") : false
+  const suitColor = card ? (isRed ? "#e84040" : "#1a1a1a") : "rgba(212,175,55,0.5)"
+  const label = card?.label ?? ""
+  const suit  = card?.suit  ?? ""
 
   return (
     <div style={{
       marginTop: 12,
-      borderRadius: 12,
+      position: "relative",
+      borderRadius: 14,
       overflow: "hidden",
-      border: "1px solid rgba(212,175,55,0.2)",
-      boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
-      background: "#0d1f15",
+      border: "2px solid rgba(212,175,55,0.35)",
+      boxShadow: "0 6px 32px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(212,175,55,0.1)",
+      background: "#f5f0e8",
+      aspectRatio: "2/3",
     }}>
+      {/* 캐릭터 이미지 (카드 배경) */}
       <img
-        src={selectedImage?.url ?? "/images/baccarat-card-girl.jpg"}
+        src={imgSrc}
         alt="Baccarat card character"
-        style={{ width: "100%", display: "block", objectFit: "cover" }}
+        style={{ width: "100%", height: "100%", display: "block", objectFit: "cover", objectPosition: "top" }}
       />
+
+      {/* 카드 정보가 있을 때만 오버레이 표시 */}
+      {card && (
+        <>
+          {/* 좌상단 — 숫자 + 무늬 */}
+          <div style={{
+            position: "absolute", top: 10, left: 12,
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+            filter: "drop-shadow(0 1px 3px rgba(255,255,255,0.9))",
+          }}>
+            <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: suitColor, fontFamily: "Georgia, serif" }}>
+              {label}
+            </span>
+            <span style={{ fontSize: 18, lineHeight: 1, color: suitColor }}>
+              {suit}
+            </span>
+          </div>
+
+          {/* 우하단 — 180도 회전 */}
+          <div style={{
+            position: "absolute", bottom: 10, right: 12,
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+            transform: "rotate(180deg)",
+            filter: "drop-shadow(0 1px 3px rgba(255,255,255,0.9))",
+          }}>
+            <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: suitColor, fontFamily: "Georgia, serif" }}>
+              {label}
+            </span>
+            <span style={{ fontSize: 18, lineHeight: 1, color: suitColor }}>
+              {suit}
+            </span>
+          </div>
+        </>
+      )}
+
+      {/* 카드 정보 없을 때: 대기 표시 */}
+      {!card && (
+        <div style={{
+          position: "absolute", top: 10, left: 12,
+          fontSize: 11, color: "rgba(212,175,55,0.5)", letterSpacing: "0.06em",
+          fontStyle: "italic",
+        }}>
+          대기 중
+        </div>
+      )}
+
+      {/* 카드 테두리 금장 장식선 */}
+      <div style={{
+        position: "absolute", inset: 6,
+        borderRadius: 10,
+        border: "1px solid rgba(212,175,55,0.3)",
+        pointerEvents: "none",
+      }} />
     </div>
   )
 }
