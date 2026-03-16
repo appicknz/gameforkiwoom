@@ -111,10 +111,10 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
       let tradeRetry: ReturnType<typeof setTimeout> | null = null
       let klineRetry: ReturnType<typeof setTimeout> | null = null
 
-      // aggTrade: 선물 현재가 실시간 (fstream — 바이낸스 선물 차트와 동일 소스, 최저 레이턴시)
+      // aggTrade: 현물 현재가 실시간 (stream.binance.com — 차트와 동일 소스)
       const connectTrade = () => {
         if (closed) return
-        tradeWs = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
+        tradeWs = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@aggTrade")
 
         tradeWs.onopen = () => optsRef.current.onConnected?.()
 
