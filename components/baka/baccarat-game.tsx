@@ -562,7 +562,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       finalB = [...finalB, finalCard]
       setState(prev => ({ ...prev, bankerCards: finalB }))
     }
-    await sleep(420)
+    await sleep(300)  // 280→300ms (카드 플립 연출)
 
     // 2. 추가 카드 연출 (승부와 무관, 시각적 연출만)
     const targetScore = betTarget === "player" ? handScore(finalP) : handScore(finalB)
@@ -571,15 +571,13 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       if (betTarget === "player" && finalB.length < 3) {
         finalB = [...finalB, extraCard]
         setState(prev => ({ ...prev, bankerCards: finalB }))
-        await sleep(380)
+        await sleep(280)  // 380→280ms
       } else if (betTarget === "banker" && finalP.length < 3) {
         finalP = [...finalP, extraCard]
         setState(prev => ({ ...prev, playerCards: finalP }))
-        await sleep(380)
+        await sleep(280)  // 380→280ms
       }
     }
-
-    await sleep(200)
 
     // 3. 승부는 항상 끝자리 기반으로 결정 (카드 점수 폴백 없음)
     //    동일 digit → 동일 result → 모든 유저 동일
@@ -597,6 +595,8 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     }))
 
     dealingRef.current = false
+    // applyFinalDigit 완료 시점을 외부에 알림 (settle 딜레이 제거용)
+    window.dispatchEvent(new CustomEvent("baccarat:deal-complete"))
   }, [])
 
   // 콜백 등록

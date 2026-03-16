@@ -592,16 +592,26 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         // 기준가를 마감가로 교체 (다음 라운드 시작)
         setBasePrice(price); basePriceRef.current = price
         setDialog(null)
-        setTimeout(() => setPhase("betting"), 1500)
+        setTimeout(() => setPhase("betting"), 800)  // 1500→800ms
       }
 
       // 5) 정산 타이밍:
-      //    - 바카라 배팅 있음: 카드 애니메이션(420+380+200=1000ms) + 여유 400ms = 1400ms
-      //    - 바카라 배팅 없음: 방향/끝자리/홀짝은 카드 연출과 무관 → 300ms 딜레이
+      //    - 바카라 배팅 있음: baccarat:deal-complete 이벤트 수신 즉시 정산
+      //      (applyFinalDigit 완료 시점이 정확히 전달됨 → 고정 딜레이 불필요)
+      //    - 바카라 배팅 없음: 카드 연출과 무관, 즉시 정산
       if (betBaccaratRef.current) {
-        setTimeout(() => settle(serverBacResult), 1400)
+        const onDealComplete = () => {
+          window.removeEventListener("baccarat:deal-complete", onDealComplete)
+          settle(serverBacResult)
+        }
+        window.addEventListener("baccarat:deal-complete", onDealComplete)
+        // 안전 타임아웃: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백)
+        setTimeout(() => {
+          window.removeEventListener("baccarat:deal-complete", onDealComplete)
+          settle(serverBacResult)
+        }, 1200)
       } else {
-        setTimeout(() => settle(null), 300)
+        settle(null)  // 즉시 정산 (바카라 외 종목)
       }
     }, []),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
