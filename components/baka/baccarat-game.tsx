@@ -434,14 +434,8 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => clearInterval(id)
   }, [])
 
-  // ─── 서버 바카라 결과 수신 (끝자리 기반, 모든 유저 동일) ──────────────────
-  useEffect(() => {
-    const handler = (e: Event) => {
-      (window as any).__baccaratServerResult = (e as CustomEvent<"player" | "banker" | "tie">).detail
-    }
-    window.addEventListener("baccarat:server-result", handler)
-    return () => window.removeEventListener("baccarat:server-result", handler)
-  }, [])
+  // 끝자리 기반 결과는 applyFinalDigit 내부에서 직접 계산 (digit <= 4 = player, <= 8 = banker, 9 = tie)
+  // 별도 이벤트/전역 변수 불필요
 
   // ─── 초기 history 불러오기 (DB�����) ───────────────────────────────────────
   useEffect(() => {
@@ -521,11 +515,12 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     setState(prev => ({ ...prev, playerCards: finalP, bankerCards: finalB }))
   }, [])
 
-  // ─── 0초 끝자리 카드 → 베팅 사이드에 부여 → 추가 카드 판정 → 최종 승부 ──
+  // ─── 0초 끝자리 카드 → 베팅 사이드에 부여 → 추가 카드 연출 → 최종 승부 표시 ──
   // 규칙:
-  //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여
-  //   2. betTarget 최종 점수 ≤5 → 상대방이 임의 1장 추가 (추가 카드가 없는 경우에만)
-  //   3. 점수 비교 → 승부
+  //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
+  //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
+  //   3. 승부는 반드시 끝자리 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
+  //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
   const applyFinalDigit = useCallback(async (digit: number) => {
     const mid = midStateRef.current
     if (!mid) return
@@ -538,7 +533,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     const randSuit = () => Math.floor(Math.random() * 4)
     const finalCard = digitToCard(digit, randSuit())
 
-    // 1. 끝자리 카드를 betTarget에게 부여
+    // 1. 끝자리 카드를 betTarget에게 부여 (연출)
     if (betTarget === "player") {
       finalP = [...finalP, finalCard]
       setState(prev => ({ ...prev, playerCards: finalP }))
@@ -548,7 +543,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     }
     await sleep(420)
 
-    // 2. betTarget 점수 ≤5 → 상대방 추가 1장 (이미 추가 카드가 있는 경우 스킵)
+    // 2. 추가 카드 연출 (승부와 무관, 시각적 연출만)
     const targetScore = betTarget === "player" ? handScore(finalP) : handScore(finalB)
     if (targetScore <= 5) {
       const extraCard = digitToCard(Math.floor(Math.random() * 10), randSuit())
@@ -565,20 +560,10 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
     await sleep(200)
 
-    // 3. 최종 승부: 서버에서 전달된 결과 우선 사용 (끝자리 기반, 모든 유저 동일)
-    //    서버 결과가 없으면 카드 점수로 폴백
-    const serverResult: "player" | "banker" | "tie" | null =
-      (window as any).__baccaratServerResult ?? null ;
-    (window as any).__baccaratServerResult = null
-
-    const finalPScore = handScore(finalP)
-    const finalBScore = handScore(finalB)
-    let cardResult: "player" | "banker" | "tie"
-    if (finalPScore > finalBScore) cardResult = "player"
-    else if (finalBScore > finalPScore) cardResult = "banker"
-    else cardResult = "tie"
-
-    const result = serverResult ?? cardResult
+    // 3. 승부는 항상 끝자리 기반으로 결정 (카드 점수 폴백 없음)
+    //    동일 digit → 동일 result → 모든 유저 동일
+    const result: "player" | "banker" | "tie" =
+      digit <= 4 ? "player" : digit <= 8 ? "banker" : "tie"
 
     setState(prev => ({
       ...prev,

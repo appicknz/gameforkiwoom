@@ -484,18 +484,17 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
       // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 전달 → applyFinalDigit 실행)
+      //    applyFinalDigit 내부에서 digit 기반으로 결과 직접 계산 (이벤트 불필요)
       onFinalDigitTrigger?.(lastDigit)
 
-      // 2) 카드 결과 override 이벤트 (baccarat-game.tsx가 끝에서 읽음)
-      window.dispatchEvent(new CustomEvent("baccarat:server-result", { detail: serverBacResult }))
-
-      // 3) 매 라운드 DB 저장 (빅로드용, 배팅 무관 — basePrice 스냅샷 캡처)
+      // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
+      //    baccarat_result도 함께 저장해야 빅로드가 쌓임
       const snapshotBase = basePriceRef.current
       if (snapshotBase !== null) {
         fetch("/api/rounds/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ basePrice: snapshotBase, closePrice }),
+          body: JSON.stringify({ basePrice: snapshotBase, closePrice, baccaratResult: serverBacResult }),
         }).catch(() => {})
       }
 
@@ -597,13 +596,12 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       }
 
       // 5) 정산 타이밍:
-      //    - 바카라 배팅 있음: 카드 애니메이션(~1100ms) 완료 후 정산
-      //    - 바카라 배팅 없음: 카드 애니메이션과 동시에 정산 (별개 종목이므로 OK)
-      //      단 UI 충돌 방지를 위해 200ms 딜레이
+      //    - 바카라 배팅 있음: 카드 애니메이션(420+380+200=1000ms) + 여유 400ms = 1400ms
+      //    - 바카라 배팅 없음: 방향/끝자리/홀짝은 카드 연출과 무관 → 300ms 딜레이
       if (betBaccaratRef.current) {
-        setTimeout(() => settle(serverBacResult), 1200)
+        setTimeout(() => settle(serverBacResult), 1400)
       } else {
-        setTimeout(() => settle(null), 200)
+        setTimeout(() => settle(null), 300)
       }
     }, []),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
