@@ -888,6 +888,46 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
               ${currentPrice !== null ? currentPrice.toFixed(1) : "—"}
             </p>
           </div>
+
+          {/* 눈금 오버레이 — pill 하단에 절대 위치 */}
+          {phase !== "result" && (
+            <div style={{
+              position: "absolute", bottom: 0, left: 0, right: 0,
+              height: 14, pointerEvents: "none",
+            }}>
+              <svg width="100%" height="14" preserveAspectRatio="none" style={{ display: "block" }}>
+                {/* 30개 눈금 (1초 간격) */}
+                {Array.from({ length: 31 }).map((_, i) => {
+                  const pct = (i / 30) * 100
+                  const isBoundary = i === 15   // 50% = phase 경계
+                  const isMajor = i % 5 === 0   // 5초 간격 주요 눈금
+                  const h = isBoundary ? 10 : isMajor ? 6 : 3
+                  const color = isBoundary
+                    ? "rgba(255,255,255,0.55)"
+                    : isMajor
+                    ? "rgba(255,255,255,0.2)"
+                    : "rgba(255,255,255,0.08)"
+                  return (
+                    <line
+                      key={i}
+                      x1={`${pct}%`} y1={14 - h}
+                      x2={`${pct}%`} y2={14}
+                      stroke={color}
+                      strokeWidth={isBoundary ? 1.5 : 1}
+                    />
+                  )
+                })}
+                {/* 배팅가능 라벨 */}
+                <text x="25%" y="7" textAnchor="middle" fontSize="6" fill="rgba(16,185,129,0.5)" fontWeight="600">
+                  배팅 가능
+                </text>
+                {/* 딜링중 라벨 */}
+                <text x="75%" y="7" textAnchor="middle" fontSize="6" fill="rgba(249,115,22,0.5)" fontWeight="600">
+                  딜링 중
+                </text>
+              </svg>
+            </div>
+          )}
         </div>
 
 
