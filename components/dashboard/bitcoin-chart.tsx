@@ -54,6 +54,8 @@ export function BitcoinChart() {
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
   const priceLineRef = useRef<any>(null)
+  // drawPriceLine 최신 참조 — stale closure 방지
+  const drawPriceLineRef = useRef<(price: number) => void>(() => {})
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
   // Binance kline WS — 캔들 OHLC 전용 (마감 이벤트 처리 안 함)
   const klineWsRef = useRef<WebSocket | null>(null)
@@ -106,21 +108,28 @@ export function BitcoinChart() {
   }, [])
 
   // 수평선 그리기 헬퍼 — seriesRef가 살아있을 때만 동작
+  // drawPriceLineRef.current 를 통해 항상 최신 seriesRef 를 바라봄
   const drawPriceLine = useCallback((price: number) => {
-    if (!seriesRef.current) return
-    if (priceLineRef.current) {
-      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
-      priceLineRef.current = null
-    }
-    priceLineRef.current = seriesRef.current.createPriceLine({
-      price,
-      color: "#facc15",
-      lineWidth: 1,
-      lineStyle: 2,  // Dashed
-      axisLabelVisible: true,
-      title: "배팅가",
-    })
+    drawPriceLineRef.current(price)
   }, [])
+
+  useEffect(() => {
+    drawPriceLineRef.current = (price: number) => {
+      if (!seriesRef.current) return
+      if (priceLineRef.current) {
+        try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
+        priceLineRef.current = null
+      }
+      priceLineRef.current = seriesRef.current.createPriceLine({
+        price,
+        color: "#facc15",
+        lineWidth: 1,
+        lineStyle: 2,  // Dashed
+        axisLabelVisible: true,
+        title: "배팅가",
+      })
+    }
+  })
 
   // 30초봉 마감가 수신 → ref 저장 + 노란 수평선 즉각 갱신
   const handleClosingPrice = useCallback((price: number, time: number) => {
@@ -314,6 +323,7 @@ export function BitcoinChart() {
       chart.remove()
       chartRef.current = null
       seriesRef.current = null
+      priceLineRef.current = null   // 구 series 참조 해제
     }
   }, [interval, fetchInitialCandles, drawPriceLine])
 
