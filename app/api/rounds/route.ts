@@ -11,6 +11,7 @@ export async function GET() {
         base_price,
         result_price,
         result_digit,
+        baccarat_result,
         started_at,
         ended_at,
         bet_history(bet_direction, bet_digit, bet_parity, result)

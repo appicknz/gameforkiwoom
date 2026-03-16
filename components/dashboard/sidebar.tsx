@@ -12,6 +12,7 @@ import {
   Mail,
   Bell,
   MessageCircle,
+  Layers,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
@@ -23,6 +24,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "비트벳 공식", href: "/" },
   { icon: TrendingUp,      label: "마감가 분석", href: "/tasks" },
   { icon: Hash,            label: "끝자리 분석", href: "/calendar" },
+  { icon: Layers,          label: "바카라 통계", href: "/baccarat-stats" },
   { icon: BookOpen,        label: "게임방법",    href: "/analytics" },
   {
     icon: ExternalLink,

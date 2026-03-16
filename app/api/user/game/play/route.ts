@@ -112,6 +112,7 @@ export async function POST(request: Request) {
         base_price: basePrice,
         result_price: closePrice,
         result_digit: lastDigit,
+        baccarat_result: baccaratResult ?? null,
         started_at: new Date(Math.floor(Date.now() / 1000 / 30) * 30 * 1000 - 30000).toISOString(),
         ended_at: new Date(Math.floor(Date.now() / 1000 / 30) * 30 * 1000).toISOString(),
       })
