@@ -726,13 +726,12 @@ function CardCharacterDisplay({ roundSeed, card }: { roundSeed: number; card: Ca
           {/* 좌상단 — 숫자 + 무늬 */}
           <div style={{
             position: "absolute", top: 10, left: 12,
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
-            filter: "drop-shadow(0 1px 3px rgba(255,255,255,0.9))",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 0,
           }}>
-            <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: suitColor, fontFamily: "Georgia, serif" }}>
+            <span style={{ fontSize: 46, fontWeight: 900, lineHeight: 1, color: suitColor, fontFamily: "Georgia, serif" }}>
               {label}
             </span>
-            <span style={{ fontSize: 18, lineHeight: 1, color: suitColor }}>
+            <span style={{ fontSize: 38, lineHeight: 1, color: suitColor }}>
               {suit}
             </span>
           </div>
@@ -740,14 +739,13 @@ function CardCharacterDisplay({ roundSeed, card }: { roundSeed: number; card: Ca
           {/* 우하단 — 180도 회전 */}
           <div style={{
             position: "absolute", bottom: 10, right: 12,
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 0,
             transform: "rotate(180deg)",
-            filter: "drop-shadow(0 1px 3px rgba(255,255,255,0.9))",
           }}>
-            <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: suitColor, fontFamily: "Georgia, serif" }}>
+            <span style={{ fontSize: 46, fontWeight: 900, lineHeight: 1, color: suitColor, fontFamily: "Georgia, serif" }}>
               {label}
             </span>
-            <span style={{ fontSize: 18, lineHeight: 1, color: suitColor }}>
+            <span style={{ fontSize: 38, lineHeight: 1, color: suitColor }}>
               {suit}
             </span>
           </div>
