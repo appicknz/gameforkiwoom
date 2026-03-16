@@ -10,6 +10,9 @@ import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
 import { BaccaratHeader } from "@/components/baka/baccarat-header"
+import { CardCharacterDisplay } from "@/components/baka/card-character-display"
+
+function getRoundSeed() { return Math.floor(Date.now() / 30000) }
 
 interface Card { suit: string; value: number; label: string; id: string }
 interface CardOverlayData {
@@ -18,6 +21,7 @@ interface CardOverlayData {
   pScore: number
   bScore: number
   result: "player" | "banker" | "tie" | null
+  finalCard: Card | null
 }
 
 type BaccaratResult = "player" | "banker" | "tie" | null
@@ -67,7 +71,7 @@ export default function BakaPage() {
   // PC: 1.6배 확대, 모바일: 1배 유지
   const S = isMobile ? 1 : 1.6
   const [cardData, setCardData] = useState<CardOverlayData>({
-    playerCards: [], bankerCards: [], pScore: 0, bScore: 0, result: null,
+    playerCards: [], bankerCards: [], pScore: 0, bScore: 0, result: null, finalCard: null,
   })
   const [baccaratResult, setBaccaratResult] = useState<BaccaratResult>(null)
 
@@ -76,8 +80,8 @@ export default function BakaPage() {
   const applyFinalDigitRef = useRef<((digit: number) => void) | null>(null)
   const setBetSideRef = useRef<((side: "player" | "banker" | "tie" | null) => void) | null>(null)
 
-  const handleCardsChange = useCallback((data: CardOverlayData) => {
-    setCardData(data)
+  const handleCardsChange = useCallback((data: CardOverlayData & { finalCard?: Card | null }) => {
+    setCardData({ ...data, finalCard: data.finalCard ?? null })
     setBaccaratResult(data.result)
     if (data.result) {
       window.dispatchEvent(new CustomEvent("baccarat:result", { detail: data.result }))
@@ -178,10 +182,17 @@ export default function BakaPage() {
             />
           </div>
 
-          {/* 오른쪽: 바카라 카드 딜 게임 */}
-          <div>
+          {/* 오른쪽: 카드 캐릭터 + 빅로드 */}
+          <div className="flex flex-col gap-3 sticky top-4">
+            {/* 카드 캐릭터 이미지 — 독립 컴포넌트 */}
+            <CardCharacterDisplay
+              roundSeed={getRoundSeed()}
+              card={cardData.finalCard}
+            />
+
+            {/* 빅로드 + 게임 로직 */}
             <div
-              className="rounded-2xl overflow-hidden sticky top-4"
+              className="rounded-2xl overflow-hidden"
               style={{
                 border: "1px solid rgba(212,175,55,0.2)",
                 boxShadow: "0 0 50px rgba(212,175,55,0.06)",
