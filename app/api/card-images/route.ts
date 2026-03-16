@@ -7,7 +7,11 @@ export async function GET() {
     const { blobs } = await list({ prefix: "card-images/" })
     // 순번(파일명 앞 숫자) 기준 정렬
     const images = blobs
-      .map(b => ({ url: b.url, pathname: b.pathname, uploadedAt: b.uploadedAt }))
+      .map(b => ({
+        // private blob은 serve route를 통해 접근
+        url: `/api/card-images/serve?pathname=${encodeURIComponent(b.pathname)}`,
+        pathname: b.pathname,
+      }))
       .sort((a, b) => a.pathname.localeCompare(b.pathname, undefined, { numeric: true }))
     return NextResponse.json({ images })
   } catch (err) {

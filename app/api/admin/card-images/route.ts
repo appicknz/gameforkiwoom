@@ -32,7 +32,12 @@ export async function GET(req: NextRequest) {
   try {
     const { blobs } = await list({ prefix: "card-images/" })
     const images = blobs
-      .map(b => ({ url: b.url, pathname: b.pathname, uploadedAt: b.uploadedAt }))
+      // private blob: url 노출 금지, serve route를 통해 접근
+      .map(b => ({
+        url: `/api/card-images/serve?pathname=${encodeURIComponent(b.pathname)}`,
+        pathname: b.pathname,
+        uploadedAt: b.uploadedAt,
+      }))
       .sort((a, b) => a.pathname.localeCompare(b.pathname, undefined, { numeric: true }))
     return NextResponse.json({ images })
   } catch (err) {
@@ -55,8 +60,9 @@ export async function POST(req: NextRequest) {
     const ext = file.name.split(".").pop() ?? "jpg"
     const pathname = `card-images/${String(order).padStart(3, "0")}.${ext}`
 
-    const blob = await put(pathname, file, { access: "public" })
-    return NextResponse.json({ url: blob.url, pathname: blob.pathname })
+    const blob = await put(pathname, file, { access: "private" })
+    // private blob은 url 직접 노출 불가 → pathname만 반환, 서빙은 /api/card-images/serve로
+    return NextResponse.json({ pathname: blob.pathname })
   } catch (err) {
     console.error("[v0] admin card-images POST error:", err)
     return NextResponse.json({ error: "Upload failed" }, { status: 500 })
@@ -67,9 +73,11 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   if (!(await checkAuth(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
-    const { url } = await req.json()
-    if (!url) return NextResponse.json({ error: "No url" }, { status: 400 })
-    await del(url)
+    const { url, pathname } = await req.json()
+    // url이 serve route 형태일 경우 pathname 파라미터를 사용해 삭제
+    const target = pathname ?? (url ? new URL(url, "http://x").searchParams.get("pathname") : null)
+    if (!target) return NextResponse.json({ error: "No target" }, { status: 400 })
+    await del(target)
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error("[v0] admin card-images DELETE error:", err)
