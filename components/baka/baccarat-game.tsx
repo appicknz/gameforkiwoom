@@ -697,8 +697,7 @@ function CardCharacterDisplay({ roundSeed, card }: { roundSeed: number; card: Ca
   const selectedImage = images.length > 0 ? images[roundSeed % images.length] : null
   const imgSrc = selectedImage?.url ?? "/images/baccarat-card-girl.jpg"
 
-  const isRed = card ? (card.suit === "♥" || card.suit === "♦") : false
-  const suitColor = card ? (isRed ? "#e84040" : "#1a1a1a") : "rgba(212,175,55,0.5)"
+  const suitColor = "#ffffff"
   const label = card?.label ?? ""
   const suit  = card?.suit  ?? ""
 
