@@ -800,7 +800,13 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   return (
     <>
-      <div style={{ background: G.bgCard, borderRadius: 16, padding: "16px" }}>
+      <div style={{
+        background: "rgba(8,20,12,0.98)",
+        borderRadius: 16,
+        padding: "14px 16px",
+        border: "1px solid rgba(212,175,55,0.2)",
+        boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
+      }}>
 
         {/* ── 헤더: 타이틀 + 승패 ── */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -817,34 +823,35 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </span>
         </div>
 
-        {/* ── 기준가 / 끝자리 / 현재가 한 줄 pill ── */}
+        {/* ── 기준가 / 끝자리 diff / 현재가 — 한 줄 pill ── */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 16px", borderRadius: 40,
-          background: "rgba(18,28,20,0.9)",
-          border: `1px solid ${G.goldBorder}`,
+          padding: "9px 16px", borderRadius: 999,
+          background: "rgba(4,12,7,0.95)",
+          border: "1px solid rgba(212,175,55,0.3)",
           marginBottom: 10,
           gap: 8,
+          boxShadow: "inset 0 1px 0 rgba(212,175,55,0.06)",
         }}>
           {/* 배팅 기준가 */}
-          <div>
-            <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2 }}>배팅 기준가</p>
-            <p style={{ fontSize: 13, fontWeight: 700, color: G.text, fontVariantNumeric: "tabular-nums", margin: 0 }}>
+          <div style={{ minWidth: 80 }}>
+            <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2, margin: 0 }}>배팅 기준가</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "rgba(232,213,163,0.85)", fontVariantNumeric: "tabular-nums", margin: 0 }}>
               ${basePrice !== null ? basePrice.toFixed(1) : "—"}
             </p>
           </div>
 
-          {/* 중앙: 끝자리 차이 또는 결과 뱃지 */}
-          <div style={{ textAlign: "center", flexShrink: 0 }}>
+          {/* 중앙: diff 또는 결과 뱃지 */}
+          <div style={{ textAlign: "center", flex: 1 }}>
             {phase === "result" && lastResult ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: G.goldDim }}>
                   끝자리 <span style={{ color: G.gold }}>{Math.floor(lastResult.closePrice * 10) % 10}</span>
                 </span>
                 {lastResult.baccarat && (
                   <span style={{
                     fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 5,
-                    background: lastResult.wonBaccarat ? "rgba(212,175,55,0.15)" : lastResult.baccaratRefund ? "rgba(96,165,250,0.1)" : "rgba(239,68,68,0.12)",
+                    background: lastResult.wonBaccarat ? "rgba(212,175,55,0.18)" : lastResult.baccaratRefund ? "rgba(96,165,250,0.12)" : "rgba(239,68,68,0.15)",
                     color: lastResult.wonBaccarat ? G.gold : lastResult.baccaratRefund ? "#60a5fa" : "#ef4444",
                   }}>
                     {LABEL_MAP[lastResult.baccarat].text} {lastResult.wonBaccarat ? "승" : lastResult.baccaratRefund ? "반환" : "패"}
@@ -852,14 +859,14 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 )}
                 {lastResult.direction && (
                   <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5,
-                    background: lastResult.wonDirection ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                    background: lastResult.wonDirection ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)",
                     color: lastResult.wonDirection ? "#10b981" : "#ef4444" }}>
                     {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
                   </span>
                 )}
               </div>
             ) : priceDiff !== null ? (
-              <span style={{ fontSize: 15, fontWeight: 800, color: isUp ? "#10b981" : "#ef4444" }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: isUp ? "#10b981" : "#ef4444", letterSpacing: "0.02em" }}>
                 {isUp ? "▲" : "▼"} {Math.abs(priceDiff).toFixed(1)}
               </span>
             ) : (
@@ -868,10 +875,10 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </div>
 
           {/* 현재가 */}
-          <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2 }}>현재가</p>
+          <div style={{ textAlign: "right", minWidth: 80 }}>
+            <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2, margin: 0 }}>현재가</p>
             <p style={{ fontSize: 13, fontWeight: 700, fontVariantNumeric: "tabular-nums", margin: 0,
-              color: phase === "result" ? G.text : (isUp ? "#10b981" : currentPrice !== null ? "#ef4444" : G.textDim) }}>
+              color: phase === "result" ? "rgba(232,213,163,0.85)" : (isUp ? "#10b981" : currentPrice !== null ? "#ef4444" : G.textDim) }}>
               ${currentPrice !== null ? currentPrice.toFixed(1) : "—"}
             </p>
           </div>
@@ -884,10 +891,11 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
               <Clock style={{ width: 12, height: 12 }} />
               <span>{timerLabel}</span>
             </div>
-            <span style={{ fontSize: 13, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>{timeLeft}초</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>{timeLeft}초</span>
           </div>
-          <div style={{ width: "100%", height: 5, borderRadius: 99, overflow: "hidden", background: "rgba(212,175,55,0.08)" }}>
-            <div style={{ height: "100%", borderRadius: 99, transition: "width 0.2s linear", width: `${timerPercent}%`, backgroundColor: timerColor }} />
+          <div style={{ width: "100%", height: 6, borderRadius: 99, overflow: "hidden", background: "rgba(255,255,255,0.06)" }}>
+            <div style={{ height: "100%", borderRadius: 99, transition: "width 0.2s linear", width: `${timerPercent}%`, backgroundColor: timerColor,
+              boxShadow: `0 0 8px ${timerColor}88` }} />
           </div>
         </div>
 
