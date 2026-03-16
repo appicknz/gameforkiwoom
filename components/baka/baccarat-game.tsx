@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { BaccaratRoadStats } from "@/components/dashboard/baccarat-road-stats"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type Suit = "♠" | "♥" | "♦" | "♣"
@@ -412,7 +413,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => window.removeEventListener("baccarat:server-result", handler)
   }, [])
 
-  // ─── 초기 history 불러오기 (DB에서) ───────────────────────────────────────
+  // ─── 초기 history 불러오기 (DB에���) ───────────────────────────────────────
   useEffect(() => {
     fetch("/api/baccarat/road")
       .then(r => r.json())
@@ -607,7 +608,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 9, color: "rgba(232,213,163,0.35)" }}>끝자리</div>
+            <div style={{ fontSize: 9, color: "rgba(232,213,163,0.35)" }}>���자리</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: "#d4af37", lineHeight: 1.1 }}>{state.priceDisplay ? lastDigit : "-"}</div>
           </div>
           <div style={{ textAlign: "center" }}>
@@ -635,6 +636,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
             딜링 중...
           </div>
         )}
+
+        {/* 빅로드 통계 */}
+        <div style={{ marginTop: 12 }}>
+          <BaccaratRoadStats />
+        </div>
 
         {/* 카드 캐릭터 이미지 */}
         <div style={{
