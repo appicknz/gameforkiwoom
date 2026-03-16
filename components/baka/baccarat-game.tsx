@@ -129,14 +129,19 @@ function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
   return cells
 }
 
+const DISPLAY_LIMIT = 18 // 슬라이딩 윈도우 최대 표시 개수
+
 function BigRoad({ history, round }: { history: RoadResult[]; round: number }) {
-  const cells = buildBigRoad(history)
+  // 18개 슬라이딩 윈도우: 18개 초과 시 맨 앞 잘라내기
+  const displayHistory = history.length > DISPLAY_LIMIT ? history.slice(-DISPLAY_LIMIT) : history
+
+  const cells = buildBigRoad(displayHistory)
   const maxCol = cells.length > 0 ? Math.max(...cells.map(c => c.col)) : 0
   const totalCols = Math.max(maxCol + 1, 14)  // 최소 14열 표시
   const width = totalCols * (CELL + GAP)
   const height = MAX_ROWS * (CELL + GAP)
 
-  // 카운트 집계
+  // 카운트 집계 (전체 history 기준)
   const pCount = history.filter(r => r === "player").length
   const bCount = history.filter(r => r === "banker").length
   const tCount = history.filter(r => r === "tie").length
@@ -182,22 +187,47 @@ function BigRoad({ history, round }: { history: RoadResult[]; round: number }) {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         marginBottom: 5,
       }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(212,175,55,0.6)", letterSpacing: "0.1em" }}>
-          BIG ROAD
-        </span>
-        <div style={{ display: "flex", gap: 8 }}>
-          <span style={{ fontSize: 9, color: "#3b82f6", display: "flex", alignItems: "center", gap: 3 }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #3b82f6", display: "inline-block" }} />
-            P
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(212,175,55,0.6)", letterSpacing: "0.1em" }}>
+            BIG ROAD
           </span>
-          <span style={{ fontSize: 9, color: "#ef4444", display: "flex", alignItems: "center", gap: 3 }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #ef4444", display: "inline-block" }} />
-            B
+          <span style={{ fontSize: 9, color: "rgba(212,175,55,0.35)" }}>
+            최근 {Math.min(history.length, DISPLAY_LIMIT)}개
           </span>
-          <span style={{ fontSize: 9, color: "#22c55e", display: "flex", alignItems: "center", gap: 3 }}>
-            <span style={{ fontSize: 8 }}>╱</span>
-            T
-          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <span style={{ fontSize: 9, color: "#3b82f6", display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #3b82f6", display: "inline-block" }} />
+              P
+            </span>
+            <span style={{ fontSize: 9, color: "#ef4444", display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #ef4444", display: "inline-block" }} />
+              B
+            </span>
+            <span style={{ fontSize: 9, color: "#22c55e", display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ fontSize: 8 }}>╱</span>
+              T
+            </span>
+          </div>
+          {/* 전체보기 버튼 */}
+          <a
+            href="/baccarat-stats"
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: "rgba(212,175,55,0.8)",
+              border: "1px solid rgba(212,175,55,0.25)",
+              borderRadius: 4,
+              padding: "2px 7px",
+              textDecoration: "none",
+              letterSpacing: "0.05em",
+              background: "rgba(212,175,55,0.06)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            전체보기
+          </a>
         </div>
       </div>
 
@@ -413,7 +443,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => window.removeEventListener("baccarat:server-result", handler)
   }, [])
 
-  // ─── 초기 history 불러오기 (DB에���) ───────────────────────────────────────
+  // ─── 초기 history 불러오기 (DB�����) ───────────────────────────────────────
   useEffect(() => {
     fetch("/api/baccarat/road")
       .then(r => r.json())
