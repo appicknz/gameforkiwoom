@@ -687,13 +687,18 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       //      (applyFinalDigit 완료 시점이 정확히 전달됨 → 고정 딜레이 불필요)
       //    - 바카라 배팅 없음: 카드 연출과 무관, 즉시 정산
       if (betBaccaratRef.current) {
+        let settled = false
         const onDealComplete = () => {
+          if (settled) return
+          settled = true
           window.removeEventListener("baccarat:deal-complete", onDealComplete)
           settle(serverBacResult)
         }
         window.addEventListener("baccarat:deal-complete", onDealComplete)
-        // 안전 타임아웃: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백)
+        // 안전 타임아웃: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백) — 한 번만
         setTimeout(() => {
+          if (settled) return
+          settled = true
           window.removeEventListener("baccarat:deal-complete", onDealComplete)
           settle(serverBacResult)
         }, 1200)
