@@ -154,8 +154,8 @@ export default function BakaPage() {
                         )}
                       </div>
                       <div style={{ display: "flex", gap: Math.round(6 * S) }}>
-                        {cards.map(card => <OverlayCard key={card.id} card={card} s={S} />)}
-                        {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} s={S} />)}
+                        {cards.map((card, ci) => <OverlayCard key={`${side}-${ci}-${card.id}`} card={card} s={S} />)}
+                        {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={`${side}-empty-${i}`} s={S} />)}
                       </div>
                     </div>
                   )
