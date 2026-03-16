@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useMemo } from "react"
+import useSWR from "swr"
+const swrFetcher = (url: string) => fetch(url).then(r => r.json())
 import BaccaratGame from "@/components/baka/baccarat-game"
 import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
@@ -22,29 +24,40 @@ interface CardOverlayData {
 type BaccaratResult = "player" | "banker" | "tie" | null
 
 // 카드 슬롯 — 차트 위 오버레이용 (scale 지원)
-function OverlayCard({ card, s = 1 }: { card: Card; s?: number }) {
-  const isRed = card.suit === "♥" || card.suit === "♦"
+function OverlayCard({ card, s = 1, imgSrc }: { card: Card; s?: number; imgSrc?: string }) {
   const W = Math.round(36 * s)
   const H = Math.round(52 * s)
   const R = Math.round(6 * s)
   const P = `${Math.round(3 * s)}px ${Math.round(4 * s)}px`
   return (
     <div style={{
+      position: "relative",
       width: W, height: H, borderRadius: R,
-      background: "linear-gradient(145deg,#1c1408,#12100a)",
+      background: "#12100a",
       border: "1px solid rgba(212,175,55,0.5)",
-      display: "flex", flexDirection: "column", justifyContent: "space-between",
-      padding: P,
+      overflow: "hidden",
       boxShadow: "0 2px 8px rgba(0,0,0,0.7)",
       animation: "cardDeal 0.35s cubic-bezier(0.23,1,0.32,1)",
       flexShrink: 0,
     }}>
-      <div style={{ fontSize: Math.round(11 * s), fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
-        {card.label}<span style={{ fontSize: Math.round(8 * s) }}>{card.suit}</span>
-      </div>
-      <div style={{ fontSize: Math.round(15 * s), textAlign: "center", color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>{card.suit}</div>
-      <div style={{ fontSize: Math.round(11 * s), fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
-        {card.label}
+      {/* 캐릭터 이미지 배경 */}
+      {imgSrc && (
+        <img src={imgSrc} alt="" style={{
+          position: "absolute", inset: 0,
+          width: "100%", height: "100%",
+          objectFit: "cover", objectPosition: "top",
+          opacity: 0.72,
+        }} />
+      )}
+      {/* 숫자+무늬 오버레이 (항상 흰색) */}
+      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%", padding: P }}>
+        <div style={{ fontSize: Math.round(11 * s), fontWeight: 700, color: "#ffffff", lineHeight: 1 }}>
+          {card.label}<span style={{ fontSize: Math.round(8 * s) }}>{card.suit}</span>
+        </div>
+        <div style={{ fontSize: Math.round(15 * s), textAlign: "center", color: "#ffffff", lineHeight: 1 }}>{card.suit}</div>
+        <div style={{ fontSize: Math.round(11 * s), fontWeight: 700, color: "#ffffff", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
+          {card.label}
+        </div>
       </div>
     </div>
   )
@@ -63,6 +76,16 @@ function EmptySlot({ s = 1 }: { s?: number }) {
 
 export default function BakaPage() {
   const isMobile = useIsMobile()
+
+  // 카드 캐릭터 이미지 목록 — 라운드 seed 기반으로 결정론적 선택
+  const { data: cardImagesData } = useSWR<{ images: Array<{ url: string }> }>(
+    "/api/card-images", swrFetcher, { refreshInterval: 60000, revalidateOnFocus: false }
+  )
+  const cardImgSrc = useMemo(() => {
+    const imgs = cardImagesData?.images ?? []
+    if (imgs.length === 0) return undefined
+    return imgs[Math.floor(Date.now() / 30000) % imgs.length].url
+  }, [cardImagesData])
   // PC: 1.6배 확대, 모바일: 1배 유지
   const S = isMobile ? 1 : 1.6
   const [cardData, setCardData] = useState<CardOverlayData>({
@@ -209,7 +232,7 @@ export default function BakaPage() {
                         )}
                       </div>
                       <div style={{ display: "flex", gap: Math.round(6 * S) }}>
-                        {cards.map(card => <OverlayCard key={card.id} card={card} s={S} />)}
+                        {cards.map(card => <OverlayCard key={card.id} card={card} s={S} imgSrc={cardImgSrc} />)}
                         {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} s={S} />)}
                       </div>
                     </div>
