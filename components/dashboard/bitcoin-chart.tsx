@@ -58,6 +58,8 @@ export function BitcoinChart() {
   // Binance kline WS — 캔들 OHLC 전용 (마감 이벤트 처리 안 함)
   const klineWsRef = useRef<WebSocket | null>(null)
   const klineReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 최신 배팅 기준가를 ref로 유지 — 차트 재생성 후 수평선 복원에 사용
+  const latestClosingPriceRef = useRef<number | null>(null)
 
   // 현재가 표시: React state 대신 DOM 직접 업데이트 → 매 틱마다 리렌더 없음
   const [ticker, setTicker] = useState<TickerData | null>(null)
@@ -103,48 +105,44 @@ export function BitcoinChart() {
     }
   }, [])
 
-  // 30초봉 마감가 → 노란 수평선
-  const handleClosingPrice = useCallback((price: number, time: number) => {
-    setClosingPrices(prev => {
-      const last = prev[prev.length - 1]
-      if (last?.time === time) return prev
-      if (seriesRef.current) {
-        if (priceLineRef.current) {
-          try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
-        }
-        priceLineRef.current = seriesRef.current.createPriceLine({
-          price,
-          color: "#facc15",
-          lineWidth: 1,
-          lineStyle: 2,
-          axisLabelVisible: true,
-          title: "배팅가",
-        })
-      }
-      const next = [...prev, { time, price }].slice(-100)
-      return next
+  // 수평선 그리기 헬퍼 — seriesRef가 살아있을 때만 동작
+  const drawPriceLine = useCallback((price: number) => {
+    if (!seriesRef.current) return
+    if (priceLineRef.current) {
+      try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
+      priceLineRef.current = null
+    }
+    priceLineRef.current = seriesRef.current.createPriceLine({
+      price,
+      color: "#facc15",
+      lineWidth: 1,
+      lineStyle: 2,  // Dashed
+      axisLabelVisible: true,
+      title: "배팅가",
     })
   }, [])
 
-  // 초기 마감가 배열 수신
+  // 30초봉 마감가 수신 → ref 저장 + 노란 수평선 갱신
+  const handleClosingPrice = useCallback((price: number, time: number) => {
+    latestClosingPriceRef.current = price
+    setClosingPrices(prev => {
+      const last = prev[prev.length - 1]
+      if (last?.time === time) return prev
+      return [...prev, { time, price }].slice(-100)
+    })
+    drawPriceLine(price)
+  }, [drawPriceLine])
+
+  // 초기 마감가 배열 수신 → 마지막 값으로 수평선
   const handleInitClosing = useCallback((prices: Array<{ time: number; price: number }>) => {
     if (prices.length === 0) return
     setClosingPrices(prices)
     const last = prices[prices.length - 1]
-    if (seriesRef.current && last) {
-      if (priceLineRef.current) {
-        try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
-      }
-      priceLineRef.current = seriesRef.current.createPriceLine({
-        price: last.price,
-        color: "#facc15",
-        lineWidth: 1,
-        lineStyle: 2,
-        axisLabelVisible: true,
-        title: "배팅가",
-      })
+    if (last) {
+      latestClosingPriceRef.current = last.price
+      drawPriceLine(last.price)
     }
-  }, [])
+  }, [drawPriceLine])
 
   usePriceWorker({
     onConnected: useCallback(() => setConnected(true), []),
@@ -277,6 +275,10 @@ export function BitcoinChart() {
         seriesRef.current.setData(candles)
         chartRef.current?.timeScale().scrollToRealTime()
       }
+      // 차트 재생성 후 기존 배팅 기준가 수평선 복원
+      if (latestClosingPriceRef.current !== null) {
+        drawPriceLine(latestClosingPriceRef.current)
+      }
       startKlineWS()
     })
 
@@ -290,7 +292,7 @@ export function BitcoinChart() {
       chartRef.current = null
       seriesRef.current = null
     }
-  }, [interval, fetchInitialCandles])
+  }, [interval, fetchInitialCandles, drawPriceLine])
 
   const isPositive = (ticker?.changePercent ?? 0) >= 0
 
