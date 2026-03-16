@@ -478,50 +478,62 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       const closePrice = price
       const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
 
-      // 끝자리로 서버와 동일하게 바카라 결과 결정 (0~4=player, 5~8=banker, 9=tie)
+      // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
+      // 0~4=player(5), 5~8=banker(4), 9=tie(1)
       const serverBacResult: "player" | "banker" | "tie" =
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-      // 0초 끝자리 → BaccaratGame에 전달 (카드 연출용)
+      // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 전달 → applyFinalDigit 실행)
       onFinalDigitTrigger?.(lastDigit)
 
-      // 매 라운드 결과를 DB에 저장 (빅로드용, 배팅 무관)
-      if (basePriceRef.current !== null) {
+      // 2) 카드 결과 override 이벤트 (baccarat-game.tsx가 끝에서 읽음)
+      window.dispatchEvent(new CustomEvent("baccarat:server-result", { detail: serverBacResult }))
+
+      // 3) 매 라운드 DB 저장 (빅로드용, 배팅 무관 — basePrice 스냅샷 캡처)
+      const snapshotBase = basePriceRef.current
+      if (snapshotBase !== null) {
         fetch("/api/rounds/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ basePrice: basePriceRef.current, closePrice }),
+          body: JSON.stringify({ basePrice: snapshotBase, closePrice }),
         }).catch(() => {})
       }
 
-      // 서버 결과를 BaccaratGame에 전달 (카드 연출 결과 override)
-      window.dispatchEvent(new CustomEvent("baccarat:server-result", { detail: serverBacResult }))
-
-      // 배팅 없으면 새 기준가만 업데이트
+      // 4) 배팅 없으면 기준가 업데이트 후 종료
       const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
       if (!hasBet) {
         setBasePrice(price)
         basePriceRef.current = price
         return
       }
-      if (basePriceRef.current === null) return
 
-      const wonDirection = betRef.current ? (betRef.current === "long" ? closePrice >= basePriceRef.current : closePrice < basePriceRef.current) : false
-      const wonDigit = betDigitRef.current ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
-      const wonParity = betParityRef.current ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
+      // basePriceRef가 null이면 현재가로 대체 (엣지케이스 방어)
+      const effectiveBase = snapshotBase ?? closePrice
 
-      const settleAfterDelay = (bacResult: "player" | "banker" | "tie" | null) => {
+      const wonDirection = betRef.current
+        ? (betRef.current === "long" ? closePrice >= effectiveBase : closePrice < effectiveBase)
+        : false
+      const wonDigit = betDigitRef.current
+        ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5)
+        : false
+      const wonParity = betParityRef.current
+        ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0)
+        : false
+
+      // 정산 함수 — bacResult: 확정된 바카라 결과 (없으면 null)
+      const settle = (bacResult: "player" | "banker" | "tie" | null) => {
         const wonBaccarat = betBaccaratRef.current ? betBaccaratRef.current === bacResult : false
-        const baccaratRefund = !wonBaccarat && bacResult === "tie" && (betBaccaratRef.current === "player" || betBaccaratRef.current === "banker")
+        const baccaratRefund = !wonBaccarat && bacResult === "tie"
+          && (betBaccaratRef.current === "player" || betBaccaratRef.current === "banker")
 
-        // 서버 정산
+        // 서버 정산 API
         const token = getToken()
         if (token) {
           fetch("/api/user/game/play", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({
-              basePrice: basePriceRef.current,
+              basePrice: effectiveBase,
               closePrice,
               bets: {
                 direction: betRef.current ?? undefined,
@@ -550,7 +562,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           parity: betParityRef.current,
           baccarat: betBaccaratRef.current,
           baccaratResult: bacResult,
-          basePrice: basePriceRef.current!,
+          basePrice: effectiveBase,
           closePrice,
           wonDirection, wonDigit, wonParity, wonBaccarat, baccaratRefund,
           directionAmount: betDirectionAmountRef.current,
@@ -560,29 +572,38 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         }
         setLastResult(result)
         setShowResultSheet(true)
-        const anyWon = (betRef.current && wonDirection) || (betDigitRef.current && wonDigit) || (betParityRef.current && wonParity) || (betBaccaratRef.current && wonBaccarat)
-        const anyLost = (betRef.current && !wonDirection) || (betDigitRef.current && !wonDigit) || (betParityRef.current && !wonParity) || (betBaccaratRef.current && !wonBaccarat && !baccaratRefund)
+
+        const anyWon = (betRef.current && wonDirection) || (betDigitRef.current && wonDigit)
+          || (betParityRef.current && wonParity) || (betBaccaratRef.current && wonBaccarat)
+        const anyLost = (betRef.current && !wonDirection) || (betDigitRef.current && !wonDigit)
+          || (betParityRef.current && !wonParity)
+          || (betBaccaratRef.current && !wonBaccarat && !baccaratRefund)
         if (anyWon) setWins(w => w + 1)
         if (anyLost) setLosses(l => l + 1)
         setPhase("result")
 
-        // 초기화
-        betRef.current = null; betDigitRef.current = null; betParityRef.current = null; betBaccaratRef.current = null
-        betDirectionAmountRef.current = 0; betDigitAmountRef.current = 0; betParityAmountRef.current = 0; betBaccaratAmountRef.current = 0
+        // 베팅 상태 초기화 (다음 라운드 준비)
+        betRef.current = null; betDigitRef.current = null
+        betParityRef.current = null; betBaccaratRef.current = null
+        betDirectionAmountRef.current = 0; betDigitAmountRef.current = 0
+        betParityAmountRef.current = 0; betBaccaratAmountRef.current = 0
         setBetDirection(null); setBetDigit(null); setBetParity(null); setBetBaccarat(null)
         setBetDirectionAmount(0); setBetDigitAmount(0); setBetParityAmount(0); setBetBaccaratAmount(0)
+
+        // 기준가를 마감가로 교체 (다음 라운드 시작)
         setBasePrice(price); basePriceRef.current = price
         setDialog(null)
         setTimeout(() => setPhase("betting"), 1500)
       }
 
-      // 바카라 배팅이 있으면 카드 연출 후 정산 (서버 결과 직접 사용)
+      // 5) 정산 타이밍:
+      //    - 바카라 배팅 있음: 카드 애니메이션(~1100ms) 완료 후 정산
+      //    - 바카라 배팅 없음: 카드 애니메이션과 동시에 정산 (별개 종목이므로 OK)
+      //      단 UI 충돌 방지를 위해 200ms 딜레이
       if (betBaccaratRef.current) {
-        setTimeout(() => {
-          settleAfterDelay(serverBacResult)
-        }, 900)
+        setTimeout(() => settle(serverBacResult), 1200)
       } else {
-        settleAfterDelay(null)
+        setTimeout(() => settle(null), 200)
       }
     }, []),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
