@@ -478,10 +478,26 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       const closePrice = price
       const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
 
-      // 0초 끝자리 → BaccaratGame에 뱅커 최종 카드로 전달
+      // 끝자리로 서버와 동일하게 바카라 결과 결정 (0~4=player, 5~8=banker, 9=tie)
+      const serverBacResult: "player" | "banker" | "tie" =
+        lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
+
+      // 0초 끝자리 → BaccaratGame에 전달 (카드 연출용)
       onFinalDigitTrigger?.(lastDigit)
 
-      // 배팅 없���면 새 기준가만 업데이트
+      // 매 라운드 결과를 DB에 저장 (빅로드용, 배팅 무관)
+      if (basePriceRef.current !== null) {
+        fetch("/api/rounds/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ basePrice: basePriceRef.current, closePrice }),
+        }).catch(() => {})
+      }
+
+      // 서버 결과를 BaccaratGame에 전달 (카드 연출 결과 override)
+      window.dispatchEvent(new CustomEvent("baccarat:server-result", { detail: serverBacResult }))
+
+      // 배팅 없으면 새 기준가만 업데이트
       const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
       if (!hasBet) {
         setBasePrice(price)
@@ -494,8 +510,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       const wonDigit = betDigitRef.current ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
       const wonParity = betParityRef.current ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
 
-      // 바카라 결과: BaccaratGame이 applyFinalDigit 후 결과를 반환하기까지 약간의 딜레이 필요
-      // → 500ms 후 baccaratResultRef 읽기 (카드 딜 애니메이션 완료 대기)
       const settleAfterDelay = (bacResult: "player" | "banker" | "tie" | null) => {
         const wonBaccarat = betBaccaratRef.current ? betBaccaratRef.current === bacResult : false
         const baccaratRefund = !wonBaccarat && bacResult === "tie" && (betBaccaratRef.current === "player" || betBaccaratRef.current === "banker")
@@ -562,10 +576,10 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         setTimeout(() => setPhase("betting"), 1500)
       }
 
-      // 바카라 배팅이 있으면 카드 딜 완료(~800ms) 후 정산
+      // 바카라 배팅이 있으면 카드 연출 후 정산 (서버 결과 직접 사용)
       if (betBaccaratRef.current) {
         setTimeout(() => {
-          settleAfterDelay(baccaratResultRef.current)
+          settleAfterDelay(serverBacResult)
         }, 900)
       } else {
         settleAfterDelay(null)

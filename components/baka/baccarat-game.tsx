@@ -403,6 +403,15 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => clearInterval(id)
   }, [])
 
+  // ─── 서버 바카라 결과 수신 (끝자리 기반, 모든 유저 동일) ──────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      (window as any).__baccaratServerResult = (e as CustomEvent<"player" | "banker" | "tie">).detail
+    }
+    window.addEventListener("baccarat:server-result", handler)
+    return () => window.removeEventListener("baccarat:server-result", handler)
+  }, [])
+
   // ─── 초기 history 불러오기 (DB에서) ───────────────────────────────────────
   useEffect(() => {
     fetch("/api/baccarat/road")
@@ -419,7 +428,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
   // ─── 15초 딜 시작 ───────────────────────────────────────��─────────────────
   // 규칙:
-  //   - 플레이어/타이 베팅: Player 1장(임의), Banker 2장(임의)
+  //   - 플레이어/타이 베팅: Player 1장(임의), Banker 2장(��의)
   //   - 뱅커 베팅:          Banker 1장(임의), Player 2장(임의)
   //   - 0초 끝자리 카드: 베팅 사이드(Player/Banker)의 마지막 카드 → 승부 결정
   //   - 끝자리 카드 받은 쪽 최종 점수 ≤5 → 상대방이 임의 1장 추가 (단, 이미 3장이면 스킵)
@@ -525,13 +534,20 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
     await sleep(200)
 
-    // 3. 최종 승부
+    // 3. 최종 승부: 서버에서 전달된 결과 우선 사용 (끝자리 기반, 모든 유저 동일)
+    //    서버 결과가 없으면 카드 점수로 폴백
+    const serverResult: "player" | "banker" | "tie" | null =
+      (window as any).__baccaratServerResult ?? null ;
+    (window as any).__baccaratServerResult = null
+
     const finalPScore = handScore(finalP)
     const finalBScore = handScore(finalB)
-    let result: "player" | "banker" | "tie"
-    if (finalPScore > finalBScore) result = "player"
-    else if (finalBScore > finalPScore) result = "banker"
-    else result = "tie"
+    let cardResult: "player" | "banker" | "tie"
+    if (finalPScore > finalBScore) cardResult = "player"
+    else if (finalBScore > finalPScore) cardResult = "banker"
+    else cardResult = "tie"
+
+    const result = serverResult ?? cardResult
 
     setState(prev => ({
       ...prev,
