@@ -933,7 +933,14 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   const isUp = priceDiff !== null && priceDiff >= 0
   const timerPercent = (timeLeft / 30) * 100
   const timerColor = timeLeft > 15 ? "#10b981" : timeLeft > 3 ? "#f97316" : "#ef4444"
-  const timerLabel = timeLeft > 15 ? "배팅 가능" : timeLeft > 0 ? "딜링 중" : "정산 중"
+  // 상태 텍스트: 배팅 가능 구간→"배팅마감 N초전", 딜링 2초→"딜링 중", 이후→"다음 배팅시작 N초전"
+  const timerLabel = timeLeft > 15
+    ? `배팅마감 ${timeLeft - 15}초전`
+    : timeLeft > 13
+    ? "딜링 중"
+    : timeLeft > 0
+    ? `다음 배팅시작 ${timeLeft}초전`
+    : "정산 중"
 
   return (
     <>
@@ -946,7 +953,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
       }}>
 
-        {/* ── 헤더: 타이틀 + 초 ── */}
+        {/* ── 헤더: 타이틀 + 우측 자동배팅 버튼 ── */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>배팅</h3>
@@ -954,11 +961,27 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
               #{roundNumber}
             </span>
           </div>
-          {phase !== "result" && (
-            <span style={{ fontSize: 14, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>
-              {timeLeft}초
-            </span>
-          )}
+          {/* 자동 배팅 토글 버튼 — 우측 */}
+          <button
+            onClick={() => setAutoBetOpen(o => !o)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all"
+            style={{
+              background: autoBet.enabled ? "rgba(212,175,55,0.12)" : G.bgMuted,
+              border: `1px solid ${autoBet.enabled ? G.gold : G.goldBorder}`,
+            }}
+          >
+            <Bot className="w-3.5 h-3.5" style={{ color: autoBet.enabled ? G.gold : G.goldDim }} />
+            <span className="text-xs font-bold" style={{ color: autoBet.enabled ? G.gold : G.goldDim }}>자동 배팅</span>
+            {autoBet.enabled && (
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            )}
+            {autoBet.enabled && (
+              <span className="text-[10px] font-semibold tabular-nums" style={{ color: autoBetPnl >= 0 ? "#10b981" : "#ef4444" }}>
+                {autoBetRounds}R / {autoBetPnl >= 0 ? "+" : ""}₩{Math.abs(autoBetPnl).toLocaleString()}
+              </span>
+            )}
+            {autoBetOpen ? <ChevronUp className="w-3 h-3" style={{ color: G.goldDim }} /> : <ChevronDown className="w-3 h-3" style={{ color: G.goldDim }} />}
+          </button>
         </div>
 
         {/* ── 기준가 / 상태 / 현재가 — 카운트다운 pill ── */}
@@ -1011,9 +1034,9 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
             ) : (
               <span style={{
                 fontSize: 12, fontWeight: 700, letterSpacing: "0.05em",
-                color: phase === "dealing" ? "#f97316" : timerColor,
+                color: timerColor,
               }}>
-                {phase === "dealing" ? "딜링 중" : timerLabel}
+                {timerLabel}
               </span>
             )}
           </div>
@@ -1072,33 +1095,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
         {/* 자동 배팅 패널 */}
         <div className="mb-3">
-          {/* 토글 헤더 */}
-          <button
-            onClick={() => setAutoBetOpen(o => !o)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all"
-            style={{
-              background: autoBet.enabled ? "rgba(212,175,55,0.12)" : G.bgMuted,
-              border: `1px solid ${autoBet.enabled ? G.gold : G.goldBorder}`,
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <Bot className="w-3.5 h-3.5" style={{ color: autoBet.enabled ? G.gold : G.goldDim }} />
-              <span className="text-xs font-bold" style={{ color: autoBet.enabled ? G.gold : G.goldDim }}>자동 배팅</span>
-              {autoBet.enabled && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: G.gold, color: "#000" }}>ON</span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {autoBet.enabled && (
-                <span className="text-[10px] font-semibold tabular-nums" style={{ color: autoBetPnl >= 0 ? "#10b981" : "#ef4444" }}>
-                  {autoBetRounds}R / {autoBetPnl >= 0 ? "+" : ""}₩{Math.abs(autoBetPnl).toLocaleString()}
-                </span>
-              )}
-              {autoBetOpen
-                ? <ChevronUp className="w-3.5 h-3.5" style={{ color: G.textDim }} />
-                : <ChevronDown className="w-3.5 h-3.5" style={{ color: G.textDim }} />}
-            </div>
-          </button>
 
           {/* 설정 패널 */}
           {autoBetOpen && (
@@ -1314,7 +1310,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                   <span className="text-[9px] opacity-60">{dig === "over" ? "5~9" : "0~4"}</span>
                   {isSelected && betDigitAmount > 0 && (
                     <span className="text-[9px]">
-                      ₩{betDigitAmount >= 10000 ? `${betDigitAmount / 10000}만` : betDigitAmount.toLocaleString()}
+                      ₩{betDigitAmount >= 10000 ? `${betDigitAmount / 10000}���` : betDigitAmount.toLocaleString()}
                     </span>
                   )}
                 </button>
