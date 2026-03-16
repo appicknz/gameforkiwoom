@@ -1,6 +1,50 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+// ─── 카드 캐릭터 오버레이 컴포넌트 ──────────────────────────────────────────
+// 관리자가 업로드한 이미지를 순번 기반으로 표시
+// 이미지가 없으면 기존 정적 이미지로 폴백
+function CardCharacterDisplay({ roundSeed }: { roundSeed: number }) {
+  const { data } = useSWR<{ images: Array<{ url: string; pathname: string }> }>(
+    "/api/card-images",
+    swrFetcher,
+    { refreshInterval: 60000, revalidateOnFocus: false }
+  )
+
+  const images = data?.images ?? []
+
+  // 라운드 seed로 결정론적 이미지 선택 (모든 유저 동일)
+  const selectedImage = images.length > 0
+    ? images[roundSeed % images.length]
+    : null
+
+  return (
+    <div style={{
+      marginTop: 12,
+      borderRadius: 12,
+      overflow: "hidden",
+      border: "1px solid rgba(212,175,55,0.2)",
+      boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+      position: "relative",
+      background: "#0d1f15",
+    }}>
+      {selectedImage ? (
+        <img
+          src={selectedImage.url}
+          alt="Baccarat card character"
+          style={{ width: "100%", display: "block", objectFit: "cover" }}
+        />
+      ) : (
+        <img
+          src="/images/baccarat-card-girl.jpg"
+          alt="Baccarat card character"
+          style={{ width: "100%", display: "block", objectFit: "cover" }}
+        />
+      )}
+    </div>
+  )
+}
+
+const swrFetcher = (url: string) => fetch(url).then(r => r.json())
 
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -671,20 +715,8 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
           </div>
         )}
 
-        {/* 카드 캐릭터 이미지 */}
-        <div style={{
-          marginTop: 12,
-          borderRadius: 12,
-          overflow: "hidden",
-          border: "1px solid rgba(212,175,55,0.2)",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
-        }}>
-          <img
-            src="/images/baccarat-card-girl.jpg"
-            alt="Baccarat card character"
-            style={{ width: "100%", display: "block", objectFit: "cover" }}
-          />
-        </div>
+        {/* 카드 캐릭터 이미지 (관리자 업로드 이미지 오버레이) */}
+        <CardCharacterDisplay roundSeed={getRoundSeed()} />
       </div>
     </div>
   )
