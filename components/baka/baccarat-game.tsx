@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { BaccaratRoadStats } from "@/components/dashboard/baccarat-road-stats"
+
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type Suit = "♠" | "♥" | "♦" | "♣"
@@ -621,10 +621,8 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       {/* 게임 테이블 */}
       <div style={{ padding: "14px 12px" }}>
 
-        {/* Big Road */}
-        {state.history.length > 0 && (
-          <BigRoad history={state.history} round={state.roundCount} />
-        )}
+        {/* Big Road — 항상 표시, DB 초기 로드 데이터 포함 */}
+        <BigRoad history={state.history} round={state.roundCount} />
 
         {/* 딜링 중 표시 */}
         {state.phase === "dealing" && (
@@ -636,11 +634,6 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
             딜링 중...
           </div>
         )}
-
-        {/* 빅로드 통계 */}
-        <div style={{ marginTop: 12 }}>
-          <BaccaratRoadStats />
-        </div>
 
         {/* 카드 캐릭터 이미지 */}
         <div style={{
