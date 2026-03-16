@@ -5,7 +5,7 @@ import { BettingGame } from "@/components/dashboard/betting-game"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
-import { BaccaratRoadStats } from "@/components/dashboard/baccarat-road-stats"
+
 
 export default function DashboardPage() {
   return (
@@ -25,7 +25,6 @@ export default function DashboardPage() {
             <div className="space-y-3 md:space-y-4">
               <ClosingPricesBadges />
               <ClosingPrices />
-              <BaccaratRoadStats />
             </div>
           </div>
         </div>
