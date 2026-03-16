@@ -57,8 +57,12 @@ export function BitcoinChart() {
   const priceLineRef = useRef<any>(null)
   const candleMapRef = useRef<Map<number, CandleData>>(new Map())
 
+  // 현재가 표시: React state 대신 DOM 직접 업데이트 → 매 틱마다 리렌더 없음
   const [ticker, setTicker] = useState<TickerData | null>(null)
+  const priceDisplayRef = useRef<HTMLSpanElement>(null)
+  const dotDisplayRef = useRef<HTMLSpanElement>(null)
   const [connected, setConnected] = useState(false)
+  const connectedRef = useRef(false)
   const [stale, setStale] = useState(false)
   const lastTickAtRef = useRef<number>(Date.now())
   const [interval, setIntervalState] = useState<Interval>("1s")
@@ -95,8 +99,18 @@ export function BitcoinChart() {
     }
     candleMapRef.current.set(bucket, candle)
     try { seriesRef.current.update(candle) } catch { /* 시간 역순 방어 */ }
-    setTicker(prev => prev ? { ...prev, price } : { price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
-    setConnected(true)
+
+    // DOM 직접 업데이트 — React 리렌더 없이 즉각 반영
+    if (priceDisplayRef.current) {
+      priceDisplayRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+    }
+
+    // 첫 틱 수신 시 한 번만 state 업데이트 (초기 렌더용)
+    if (!connectedRef.current) {
+      connectedRef.current = true
+      setTicker({ price, change: 0, changePercent: 0, high: price, low: price, volume: 0, quoteAssetVolume: 0 })
+      setConnected(true)
+    }
   }, [])
 
   // 30초봉 마감가 → 노란 수평선
@@ -324,7 +338,9 @@ export function BitcoinChart() {
               </p>
               <style>{`@keyframes pricePulse{0%,100%{opacity:1}50%{opacity:0.35}}`}</style>
               <p className="text-sm font-bold tabular-nums leading-tight" style={{ color: "#e8d5a3" }}>
-                ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                <span ref={priceDisplayRef}>
+                  ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </span>
               </p>
               <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold mt-0.5 ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
                 {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
