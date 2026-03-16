@@ -33,21 +33,37 @@ const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
 // ─── 카드 유틸 ─────────────────────────────────────────────────────────────
 const SUITS: Suit[] = ["♠", "♥", "♦", "♣"]
-const LABELS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
+
+// 결정론적 해시 (mulberry32 PRNG)
+// seed가 동일하면 항상 동일한 숫자 시퀀스를 반환 → 모든 유저 동일한 카드
+function makeSeededRand(seed: number) {
+  let s = seed >>> 0
+  return function(): number {
+    s = Math.imul(s ^ (s >>> 15), s | 1)
+    s ^= s + Math.imul(s ^ (s >>> 7), s | 61)
+    return ((s ^ (s >>> 14)) >>> 0) / 0x100000000
+  }
+}
+
+// 현재 30초 라운드 슬롯 번호를 seed로 사용
+// → 같은 라운드에 접속한 모든 클라이언트가 동일한 seed를 가짐
+function getRoundSeed(): number {
+  return Math.floor(Date.now() / 30000)
+}
 
 // 끝자리 숫자 → 카드 변환
 // 0 = 10/J/Q/K (점수 0), 1 = A (점수 1), 2~9 = 액면가
-function digitToCard(digit: number, seed: number): Card {
-  const suit = SUITS[seed % 4]
+function digitToCard(digit: number, suitIdx: number): Card {
+  const suit = SUITS[suitIdx % 4]
+  const id = `${digit}-${suitIdx}-${Date.now()}`
   if (digit === 0) {
     const zeroLabels = ["10", "J", "Q", "K"]
-    const label = zeroLabels[seed % 4]
-    return { suit, value: 0, label, id: `${Date.now()}-${Math.random()}` }
+    return { suit, value: 0, label: zeroLabels[suitIdx % 4], id }
   }
   if (digit === 1) {
-    return { suit, value: 1, label: "A", id: `${Date.now()}-${Math.random()}` }
+    return { suit, value: 1, label: "A", id }
   }
-  return { suit, value: digit, label: String(digit), id: `${Date.now()}-${Math.random()}` }
+  return { suit, value: digit, label: String(digit), id }
 }
 
 function handScore(cards: Card[]) {
@@ -463,8 +479,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     midStateRef.current = null
 
     const side = betSideRef.current  // null이면 배팅 없음 (관전 모드)
-    const rand = () => Math.floor(Math.random() * 10)
-    const randSuit = () => Math.floor(Math.random() * 4)
+
+    // 현재 30초 라운드 슬롯을 seed로 → 모든 유저 동일한 카드 시퀀스
+    const seeded = makeSeededRand(getRoundSeed())
+    const rand     = () => Math.floor(seeded() * 10)  // 0~9 카드 숫자
+    const randSuit = () => Math.floor(seeded() * 4)   // 0~3 무늬
 
     setState(prev => ({ ...prev, phase: "dealing", playerCards: [], bankerCards: [], result: null }))
     await sleep(80)
@@ -530,7 +549,9 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     midStateRef.current = null
 
     const betTarget: "player" | "banker" = (betSide === "banker") ? "banker" : "player"
-    const randSuit = () => Math.floor(Math.random() * 4)
+    // seed = 라운드슬롯 * 100 + digit → startDeal seed와 구분되면서 결정론적
+    const seeded = makeSeededRand(getRoundSeed() * 100 + digit)
+    const randSuit = () => Math.floor(seeded() * 4)
     const finalCard = digitToCard(digit, randSuit())
 
     // 1. 끝자리 카드를 betTarget에게 부여 (연출)
@@ -546,7 +567,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     // 2. 추가 카드 연출 (승부와 무관, 시각적 연출만)
     const targetScore = betTarget === "player" ? handScore(finalP) : handScore(finalB)
     if (targetScore <= 5) {
-      const extraCard = digitToCard(Math.floor(Math.random() * 10), randSuit())
+      const extraCard = digitToCard(Math.floor(seeded() * 10), randSuit())
       if (betTarget === "player" && finalB.length < 3) {
         finalB = [...finalB, extraCard]
         setState(prev => ({ ...prev, bankerCards: finalB }))
