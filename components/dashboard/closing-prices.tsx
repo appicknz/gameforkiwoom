@@ -54,15 +54,23 @@ export function ClosingPrices() {
   }, [])
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (typeof window !== "undefined" && (window as any).__bitcoinClosingPrices) {
-        setClosingPrices((window as any).__bitcoinClosingPrices)
+    // 현물 30초봉 마감 이벤트 수신 → 즉시 목록 업데이트
+    const spotHandler = (e: Event) => {
+      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
+      const win = window as any
+      const prev: ClosingPrice[] = win.__bitcoinClosingPrices ?? []
+      if (prev[prev.length - 1]?.time !== time) {
+        const updated = [...prev, { time, price }].slice(-100)
+        win.__bitcoinClosingPrices = updated
+        setClosingPrices(updated)
       }
-    }, 500)
+    }
+    window.addEventListener("spot:closing", spotHandler)
+
     // rounds도 5초마다 갱신 (결과 반영)
     const roundsInterval = setInterval(fetchRounds, 5000)
     return () => {
-      clearInterval(interval)
+      window.removeEventListener("spot:closing", spotHandler)
       clearInterval(roundsInterval)
     }
   }, [])

@@ -29,17 +29,21 @@ export function ClosingPricesBadges() {
       .catch(() => {})
   }, [])
 
-  // 이후 실시간 업데이트는 window 폴링
+  // 현물 30초봉 마감 이벤트 수신 → 즉시 업데이트 (폴링 대신 이벤트 기반)
   useEffect(() => {
-    const updateDigits = () => {
-      const closingPrices = (window as any).__bitcoinClosingPrices || []
-      const digits = closingPrices.map((item: { price: number }) => extractDigit(item.price))
+    const handler = (e: Event) => {
+      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
+      const win = window as any
+      const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+      if (prev[prev.length - 1]?.time !== time) {
+        win.__bitcoinClosingPrices = [...prev, { time, price }].slice(-100)
+      }
+      const digits = (win.__bitcoinClosingPrices as Array<{ price: number }>)
+        .map(item => extractDigit(item.price))
       setLastDigits(digits.slice(-10).reverse())
     }
-
-    updateDigits()
-    const interval = setInterval(updateDigits, 1000)
-    return () => clearInterval(interval)
+    window.addEventListener("spot:closing", handler)
+    return () => window.removeEventListener("spot:closing", handler)
   }, [])
 
   const GOLD = "#d4af37"

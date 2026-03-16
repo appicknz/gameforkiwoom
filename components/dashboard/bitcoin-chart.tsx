@@ -271,6 +271,13 @@ export function BitcoinChart() {
             setTicker({ price: closePrice, change: 0, changePercent: 0, high: closePrice, low: closePrice, volume: 0, quoteAssetVolume: 0 })
             setConnected(true)
           }
+
+          // 30초봉 마감 확정(k.x===true, 1초봉 interval일 때만) → spot:closing 이벤트 발행
+          // 배팅게임·closing-prices 모두 이 이벤트를 수신해 현물 종가로 통일
+          if (k.x && interval === "1s") {
+            const closeTime = Math.floor(k.T / 1000)
+            window.dispatchEvent(new CustomEvent("spot:closing", { detail: { price: closePrice, time: closeTime } }))
+          }
         } catch { /* JSON parse 오류 무시 */ }
       }
 
