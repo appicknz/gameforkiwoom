@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 
-
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type Suit = "♠" | "♥" | "♦" | "♣"
 type BetSide = "player" | "banker" | "tie" | null
@@ -129,19 +128,14 @@ function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
   return cells
 }
 
-const DISPLAY_LIMIT = 18 // 슬라이딩 윈도우 최대 표시 개수
-
 function BigRoad({ history, round }: { history: RoadResult[]; round: number }) {
-  // 18개 슬라이딩 윈도우: 18개 초과 시 맨 앞 잘라내기
-  const displayHistory = history.length > DISPLAY_LIMIT ? history.slice(-DISPLAY_LIMIT) : history
-
-  const cells = buildBigRoad(displayHistory)
+  const cells = buildBigRoad(history)
   const maxCol = cells.length > 0 ? Math.max(...cells.map(c => c.col)) : 0
   const totalCols = Math.max(maxCol + 1, 14)  // 최소 14열 표시
   const width = totalCols * (CELL + GAP)
   const height = MAX_ROWS * (CELL + GAP)
 
-  // 카운트 집계 (전체 history 기준)
+  // 카운트 집계
   const pCount = history.filter(r => r === "player").length
   const bCount = history.filter(r => r === "banker").length
   const tCount = history.filter(r => r === "tie").length
@@ -187,47 +181,22 @@ function BigRoad({ history, round }: { history: RoadResult[]; round: number }) {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         marginBottom: 5,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(212,175,55,0.6)", letterSpacing: "0.1em" }}>
-            BIG ROAD
+        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(212,175,55,0.6)", letterSpacing: "0.1em" }}>
+          BIG ROAD
+        </span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <span style={{ fontSize: 9, color: "#3b82f6", display: "flex", alignItems: "center", gap: 3 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #3b82f6", display: "inline-block" }} />
+            P
           </span>
-          <span style={{ fontSize: 9, color: "rgba(212,175,55,0.35)" }}>
-            최근 {Math.min(history.length, DISPLAY_LIMIT)}개
+          <span style={{ fontSize: 9, color: "#ef4444", display: "flex", alignItems: "center", gap: 3 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #ef4444", display: "inline-block" }} />
+            B
           </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ display: "flex", gap: 8 }}>
-            <span style={{ fontSize: 9, color: "#3b82f6", display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #3b82f6", display: "inline-block" }} />
-              P
-            </span>
-            <span style={{ fontSize: 9, color: "#ef4444", display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #ef4444", display: "inline-block" }} />
-              B
-            </span>
-            <span style={{ fontSize: 9, color: "#22c55e", display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: 8 }}>╱</span>
-              T
-            </span>
-          </div>
-          {/* 전체보기 버튼 */}
-          <a
-            href="/baccarat-stats"
-            style={{
-              fontSize: 9,
-              fontWeight: 700,
-              color: "rgba(212,175,55,0.8)",
-              border: "1px solid rgba(212,175,55,0.25)",
-              borderRadius: 4,
-              padding: "2px 7px",
-              textDecoration: "none",
-              letterSpacing: "0.05em",
-              background: "rgba(212,175,55,0.06)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            전체보기
-          </a>
+          <span style={{ fontSize: 9, color: "#22c55e", display: "flex", alignItems: "center", gap: 3 }}>
+            <span style={{ fontSize: 8 }}>╱</span>
+            T
+          </span>
         </div>
       </div>
 
@@ -434,10 +403,16 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     return () => clearInterval(id)
   }, [])
 
-  // 끝자리 기반 결과는 applyFinalDigit 내부에서 직접 계산 (digit <= 4 = player, <= 8 = banker, 9 = tie)
-  // 별도 이벤트/전역 변수 불필요
+  // ─── 서버 바카라 결과 수신 (끝자리 기반, 모든 유저 동일) ──────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      (window as any).__baccaratServerResult = (e as CustomEvent<"player" | "banker" | "tie">).detail
+    }
+    window.addEventListener("baccarat:server-result", handler)
+    return () => window.removeEventListener("baccarat:server-result", handler)
+  }, [])
 
-  // ─── 초기 history 불러오기 (DB�����) ───────────────────────────────────────
+  // ─── 초기 history 불러오기 (DB에서) ───────────────────────────────────────
   useEffect(() => {
     fetch("/api/baccarat/road")
       .then(r => r.json())
@@ -515,12 +490,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     setState(prev => ({ ...prev, playerCards: finalP, bankerCards: finalB }))
   }, [])
 
-  // ─── 0초 끝자리 카드 → 베팅 사이드에 부여 → 추가 카드 연출 → 최종 승부 표시 ──
+  // ─── 0초 끝자리 카드 → 베팅 사이드에 부여 → 추가 카드 판정 → 최종 승부 ──
   // 규칙:
-  //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
-  //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
-  //   3. 승부는 반드시 끝자리 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
-  //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
+  //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여
+  //   2. betTarget 최종 점수 ≤5 → 상대방이 임의 1장 추가 (추가 카드가 없는 경우에만)
+  //   3. 점수 비교 → 승부
   const applyFinalDigit = useCallback(async (digit: number) => {
     const mid = midStateRef.current
     if (!mid) return
@@ -533,7 +507,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     const randSuit = () => Math.floor(Math.random() * 4)
     const finalCard = digitToCard(digit, randSuit())
 
-    // 1. 끝자리 카드를 betTarget에게 부여 (연출)
+    // 1. 끝자리 카드를 betTarget에게 부여
     if (betTarget === "player") {
       finalP = [...finalP, finalCard]
       setState(prev => ({ ...prev, playerCards: finalP }))
@@ -543,7 +517,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     }
     await sleep(420)
 
-    // 2. 추가 카드 연출 (승부와 무관, 시각적 연출만)
+    // 2. betTarget 점수 ≤5 → 상대방 추가 1장 (이미 추가 카드가 있는 경우 스킵)
     const targetScore = betTarget === "player" ? handScore(finalP) : handScore(finalB)
     if (targetScore <= 5) {
       const extraCard = digitToCard(Math.floor(Math.random() * 10), randSuit())
@@ -560,10 +534,20 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
     await sleep(200)
 
-    // 3. 승부는 항상 끝자리 기반으로 결정 (카드 점수 폴백 없음)
-    //    동일 digit → 동일 result → 모든 유저 동일
-    const result: "player" | "banker" | "tie" =
-      digit <= 4 ? "player" : digit <= 8 ? "banker" : "tie"
+    // 3. 최종 승부: 서버에서 전달된 결과 우선 사용 (끝자리 기반, 모든 유저 동일)
+    //    서버 결과가 없으면 카드 점수로 폴백
+    const serverResult: "player" | "banker" | "tie" | null =
+      (window as any).__baccaratServerResult ?? null ;
+    (window as any).__baccaratServerResult = null
+
+    const finalPScore = handScore(finalP)
+    const finalBScore = handScore(finalB)
+    let cardResult: "player" | "banker" | "tie"
+    if (finalPScore > finalBScore) cardResult = "player"
+    else if (finalBScore > finalPScore) cardResult = "banker"
+    else cardResult = "tie"
+
+    const result = serverResult ?? cardResult
 
     setState(prev => ({
       ...prev,
@@ -623,7 +607,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 9, color: "rgba(232,213,163,0.35)" }}>���자리</div>
+            <div style={{ fontSize: 9, color: "rgba(232,213,163,0.35)" }}>끝자리</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: "#d4af37", lineHeight: 1.1 }}>{state.priceDisplay ? lastDigit : "-"}</div>
           </div>
           <div style={{ textAlign: "center" }}>
@@ -636,8 +620,10 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       {/* 게임 테이블 */}
       <div style={{ padding: "14px 12px" }}>
 
-        {/* Big Road — 항상 표시, DB 초기 로드 데이터 포함 */}
-        <BigRoad history={state.history} round={state.roundCount} />
+        {/* Big Road */}
+        {state.history.length > 0 && (
+          <BigRoad history={state.history} round={state.roundCount} />
+        )}
 
         {/* 딜링 중 표시 */}
         {state.phase === "dealing" && (
