@@ -481,7 +481,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       // 0초 끝자리 → BaccaratGame에 뱅커 최종 카드로 전달
       onFinalDigitTrigger?.(lastDigit)
 
-      // 배팅 없으면 새 기준가만 업데이트
+      // 배팅 없���면 새 기준가만 업데이트
       const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
       if (!hasBet) {
         setBasePrice(price)
@@ -802,88 +802,92 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     <>
       <div style={{ background: G.bgCard, borderRadius: 16, padding: "16px" }}>
 
-        {/* 헤더: 타이틀 + 승패 */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold" style={{ color: G.gold, letterSpacing: "0.05em" }}>배팅</h3>
-            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: G.goldFaint, color: G.goldDim }}>
+        {/* ── 헤더: 타이틀 + 승패 ── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>배팅</h3>
+            <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 5, background: G.goldFaint, color: G.goldDim, fontWeight: 600 }}>
               #{roundNumber}
             </span>
           </div>
-          <span className="text-[11px]">
-            <span className="font-semibold" style={{ color: G.gold }}>{wins}승</span>
+          <span style={{ fontSize: 11 }}>
+            <span style={{ fontWeight: 700, color: G.gold }}>{wins}승</span>
             <span style={{ color: G.textDim }}> / </span>
-            <span className="font-semibold text-red-500">{losses}패</span>
+            <span style={{ fontWeight: 700, color: "#ef4444" }}>{losses}패</span>
           </span>
         </div>
 
-        {/* 기준가 / 현재가 오버레이 */}
-        {basePrice !== null && currentPrice !== null && phase !== "result" && (
-          <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-xl"
-            style={{ background: G.bgMuted, border: `1px solid ${G.goldBorder}` }}>
-            <div>
-              <p className="text-[9px] mb-0.5" style={{ color: G.textDim }}>배팅 기준가</p>
-              <p className="text-xs font-semibold tabular-nums" style={{ color: G.text }}>${basePrice.toFixed(1)}</p>
-            </div>
-            <div className="text-xs font-bold" style={{ color: isUp ? "#10b981" : "#ef4444" }}>
-              {isUp ? "▲" : "▼"} {Math.abs(priceDiff!).toFixed(1)}
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] mb-0.5" style={{ color: G.textDim }}>현재가</p>
-              <p className="text-xs font-semibold tabular-nums" style={{ color: isUp ? "#10b981" : "#ef4444" }}>
-                ${currentPrice.toFixed(1)}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* 결과 오버레이 */}
-        {phase === "result" && lastResult && (
-          <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-xl flex-wrap"
-            style={{ background: G.bgMuted, border: `1px solid ${G.goldBorder}` }}>
-            <p className="text-[10px] shrink-0" style={{ color: G.textDim }}>
-              끝자리 <span className="font-bold" style={{ color: G.gold }}>{Math.floor(lastResult.closePrice * 10) % 10}</span>
+        {/* ── 기준가 / 끝자리 / 현재가 한 줄 pill ── */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "10px 16px", borderRadius: 40,
+          background: "rgba(18,28,20,0.9)",
+          border: `1px solid ${G.goldBorder}`,
+          marginBottom: 10,
+          gap: 8,
+        }}>
+          {/* 배팅 기준가 */}
+          <div>
+            <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2 }}>배팅 기준가</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: G.text, fontVariantNumeric: "tabular-nums", margin: 0 }}>
+              ${basePrice !== null ? basePrice.toFixed(1) : "—"}
             </p>
-            {lastResult.direction && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                style={{ background: lastResult.wonDirection ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", color: lastResult.wonDirection ? "#10b981" : "#ef4444" }}>
-                {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
-              </span>
-            )}
-            {lastResult.digit && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                style={{ background: lastResult.wonDigit ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", color: lastResult.wonDigit ? "#10b981" : "#ef4444" }}>
-                {lastResult.digit === "over" ? "오버" : "언더"} {lastResult.wonDigit ? "승" : "패"}
-              </span>
-            )}
-            {lastResult.parity && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                style={{ background: lastResult.wonParity ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", color: lastResult.wonParity ? "#10b981" : "#ef4444" }}>
-                {lastResult.parity === "odd" ? "홀" : "짝"} {lastResult.wonParity ? "승" : "패"}
-              </span>
-            )}
-            {lastResult.baccarat && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                style={{ background: lastResult.wonBaccarat ? "rgba(212,175,55,0.15)" : lastResult.baccaratRefund ? "rgba(96,165,250,0.1)" : "rgba(239,68,68,0.1)",
-                  color: lastResult.wonBaccarat ? G.gold : lastResult.baccaratRefund ? "#60a5fa" : "#ef4444" }}>
-                {LABEL_MAP[lastResult.baccarat].text} {lastResult.wonBaccarat ? "승" : lastResult.baccaratRefund ? "반환" : "패"}
-              </span>
-            )}
           </div>
-        )}
 
-        {/* 타이머 */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-1 text-[11px]" style={{ color: timerColor }}>
-              <Clock className="w-3 h-3" />
-              <span className="font-medium">{timerLabel}</span>
-            </div>
-            <span className="text-sm font-bold tabular-nums" style={{ color: timerColor }}>{timeLeft}초</span>
+          {/* 중앙: 끝자리 차이 또는 결과 뱃지 */}
+          <div style={{ textAlign: "center", flexShrink: 0 }}>
+            {phase === "result" && lastResult ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: G.goldDim }}>
+                  끝자리 <span style={{ color: G.gold }}>{Math.floor(lastResult.closePrice * 10) % 10}</span>
+                </span>
+                {lastResult.baccarat && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 5,
+                    background: lastResult.wonBaccarat ? "rgba(212,175,55,0.15)" : lastResult.baccaratRefund ? "rgba(96,165,250,0.1)" : "rgba(239,68,68,0.12)",
+                    color: lastResult.wonBaccarat ? G.gold : lastResult.baccaratRefund ? "#60a5fa" : "#ef4444",
+                  }}>
+                    {LABEL_MAP[lastResult.baccarat].text} {lastResult.wonBaccarat ? "승" : lastResult.baccaratRefund ? "반환" : "패"}
+                  </span>
+                )}
+                {lastResult.direction && (
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5,
+                    background: lastResult.wonDirection ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                    color: lastResult.wonDirection ? "#10b981" : "#ef4444" }}>
+                    {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
+                  </span>
+                )}
+              </div>
+            ) : priceDiff !== null ? (
+              <span style={{ fontSize: 15, fontWeight: 800, color: isUp ? "#10b981" : "#ef4444" }}>
+                {isUp ? "▲" : "▼"} {Math.abs(priceDiff).toFixed(1)}
+              </span>
+            ) : (
+              <span style={{ fontSize: 12, color: G.textDim }}>—</span>
+            )}
           </div>
-          <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(212,175,55,0.1)" }}>
-            <div className="h-full rounded-full transition-all duration-200"
-              style={{ width: `${timerPercent}%`, backgroundColor: timerColor }} />
+
+          {/* 현재가 */}
+          <div style={{ textAlign: "right" }}>
+            <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2 }}>현재가</p>
+            <p style={{ fontSize: 13, fontWeight: 700, fontVariantNumeric: "tabular-nums", margin: 0,
+              color: phase === "result" ? G.text : (isUp ? "#10b981" : currentPrice !== null ? "#ef4444" : G.textDim) }}>
+              ${currentPrice !== null ? currentPrice.toFixed(1) : "—"}
+            </p>
+          </div>
+        </div>
+
+        {/* ── 타이머 ── */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: timerColor, fontWeight: 600 }}>
+              <Clock style={{ width: 12, height: 12 }} />
+              <span>{timerLabel}</span>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>{timeLeft}초</span>
+          </div>
+          <div style={{ width: "100%", height: 5, borderRadius: 99, overflow: "hidden", background: "rgba(212,175,55,0.08)" }}>
+            <div style={{ height: "100%", borderRadius: 99, transition: "width 0.2s linear", width: `${timerPercent}%`, backgroundColor: timerColor }} />
           </div>
         </div>
 
