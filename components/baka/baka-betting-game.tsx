@@ -1,8 +1,87 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
+import { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp, Shuffle } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+
+// ─── Confetti ────────────────────────────────────────────────────────────────
+const CONFETTI_COLORS = ["#d4af37","#ef4444","#3b82f6","#22c55e","#f59e0b","#ec4899","#ffffff","#a855f7"]
+function ConfettiCanvas({ active }: { active: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const rafRef = useRef<number>(0)
+  useEffect(() => {
+    if (!active) return
+    const canvas = canvasRef.current; if (!canvas) return
+    const ctx = canvas.getContext("2d")!
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight
+    const particles = Array.from({ length: 180 }, () => ({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * 300,
+      vx: (Math.random() - 0.5) * 5,
+      vy: 2.5 + Math.random() * 4.5,
+      rot: Math.random() * 360,
+      rotV: (Math.random() - 0.5) * 9,
+      w: 7 + Math.random() * 9,
+      h: 4 + Math.random() * 7,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      alpha: 1,
+    }))
+    let frame = 0
+    const tick = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.rot += p.rotV
+        if (frame > 90) p.alpha = Math.max(0, p.alpha - 0.013)
+        ctx.save()
+        ctx.globalAlpha = p.alpha
+        ctx.translate(p.x, p.y)
+        ctx.rotate((p.rot * Math.PI) / 180)
+        ctx.fillStyle = p.color
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h)
+        ctx.restore()
+      })
+      frame++
+      if (frame < 170) rafRef.current = requestAnimationFrame(tick)
+      else ctx.clearRect(0, 0, canvas.width, canvas.height)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => { cancelAnimationFrame(rafRef.current) }
+  }, [active])
+  if (!active) return null
+  return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9999 }} />
+}
+
+// ─── 잔고 숫자 애니메이션 훅 ─────────────────────────────────────────────────
+function useAnimatedNumber(target: number | null, duration = 350) {
+  const [display, setDisplay] = useState<number | null>(target)
+  const startRef = useRef<number | null>(null)
+  const fromRef  = useRef<number | null>(null)
+  const rafRef   = useRef<number>(0)
+
+  useEffect(() => {
+    if (target === null) { setDisplay(null); return }
+    const from = display ?? target
+    if (from === target) return
+    fromRef.current = from
+    startRef.current = null
+    cancelAnimationFrame(rafRef.current)
+    const step = (ts: number) => {
+      if (startRef.current === null) startRef.current = ts
+      const elapsed = ts - startRef.current
+      const t = Math.min(elapsed / duration, 1)
+      // ease-out-cubic
+      const eased = 1 - Math.pow(1 - t, 3)
+      const cur = Math.round((fromRef.current ?? target) + (target - (fromRef.current ?? target)) * eased)
+      setDisplay(cur)
+      if (t < 1) rafRef.current = requestAnimationFrame(step)
+    }
+    rafRef.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(rafRef.current)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target])
+
+  return display
+}
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type BetDirection = "long" | "short" | null
@@ -405,6 +484,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   const [wins, setWins] = useState(0)
   const [losses, setLosses] = useState(0)
   const [balance, setBalance] = useState<number | null>(null)
+  const [confettiActive, setConfettiActive] = useState(false)
   const [showResultSheet, setShowResultSheet] = useState(false)
   const [dialog, setDialog] = useState<{ open: boolean; type: BetType; value: string } | null>(null)
   const [isPlacingBet, setIsPlacingBet] = useState(false)
@@ -457,14 +537,17 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       .catch(() => {})
   }, [])
 
-  // SSE 잔고 동기화
+  // SSE 잔고 동기화 — 디바운스 50ms (빠른 연속 업데이트 시 마지막 값만 반영)
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
     const handler = (e: Event) => {
       const v = (e as CustomEvent<number>).detail
-      if (typeof v === "number") setBalance(v)
+      if (typeof v !== "number") return
+      clearTimeout(timer)
+      timer = setTimeout(() => setBalance(v), 50)
     }
     window.addEventListener("balance:update", handler)
-    return () => window.removeEventListener("balance:update", handler)
+    return () => { window.removeEventListener("balance:update", handler); clearTimeout(timer) }
   }, [])
 
   const getRoundNumber = useCallback(() => Math.floor(Date.now() / 1000 / 30), [])
@@ -577,7 +660,11 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         const anyLost = (betRef.current && !wonDirection) || (betDigitRef.current && !wonDigit)
           || (betParityRef.current && !wonParity)
           || (betBaccaratRef.current && !wonBaccarat && !baccaratRefund)
-        if (anyWon) setWins(w => w + 1)
+        if (anyWon) {
+          setWins(w => w + 1)
+          setConfettiActive(true)
+          setTimeout(() => setConfettiActive(false), 3000)
+        }
         if (anyLost) setLosses(l => l + 1)
         setPhase("result")
 
@@ -835,6 +922,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     }
   }
 
+  const animatedBalance = useAnimatedNumber(balance)
+
   const priceDiff = currentPrice !== null && basePrice !== null ? currentPrice - basePrice : null
   const isUp = priceDiff !== null && priceDiff >= 0
   const timerPercent = (timeLeft / 30) * 100
@@ -843,6 +932,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   return (
     <>
+      <ConfettiCanvas active={confettiActive} />
       <div style={{
         background: "rgba(8,20,12,0.98)",
         borderRadius: 16,
@@ -1257,9 +1347,16 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
         {/* 하단: 잔고 + 승패 */}
         <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${G.goldBorder}` }}>
-          <span className="text-[11px]" style={{ color: G.textDim }}>
-            {timeLeft <= 3 ? `다음 게임까지 ${timeLeft}초 전` : `다음 게임까지 ${timeLeft}초 전`}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="text-[11px]" style={{ color: G.textDim }}>
+              {timeLeft <= 3 ? `다음 게임까지 ${timeLeft}초 전` : `다음 게임까지 ${timeLeft}초 전`}
+            </span>
+            {animatedBalance !== null && (
+              <span className="text-[11px] font-semibold tabular-nums" style={{ color: G.gold }}>
+                ₩{animatedBalance.toLocaleString()}
+              </span>
+            )}
+          </div>
           <span className="text-[11px]">
             <span className="font-semibold" style={{ color: G.gold }}>{wins}승</span>
             <span style={{ color: G.textDim }}> / </span>
