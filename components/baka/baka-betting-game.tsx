@@ -388,6 +388,14 @@ interface BakaBettingGameProps {
 }
 
 export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBetSideTrigger }: BakaBettingGameProps = {}) {
+  // props를 ref로 감싸서 useCallback/useEffect 클로저 stale 문제 방지
+  // onFinalDigitTrigger가 [] deps 클로저에 캡처되면 항상 undefined → 카드 못 받는 버그
+  const onStartDealTriggerRef = useRef(onStartDealTrigger)
+  const onFinalDigitTriggerRef = useRef(onFinalDigitTrigger)
+  const onBetSideTriggerRef = useRef(onBetSideTrigger)
+  useEffect(() => { onStartDealTriggerRef.current = onStartDealTrigger }, [onStartDealTrigger])
+  useEffect(() => { onFinalDigitTriggerRef.current = onFinalDigitTrigger }, [onFinalDigitTrigger])
+  useEffect(() => { onBetSideTriggerRef.current = onBetSideTrigger }, [onBetSideTrigger])
   const [timeLeft, setTimeLeft] = useState(30)
   const [roundNumber, setRoundNumber] = useState(0)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
@@ -484,8 +492,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
       // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 전달 → applyFinalDigit 실행)
-      //    applyFinalDigit 내부에서 digit 기반으로 결과 직접 계산 (이벤트 불필요)
-      onFinalDigitTrigger?.(lastDigit)
+      //    ref를 통해 호출 → 클로저 stale 문제 없음
+      onFinalDigitTriggerRef.current?.(lastDigit)
 
       // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
       //    baccarat_result도 함께 저장해야 빅로드가 쌓임
@@ -626,13 +634,13 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       // 15초: 딜 시작 (라운드당 1회)
       if (rem === 15 && dealTriggeredRoundRef.current !== roundNum) {
         dealTriggeredRoundRef.current = roundNum
-        onStartDealTrigger?.()
+        onStartDealTriggerRef.current?.()
       }
     }, 200)
     return () => clearInterval(tick)
-  }, [onStartDealTrigger])
+  }, []) // ref로 접근하므로 deps 불필요
 
-  // 배팅 가능 시간: 30초~15초 초과 구간
+  // 배팅 가능 시간: 30��~15초 초과 구간
   const canBet = timeLeft > 15
 
   // autoBet state → ref 동기화
@@ -704,7 +712,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       } else if (type === "baccarat") {
         betBaccaratRef.current = value as BetBaccarat; betBaccaratAmountRef.current = cfg.amount
         setBetBaccarat(value as BetBaccarat); setBetBaccaratAmount(cfg.amount)
-        onBetSideTrigger?.(value as "player" | "banker" | "tie")
+        onBetSideTriggerRef.current?.(value as "player" | "banker" | "tie")
       }
       if (!basePriceRef.current && currentPriceRef.current) {
         basePriceRef.current = currentPriceRef.current
@@ -813,7 +821,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         setBetBaccarat(dialog.value as BetBaccarat)
         setBetBaccaratAmount(amount)
         // 배팅 사이드를 BaccaratGame에 즉시 전달 (15초 딜 시 카드 분배 기준)
-        onBetSideTrigger?.(dialog.value as "player" | "banker" | "tie")
+        onBetSideTriggerRef.current?.(dialog.value as "player" | "banker" | "tie")
       }
 
       setPhase("waiting")
