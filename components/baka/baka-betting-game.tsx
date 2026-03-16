@@ -823,15 +823,20 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </span>
         </div>
 
-        {/* ── 기준가 / 끝자리 diff / 현재가 — 한 줄 pill ── */}
+        {/* ── 기준가 / 상태 / 현재가 — 카운트다운 pill ── */}
+        {/* pill 배경 자체가 타이머: 꽉 찬 색에서 오른쪽으로 줄어듦 */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "9px 16px", borderRadius: 999,
-          background: "rgba(4,12,7,0.95)",
-          border: "1px solid rgba(212,175,55,0.3)",
+          background: phase === "result"
+            ? "rgba(4,12,7,0.95)"
+            : `linear-gradient(to right, ${timerColor}22 ${100 - timerPercent}%, rgba(4,12,7,0.95) ${100 - timerPercent}%)`,
+          border: `1px solid ${phase === "result" ? "rgba(212,175,55,0.3)" : timerColor + "66"}`,
           marginBottom: 10,
           gap: 8,
-          boxShadow: "inset 0 1px 0 rgba(212,175,55,0.06)",
+          transition: "background 0.2s linear, border-color 0.2s linear",
+          position: "relative",
+          overflow: "hidden",
         }}>
           {/* 배팅 기준가 */}
           <div style={{ minWidth: 80 }}>
@@ -885,20 +890,16 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </div>
         </div>
 
-        {/* ── 타이머 ── */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: timerColor, fontWeight: 600 }}>
-              <Clock style={{ width: 12, height: 12 }} />
+        {/* ── 초 카운트 표시 (pill 아래 우측) ── */}
+        {phase !== "result" && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, marginTop: -4, paddingLeft: 4, paddingRight: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: timerColor, fontWeight: 600 }}>
+              <Clock style={{ width: 11, height: 11 }} />
               <span>{timerLabel}</span>
             </div>
-            <span style={{ fontSize: 14, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>{timeLeft}초</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>{timeLeft}초</span>
           </div>
-          <div style={{ width: "100%", height: 6, borderRadius: 99, overflow: "hidden", background: "rgba(255,255,255,0.06)" }}>
-            <div style={{ height: "100%", borderRadius: 99, transition: "width 0.2s linear", width: `${100 - timerPercent}%`, backgroundColor: timerColor,
-              boxShadow: `0 0 8px ${timerColor}88` }} />
-          </div>
-        </div>
+        )}
 
         {/* 자동 배팅 패널 */}
         <div className="mb-3">
