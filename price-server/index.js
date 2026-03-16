@@ -1,19 +1,14 @@
 /**
- * BTC Price WebSocket Server
+ * BTC/USDT Price WebSocket Server (Railway)
  *
- * 역할:
- * 1. Binance aggTrade WebSocket 하나를 열어 체결 데이터 수신
- * 2. 1초 캔들 집계 (open/high/low/close)
- * 3. 30초마다 closing price 기록
- * 4. 연결된 모든 클라이언트에게 동시 브로드캐스트
+ * Binance 현물(stream.binance.com) 두 스트림을 구독합니다.
+ *   - btcusdt@aggTrade  → 실시간 현재가 브로드캐스트
+ *   - btcusdt@kline_30s → 30초봉 마감 확정(k.x===true) 시 closing price 브로드캐스트
  *
- * Railway 배포:
- * - RAILWAY: PORT 환경변수 자동 주입
- * - package.json start: "node index.js"
- *
- * 클라이언트 연결:
- * ws://[railway-url] 으로 연결
- * 메시지 타입: { type: "price", price, time } | { type: "closing", price, time } | { type: "init", closingPrices }
+ * 메시지 타입:
+ *   { type: "price",   price, time }
+ *   { type: "closing", price, time }
+ *   { type: "init",    closingPrices[] }  ← 신규 연결 시 최근 100개 전송
  */
 
 const { WebSocket, WebSocketServer } = require("ws")
