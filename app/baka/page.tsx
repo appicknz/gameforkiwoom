@@ -147,7 +147,8 @@ export default function BakaPage() {
                   padding: `${Math.round(10 * S)}px ${Math.round(12 * S)}px`,
                   display: "flex", flexDirection: "column",
                   gap: Math.round(8 * S),
-                  justifyContent: "flex-start", alignItems: "center",
+                  justifyContent: isMobile ? "center" : "flex-start",
+                  alignItems: "center",
                 }}
               >
                 {(["banker", "player"] as const).map((side) => {

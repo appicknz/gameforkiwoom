@@ -283,9 +283,9 @@ export function BitcoinChart() {
         {/* 왼쪽: 로고 + 배팅 기준가 + 인터벌 버튼 */}
         <div className="flex items-start gap-2.5 min-w-0">
           <img
-            src="/bitcoin-logo.png"
+            src="/bitcoin-logo.jpg"
             alt="Bitcoin"
-            className="w-9 h-9 shrink-0"
+            className="w-9 h-9 shrink-0 rounded-full object-cover"
           />
           <div className="min-w-0">
             <p className="text-[11px] leading-tight" style={{ color: "rgba(212,175,55,0.5)" }}>배팅 기준가</p>
