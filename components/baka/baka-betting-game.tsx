@@ -841,7 +841,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
             </p>
           </div>
 
-          {/* 중앙: diff 또는 결과 뱃지 */}
+          {/* 중앙: 상태 텍스트 또는 결과 뱃지 */}
           <div style={{ textAlign: "center", flex: 1 }}>
             {phase === "result" && lastResult ? (
               <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
@@ -865,12 +865,13 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                   </span>
                 )}
               </div>
-            ) : priceDiff !== null ? (
-              <span style={{ fontSize: 16, fontWeight: 800, color: isUp ? "#10b981" : "#ef4444", letterSpacing: "0.02em" }}>
-                {isUp ? "▲" : "▼"} {Math.abs(priceDiff).toFixed(1)}
-              </span>
             ) : (
-              <span style={{ fontSize: 12, color: G.textDim }}>—</span>
+              <span style={{
+                fontSize: 12, fontWeight: 700, letterSpacing: "0.05em",
+                color: phase === "dealing" ? "#f97316" : timerColor,
+              }}>
+                {phase === "dealing" ? "딜링 중" : timerLabel}
+              </span>
             )}
           </div>
 
@@ -894,7 +895,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
             <span style={{ fontSize: 14, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>{timeLeft}초</span>
           </div>
           <div style={{ width: "100%", height: 6, borderRadius: 99, overflow: "hidden", background: "rgba(255,255,255,0.06)" }}>
-            <div style={{ height: "100%", borderRadius: 99, transition: "width 0.2s linear", width: `${timerPercent}%`, backgroundColor: timerColor,
+            <div style={{ height: "100%", borderRadius: 99, transition: "width 0.2s linear", width: `${100 - timerPercent}%`, backgroundColor: timerColor,
               boxShadow: `0 0 8px ${timerColor}88` }} />
           </div>
         </div>
