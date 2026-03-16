@@ -264,7 +264,7 @@ export function BitcoinChart() {
           // 헤더 현재가를 kline close 가격으로 동기화 — aggTrade와 불일치 해소
           lastTickAtRef.current = Date.now()
           if (priceDisplayRef.current) {
-            priceDisplayRef.current.textContent = `$${closePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+            priceDisplayRef.current.textContent = `$${closePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}`
           }
           if (!connectedRef.current) {
             connectedRef.current = true
@@ -355,7 +355,7 @@ export function BitcoinChart() {
             <p className="text-[11px] leading-tight" style={{ color: "rgba(212,175,55,0.5)" }}>배팅 기준가</p>
             <p className="text-sm font-bold tabular-nums truncate" style={{ color: "#d4af37" }}>
               ${closingPrices.length > 0
-                ? closingPrices[closingPrices.length - 1].price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+                ? closingPrices[closingPrices.length - 1].price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 })
                 : "로딩 중..."}
             </p>
             <div className="flex items-center gap-0.5 mt-0.5">
@@ -403,7 +403,7 @@ export function BitcoinChart() {
               <style>{`@keyframes pricePulse{0%,100%{opacity:1}50%{opacity:0.35}}`}</style>
               <p className="text-sm font-bold tabular-nums leading-tight" style={{ color: "#e8d5a3" }}>
                 <span ref={priceDisplayRef}>
-                  ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  ${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}
                 </span>
               </p>
               <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold mt-0.5 ${isPositive ? "text-emerald-400" : "text-red-400"}`}>

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 
 function extractDigit(price: number): number {
-  const priceStr = price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  // 소수점 2자리까지 표시 후 마지막 숫자 추출 (예: 73897.83 → "3")
+  const priceStr = price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return parseInt(priceStr[priceStr.length - 1]) || 0
 }
 

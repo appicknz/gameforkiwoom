@@ -167,7 +167,7 @@ export function ClosingPrices() {
                   {new Date(item.time * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                 </span>
                 <span style={{ fontWeight: 700, color: "rgba(232,213,163,0.9)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-                  ${item.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  ${item.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>

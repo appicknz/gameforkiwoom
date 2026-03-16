@@ -1003,7 +1003,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           <div style={{ minWidth: 80 }}>
             <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2, margin: 0 }}>배팅 기준가</p>
             <p style={{ fontSize: 13, fontWeight: 700, color: "rgba(232,213,163,0.85)", fontVariantNumeric: "tabular-nums", margin: 0 }}>
-              ${basePrice !== null ? basePrice.toFixed(1) : "—"}
+              ${basePrice !== null ? basePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 }) : "—"}
             </p>
           </div>
 
@@ -1046,7 +1046,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
             <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2, margin: 0 }}>현재가</p>
             <p style={{ fontSize: 13, fontWeight: 700, fontVariantNumeric: "tabular-nums", margin: 0,
               color: phase === "result" ? "rgba(232,213,163,0.85)" : (isUp ? "#10b981" : currentPrice !== null ? "#ef4444" : G.textDim) }}>
-              ${currentPrice !== null ? currentPrice.toFixed(1) : "—"}
+              ${currentPrice !== null ? currentPrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 }) : "—"}
             </p>
           </div>
 
