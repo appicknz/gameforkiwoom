@@ -8,6 +8,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
+import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 
 interface Card { suit: string; value: number; label: string; id: string }
 interface CardOverlayData {
@@ -111,35 +112,8 @@ export default function BakaPage() {
 
           {/* 왼쪽: BigRoad + 카드 오버레이 */}
           <div className="lg:col-span-2 space-y-4">
-            {/* 타이틀 */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <h1 style={{ fontSize: 18, fontWeight: 800, color: "#d4af37", letterSpacing: "0.12em", textTransform: "uppercase", margin: 0 }}>
-                  Baccarat
-                </h1>
-                <div style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", border: "1px solid rgba(212,175,55,0.2)", padding: "2px 8px", borderRadius: 4, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
-                  BTC 끝자리 기반
-                </div>
-              </div>
-              {cardData.result && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{
-                    fontSize: 11, fontWeight: 800, letterSpacing: "0.1em",
-                    color: cardData.result === "banker" ? "#ef4444" : cardData.result === "player" ? "#3b82f6" : "#22c55e",
-                    background: cardData.result === "banker" ? "rgba(239,68,68,0.12)" : cardData.result === "player" ? "rgba(59,130,246,0.12)" : "rgba(34,197,94,0.12)",
-                    border: `1px solid ${cardData.result === "banker" ? "rgba(239,68,68,0.35)" : cardData.result === "player" ? "rgba(59,130,246,0.35)" : "rgba(34,197,94,0.35)"}`,
-                    padding: "2px 10px", borderRadius: 6,
-                  }}>
-                    {cardData.result === "banker" ? "BANKER WIN" : cardData.result === "player" ? "PLAYER WIN" : "TIE"}
-                  </span>
-                  <span style={{ fontSize: 13, color: "rgba(212,175,55,0.65)", fontVariantNumeric: "tabular-nums" }}>
-                    <span style={{ color: "#ef4444", fontWeight: 800 }}>{cardData.bScore}</span>
-                    <span style={{ margin: "0 6px", color: "rgba(212,175,55,0.3)" }}>:</span>
-                    <span style={{ color: "#3b82f6", fontWeight: 800 }}>{cardData.pScore}</span>
-                  </span>
-                </div>
-              )}
-            </div>
+            {/* 배팅 기준가 / 현재가 헤더 */}
+            <BitcoinChart headerOnly />
 
             {/* BigRoad */}
             <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>

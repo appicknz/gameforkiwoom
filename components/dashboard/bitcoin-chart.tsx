@@ -49,7 +49,7 @@ function formatQuoteVolume(usd: number): string {
   return krw.toLocaleString() + "원"
 }
 
-export function BitcoinChart() {
+export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = {}) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -407,32 +407,34 @@ export function BitcoinChart() {
         </div>
       </div>
 
-      {/* 차트 */}
-      <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
-        <div ref={chartContainerRef} className="w-full h-full" />
+      {/* 차트 — headerOnly 모드에서는 숨김 */}
+      {!headerOnly && (
+        <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
+          <div ref={chartContainerRef} className="w-full h-full" />
 
-        {/* 차트 내 거래량/거래대금 오버레이 */}
-        {ticker && (
-          <div
-            className="absolute bottom-8 left-2 px-2 py-1 rounded text-[10px] z-10"
-            style={{
-              background: "rgba(9,31,18,0.82)",
-              backdropFilter: "blur(4px)",
-              border: "1px solid rgba(212,175,55,0.15)",
-              color: "rgba(212,175,55,0.45)",
-            }}
-          >
-            <div>거래량: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
-            <div>거래대금: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
-          </div>
-        )}
+          {/* 차트 내 거래량/거래대금 오버레이 */}
+          {ticker && (
+            <div
+              className="absolute bottom-8 left-2 px-2 py-1 rounded text-[10px] z-10"
+              style={{
+                background: "rgba(9,31,18,0.82)",
+                backdropFilter: "blur(4px)",
+                border: "1px solid rgba(212,175,55,0.15)",
+                color: "rgba(212,175,55,0.45)",
+              }}
+            >
+              <div>거래량: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
+              <div>거래대금: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
+            </div>
+          )}
 
-        {/* 펠트 테두리 광택 효과 */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          boxShadow: "inset 0 0 40px rgba(0,0,0,0.3), inset 0 0 1px rgba(212,175,55,0.15)",
-          borderRadius: 8,
-        }} />
-      </div>
+          {/* 펠트 테두리 광택 효과 */}
+          <div className="absolute inset-0 pointer-events-none" style={{
+            boxShadow: "inset 0 0 40px rgba(0,0,0,0.3), inset 0 0 1px rgba(212,175,55,0.15)",
+            borderRadius: 8,
+          }} />
+        </div>
+      )}
     </Card>
   )
 }

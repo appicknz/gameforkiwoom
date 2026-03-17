@@ -640,33 +640,23 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         boxShadow: "inset 0 0 60px rgba(0,0,0,0.6)",
       }}
     >
-      {/* 컴팩트 가격 헤더 (잔고 없음) */}
+      {/* BACCARAT 타이틀 헤더 */}
       <div
         style={{
           borderBottom: "1px solid rgba(212,175,55,0.1)",
-          padding: "8px 14px",
+          padding: "10px 14px",
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
+          gap: 10,
           background: "rgba(212,175,55,0.03)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <span style={{ fontSize: 10, color: "rgba(232,213,163,0.45)", letterSpacing: "0.08em" }}>BTC/USDT</span>
-          <span style={{ fontSize: 16, fontWeight: 700, color: "#d4af37" }}>
-            {state.priceDisplay ? state.priceDisplay.toFixed(1) : "---"}
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 9, color: "rgba(232,213,163,0.35)" }}>���자리</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "#d4af37", lineHeight: 1.1 }}>{state.priceDisplay ? lastDigit : "-"}</div>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 9, color: "rgba(232,213,163,0.35)" }}>라운드</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(232,213,163,0.6)" }}>#{state.roundCount}</div>
-          </div>
-        </div>
+        <span style={{ fontSize: 18, fontWeight: 800, color: "#d4af37", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+          Baccarat
+        </span>
+        <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", border: "1px solid rgba(212,175,55,0.2)", padding: "2px 8px", borderRadius: 4, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
+          BTC 끝자리 기반
+        </span>
       </div>
 
       {/* 캐릭터 카드 위에 차트 오버레이 */}
