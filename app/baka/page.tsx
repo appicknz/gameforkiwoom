@@ -300,14 +300,7 @@ export default function BakaPage() {
 
         </div>
 
-        {/* 하단 통계 섹션 */}
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ClosingPrices />
-          <div className="flex flex-col gap-4">
-            <ClosingPricesBadges />
-            <ProjectAnalytics />
-          </div>
-        </div>
+
 
       </main>
     </div>
