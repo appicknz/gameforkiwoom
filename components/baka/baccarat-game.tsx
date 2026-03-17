@@ -104,7 +104,7 @@ const MAX_ROWS = 6
 const CELL = 22   // 셀 크기 px
 const GAP = 2
 
-type RoadResult = "player" | "banker" | "tie"
+export type RoadResult = "player" | "banker" | "tie"
 
 interface BigRoadCell {
   col: number
@@ -113,7 +113,7 @@ interface BigRoadCell {
   tieCount: number   // 이 칸 위에 쌓인 타이 수
 }
 
-function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
+export function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
   const cells: BigRoadCell[] = []
   let col = -1
   let row = 0
@@ -151,7 +151,7 @@ function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
 
 const DISPLAY_LIMIT = 18 // 슬라이딩 윈도우 최대 표시 개수
 
-function BigRoad({ history, round }: { history: RoadResult[]; round: number }) {
+export function BigRoad({ history, round }: { history: RoadResult[]; round: number }) {
   // 18개 슬라이딩 윈도우: 18개 초과 시 맨 앞 잘라내기
   const displayHistory = history.length > DISPLAY_LIMIT ? history.slice(-DISPLAY_LIMIT) : history
 
@@ -411,10 +411,12 @@ interface BaccaratGameProps {
   onFinalDigitRequest?: (handler: (digit: number) => void) => void
   /** BaccaratGame이 page에 setBetSide 함수를 등록 — 배팅 사이드를 딜 전에 주입 */
   onBetSideRequest?: (handler: (side: BetSide) => void) => void
+  /** history/roundCount 변경 시 page로 전달 */
+  onRoadChange?: (history: RoadResult[], round: number) => void
 }
 
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest }: BaccaratGameProps = {}) {
+export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest, onRoadChange }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
@@ -471,6 +473,12 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       })
       .catch(err => console.error("[v0] Failed to load initial BigRoad history:", err))
   }, [])
+
+  // history/roundCount 변경 시 page로 전달
+  useEffect(() => {
+    onRoadChange?.(state.history, state.roundCount)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.history, state.roundCount])
 
   // ─── 15초 딜 시작 ───────────────────────────────────────��─────────────────
   // 규칙:
@@ -660,13 +668,8 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         </div>
       </div>
 
-      {/* 게임 테이블 */}
+      {/* 카드 캐릭터 영상/이미지 오버레이 */}
       <div style={{ padding: "14px 12px" }}>
-
-        {/* Big Road — 항상 표시, DB 초기 로드 데이터 포함 */}
-        <BigRoad history={state.history} round={state.roundCount} />
-
-        {/* 카드 캐릭터 영상/이미지 오버레이 */}
         <CardCharacterDisplay roundSeed={getRoundSeed()} card={state.finalCard} phase={state.phase} />
       </div>
     </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef } from "react"
-import BaccaratGame from "@/components/baka/baccarat-game"
+import BaccaratGame, { BigRoad, type RoadResult } from "@/components/baka/baccarat-game"
 import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
@@ -69,6 +69,10 @@ export default function BakaPage() {
     playerCards: [], bankerCards: [], pScore: 0, bScore: 0, result: null,
   })
   const [baccaratResult, setBaccaratResult] = useState<BaccaratResult>(null)
+  const [roadState, setRoadState] = useState<{ history: RoadResult[]; round: number }>({ history: [], round: 0 })
+  const handleRoadChange = useCallback((history: RoadResult[], round: number) => {
+    setRoadState({ history, round })
+  }, [])
 
   // BaccaratGame이 자신의 함수를 여기에 등록 → BakaBettingGame 트리거가 호출
   const startDealRef = useRef<(() => void) | null>(null)
@@ -104,7 +108,7 @@ export default function BakaPage() {
       </div>
 
       <main className="max-w-7xl mx-auto p-3 md:p-5">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
 
           {/* 왼쪽: 차트 */}
           <div className="lg:col-span-2 space-y-4">
@@ -240,7 +244,23 @@ export default function BakaPage() {
                 onStartDealRequest={handleRegisterStartDeal}
                 onFinalDigitRequest={handleRegisterFinalDigit}
                 onBetSideRequest={handleRegisterBetSide}
+                onRoadChange={handleRoadChange}
               />
+            </div>
+          </div>
+
+          {/* Big Road — BaccaratGame 오른쪽 */}
+          <div className="sticky top-4 self-start">
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                background: "rgba(5,15,10,0.92)",
+                border: "1px solid rgba(212,175,55,0.2)",
+                boxShadow: "0 0 50px rgba(212,175,55,0.06)",
+                padding: "12px",
+              }}
+            >
+              <BigRoad history={roadState.history} round={roadState.round} />
             </div>
           </div>
 
