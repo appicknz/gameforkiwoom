@@ -196,10 +196,10 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
   const { data: cardData } = useSWR<{ images: { url: string; pathname: string }[] }>(
     "/api/card-images", swrFetcher, { revalidateOnFocus: false }
   )
-  const randomImage = useRef<string | null>(null)
-  if (cardData?.images && cardData.images.length > 0 && randomImage.current === null) {
-    randomImage.current = cardData.images[Math.floor(Math.random() * cardData.images.length)].url
-  }
+  // 라운드 번호를 시드로 사용 → 모든 클라이언트가 동일한 이미지 선택
+  const cardImageUrl = cardData?.images && cardData.images.length > 0
+    ? cardData.images[round % cardData.images.length].url
+    : null
 
   // 카운트 집계 (전체 history 기준)
   const pCount = history.filter(r => r === "player").length
@@ -364,9 +364,9 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         overflow: "hidden",
         background: "rgba(0,0,0,0.4)",
       }}>
-        {randomImage.current ? (
+        {cardImageUrl ? (
           <img
-            src={randomImage.current}
+            src={cardImageUrl}
             alt=""
             style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
           />
@@ -612,7 +612,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   // 규칙:
   //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
   //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
-  //   3. 승부는 반드시 끝자리 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
+  //   3. 승부는 반드시 ��자리 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
   //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
   const applyFinalDigit = useCallback(async (digit: number) => {
     const mid = midStateRef.current
