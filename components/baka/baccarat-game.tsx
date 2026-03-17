@@ -438,8 +438,6 @@ function PlayingCard({
         )}
       </div>
 
-      </div>  {/* flex row 닫힘 */}
-    </div>
     </div>
   )
 }
