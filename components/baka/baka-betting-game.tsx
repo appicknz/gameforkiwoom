@@ -868,49 +868,159 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
       }}>
 
-        {/* ── 헤더: 배팅 타이틀 + 라운드 + 자동배팅 버튼 + 타이머 ── */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          {/* 좌: 타이틀 + 라운드 */}
+        {/* ── 헤더: 타이틀 + 초 ── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>배팅</h3>
             <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 5, background: G.goldFaint, color: G.goldDim, fontWeight: 600 }}>
               #{roundNumber}
             </span>
           </div>
-          {/* 우: 자동배팅 버튼 + 타이머 */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* 자동배팅 토글 버튼 */}
-            <button
-              onClick={() => setAutoBetOpen(o => !o)}
-              style={{
-                display: "flex", alignItems: "center", gap: 5,
-                padding: "4px 10px", borderRadius: 8,
-                background: autoBet.enabled ? "rgba(212,175,55,0.14)" : G.bgMuted,
-                border: `1px solid ${autoBet.enabled ? G.gold : G.goldBorder}`,
-                cursor: "pointer", transition: "all 0.15s",
-              }}
-            >
-              <Bot style={{ width: 12, height: 12, color: autoBet.enabled ? G.gold : G.goldDim }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: autoBet.enabled ? G.gold : G.goldDim }}>자동배팅</span>
-              {autoBet.enabled && (
-                <span style={{ fontSize: 9, padding: "1px 4px", borderRadius: 3, background: G.gold, color: "#000", fontWeight: 800 }}>ON</span>
-              )}
-              {autoBetOpen
-                ? <ChevronUp style={{ width: 10, height: 10, color: G.textDim }} />
-                : <ChevronDown style={{ width: 10, height: 10, color: G.textDim }} />}
-            </button>
-            {/* 타이머 */}
-            {phase !== "result" && (
-              <span style={{ fontSize: 14, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>
-                {timeLeft}초
+          {phase !== "result" && (
+            <span style={{ fontSize: 14, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>
+              {timeLeft}초
+            </span>
+          )}
+        </div>
+
+        {/* ── 기준가 / 상태 / 현재가 — 카운트다운 pill ── */}
+        {/* pill 배경 자체가 타이머: 꽉 찬 색에서 오른쪽으로 줄어듦 */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "9px 16px", borderRadius: 999,
+          background: phase === "result"
+            ? "rgba(4,12,7,0.95)"
+            : `linear-gradient(to right, ${timerColor}22 ${100 - timerPercent}%, rgba(4,12,7,0.95) ${100 - timerPercent}%)`,
+          border: `1px solid ${phase === "result" ? "rgba(212,175,55,0.3)" : timerColor + "66"}`,
+          marginBottom: 10,
+          gap: 8,
+          transition: "background 0.2s linear, border-color 0.2s linear",
+          position: "relative",
+          overflow: "hidden",
+        }}>
+          {/* 배팅 기준가 */}
+          <div style={{ minWidth: 80 }}>
+            <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2, margin: 0 }}>배팅 기준가</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "rgba(232,213,163,0.85)", fontVariantNumeric: "tabular-nums", margin: 0 }}>
+              ${basePrice !== null ? basePrice.toFixed(1) : "—"}
+            </p>
+          </div>
+
+          {/* 중앙: 상태 텍스트 또는 결과 뱃지 */}
+          <div style={{ textAlign: "center", flex: 1 }}>
+            {phase === "result" && lastResult ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: G.goldDim }}>
+                  끝자리 <span style={{ color: G.gold }}>{Math.floor(lastResult.closePrice * 10) % 10}</span>
+                </span>
+                {lastResult.baccarat && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 5,
+                    background: lastResult.wonBaccarat ? "rgba(212,175,55,0.18)" : lastResult.baccaratRefund ? "rgba(96,165,250,0.12)" : "rgba(239,68,68,0.15)",
+                    color: lastResult.wonBaccarat ? G.gold : lastResult.baccaratRefund ? "#60a5fa" : "#ef4444",
+                  }}>
+                    {LABEL_MAP[lastResult.baccarat].text} {lastResult.wonBaccarat ? "승" : lastResult.baccaratRefund ? "반환" : "패"}
+                  </span>
+                )}
+                {lastResult.direction && (
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5,
+                    background: lastResult.wonDirection ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)",
+                    color: lastResult.wonDirection ? "#10b981" : "#ef4444" }}>
+                    {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span style={{
+                fontSize: 12, fontWeight: 700, letterSpacing: "0.05em",
+                color: phase === "dealing" ? "#f97316" : timerColor,
+              }}>
+                {phase === "dealing" ? "딜링 중" : timerLabel}
               </span>
             )}
           </div>
+
+          {/* 현재가 */}
+          <div style={{ textAlign: "right", minWidth: 80 }}>
+            <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2, margin: 0 }}>현재가</p>
+            <p style={{ fontSize: 13, fontWeight: 700, fontVariantNumeric: "tabular-nums", margin: 0,
+              color: phase === "result" ? "rgba(232,213,163,0.85)" : (isUp ? "#10b981" : currentPrice !== null ? "#ef4444" : G.textDim) }}>
+              ${currentPrice !== null ? currentPrice.toFixed(1) : "—"}
+            </p>
+          </div>
+
+          {/* 눈금 오버레이 — pill 하단에 절대 위치 */}
+          {phase !== "result" && (
+            <div style={{
+              position: "absolute", bottom: 0, left: 0, right: 0,
+              height: 14, pointerEvents: "none",
+            }}>
+              <svg width="100%" height="14" preserveAspectRatio="none" style={{ display: "block" }}>
+                {/* 30개 눈금 (1초 간격) */}
+                {Array.from({ length: 31 }).map((_, i) => {
+                  const pct = (i / 30) * 100
+                  const isBoundary = i === 15   // 50% = phase 경계
+                  const isMajor = i % 5 === 0   // 5초 간격 주요 눈금
+                  const h = isBoundary ? 10 : isMajor ? 6 : 3
+                  const color = isBoundary
+                    ? "rgba(255,255,255,0.55)"
+                    : isMajor
+                    ? "rgba(255,255,255,0.2)"
+                    : "rgba(255,255,255,0.08)"
+                  return (
+                    <line
+                      key={i}
+                      x1={`${pct}%`} y1={14 - h}
+                      x2={`${pct}%`} y2={14}
+                      stroke={color}
+                      strokeWidth={isBoundary ? 1.5 : 1}
+                    />
+                  )
+                })}
+                {/* 배팅가능 라벨 */}
+                <text x="25%" y="7" textAnchor="middle" fontSize="6" fill="rgba(16,185,129,0.5)" fontWeight="600">
+                  배팅 가능
+                </text>
+                {/* 딜링중 라벨 */}
+                <text x="75%" y="7" textAnchor="middle" fontSize="6" fill="rgba(249,115,22,0.5)" fontWeight="600">
+                  딜링 중
+                </text>
+              </svg>
+            </div>
+          )}
         </div>
 
-        {/* 자동 배팅 설정 패널 */}
-        <div className={autoBetOpen ? "mt-3" : ""}>
-          {/* (토글 헤더 제거 — 헤더 버튼으로 통합) */}
+
+
+        {/* 자동 배팅 패널 */}
+        <div className="mb-3">
+          {/* 토글 헤더 */}
+          <button
+            onClick={() => setAutoBetOpen(o => !o)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all"
+            style={{
+              background: autoBet.enabled ? "rgba(212,175,55,0.12)" : G.bgMuted,
+              border: `1px solid ${autoBet.enabled ? G.gold : G.goldBorder}`,
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <Bot className="w-3.5 h-3.5" style={{ color: autoBet.enabled ? G.gold : G.goldDim }} />
+              <span className="text-xs font-bold" style={{ color: autoBet.enabled ? G.gold : G.goldDim }}>자동 배팅</span>
+              {autoBet.enabled && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: G.gold, color: "#000" }}>ON</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {autoBet.enabled && (
+                <span className="text-[10px] font-semibold tabular-nums" style={{ color: autoBetPnl >= 0 ? "#10b981" : "#ef4444" }}>
+                  {autoBetRounds}R / {autoBetPnl >= 0 ? "+" : ""}₩{Math.abs(autoBetPnl).toLocaleString()}
+                </span>
+              )}
+              {autoBetOpen
+                ? <ChevronUp className="w-3.5 h-3.5" style={{ color: G.textDim }} />
+                : <ChevronDown className="w-3.5 h-3.5" style={{ color: G.textDim }} />}
+            </div>
+          </button>
 
           {/* 설정 패널 */}
           {autoBetOpen && (
@@ -1045,6 +1155,134 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           )}
         </div>
 
+        {/* ── 바카라 종목 ── */}
+        <div className="mb-3">
+          <p className="text-[10px] font-bold mb-2 tracking-widest" style={{ color: G.goldDim }}>BACCARAT</p>
+          <div className="grid grid-cols-3 gap-2">
+            {(["player", "banker", "tie"] as const).map((side) => {
+              const meta = LABEL_MAP[side]
+              const isSelected = betBaccarat === side
+              const payout = side === "player" ? "1:1" : side === "banker" ? "0.95:1" : "8:1"
+              return (
+                <button key={side}
+                  onClick={() => openDialog("baccarat", side)}
+                  disabled={!canBet || (betBaccarat !== null && !isSelected)}
+                  className="py-3 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 disabled:opacity-40"
+                  style={{
+                    background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
+                    border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
+                    color: isSelected ? meta.color : G.gold,
+                  }}>
+                  <span>{meta.text}</span>
+                  <span className="text-[8px] opacity-60">{payout}</span>
+                  {isSelected && betBaccaratAmount > 0 && (
+                    <span className="text-[9px]" style={{ color: meta.color }}>
+                      ₩{betBaccaratAmount >= 10000 ? `${betBaccaratAmount / 10000}만` : betBaccaratAmount.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── 기존 6종목 ── */}
+        <div className="grid grid-cols-3 gap-2">
+          {/* 롱 / 숏 */}
+          <div className="flex flex-col gap-2">
+            {(["long", "short"] as const).map((dir) => {
+              const meta = LABEL_MAP[dir]
+              const isSelected = betDirection === dir
+              return (
+                <button key={dir}
+                  onClick={() => openDialog("direction", dir)}
+                  disabled={!canBet || betDirection !== null}
+                  className="h-14 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
+                  style={{
+                    background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
+                    border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
+                    color: isSelected ? meta.color : G.gold,
+                  }}>
+                  <div className="flex items-center gap-1">
+                    {dir === "long" ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                    <span>{dir === "long" ? "롱" : "숏"}</span>
+                  </div>
+                  {isSelected && betDirectionAmount > 0 && (
+                    <span className="text-[9px]">
+                      ₩{betDirectionAmount >= 10000 ? `${betDirectionAmount / 10000}만` : betDirectionAmount.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* 오버 / 언더 */}
+          <div className="flex flex-col gap-2">
+            {(["over", "under"] as const).map((dig) => {
+              const meta = LABEL_MAP[dig]
+              const isSelected = betDigit === dig
+              return (
+                <button key={dig}
+                  onClick={() => openDialog("digit", dig)}
+                  disabled={!canBet || betDigit !== null}
+                  className="h-14 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
+                  style={{
+                    background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
+                    border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
+                    color: isSelected ? meta.color : G.gold,
+                  }}>
+                  <span>{dig === "over" ? "오버" : "언더"}</span>
+                  <span className="text-[9px] opacity-60">{dig === "over" ? "5~9" : "0~4"}</span>
+                  {isSelected && betDigitAmount > 0 && (
+                    <span className="text-[9px]">
+                      ₩{betDigitAmount >= 10000 ? `${betDigitAmount / 10000}만` : betDigitAmount.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* 홀 / 짝 */}
+          <div className="flex flex-col gap-2">
+            {(["odd", "even"] as const).map((par) => {
+              const meta = LABEL_MAP[par]
+              const isSelected = betParity === par
+              return (
+                <button key={par}
+                  onClick={() => openDialog("parity", par)}
+                  disabled={!canBet || betParity !== null}
+                  className="h-14 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
+                  style={{
+                    background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
+                    border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
+                    color: isSelected ? meta.color : G.gold,
+                  }}>
+                  <span>{par === "odd" ? "홀" : "짝"}</span>
+                  <span className="text-[9px] opacity-60">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
+                  {isSelected && betParityAmount > 0 && (
+                    <span className="text-[9px]">
+                      ₩{betParityAmount >= 10000 ? `${betParityAmount / 10000}만` : betParityAmount.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* 하단: 잔고 + 승패 */}
+        <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${G.goldBorder}` }}>
+          <span className="text-[11px]" style={{ color: G.textDim }}>
+            {timeLeft <= 3 ? `다음 게임까지 ${timeLeft}초 전` : `다음 게임까지 ${timeLeft}초 전`}
+          </span>
+          <span className="text-[11px]">
+            <span className="font-semibold" style={{ color: G.gold }}>{wins}승</span>
+            <span style={{ color: G.textDim }}> / </span>
+            <span className="font-semibold text-red-500">{losses}패</span>
+          </span>
+        </div>
       </div>
 
       {/* 다이얼로그 + 결과 시트 */}
