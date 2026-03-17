@@ -55,14 +55,11 @@ function getRoundSeed(): number {
   return Math.floor(Date.now() / 30000)
 }
 
-// 카드 id 전역 카운터 — 같은 ms 내 생성 시 충돌 방지
-let _cardSeq = 0
-
 // 끝자리 숫자 → 카드 변환
 // 0 = 10/J/Q/K (점수 0), 1 = A (점수 1), 2~9 = 액면가
 function digitToCard(digit: number, suitIdx: number): Card {
   const suit = SUITS[suitIdx % 4]
-  const id = `${digit}-${suitIdx}-${Date.now()}-${++_cardSeq}`
+  const id = `${digit}-${suitIdx}-${Date.now()}`
   if (digit === 0) {
     const zeroLabels = ["10", "J", "Q", "K"]
     return { suit, value: 0, label: zeroLabels[suitIdx % 4], id }
