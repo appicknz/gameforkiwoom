@@ -261,7 +261,7 @@ export default function BakaPage() {
                       <span style={{ fontSize: Math.round(16 * S), fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
                     </div>
                     <div style={{ display: "flex", gap: Math.round(6 * S) }}>
-                      {cards.map(card => <OverlayCard key={card.id} card={card} s={S} />)}
+                      {cards.map((card, ci) => <OverlayCard key={`${card.id}-${ci}`} card={card} s={S} />)}
                       {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} s={S} />)}
                     </div>
                   </div>
