@@ -148,13 +148,34 @@ export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = 
     }
   }, [drawPriceLine])
 
-  usePriceWorker({
-    onConnected: useCallback(() => setConnected(true), []),
-    onDisconnected: useCallback(() => setConnected(false), []),
-    onPrice: handlePrice,
-    onClosingPrice: handleClosingPrice,
-    onInitClosing: handleInitClosing,
-  })
+  // Railway WS는 BakaBettingGame 단일 인스턴스에서만 연결
+  // → baka:price / baka:closing CustomEvent를 구독
+  useEffect(() => {
+    const onPrice = (e: Event) => {
+      const { price } = (e as CustomEvent).detail
+      handlePrice(price, Math.floor(Date.now() / 1000))
+    }
+    const onClosing = (e: Event) => {
+      const { price, time } = (e as CustomEvent).detail
+      handleClosingPrice(price, time)
+    }
+    window.addEventListener("baka:price", onPrice)
+    window.addEventListener("baka:closing", onClosing)
+    // 초기 마감가: window.__bitcoinClosingPrices 에서 읽기 (BakaBettingGame의 usePriceWorker가 init 시 세팅)
+    const initPrices: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
+    if (initPrices.length > 0) handleInitClosing(initPrices)
+    return () => {
+      window.removeEventListener("baka:price", onPrice)
+      window.removeEventListener("baka:closing", onClosing)
+    }
+  }, [handlePrice, handleClosingPrice, handleInitClosing])
+
+  // connected 상태: baka:price 첫 수신 시 true
+  useEffect(() => {
+    const onFirst = () => setConnected(true)
+    window.addEventListener("baka:price", onFirst, { once: true })
+    return () => window.removeEventListener("baka:price", onFirst)
+  }, [])
 
   // 초기 캔들: Binance REST (interval에 맞는 봉 타입 그대로 사용)
   const fetchInitialCandles = useCallback(async (sel: Interval): Promise<CandleData[]> => {
@@ -261,7 +282,7 @@ export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = 
             close: parseFloat(k.c),
           }
           candleMapRef.current.set(barTime, candle)
-          try { seriesRef.current.update(candle) } catch { /* 역순 방어 */ }
+          try { seriesRef.current.update(candle) } catch { /* ���순 방어 */ }
         } catch { /* JSON parse 오류 무시 */ }
       }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import BaccaratGame, { BigRoad, type RoadResult } from "@/components/baka/baccarat-game"
 import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
@@ -60,6 +60,28 @@ function EmptySlot({ s = 1 }: { s?: number }) {
   )
 }
 
+// 배팅 기준가: 마지막 30초 마감봉 가격 — baka:closing 이벤트 단일 소스
+function HeaderBasePrice() {
+  const spanRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    // 초기값
+    const init: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
+    if (init.length > 0 && spanRef.current) {
+      const p = init[init.length - 1].price
+      spanRef.current.textContent = `$${p.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+    }
+    const onClosing = (e: Event) => {
+      const { price } = (e as CustomEvent<{ price: number }>).detail
+      if (spanRef.current) {
+        spanRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+      }
+    }
+    window.addEventListener("baka:closing", onClosing)
+    return () => window.removeEventListener("baka:closing", onClosing)
+  }, [])
+  return <span ref={spanRef}>—</span>
+}
+
 export default function BakaPage() {
   const isMobile = useIsMobile()
   // PC: 1.6배 확대, 모바일: 1배 유지
@@ -79,6 +101,18 @@ export default function BakaPage() {
   const [priceState, setPriceState] = useState<{ base: number | null; current: number | null }>({ base: null, current: null })
   const handlePriceChange = useCallback((base: number | null, current: number | null) => {
     setPriceState({ base, current })
+  }, [])
+  // 헤더 현재가: baka:price 이벤트로 DOM 직접 업데이트 (매 틱 리렌더 방지)
+  const headerCurrentRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const onPrice = (e: Event) => {
+      const { price } = (e as CustomEvent<{ price: number }>).detail
+      if (headerCurrentRef.current) {
+        headerCurrentRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+      }
+    }
+    window.addEventListener("baka:price", onPrice)
+    return () => window.removeEventListener("baka:price", onPrice)
   }, [])
 
   // BaccaratGame이 자신의 함수를 여기에 등록 → BakaBettingGame 트리거가 호출
@@ -141,7 +175,7 @@ export default function BakaPage() {
                 <div>
                   <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1 }}>배팅 기준가</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: "#d4af37", fontVariantNumeric: "tabular-nums" }}>
-                    ${priceState.base !== null ? priceState.base.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—"}
+                    <HeaderBasePrice />
                   </div>
                 </div>
               </div>
@@ -151,13 +185,8 @@ export default function BakaPage() {
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
                   현재가
                 </div>
-                <div style={{
-                  fontSize: 16, fontWeight: 700, fontVariantNumeric: "tabular-nums",
-                  color: priceState.current !== null && priceState.base !== null
-                    ? priceState.current >= priceState.base ? "#10b981" : "#ef4444"
-                    : "#d4af37",
-                }}>
-                  ${priceState.current !== null ? priceState.current.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—"}
+                <div style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: "#10b981" }}>
+                  <span ref={headerCurrentRef}>—</span>
                 </div>
               </div>
             </div>

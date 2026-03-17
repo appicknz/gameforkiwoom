@@ -479,10 +479,14 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     onPrice: useCallback((price: number) => {
       setCurrentPrice(price)
       currentPriceRef.current = price
+      // 전체 /baka 페이지 컴포넌트가 구독할 수 있도록 브로드캐스트
+      window.dispatchEvent(new CustomEvent("baka:price", { detail: { price } }))
     }, []),
-    onClosingPrice: useCallback((price: number) => {
+    onClosingPrice: useCallback((price: number, time: number) => {
       const closePrice = price
       const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
+      // 마감가 브로드캐스트 — ClosingPrices, ClosingPricesBadges, BitcoinChart가 구독
+      window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price, time } }))
 
       // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
       // 0~4=player(5), 5~8=banker(4), 9=tie(1)
