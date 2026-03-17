@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import useSWR from "swr"
+import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 
 const swrFetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -668,9 +669,23 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         </div>
       </div>
 
-      {/* 카드 캐릭터 영상/이미지 오버레이 */}
-      <div style={{ padding: "14px 12px" }}>
+      {/* 캐릭터 카드 위에 차트 오버레이 */}
+      <div style={{ position: "relative", padding: "14px 12px" }}>
         <CardCharacterDisplay roundSeed={getRoundSeed()} card={state.finalCard} phase={state.phase} />
+        {/* 차트 — 캐릭터 카드 위 오버레이 (상단 60%) */}
+        <div style={{
+          position: "absolute",
+          top: 14,
+          left: 12,
+          right: 12,
+          height: "60%",
+          pointerEvents: "none",
+          zIndex: 10,
+          borderRadius: "14px 14px 0 0",
+          overflow: "hidden",
+        }}>
+          <BitcoinChart />
+        </div>
       </div>
     </div>
   )

@@ -172,7 +172,6 @@ export default function BakaPage() {
                   const label = side === "banker" ? "BANKER" : "PLAYER"
                   const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
                   const isWinner = cardData.result === side
-                  if (cards.length === 0) return null
                   return (
                     <div
                       key={side}
