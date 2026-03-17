@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import useSWR from "swr"
+import { CasinoArena } from "./casino-arena"
 
 const swrFetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -660,15 +661,19 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         </div>
       </div>
 
-      {/* 게임 테이블 */}
-      <div style={{ padding: "14px 12px" }}>
-
-        {/* Big Road — 항상 표시, DB 초기 로드 데이터 포함 */}
-        <BigRoad history={state.history} round={state.roundCount} />
-
-        {/* 카드 캐릭터 영상/이미지 오버레이 */}
-        <CardCharacterDisplay roundSeed={getRoundSeed()} card={state.finalCard} phase={state.phase} />
-      </div>
+      {/* 게임 아레나 */}
+      <CasinoArena
+        phase={state.phase}
+        playerCards={state.playerCards}
+        bankerCards={state.bankerCards}
+        pScore={pScore}
+        bScore={bScore}
+        result={state.result}
+        history={state.history}
+        roundCount={state.roundCount}
+        roundSeed={getRoundSeed()}
+        finalCard={state.finalCard}
+      />
     </div>
   )
 }
