@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import useSWR from "swr"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
+import { ClosingPrices } from "@/components/dashboard/closing-prices"
 
 const swrFetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -239,16 +240,14 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         </a>
       </div>
 
-      {/* 그리드 + 카드 이미지 — 가로 배치 */}
-      <div style={{ display: "flex", alignItems: "stretch", gap: 4 }}>
-      {/* 빅로드 그리드 */}
+      {/* 그리드 */}
       <div style={{
-        flex: "0 0 auto",
         borderRadius: 8,
         border: "1px solid rgba(212,175,55,0.12)",
         background: "rgba(0,0,0,0.25)",
         padding: 4,
         overflow: "hidden",
+        display: "inline-block",
       }}>
         <div style={{ position: "relative", width, height, flexShrink: 0 }}>
           {/* 격자 배경 */}
@@ -317,32 +316,35 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
               </div>
             )
           })}
+          {/* 캐릭터 카드 이미지 — 그리드 내 오른쪽 절대위치 */}
+          {(() => {
+            const cardW = Math.round(height * 0.68)
+            return (
+              <div style={{
+                position: "absolute",
+                right: 0,
+                top: 0,
+                width: cardW,
+                height: height,
+                borderRadius: 6,
+                border: "1px solid rgba(212,175,55,0.3)",
+                overflow: "hidden",
+                background: "rgba(0,0,0,0.5)",
+              }}>
+                {randomImage.current ? (
+                  <img
+                    src={randomImage.current}
+                    alt="card"
+                    style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
+                  />
+                ) : (
+                  <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
+                )}
+              </div>
+            )
+          })()}
         </div>
       </div>
-
-      {/* 랜덤 카드 이미지 패널 */}
-      <div style={{
-        flex: "0 0 auto",
-        width: Math.round((height + 8) * 0.68),
-        height: height + 8,
-        borderRadius: 8,
-        border: "1px solid rgba(212,175,55,0.25)",
-        overflow: "hidden",
-        background: "rgba(0,0,0,0.4)",
-        flexShrink: 0,
-      }}>
-        {randomImage.current ? (
-          <img
-            src={randomImage.current}
-            alt="card"
-            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
-          />
-        ) : (
-          <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
-        )}
-      </div>
-
-      </div>{/* flex row 닫힘 */}
     </div>
   )
 }
@@ -697,23 +699,19 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         </span>
       </div>
 
-      {/* 캐릭터 카드 위에 차트 오버레이 */}
-      <div style={{ position: "relative", padding: "14px 12px" }}>
+      {/* 차트 */}
+      <div style={{ padding: "10px 12px 0" }}>
+        <BitcoinChart />
+      </div>
+
+      {/* 30초 마감 기준가 */}
+      <div style={{ padding: "0 12px 12px" }}>
+        <ClosingPrices />
+      </div>
+
+      {/* 캐릭터 카드 */}
+      <div style={{ padding: "0 12px 14px" }}>
         <CardCharacterDisplay roundSeed={getRoundSeed()} card={state.finalCard} phase={state.phase} />
-        {/* 차트 — 캐릭터 카드 위 오버레이 (상단 60%) */}
-        <div style={{
-          position: "absolute",
-          top: 14,
-          left: 12,
-          right: 12,
-          height: "60%",
-          pointerEvents: "none",
-          zIndex: 10,
-          borderRadius: "14px 14px 0 0",
-          overflow: "hidden",
-        }}>
-          <BitcoinChart />
-        </div>
       </div>
     </div>
   )
