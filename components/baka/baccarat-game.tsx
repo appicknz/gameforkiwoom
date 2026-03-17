@@ -157,10 +157,17 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
   const displayHistory = history.length > DISPLAY_LIMIT ? history.slice(-DISPLAY_LIMIT) : history
 
   const cells = buildBigRoad(displayHistory)
-  const maxCol = cells.length > 0 ? Math.max(...cells.map(c => c.col)) : 0
-  const totalCols = Math.max(maxCol + 1, 14)  // 최소 14열 표시
+  // 항상 18열 고정
+  const totalCols = DISPLAY_LIMIT
   const width = totalCols * (CELL + GAP)
   const height = MAX_ROWS * (CELL + GAP)
+
+  // 랜덤 카드 이미지
+  const { data: cardImages } = useSWR<{ url: string }[]>("/api/card-images", swrFetcher, { revalidateOnFocus: false })
+  const randomImage = useRef<string | null>(null)
+  if (cardImages && cardImages.length > 0 && randomImage.current === null) {
+    randomImage.current = cardImages[Math.floor(Math.random() * cardImages.length)].url
+  }
 
   // 카운트 집계 (전체 history 기준)
   const pCount = history.filter(r => r === "player").length
@@ -232,13 +239,16 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         </a>
       </div>
 
-      {/* 그리드 */}
+      {/* 그리드 + 카드 이미지 — 가로 배치 */}
+      <div style={{ display: "flex", alignItems: "stretch", gap: 4 }}>
+      {/* 빅로드 그리드 */}
       <div style={{
-        overflowX: "auto",
+        flex: "0 0 auto",
         borderRadius: 8,
         border: "1px solid rgba(212,175,55,0.12)",
         background: "rgba(0,0,0,0.25)",
         padding: 4,
+        overflow: "hidden",
       }}>
         <div style={{ position: "relative", width, height, flexShrink: 0 }}>
           {/* 격자 배경 */}
@@ -377,9 +387,33 @@ function PlayingCard({
           <div style={{ fontSize: 13, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
             {card.label}
             <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
-          </div>
         </div>
       </div>
+
+      {/* 랜덤 카드 이미지 패널 */}
+      <div style={{
+        flex: "0 0 auto",
+        width: Math.round(height * 0.68),
+        height: height + 8,  // padding 4px 양쪽 = +8
+        borderRadius: 8,
+        border: "1px solid rgba(212,175,55,0.25)",
+        overflow: "hidden",
+        background: "rgba(0,0,0,0.4)",
+        flexShrink: 0,
+      }}>
+        {randomImage.current ? (
+          <img
+            src={randomImage.current}
+            alt="card"
+            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
+          />
+        ) : (
+          <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
+        )}
+      </div>
+
+      </div>  {/* flex row 닫힘 */}
+    </div>
     </div>
   )
 }
@@ -424,7 +458,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     betSide: BetSide   // 이 라운드 배팅 사이드 스냅샷
   } | null>(null)
 
-  // ─── 가격 수신 (priceDisplay 업데이트) ────────────────────────────────────
+  // ─��─ 가격 수신 (priceDisplay 업데이트) ────────────────────────────────────
   const lastPriceRef = useRef<number | null>(null)
   useEffect(() => {
     const win = window as any
