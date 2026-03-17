@@ -163,11 +163,13 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
   const width = totalCols * (CELL + GAP)
   const height = MAX_ROWS * (CELL + GAP)
 
-  // 랜덤 카드 이미지
-  const { data: cardImages } = useSWR<{ url: string }[]>("/api/card-images", swrFetcher, { revalidateOnFocus: false })
+  // 랜덤 카드 이미지 (API 응답: { images: [{url, pathname}] })
+  const { data: cardData } = useSWR<{ images: { url: string; pathname: string }[] }>(
+    "/api/card-images", swrFetcher, { revalidateOnFocus: false }
+  )
   const randomImage = useRef<string | null>(null)
-  if (cardImages && cardImages.length > 0 && randomImage.current === null) {
-    randomImage.current = cardImages[Math.floor(Math.random() * cardImages.length)].url
+  if (cardData?.images && cardData.images.length > 0 && randomImage.current === null) {
+    randomImage.current = cardData.images[Math.floor(Math.random() * cardData.images.length)].url
   }
 
   // 카운트 집계 (전체 history 기준)
@@ -194,7 +196,7 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
   const cardW = Math.round(height * 0.68)
 
   return (
-    <div style={{ marginBottom: 14, position: "relative" }}>
+    <div style={{ marginBottom: 14 }}>
       {/* BIG ROAD 헤더 — 라운드+카운트 배지 + 전체보기 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -242,14 +244,17 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         </a>
       </div>
 
-      {/* 그리드 */}
+      {/* 그리드 + 카드 이미지 flex row */}
+      <div style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
+
+      {/* 빅로드 그리드 */}
       <div style={{
         borderRadius: 8,
         border: "1px solid rgba(212,175,55,0.12)",
         background: "rgba(0,0,0,0.25)",
         padding: 4,
         overflow: "hidden",
-        display: "inline-block",
+        flexShrink: 0,
       }}>
         <div style={{ position: "relative", width, height, flexShrink: 0 }}>
           {/* 격자 배경 */}
@@ -321,27 +326,27 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         </div>
       </div>
 
-      {/* 캐릭터 카드 이미지 — 그리드 테두리 바깥 오른쪽, 배경처럼 절대위치 */}
+      {/* 캐릭터 카드 이미지 — 그리드 테두리 바깥 오른쪽 flex sibling */}
       <div style={{
-        position: "absolute",
-        right: 0,
-        bottom: 0,
         width: cardW,
-        height: height + 8,
+        flexShrink: 0,
         borderRadius: 8,
-        border: "1px solid rgba(212,175,55,0.2)",
+        border: "1px solid rgba(212,175,55,0.25)",
         overflow: "hidden",
-        background: "rgba(0,0,0,0.35)",
-        zIndex: 0,
+        background: "rgba(0,0,0,0.4)",
       }}>
         {randomImage.current ? (
           <img
             src={randomImage.current}
             alt=""
-            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block", opacity: 0.85 }}
+            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
           />
-        ) : null}
+        ) : (
+          <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
+        )}
       </div>
+
+      </div>{/* flex row 끝 */}
     </div>
   )
 }
