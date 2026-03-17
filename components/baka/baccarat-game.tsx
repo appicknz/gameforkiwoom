@@ -185,71 +185,51 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
 
   return (
     <div style={{ marginBottom: 14 }}>
-      {/* 라운드 + 카운트 헤더 */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        marginBottom: 6,
-        padding: "5px 8px",
-        background: "rgba(0,0,0,0.35)",
-        borderRadius: 7,
-        border: "1px solid rgba(212,175,55,0.1)",
-        flexWrap: "wrap",
-      }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,213,163,0.7)", marginRight: 2 }}>
-          #{round}
-        </span>
-        <StatChip color="#3b82f6" label="P" count={pCount} />
-        <StatChip color="#ef4444" label="B" count={bCount} />
-        <StatChip color="#22c55e" label="T" count={tCount} />
-      </div>
-
-      {/* BIG ROAD 레전드 */}
+      {/* BIG ROAD 헤더 — 라운드+카운트 배지 + 전체보기 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 5,
+        marginBottom: 5, gap: 8,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {/* 왼쪽: BIG ROAD 타이틀 + 라운드/P/B/T 배지 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(212,175,55,0.6)", letterSpacing: "0.1em" }}>
             BIG ROAD
           </span>
-          <span style={{ fontSize: 9, color: "rgba(212,175,55,0.35)" }}>
-            최근 {Math.min(history.length, DISPLAY_LIMIT)}개
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ display: "flex", gap: 8 }}>
-            <span style={{ fontSize: 9, color: "#3b82f6", display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #3b82f6", display: "inline-block" }} />
-              P
+          {/* 배지 그룹 */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "3px 8px",
+            background: "rgba(0,0,0,0.35)",
+            borderRadius: 20,
+            border: "1px solid rgba(212,175,55,0.1)",
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,213,163,0.7)" }}>
+              #{round}
             </span>
-            <span style={{ fontSize: 9, color: "#ef4444", display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #ef4444", display: "inline-block" }} />
-              B
-            </span>
-            <span style={{ fontSize: 9, color: "#22c55e", display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: 8 }}>╱</span>
-              T
-            </span>
+            <StatChip color="#3b82f6" label="P" count={pCount} />
+            <StatChip color="#ef4444" label="B" count={bCount} />
+            <StatChip color="#22c55e" label="T" count={tCount} />
           </div>
-          {/* 전체보기 버튼 */}
-          <a
-            href="/baccarat-stats"
-            style={{
-              fontSize: 9,
-              fontWeight: 700,
-              color: "rgba(212,175,55,0.8)",
-              border: "1px solid rgba(212,175,55,0.25)",
-              borderRadius: 4,
-              padding: "2px 7px",
-              textDecoration: "none",
-              letterSpacing: "0.05em",
-              background: "rgba(212,175,55,0.06)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            전체보기
-          </a>
         </div>
+        {/* 오른쪽: 전체보기 버튼 */}
+        <a
+          href="/baccarat-stats"
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            color: "rgba(212,175,55,0.8)",
+            border: "1px solid rgba(212,175,55,0.25)",
+            borderRadius: 4,
+            padding: "2px 7px",
+            textDecoration: "none",
+            letterSpacing: "0.05em",
+            background: "rgba(212,175,55,0.06)",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          전체보기
+        </a>
       </div>
 
       {/* 그리드 */}
