@@ -355,27 +355,140 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         </div>
       </div>
 
-      {/* 캐릭터 카드 이미지 — 그리드 테두리 바깥 오른쪽 flex sibling */}
-      <div style={{
-        width: cardW,
+      {/* 스퀴즈 카드 */}
+      <SqueezeCard imageUrl={cardImageUrl} width={cardW} height={height + 8} round={round} />
+
+      </div>{/* flex row 끝 */}
+    </div>
+  )
+}
+
+// ─── 스퀴즈 카드 컴포넌트 ──────────────────────────────────────────────────
+function SqueezeCard({ imageUrl, width, height, round }: {
+  imageUrl: string | null
+  width: number
+  height: number
+  round: number
+}) {
+  // 라운드 바뀌면 뒤집힌 상태로 초기화
+  const [revealed, setRevealed] = useState(0) // 0~100: 드래그로 앞면 reveal %
+  const [flipped, setFlipped] = useState(false) // 카드 딜 애니 (뒤→앞 flip)
+  const prevRound = useRef(round)
+  const dragStartY = useRef<number | null>(null)
+  const dragStartRevealed = useRef(0)
+
+  useEffect(() => {
+    if (prevRound.current !== round) {
+      prevRound.current = round
+      setFlipped(false)
+      setRevealed(0)
+    }
+    // 1초 후 카드 뒤집기(딜)
+    const t = setTimeout(() => setFlipped(true), 1000)
+    return () => clearTimeout(t)
+  }, [round])
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!flipped) return
+    dragStartY.current = e.clientY
+    dragStartRevealed.current = revealed
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (dragStartY.current === null) return
+    const dy = dragStartY.current - e.clientY // 위로 드래그 = 양수
+    const delta = (dy / height) * 100
+    setRevealed(Math.min(100, Math.max(0, dragStartRevealed.current + delta)))
+  }
+
+  const onPointerUp = () => {
+    dragStartY.current = null
+    // 50% 이상이면 완전 공개, 아니면 원위치
+    setRevealed(r => r >= 50 ? 100 : 0)
+  }
+
+  // clip-path: 아래에서 위로 reveal
+  const clipY = 100 - revealed
+
+  return (
+    <div
+      style={{
+        width,
+        height,
         flexShrink: 0,
+        position: "relative",
         borderRadius: 8,
         border: "1px solid rgba(212,175,55,0.25)",
         overflow: "hidden",
         background: "rgba(0,0,0,0.4)",
+        cursor: flipped ? "grab" : "default",
+        userSelect: "none",
+        touchAction: "none",
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    >
+      {/* 뒷면 — 항상 깔림 */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "linear-gradient(145deg, #0d2015, #0a1a0e)",
+        display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        {cardImageUrl ? (
+        {/* 뒷면 문양 패턴 */}
+        <svg width="60%" height="60%" viewBox="0 0 100 100" opacity={0.15}>
+          <pattern id="sq-pat" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M10 2 L12 8 L18 8 L13 12 L15 18 L10 14 L5 18 L7 12 L2 8 L8 8 Z"
+              fill="rgba(212,175,55,0.8)" />
+          </pattern>
+          <rect width="100" height="100" fill="url(#sq-pat)" />
+        </svg>
+        <div style={{
+          position: "absolute", inset: 6,
+          border: "1px solid rgba(212,175,55,0.3)",
+          borderRadius: 6,
+        }} />
+      </div>
+
+      {/* 앞면 이미지 — clip-path로 아래에서 위로 reveal */}
+      {imageUrl && (
+        <div style={{
+          position: "absolute", inset: 0,
+          clipPath: `inset(${clipY}% 0 0 0)`,
+          transition: dragStartY.current === null ? "clip-path 0.4s ease" : "none",
+        }}>
           <img
-            src={cardImageUrl}
+            src={imageUrl}
             alt=""
             style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
           />
-        ) : (
-          <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
-        )}
-      </div>
+        </div>
+      )}
 
-      </div>{/* flex row 끝 */}
+      {/* 딜 애니: 뒤집는 flip 효과 */}
+      {!flipped && (
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "rgba(0,0,0,0.0)",
+          animation: "none",
+        }} />
+      )}
+
+      {/* 드래그 힌트 — 아직 안 드래그한 경우 */}
+      {flipped && revealed === 0 && (
+        <div style={{
+          position: "absolute", bottom: 8, left: 0, right: 0,
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+          pointerEvents: "none",
+        }}>
+          <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
+            <path d="M8 1 L1 8 M8 1 L15 8" stroke="rgba(212,175,55,0.6)" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <span style={{ fontSize: 8, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>드래그</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -612,7 +725,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   // 규칙:
   //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
   //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
-  //   3. 승부는 반드시 ��자리 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
+  //   3. 승부는 반드시 ��자리 기��으로 결정 (0~4=player, 5~8=banker, 9=tie)
   //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
   const applyFinalDigit = useCallback(async (digit: number) => {
     const mid = midStateRef.current
