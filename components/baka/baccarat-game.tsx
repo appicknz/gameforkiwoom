@@ -191,8 +191,10 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
     </div>
   )
 
+  const cardW = Math.round(height * 0.68)
+
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div style={{ marginBottom: 14, position: "relative" }}>
       {/* BIG ROAD 헤더 — 라운드+카운트 배지 + 전체보기 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -316,34 +318,29 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
               </div>
             )
           })}
-          {/* 캐릭터 카드 이미지 — 그리드 내 오른쪽 절대위치 */}
-          {(() => {
-            const cardW = Math.round(height * 0.68)
-            return (
-              <div style={{
-                position: "absolute",
-                right: 0,
-                top: 0,
-                width: cardW,
-                height: height,
-                borderRadius: 6,
-                border: "1px solid rgba(212,175,55,0.3)",
-                overflow: "hidden",
-                background: "rgba(0,0,0,0.5)",
-              }}>
-                {randomImage.current ? (
-                  <img
-                    src={randomImage.current}
-                    alt="card"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
-                  />
-                ) : (
-                  <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
-                )}
-              </div>
-            )
-          })()}
         </div>
+      </div>
+
+      {/* 캐릭터 카드 이미지 — 그리드 테두리 바깥 오른쪽, 배경처럼 절대위치 */}
+      <div style={{
+        position: "absolute",
+        right: 0,
+        bottom: 0,
+        width: cardW,
+        height: height + 8,
+        borderRadius: 8,
+        border: "1px solid rgba(212,175,55,0.2)",
+        overflow: "hidden",
+        background: "rgba(0,0,0,0.35)",
+        zIndex: 0,
+      }}>
+        {randomImage.current ? (
+          <img
+            src={randomImage.current}
+            alt=""
+            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block", opacity: 0.85 }}
+          />
+        ) : null}
       </div>
     </div>
   )
