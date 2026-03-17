@@ -666,25 +666,50 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         {/* Big Road — 항상 표시, DB 초기 로드 데이터 포함 */}
         <BigRoad history={state.history} round={state.roundCount} />
 
-        {/* 카드 캐릭터 이미지 (관리자 업로드 이미지 오버레이) */}
-        <CardCharacterDisplay roundSeed={getRoundSeed()} card={state.finalCard} />
+        {/* 카드 캐릭터 영상/이미지 오버레이 */}
+        <CardCharacterDisplay roundSeed={getRoundSeed()} card={state.finalCard} phase={state.phase} />
       </div>
     </div>
   )
 }
 
 // ─── 카드 캐릭터 오버레이 컴포넌트 ──────────────────────────────────────────
-// 포커 카드 스타일: 좌상/우하 카드 정보(숫자+무늬) + 중앙 캐릭터 이미지
-function CardCharacterDisplay({ roundSeed, card }: { roundSeed: number; card: Card | null }) {
-  const { data } = useSWR<{ images: Array<{ url: string; pathname: string }> }>(
+// 영상 우선, 없으면 이미지 폴백. betting 단계 시작 시 영상 재생.
+function CardCharacterDisplay({ roundSeed, card, phase }: {
+  roundSeed: number
+  card: Card | null
+  phase: Phase
+}) {
+  const { data: videoData } = useSWR<{ videos: Array<{ url: string; pathname: string }> }>(
+    "/api/card-videos",
+    swrFetcher,
+    { refreshInterval: 60000, revalidateOnFocus: false }
+  )
+  const { data: imageData } = useSWR<{ images: Array<{ url: string; pathname: string }> }>(
     "/api/card-images",
     swrFetcher,
     { refreshInterval: 60000, revalidateOnFocus: false }
   )
 
-  const images = data?.images ?? []
+  const videos = videoData?.videos ?? []
+  const images = imageData?.images ?? []
+
+  // 영상 우선, 없으면 이미지 폴백
+  const hasVideo = videos.length > 0
+  const selectedVideo = hasVideo ? videos[roundSeed % videos.length] : null
   const selectedImage = images.length > 0 ? images[roundSeed % images.length] : null
   const imgSrc = selectedImage?.url ?? "/images/baccarat-card-girl.jpg"
+
+  const videoRef = useRef<HTMLVideoElement>(null)
+
+  // betting 단계 시작 시 영상 처음부터 재생
+  useEffect(() => {
+    if (!selectedVideo || !videoRef.current) return
+    if (phase === "betting") {
+      videoRef.current.currentTime = 0
+      videoRef.current.play().catch(() => {})
+    }
+  }, [phase, selectedVideo?.url])
 
   const suitColor = "#ffffff"
   const label = card?.label ?? ""
@@ -698,15 +723,26 @@ function CardCharacterDisplay({ roundSeed, card }: { roundSeed: number; card: Ca
       overflow: "hidden",
       border: "2px solid rgba(212,175,55,0.35)",
       boxShadow: "0 6px 32px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(212,175,55,0.1)",
-      background: "#f5f0e8",
+      background: "#0a0f0a",
       aspectRatio: "2/3",
     }}>
-      {/* 캐릭터 이미지 (카드 배경) */}
-      <img
-        src={imgSrc}
-        alt="Baccarat card character"
-        style={{ width: "100%", height: "100%", display: "block", objectFit: "cover", objectPosition: "top" }}
-      />
+      {/* 영상 or 이미지 */}
+      {hasVideo && selectedVideo ? (
+        <video
+          ref={videoRef}
+          src={selectedVideo.url}
+          muted
+          playsInline
+          preload="auto"
+          style={{ width: "100%", height: "100%", display: "block", objectFit: "cover", objectPosition: "top" }}
+        />
+      ) : (
+        <img
+          src={imgSrc}
+          alt="Baccarat card character"
+          style={{ width: "100%", height: "100%", display: "block", objectFit: "cover", objectPosition: "top" }}
+        />
+      )}
 
       {/* 카드 정보가 있을 때만 오버레이 표시 */}
       {card && (
