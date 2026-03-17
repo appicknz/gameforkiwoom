@@ -898,11 +898,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 ? <ChevronUp style={{ width: 10, height: 10, color: G.textDim }} />
                 : <ChevronDown style={{ width: 10, height: 10, color: G.textDim }} />}
             </button>
-            {phase !== "result" && (
-              <span style={{ fontSize: 14, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>
-                {timeLeft}초
-              </span>
-            )}
+
           </div>
         </div>
 
@@ -1044,7 +1040,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
         {/* ── 바카라 종목 ── */}
         <div className="mb-3">
-          <p className="text-[10px] font-bold mb-2 tracking-widest" style={{ color: G.goldDim }}>BACCARAT</p>
           <div className="grid grid-cols-3 gap-2">
             {(["player", "banker", "tie"] as const).map((side) => {
               const meta = LABEL_MAP[side]
@@ -1161,9 +1156,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
         {/* 하단: 잔고 + 승패 */}
         <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${G.goldBorder}` }}>
-          <span className="text-[11px]" style={{ color: G.textDim }}>
-            {timeLeft <= 3 ? `다음 게임까지 ${timeLeft}초 전` : `다음 게임까지 ${timeLeft}초 전`}
-          </span>
+          <span />
           <span className="text-[11px]">
             <span className="font-semibold" style={{ color: G.gold }}>{wins}승</span>
             <span style={{ color: G.textDim }}> / </span>
