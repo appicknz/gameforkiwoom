@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp, Shuffle } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
+import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type BetDirection = "long" | "short" | null
@@ -652,7 +654,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   // autoBet state → ref 동기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
-  // 자동 배팅: canBet false→true 전환 시 새 라운드 플��그 초기화
+  // 자동 배팅: canBet false→true 전환 시 새 라운드 플���그 초기화
   const prevCanBetRef = useRef(false)
   useEffect(() => {
     const was = prevCanBetRef.current
@@ -914,7 +916,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 const meta: Record<typeof type, { opts: string[]; labels: string[]; nullLabel: string }> = {
                   direction: { opts: ["long", "short", "random"], labels: ["롱", "숏", "랜덤"], nullLabel: "방향" },
                   digit:     { opts: ["over", "under", "random"],  labels: ["오버", "언더", "랜덤"], nullLabel: "크기" },
-                  parity:    { opts: ["odd", "even", "random"],    labels: ["홀", "짝", "랜덤"],  nullLabel: "홀짝" },
+                  parity:    { opts: ["odd", "even", "random"],    labels: ["홀", "짝", "랜���"],  nullLabel: "홀짝" },
                 }
                 const { opts, labels, nullLabel } = meta[type]
                 const current = autoBet[type]
@@ -1163,6 +1165,12 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
             <span className="font-semibold text-red-500">{losses}패</span>
           </span>
         </div>
+      </div>
+
+      {/* 끝자리 원형 배지 + 분포도 */}
+      <div className="mt-3 flex flex-col gap-3">
+        <ClosingPricesBadges />
+        <ProjectAnalytics />
       </div>
 
       {/* 다이얼로그 + 결과 시트 */}
