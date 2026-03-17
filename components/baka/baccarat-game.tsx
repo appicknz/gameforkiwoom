@@ -319,6 +319,30 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
           })}
         </div>
       </div>
+
+      {/* 랜덤 카드 이미지 패널 */}
+      <div style={{
+        flex: "0 0 auto",
+        width: Math.round((height + 8) * 0.68),
+        height: height + 8,
+        borderRadius: 8,
+        border: "1px solid rgba(212,175,55,0.25)",
+        overflow: "hidden",
+        background: "rgba(0,0,0,0.4)",
+        flexShrink: 0,
+      }}>
+        {randomImage.current ? (
+          <img
+            src={randomImage.current}
+            alt="card"
+            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
+          />
+        ) : (
+          <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
+        )}
+      </div>
+
+      </div>{/* flex row 닫힘 */}
     </div>
   )
 }
