@@ -8,7 +8,6 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
-import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 
 interface Card { suit: string; value: number; label: string; id: string }
 interface CardOverlayData {
@@ -77,6 +76,10 @@ export default function BakaPage() {
   const handleStatusChange = useCallback((timeLeft: number, phase: "betting" | "waiting" | "result" | "dealing") => {
     setGameStatus({ timeLeft, phase })
   }, [])
+  const [priceState, setPriceState] = useState<{ base: number | null; current: number | null }>({ base: null, current: null })
+  const handlePriceChange = useCallback((base: number | null, current: number | null) => {
+    setPriceState({ base, current })
+  }, [])
 
   // BaccaratGame이 자신의 함수를 여기에 등록 → BakaBettingGame 트리거가 호출
   const startDealRef = useRef<(() => void) | null>(null)
@@ -116,8 +119,48 @@ export default function BakaPage() {
 
           {/* 왼쪽: BigRoad + 카드 오버레이 */}
           <div className="lg:col-span-2 space-y-4">
-            {/* 배팅 기준가 / 현재가 헤더 */}
-            <BitcoinChart headerOnly />
+            {/* 배팅 기준가 / 현재가 심플 헤더 */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "10px 14px",
+              background: "rgba(5,15,10,0.92)",
+              border: "1px solid rgba(212,175,55,0.15)",
+              borderRadius: 12,
+            }}>
+              {/* 좌: BTC 아이콘 + 배팅 기준가 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: "50%",
+                  background: "radial-gradient(circle at 35% 35%, #f7931a, #c06000)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 14, fontWeight: 900, color: "#fff",
+                  flexShrink: 0,
+                }}>₿</div>
+                <div>
+                  <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1 }}>배팅 기준가</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#d4af37", fontVariantNumeric: "tabular-nums" }}>
+                    ${priceState.base !== null ? priceState.base.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—"}
+                  </div>
+                </div>
+              </div>
+              {/* 우: 현재가 */}
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
+                  현재가
+                </div>
+                <div style={{
+                  fontSize: 16, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                  color: priceState.current !== null && priceState.base !== null
+                    ? priceState.current >= priceState.base ? "#10b981" : "#ef4444"
+                    : "#d4af37",
+                }}>
+                  ${priceState.current !== null ? priceState.current.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—"}
+                </div>
+              </div>
+            </div>
 
             {/* BigRoad */}
             <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.6)}}`}</style>
@@ -232,6 +275,7 @@ export default function BakaPage() {
               onFinalDigitTrigger={handleFinalDigitTrigger}
               onBetSideTrigger={handleBetSideTrigger}
               onStatusChange={handleStatusChange}
+              onPriceChange={handlePriceChange}
             />
           </div>
 

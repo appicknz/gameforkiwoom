@@ -387,9 +387,11 @@ interface BakaBettingGameProps {
   onBetSideTrigger?: (side: "player" | "banker" | "tie" | null) => void
   /** timeLeft/phase 변경 시 page로 전달 */
   onStatusChange?: (timeLeft: number, phase: "betting" | "waiting" | "result" | "dealing") => void
+  /** basePrice/currentPrice 변경 시 page로 전달 */
+  onPriceChange?: (basePrice: number | null, currentPrice: number | null) => void
 }
 
-export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBetSideTrigger, onStatusChange }: BakaBettingGameProps = {}) {
+export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBetSideTrigger, onStatusChange, onPriceChange }: BakaBettingGameProps = {}) {
   const [timeLeft, setTimeLeft] = useState(30)
   const [roundNumber, setRoundNumber] = useState(0)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
@@ -836,6 +838,12 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       setIsPlacingBet(false)
     }
   }
+
+  // basePrice/currentPrice 변경 시 page로 전달
+  useEffect(() => {
+    onPriceChange?.(basePrice, currentPrice)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [basePrice, currentPrice])
 
   // timeLeft/phase 변경 시 page로 전달
   useEffect(() => {
