@@ -355,140 +355,27 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         </div>
       </div>
 
-      {/* 스퀴즈 카드 */}
-      <SqueezeCard imageUrl={cardImageUrl} width={cardW} height={height + 8} round={round} />
-
-      </div>{/* flex row 끝 */}
-    </div>
-  )
-}
-
-// ─── 스퀴즈 카드 컴포넌트 ──────────────────────────────────────────────────
-function SqueezeCard({ imageUrl, width, height, round }: {
-  imageUrl: string | null
-  width: number
-  height: number
-  round: number
-}) {
-  // 라운드 바뀌면 뒤집힌 상태로 초기화
-  const [revealed, setRevealed] = useState(0) // 0~100: 드래그로 앞면 reveal %
-  const [flipped, setFlipped] = useState(false) // 카드 딜 애니 (뒤→앞 flip)
-  const prevRound = useRef(round)
-  const dragStartY = useRef<number | null>(null)
-  const dragStartRevealed = useRef(0)
-
-  useEffect(() => {
-    if (prevRound.current !== round) {
-      prevRound.current = round
-      setFlipped(false)
-      setRevealed(0)
-    }
-    // 1초 후 카드 뒤집기(딜)
-    const t = setTimeout(() => setFlipped(true), 1000)
-    return () => clearTimeout(t)
-  }, [round])
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (!flipped) return
-    dragStartY.current = e.clientY
-    dragStartRevealed.current = revealed
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (dragStartY.current === null) return
-    const dy = dragStartY.current - e.clientY // 위로 드래그 = 양수
-    const delta = (dy / height) * 100
-    setRevealed(Math.min(100, Math.max(0, dragStartRevealed.current + delta)))
-  }
-
-  const onPointerUp = () => {
-    dragStartY.current = null
-    // 50% 이상이면 완전 공개, 아니면 원위치
-    setRevealed(r => r >= 50 ? 100 : 0)
-  }
-
-  // clip-path: 아래에서 위로 reveal
-  const clipY = 100 - revealed
-
-  return (
-    <div
-      style={{
-        width,
-        height,
+      {/* 캐릭터 카드 이미지 — 그리드 테두리 바깥 오른쪽 flex sibling */}
+      <div style={{
+        width: cardW,
         flexShrink: 0,
-        position: "relative",
         borderRadius: 8,
         border: "1px solid rgba(212,175,55,0.25)",
         overflow: "hidden",
         background: "rgba(0,0,0,0.4)",
-        cursor: flipped ? "grab" : "default",
-        userSelect: "none",
-        touchAction: "none",
-      }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-    >
-      {/* 뒷면 — 항상 깔림 */}
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "linear-gradient(145deg, #0d2015, #0a1a0e)",
-        display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        {/* 뒷면 문양 패턴 */}
-        <svg width="60%" height="60%" viewBox="0 0 100 100" opacity={0.15}>
-          <pattern id="sq-pat" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M10 2 L12 8 L18 8 L13 12 L15 18 L10 14 L5 18 L7 12 L2 8 L8 8 Z"
-              fill="rgba(212,175,55,0.8)" />
-          </pattern>
-          <rect width="100" height="100" fill="url(#sq-pat)" />
-        </svg>
-        <div style={{
-          position: "absolute", inset: 6,
-          border: "1px solid rgba(212,175,55,0.3)",
-          borderRadius: 6,
-        }} />
-      </div>
-
-      {/* 앞면 이미지 — clip-path로 아래에서 위로 reveal */}
-      {imageUrl && (
-        <div style={{
-          position: "absolute", inset: 0,
-          clipPath: `inset(${clipY}% 0 0 0)`,
-          transition: dragStartY.current === null ? "clip-path 0.4s ease" : "none",
-        }}>
+        {cardImageUrl ? (
           <img
-            src={imageUrl}
+            src={cardImageUrl}
             alt=""
             style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
           />
-        </div>
-      )}
+        ) : (
+          <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
+        )}
+      </div>
 
-      {/* 딜 애니: 뒤집는 flip 효과 */}
-      {!flipped && (
-        <div style={{
-          position: "absolute", inset: 0,
-          background: "rgba(0,0,0,0.0)",
-          animation: "none",
-        }} />
-      )}
-
-      {/* 드래그 힌트 — 아직 안 드래그한 경우 */}
-      {flipped && revealed === 0 && (
-        <div style={{
-          position: "absolute", bottom: 8, left: 0, right: 0,
-          display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-          pointerEvents: "none",
-        }}>
-          <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
-            <path d="M8 1 L1 8 M8 1 L15 8" stroke="rgba(212,175,55,0.6)" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          <span style={{ fontSize: 8, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>드래그</span>
-        </div>
-      )}
+      </div>{/* flex row 끝 */}
     </div>
   )
 }
@@ -503,99 +390,50 @@ function PlayingCard({
   delay?: number
   visible?: boolean
 }) {
-  const [dealt, setDealt] = useState(false)   // 딜 애니 완료 여부
-  const [reveal, setReveal] = useState(0)     // 0~100: 스퀴즈로 앞면 공개 %
+  const [show, setShow] = useState(false)
   const isRed = card.suit === "♥" || card.suit === "♦"
 
-  // 카드 바뀌면 리셋
   useEffect(() => {
-    setDealt(false)
-    setReveal(0)
-    if (!visible) return
-    const t = setTimeout(() => setDealt(true), delay)
+    if (!visible) { setShow(false); return }
+    const t = setTimeout(() => setShow(true), delay)
     return () => clearTimeout(t)
   }, [visible, delay, card.id])
 
-  // 드래그 스퀴즈
-  const dragStartY = useRef<number | null>(null)
-  const dragStartReveal = useRef(0)
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (!dealt) return
-    dragStartY.current = e.clientY
-    dragStartReveal.current = reveal
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    e.preventDefault()
-  }
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (dragStartY.current === null) return
-    const dy = dragStartY.current - e.clientY  // 위로 = 양수
-    const delta = (dy / 74) * 100
-    setReveal(Math.min(100, Math.max(0, dragStartReveal.current + delta)))
-  }
-  const onPointerUp = () => {
-    if (dragStartY.current === null) return
-    dragStartY.current = null
-    // 40% 이상이면 완전 공개, 아니면 닫기
-    setReveal(r => r >= 40 ? 100 : 0)
-  }
-
-  // 앞면 clip: inset(top% 0 0 0) — reveal 0이면 완전 가림, 100이면 완전 공개
-  const clipTop = dealt ? (100 - reveal) : 100
-
   return (
     <div
+      className="relative"
       style={{
         width: 52,
         height: 74,
-        position: "relative",
-        flexShrink: 0,
-        cursor: dealt && reveal < 100 ? "grab" : "default",
-        userSelect: "none",
-        touchAction: "none",
+        perspective: 600,
       }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
     >
-      {/* 뒷면 — 항상 깔림 */}
-      <div style={{
-        position: "absolute", inset: 0,
-        borderRadius: 8,
-        background: "linear-gradient(145deg, #0d2015, #091209)",
-        border: "1px solid rgba(212,175,55,0.35)",
-        overflow: "hidden",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-      }}>
-        {/* 뒷면 패턴 */}
-        <div style={{
-          position: "absolute", inset: 4,
-          border: "1px solid rgba(212,175,55,0.2)",
-          borderRadius: 5,
-          backgroundImage: "repeating-linear-gradient(45deg, rgba(212,175,55,0.04) 0px, rgba(212,175,55,0.04) 2px, transparent 2px, transparent 8px)",
-        }} />
-      </div>
-
-      {/* 앞면 — clip-path 스퀴즈 */}
-      <div style={{
-        position: "absolute", inset: 0,
-        borderRadius: 8,
-        overflow: "hidden",
-        clipPath: `inset(${clipTop}% 0 0 0 round 8px)`,
-        transition: dragStartY.current === null ? "clip-path 0.35s cubic-bezier(0.23,1,0.32,1)" : "none",
-      }}>
-        <div style={{
-          position: "absolute", inset: 0,
-          background: "linear-gradient(145deg, #1c1408, #12100a)",
-          border: "1px solid rgba(212,175,55,0.45)",
-          borderRadius: 8,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          padding: "5px 6px",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.6)",
-        }}>
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          transformStyle: "preserve-3d",
+          transition: "transform 0.38s cubic-bezier(0.23, 1, 0.32, 1)",
+          transform: show ? "rotateY(0deg)" : "rotateY(90deg)",
+          transitionDelay: show ? "0ms" : "0ms",
+        }}
+      >
+        {/* 앞면 */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backfaceVisibility: "hidden",
+            background: "linear-gradient(145deg, #1c1408, #12100a)",
+            border: "1px solid rgba(212,175,55,0.45)",
+            borderRadius: 8,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            padding: "5px 6px",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(212,175,55,0.08)",
+          }}
+        >
           <div style={{ fontSize: 13, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
             {card.label}
             <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
@@ -608,29 +446,20 @@ function PlayingCard({
             <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
           </div>
         </div>
+
+        {/* 뒷면 */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backfaceVisibility: "hidden",
+            transform: "rotateY(180deg)",
+            background: "linear-gradient(145deg, #0d1a0f, #091209)",
+            border: "1px solid rgba(212,175,55,0.3)",
+            borderRadius: 8,
+          }}
+        />
       </div>
-
-      {/* 딜 등장 애니: 뒤집는 효과 — dealt 전까지 scaleX 0 */}
-      {!dealt && (
-        <div style={{
-          position: "absolute", inset: 0, borderRadius: 8,
-          background: "rgba(0,0,0,0)",
-          animation: "card-deal-in 0.38s cubic-bezier(0.23,1,0.32,1) forwards",
-        }} />
-      )}
-
-      {/* 드래그 힌트 화살표 */}
-      {dealt && reveal === 0 && (
-        <div style={{
-          position: "absolute", top: 3, left: 0, right: 0,
-          display: "flex", justifyContent: "center",
-          pointerEvents: "none",
-        }}>
-          <svg width="12" height="8" viewBox="0 0 12 8">
-            <path d="M6 1 L1 7 M6 1 L11 7" stroke="rgba(212,175,55,0.5)" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </div>
-      )}
     </div>
   )
 }
@@ -690,7 +519,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   }, [])
 
   // 끝자리 기반 결과는 applyFinalDigit 내부에서 직접 계산 (digit <= 4 = player, <= 8 = banker, 9 = tie)
-  // 별도 이벤트/전역 변수 ���필요
+  // 별도 이벤트/전역 변수 불필요
 
   // ─── 초기 history 불러오기 (DB�����) ───────────────────────────────────────
   useEffect(() => {
@@ -783,7 +612,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   // 규칙:
   //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
   //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
-  //   3. 승부는 반드시 ��자리 기��으로 결정 (0~4=player, 5~8=banker, 9=tie)
+  //   3. 승부는 반드시 ��자리 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
   //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
   const applyFinalDigit = useCallback(async (digit: number) => {
     const mid = midStateRef.current
@@ -886,7 +715,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
           Baccarat
         </span>
         <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", border: "1px solid rgba(212,175,55,0.2)", padding: "2px 8px", borderRadius: 4, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
-          BTC 끝자리 ��반
+          BTC 끝자리 기반
         </span>
       </div>
 
