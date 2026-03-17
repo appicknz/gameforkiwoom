@@ -158,10 +158,39 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
   const displayHistory = history.length > DISPLAY_LIMIT ? history.slice(-DISPLAY_LIMIT) : history
 
   const cells = buildBigRoad(displayHistory)
-  // 항상 18열 고정
+
+  // 컨테이너 너비 측정 → 셀 크기 동적 계산
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerW, setContainerW] = useState(0)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      setContainerW(entries[0].contentRect.width)
+    })
+    ro.observe(el)
+    setContainerW(el.getBoundingClientRect().width)
+    return () => ro.disconnect()
+  }, [])
+
+  // 카드 이미지 너비 = height * 0.68 (카드 비율)
+  // 그리드 + gap + 카드 = containerW
+  // cell = floor((containerW - cardW - gap(6) - padding(8)) / (DISPLAY_LIMIT * (1 + GAP/CELL)))
+  const CARD_RATIO = 0.68
+  const FLEX_GAP = 6
+  const GRID_PAD = 8  // 그리드 div padding 4px × 2
+  // cell 크기: (avail) / (DISPLAY_LIMIT * (1 + GAP/cell)) → 근사: avail / (DISPLAY_LIMIT * 24/22)
+  const avail = containerW > 0 ? containerW - FLEX_GAP - GRID_PAD : DISPLAY_LIMIT * (CELL + GAP)
+  // cardW = cellSize * MAX_ROWS * CARD_RATIO, gridW = DISPLAY_LIMIT * (cellSize + GAP)
+  // avail = DISPLAY_LIMIT*(c+GAP) + MAX_ROWS*c*CARD_RATIO
+  // avail = c*(DISPLAY_LIMIT + MAX_ROWS*CARD_RATIO) + DISPLAY_LIMIT*GAP
+  const cellSize = containerW > 0
+    ? Math.max(8, Math.floor((avail - DISPLAY_LIMIT * GAP) / (DISPLAY_LIMIT + MAX_ROWS * CARD_RATIO)))
+    : CELL
+
   const totalCols = DISPLAY_LIMIT
-  const width = totalCols * (CELL + GAP)
-  const height = MAX_ROWS * (CELL + GAP)
+  const width = totalCols * (cellSize + GAP)
+  const height = MAX_ROWS * (cellSize + GAP)
 
   // 랜덤 카드 이미지 (API 응답: { images: [{url, pathname}] })
   const { data: cardData } = useSWR<{ images: { url: string; pathname: string }[] }>(
@@ -193,10 +222,10 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
     </div>
   )
 
-  const cardW = Math.round(height * 0.68)
+  const cardW = Math.round(height * CARD_RATIO)
 
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div ref={containerRef} style={{ marginBottom: 14 }}>
       {/* BIG ROAD 헤더 — 라운드+카운트 배지 + 전체보기 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -264,10 +293,10 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
                 key={`grid-${r}-${c}`}
                 style={{
                   position: "absolute",
-                  left: c * (CELL + GAP),
-                  top: r * (CELL + GAP),
-                  width: CELL,
-                  height: CELL,
+                  left: c * (cellSize + GAP),
+                  top: r * (cellSize + GAP),
+                  width: cellSize,
+                  height: cellSize,
                   border: "1px solid rgba(212,175,55,0.06)",
                   borderRadius: 3,
                 }}
@@ -284,10 +313,10 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
                 key={i}
                 style={{
                   position: "absolute",
-                  left: cell.col * (CELL + GAP),
-                  top: cell.row * (CELL + GAP),
-                  width: CELL,
-                  height: CELL,
+                  left: cell.col * (cellSize + GAP),
+                  top: cell.row * (cellSize + GAP),
+                  width: cellSize,
+                  height: cellSize,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -295,8 +324,8 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
               >
                 {/* 원 */}
                 <div style={{
-                  width: CELL - 4,
-                  height: CELL - 4,
+                  width: cellSize - 4,
+                  height: cellSize - 4,
                   borderRadius: "50%",
                   border: `2px solid ${color}`,
                   background: isLatest ? `${color}22` : "transparent",
@@ -466,7 +495,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
   const dealingRef = useRef(false)
   const priceRef = useRef(0)
-  // 현재 라운드 배팅 사이드 (BakaBettingGame이 15초 전에 주입)
+  // 현재 라운드 배팅 ��이드 (BakaBettingGame이 15초 전에 주입)
   const betSideRef = useRef<BetSide>(null)
   // 딜 중간 상태 보관 (finalDigit 수신 시 이어서 계산)
   const midStateRef = useRef<{
