@@ -413,31 +413,22 @@ function PlayingCard({
           <div style={{ fontSize: 13, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
             {card.label}
             <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
+          </div>
         </div>
-      </div>
 
-      {/* 랜덤 카드 이미지 패널 */}
-      <div style={{
-        flex: "0 0 auto",
-        width: Math.round(height * 0.68),
-        height: height + 8,  // padding 4px 양쪽 = +8
-        borderRadius: 8,
-        border: "1px solid rgba(212,175,55,0.25)",
-        overflow: "hidden",
-        background: "rgba(0,0,0,0.4)",
-        flexShrink: 0,
-      }}>
-        {randomImage.current ? (
-          <img
-            src={randomImage.current}
-            alt="card"
-            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
-          />
-        ) : (
-          <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
-        )}
+        {/* 뒷면 */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backfaceVisibility: "hidden",
+            transform: "rotateY(180deg)",
+            background: "linear-gradient(145deg, #0d1a0f, #091209)",
+            border: "1px solid rgba(212,175,55,0.3)",
+            borderRadius: 8,
+          }}
+        />
       </div>
-
     </div>
   )
 }
