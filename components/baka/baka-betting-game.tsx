@@ -652,7 +652,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   // autoBet state → ref 동기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
-  // 자동 배팅: canBet false→true 전환 시 새 라운드 플래그 초기화
+  // 자동 배팅: canBet false→true 전환 시 새 라운드 플��그 초기화
   const prevCanBetRef = useRef(false)
   useEffect(() => {
     const was = prevCanBetRef.current
@@ -869,7 +869,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       }}>
 
         {/* ── 헤더: 배팅 + 라운드 + 자동배팅 버튼 + 타이머 (한 줄) ── */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: autoBetOpen ? 10 : 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           {/* 좌: 타이틀 + 라운드 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>배팅</h3>
@@ -1039,8 +1039,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         </div>
 
         {/* ── 바카라 종목 ── */}
-        <div className="mb-3">
-          <div className="grid grid-cols-3 gap-2">
+        <div className="mb-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
             {(["player", "banker", "tie"] as const).map((side) => {
               const meta = LABEL_MAP[side]
               const isSelected = betBaccarat === side
@@ -1049,7 +1049,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 <button key={side}
                   onClick={() => openDialog("baccarat", side)}
                   disabled={!canBet || (betBaccarat !== null && !isSelected)}
-                  className="py-3 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 disabled:opacity-40"
+                  className="h-10 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
@@ -1069,9 +1069,9 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         </div>
 
         {/* ── 기존 6종목 ── */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5">
           {/* 롱 / 숏 */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {(["long", "short"] as const).map((dir) => {
               const meta = LABEL_MAP[dir]
               const isSelected = betDirection === dir
@@ -1079,7 +1079,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 <button key={dir}
                   onClick={() => openDialog("direction", dir)}
                   disabled={!canBet || betDirection !== null}
-                  className="h-14 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
+                  className="h-10 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
@@ -1100,7 +1100,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </div>
 
           {/* 오버 / 언더 */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {(["over", "under"] as const).map((dig) => {
               const meta = LABEL_MAP[dig]
               const isSelected = betDigit === dig
@@ -1108,7 +1108,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 <button key={dig}
                   onClick={() => openDialog("digit", dig)}
                   disabled={!canBet || betDigit !== null}
-                  className="h-14 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
+                  className="h-10 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
@@ -1127,7 +1127,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </div>
 
           {/* 홀 / 짝 */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {(["odd", "even"] as const).map((par) => {
               const meta = LABEL_MAP[par]
               const isSelected = betParity === par
@@ -1135,7 +1135,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 <button key={par}
                   onClick={() => openDialog("parity", par)}
                   disabled={!canBet || betParity !== null}
-                  className="h-14 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
+                  className="h-10 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
