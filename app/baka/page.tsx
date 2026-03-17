@@ -73,6 +73,10 @@ export default function BakaPage() {
   const handleRoadChange = useCallback((history: RoadResult[], round: number) => {
     setRoadState({ history, round })
   }, [])
+  const [gameStatus, setGameStatus] = useState<{ timeLeft: number; phase: "betting" | "waiting" | "result" | "dealing" }>({ timeLeft: 30, phase: "betting" })
+  const handleStatusChange = useCallback((timeLeft: number, phase: "betting" | "waiting" | "result" | "dealing") => {
+    setGameStatus({ timeLeft, phase })
+  }, [])
 
   // BaccaratGame이 자신의 함수를 여기에 등록 → BakaBettingGame 트리거가 호출
   const startDealRef = useRef<(() => void) | null>(null)
@@ -116,7 +120,7 @@ export default function BakaPage() {
             <BitcoinChart headerOnly />
 
             {/* BigRoad */}
-            <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>
+            <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.6)}}`}</style>
             <div style={{
               background: "rgba(5,15,10,0.92)",
               border: "1px solid rgba(212,175,55,0.2)",
@@ -127,13 +131,66 @@ export default function BakaPage() {
               <BigRoad history={roadState.history} round={roadState.round} />
             </div>
 
-            {/* BANKER / PLAYER 카드 패널 — BigRoad 아래, 가로 배치 */}
+            {/* BANKER / PLAYER 카드 패널 + 중앙 상태 박스 */}
             <div style={{
               display: "flex",
-              gap: Math.round(8 * S),
-              justifyContent: "center",
+              gap: Math.round(6 * S),
+              alignItems: "stretch",
             }}>
-              {(["banker", "player"] as const).map((side) => {
+              {/* 게임 상태 박스 — 중앙, 같은 높이 */}
+              {(() => {
+                const { timeLeft, phase } = gameStatus
+                const statusColor = phase === "betting" ? "#10b981" : phase === "dealing" ? "#f97316" : "#6366f1"
+                const statusLabel = phase === "betting" ? "배팅 가능" : phase === "dealing" ? "딜링 중" : phase === "result" ? "정산 중" : "대기 중"
+                return (
+                  <div style={{
+                    width: Math.round(52 * S),
+                    flexShrink: 0,
+                    order: 1,
+                    borderRadius: Math.round(10 * S),
+                    border: `1px solid ${statusColor}55`,
+                    background: `${statusColor}0d`,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: Math.round(4 * S),
+                    padding: `${Math.round(6 * S)}px ${Math.round(4 * S)}px`,
+                  }}>
+                    {/* 원형 pulse 인디케이터 */}
+                    <div style={{ position: "relative", width: Math.round(10 * S), height: Math.round(10 * S) }}>
+                      <div style={{
+                        width: "100%", height: "100%",
+                        borderRadius: "50%",
+                        background: statusColor,
+                        animation: phase !== "result" ? "pulseDot 1.2s ease-in-out infinite" : "none",
+                      }} />
+                    </div>
+                    {/* 상태 텍스트 */}
+                    <span style={{
+                      fontSize: Math.round(9 * S),
+                      fontWeight: 700,
+                      color: statusColor,
+                      letterSpacing: "0.04em",
+                      textAlign: "center",
+                      lineHeight: 1.2,
+                      writingMode: "vertical-rl",
+                      textOrientation: "mixed",
+                    }}>{statusLabel}</span>
+                    {/* 타이머 */}
+                    {phase !== "result" && (
+                      <span style={{
+                        fontSize: Math.round(14 * S),
+                        fontWeight: 800,
+                        color: statusColor,
+                        fontVariantNumeric: "tabular-nums",
+                        lineHeight: 1,
+                      }}>{timeLeft}</span>
+                    )}
+                  </div>
+                )
+              })()}
+              {(["banker", "player"] as const).map((side, idx) => {
                 const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
                 const score = side === "banker" ? cardData.bScore : cardData.pScore
                 const label = side === "banker" ? "BANKER" : "PLAYER"
@@ -144,6 +201,7 @@ export default function BakaPage() {
                     key={side}
                     style={{
                       flex: 1,
+                      order: idx === 0 ? 0 : 2,
                       borderRadius: Math.round(10 * S),
                       border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.18)"}`,
                       background: isWinner ? `${accentColor}14` : "rgba(9,8,10,0.82)",
@@ -173,6 +231,7 @@ export default function BakaPage() {
               onStartDealTrigger={handleStartDealTrigger}
               onFinalDigitTrigger={handleFinalDigitTrigger}
               onBetSideTrigger={handleBetSideTrigger}
+              onStatusChange={handleStatusChange}
             />
           </div>
 
