@@ -612,7 +612,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   // 규칙:
   //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
   //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
-  //   3. 승부는 반드시 ��자리 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
+  //   3. 승부는 반드시 ��자��� 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
   //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
   const applyFinalDigit = useCallback(async (digit: number) => {
     const mid = midStateRef.current
@@ -729,10 +729,6 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         <ClosingPrices />
       </div>
 
-      {/* 캐릭터 카드 */}
-      <div style={{ padding: "0 12px 14px" }}>
-        <CardCharacterDisplay roundSeed={getRoundSeed()} card={state.finalCard} phase={state.phase} />
-      </div>
     </div>
   )
 }
