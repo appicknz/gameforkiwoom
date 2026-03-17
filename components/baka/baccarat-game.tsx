@@ -503,50 +503,99 @@ function PlayingCard({
   delay?: number
   visible?: boolean
 }) {
-  const [show, setShow] = useState(false)
+  const [dealt, setDealt] = useState(false)   // 딜 애니 완료 여부
+  const [reveal, setReveal] = useState(0)     // 0~100: 스퀴즈로 앞면 공개 %
   const isRed = card.suit === "♥" || card.suit === "♦"
 
+  // 카드 바뀌면 리셋
   useEffect(() => {
-    if (!visible) { setShow(false); return }
-    const t = setTimeout(() => setShow(true), delay)
+    setDealt(false)
+    setReveal(0)
+    if (!visible) return
+    const t = setTimeout(() => setDealt(true), delay)
     return () => clearTimeout(t)
   }, [visible, delay, card.id])
 
+  // 드래그 스퀴즈
+  const dragStartY = useRef<number | null>(null)
+  const dragStartReveal = useRef(0)
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!dealt) return
+    dragStartY.current = e.clientY
+    dragStartReveal.current = reveal
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (dragStartY.current === null) return
+    const dy = dragStartY.current - e.clientY  // 위로 = 양수
+    const delta = (dy / 74) * 100
+    setReveal(Math.min(100, Math.max(0, dragStartReveal.current + delta)))
+  }
+  const onPointerUp = () => {
+    if (dragStartY.current === null) return
+    dragStartY.current = null
+    // 40% 이상이면 완전 공개, 아니면 닫기
+    setReveal(r => r >= 40 ? 100 : 0)
+  }
+
+  // 앞면 clip: inset(top% 0 0 0) — reveal 0이면 완전 가림, 100이면 완전 공개
+  const clipTop = dealt ? (100 - reveal) : 100
+
   return (
     <div
-      className="relative"
       style={{
         width: 52,
         height: 74,
-        perspective: 600,
+        position: "relative",
+        flexShrink: 0,
+        cursor: dealt && reveal < 100 ? "grab" : "default",
+        userSelect: "none",
+        touchAction: "none",
       }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          transformStyle: "preserve-3d",
-          transition: "transform 0.38s cubic-bezier(0.23, 1, 0.32, 1)",
-          transform: show ? "rotateY(0deg)" : "rotateY(90deg)",
-          transitionDelay: show ? "0ms" : "0ms",
-        }}
-      >
-        {/* 앞면 */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backfaceVisibility: "hidden",
-            background: "linear-gradient(145deg, #1c1408, #12100a)",
-            border: "1px solid rgba(212,175,55,0.45)",
-            borderRadius: 8,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            padding: "5px 6px",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(212,175,55,0.08)",
-          }}
-        >
+      {/* 뒷면 — 항상 깔림 */}
+      <div style={{
+        position: "absolute", inset: 0,
+        borderRadius: 8,
+        background: "linear-gradient(145deg, #0d2015, #091209)",
+        border: "1px solid rgba(212,175,55,0.35)",
+        overflow: "hidden",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+      }}>
+        {/* 뒷면 패턴 */}
+        <div style={{
+          position: "absolute", inset: 4,
+          border: "1px solid rgba(212,175,55,0.2)",
+          borderRadius: 5,
+          backgroundImage: "repeating-linear-gradient(45deg, rgba(212,175,55,0.04) 0px, rgba(212,175,55,0.04) 2px, transparent 2px, transparent 8px)",
+        }} />
+      </div>
+
+      {/* 앞면 — clip-path 스퀴즈 */}
+      <div style={{
+        position: "absolute", inset: 0,
+        borderRadius: 8,
+        overflow: "hidden",
+        clipPath: `inset(${clipTop}% 0 0 0 round 8px)`,
+        transition: dragStartY.current === null ? "clip-path 0.35s cubic-bezier(0.23,1,0.32,1)" : "none",
+      }}>
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(145deg, #1c1408, #12100a)",
+          border: "1px solid rgba(212,175,55,0.45)",
+          borderRadius: 8,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          padding: "5px 6px",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.6)",
+        }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
             {card.label}
             <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
@@ -559,20 +608,29 @@ function PlayingCard({
             <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
           </div>
         </div>
-
-        {/* 뒷면 */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backfaceVisibility: "hidden",
-            transform: "rotateY(180deg)",
-            background: "linear-gradient(145deg, #0d1a0f, #091209)",
-            border: "1px solid rgba(212,175,55,0.3)",
-            borderRadius: 8,
-          }}
-        />
       </div>
+
+      {/* 딜 등장 애니: 뒤집는 효과 — dealt 전까지 scaleX 0 */}
+      {!dealt && (
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: 8,
+          background: "rgba(0,0,0,0)",
+          animation: "card-deal-in 0.38s cubic-bezier(0.23,1,0.32,1) forwards",
+        }} />
+      )}
+
+      {/* 드래그 힌트 화살표 */}
+      {dealt && reveal === 0 && (
+        <div style={{
+          position: "absolute", top: 3, left: 0, right: 0,
+          display: "flex", justifyContent: "center",
+          pointerEvents: "none",
+        }}>
+          <svg width="12" height="8" viewBox="0 0 12 8">
+            <path d="M6 1 L1 7 M6 1 L11 7" stroke="rgba(212,175,55,0.5)" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+      )}
     </div>
   )
 }
@@ -632,7 +690,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   }, [])
 
   // 끝자리 기반 결과는 applyFinalDigit 내부에서 직접 계산 (digit <= 4 = player, <= 8 = banker, 9 = tie)
-  // 별도 이벤트/전역 변수 불필요
+  // 별도 이벤트/전역 변수 ���필요
 
   // ─── 초기 history 불러오기 (DB�����) ───────────────────────────────────────
   useEffect(() => {
@@ -828,7 +886,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
           Baccarat
         </span>
         <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", border: "1px solid rgba(212,175,55,0.2)", padding: "2px 8px", borderRadius: 4, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
-          BTC 끝자리 기반
+          BTC 끝자리 ��반
         </span>
       </div>
 
