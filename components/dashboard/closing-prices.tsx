@@ -37,25 +37,34 @@ export function ClosingPrices() {
   }
 
   useEffect(() => {
-    // 초기값: window.__bitcoinClosingPrices (BakaBettingGame의 init 이벤트로 세팅됨)
-    const initPrices: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
-    if (initPrices.length > 0) setClosingPrices(initPrices)
+    fetch("/api/closing-price")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.prices && data.prices.length > 0) {
+          const existing: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
+          if (existing.length === 0) {
+            ;(window as any).__bitcoinClosingPrices = data.prices
+            setClosingPrices(data.prices)
+          }
+        }
+      })
+      .catch(() => {})
 
     fetchRounds()
+  }, [])
 
-    // baka:closing 이벤트 구독 — Railway 단일 소스
-    const onClosing = (e: Event) => {
-      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
-      setClosingPrices(prev => {
-        const last = prev[prev.length - 1]
-        if (last?.time === time) return prev
-        return [...prev, { time, price }].slice(-100)
-      })
-      // 새 마감가마다 rounds 갱신 (결과 반영)
-      fetchRounds()
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (typeof window !== "undefined" && (window as any).__bitcoinClosingPrices) {
+        setClosingPrices((window as any).__bitcoinClosingPrices)
+      }
+    }, 500)
+    // rounds도 5초마다 갱신 (결과 반영)
+    const roundsInterval = setInterval(fetchRounds, 5000)
+    return () => {
+      clearInterval(interval)
+      clearInterval(roundsInterval)
     }
-    window.addEventListener("baka:closing", onClosing)
-    return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
   if (closingPrices.length === 0) return null

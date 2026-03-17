@@ -1,11 +1,6 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import useSWR from "swr"
-import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
-import { ClosingPrices } from "@/components/dashboard/closing-prices"
-
-const swrFetcher = (url: string) => fetch(url).then(r => r.json())
 
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -32,7 +27,6 @@ interface GameState {
   priceDisplay: number
   roundCount: number
   history: Array<"player" | "banker" | "tie">
-  finalCard: Card | null  // 0초 끝자리 카드 → 이미지 오버레이 표시용
 }
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
@@ -106,7 +100,7 @@ const MAX_ROWS = 6
 const CELL = 22   // 셀 크기 px
 const GAP = 2
 
-export type RoadResult = "player" | "banker" | "tie"
+type RoadResult = "player" | "banker" | "tie"
 
 interface BigRoadCell {
   col: number
@@ -115,7 +109,7 @@ interface BigRoadCell {
   tieCount: number   // 이 칸 위에 쌓인 타이 수
 }
 
-export function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
+function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
   const cells: BigRoadCell[] = []
   let col = -1
   let row = 0
@@ -153,53 +147,15 @@ export function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
 
 const DISPLAY_LIMIT = 18 // 슬라이딩 윈도우 최대 표시 개수
 
-export function BigRoad({ history, round }: { history: RoadResult[]; round: number }) {
+function BigRoad({ history, round }: { history: RoadResult[]; round: number }) {
   // 18개 슬라이딩 윈도우: 18개 초과 시 맨 앞 잘라내기
   const displayHistory = history.length > DISPLAY_LIMIT ? history.slice(-DISPLAY_LIMIT) : history
 
   const cells = buildBigRoad(displayHistory)
-
-  // 컨테이너 너비 측정 → 셀 크기 동적 계산
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [containerW, setContainerW] = useState(0)
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const ro = new ResizeObserver(entries => {
-      setContainerW(entries[0].contentRect.width)
-    })
-    ro.observe(el)
-    setContainerW(el.getBoundingClientRect().width)
-    return () => ro.disconnect()
-  }, [])
-
-  // 카드 이미지 너비 = height * 0.68 (카드 비율)
-  // 그리드 + gap + 카드 = containerW
-  // cell = floor((containerW - cardW - gap(6) - padding(8)) / (DISPLAY_LIMIT * (1 + GAP/CELL)))
-  const CARD_RATIO = 0.68
-  const FLEX_GAP = 6
-  const GRID_PAD = 8  // 그리드 div padding 4px × 2
-  // cell 크기: (avail) / (DISPLAY_LIMIT * (1 + GAP/cell)) → 근사: avail / (DISPLAY_LIMIT * 24/22)
-  const avail = containerW > 0 ? containerW - FLEX_GAP - GRID_PAD : DISPLAY_LIMIT * (CELL + GAP)
-  // cardW = cellSize * MAX_ROWS * CARD_RATIO, gridW = DISPLAY_LIMIT * (cellSize + GAP)
-  // avail = DISPLAY_LIMIT*(c+GAP) + MAX_ROWS*c*CARD_RATIO
-  // avail = c*(DISPLAY_LIMIT + MAX_ROWS*CARD_RATIO) + DISPLAY_LIMIT*GAP
-  const cellSize = containerW > 0
-    ? Math.max(8, Math.floor((avail - DISPLAY_LIMIT * GAP) / (DISPLAY_LIMIT + MAX_ROWS * CARD_RATIO)))
-    : CELL
-
-  const totalCols = DISPLAY_LIMIT
-  const width = totalCols * (cellSize + GAP)
-  const height = MAX_ROWS * (cellSize + GAP)
-
-  // 랜덤 카드 이미지 (API 응답: { images: [{url, pathname}] })
-  const { data: cardData } = useSWR<{ images: { url: string; pathname: string }[] }>(
-    "/api/card-images", swrFetcher, { revalidateOnFocus: false }
-  )
-  // 라운드 번호를 시드로 사용 → 모든 클라이언트가 동일한 이미지 선택
-  const cardImageUrl = cardData?.images && cardData.images.length > 0
-    ? cardData.images[round % cardData.images.length].url
-    : null
+  const maxCol = cells.length > 0 ? Math.max(...cells.map(c => c.col)) : 0
+  const totalCols = Math.max(maxCol + 1, 14)  // 최소 14열 표시
+  const width = totalCols * (CELL + GAP)
+  const height = MAX_ROWS * (CELL + GAP)
 
   // 카운트 집계 (전체 history 기준)
   const pCount = history.filter(r => r === "player").length
@@ -222,68 +178,82 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
     </div>
   )
 
-  const cardW = Math.round(height * CARD_RATIO)
-
   return (
-    <div ref={containerRef} style={{ marginBottom: 14 }}>
-      {/* BIG ROAD 헤더 — 라운드+카운트 배지 + 전체보기 */}
+    <div style={{ marginBottom: 14 }}>
+      {/* 라운드 + 카운트 헤더 */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+        marginBottom: 6,
+        padding: "5px 8px",
+        background: "rgba(0,0,0,0.35)",
+        borderRadius: 7,
+        border: "1px solid rgba(212,175,55,0.1)",
+        flexWrap: "wrap",
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,213,163,0.7)", marginRight: 2 }}>
+          #{round}
+        </span>
+        <StatChip color="#3b82f6" label="P" count={pCount} />
+        <StatChip color="#ef4444" label="B" count={bCount} />
+        <StatChip color="#22c55e" label="T" count={tCount} />
+      </div>
+
+      {/* BIG ROAD 레전드 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 5, gap: 8,
+        marginBottom: 5,
       }}>
-        {/* 왼쪽: BIG ROAD 타이틀 + 라운드/P/B/T 배지 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(212,175,55,0.6)", letterSpacing: "0.1em" }}>
             BIG ROAD
           </span>
-          {/* 배지 그룹 */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "3px 8px",
-            background: "rgba(0,0,0,0.35)",
-            borderRadius: 20,
-            border: "1px solid rgba(212,175,55,0.1)",
-          }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,213,163,0.7)" }}>
-              #{round}
-            </span>
-            <StatChip color="#3b82f6" label="P" count={pCount} />
-            <StatChip color="#ef4444" label="B" count={bCount} />
-            <StatChip color="#22c55e" label="T" count={tCount} />
-          </div>
+          <span style={{ fontSize: 9, color: "rgba(212,175,55,0.35)" }}>
+            최근 {Math.min(history.length, DISPLAY_LIMIT)}개
+          </span>
         </div>
-        {/* 오른쪽: 전체보기 버튼 */}
-        <a
-          href="/baccarat-stats"
-          style={{
-            fontSize: 9,
-            fontWeight: 700,
-            color: "rgba(212,175,55,0.8)",
-            border: "1px solid rgba(212,175,55,0.25)",
-            borderRadius: 4,
-            padding: "2px 7px",
-            textDecoration: "none",
-            letterSpacing: "0.05em",
-            background: "rgba(212,175,55,0.06)",
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-          }}
-        >
-          전체보기
-        </a>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <span style={{ fontSize: 9, color: "#3b82f6", display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #3b82f6", display: "inline-block" }} />
+              P
+            </span>
+            <span style={{ fontSize: 9, color: "#ef4444", display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", border: "1.5px solid #ef4444", display: "inline-block" }} />
+              B
+            </span>
+            <span style={{ fontSize: 9, color: "#22c55e", display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ fontSize: 8 }}>╱</span>
+              T
+            </span>
+          </div>
+          {/* 전체보기 버튼 */}
+          <a
+            href="/baccarat-stats"
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: "rgba(212,175,55,0.8)",
+              border: "1px solid rgba(212,175,55,0.25)",
+              borderRadius: 4,
+              padding: "2px 7px",
+              textDecoration: "none",
+              letterSpacing: "0.05em",
+              background: "rgba(212,175,55,0.06)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            전체보기
+          </a>
+        </div>
       </div>
 
-      {/* 그리드 + 카드 이미지 flex row */}
-      <div style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
-
-      {/* 빅로드 그리드 */}
+      {/* 그리드 */}
       <div style={{
+        overflowX: "auto",
         borderRadius: 8,
         border: "1px solid rgba(212,175,55,0.12)",
         background: "rgba(0,0,0,0.25)",
         padding: 4,
-        overflow: "hidden",
-        flexShrink: 0,
       }}>
         <div style={{ position: "relative", width, height, flexShrink: 0 }}>
           {/* 격자 배경 */}
@@ -293,10 +263,10 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
                 key={`grid-${r}-${c}`}
                 style={{
                   position: "absolute",
-                  left: c * (cellSize + GAP),
-                  top: r * (cellSize + GAP),
-                  width: cellSize,
-                  height: cellSize,
+                  left: c * (CELL + GAP),
+                  top: r * (CELL + GAP),
+                  width: CELL,
+                  height: CELL,
                   border: "1px solid rgba(212,175,55,0.06)",
                   borderRadius: 3,
                 }}
@@ -313,10 +283,10 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
                 key={i}
                 style={{
                   position: "absolute",
-                  left: cell.col * (cellSize + GAP),
-                  top: cell.row * (cellSize + GAP),
-                  width: cellSize,
-                  height: cellSize,
+                  left: cell.col * (CELL + GAP),
+                  top: cell.row * (CELL + GAP),
+                  width: CELL,
+                  height: CELL,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -324,8 +294,8 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
               >
                 {/* 원 */}
                 <div style={{
-                  width: cellSize - 4,
-                  height: cellSize - 4,
+                  width: CELL - 4,
+                  height: CELL - 4,
                   borderRadius: "50%",
                   border: `2px solid ${color}`,
                   background: isLatest ? `${color}22` : "transparent",
@@ -354,28 +324,6 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
           })}
         </div>
       </div>
-
-      {/* 캐릭터 카드 이미지 — 그리드 테두리 바깥 오른쪽 flex sibling */}
-      <div style={{
-        width: cardW,
-        flexShrink: 0,
-        borderRadius: 8,
-        border: "1px solid rgba(212,175,55,0.25)",
-        overflow: "hidden",
-        background: "rgba(0,0,0,0.4)",
-      }}>
-        {cardImageUrl ? (
-          <img
-            src={cardImageUrl}
-            alt=""
-            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
-          />
-        ) : (
-          <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
-        )}
-      </div>
-
-      </div>{/* flex row 끝 */}
     </div>
   )
 }
@@ -446,19 +394,6 @@ function PlayingCard({
             <span style={{ fontSize: 10, marginLeft: 1 }}>{card.suit}</span>
           </div>
         </div>
-
-        {/* 뒷면 */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backfaceVisibility: "hidden",
-            transform: "rotateY(180deg)",
-            background: "linear-gradient(145deg, #0d1a0f, #091209)",
-            border: "1px solid rgba(212,175,55,0.3)",
-            borderRadius: 8,
-          }}
-        />
       </div>
     </div>
   )
@@ -472,12 +407,10 @@ interface BaccaratGameProps {
   onFinalDigitRequest?: (handler: (digit: number) => void) => void
   /** BaccaratGame이 page에 setBetSide 함수를 등록 — 배팅 사이드를 딜 전에 주입 */
   onBetSideRequest?: (handler: (side: BetSide) => void) => void
-  /** history/roundCount 변경 시 page로 전달 */
-  onRoadChange?: (history: RoadResult[], round: number) => void
 }
 
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest, onRoadChange }: BaccaratGameProps = {}) {
+export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
@@ -490,12 +423,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     priceDisplay: 0,
     roundCount: 0,
     history: [],
-    finalCard: null,
   })
 
   const dealingRef = useRef(false)
   const priceRef = useRef(0)
-  // 현재 라운드 배팅 ��이드 (BakaBettingGame이 15초 전에 주입)
+  // 현재 라운드 배팅 사이드 (BakaBettingGame이 15초 전에 주입)
   const betSideRef = useRef<BetSide>(null)
   // 딜 중간 상태 보관 (finalDigit 수신 시 이어서 계산)
   const midStateRef = useRef<{
@@ -504,7 +436,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     betSide: BetSide   // 이 라운드 배팅 사이드 스냅샷
   } | null>(null)
 
-  // ─��─ 가격 수신 (priceDisplay 업데이트) ────────────────────────────────────
+  // ─── 가격 수신 (priceDisplay 업데이트) ────────────────────────────────────
   const lastPriceRef = useRef<number | null>(null)
   useEffect(() => {
     const win = window as any
@@ -534,12 +466,6 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       })
       .catch(err => console.error("[v0] Failed to load initial BigRoad history:", err))
   }, [])
-
-  // history/roundCount 변경 시 page로 전달
-  useEffect(() => {
-    onRoadChange?.(state.history, state.roundCount)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.history, state.roundCount])
 
   // ─── 15초 딜 시작 ───────────────────────────────────────��─────────────────
   // 규칙:
@@ -612,7 +538,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   // 규칙:
   //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
   //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
-  //   3. 승부는 반드시 ��자��� 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
+  //   3. 승부는 반드시 끝자리 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
   //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
   const applyFinalDigit = useCallback(async (digit: number) => {
     const mid = midStateRef.current
@@ -636,7 +562,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       finalB = [...finalB, finalCard]
       setState(prev => ({ ...prev, bankerCards: finalB }))
     }
-    await sleep(300)  // 280→300ms (카드 플립 연출)
+    await sleep(420)
 
     // 2. 추가 카드 연출 (승부와 무관, 시각적 연출만)
     const targetScore = betTarget === "player" ? handScore(finalP) : handScore(finalB)
@@ -645,13 +571,15 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       if (betTarget === "player" && finalB.length < 3) {
         finalB = [...finalB, extraCard]
         setState(prev => ({ ...prev, bankerCards: finalB }))
-        await sleep(280)  // 380→280ms
+        await sleep(380)
       } else if (betTarget === "banker" && finalP.length < 3) {
         finalP = [...finalP, extraCard]
         setState(prev => ({ ...prev, playerCards: finalP }))
-        await sleep(280)  // 380→280ms
+        await sleep(380)
       }
     }
+
+    await sleep(200)
 
     // 3. 승부는 항상 끝자리 기반으로 결정 (카드 점수 폴백 없음)
     //    동일 digit → 동일 result → 모든 유저 동일
@@ -666,12 +594,9 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       bankerCards: finalB,
       roundCount: prev.roundCount + 1,
       history: [...prev.history.slice(-49), result],
-      finalCard,  // 이미지 오버레이에 끝자리 카드 정보 전달
     }))
 
     dealingRef.current = false
-    // applyFinalDigit 완료 시점을 외부에 알림 (settle 딜레이 제거용)
-    window.dispatchEvent(new CustomEvent("baccarat:deal-complete"))
   }, [])
 
   // 콜백 등록
@@ -700,160 +625,69 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         boxShadow: "inset 0 0 60px rgba(0,0,0,0.6)",
       }}
     >
-      {/* BACCARAT 타이틀 헤더 */}
+      {/* 컴팩트 가격 헤더 (잔고 없음) */}
       <div
         style={{
           borderBottom: "1px solid rgba(212,175,55,0.1)",
-          padding: "10px 14px",
+          padding: "8px 14px",
           display: "flex",
           alignItems: "center",
-          gap: 10,
+          justifyContent: "space-between",
           background: "rgba(212,175,55,0.03)",
         }}
       >
-        <span style={{ fontSize: 18, fontWeight: 800, color: "#d4af37", letterSpacing: "0.12em", textTransform: "uppercase" }}>
-          Baccarat
-        </span>
-        <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", border: "1px solid rgba(212,175,55,0.2)", padding: "2px 8px", borderRadius: 4, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
-          BTC 끝자리 기반
-        </span>
-      </div>
-
-      {/* 차트 */}
-      <div style={{ padding: "10px 12px 0" }}>
-        <BitcoinChart />
-      </div>
-
-      {/* 30초 마감 기준가 */}
-      <div style={{ padding: "0 12px 12px" }}>
-        <ClosingPrices />
-      </div>
-
-    </div>
-  )
-}
-
-// ─── 카드 캐릭터 오버레이 컴포넌트 ──────────────────────────────────────────
-// 영상 우선, 없으면 이미지 폴백. betting 단계 시작 시 영상 재생.
-function CardCharacterDisplay({ roundSeed, card, phase }: {
-  roundSeed: number
-  card: Card | null
-  phase: Phase
-}) {
-  const { data: videoData } = useSWR<{ videos: Array<{ url: string; pathname: string }> }>(
-    "/api/card-videos",
-    swrFetcher,
-    { refreshInterval: 60000, revalidateOnFocus: false }
-  )
-  const { data: imageData } = useSWR<{ images: Array<{ url: string; pathname: string }> }>(
-    "/api/card-images",
-    swrFetcher,
-    { refreshInterval: 60000, revalidateOnFocus: false }
-  )
-
-  const videos = videoData?.videos ?? []
-  const images = imageData?.images ?? []
-
-  // 영상 우선, 없으면 이미지 폴백
-  const hasVideo = videos.length > 0
-  const selectedVideo = hasVideo ? videos[roundSeed % videos.length] : null
-  const selectedImage = images.length > 0 ? images[roundSeed % images.length] : null
-  const imgSrc = selectedImage?.url ?? "/images/baccarat-card-girl.jpg"
-
-  const videoRef = useRef<HTMLVideoElement>(null)
-
-  // betting 단계 시작 시 영상 처음부터 재생
-  useEffect(() => {
-    if (!selectedVideo || !videoRef.current) return
-    if (phase === "betting") {
-      videoRef.current.currentTime = 0
-      videoRef.current.play().catch(() => {})
-    }
-  }, [phase, selectedVideo?.url])
-
-  const suitColor = "#ffffff"
-  const label = card?.label ?? ""
-  const suit  = card?.suit  ?? ""
-
-  return (
-    <div style={{
-      marginTop: 12,
-      position: "relative",
-      borderRadius: 14,
-      overflow: "hidden",
-      border: "2px solid rgba(212,175,55,0.35)",
-      boxShadow: "0 6px 32px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(212,175,55,0.1)",
-      background: "#0a0f0a",
-      aspectRatio: "2/3",
-    }}>
-      {/* 영상 or 이미지 */}
-      {hasVideo && selectedVideo ? (
-        <video
-          ref={videoRef}
-          src={selectedVideo.url}
-          muted
-          playsInline
-          preload="auto"
-          style={{ width: "100%", height: "100%", display: "block", objectFit: "cover", objectPosition: "top" }}
-        />
-      ) : (
-        <img
-          src={imgSrc}
-          alt="Baccarat card character"
-          style={{ width: "100%", height: "100%", display: "block", objectFit: "cover", objectPosition: "top" }}
-        />
-      )}
-
-      {/* 카드 정보가 있을 때만 오버레이 표시 */}
-      {card && (
-        <>
-          {/* 좌상단 — 숫자 + 무늬 */}
-          <div style={{
-            position: "absolute", top: 10, left: 12,
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 0,
-          }}>
-            <span style={{ fontSize: 46, fontWeight: 900, lineHeight: 1, color: suitColor, fontFamily: "Georgia, serif" }}>
-              {label}
-            </span>
-            <span style={{ fontSize: 38, lineHeight: 1, color: suitColor }}>
-              {suit}
-            </span>
-          </div>
-
-          {/* 우하단 — 180도 회전 */}
-          <div style={{
-            position: "absolute", bottom: 10, right: 12,
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 0,
-            transform: "rotate(180deg)",
-          }}>
-            <span style={{ fontSize: 46, fontWeight: 900, lineHeight: 1, color: suitColor, fontFamily: "Georgia, serif" }}>
-              {label}
-            </span>
-            <span style={{ fontSize: 38, lineHeight: 1, color: suitColor }}>
-              {suit}
-            </span>
-          </div>
-        </>
-      )}
-
-      {/* 카드 정보 없을 때: 대기 표시 */}
-      {!card && (
-        <div style={{
-          position: "absolute", top: 10, left: 12,
-          fontSize: 11, color: "rgba(212,175,55,0.5)", letterSpacing: "0.06em",
-          fontStyle: "italic",
-        }}>
-          대기 중
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span style={{ fontSize: 10, color: "rgba(232,213,163,0.45)", letterSpacing: "0.08em" }}>BTC/USDT</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#d4af37" }}>
+            {state.priceDisplay ? state.priceDisplay.toFixed(1) : "---"}
+          </span>
         </div>
-      )}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 9, color: "rgba(232,213,163,0.35)" }}>���자리</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#d4af37", lineHeight: 1.1 }}>{state.priceDisplay ? lastDigit : "-"}</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 9, color: "rgba(232,213,163,0.35)" }}>라운드</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(232,213,163,0.6)" }}>#{state.roundCount}</div>
+          </div>
+        </div>
+      </div>
 
-      {/* 카드 테두리 금장 장식선 */}
-      <div style={{
-        position: "absolute", inset: 6,
-        borderRadius: 10,
-        border: "1px solid rgba(212,175,55,0.3)",
-        pointerEvents: "none",
-      }} />
+      {/* 게임 테이블 */}
+      <div style={{ padding: "14px 12px" }}>
+
+        {/* Big Road — 항상 표시, DB 초기 로드 데이터 포함 */}
+        <BigRoad history={state.history} round={state.roundCount} />
+
+        {/* 딜링 중 표시 */}
+        {state.phase === "dealing" && (
+          <div style={{
+            textAlign: "center", padding: "8px",
+            marginBottom: 10,
+            fontSize: 11, color: "rgba(232,213,163,0.4)", letterSpacing: "0.08em",
+          }}>
+            딜링 중...
+          </div>
+        )}
+
+        {/* 카드 캐릭터 이미지 */}
+        <div style={{
+          marginTop: 12,
+          borderRadius: 12,
+          overflow: "hidden",
+          border: "1px solid rgba(212,175,55,0.2)",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+        }}>
+          <img
+            src="/images/baccarat-card-girl.jpg"
+            alt="Baccarat card character"
+            style={{ width: "100%", display: "block", objectFit: "cover" }}
+          />
+        </div>
+      </div>
     </div>
   )
 }
+
+

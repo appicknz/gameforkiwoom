@@ -49,7 +49,7 @@ function formatQuoteVolume(usd: number): string {
   return krw.toLocaleString() + "원"
 }
 
-export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = {}) {
+export function BitcoinChart() {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -122,7 +122,7 @@ export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = 
     })
   }, [])
 
-  // 30초봉 마감가 수신 → ref 저장 + 노란 수평선 즉각 갱신
+  // 30초봉 마감가 수신 → ref 저장 + 노란 수평선 갱신
   const handleClosingPrice = useCallback((price: number, time: number) => {
     latestClosingPriceRef.current = price
     setClosingPrices(prev => {
@@ -133,49 +133,24 @@ export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = 
     drawPriceLine(price)
   }, [drawPriceLine])
 
-  // 초기 마감가 배열 수신 (새로고침 복원) → 마지막 값으로 수평선
+  // 초기 마감가 배열 수신 → 마지막 값으로 수평선
   const handleInitClosing = useCallback((prices: Array<{ time: number; price: number }>) => {
     if (prices.length === 0) return
     setClosingPrices(prices)
     const last = prices[prices.length - 1]
     if (last) {
       latestClosingPriceRef.current = last.price
-      // seriesRef가 아직 준비됐으면 즉각 그리고, 아직 초기화 중이면
-      // 차트 useEffect 내 fetchInitialCandles.then()에서 복원
-      if (seriesRef.current) {
-        drawPriceLine(last.price)
-      }
+      drawPriceLine(last.price)
     }
   }, [drawPriceLine])
 
-  // Railway WS는 BakaBettingGame 단일 인스턴스에서만 연결
-  // → baka:price / baka:closing CustomEvent를 구독
-  useEffect(() => {
-    const onPrice = (e: Event) => {
-      const { price } = (e as CustomEvent).detail
-      handlePrice(price, Math.floor(Date.now() / 1000))
-    }
-    const onClosing = (e: Event) => {
-      const { price, time } = (e as CustomEvent).detail
-      handleClosingPrice(price, time)
-    }
-    window.addEventListener("baka:price", onPrice)
-    window.addEventListener("baka:closing", onClosing)
-    // 초기 마감가: window.__bitcoinClosingPrices 에서 읽기 (BakaBettingGame의 usePriceWorker가 init 시 세팅)
-    const initPrices: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
-    if (initPrices.length > 0) handleInitClosing(initPrices)
-    return () => {
-      window.removeEventListener("baka:price", onPrice)
-      window.removeEventListener("baka:closing", onClosing)
-    }
-  }, [handlePrice, handleClosingPrice, handleInitClosing])
-
-  // connected 상태: baka:price 첫 수신 시 true
-  useEffect(() => {
-    const onFirst = () => setConnected(true)
-    window.addEventListener("baka:price", onFirst, { once: true })
-    return () => window.removeEventListener("baka:price", onFirst)
-  }, [])
+  usePriceWorker({
+    onConnected: useCallback(() => setConnected(true), []),
+    onDisconnected: useCallback(() => setConnected(false), []),
+    onPrice: handlePrice,
+    onClosingPrice: handleClosingPrice,
+    onInitClosing: handleInitClosing,
+  })
 
   // 초기 캔들: Binance REST (interval에 맞는 봉 타입 그대로 사용)
   const fetchInitialCandles = useCallback(async (sel: Interval): Promise<CandleData[]> => {
@@ -282,7 +257,7 @@ export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = 
             close: parseFloat(k.c),
           }
           candleMapRef.current.set(barTime, candle)
-          try { seriesRef.current.update(candle) } catch { /* ���순 방어 */ }
+          try { seriesRef.current.update(candle) } catch { /* 역순 방어 */ }
         } catch { /* JSON parse 오류 무시 */ }
       }
 
@@ -301,29 +276,10 @@ export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = 
         chartRef.current?.timeScale().scrollToRealTime()
       }
       // 차트 재생성 후 기존 배팅 기준가 수평선 복원
-      // latestClosingPriceRef가 이미 세팅돼 있으면 즉각 복원,
-      // init 메시지가 아직 안 왔으면 handleInitClosing에서 나중에 그림
       if (latestClosingPriceRef.current !== null) {
         drawPriceLine(latestClosingPriceRef.current)
       }
       startKlineWS()
-      // 폴백: init 메시지가 차트보다 늦게 도착하는 경우를 대비해
-      // DB에서 직접 최신 마감가를 조회해 수평선 복원
-      if (latestClosingPriceRef.current === null) {
-        fetch("/api/closing-price")
-          .then(r => r.json())
-          .then((data: { prices?: Array<{ time: number; price: number }> }) => {
-            if (cancelled) return
-            const prices = data.prices ?? []
-            const last = prices[prices.length - 1]
-            if (last && latestClosingPriceRef.current === null) {
-              latestClosingPriceRef.current = last.price
-              setClosingPrices(prices)
-              drawPriceLine(last.price)
-            }
-          })
-          .catch(() => {})
-      }
     })
 
     return () => {
@@ -428,34 +384,32 @@ export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = 
         </div>
       </div>
 
-      {/* 차트 — headerOnly 모드에서는 숨김 */}
-      {!headerOnly && (
-        <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
-          <div ref={chartContainerRef} className="w-full h-full" />
+      {/* 차트 */}
+      <div className="relative w-full h-[180px] rounded-lg overflow-hidden">
+        <div ref={chartContainerRef} className="w-full h-full" />
 
-          {/* 차트 내 거래량/거래대금 오버레이 */}
-          {ticker && (
-            <div
-              className="absolute bottom-8 left-2 px-2 py-1 rounded text-[10px] z-10"
-              style={{
-                background: "rgba(9,31,18,0.82)",
-                backdropFilter: "blur(4px)",
-                border: "1px solid rgba(212,175,55,0.15)",
-                color: "rgba(212,175,55,0.45)",
-              }}
-            >
-              <div>거래량: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
-              <div>거래대금: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
-            </div>
-          )}
+        {/* 차트 내 거래량/거래대금 오버레이 */}
+        {ticker && (
+          <div
+            className="absolute bottom-8 left-2 px-2 py-1 rounded text-[10px] z-10"
+            style={{
+              background: "rgba(9,31,18,0.82)",
+              backdropFilter: "blur(4px)",
+              border: "1px solid rgba(212,175,55,0.15)",
+              color: "rgba(212,175,55,0.45)",
+            }}
+          >
+            <div>거래량: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
+            <div>거래대금: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
+          </div>
+        )}
 
-          {/* 펠트 테두리 광택 효과 */}
-          <div className="absolute inset-0 pointer-events-none" style={{
-            boxShadow: "inset 0 0 40px rgba(0,0,0,0.3), inset 0 0 1px rgba(212,175,55,0.15)",
-            borderRadius: 8,
-          }} />
-        </div>
-      )}
+        {/* 펠트 테두리 광택 효과 */}
+        <div className="absolute inset-0 pointer-events-none" style={{
+          boxShadow: "inset 0 0 40px rgba(0,0,0,0.3), inset 0 0 1px rgba(212,175,55,0.15)",
+          borderRadius: 8,
+        }} />
+      </div>
     </Card>
   )
 }
