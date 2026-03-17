@@ -196,12 +196,10 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
   const { data: cardData } = useSWR<{ images: { url: string; pathname: string }[] }>(
     "/api/card-images", swrFetcher, { revalidateOnFocus: false }
   )
-  // round 번호를 시드로 → 모든 사용자가 동일한 이미지를 받음
-  const cardImageUrl = useMemo(() => {
-    if (!cardData?.images || cardData.images.length === 0) return null
-    const idx = round % cardData.images.length
-    return cardData.images[idx].url
-  }, [cardData, round])
+  const randomImage = useRef<string | null>(null)
+  if (cardData?.images && cardData.images.length > 0 && randomImage.current === null) {
+    randomImage.current = cardData.images[Math.floor(Math.random() * cardData.images.length)].url
+  }
 
   // 카운트 집계 (전체 history 기준)
   const pCount = history.filter(r => r === "player").length
@@ -366,9 +364,9 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         overflow: "hidden",
         background: "rgba(0,0,0,0.4)",
       }}>
-        {cardImageUrl ? (
+        {randomImage.current ? (
           <img
-            src={cardImageUrl}
+            src={randomImage.current}
             alt=""
             style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
           />
