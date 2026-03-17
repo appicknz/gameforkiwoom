@@ -4,7 +4,6 @@ import { useState, useCallback, useRef } from "react"
 import BaccaratGame, { BigRoad, type RoadResult } from "@/components/baka/baccarat-game"
 import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
-import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
@@ -108,57 +107,31 @@ export default function BakaPage() {
       </div>
 
       <main className="max-w-7xl mx-auto p-3 md:p-5">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-          {/* 왼쪽: 차트 */}
+          {/* 왼쪽: BigRoad + 카드 오버레이 */}
           <div className="lg:col-span-2 space-y-4">
             {/* 타이틀 */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <h1
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 800,
-                    color: "#d4af37",
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    margin: 0,
-                  }}
-                >
+                <h1 style={{ fontSize: 18, fontWeight: 800, color: "#d4af37", letterSpacing: "0.12em", textTransform: "uppercase", margin: 0 }}>
                   Baccarat
                 </h1>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: "rgba(212,175,55,0.5)",
-                    border: "1px solid rgba(212,175,55,0.2)",
-                    padding: "2px 8px",
-                    borderRadius: 4,
-                    letterSpacing: "0.1em",
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <div style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", border: "1px solid rgba(212,175,55,0.2)", padding: "2px 8px", borderRadius: 4, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
                   BTC 끝자리 기반
                 </div>
               </div>
-
-              {/* 게임 결과 — 오른쪽 정렬 */}
               {cardData.result && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {/* 결과 뱃지 */}
                   <span style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: "0.1em",
+                    fontSize: 11, fontWeight: 800, letterSpacing: "0.1em",
                     color: cardData.result === "banker" ? "#ef4444" : cardData.result === "player" ? "#3b82f6" : "#22c55e",
                     background: cardData.result === "banker" ? "rgba(239,68,68,0.12)" : cardData.result === "player" ? "rgba(59,130,246,0.12)" : "rgba(34,197,94,0.12)",
                     border: `1px solid ${cardData.result === "banker" ? "rgba(239,68,68,0.35)" : cardData.result === "player" ? "rgba(59,130,246,0.35)" : "rgba(34,197,94,0.35)"}`,
-                    padding: "2px 10px",
-                    borderRadius: 6,
+                    padding: "2px 10px", borderRadius: 6,
                   }}>
                     {cardData.result === "banker" ? "BANKER WIN" : cardData.result === "player" ? "PLAYER WIN" : "TIE"}
                   </span>
-                  {/* 스코어 */}
                   <span style={{ fontSize: 13, color: "rgba(212,175,55,0.65)", fontVariantNumeric: "tabular-nums" }}>
                     <span style={{ color: "#ef4444", fontWeight: 800 }}>{cardData.bScore}</span>
                     <span style={{ margin: "0 6px", color: "rgba(212,175,55,0.3)" }}>:</span>
@@ -168,19 +141,28 @@ export default function BakaPage() {
               )}
             </div>
 
-            {/* 차트 + 카드 오버레이 */}
+            {/* BigRoad + 카드 오버레이 */}
             <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}`}</style>
             <div className="relative">
-              <BitcoinChart />
-              {/* BANKER / PLAYER 카드 오버레이 */}
+              {/* BigRoad */}
+              <div style={{
+                background: "rgba(5,15,10,0.92)",
+                border: "1px solid rgba(212,175,55,0.2)",
+                borderRadius: 16,
+                overflow: "hidden",
+                padding: "12px",
+              }}>
+                <BigRoad history={roadState.history} round={roadState.round} />
+              </div>
+
+              {/* 카드 오버레이 — BigRoad 위 중앙 */}
               <div
                 className="absolute inset-0 pointer-events-none z-20"
                 style={{
-                  top: 0,
-                  padding: `${Math.round(10 * S)}px ${Math.round(12 * S)}px`,
-                  display: "flex", flexDirection: "column",
+                  display: "flex",
+                  flexDirection: "column",
                   gap: Math.round(8 * S),
-                  justifyContent: isMobile ? "center" : "flex-start",
+                  justifyContent: "center",
                   alignItems: "center",
                 }}
               >
@@ -190,17 +172,18 @@ export default function BakaPage() {
                   const label = side === "banker" ? "BANKER" : "PLAYER"
                   const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
                   const isWinner = cardData.result === side
+                  if (cards.length === 0) return null
                   return (
                     <div
                       key={side}
                       style={{
                         borderRadius: Math.round(10 * S),
                         border: `1px solid ${isWinner ? accentColor + "99" : "rgba(212,175,55,0.18)"}`,
-                        background: isWinner ? `${accentColor}12` : "rgba(9,8,10,0.72)",
-                        backdropFilter: "blur(6px)",
+                        background: isWinner ? `${accentColor}18` : "rgba(9,8,10,0.82)",
+                        backdropFilter: "blur(8px)",
                         padding: `${Math.round(8 * S)}px ${Math.round(10 * S)}px`,
                         transition: "border-color 0.3s, background 0.3s",
-                        boxShadow: isWinner ? `0 0 ${Math.round(18 * S)}px ${accentColor}28` : `0 2px ${Math.round(12 * S)}px rgba(0,0,0,0.5)`,
+                        boxShadow: isWinner ? `0 0 ${Math.round(18 * S)}px ${accentColor}28` : `0 2px ${Math.round(12 * S)}px rgba(0,0,0,0.6)`,
                         width: "fit-content",
                         minWidth: Math.round(140 * S),
                       }}
@@ -208,9 +191,7 @@ export default function BakaPage() {
                       <div style={{ display: "flex", alignItems: "center", gap: Math.round(8 * S), marginBottom: Math.round(7 * S) }}>
                         <span style={{ fontSize: Math.round(10 * S), fontWeight: 700, letterSpacing: "0.12em", color: accentColor }}>{label}</span>
                         {isWinner && <span style={{ fontSize: Math.round(9 * S), background: accentColor, color: "#fff", padding: `1px ${Math.round(5 * S)}px`, borderRadius: 3, fontWeight: 700 }}>WIN</span>}
-                        {cards.length > 0 && (
-                          <span style={{ fontSize: Math.round(16 * S), fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
-                        )}
+                        <span style={{ fontSize: Math.round(16 * S), fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
                       </div>
                       <div style={{ display: "flex", gap: Math.round(6 * S) }}>
                         {cards.map(card => <OverlayCard key={card.id} card={card} s={S} />)}
@@ -222,7 +203,7 @@ export default function BakaPage() {
               </div>
             </div>
 
-            {/* 배팅 게임 (기존 6종목 + 바카라) */}
+            {/* 배팅 게임 */}
             <BakaBettingGame
               onStartDealTrigger={handleStartDealTrigger}
               onFinalDigitTrigger={handleFinalDigitTrigger}
@@ -246,21 +227,6 @@ export default function BakaPage() {
                 onBetSideRequest={handleRegisterBetSide}
                 onRoadChange={handleRoadChange}
               />
-            </div>
-          </div>
-
-          {/* Big Road — BaccaratGame 오른쪽 */}
-          <div className="sticky top-4 self-start">
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={{
-                background: "rgba(5,15,10,0.92)",
-                border: "1px solid rgba(212,175,55,0.2)",
-                boxShadow: "0 0 50px rgba(212,175,55,0.06)",
-                padding: "12px",
-              }}
-            >
-              <BigRoad history={roadState.history} round={roadState.round} />
             </div>
           </div>
 
