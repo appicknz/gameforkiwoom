@@ -73,6 +73,18 @@ function getToken(): string | null {
   try { return localStorage.getItem("app_token") } catch { return null }
 }
 
+// ─── 비트코인 끝자리 계산 ────────────────────────────────────────────────────
+// 소수점 2자리 두 숫자의 합의 끝자리
+// e.g. 74,087.39 → 3+9=12 → 2
+// e.g. 74,079.83 → 8+3=11 → 1
+function calcLastDigit(price: number): number {
+  const str = price.toFixed(2)          // "74087.39"
+  const dec = str.split(".")[1] ?? "00" // "39"
+  const d1 = parseInt(dec[0] ?? "0")
+  const d2 = parseInt(dec[1] ?? "0")
+  return (d1 + d2) % 10
+}
+
 // ─── 자동 배팅 설정 ────────────────────────────────────────────────────────
 interface AutoBetConfig {
   enabled: boolean
@@ -263,7 +275,7 @@ function BakaBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
 function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null; open: boolean; onClose: () => void }) {
   if (!open || !result) return null
 
-  const lastDigit = Math.floor(Math.abs(result.closePrice * 10)) % 10
+  const lastDigit = calcLastDigit(result.closePrice)
   const priceChange = result.closePrice - result.basePrice
   const isUp = priceChange >= 0
 
@@ -484,7 +496,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
       const closePrice = price
-      const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
+      const lastDigit = calcLastDigit(closePrice)  // 소수점 2자리 합 끝자리
       // baka:closing은 BitcoinChart kline WS가 단독 발행 — 여기서는 게임 로직만 처리
 
       // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
@@ -657,7 +669,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   // autoBet state → ref ��기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
-  // �����동 배팅: canBet false→true 전환 시 새 라운드 플���그 초기화
+  // �������동 배팅: canBet false→true 전환 시 새 라운드 플���그 초기화
   const prevCanBetRef = useRef(false)
   useEffect(() => {
     const was = prevCanBetRef.current

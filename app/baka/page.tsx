@@ -16,6 +16,7 @@ interface CardOverlayData {
   pScore: number
   bScore: number
   result: "player" | "banker" | "tie" | null
+  finalCard?: Card | null
 }
 
 type BaccaratResult = "player" | "banker" | "tie" | null
@@ -202,6 +203,50 @@ export default function BakaPage() {
             }}>
               <BigRoad history={roadState.history} round={roadState.round} />
             </div>
+
+            {/* ── 0초 끝자리 카드 센터 팝업 오버레이 ── */}
+            {cardData.finalCard && (() => {
+              const fc = cardData.finalCard!
+              const isRed = fc.suit === "♥" || fc.suit === "♦"
+              return (
+                <div style={{
+                  position: "fixed", inset: 0, zIndex: 9999,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "rgba(0,0,0,0.55)",
+                  animation: "fadeInOverlay 0.15s ease",
+                }}>
+                  <div style={{
+                    background: "linear-gradient(145deg,#1c1408,#12100a)",
+                    border: `3px solid ${isRed ? "#e85c5c" : "#d4af37"}`,
+                    borderRadius: 20,
+                    padding: "28px 36px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 8,
+                    boxShadow: `0 0 60px ${isRed ? "#e85c5c" : "#d4af37"}80, 0 12px 48px rgba(0,0,0,0.8)`,
+                    animation: "popupCard 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+                    minWidth: 160,
+                  }}>
+                    {/* 끝자리 숫자 크게 */}
+                    <span style={{ fontSize: 80, fontWeight: 900, lineHeight: 1, color: isRed ? "#e85c5c" : "#d4af37", fontFamily: "Georgia, serif" }}>
+                      {fc.label}
+                    </span>
+                    {/* 무늬 */}
+                    <span style={{ fontSize: 48, lineHeight: 1, color: isRed ? "#e85c5c" : "#d4af37" }}>
+                      {fc.suit}
+                    </span>
+                    <span style={{ fontSize: 12, color: "rgba(212,175,55,0.7)", letterSpacing: "0.1em", marginTop: 4 }}>
+                      BTC 끝자리 카드
+                    </span>
+                  </div>
+                  <style>{`
+                    @keyframes fadeInOverlay { from { opacity: 0 } to { opacity: 1 } }
+                    @keyframes popupCard { from { transform: scale(0.2) rotate(-15deg); opacity: 0 } to { transform: scale(1) rotate(0deg); opacity: 1 } }
+                  `}</style>
+                </div>
+              )
+            })()}
 
             {/* BANKER / PLAYER 카드 패널 + 중앙 상태 박스 */}
             <div style={{

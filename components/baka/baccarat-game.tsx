@@ -478,7 +478,7 @@ function PlayingCard({
 }
 
 interface BaccaratGameProps {
-  onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"] }) => void
+  onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"]; finalCard: Card | null }) => void
   /** BaccaratGame이 page에 startDeal 함수를 등록 */
   onStartDealRequest?: (handler: () => void) => void
   /** BaccaratGame이 page에 applyFinalDigit 함수를 등록 */
@@ -636,38 +636,41 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     midStateRef.current = null
 
     const betTarget: "player" | "banker" = (betSide === "banker") ? "banker" : "player"
-    // seed = 라운드슬롯 * 100 + digit → startDeal seed와 구분되면서 결정론적
+    // seed = 라운드슬롯 * 100 + digit (결정론적 — 모든 유저 동일 카드)
     const seeded = makeSeededRand(getRoundSeed() * 100 + digit)
     const randSuit = () => Math.floor(seeded() * 4)
     const finalCard = digitToCard(digit, randSuit())
 
-    // 1. 끝자리 카드를 betTarget에게 부여 (연출)
+    // 1. 화면 중앙에 카드 팝업 (빵! — 0초 직후)
+    setState(prev => ({ ...prev, finalCard }))
+    await sleep(950)  // 유저가 카드 번호 확인하는 시간
+
+    // 2. 카드가 슬롯으로 날아가며 추가
     if (betTarget === "player") {
       finalP = [...finalP, finalCard]
-      setState(prev => ({ ...prev, playerCards: finalP }))
+      setState(prev => ({ ...prev, playerCards: finalP, finalCard: null }))
     } else {
       finalB = [...finalB, finalCard]
-      setState(prev => ({ ...prev, bankerCards: finalB }))
+      setState(prev => ({ ...prev, bankerCards: finalB, finalCard: null }))
     }
-    await sleep(300)  // 280→300ms (카드 플립 연출)
+    await sleep(350)
 
-    // 2. 추가 카드 연출 (승부와 무관, 시각적 연출만)
+    // 3. 추가 카드 연출 (승부와 무관, 시각적 연출)
     const targetScore = betTarget === "player" ? handScore(finalP) : handScore(finalB)
     if (targetScore <= 5) {
       const extraCard = digitToCard(Math.floor(seeded() * 10), randSuit())
       if (betTarget === "player" && finalB.length < 3) {
         finalB = [...finalB, extraCard]
         setState(prev => ({ ...prev, bankerCards: finalB }))
-        await sleep(280)  // 380→280ms
+        await sleep(280)
       } else if (betTarget === "banker" && finalP.length < 3) {
         finalP = [...finalP, extraCard]
         setState(prev => ({ ...prev, playerCards: finalP }))
-        await sleep(280)  // 380→280ms
+        await sleep(280)
       }
     }
 
-    // 3. 승부는 항상 끝자리 기반으로 결정 (카드 점수 폴백 없음)
-    //    동일 digit → 동일 result → 모든 유저 동일
+    // 4. 승부는 항상 끝자리 기반 (카드 점수 무관)
     const result: "player" | "banker" | "tie" =
       digit <= 4 ? "player" : digit <= 8 ? "banker" : "tie"
 
@@ -679,11 +682,10 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       bankerCards: finalB,
       roundCount: prev.roundCount + 1,
       history: [...prev.history.slice(-49), result],
-      finalCard,  // 이미지 오버레이에 끝자리 카드 정보 전달
+      finalCard: null,
     }))
 
     dealingRef.current = false
-    // applyFinalDigit 완료 시점을 외부에 알림 (settle 딜레이 제거용)
     window.dispatchEvent(new CustomEvent("baccarat:deal-complete"))
   }, [])
 
@@ -699,7 +701,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
   // 카드 상태를 부모로 전달 (차트 오버레이용)
   useEffect(() => {
-    onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result })
+    onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result, finalCard: state.finalCard ?? null })
   }, [state.playerCards, state.bankerCards, state.result, pScore, bScore, onCardsChange])
 
   const lastDigit = Math.floor(state.priceDisplay) % 10
