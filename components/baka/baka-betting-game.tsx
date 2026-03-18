@@ -465,7 +465,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     return () => window.removeEventListener("baccarat:result", handler)
   }, [])
 
-  // 잔고 초기 로드
+  // 잔고 ���기 로드
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -487,31 +487,43 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   const getRoundNumber = useCallback(() => Math.floor(Date.now() / 1000 / 30), [])
 
+  // Railway price 타입은 타이머 동기화용으로만 사용 (현재가 표시 제거)
   usePriceWorker({
-    onPrice: useCallback((price: number) => {
-      // Railway 가격은 게임 로직(타이머, 결과 판정)에만 사용
-      // UI 현재가 표시는 BitcoinChart kline WS가 단독 발행하는 baka:price를 구독
+    onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
+      if (prices.length > 0 && !betRef.current && !betDigitRef.current && !betParityRef.current && !betBaccaratRef.current) {
+        const latest = prices[prices.length - 1].price
+        setBasePrice(latest)
+        basePriceRef.current = latest
+      }
+    }, []),
+  })
+
+  // ─── 현물 현재가: bitcoin-chart.tsx가 발행하는 baka:price 구독 ─────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const price = (e as CustomEvent<{ price: number }>).detail.price
       setCurrentPrice(price)
       currentPriceRef.current = price
-    }, []),
-    onClosingPrice: useCallback((_railwayPrice: number, time: number) => {
-      // Railway 30초봉 마감가 대신, 현재 1초 실시간 현물가 사용 (선물 가격 문제 해결)
-      const closePrice = currentPriceRef.current ?? _railwayPrice
-      const lastDigit = calcLastDigit(closePrice)  // 소수점 2자리 합 끝자리
-      // baka:closing은 BitcoinChart kline WS가 단독 발행 — 여기서는 게임 로직만 처리
+    }
+    window.addEventListener("baka:price", handler)
+    return () => window.removeEventListener("baka:price", handler)
+  }, [])
 
-      // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
-      // 0~4=player(5), 5~8=banker(4), 9=tie(1)
+  // ─── 현물 30초 마감가: bitcoin-chart.tsx가 발행하는 baka:closing 구독 ───────
+  // bitcoin-chart.tsx → wss://stream.binance.com (현물) kline k.x===true 시 발행
+  // Railway closing 타입은 선물이므로 완전히 무시
+  useEffect(() => {
+    const closingHandler = (e: Event) => {
+      const { price: closePrice } = (e as CustomEvent<{ price: number; time: number }>).detail
+      const lastDigit = calcLastDigit(closePrice)
+
       const serverBacResult: "player" | "banker" | "tie" =
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-      // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 가격 전달 → applyFinalDigit 실행)
-      //    applyFinalDigit 내부에서 소수점 2자리를 분리해 각 사이드에 카드 배분
-      console.log("[v0] Calling onFinalDigitTrigger with closePrice:", closePrice)
+      // 카드 연출 트리거 (applyFinalDigit → 소수점 2자리 분리 → 카드 배분)
       onFinalDigitTrigger?.(closePrice)
 
-      // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
-      //    baccarat_result도 함께 저장해야 빅로드가 쌓임
+      // DB 저장 (빅로드용)
       const snapshotBase = basePriceRef.current
       if (snapshotBase !== null) {
         fetch("/api/rounds/save", {
@@ -521,15 +533,14 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         }).catch(() => {})
       }
 
-      // 4) 배팅 없으면 기준가 업데이트 후 종료
+      // 배팅 없으면 기준가 업데이트 후 종료
       const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
       if (!hasBet) {
-        setBasePrice(price)
-        basePriceRef.current = price
+        setBasePrice(closePrice)
+        basePriceRef.current = closePrice
         return
       }
 
-      // basePriceRef가 null이면 현재가로 대체 (엣지케이스 방어)
       const effectiveBase = snapshotBase ?? closePrice
 
       const wonDirection = betRef.current
@@ -613,40 +624,32 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         setBetDirectionAmount(0); setBetDigitAmount(0); setBetParityAmount(0); setBetBaccaratAmount(0)
 
         // 기준가를 마감가로 교체 (다음 라운드 시작)
-        setBasePrice(price); basePriceRef.current = price
+        setBasePrice(closePrice); basePriceRef.current = closePrice
         setDialog(null)
-        setTimeout(() => setPhase("betting"), 800)  // 1500→800ms
+        setTimeout(() => setPhase("betting"), 800)
       }
 
-      // 5) 정산 타이밍:
-      //    - 바카라 배팅 있음: baccarat:deal-complete 이벤트 수신 즉시 정산
-      //      (applyFinalDigit 완료 시점이 정확히 전달됨 → 고정 딜레이 불필요)
-      //    - 바카라 배팅 없음: 카드 연출과 무관, 즉시 정산
+      // 정산 타이밍:
+      // - 바카라 배팅 있음: baccarat:deal-complete 이벤트 수신 즉시 정산
+      // - 바카라 배팅 없음: 즉시 정산
       if (betBaccaratRef.current) {
         const onDealComplete = (e: Event) => {
           window.removeEventListener("baccarat:deal-complete", onDealComplete)
-          // applyFinalDigit이 실제 카드 점수로 계산한 결과 사용
           const actualResult = (e as CustomEvent).detail?.result as "player" | "banker" | "tie" | undefined
           settle(actualResult ?? serverBacResult)
         }
         window.addEventListener("baccarat:deal-complete", onDealComplete)
-        // 안전 타임아웃: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백)
         setTimeout(() => {
           window.removeEventListener("baccarat:deal-complete", onDealComplete)
           settle(serverBacResult)
         }, 1200)
       } else {
-        settle(null)  // 즉시 정산 (바카라 외 종목)
+        settle(null)
       }
-    }, []),
-    onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
-      if (prices.length > 0 && !betRef.current && !betDigitRef.current && !betParityRef.current && !betBaccaratRef.current) {
-        const latest = prices[prices.length - 1].price
-        setBasePrice(latest)
-        basePriceRef.current = latest
-      }
-    }, []),
-  })
+    }
+    window.addEventListener("baka:closing", closingHandler)
+    return () => window.removeEventListener("baka:closing", closingHandler)
+  }, [onFinalDigitTrigger])
 
   // 타이머 + 15초 딜 시작 트리거
   useEffect(() => {
