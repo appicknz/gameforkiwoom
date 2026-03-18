@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import BaccaratGame, { BigRoad, type RoadResult } from "@/components/baka/baccarat-game"
 import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
