@@ -657,7 +657,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   // autoBet state → ref ��기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
-  // ���동 배팅: canBet false→true 전환 시 새 라운드 플���그 초기화
+  // �����동 배팅: canBet false→true 전환 시 새 라운드 플���그 초기화
   const prevCanBetRef = useRef(false)
   useEffect(() => {
     const was = prevCanBetRef.current
@@ -1051,9 +1051,9 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
               const payout = side === "player" ? "1:1" : side === "banker" ? "0.95:1" : "8:1"
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
-              const solidBg   = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"
-              const dimBg     = side === "banker" ? "rgba(239,68,68,0.13)" : side === "tie" ? "rgba(34,197,94,0.13)" : "rgba(59,130,246,0.13)"
-              const dimBorder = side === "banker" ? "rgba(239,68,68,0.45)" : side === "tie" ? "rgba(34,197,94,0.45)" : "rgba(59,130,246,0.45)"
+              const solidBg   = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
+              const dimBg     = side === "banker" ? "#7f1d1d" : side === "tie" ? "#14532d" : "#1e3a8a"
+              const dimBorder = side === "banker" ? "#b91c1c" : side === "tie" ? "#15803d" : "#1d4ed8"
               return (
                 <button key={side}
                   onClick={() => openDialog("baccarat", side)}
@@ -1062,14 +1062,14 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                   style={{
                     height: 64,
                     background: isSelected ? solidBg : dimBg,
-                    border: `1.5px solid ${isSelected ? solidColor : dimBorder}`,
-                    color: isSelected ? "#fff" : solidColor,
-                    boxShadow: isSelected ? `0 0 12px ${solidColor}60` : "none",
+                    border: `2px solid ${isSelected ? solidColor : dimBorder}`,
+                    color: "#fff",
+                    boxShadow: isSelected ? `0 0 14px ${solidColor}` : "none",
                   }}>
                   <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.03em" }}>{label}</span>
-                  <span style={{ fontSize: 10, opacity: 0.75 }}>{payout}</span>
+                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
                   {isSelected && betBaccaratAmount > 0 && (
-                    <span style={{ fontSize: 10, color: "#fff", opacity: 0.9 }}>
+                    <span style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>
                       ₩{betBaccaratAmount >= 10000 ? `${betBaccaratAmount / 10000}만` : betBaccaratAmount.toLocaleString()}
                     </span>
                   )}
