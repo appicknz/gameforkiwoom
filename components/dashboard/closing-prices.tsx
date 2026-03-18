@@ -264,7 +264,9 @@ export function ClosingPrices() {
         if (last?.time === time) return prev
         return [...prev, { time, price }].slice(-100)
       })
-      fetchRounds()
+      // 00초 또는 30초에만 DB 조회 (매초 호출 방지)
+      const sec = new Date(time * 1000).getSeconds()
+      if (sec === 0 || sec === 30) fetchRounds()
     }
     window.addEventListener("baka:closing", onClosing)
     return () => window.removeEventListener("baka:closing", onClosing)

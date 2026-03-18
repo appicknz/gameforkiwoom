@@ -5,20 +5,11 @@ export async function GET() {
   try {
     const { data: rounds, error } = await admin
       .from("rounds")
-      .select(
-        `
-        id,
-        base_price,
-        result_price,
-        result_digit,
-        baccarat_result,
-        started_at,
-        ended_at,
-        bet_history(bet_direction, bet_digit, bet_parity, result)
-      `
-      )
+      .select("id, base_price, result_price, result_digit, baccarat_result, started_at, ended_at")
+      .not("ended_at", "is", null)
+      .not("result_price", "is", null)
       .order("ended_at", { ascending: false })
-      .limit(100)
+      .limit(10)
 
     if (error) throw error
 
