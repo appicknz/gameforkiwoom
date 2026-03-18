@@ -273,18 +273,6 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         </a>
       </div>
 
-      {/* 차트 — 그리드 위 */}
-      <div style={{
-        borderRadius: 8,
-        border: "1px solid rgba(212,175,55,0.12)",
-        background: "rgba(0,0,0,0.25)",
-        overflow: "hidden",
-        marginBottom: 4,
-        height: 140,
-      }}>
-        <BitcoinChart compact />
-      </div>
-
       {/* 그리드 + 카드 이미지 flex row */}
       <div style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
 
@@ -298,6 +286,17 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         flexShrink: 0,
       }}>
         <div style={{ position: "relative", width, height, flexShrink: 0 }}>
+
+          {/* 차트 — 그리드 내부 배경 */}
+          <div style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
+            pointerEvents: "none",
+            opacity: 0.45,
+          }}>
+            <BitcoinChart compact />
+          </div>
           {/* 격자 배경 */}
           {Array.from({ length: MAX_ROWS }).map((_, r) =>
             Array.from({ length: totalCols }).map((_, c) => (
@@ -311,6 +310,7 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
                   height: cellSize,
                   border: "1px solid rgba(212,175,55,0.06)",
                   borderRadius: 3,
+                  zIndex: 2,
                 }}
               />
             ))
@@ -332,6 +332,7 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  zIndex: 2,
                 }}
               >
                 {/* 원 */}
@@ -620,7 +621,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     setState(prev => ({ ...prev, playerCards: finalP, bankerCards: finalB }))
   }, [])
 
-  // ─── 0초 끝자리 카드 → 베팅 사이드에 부여 → 추가 카드 연출 → 최종 승부 표시 ──
+  // ─── 0초 끝자리 카드 → 베팅 사이��에 부여 → 추가 카드 연출 → 최종 승부 표시 ──
   // 규칙:
   //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
   //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
