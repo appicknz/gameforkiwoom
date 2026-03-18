@@ -619,6 +619,16 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     const bankerDigit = parseInt(decimalPart[0] ?? "0")
     const playerDigit = parseInt(decimalPart[1] ?? "0")
 
+    console.log("[v0] applyFinalDigit:", {
+      closingPrice,
+      priceStr,
+      decimalPart,
+      bankerDigit,
+      playerDigit,
+      bankerCard: `${bankerDigit}`,
+      playerCard: `${playerDigit}`,
+    })
+
     // 뱅커 카드와 플레이어 카드 생성 (각각 정확한 digit 숫자를 받음)
     // seed: 라운드 기반 + timestamp로 무늬만 랜덤
     const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
