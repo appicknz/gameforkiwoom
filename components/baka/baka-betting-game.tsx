@@ -395,8 +395,8 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 interface BakaBettingGameProps {
   /** 15초 시점: page가 주입해 준 startDeal 트리거 */
   onStartDealTrigger?: () => void
-  /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 */
-  onFinalDigitTrigger?: (digit: number) => void
+  /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 (끝자리 가격 전체를 전달) */
+  onFinalDigitTrigger?: (closingPrice: number) => void
   /** 바카라 배팅 확정 시 선택 사이드를 BaccaratGame에 전달 */
   onBetSideTrigger?: (side: "player" | "banker" | "tie" | null) => void
   /** timeLeft/phase 변경 시 page로 전달 */
@@ -504,9 +504,9 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       const serverBacResult: "player" | "banker" | "tie" =
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-      // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 전달 → applyFinalDigit 실행)
-      //    applyFinalDigit 내부에서 digit 기반으로 결과 직접 계산 (이벤트 불필요)
-      onFinalDigitTrigger?.(lastDigit)
+      // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 가격 전달 → applyFinalDigit 실행)
+      //    applyFinalDigit 내부에서 소수점 2자리를 분리해 각 사이드에 카드 배분
+      onFinalDigitTrigger?.(closePrice)
 
       // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
       //    baccarat_result도 함께 저장해야 빅로드가 쌓임
