@@ -257,16 +257,18 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
     })
     seriesRef.current = candleSeries
 
-    // MA 선 3개 — 바이낸스 스타일 (MA7 노랑, MA25 핑크, MA99 보라)
-    ma7Ref.current = chart.addLineSeries({
-      color: "#f0b90b", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-    })
-    ma25Ref.current = chart.addLineSeries({
-      color: "#f45b92", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-    })
-    ma99Ref.current = chart.addLineSeries({
-      color: "#9c6dcd", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-    })
+    // MA 선 3개 — 일반 패널 전용 (compact/빅로드 내부에서는 불필요)
+    if (!compact) {
+      ma7Ref.current = chart.addLineSeries({
+        color: "#f0b90b", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      })
+      ma25Ref.current = chart.addLineSeries({
+        color: "#f45b92", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      })
+      ma99Ref.current = chart.addLineSeries({
+        color: "#9c6dcd", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      })
+    }
 
     const resizeObserver = new ResizeObserver(() => {
       if (chartRef.current && container) {
@@ -478,6 +480,20 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
       {!headerOnly && (
         <div className="relative w-full overflow-hidden" style={{ height: 180 }}>
           <div ref={chartContainerRef} className="w-full h-full" />
+
+          {/* 바이낸스 워터마크 */}
+          <div style={{
+            position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            pointerEvents: "none", zIndex: 1,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, opacity: 0.07 }}>
+              {/* 바이낸스 다이아몬드 로고 SVG */}
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="#848e9c">
+                <path d="M12 1.5L7.5 6 12 10.5 16.5 6 12 1.5zM3 9L1.5 10.5 3 12 4.5 10.5 3 9zM21 9L19.5 10.5 21 12 22.5 10.5 21 9zM7.5 10.5L3 15l4.5 4.5L12 15l-4.5-4.5zM16.5 10.5L12 15l4.5 4.5L21 15l-4.5-4.5zM12 13.5L7.5 18 12 22.5 16.5 18 12 13.5z"/>
+              </svg>
+              <span style={{ fontSize: 32, fontWeight: 700, color: "#848e9c", letterSpacing: "0.08em", fontFamily: "sans-serif" }}>BINANCE</span>
+            </div>
+          </div>
 
           {/* 거래량 오버레이 */}
           {ticker && (
