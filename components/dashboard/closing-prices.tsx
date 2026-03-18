@@ -32,8 +32,6 @@ export function ClosingPrices() {
     const initPrices: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
     if (initPrices.length > 0) setClosingPrices(initPrices)
 
-    fetchRounds()
-
     // baka:closing 이벤트 구독 — Railway 단일 소스
     const onClosing = (e: Event) => {
       const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
@@ -42,8 +40,6 @@ export function ClosingPrices() {
         if (last?.time === time) return prev
         return [...prev, { time, price }].slice(-100)
       })
-      // 새 마감가마다 rounds 갱신 (결과 반영)
-      fetchRounds()
     }
     window.addEventListener("baka:closing", onClosing)
     return () => window.removeEventListener("baka:closing", onClosing)

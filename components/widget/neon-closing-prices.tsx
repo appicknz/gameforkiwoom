@@ -8,53 +8,24 @@ interface ClosingPrice {
   price: number
 }
 
-interface RoundData {
-  id: string
-  base_price: number
-  result_price: number
-  result_digit: number
-  started_at: string
-  ended_at: string
-  bet_history: Array<{
-    bet_direction?: string | null
-    bet_digit?: string | null
-    bet_parity?: string | null
-    result?: string | null
-  }>
-}
-
 export function NeonClosingPrices() {
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
-  const [rounds, setRounds] = useState<RoundData[]>([])
   const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
-    fetch("/api/closing-price")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.prices && data.prices.length > 0) {
-          const existing: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
-          if (existing.length === 0) {
-            ;(window as any).__bitcoinClosingPrices = data.prices
-            setClosingPrices(data.prices)
-          }
-        }
-      })
-      .catch(() => {})
+    const init: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
+    if (init.length > 0) setClosingPrices(init)
 
-  }, [])
-    fetchRounds()
-    const interval = setInterval(() => {
-      if (typeof window !== "undefined" && (window as any).__bitcoinClosingPrices) {
-        setClosingPrices((window as any).__bitcoinClosingPrices)
-      }
-    }, 500)
-    // rounds도 5초마다 갱신 (결과 반영)
-    const roundsInterval = setInterval(fetchRounds, 5000)
-    return () => {
-      clearInterval(interval)
-      clearInterval(roundsInterval)
+    const onClosing = (e: Event) => {
+      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
+      setClosingPrices(prev => {
+        const last = prev[prev.length - 1]
+        if (last?.time === time) return prev
+        return [...prev, { time, price }].slice(-100)
+      })
     }
+    window.addEventListener("baka:closing", onClosing)
+    return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
   if (closingPrices.length === 0) return null
@@ -62,33 +33,9 @@ export function NeonClosingPrices() {
   const displayLimit = showAll ? 100 : 10
   const displayPrices = closingPrices.slice(-displayLimit).reverse()
 
-  // ended_at → unix timestamp 기준으로 rounds를 Map에 인덱싱
-  const roundByTime = new Map<number, RoundData>()
-  rounds.forEach((r) => {
-    if (r.ended_at) {
-      const ts = Math.floor(new Date(r.ended_at).getTime() / 1000)
-      roundByTime.set(ts, r)
-    }
-  })
-
   const getLastDigit = (price: number) => Math.floor(Math.abs(price * 10)) % 10
   const getDigitType = (digit: number) => (digit <= 4 ? "언더" : "오버")
   const getParityType = (digit: number) => (digit % 2 === 0 ? "짝" : "홀")
-
-  const getBetInfo = (roundInfo: RoundData | null) => {
-    if (!roundInfo?.bet_history?.length) return { direction: null, digit: null, parity: null, directionWon: null, digitWon: null, parityWon: null }
-    const dirRow = roundInfo.bet_history.find(b => b.bet_direction)
-    const digRow = roundInfo.bet_history.find(b => b.bet_digit)
-    const parRow = roundInfo.bet_history.find(b => b.bet_parity)
-    return {
-      direction: dirRow?.bet_direction ? (dirRow.bet_direction === "long" ? "롱" : "숏") : null,
-      digit: digRow?.bet_digit ? (digRow.bet_digit === "over" ? "오버" : "언더") : null,
-      parity: parRow?.bet_parity ? (parRow.bet_parity === "odd" ? "홀" : "짝") : null,
-      directionWon: dirRow ? dirRow.result === "win" : null,
-      digitWon: digRow ? digRow.result === "win" : null,
-      parityWon: parRow ? parRow.result === "win" : null,
-    }
-  }
 
   return (
     <div className="p-4" style={{ background: "#0d1526" }}>
@@ -97,13 +44,7 @@ export function NeonClosingPrices() {
       </h3>
       <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
         {displayPrices.map((item, idx) => {
-          const roundInfo = roundByTime.get(item.time) ?? null
-          const roundNum = roundInfo ? parseInt(roundInfo.id) : "—"
-          const betInfo = getBetInfo(roundInfo)
-          const hasBet = betInfo.direction || betInfo.digit || betInfo.parity
-
           const digit = getLastDigit(item.price)
-          // 이전 마감가(배열에서 한 칸 앞 = 시간상 이전)를 기준으로 롱/숏 판정
           const prevPrice = displayPrices[idx + 1]?.price ?? null
           const resultDirection = prevPrice != null
             ? (item.price >= prevPrice ? "롱" : "숏")
@@ -111,44 +52,14 @@ export function NeonClosingPrices() {
           const resultDigit = getDigitType(digit)
           const resultParity = getParityType(digit)
 
-          const dirBetMatch = betInfo.direction === resultDirection
-          const digBetMatch = betInfo.digit === resultDigit
-          const parBetMatch = betInfo.parity === resultParity
-
-          const Tag = ({ label, isBet, won }: { label: string; isBet: boolean; won: boolean | null }) => {
-            if (isBet && won !== null) {
-              return (
-                <span
-                  className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
-                  style={
-                    won
-                      ? { background: "rgba(0,232,122,0.2)", color: "#00e87a" }
-                      : { background: "rgba(255,68,68,0.2)", color: "#ff4444" }
-                  }
-                >
-                  {label}
-                </span>
-              )
-            }
-            if (isBet) {
-              return (
-                <span
-                  className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
-                  style={{ background: "#00e87a", color: "#0d1526" }}
-                >
-                  {label}
-                </span>
-              )
-            }
-            return (
-              <span
-                className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
-                style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}
-              >
-                {label}
-              </span>
-            )
-          }
+          const Tag = ({ label }: { label: string }) => (
+            <span
+              className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
+              style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}
+            >
+              {label}
+            </span>
+          )
 
           return (
             <div
@@ -159,7 +70,6 @@ export function NeonClosingPrices() {
                 border: "1px solid rgba(255,255,255,0.07)",
               }}
             >
-              {/* 왼쪽: 시간 + 가격 */}
               <div className="flex items-center gap-2 min-w-0">
                 <span className="tabular-nums shrink-0" style={{ color: "rgba(255,255,255,0.4)" }}>
                   {new Date(item.time * 1000).toLocaleTimeString("ko-KR", {
@@ -171,17 +81,16 @@ export function NeonClosingPrices() {
                 </span>
                 <span className="font-bold tabular-nums shrink-0" style={{ color: "#e2e8f0" }}>
                   ${item.price.toLocaleString("en-US", {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
                   })}
                 </span>
               </div>
 
-              {/* 오른쪽: 롱/숏 · 오버/언더 · 홀/짝 */}
               <div className="flex items-center gap-1 shrink-0">
-                <Tag label={resultDirection ?? "—"} isBet={dirBetMatch && !!betInfo.direction} won={dirBetMatch && !!betInfo.direction ? betInfo.directionWon : null} />
-                <Tag label={resultDigit} isBet={digBetMatch && !!betInfo.digit} won={digBetMatch && !!betInfo.digit ? betInfo.digitWon : null} />
-                <Tag label={resultParity} isBet={parBetMatch && !!betInfo.parity} won={parBetMatch && !!betInfo.parity ? betInfo.parityWon : null} />
+                <Tag label={resultDirection ?? "—"} />
+                <Tag label={resultDigit} />
+                <Tag label={resultParity} />
               </div>
             </div>
           )
