@@ -17,7 +17,7 @@ export async function GET() {
         bet_history(bet_direction, bet_digit, bet_parity, result)
       `
       )
-      .order("id", { ascending: false })
+      .order("ended_at", { ascending: false })
       .limit(100)
 
     if (error) throw error
