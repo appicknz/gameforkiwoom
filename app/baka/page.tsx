@@ -103,17 +103,17 @@ export default function BakaPage() {
   const handlePriceChange = useCallback((base: number | null, current: number | null) => {
     setPriceState({ base, current })
   }, [])
-  // 헤더 현재가: baka:price 이벤트로 DOM 직접 업데이트 (매 틱 리렌더 방지)
+  // 헤더 현재가: baka:closing 이벤트로 받음 (베이스 프라이스와 동일 소스 — Bitcoin Chart 현물 kline)
   const headerCurrentRef = useRef<HTMLSpanElement>(null)
   useEffect(() => {
-    const onPrice = (e: Event) => {
+    const onClosing = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
       if (headerCurrentRef.current) {
         headerCurrentRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       }
     }
-    window.addEventListener("baka:price", onPrice)
-    return () => window.removeEventListener("baka:price", onPrice)
+    window.addEventListener("baka:closing", onClosing)
+    return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
   // BaccaratGame이 자신의 함수를 여기에 등록 → BakaBettingGame 트리거가 호출
