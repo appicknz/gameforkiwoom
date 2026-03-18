@@ -44,26 +44,13 @@ export function NeonClosingPrices() {
 
   }, [])
 
-  const fetchRounds = () => {
-    fetch("/api/rounds")
-      .then((r) => r.json())
-      .then((data) => { if (data.rounds) setRounds(data.rounds) })
-      .catch(() => {})
-  }
-
   useEffect(() => {
-    fetchRounds()
     const interval = setInterval(() => {
       if (typeof window !== "undefined" && (window as any).__bitcoinClosingPrices) {
         setClosingPrices((window as any).__bitcoinClosingPrices)
       }
     }, 500)
-    // rounds도 5초마다 갱신 (결과 반영)
-    const roundsInterval = setInterval(fetchRounds, 5000)
-    return () => {
-      clearInterval(interval)
-      clearInterval(roundsInterval)
-    }
+    return () => clearInterval(interval)
   }, [])
 
   if (closingPrices.length === 0) return null

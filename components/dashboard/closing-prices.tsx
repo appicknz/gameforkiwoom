@@ -243,19 +243,10 @@ function DbClosingPrices({ rounds, limit = 10 }: { rounds: RoundData[]; limit?: 
 // ── 메인 컴포넌트 ──────────────────────────────────────────────────────────
 export function ClosingPrices() {
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
-  const [rounds, setRounds] = useState<RoundData[]>([])
-
-  const fetchRounds = () => {
-    fetch("/api/rounds")
-      .then(r => r.json())
-      .then(data => { if (data.rounds) setRounds(data.rounds) })
-      .catch(() => {})
-  }
 
   useEffect(() => {
     const initPrices: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
     if (initPrices.length > 0) setClosingPrices(initPrices)
-    fetchRounds()
 
     const onClosing = (e: Event) => {
       const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
@@ -264,23 +255,18 @@ export function ClosingPrices() {
         if (last?.time === time) return prev
         return [...prev, { time, price }].slice(-100)
       })
-      // 00초 또는 30초에만 DB 조회 (매초 호출 방지)
-      const sec = new Date(time * 1000).getSeconds()
-      if (sec === 0 || sec === 30) fetchRounds()
     }
     window.addEventListener("baka:closing", onClosing)
     return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
-  if (closingPrices.length === 0 && rounds.length === 0) return null
+  if (closingPrices.length === 0) return null
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* 30초 마감 기준가 — DB 영구 저장 데이터 (최근 2개) */}
-      <DbClosingPrices rounds={rounds} limit={2} />
       {/* 1초 실시간 — 새로고침 시 초기화되는 인메모리 데이터 */}
       {closingPrices.length > 0 && (
-        <RealtimePrices prices={closingPrices} rounds={rounds} />
+        <RealtimePrices prices={closingPrices} rounds={[]} />
       )}
     </div>
   )
