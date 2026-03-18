@@ -61,27 +61,6 @@ function EmptySlot({ s = 1 }: { s?: number }) {
   )
 }
 
-// 배팅 기준가: 마지막 30초 마감봉 가격 — baka:closing 이벤트 단일 소스
-function HeaderBasePrice() {
-  const spanRef = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    // 초기값
-    const init: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
-    if (init.length > 0 && spanRef.current) {
-      const p = init[init.length - 1].price
-      spanRef.current.textContent = `$${p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    }
-    const onClosing = (e: Event) => {
-      const { price } = (e as CustomEvent<{ price: number }>).detail
-      if (spanRef.current) {
-        spanRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      }
-    }
-    window.addEventListener("baka:closing", onClosing)
-    return () => window.removeEventListener("baka:closing", onClosing)
-  }, [])
-  return <span ref={spanRef}>—</span>
-}
 
 export default function BakaPage() {
   const isMobile = useIsMobile()
@@ -98,22 +77,6 @@ export default function BakaPage() {
   const [gameStatus, setGameStatus] = useState<{ timeLeft: number; phase: "betting" | "waiting" | "result" | "dealing" }>({ timeLeft: 30, phase: "betting" })
   const handleStatusChange = useCallback((timeLeft: number, phase: "betting" | "waiting" | "result" | "dealing") => {
     setGameStatus({ timeLeft, phase })
-  }, [])
-  const [priceState, setPriceState] = useState<{ base: number | null; current: number | null }>({ base: null, current: null })
-  const handlePriceChange = useCallback((base: number | null, current: number | null) => {
-    setPriceState({ base, current })
-  }, [])
-  // 헤더 현재가: baka:closing 이벤트로 받음 (베이스 프라이스와 동일 소스 — Bitcoin Chart 현물 kline)
-  const headerCurrentRef = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    const onClosing = (e: Event) => {
-      const { price } = (e as CustomEvent<{ price: number }>).detail
-      if (headerCurrentRef.current) {
-        headerCurrentRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      }
-    }
-    window.addEventListener("baka:closing", onClosing)
-    return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
   // BaccaratGame이 자신의 함수를 여기에 등록 → BakaBettingGame 트리거가 호출
@@ -154,44 +117,6 @@ export default function BakaPage() {
 
           {/* 왼쪽: BigRoad + 카드 오버레이 */}
           <div className="lg:col-span-2 space-y-4">
-            {/* 배팅 기준가 / 현재가 심플 헤더 */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 14px",
-              background: "rgba(5,15,10,0.92)",
-              border: "1px solid rgba(212,175,55,0.15)",
-              borderRadius: 12,
-            }}>
-              {/* 좌: BTC 아이콘 + 배팅 기준가 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: "50%",
-                  background: "radial-gradient(circle at 35% 35%, #f7931a, #c06000)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14, fontWeight: 900, color: "#fff",
-                  flexShrink: 0,
-                }}>₿</div>
-                <div>
-                  <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1 }}>배팅 기준가</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#d4af37", fontVariantNumeric: "tabular-nums" }}>
-                    <HeaderBasePrice />
-                  </div>
-                </div>
-              </div>
-              {/* 우: 현재가 */}
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
-                  현재가
-                </div>
-                <div style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: "#10b981" }}>
-                  <span ref={headerCurrentRef}>—</span>
-                </div>
-              </div>
-            </div>
-
             {/* BigRoad */}
             <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.6)}}`}</style>
             <div style={{
