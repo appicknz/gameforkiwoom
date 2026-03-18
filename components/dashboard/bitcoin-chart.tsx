@@ -208,7 +208,7 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
     if (!chartContainerRef.current) return
 
     if (chartRef.current) {
-      chartRef.current.remove()
+      try { chartRef.current.remove() } catch {}
       chartRef.current = null
       seriesRef.current = null
     }
@@ -271,8 +271,9 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
     }
 
     const resizeObserver = new ResizeObserver(() => {
-      if (chartRef.current && container) {
-        chartRef.current.applyOptions({ width: container.clientWidth })
+      // cancelled 체크로 dispose 이후 호출 방지
+      if (!cancelled && chartRef.current && container) {
+        try { chartRef.current.applyOptions({ width: container.clientWidth }) } catch {}
       }
     })
     resizeObserver.observe(container)
@@ -374,13 +375,25 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
 
     return () => {
       cancelled = true
+      // 1) 우리 ResizeObserver 먼저 해제
+      resizeObserver.disconnect()
+      // 2) WS 정리
       if (klineReconnectRef.current) clearTimeout(klineReconnectRef.current)
       klineWsRef.current?.close(1000)
       klineWsRef.current = null
-      resizeObserver.disconnect()
-      chart.remove()
-      chartRef.current = null
+      // 3) series ref null → 이후 WS/async 콜백이 series에 접근 못하게 차단
       seriesRef.current = null
+      ma7Ref.current = null
+      ma25Ref.current = null
+      ma99Ref.current = null
+      chartRef.current = null
+      // 4) lightweight-charts 내부 ResizeObserver가 dispose 이후 콜백되는 것을 막기 위해
+      //    컨테이너를 DOM에서 분리한 뒤 remove() 호출
+      try {
+        const parent = container.parentNode
+        if (parent) parent.removeChild(container)
+        chart.remove()
+      } catch {}
     }
   }, [interval, fetchInitialCandles, drawPriceLine])
 
