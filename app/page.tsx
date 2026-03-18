@@ -11,24 +11,24 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <TopBar />
-      <div className="flex flex-1">
+      <div className="flex flex-1 min-h-0">
         <Sidebar />
-        <main className="flex-1 p-3 md:p-4 lg:p-5 lg:ml-64">
-        <div className="mt-4 md:mt-5 space-y-3 md:space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
-            <div className="lg:col-span-2 space-y-3 md:space-y-4">
-              <BitcoinChart />
-              <BettingGame />
-              <ProjectAnalytics />
-            </div>
+        <main className="flex-1 overflow-y-auto p-3 md:p-4 lg:p-5 lg:ml-64">
+          <div className="mt-4 md:mt-5 space-y-3 md:space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
+              <div className="lg:col-span-2 space-y-3 md:space-y-4">
+                <BitcoinChart />
+                <BettingGame />
+                <ProjectAnalytics />
+              </div>
 
-            <div className="space-y-3 md:space-y-4">
-              <ClosingPricesBadges />
-              <ClosingPrices />
+              <div className="space-y-3 md:space-y-4">
+                <ClosingPricesBadges />
+                <ClosingPrices />
+              </div>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
       </div>
     </div>
   )
