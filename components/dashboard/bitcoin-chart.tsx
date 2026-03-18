@@ -73,6 +73,8 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
   // Binance kline WS — 캔들 OHLC 전용 (마감 이벤트 처리 안 함)
   const klineWsRef = useRef<WebSocket | null>(null)
   const klineReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const closing30sWsRef = useRef<WebSocket | null>(null)
+  const closing30sReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 최신 배팅 기준가를 ref로 유지 — 차트 재생성 후 수평선 복원에 사용
   const latestClosingPriceRef = useRef<number | null>(null)
 
@@ -317,21 +319,11 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
           candleMapRef.current.set(barTime, candle)
           try { seriesRef.current.update(candle) } catch { /* 순 방어 */ }
 
-          // ── 단일 소스 브로드캐스트 ──────────────────────────────
-          // 현재가: 매 틱마다 발행 (kline close = 차트 라벨과 동일 값)
+          // 현재가 브로드캐스트 (kline_1s close = 차트 라벨과 동일 값)
           handlePrice(closePrice, Math.floor(Date.now() / 1000))
           window.dispatchEvent(new CustomEvent("baka:price", { detail: { price: closePrice } }))
 
-          // 30초 마감가: k.x === true (마감 확정) 캔들에서만 발행
-          if (k.x) {
-            const closeTime = Math.floor(k.T / 1000)
-            const prev: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
-            const last = prev[prev.length - 1]
-            if (!last || last.time !== closeTime) {
-              (window as any).__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
-            }
-            window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: closePrice, time: closeTime } }))
-          }
+          // 30초 마감가는 별도 kline_30s WS에서만 발행 — 여기서는 절대 발행하지 않음
 
           // 실시간 MA 업데이트 — 최근 99개 캔들로 계산
           const allCandles = Array.from(candleMapRef.current.values()).sort((a, b) => a.time - b.time)
@@ -344,9 +336,7 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
           const ma25p = maPoint(25); if (ma25p && ma25Ref.current) try { ma25Ref.current.update(ma25p) } catch {}
           const ma99p = maPoint(99); if (ma99p && ma99Ref.current) try { ma99Ref.current.update(ma99p) } catch {}
 
-          // 차트 라벨과 동일한 Binance close 가격을 현재가로 브로드캐스트
-          handlePrice(closePrice, Math.floor(Date.now() / 1000))
-          window.dispatchEvent(new CustomEvent("baka:price", { detail: { price: closePrice } }))
+
         } catch { /* JSON parse 오류 무시 */ }
       }
 
@@ -356,6 +346,35 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
         }
       }
       ws.onerror = () => ws.close()
+    }
+
+    // ── Binance kline_30s 전용 WS — 30초 마감봉 close 가격을 baka:closing 으로 발행 ──
+    const start30sClosingWS = () => {
+      if (cancelled) return
+      const ws30 = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@kline_30s")
+      closing30sWsRef.current = ws30
+      ws30.onmessage = (ev) => {
+        if (cancelled) return
+        try {
+          const { k } = JSON.parse(ev.data)
+          // k.x === true 일 때만 = 30초봉 마감 확정
+          if (!k.x) return
+          const closePrice = parseFloat(k.c)
+          const closeTime = Math.floor(k.T / 1000)
+          const prev: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
+          const last = prev[prev.length - 1]
+          if (!last || last.time !== closeTime) {
+            (window as any).__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
+          }
+          window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: closePrice, time: closeTime } }))
+        } catch {}
+      }
+      ws30.onclose = (e) => {
+        if (!cancelled && e.code !== 1000) {
+          closing30sReconnectRef.current = setTimeout(start30sClosingWS, 3000)
+        }
+      }
+      ws30.onerror = () => ws30.close()
     }
 
     // MA 계산 헬퍼
@@ -382,6 +401,7 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
         drawPriceLine(latestClosingPriceRef.current)
       }
       startKlineWS()
+      start30sClosingWS()
       // 폴백: init 메시지가 차트보다 늦게 도착하는 경우를 대비해
       // DB에서 직접 최신 마감가를 조회해 수평선 복원
       if (latestClosingPriceRef.current === null) {
@@ -409,6 +429,9 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
       if (klineReconnectRef.current) clearTimeout(klineReconnectRef.current)
       klineWsRef.current?.close(1000)
       klineWsRef.current = null
+      if (closing30sReconnectRef.current) clearTimeout(closing30sReconnectRef.current)
+      closing30sWsRef.current?.close(1000)
+      closing30sWsRef.current = null
       // 3) chart.remove() 먼저 → 내부 canvas/observer 정리
       try { chart.remove() } catch {}
       // 4) refs null → 이후 WS/async 콜백이 stale 참조로 접근 못하게 차단
