@@ -621,6 +621,8 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     const bankerDigit = d1
     const playerDigit = d2
 
+    console.log("[v0] applyFinalDigit:", { closingPrice, truncated, d1, d2, bankerDigit, playerDigit })
+
     // 무늬 랜덤 (seed: 라운드 + timestamp, 숫자는 이미 확정)
     const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
     const finalSeeded = makeSeededRand(getRoundSeed() * 1_000_000 + finalTsSeed)
