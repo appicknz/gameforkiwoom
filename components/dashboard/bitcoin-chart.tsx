@@ -165,27 +165,21 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
     }
   }, [drawPriceLine])
 
-  // Railway WS는 BakaBettingGame 단일 인스턴스에서만 연결
-  // → baka:price / baka:closing CustomEvent를 구독
+  // baka:price 이벤트 구독 — BitcoinChart kline_1s WS가 단독 발행
+  // baka:closing은 자체 kline_30s WS에서 직접 처리하므로 여기서 구독하지 않음
   useEffect(() => {
     const onPrice = (e: Event) => {
       const { price } = (e as CustomEvent).detail
       handlePrice(price, Math.floor(Date.now() / 1000))
     }
-    const onClosing = (e: Event) => {
-      const { price, time } = (e as CustomEvent).detail
-      handleClosingPrice(price, time)
-    }
     window.addEventListener("baka:price", onPrice)
-    window.addEventListener("baka:closing", onClosing)
-    // 초기 마감가: window.__bitcoinClosingPrices 에서 읽기 (BakaBettingGame의 usePriceWorker가 init 시 세팅)
+    // 초기 마감가: window.__bitcoinClosingPrices 에서 읽기
     const initPrices: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
     if (initPrices.length > 0) handleInitClosing(initPrices)
     return () => {
       window.removeEventListener("baka:price", onPrice)
-      window.removeEventListener("baka:closing", onClosing)
     }
-  }, [handlePrice, handleClosingPrice, handleInitClosing])
+  }, [handlePrice, handleInitClosing])
 
   // connected 상태: baka:price 첫 수신 시 true
   useEffect(() => {
@@ -359,13 +353,17 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
           const { k } = JSON.parse(ev.data)
           // k.x === true 일 때만 = 30초봉 마감 확정
           if (!k.x) return
-          const closePrice = parseFloat(k.c)
+          const closePrice = parseFloat(k.c)  // Binance 원본 소수점 그대로
           const closeTime = Math.floor(k.T / 1000)
+          // 차트 수평선 + closingPrices state 업데이트 (단일 소스)
+          handleClosingPrice(closePrice, closeTime)
+          // __bitcoinClosingPrices 전역 동기화
           const prev: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
           const last = prev[prev.length - 1]
           if (!last || last.time !== closeTime) {
             (window as any).__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
           }
+          // 다른 컴포넌트(ClosingPrices, Badges)가 구독하는 이벤트 발행
           window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: closePrice, time: closeTime } }))
         } catch {}
       }
