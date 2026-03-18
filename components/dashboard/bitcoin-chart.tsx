@@ -49,7 +49,7 @@ function formatQuoteVolume(usd: number): string {
   return krw.toLocaleString() + "원"
 }
 
-export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = {}) {
+export function BitcoinChart({ headerOnly = false, compact = false }: { headerOnly?: boolean; compact?: boolean } = {}) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -339,6 +339,28 @@ export function BitcoinChart({ headerOnly = false }: { headerOnly?: boolean } = 
   }, [interval, fetchInitialCandles, drawPriceLine])
 
   const isPositive = (ticker?.changePercent ?? 0) >= 0
+
+  // compact 모드: Card/헤더 없이 차트 영역만 렌더링 (BigRoad 내 임베드용)
+  if (compact) {
+    return (
+      <div className="relative w-full h-full">
+        <div ref={chartContainerRef} className="w-full h-full" />
+        {ticker && (
+          <div
+            className="absolute bottom-6 left-2 px-1.5 py-0.5 rounded text-[9px] z-10"
+            style={{
+              background: "rgba(9,31,18,0.82)",
+              border: "1px solid rgba(212,175,55,0.12)",
+              color: "rgba(212,175,55,0.45)",
+            }}
+          >
+            <div>거래량: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
+            <div>거래대금: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <Card

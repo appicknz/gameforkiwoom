@@ -273,6 +273,18 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         </a>
       </div>
 
+      {/* 차트 — 그리드 위 */}
+      <div style={{
+        borderRadius: 8,
+        border: "1px solid rgba(212,175,55,0.12)",
+        background: "rgba(0,0,0,0.25)",
+        overflow: "hidden",
+        marginBottom: 4,
+        height: 140,
+      }}>
+        <BitcoinChart compact />
+      </div>
+
       {/* 그리드 + 카드 이미지 flex row */}
       <div style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
 
@@ -552,7 +564,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     dealingRef.current = true
     midStateRef.current = null
 
-    const side = betSideRef.current  // null이면 배팅 없음 (관전 모드)
+    const side = betSideRef.current  // null이면 배팅 없음 (���전 모드)
 
     // 현재 30초 라운드 슬롯을 seed로 → 모든 유저 동일한 카드 시퀀스
     const seeded = makeSeededRand(getRoundSeed())
