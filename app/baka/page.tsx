@@ -68,12 +68,12 @@ function HeaderBasePrice() {
     const init: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
     if (init.length > 0 && spanRef.current) {
       const p = init[init.length - 1].price
-      spanRef.current.textContent = `$${p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      spanRef.current.textContent = `$${p.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
     }
     const onClosing = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
       if (spanRef.current) {
-        spanRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        spanRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
       }
     }
     window.addEventListener("baka:closing", onClosing)
@@ -108,7 +108,7 @@ export default function BakaPage() {
     const onPrice = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
       if (headerCurrentRef.current) {
-        headerCurrentRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        headerCurrentRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
       }
     }
     window.addEventListener("baka:price", onPrice)
