@@ -53,17 +53,6 @@ export default function DashboardPage() {
       <div className="flex flex-1 min-h-0">
         <Sidebar />
         <main className="flex-1 overflow-y-auto lg:ml-64">
-          {/* BitcoinChart 섹션 - 맨 위 */}
-          <section className="border-b border-border px-4 md:px-6 lg:px-8 py-12 md:py-16">
-            <div className="max-w-7xl mx-auto">
-              <div className="mb-6">
-                <h2 className="text-2xl md:text-3xl font-bold">비트코인 실시간 차트</h2>
-                <p className="text-muted-foreground mt-2">30초마다 게임이 진행되는 비트코인 가격 차트</p>
-              </div>
-              <BitcoinChart />
-            </div>
-          </section>
-
           {/* 히어로 섹션 */}
           <section className="relative border-b border-border px-4 md:px-6 lg:px-8 py-12 md:py-16 lg:py-20">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center max-w-7xl mx-auto">
@@ -119,6 +108,17 @@ export default function DashboardPage() {
                   </Link>
                 ))}
               </div>
+            </div>
+          </section>
+
+          {/* BitcoinChart 섹션 - 히어로와 피처 사이 */}
+          <section className="border-b border-border px-4 md:px-6 lg:px-8 py-12 md:py-16">
+            <div className="max-w-7xl mx-auto">
+              <div className="mb-6">
+                <h2 className="text-2xl md:text-3xl font-bold">비트코인 실시간 차트</h2>
+                <p className="text-muted-foreground mt-2">30초마다 게임이 진행되는 비트코인 가격 차트</p>
+              </div>
+              <BitcoinChart />
             </div>
           </section>
 
