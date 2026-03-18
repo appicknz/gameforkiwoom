@@ -619,6 +619,8 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     const bankerDigit = parseInt(decimalPart[0] ?? "0")
     const playerDigit = parseInt(decimalPart[1] ?? "0")
 
+    console.log("[v0] applyFinalDigit - closingPrice:", closingPrice, "priceStr:", priceStr, "decimalPart:", decimalPart, "banker:", bankerDigit, "player:", playerDigit)
+
     // seed 생성 (라운드슬롯 * 100 + timestamp로 조작불가 조건)
     const seeded = makeSeededRand(getRoundSeed() * 100 + Math.floor(Date.now() / 1000) % 1000)
     const randSuit = () => Math.floor(seeded() * 4)
