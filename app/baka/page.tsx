@@ -274,7 +274,6 @@ export default function BakaPage() {
               onFinalDigitTrigger={handleFinalDigitTrigger}
               onBetSideTrigger={handleBetSideTrigger}
               onStatusChange={handleStatusChange}
-              onPriceChange={handlePriceChange}
             />
           </div>
 
