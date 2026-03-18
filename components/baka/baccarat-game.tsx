@@ -77,24 +77,6 @@ function handScore(cards: Card[]) {
   return total % 10
 }
 
-// ─── 바카라 3번째 카드 규칙 ────────────────────────────────────────────────
-function shouldPlayerDraw(pScore: number) {
-  return pScore <= 5
-}
-
-function shouldBankerDraw(bScore: number, pScore: number, pThird: Card | null): boolean {
-  if (!pThird) {
-    // 플레이어가 스탠드 → 뱅커도 동일 규칙 (5 이하 히트)
-    return bScore <= 5
-  }
-  const pt = pThird.value
-  if (bScore <= 2) return true
-  if (bScore === 3) return pt !== 8
-  if (bScore === 4) return pt >= 2 && pt <= 7
-  if (bScore === 5) return pt >= 4 && pt <= 7
-  if (bScore === 6) return pt === 6 || pt === 7
-  return false
-}
 
 // ─── Big Road 컴포넌트 ────────────────────────────────────────────────────
 // 실제 바카라 Big Road 규칙:
@@ -554,34 +536,30 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.history, state.roundCount])
 
-  // ─── 15초 딜 시작 ───────────────────────────────────────��─────────────────
-  // 규칙:
-  //   - 플레이어/타이 베팅: Player 1장(임의), Banker 2장(��의)
-  //   - 뱅커 베팅:          Banker 1장(임의), Player 2장(임의)
-  //   - 0초 끝자리 카드: 베팅 사이드(Player/Banker)의 마지막 카드 → 승부 결정
-  //   - 끝자리 카드 받은 쪽 최종 점수 ≤5 → 상대��이 임의 1장 추가 (단, 이미 3장이면 스킵)
+  // ─── 15초: 뱅커/플레이어 각 2장씩 난수 딜 ────────────────────────────────
+  // seed = 라운드슬롯(30초 단위) * 1e9 + dealTimestamp(밀리초 끝 9자리)
+  // → 같은 라운드여도 딜 시점마다 다른 카드, 조작 불가
   const startDeal = useCallback(async () => {
     if (dealingRef.current) return
     dealingRef.current = true
     midStateRef.current = null
 
-    const side = betSideRef.current  // null이면 배팅 없음 (���전 모드)
+    const side = betSideRef.current
 
-    // seed = 라운드슬롯 * 1_000_000 + 현재 timestamp 초 단위 끝 6자리
-    // → 라운드 기반이지만 timestamp로 조작불가 (매 게임 다른 카드)
-    const tsSeed = Math.floor(Date.now() / 100) % 1_000_000
-    const seeded = makeSeededRand(getRoundSeed() * 1_000_000 + tsSeed)
-    const rand     = () => Math.floor(seeded() * 10)  // 0~9 카드 숫자
-    const randSuit = () => Math.floor(seeded() * 4)   // 0~3 무늬
+    // 난수 seed: 라운드 슬롯 + 딜 시작 timestamp
+    const dealTs = Date.now() % 1_000_000_000
+    const rng = makeSeededRand((getRoundSeed() * 1_000_000_000 + dealTs) >>> 0)
+    const randDigit = () => Math.floor(rng() * 10)   // 0~9 카드 숫자
+    const randSuit  = () => Math.floor(rng() * 4)    // 0~3 무늬
 
     setState(prev => ({ ...prev, phase: "dealing", playerCards: [], bankerCards: [], result: null }))
     await sleep(80)
 
-    // 플레이어/뱅커 항상 각 2장씩 — P1, B1, P2, B2 순서 (바카라 정식 딜 순서)
-    const p1 = digitToCard(rand(), randSuit())
-    const b1 = digitToCard(rand(), randSuit())
-    const p2 = digitToCard(rand(), randSuit())
-    const b2 = digitToCard(rand(), randSuit())
+    // 바카라 정식 딜 순서: P1 → B1 → P2 → B2
+    const p1 = digitToCard(randDigit(), randSuit())
+    const b1 = digitToCard(randDigit(), randSuit())
+    const p2 = digitToCard(randDigit(), randSuit())
+    const b2 = digitToCard(randDigit(), randSuit())
 
     setState(prev => ({ ...prev, playerCards: [p1] }))
     await sleep(320)
@@ -592,73 +570,49 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     setState(prev => ({ ...prev, bankerCards: [b1, b2] }))
     await sleep(320)
 
-    const finalP: Card[] = [p1, p2]
-    const finalB: Card[] = [b1, b2]
-
-    // 중간 상태 저장 → 0초 끝자리 카드 대기
-    midStateRef.current = { finalP, finalB, betSide: side }
-    setState(prev => ({ ...prev, playerCards: finalP, bankerCards: finalB }))
+    // 중간 상태 저장 → 30초 마감가 대기
+    midStateRef.current = { finalP: [p1, p2], finalB: [b1, b2], betSide: side }
   }, [])
 
-  // ─── 0초 끝자리 카드 → 베팅 사이��에 부여 → 추가 카드 연출 → 최종 승부 표시 ──
-  // 규칙:
-  //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
-  //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
-  //   3. 승부는 반드시 ��자��� 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
-  //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
+  // ─── 00초/30초: 마감가 끝자리 → 뱅커 첫째자리, 플레이어 둘째자리 (3번째 카드) ──
+  // 예) $74,142.21 → 뱅커: 2, 플레이어: 1
+  // 승부: (2장 합 + 3번째) mod 10 → 9에 가까운 쪽, 동점=tie
   const applyFinalDigit = useCallback(async (closingPrice: number) => {
     const mid = midStateRef.current
     if (!mid) return
-
-    let { finalP, finalB } = mid
     midStateRef.current = null
 
-    // 끝자리 소수점 2자리 추출: .87 → bankerDigit=8, playerDigit=7
-    // toFixed()는 반올림 발생 → Math.floor로 절사 후 문자열 파싱
-    const truncated = Math.floor(closingPrice * 100)  // 74227.59 → 7422759
-    const d1 = Math.floor(truncated / 10) % 10        // 소수점 첫째 자리 (뱅커)
-    const d2 = truncated % 10                          // 소수점 둘째 자리 (플레이어)
-    const bankerDigit = d1
-    const playerDigit = d2
+    let { finalP, finalB } = mid
 
-    // 무늬 랜덤 (seed: 라운드 + timestamp, 숫자는 이미 확정)
-    const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
-    const finalSeeded = makeSeededRand(getRoundSeed() * 1_000_000 + finalTsSeed)
-    const finalRandSuit = () => Math.floor(finalSeeded() * 4)
+    // 반올림 없이 소수점 절사: 74142.219 → floor(74142.219*100)=7414221
+    // 뱅커 = 소수점 첫째 자리, 플레이어 = 소수점 둘째 자리
+    const cents    = Math.floor(closingPrice * 100)
+    const bankerDigit = Math.floor(cents / 10) % 10
+    const playerDigit = cents % 10
 
-    const bankerCard = digitToCard(bankerDigit, finalRandSuit())
-    const playerCard = digitToCard(playerDigit, finalRandSuit())
+    // 3번째 카드 무늬: 마감가 기반 고정 seed (조작 불가)
+    const suitRng      = makeSeededRand((cents ^ (getRoundSeed() >>> 0)) >>> 0)
+    const bankerCard   = digitToCard(bankerDigit, Math.floor(suitRng() * 4))
+    const playerCard   = digitToCard(playerDigit, Math.floor(suitRng() * 4))
 
-    // 1. 뱅커 카드 팝업
+    // 연출: 뱅커 카드 팝업 → 슬롯 추가 → 플레이어 카드 팝업 → 슬롯 추가
     setState(prev => ({ ...prev, finalCard: bankerCard }))
     await sleep(950)
-
-    // 2. 뱅커 카드 추가
     finalB = [...finalB, bankerCard]
     setState(prev => ({ ...prev, bankerCards: finalB, finalCard: null }))
     await sleep(350)
 
-    // 3. 플레이어 카드 팝업
     setState(prev => ({ ...prev, finalCard: playerCard }))
     await sleep(950)
-
-    // 4. 플레이어 카드 추가
     finalP = [...finalP, playerCard]
     setState(prev => ({ ...prev, playerCards: finalP, finalCard: null }))
     await sleep(350)
 
-    // 5. 점수 계산 및 승부 결정 (9에 가까운 쪽이 이김)
+    // 점수 계산: 3장 합 mod 10, 9에 가까운 쪽 승리, 동점=tie
     const pScore = handScore(finalP)
     const bScore = handScore(finalB)
-
-    let result: "player" | "banker" | "tie"
-    if (pScore > bScore) {
-      result = "player"
-    } else if (bScore > pScore) {
-      result = "banker"
-    } else {
-      result = "tie"
-    }
+    const result: "player" | "banker" | "tie" =
+      pScore > bScore ? "player" : bScore > pScore ? "banker" : "tie"
 
     setState(prev => ({
       ...prev,
