@@ -50,6 +50,19 @@ function formatQuoteVolume(usd: number): string {
 }
 
 export function BitcoinChart({ headerOnly = false, compact = false }: { headerOnly?: boolean; compact?: boolean } = {}) {
+  // lightweight-charts 내부 ResizeObserver가 dispose 이후 비동기로 콜백되는 known issue
+  // → "Object is disposed" 에러를 전역에서 억제 (다른 에러는 영향 없음)
+  useEffect(() => {
+    const handler = (e: ErrorEvent) => {
+      if (e.message?.includes("Object is disposed")) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+    }
+    window.addEventListener("error", handler, true)
+    return () => window.removeEventListener("error", handler, true)
+  }, [])
+
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -97,7 +110,7 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
 
     // DOM 직접 업데이트 — React 리렌더 없이 즉각 반영
     if (priceDisplayRef.current) {
-      priceDisplayRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+      priceDisplayRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     }
 
     // 첫 틱 수신 시 한 번만 state 업데이트 (초기 렌더용)
@@ -381,19 +394,14 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
       if (klineReconnectRef.current) clearTimeout(klineReconnectRef.current)
       klineWsRef.current?.close(1000)
       klineWsRef.current = null
-      // 3) series ref null → 이후 WS/async 콜백이 series에 접근 못하게 차단
+      // 3) chart.remove() 먼저 → 내부 canvas/observer 정리
+      try { chart.remove() } catch {}
+      // 4) refs null → 이후 WS/async 콜백이 stale 참조로 접근 못하게 차단
+      chartRef.current = null
       seriesRef.current = null
       ma7Ref.current = null
       ma25Ref.current = null
       ma99Ref.current = null
-      chartRef.current = null
-      // 4) lightweight-charts 내부 ResizeObserver가 dispose 이후 콜백되는 것을 막기 위해
-      //    컨테이너를 DOM에서 분리한 뒤 remove() 호출
-      try {
-        const parent = container.parentNode
-        if (parent) parent.removeChild(container)
-        chart.remove()
-      } catch {}
     }
   }, [interval, fetchInitialCandles, drawPriceLine])
 
@@ -433,7 +441,7 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
           <div className="min-w-0">
             <p style={{ fontSize: 10, color: "rgba(160,160,160,0.6)", marginBottom: 1 }}>배팅 기준가</p>
             <p style={{ fontSize: 18, fontWeight: 700, color: isPositive ? "#26a69a" : "#ef5350", fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>
-              {basePrice ? `$${basePrice.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : "—"}
+              {basePrice ? `$${basePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
             </p>
             {/* 인터벌 탭 — 바이낸스처럼 텍스트 버튼 */}
             <div className="flex items-center gap-3 mt-1.5">
@@ -470,7 +478,7 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
           <style>{`@keyframes pricePulse{0%,100%{opacity:1}50%{opacity:0.35}}`}</style>
           <p style={{ fontSize: 18, fontWeight: 700, color: isPositive ? "#26a69a" : "#ef5350", fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>
             <span ref={priceDisplayRef}>
-              {ticker ? `$${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : "—"}
+              {ticker ? `$${ticker.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
             </span>
           </p>
           <div style={{ fontSize: 11, fontWeight: 600, color: isPositive ? "#26a69a" : "#ef5350", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 2 }}>
