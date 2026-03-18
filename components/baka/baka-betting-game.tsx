@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp, Shuffle } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
+import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type BetDirection = "long" | "short" | null
@@ -385,9 +387,13 @@ interface BakaBettingGameProps {
   onFinalDigitTrigger?: (digit: number) => void
   /** 바카라 배팅 확정 시 선택 사이드를 BaccaratGame에 전달 */
   onBetSideTrigger?: (side: "player" | "banker" | "tie" | null) => void
+  /** timeLeft/phase 변경 시 page로 전달 */
+  onStatusChange?: (timeLeft: number, phase: "betting" | "waiting" | "result" | "dealing") => void
+  /** basePrice/currentPrice 변경 시 page로 전달 */
+  onPriceChange?: (basePrice: number | null, currentPrice: number | null) => void
 }
 
-export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBetSideTrigger }: BakaBettingGameProps = {}) {
+export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBetSideTrigger, onStatusChange, onPriceChange }: BakaBettingGameProps = {}) {
   const [timeLeft, setTimeLeft] = useState(30)
   const [roundNumber, setRoundNumber] = useState(0)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
@@ -473,10 +479,14 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     onPrice: useCallback((price: number) => {
       setCurrentPrice(price)
       currentPriceRef.current = price
+      // 전체 /baka 페이지 컴포넌트가 구독할 수 있도록 브로드캐스트
+      window.dispatchEvent(new CustomEvent("baka:price", { detail: { price } }))
     }, []),
-    onClosingPrice: useCallback((price: number) => {
+    onClosingPrice: useCallback((price: number, time: number) => {
       const closePrice = price
       const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
+      // 마감가 브로드캐스트 — ClosingPrices, ClosingPricesBadges, BitcoinChart가 구독
+      window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price, time } }))
 
       // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
       // 0~4=player(5), 5~8=banker(4), 9=tie(1)
@@ -592,16 +602,26 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         // 기준가를 마감가로 교체 (다음 라운드 시작)
         setBasePrice(price); basePriceRef.current = price
         setDialog(null)
-        setTimeout(() => setPhase("betting"), 1500)
+        setTimeout(() => setPhase("betting"), 800)  // 1500→800ms
       }
 
       // 5) 정산 타이밍:
-      //    - 바카라 배팅 있음: 카드 애니메이션(420+380+200=1000ms) + 여유 400ms = 1400ms
-      //    - 바카라 배팅 없음: 방향/끝자리/홀짝은 카드 연출과 무관 → 300ms 딜레이
+      //    - 바카라 배팅 있음: baccarat:deal-complete 이벤트 수신 즉시 정산
+      //      (applyFinalDigit 완료 시점이 정확히 전달됨 → 고정 딜레이 불필요)
+      //    - 바카라 배팅 없음: 카드 연출과 무관, 즉시 정산
       if (betBaccaratRef.current) {
-        setTimeout(() => settle(serverBacResult), 1400)
+        const onDealComplete = () => {
+          window.removeEventListener("baccarat:deal-complete", onDealComplete)
+          settle(serverBacResult)
+        }
+        window.addEventListener("baccarat:deal-complete", onDealComplete)
+        // 안전 타임아웃: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백)
+        setTimeout(() => {
+          window.removeEventListener("baccarat:deal-complete", onDealComplete)
+          settle(serverBacResult)
+        }, 1200)
       } else {
-        setTimeout(() => settle(null), 300)
+        settle(null)  // 즉시 정산 (바카라 외 종목)
       }
     }, []),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
@@ -638,7 +658,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   // autoBet state → ref 동기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
-  // 자동 배팅: canBet false→true 전환 시 새 라운드 플래그 초기화
+  // 자동 배팅: canBet false→true 전환 시 새 라운드 플���그 초기화
   const prevCanBetRef = useRef(false)
   useEffect(() => {
     const was = prevCanBetRef.current
@@ -825,6 +845,19 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     }
   }
 
+  // basePrice/currentPrice 변경 시 page로 전달
+  useEffect(() => {
+    onPriceChange?.(basePrice, currentPrice)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [basePrice, currentPrice])
+
+  // timeLeft/phase 변경 시 page로 전달
+  useEffect(() => {
+    const phaseStatus = timeLeft > 15 ? "betting" : timeLeft > 0 ? "dealing" : phase
+    onStatusChange?.(timeLeft, phaseStatus as "betting" | "waiting" | "result" | "dealing")
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, phase])
+
   const priceDiff = currentPrice !== null && basePrice !== null ? currentPrice - basePrice : null
   const isUp = priceDiff !== null && priceDiff >= 0
   const timerPercent = (timeLeft / 30) * 100
@@ -841,159 +874,42 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
       }}>
 
-        {/* ── 헤더: 타이틀 + 초 ── */}
+        {/* ── 헤더: 배팅 + 라운드 + 자동배팅 버튼 + 타이머 (한 줄) ── */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          {/* 좌: 타이틀 + 라운드 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>배팅</h3>
             <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 5, background: G.goldFaint, color: G.goldDim, fontWeight: 600 }}>
               #{roundNumber}
             </span>
           </div>
-          {phase !== "result" && (
-            <span style={{ fontSize: 14, fontWeight: 800, color: timerColor, fontVariantNumeric: "tabular-nums" }}>
-              {timeLeft}초
-            </span>
-          )}
-        </div>
-
-        {/* ── 기준가 / 상태 / 현재가 — 카운트다운 pill ── */}
-        {/* pill 배경 자체가 타이머: 꽉 찬 색에서 오른쪽으로 줄어듦 */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "9px 16px", borderRadius: 999,
-          background: phase === "result"
-            ? "rgba(4,12,7,0.95)"
-            : `linear-gradient(to right, ${timerColor}22 ${100 - timerPercent}%, rgba(4,12,7,0.95) ${100 - timerPercent}%)`,
-          border: `1px solid ${phase === "result" ? "rgba(212,175,55,0.3)" : timerColor + "66"}`,
-          marginBottom: 10,
-          gap: 8,
-          transition: "background 0.2s linear, border-color 0.2s linear",
-          position: "relative",
-          overflow: "hidden",
-        }}>
-          {/* 배팅 기준가 */}
-          <div style={{ minWidth: 80 }}>
-            <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2, margin: 0 }}>배팅 기준가</p>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "rgba(232,213,163,0.85)", fontVariantNumeric: "tabular-nums", margin: 0 }}>
-              ${basePrice !== null ? basePrice.toFixed(1) : "—"}
-            </p>
-          </div>
-
-          {/* 중앙: 상태 텍스트 또는 결과 뱃지 */}
-          <div style={{ textAlign: "center", flex: 1 }}>
-            {phase === "result" && lastResult ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: G.goldDim }}>
-                  끝자리 <span style={{ color: G.gold }}>{Math.floor(lastResult.closePrice * 10) % 10}</span>
-                </span>
-                {lastResult.baccarat && (
-                  <span style={{
-                    fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 5,
-                    background: lastResult.wonBaccarat ? "rgba(212,175,55,0.18)" : lastResult.baccaratRefund ? "rgba(96,165,250,0.12)" : "rgba(239,68,68,0.15)",
-                    color: lastResult.wonBaccarat ? G.gold : lastResult.baccaratRefund ? "#60a5fa" : "#ef4444",
-                  }}>
-                    {LABEL_MAP[lastResult.baccarat].text} {lastResult.wonBaccarat ? "승" : lastResult.baccaratRefund ? "반환" : "패"}
-                  </span>
-                )}
-                {lastResult.direction && (
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5,
-                    background: lastResult.wonDirection ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)",
-                    color: lastResult.wonDirection ? "#10b981" : "#ef4444" }}>
-                    {lastResult.direction === "long" ? "롱" : "숏"} {lastResult.wonDirection ? "승" : "패"}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <span style={{
-                fontSize: 12, fontWeight: 700, letterSpacing: "0.05em",
-                color: phase === "dealing" ? "#f97316" : timerColor,
-              }}>
-                {phase === "dealing" ? "딜링 중" : timerLabel}
-              </span>
-            )}
-          </div>
-
-          {/* 현재가 */}
-          <div style={{ textAlign: "right", minWidth: 80 }}>
-            <p style={{ fontSize: 9, color: G.textDim, marginBottom: 2, margin: 0 }}>현재가</p>
-            <p style={{ fontSize: 13, fontWeight: 700, fontVariantNumeric: "tabular-nums", margin: 0,
-              color: phase === "result" ? "rgba(232,213,163,0.85)" : (isUp ? "#10b981" : currentPrice !== null ? "#ef4444" : G.textDim) }}>
-              ${currentPrice !== null ? currentPrice.toFixed(1) : "—"}
-            </p>
-          </div>
-
-          {/* 눈금 오버레이 — pill 하단에 절대 위치 */}
-          {phase !== "result" && (
-            <div style={{
-              position: "absolute", bottom: 0, left: 0, right: 0,
-              height: 14, pointerEvents: "none",
-            }}>
-              <svg width="100%" height="14" preserveAspectRatio="none" style={{ display: "block" }}>
-                {/* 30개 눈금 (1초 간격) */}
-                {Array.from({ length: 31 }).map((_, i) => {
-                  const pct = (i / 30) * 100
-                  const isBoundary = i === 15   // 50% = phase 경계
-                  const isMajor = i % 5 === 0   // 5초 간격 주요 눈금
-                  const h = isBoundary ? 10 : isMajor ? 6 : 3
-                  const color = isBoundary
-                    ? "rgba(255,255,255,0.55)"
-                    : isMajor
-                    ? "rgba(255,255,255,0.2)"
-                    : "rgba(255,255,255,0.08)"
-                  return (
-                    <line
-                      key={i}
-                      x1={`${pct}%`} y1={14 - h}
-                      x2={`${pct}%`} y2={14}
-                      stroke={color}
-                      strokeWidth={isBoundary ? 1.5 : 1}
-                    />
-                  )
-                })}
-                {/* 배팅가능 라벨 */}
-                <text x="25%" y="7" textAnchor="middle" fontSize="6" fill="rgba(16,185,129,0.5)" fontWeight="600">
-                  배팅 가능
-                </text>
-                {/* 딜링중 라벨 */}
-                <text x="75%" y="7" textAnchor="middle" fontSize="6" fill="rgba(249,115,22,0.5)" fontWeight="600">
-                  딜링 중
-                </text>
-              </svg>
-            </div>
-          )}
-        </div>
-
-
-
-        {/* 자동 배팅 패널 */}
-        <div className="mb-3">
-          {/* 토글 헤더 */}
-          <button
-            onClick={() => setAutoBetOpen(o => !o)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all"
-            style={{
-              background: autoBet.enabled ? "rgba(212,175,55,0.12)" : G.bgMuted,
-              border: `1px solid ${autoBet.enabled ? G.gold : G.goldBorder}`,
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <Bot className="w-3.5 h-3.5" style={{ color: autoBet.enabled ? G.gold : G.goldDim }} />
-              <span className="text-xs font-bold" style={{ color: autoBet.enabled ? G.gold : G.goldDim }}>자동 배팅</span>
+          {/* 우: 자동배팅 버튼 + 타이머 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              onClick={() => setAutoBetOpen(o => !o)}
+              style={{
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "4px 10px", borderRadius: 8,
+                background: autoBet.enabled ? "rgba(212,175,55,0.14)" : G.bgMuted,
+                border: `1px solid ${autoBet.enabled ? G.gold : G.goldBorder}`,
+                cursor: "pointer",
+              }}
+            >
+              <Bot style={{ width: 12, height: 12, color: autoBet.enabled ? G.gold : G.goldDim }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: autoBet.enabled ? G.gold : G.goldDim }}>자동배팅</span>
               {autoBet.enabled && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: G.gold, color: "#000" }}>ON</span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {autoBet.enabled && (
-                <span className="text-[10px] font-semibold tabular-nums" style={{ color: autoBetPnl >= 0 ? "#10b981" : "#ef4444" }}>
-                  {autoBetRounds}R / {autoBetPnl >= 0 ? "+" : ""}₩{Math.abs(autoBetPnl).toLocaleString()}
-                </span>
+                <span style={{ fontSize: 9, padding: "1px 4px", borderRadius: 3, background: G.gold, color: "#000", fontWeight: 800 }}>ON</span>
               )}
               {autoBetOpen
-                ? <ChevronUp className="w-3.5 h-3.5" style={{ color: G.textDim }} />
-                : <ChevronDown className="w-3.5 h-3.5" style={{ color: G.textDim }} />}
-            </div>
-          </button>
+                ? <ChevronUp style={{ width: 10, height: 10, color: G.textDim }} />
+                : <ChevronDown style={{ width: 10, height: 10, color: G.textDim }} />}
+            </button>
+
+          </div>
+        </div>
+
+        {/* 자동 배팅 설정 패널 */}
+        <div>
 
           {/* 설정 패널 */}
           {autoBetOpen && (
@@ -1004,7 +920,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 const meta: Record<typeof type, { opts: string[]; labels: string[]; nullLabel: string }> = {
                   direction: { opts: ["long", "short", "random"], labels: ["롱", "숏", "랜덤"], nullLabel: "방향" },
                   digit:     { opts: ["over", "under", "random"],  labels: ["오버", "언더", "랜덤"], nullLabel: "크기" },
-                  parity:    { opts: ["odd", "even", "random"],    labels: ["홀", "짝", "랜덤"],  nullLabel: "홀짝" },
+                  parity:    { opts: ["odd", "even", "random"],    labels: ["홀", "짝", "랜���"],  nullLabel: "홀짝" },
                 }
                 const { opts, labels, nullLabel } = meta[type]
                 const current = autoBet[type]
@@ -1129,9 +1045,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         </div>
 
         {/* ── 바카라 종목 ── */}
-        <div className="mb-3">
-          <p className="text-[10px] font-bold mb-2 tracking-widest" style={{ color: G.goldDim }}>BACCARAT</p>
-          <div className="grid grid-cols-3 gap-2">
+        <div className="mb-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
             {(["player", "banker", "tie"] as const).map((side) => {
               const meta = LABEL_MAP[side]
               const isSelected = betBaccarat === side
@@ -1140,7 +1055,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 <button key={side}
                   onClick={() => openDialog("baccarat", side)}
                   disabled={!canBet || (betBaccarat !== null && !isSelected)}
-                  className="py-3 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 disabled:opacity-40"
+                  className="h-10 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
@@ -1160,9 +1075,9 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         </div>
 
         {/* ── 기존 6종목 ── */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5">
           {/* 롱 / 숏 */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {(["long", "short"] as const).map((dir) => {
               const meta = LABEL_MAP[dir]
               const isSelected = betDirection === dir
@@ -1170,7 +1085,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 <button key={dir}
                   onClick={() => openDialog("direction", dir)}
                   disabled={!canBet || betDirection !== null}
-                  className="h-14 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
+                  className="h-10 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
@@ -1191,7 +1106,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </div>
 
           {/* 오버 / 언더 */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {(["over", "under"] as const).map((dig) => {
               const meta = LABEL_MAP[dig]
               const isSelected = betDigit === dig
@@ -1199,7 +1114,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 <button key={dig}
                   onClick={() => openDialog("digit", dig)}
                   disabled={!canBet || betDigit !== null}
-                  className="h-14 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
+                  className="h-10 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
@@ -1218,7 +1133,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </div>
 
           {/* 홀 / 짝 */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {(["odd", "even"] as const).map((par) => {
               const meta = LABEL_MAP[par]
               const isSelected = betParity === par
@@ -1226,7 +1141,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 <button key={par}
                   onClick={() => openDialog("parity", par)}
                   disabled={!canBet || betParity !== null}
-                  className="h-14 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
+                  className="h-10 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
                     border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
@@ -1247,15 +1162,19 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
         {/* 하단: 잔고 + 승패 */}
         <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${G.goldBorder}` }}>
-          <span className="text-[11px]" style={{ color: G.textDim }}>
-            {timeLeft <= 3 ? `다음 게임까지 ${timeLeft}초 전` : `다음 게임까지 ${timeLeft}초 전`}
-          </span>
+          <span />
           <span className="text-[11px]">
             <span className="font-semibold" style={{ color: G.gold }}>{wins}승</span>
             <span style={{ color: G.textDim }}> / </span>
             <span className="font-semibold text-red-500">{losses}패</span>
           </span>
         </div>
+      </div>
+
+      {/* 끝자리 원형 배지 + 분포도 */}
+      <div className="mt-3 flex flex-col gap-3">
+        <ClosingPricesBadges />
+        <ProjectAnalytics />
       </div>
 
       {/* 다이얼로그 + 결과 시트 */}

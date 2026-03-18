@@ -11,34 +11,20 @@ function extractDigit(price: number): number {
 export function ClosingPricesBadges() {
   const [lastDigits, setLastDigits] = useState<number[]>([])
 
-  // 새로고침 시 DB에서 초기 끝자리 데이터 로드
   useEffect(() => {
-    fetch("/api/closing-price")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.prices && data.prices.length > 0) {
-          const existing: any[] = (window as any).__bitcoinClosingPrices ?? []
-          if (existing.length === 0) {
-            ;(window as any).__bitcoinClosingPrices = data.prices
-          }
-          const digits = data.prices.map((item: { price: number }) => extractDigit(item.price))
-          setLastDigits(digits.slice(-10).reverse())
-        }
-      })
-      .catch(() => {})
-  }, [])
-
-  // 이후 실시간 업데이트는 window 폴링
-  useEffect(() => {
-    const updateDigits = () => {
-      const closingPrices = (window as any).__bitcoinClosingPrices || []
-      const digits = closingPrices.map((item: { price: number }) => extractDigit(item.price))
-      setLastDigits(digits.slice(-10).reverse())
+    // 초기값: window.__bitcoinClosingPrices
+    const initPrices: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
+    if (initPrices.length > 0) {
+      setLastDigits(initPrices.slice(-10).reverse().map(i => extractDigit(i.price)))
     }
 
-    updateDigits()
-    const interval = setInterval(updateDigits, 1000)
-    return () => clearInterval(interval)
+    // baka:closing 이벤트 구독 — Railway 단일 소스
+    const onClosing = () => {
+      const prices: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
+      setLastDigits(prices.slice(-10).reverse().map(i => extractDigit(i.price)))
+    }
+    window.addEventListener("baka:closing", onClosing)
+    return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
   const GOLD = "#d4af37"
