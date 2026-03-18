@@ -19,9 +19,9 @@ export default function DashboardPage() {
       users: "48,480",
     },
     {
-      id: "sports",
-      name: "스포츠",
-      description: "라이브 스포츠 배팅",
+      id: "chartchart",
+      name: "차트차트",
+      description: "비트코인 끝자리 배팅",
       href: "#",
       icon: "⚽",
       gradient: "from-green-600 to-emerald-500",
@@ -33,7 +33,7 @@ export default function DashboardPage() {
     {
       icon: <Zap className="w-5 h-5" />,
       title: "즉시 거래",
-      description: "비트코인 가격 변동에 따른 실시간 게임",
+      description: "하루 평균 20조원 규모 거래소의 101% 실시간 가격",
     },
     {
       icon: <TrendingUp className="w-5 h-5" />,
@@ -60,10 +60,10 @@ export default function DashboardPage() {
               <div className="space-y-6">
                 <div className="space-y-3">
                   <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-balance leading-tight">
-                    세계 최대 규모의 온라인 카지노 및 스포츠북
+                    세계 최대 규모의 비트코인 끝자리로 하는 공정 게임
                   </h1>
                   <p className="text-lg md:text-xl text-muted-foreground">
-                    비트코인으로 즉시 게임하세요. 낮은 수수료, 높은 배당률.
+                    수수료 없음. 최대 1000배의 배당을 경험하세요.
                   </p>
                 </div>
 
@@ -74,13 +74,13 @@ export default function DashboardPage() {
                       <ArrowRight className="w-4 h-4" />
                     </Button>
                   </Link>
-                  <p className="text-sm text-muted-foreground">또는 다른 방법으로 가입</p>
+                  <p className="text-sm text-muted-foreground">지점 코드를 확인하세요.</p>
                   <div className="flex gap-3">
                     <Button variant="outline" className="flex-1 sm:flex-none">
-                      <span className="mr-2">🔍</span> Google
+                      <span className="mr-2">🔍</span> 회원가입
                     </Button>
                     <Button variant="outline" className="flex-1 sm:flex-none">
-                      <span className="mr-2">📘</span> Facebook
+                      <span className="mr-2">📘</span> 로그인
                     </Button>
                   </div>
                 </div>
@@ -93,7 +93,7 @@ export default function DashboardPage() {
                     <div className={`relative group cursor-pointer rounded-2xl overflow-hidden h-48 md:h-56 bg-gradient-to-br ${game.gradient} p-6 flex flex-col justify-between hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1`}>
                       {/* 배경 그라데이션 오버레이 */}
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors duration-300" />
-                      
+
                       <div className="relative z-10">
                         <div className="text-6xl mb-2">{game.icon}</div>
                         <h3 className="text-2xl font-bold text-white">{game.name}</h3>
@@ -129,7 +129,7 @@ export default function DashboardPage() {
                 <h2 className="text-3xl md:text-4xl font-bold mb-3">왜 우리를 선택할까요?</h2>
                 <p className="text-lg text-muted-foreground">가장 투명하고 공정한 게임 환경</p>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {features.map((feature, idx) => (
                   <div key={idx} className="border border-border rounded-xl p-6 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300">
