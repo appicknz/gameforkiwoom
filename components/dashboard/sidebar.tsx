@@ -188,7 +188,7 @@ export function Sidebar() {
           </div>
 
           {/* 채팅 섹션 - 고정 높이, 내부 스크롤만 */}
-          <div className="flex flex-col shrink-0 max-h-[280px]">
+          <div className="flex flex-col shrink-0 max-h-[640px]">
             <div className="flex items-center gap-2 mb-2">
               <MessageCircle className="w-3.5 h-3.5 text-primary" />
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">채팅</p>
