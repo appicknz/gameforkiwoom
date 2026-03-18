@@ -63,17 +63,14 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             }
 
             if (data.type === "closing") {
-              optsRef.current.onClosingPrice?.(data.price, data.time)
+              // Railway의 closing 이벤트는 타이밍 트리거로만 사용
+              // 실제 가격은 Railway price 타입으로 받은 현재가 사용 (선물가 문제 방지)
+              const spotPrice = (win.__bitcoinCurrentPrice as number | undefined) ?? data.price
+              optsRef.current.onClosingPrice?.(spotPrice, data.time)
               const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
               const last = prev[prev.length - 1]
               if (!last || last.time !== data.time) {
-                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
-                // 마감가 확정 → DB 저장 (서버에 한 번만 저장, fire-and-forget)
-                fetch("/api/closing-price", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ price: data.price, time: data.time }),
-                }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
+                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: spotPrice }].slice(-100)
               }
             }
           } catch { /* ignore malformed messages */ }
