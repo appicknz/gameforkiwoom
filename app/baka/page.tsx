@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useCallback, useRef, useEffect } from "react"
 import BaccaratGame, { BigRoad, type RoadResult } from "@/components/baka/baccarat-game"
 import { BakaBettingGame } from "@/components/baka/baka-betting-game"
 import { TopBar } from "@/components/dashboard/top-bar"
@@ -275,7 +275,6 @@ export default function BakaPage() {
               onFinalDigitTrigger={handleFinalDigitTrigger}
               onBetSideTrigger={handleBetSideTrigger}
               onStatusChange={handleStatusChange}
-              onPriceChange={handlePriceChange}
             />
           </div>
 
