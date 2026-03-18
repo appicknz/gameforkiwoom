@@ -621,9 +621,11 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       //      (applyFinalDigit 완료 시점이 정확히 전달됨 → 고정 딜레이 불필요)
       //    - 바카라 배팅 없음: 카드 연출과 무관, 즉시 정산
       if (betBaccaratRef.current) {
-        const onDealComplete = () => {
+        const onDealComplete = (e: Event) => {
           window.removeEventListener("baccarat:deal-complete", onDealComplete)
-          settle(serverBacResult)
+          // applyFinalDigit이 실제 카드 점수로 계산한 결과 사용
+          const actualResult = (e as CustomEvent).detail?.result as "player" | "banker" | "tie" | undefined
+          settle(actualResult ?? serverBacResult)
         }
         window.addEventListener("baccarat:deal-complete", onDealComplete)
         // 안전 타임아웃: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백)
@@ -990,7 +992,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
               {/* 배팅 금액 */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>금액</span>
+                <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>��액</span>
                 <div className="flex gap-1 flex-1 flex-wrap">
                   {CHIPS.map(c => (
                     <button key={c.value}

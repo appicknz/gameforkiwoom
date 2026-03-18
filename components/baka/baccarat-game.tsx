@@ -567,60 +567,33 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
     const side = betSideRef.current  // null이면 배팅 없음 (���전 모드)
 
-    // 현재 30초 라운드 슬롯을 seed로 → 모든 유저 동일한 카드 시퀀스
-    const seeded = makeSeededRand(getRoundSeed())
+    // seed = 라운드슬롯 * 1_000_000 + 현재 timestamp 초 단위 끝 6자리
+    // → 라운드 기반이지만 timestamp로 조작불가 (매 게임 다른 카드)
+    const tsSeed = Math.floor(Date.now() / 100) % 1_000_000
+    const seeded = makeSeededRand(getRoundSeed() * 1_000_000 + tsSeed)
     const rand     = () => Math.floor(seeded() * 10)  // 0~9 카드 숫자
     const randSuit = () => Math.floor(seeded() * 4)   // 0~3 무늬
 
     setState(prev => ({ ...prev, phase: "dealing", playerCards: [], bankerCards: [], result: null }))
     await sleep(80)
 
-    // 베팅 사이드에 따라 카드 수 결정
-    // betTarget: 0초 끝자리를 받을 쪽 (베팅 사이드)
-    // betTarget이 player(또는 tie/null): player 1장, banker 2장
-    // betTarget이 banker: banker 1장, player 2장
-    const betTarget: "player" | "banker" = (side === "banker") ? "banker" : "player"
+    // 플레이어/뱅커 항상 각 2장씩 — P1, B1, P2, B2 순서 (바카라 정식 딜 순서)
+    const p1 = digitToCard(rand(), randSuit())
+    const b1 = digitToCard(rand(), randSuit())
+    const p2 = digitToCard(rand(), randSuit())
+    const b2 = digitToCard(rand(), randSuit())
 
-    let finalP: Card[] = []
-    let finalB: Card[] = []
+    setState(prev => ({ ...prev, playerCards: [p1] }))
+    await sleep(320)
+    setState(prev => ({ ...prev, bankerCards: [b1] }))
+    await sleep(320)
+    setState(prev => ({ ...prev, playerCards: [p1, p2] }))
+    await sleep(320)
+    setState(prev => ({ ...prev, bankerCards: [b1, b2] }))
+    await sleep(320)
 
-    if (betTarget === "player") {
-      // 새 규칙: 각각 2장씩 배분
-      const p1 = digitToCard(rand(), randSuit())
-      const p2 = digitToCard(rand(), randSuit())
-      const b1 = digitToCard(rand(), randSuit())
-      const b2 = digitToCard(rand(), randSuit())
-
-      setState(prev => ({ ...prev, playerCards: [p1] }))
-      await sleep(350)
-      setState(prev => ({ ...prev, bankerCards: [b1] }))
-      await sleep(350)
-      setState(prev => ({ ...prev, playerCards: [p1, p2] }))
-      await sleep(350)
-      setState(prev => ({ ...prev, bankerCards: [b1, b2] }))
-      await sleep(350)
-
-      finalP = [p1, p2]
-      finalB = [b1, b2]
-    } else {
-      // 새 규칙: 각각 2장씩 배분
-      const b1 = digitToCard(rand(), randSuit())
-      const b2 = digitToCard(rand(), randSuit())
-      const p1 = digitToCard(rand(), randSuit())
-      const p2 = digitToCard(rand(), randSuit())
-
-      setState(prev => ({ ...prev, bankerCards: [b1] }))
-      await sleep(350)
-      setState(prev => ({ ...prev, playerCards: [p1] }))
-      await sleep(350)
-      setState(prev => ({ ...prev, bankerCards: [b1, b2] }))
-      await sleep(350)
-      setState(prev => ({ ...prev, playerCards: [p1, p2] }))
-      await sleep(350)
-
-      finalP = [p1, p2]
-      finalB = [b1, b2]
-    }
+    const finalP: Card[] = [p1, p2]
+    const finalB: Card[] = [b1, b2]
 
     // 중간 상태 저장 → 0초 끝자리 카드 대기
     midStateRef.current = { finalP, finalB, betSide: side }
@@ -640,7 +613,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     let { finalP, finalB } = mid
     midStateRef.current = null
 
-    // 끝자리 소수점 2자리 추출: .87 → ['8', '7']
+    // 끝자리 소수점 2자리 추출: .87 → bankerDigit=8, playerDigit=7
     const priceStr = closingPrice.toFixed(2)
     const decimalPart = priceStr.split('.')[1] ?? "00"
     const bankerDigit = parseInt(decimalPart[0] ?? "0")
@@ -697,7 +670,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     }))
 
     dealingRef.current = false
-    window.dispatchEvent(new CustomEvent("baccarat:deal-complete"))
+    window.dispatchEvent(new CustomEvent("baccarat:deal-complete", { detail: { result } }))
   }, [])
 
   // 콜백 등록
