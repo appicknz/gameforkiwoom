@@ -494,8 +494,9 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       setCurrentPrice(price)
       currentPriceRef.current = price
     }, []),
-    onClosingPrice: useCallback((price: number, time: number) => {
-      const closePrice = price
+    onClosingPrice: useCallback((_railwayPrice: number, time: number) => {
+      // Railway 30초봉 마감가 대신, 현재 1초 실시간 현물가 사용 (선물 가격 문제 해결)
+      const closePrice = currentPriceRef.current ?? _railwayPrice
       const lastDigit = calcLastDigit(closePrice)  // 소수점 2자리 합 끝자리
       // baka:closing은 BitcoinChart kline WS가 단독 발행 — 여기서는 게임 로직만 처리
 
