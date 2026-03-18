@@ -614,23 +614,14 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     midStateRef.current = null
 
     // 끝자리 소수점 2자리 추출: .87 → bankerDigit=8, playerDigit=7
-    const priceStr = closingPrice.toFixed(2)
-    const decimalPart = priceStr.split('.')[1] ?? "00"
-    const bankerDigit = parseInt(decimalPart[0] ?? "0")
-    const playerDigit = parseInt(decimalPart[1] ?? "0")
+    // toFixed()는 반올림 발생 → Math.floor로 절사 후 문자열 파싱
+    const truncated = Math.floor(closingPrice * 100)  // 74227.59 → 7422759
+    const d1 = Math.floor(truncated / 10) % 10        // 소수점 첫째 자리 (뱅커)
+    const d2 = truncated % 10                          // 소수점 둘째 자리 (플레이어)
+    const bankerDigit = d1
+    const playerDigit = d2
 
-    console.log("[v0] applyFinalDigit:", {
-      closingPrice,
-      priceStr,
-      decimalPart,
-      bankerDigit,
-      playerDigit,
-      bankerCard: `${bankerDigit}`,
-      playerCard: `${playerDigit}`,
-    })
-
-    // 뱅커 카드와 플레이어 카드 생성 (각각 정확한 digit 숫자를 받음)
-    // seed: 라운드 기반 + timestamp로 무늬만 랜덤
+    // 무늬 랜덤 (seed: 라운드 + timestamp, 숫자는 이미 확정)
     const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
     const finalSeeded = makeSeededRand(getRoundSeed() * 1_000_000 + finalTsSeed)
     const finalRandSuit = () => Math.floor(finalSeeded() * 4)
@@ -846,7 +837,7 @@ function CardCharacterDisplay({ roundSeed, card, phase }: {
         </>
       )}
 
-      {/* 카드 정보 없을 때: 대기 표시 */}
+      {/* 카드 ���보 없을 때: 대기 표시 */}
       {!card && (
         <div style={{
           position: "absolute", top: 10, left: 12,
