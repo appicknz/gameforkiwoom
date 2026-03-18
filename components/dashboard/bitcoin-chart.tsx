@@ -6,6 +6,18 @@ import { TrendingUp, TrendingDown } from "lucide-react"
 import { createChart, ColorType, type IChartApi, type ISeriesApi, LineSeries } from "lightweight-charts"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 
+// lightweight-charts 내부 ResizeObserver가 dispose 이후 비동기로 콜백되는 known issue
+// 모듈 로드 시 한 번만 전역 등록 — 컴포넌트 생명주기와 무관하게 항상 억제
+if (typeof window !== "undefined") {
+  window.addEventListener("error", (e: ErrorEvent) => {
+    if (e.message?.includes("Object is disposed")) {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      return false
+    }
+  }, true)
+}
+
 interface CandleData {
   time: number
   open: number
@@ -50,19 +62,6 @@ function formatQuoteVolume(usd: number): string {
 }
 
 export function BitcoinChart({ headerOnly = false, compact = false }: { headerOnly?: boolean; compact?: boolean } = {}) {
-  // lightweight-charts 내부 ResizeObserver가 dispose 이후 비동기로 콜백되는 known issue
-  // → "Object is disposed" 에러를 전역에서 억제 (다른 에러는 영향 없음)
-  useEffect(() => {
-    const handler = (e: ErrorEvent) => {
-      if (e.message?.includes("Object is disposed")) {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-      }
-    }
-    window.addEventListener("error", handler, true)
-    return () => window.removeEventListener("error", handler, true)
-  }, [])
-
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -317,6 +316,22 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
           }
           candleMapRef.current.set(barTime, candle)
           try { seriesRef.current.update(candle) } catch { /* 순 방어 */ }
+
+          // ── 단일 소스 브로드캐스트 ──────────────────────────────
+          // 현재가: 매 틱마다 발행 (kline close = 차트 라벨과 동일 값)
+          handlePrice(closePrice, Math.floor(Date.now() / 1000))
+          window.dispatchEvent(new CustomEvent("baka:price", { detail: { price: closePrice } }))
+
+          // 30초 마감가: k.x === true (마감 확정) 캔들에서만 발행
+          if (k.x) {
+            const closeTime = Math.floor(k.T / 1000)
+            const prev: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
+            const last = prev[prev.length - 1]
+            if (!last || last.time !== closeTime) {
+              (window as any).__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
+            }
+            window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: closePrice, time: closeTime } }))
+          }
 
           // 실시간 MA 업데이트 — 최근 99개 캔들로 계산
           const allCandles = Array.from(candleMapRef.current.values()).sort((a, b) => a.time - b.time)

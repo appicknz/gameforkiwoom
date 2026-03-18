@@ -72,7 +72,11 @@ export function ClosingPrices() {
     }
   })
 
-  const getLastDigit = (price: number) => Math.floor(Math.abs(price * 10)) % 10
+  // 소수점 2자리 기준 끝자리 — BitcoinChart kline close 값과 동일 포맷
+  const getLastDigit = (price: number) => {
+    const priceStr = price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return parseInt(priceStr[priceStr.length - 1]) || 0
+  }
   const getDigitType = (digit: number) => (digit <= 4 ? "언더" : "오버")
   const getParityType = (digit: number) => (digit % 2 === 0 ? "짝" : "홀")
 
@@ -158,7 +162,7 @@ export function ClosingPrices() {
                   {new Date(item.time * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                 </span>
                 <span style={{ fontWeight: 700, color: "rgba(232,213,163,0.9)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-                  ${item.price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  ${item.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>

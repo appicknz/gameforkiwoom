@@ -477,16 +477,15 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   usePriceWorker({
     onPrice: useCallback((price: number) => {
+      // Railway 가격은 게임 로직(타이머, 결과 판정)에만 사용
+      // UI 현재가 표시는 BitcoinChart kline WS가 단독 발행하는 baka:price를 구독
       setCurrentPrice(price)
       currentPriceRef.current = price
-      // 전체 /baka 페이지 컴포넌트가 구독할 수 있도록 브로드캐스트
-      window.dispatchEvent(new CustomEvent("baka:price", { detail: { price } }))
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
       const closePrice = price
       const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
-      // 마감가 브로드캐스트 — ClosingPrices, ClosingPricesBadges, BitcoinChart가 구독
-      window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price, time } }))
+      // baka:closing은 BitcoinChart kline WS가 단독 발행 — 여기서는 게임 로직만 처리
 
       // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
       // 0~4=player(5), 5~8=banker(4), 9=tie(1)
@@ -655,7 +654,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   // 배팅 가능 시간: 30초~15초 초과 구간
   const canBet = timeLeft > 15
 
-  // autoBet state → ref 동기화
+  // autoBet state → ref ��기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
   // 자동 배팅: canBet false→true 전환 시 새 라운드 플���그 초기화
