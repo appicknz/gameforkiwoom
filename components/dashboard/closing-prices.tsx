@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card } from "@/components/ui/card"
 import { ChevronDown } from "lucide-react"
 
 interface ClosingPrice {
@@ -9,30 +8,15 @@ interface ClosingPrice {
   price: number
 }
 
-interface RoundData {
-  id: string
-  base_price: number
-  result_price: number
-  result_digit: number
-  started_at: string
-  ended_at: string
-  bet_history: Array<{
-    bet_direction?: string | null
-    bet_digit?: string | null
-    bet_parity?: string | null
-    result?: string | null
-  }>
-}
-
 export function ClosingPrices() {
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
+  const [showAll, setShowAll] = useState(false)
+
 
   useEffect(() => {
-    // 초기값: window.__bitcoinClosingPrices (BakaBettingGame의 init 이벤트로 세팅됨)
     const initPrices: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
     if (initPrices.length > 0) setClosingPrices(initPrices)
 
-    // baka:closing 이벤트 구독 — Railway 단일 소스
     const onClosing = (e: Event) => {
       const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
       setClosingPrices(prev => {
@@ -50,37 +34,12 @@ export function ClosingPrices() {
   const displayLimit = showAll ? 100 : 10
   const displayPrices = closingPrices.slice(-displayLimit).reverse()
 
-  // ended_at → unix timestamp 기준으로 rounds를 Map에 인덱싱
-  const roundByTime = new Map<number, RoundData>()
-  rounds.forEach((r) => {
-    if (r.ended_at) {
-      const ts = Math.floor(new Date(r.ended_at).getTime() / 1000)
-      roundByTime.set(ts, r)
-    }
-  })
-
-  // 소수점 2자리 기준 끝자리 — BitcoinChart kline close 값과 동일 포맷
   const getLastDigit = (price: number) => {
     const priceStr = price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     return parseInt(priceStr[priceStr.length - 1]) || 0
   }
   const getDigitType = (digit: number) => (digit <= 4 ? "언더" : "오버")
   const getParityType = (digit: number) => (digit % 2 === 0 ? "짝" : "홀")
-
-  const getBetInfo = (roundInfo: RoundData | null) => {
-    if (!roundInfo?.bet_history?.length) return { direction: null, digit: null, parity: null, directionWon: null, digitWon: null, parityWon: null }
-    const dirRow = roundInfo.bet_history.find(b => b.bet_direction)
-    const digRow = roundInfo.bet_history.find(b => b.bet_digit)
-    const parRow = roundInfo.bet_history.find(b => b.bet_parity)
-    return {
-      direction: dirRow?.bet_direction ? (dirRow.bet_direction === "long" ? "롱" : "숏") : null,
-      digit: digRow?.bet_digit ? (digRow.bet_digit === "over" ? "오버" : "언더") : null,
-      parity: parRow?.bet_parity ? (parRow.bet_parity === "odd" ? "홀" : "짝") : null,
-      directionWon: dirRow ? dirRow.result === "win" : null,
-      digitWon: digRow ? digRow.result === "win" : null,
-      parityWon: parRow ? parRow.result === "win" : null,
-    }
-  }
 
   const GOLD = "#d4af37"
   const GOLD_DIM = "rgba(212,175,55,0.5)"
@@ -104,10 +63,6 @@ export function ClosingPrices() {
       </h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 400, overflowY: "auto" }}>
         {displayPrices.map((item, idx) => {
-          const roundInfo = roundByTime.get(item.time) ?? null
-          const betInfo = getBetInfo(roundInfo)
-          const hasBet = betInfo.direction || betInfo.digit || betInfo.parity
-
           const digit = getLastDigit(item.price)
           const prevPrice = displayPrices[idx + 1]?.price ?? null
           const resultDirection = prevPrice != null
@@ -116,23 +71,12 @@ export function ClosingPrices() {
           const resultDigit = getDigitType(digit)
           const resultParity = getParityType(digit)
 
-          const dirBetMatch = betInfo.direction === resultDirection
-          const digBetMatch = betInfo.digit === resultDigit
-          const parBetMatch = betInfo.parity === resultParity
-
-          const Tag = ({ label, isBet, won }: { label: string; isBet: boolean; won: boolean | null }) => {
-            let bg = "rgba(212,175,55,0.08)"
-            let color = GOLD_DIM
-            if (isBet && won === true)  { bg = "rgba(34,197,94,0.15)";  color = "#22c55e" }
-            if (isBet && won === false) { bg = "rgba(239,68,68,0.15)";  color = "#ef4444" }
-            if (isBet && won === null)  { bg = "rgba(212,175,55,0.18)"; color = GOLD }
-            return (
-              <span style={{
-                padding: "1px 7px", borderRadius: 4, fontSize: 10, fontWeight: 700,
-                background: bg, color,
-              }}>{label}</span>
-            )
-          }
+          const Tag = ({ label }: { label: string }) => (
+            <span style={{
+              padding: "1px 7px", borderRadius: 4, fontSize: 10, fontWeight: 700,
+              background: "rgba(212,175,55,0.08)", color: GOLD_DIM,
+            }}>{label}</span>
+          )
 
           return (
             <div
@@ -153,9 +97,9 @@ export function ClosingPrices() {
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                <Tag label={resultDirection ?? "—"} isBet={dirBetMatch && !!betInfo.direction} won={dirBetMatch && !!betInfo.direction ? betInfo.directionWon : null} />
-                <Tag label={resultDigit} isBet={digBetMatch && !!betInfo.digit} won={digBetMatch && !!betInfo.digit ? betInfo.digitWon : null} />
-                <Tag label={resultParity} isBet={parBetMatch && !!betInfo.parity} won={parBetMatch && !!betInfo.parity ? betInfo.parityWon : null} />
+                <Tag label={resultDirection ?? "—"} />
+                <Tag label={resultDigit} />
+                <Tag label={resultParity} />
               </div>
             </div>
           )
