@@ -506,6 +506,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
       // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 가격 전달 → applyFinalDigit 실행)
       //    applyFinalDigit 내부에서 소수점 2자리를 분리해 각 사이드에 카드 배분
+      console.log("[v0] Calling onFinalDigitTrigger with closePrice:", closePrice)
       onFinalDigitTrigger?.(closePrice)
 
       // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
