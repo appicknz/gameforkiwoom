@@ -274,15 +274,20 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
         try {
           const { k } = JSON.parse(ev.data)
           const barTime = Math.floor(k.t / 1000) as any
+          const closePrice = parseFloat(k.c)
           const candle: CandleData = {
             time: barTime,
             open: parseFloat(k.o),
             high: parseFloat(k.h),
             low: parseFloat(k.l),
-            close: parseFloat(k.c),
+            close: closePrice,
           }
           candleMapRef.current.set(barTime, candle)
-          try { seriesRef.current.update(candle) } catch { /* ���순 방어 */ }
+          try { seriesRef.current.update(candle) } catch { /* 순 방어 */ }
+
+          // 차트 라벨과 동일한 Binance close 가격을 현재가로 브로드캐스트
+          handlePrice(closePrice, Math.floor(Date.now() / 1000))
+          window.dispatchEvent(new CustomEvent("baka:price", { detail: { price: closePrice } }))
         } catch { /* JSON parse 오류 무시 */ }
       }
 
