@@ -63,14 +63,17 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             }
 
             if (data.type === "closing") {
-              // Railway의 closing 이벤트는 타이밍 트리거로만 사용
-              // 실제 가격은 Railway price 타입으로 받은 현재가 사용 (선물가 문제 방지)
-              const spotPrice = (win.__bitcoinCurrentPrice as number | undefined) ?? data.price
-              optsRef.current.onClosingPrice?.(spotPrice, data.time)
+              optsRef.current.onClosingPrice?.(data.price, data.time)
               const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
               const last = prev[prev.length - 1]
               if (!last || last.time !== data.time) {
-                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: spotPrice }].slice(-100)
+                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
+                // 마감가 확정 → DB 저장 (서버에 한 번만 저장, fire-and-forget)
+                fetch("/api/closing-price", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ price: data.price, time: data.time }),
+                }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
               }
             }
           } catch { /* ignore malformed messages */ }
@@ -89,15 +92,29 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
       connect()
 
     } else {
-      // ── 개발용 폴백: Binance 현물 직접 연결 (선물 제거) ──────
-      console.warn("[usePriceWorker] NEXT_PUBLIC_PRICE_SERVER_URL not set, using Binance spot")
+      // ── 개발용 폴백: Binance 직접 연결 ──────────────────────
+      console.warn("[usePriceWorker] NEXT_PUBLIC_PRICE_SERVER_URL not set, falling back to Binance direct connection")
+
+      // Railway 서버 없을 때 DB에서 초기 마감가 로드 (새로고침 대응)
+      fetch("/api/closing-price")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.prices && data.prices.length > 0 && !win.__bitcoinClosingPrices?.length) {
+            win.__bitcoinClosingPrices = data.prices
+            optsRef.current.onInitClosing?.(data.prices)
+          }
+        })
+        .catch(() => {})
 
       let tradeWs: WebSocket | null = null
+      let klineWs: WebSocket | null = null
+      let tradeRetry: ReturnType<typeof setTimeout> | null = null
+      let klineRetry: ReturnType<typeof setTimeout> | null = null
 
-      // aggTrade: 현물 현재가 실시간 (@trade — 선물보다 정확함)
+      // aggTrade: 선물 현재가 실시간 (fstream — 바이낸스 선물 차트와 동일 소스, 최저 레이턴시)
       const connectTrade = () => {
         if (closed) return
-        tradeWs = new WebSocket("wss://stream.binance.com/ws/btcusdt@trade")
+        tradeWs = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
 
         tradeWs.onopen = () => optsRef.current.onConnected?.()
 
@@ -120,13 +137,47 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         tradeWs.onerror = () => tradeWs?.close()
       }
 
-      let tradeRetry: ReturnType<typeof setTimeout> | null = null
+      // kline_30s: 선물 30초봉 종가 — k.x===true 마감 확정 시만 처리
+      const connectKline = () => {
+        if (closed) return
+        klineWs = new WebSocket("wss://fstream.binance.com/ws/btcusdt@kline_30s")
+
+        klineWs.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data as string)
+            const k = msg.k
+            if (!k || !k.x) return  // 마감 확정된 캔들만 처리
+
+            const closePrice = parseFloat(k.c)
+            const closeTime = Math.floor(k.T / 1000)
+            optsRef.current.onClosingPrice?.(closePrice, closeTime)
+            const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+            win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
+            // 마감가 확정 → DB 저장 (fire-and-forget)
+            fetch("/api/closing-price", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ price: closePrice, time: closeTime }),
+            }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
+          } catch { /* ignore */ }
+        }
+
+        klineWs.onclose = () => {
+          if (!closed) klineRetry = setTimeout(connectKline, 3000)
+        }
+
+        klineWs.onerror = () => klineWs?.close()
+      }
+
       connectTrade()
+      connectKline()
 
       return () => {
         closed = true
         if (tradeRetry) clearTimeout(tradeRetry)
+        if (klineRetry) clearTimeout(klineRetry)
         tradeWs?.close()
+        klineWs?.close()
       }
     }
 

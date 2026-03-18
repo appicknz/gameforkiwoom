@@ -21,6 +21,7 @@ interface CardOverlayData {
 
 type BaccaratResult = "player" | "banker" | "tie" | null
 
+// 카드 슬롯 — 차트 위 오버레이용 (scale 지원)
 function OverlayCard({ card, s = 1 }: { card: Card; s?: number }) {
   const isRed = card.suit === "♥" || card.suit === "♦"
   const W = Math.round(36 * s)
@@ -60,8 +61,31 @@ function EmptySlot({ s = 1 }: { s?: number }) {
   )
 }
 
+// 배팅 기준가: 마지막 30초 마감봉 가격 — baka:closing 이벤트 단일 소스
+function HeaderBasePrice() {
+  const spanRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    // 초기값
+    const init: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
+    if (init.length > 0 && spanRef.current) {
+      const p = init[init.length - 1].price
+      spanRef.current.textContent = `$${p.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+    }
+    const onClosing = (e: Event) => {
+      const { price } = (e as CustomEvent<{ price: number }>).detail
+      if (spanRef.current) {
+        spanRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+      }
+    }
+    window.addEventListener("baka:closing", onClosing)
+    return () => window.removeEventListener("baka:closing", onClosing)
+  }, [])
+  return <span ref={spanRef}>—</span>
+}
+
 export default function BakaPage() {
   const isMobile = useIsMobile()
+  // PC: 1.6배 확대, 모바일: 1배 유지
   const S = isMobile ? 1 : 1.6
   const [cardData, setCardData] = useState<CardOverlayData>({
     playerCards: [], bankerCards: [], pScore: 0, bScore: 0, result: null,
@@ -75,7 +99,24 @@ export default function BakaPage() {
   const handleStatusChange = useCallback((timeLeft: number, phase: "betting" | "waiting" | "result" | "dealing") => {
     setGameStatus({ timeLeft, phase })
   }, [])
+  const [priceState, setPriceState] = useState<{ base: number | null; current: number | null }>({ base: null, current: null })
+  const handlePriceChange = useCallback((base: number | null, current: number | null) => {
+    setPriceState({ base, current })
+  }, [])
+  // 헤더 현재가: baka:price 이벤트로 DOM 직접 업데이트 (매 틱 리렌더 방지)
+  const headerCurrentRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const onPrice = (e: Event) => {
+      const { price } = (e as CustomEvent<{ price: number }>).detail
+      if (headerCurrentRef.current) {
+        headerCurrentRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+      }
+    }
+    window.addEventListener("baka:price", onPrice)
+    return () => window.removeEventListener("baka:price", onPrice)
+  }, [])
 
+  // BaccaratGame이 자신의 함수를 여기에 등록 → BakaBettingGame 트리거가 호출
   const startDealRef = useRef<(() => void) | null>(null)
   const applyFinalDigitRef = useRef<((digit: number) => void) | null>(null)
   const setBetSideRef = useRef<((side: "player" | "banker" | "tie" | null) => void) | null>(null)
@@ -88,10 +129,12 @@ export default function BakaPage() {
     }
   }, [])
 
+  // BaccaratGame → page: 함수 등록
   const handleRegisterStartDeal = useCallback((fn: () => void) => { startDealRef.current = fn }, [])
   const handleRegisterFinalDigit = useCallback((fn: (digit: number) => void) => { applyFinalDigitRef.current = fn }, [])
   const handleRegisterBetSide = useCallback((fn: (side: "player" | "banker" | "tie" | null) => void) => { setBetSideRef.current = fn }, [])
 
+  // BakaBettingGame → page: 트리거
   const handleStartDealTrigger = useCallback(() => { startDealRef.current?.() }, [])
   const handleFinalDigitTrigger = useCallback((digit: number) => { applyFinalDigitRef.current?.(digit) }, [])
   const handleBetSideTrigger = useCallback((side: "player" | "banker" | "tie" | null) => { setBetSideRef.current?.(side) }, [])
@@ -101,6 +144,7 @@ export default function BakaPage() {
       className="min-h-screen font-sans"
       style={{ background: "radial-gradient(ellipse at 50% 30%, #0f2a1a 0%, #081510 60%, #050d0a 100%)" }}
     >
+      {/* TopBar */}
       <div style={{ background: "rgba(5,13,10,0.95)", borderBottom: "1px solid rgba(212,175,55,0.12)" }}>
         <TopBar />
       </div>
@@ -108,7 +152,47 @@ export default function BakaPage() {
       <main className="max-w-7xl mx-auto p-3 md:p-5">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
+          {/* 왼쪽: BigRoad + 카드 오버레이 */}
           <div className="lg:col-span-2 space-y-4">
+            {/* 배팅 기준가 / 현재가 심플 헤더 */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "10px 14px",
+              background: "rgba(5,15,10,0.92)",
+              border: "1px solid rgba(212,175,55,0.15)",
+              borderRadius: 12,
+            }}>
+              {/* 좌: BTC 아이콘 + 배팅 기준가 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: "50%",
+                  background: "radial-gradient(circle at 35% 35%, #f7931a, #c06000)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 14, fontWeight: 900, color: "#fff",
+                  flexShrink: 0,
+                }}>₿</div>
+                <div>
+                  <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1 }}>배팅 기준가</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#d4af37", fontVariantNumeric: "tabular-nums" }}>
+                    <HeaderBasePrice />
+                  </div>
+                </div>
+              </div>
+              {/* 우: 현재가 */}
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
+                  현재가
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: "#10b981" }}>
+                  <span ref={headerCurrentRef}>—</span>
+                </div>
+              </div>
+            </div>
+
+            {/* BigRoad */}
             <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.6)}}`}</style>
             <div style={{
               background: "rgba(5,15,10,0.92)",
@@ -120,6 +204,7 @@ export default function BakaPage() {
               <BigRoad history={roadState.history} round={roadState.round} />
             </div>
 
+            {/* ── 0초 끝자리 카드 센터 팝업 오버레이 ── */}
             {cardData.finalCard && (() => {
               const fc = cardData.finalCard!
               const isRed = fc.suit === "♥" || fc.suit === "♦"
@@ -143,9 +228,11 @@ export default function BakaPage() {
                     animation: "popupCard 0.35s cubic-bezier(0.34,1.56,0.64,1)",
                     minWidth: 160,
                   }}>
+                    {/* 끝자리 숫자 크게 */}
                     <span style={{ fontSize: 80, fontWeight: 900, lineHeight: 1, color: isRed ? "#e85c5c" : "#d4af37", fontFamily: "Georgia, serif" }}>
                       {fc.label}
                     </span>
+                    {/* 무늬 */}
                     <span style={{ fontSize: 48, lineHeight: 1, color: isRed ? "#e85c5c" : "#d4af37" }}>
                       {fc.suit}
                     </span>
@@ -161,7 +248,13 @@ export default function BakaPage() {
               )
             })()}
 
-            <div style={{ display: "flex", gap: Math.round(6 * S), alignItems: "stretch" }}>
+            {/* BANKER / PLAYER 카드 패널 + 중앙 상태 박스 */}
+            <div style={{
+              display: "flex",
+              gap: Math.round(6 * S),
+              alignItems: "stretch",
+            }}>
+              {/* 게임 상태 박스 — 중앙, 같은 높이 */}
               {(() => {
                 const { timeLeft, phase } = gameStatus
                 const statusColor = phase === "betting" ? "#10b981" : phase === "dealing" ? "#f97316" : "#6366f1"
@@ -181,6 +274,7 @@ export default function BakaPage() {
                     gap: Math.round(4 * S),
                     padding: `${Math.round(6 * S)}px ${Math.round(4 * S)}px`,
                   }}>
+                    {/* 원형 pulse 인디케이터 */}
                     <div style={{ position: "relative", width: Math.round(10 * S), height: Math.round(10 * S) }}>
                       <div style={{
                         width: "100%", height: "100%",
@@ -189,6 +283,7 @@ export default function BakaPage() {
                         animation: phase !== "result" ? "pulseDot 1.2s ease-in-out infinite" : "none",
                       }} />
                     </div>
+                    {/* 상태 텍스트 */}
                     <span style={{
                       fontSize: Math.round(9 * S),
                       fontWeight: 700,
@@ -199,6 +294,7 @@ export default function BakaPage() {
                       writingMode: "vertical-rl",
                       textOrientation: "mixed",
                     }}>{statusLabel}</span>
+                    {/* 타이머 */}
                     {phase !== "result" && (
                       <span style={{
                         fontSize: Math.round(14 * S),
@@ -247,14 +343,17 @@ export default function BakaPage() {
               })}
             </div>
 
+            {/* 배팅 게임 */}
             <BakaBettingGame
               onStartDealTrigger={handleStartDealTrigger}
               onFinalDigitTrigger={handleFinalDigitTrigger}
               onBetSideTrigger={handleBetSideTrigger}
               onStatusChange={handleStatusChange}
+              onPriceChange={handlePriceChange}
             />
           </div>
 
+          {/* 오른쪽: 바카라 카드 딜 게임 */}
           <div>
             <div
               className="rounded-2xl overflow-hidden sticky top-4"
@@ -274,6 +373,9 @@ export default function BakaPage() {
           </div>
 
         </div>
+
+
+
       </main>
     </div>
   )

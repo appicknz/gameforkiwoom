@@ -8,8 +8,24 @@ interface ClosingPrice {
   price: number
 }
 
+interface RoundData {
+  id: string
+  base_price: number
+  result_price: number
+  result_digit: number
+  started_at: string
+  ended_at: string
+  bet_history: Array<{
+    bet_direction?: string | null
+    bet_digit?: string | null
+    bet_parity?: string | null
+    result?: string | null
+  }>
+}
+
 export function NeonClosingPrices() {
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
+  const [rounds, setRounds] = useState<RoundData[]>([])
   const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
@@ -28,13 +44,26 @@ export function NeonClosingPrices() {
 
   }, [])
 
+  const fetchRounds = () => {
+    fetch("/api/rounds")
+      .then((r) => r.json())
+      .then((data) => { if (data.rounds) setRounds(data.rounds) })
+      .catch(() => {})
+  }
+
   useEffect(() => {
+    fetchRounds()
     const interval = setInterval(() => {
       if (typeof window !== "undefined" && (window as any).__bitcoinClosingPrices) {
         setClosingPrices((window as any).__bitcoinClosingPrices)
       }
     }, 500)
-    return () => clearInterval(interval)
+    // rounds도 5초마다 갱신 (결과 반영)
+    const roundsInterval = setInterval(fetchRounds, 5000)
+    return () => {
+      clearInterval(interval)
+      clearInterval(roundsInterval)
+    }
   }, [])
 
   if (closingPrices.length === 0) return null
