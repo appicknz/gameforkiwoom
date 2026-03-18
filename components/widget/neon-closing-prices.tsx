@@ -43,15 +43,6 @@ export function NeonClosingPrices() {
       .catch(() => {})
 
   }, [])
-
-  const fetchRounds = () => {
-    fetch("/api/rounds")
-      .then((r) => r.json())
-      .then((data) => { if (data.rounds) setRounds(data.rounds) })
-      .catch(() => {})
-  }
-
-  useEffect(() => {
     fetchRounds()
     const interval = setInterval(() => {
       if (typeof window !== "undefined" && (window as any).__bitcoinClosingPrices) {

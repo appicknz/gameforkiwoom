@@ -26,15 +26,6 @@ interface RoundData {
 
 export function ClosingPrices() {
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
-  const [rounds, setRounds] = useState<RoundData[]>([])
-  const [showAll, setShowAll] = useState(false)
-
-  const fetchRounds = () => {
-    fetch("/api/rounds")
-      .then((r) => r.json())
-      .then((data) => { if (data.rounds) setRounds(data.rounds) })
-      .catch(() => {})
-  }
 
   useEffect(() => {
     // 초기값: window.__bitcoinClosingPrices (BakaBettingGame의 init 이벤트로 세팅됨)

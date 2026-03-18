@@ -510,14 +510,10 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
       // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
       //    baccarat_result도 함께 저장해야 빅로드가 쌓임
-      const snapshotBase = basePriceRef.current
-      if (snapshotBase !== null) {
-        fetch("/api/rounds/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ basePrice: snapshotBase, closePrice, baccaratResult: serverBacResult }),
-        }).catch(() => {})
-      }
+      // const snapshotBase = basePriceRef.current
+      // if (snapshotBase !== null) {
+      //   fetch("/api/rounds/save", { ... }).catch(() => {})
+      // }
 
       // 4) 배팅 없으면 기준가 업데이트 후 종료
       const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
