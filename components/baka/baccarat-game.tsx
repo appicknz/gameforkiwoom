@@ -559,7 +559,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   //   - 플레이어/타이 베팅: Player 1장(임의), Banker 2장(��의)
   //   - 뱅커 베팅:          Banker 1장(임의), Player 2장(임의)
   //   - 0초 끝자리 카드: 베팅 사이드(Player/Banker)의 마지막 카드 → 승부 결정
-  //   - 끝자리 카드 받은 쪽 최종 점수 ≤5 → 상대방이 임의 1장 추가 (단, 이미 3장이면 스킵)
+  //   - 끝자리 카드 받은 쪽 최종 점수 ≤5 → 상대��이 임의 1장 추가 (단, 이미 3장이면 스킵)
   const startDeal = useCallback(async () => {
     if (dealingRef.current) return
     dealingRef.current = true
@@ -626,6 +626,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     const randSuit = () => Math.floor(seeded() * 4)
 
     // 뱅커에 첫번째 자리 카드, 플레이어에 두번째 자리 카드 생성
+    // seed는 startDeal과 독립적이며 3번째 카드의 무늬만 결정
+    const tsSeed = Math.floor(Date.now() / 100) % 1_000_000
+    const seeded = makeSeededRand(getRoundSeed() * 1_000_000 + tsSeed)
+    const randSuit = () => Math.floor(seeded() * 4)
+
     const bankerCard = digitToCard(bankerDigit, randSuit())
     const playerCard = digitToCard(playerDigit, randSuit())
 
