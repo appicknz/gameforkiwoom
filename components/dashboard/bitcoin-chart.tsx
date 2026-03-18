@@ -214,31 +214,31 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
     }
 
     const container = chartContainerRef.current
+    // compact(빅로드 내부)일 때는 골드 테마, 일반일 때는 바이낸스 다크 테마
     const chart = createChart(container, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(180,180,180,0.75)",
-        fontFamily: "'Roboto Mono', 'Courier New', monospace",
+        textColor: compact ? "rgba(212,175,55,0.55)" : "rgba(180,180,180,0.75)",
+        fontFamily: compact ? "inherit" : "'Roboto Mono','Courier New',monospace",
         fontSize: 11,
       },
       grid: {
-        vertLines: { color: "rgba(255,255,255,0.04)" },
-        horzLines: { color: "rgba(255,255,255,0.04)" },
+        vertLines: { color: compact ? "rgba(212,175,55,0.07)" : "rgba(255,255,255,0.04)" },
+        horzLines: { color: compact ? "rgba(212,175,55,0.07)" : "rgba(255,255,255,0.04)" },
       },
       crosshair: {
-        vertLine: { color: "rgba(255,255,255,0.3)", labelBackgroundColor: "#2b2b43" },
-        horzLine: { color: "rgba(255,255,255,0.3)", labelBackgroundColor: "#2b2b43" },
+        vertLine: { color: compact ? "rgba(212,175,55,0.45)" : "rgba(255,255,255,0.3)", labelBackgroundColor: compact ? "#1a3a2a" : "#2b2b43" },
+        horzLine: { color: compact ? "rgba(212,175,55,0.45)" : "rgba(255,255,255,0.3)", labelBackgroundColor: compact ? "#1a3a2a" : "#2b2b43" },
       },
       rightPriceScale: {
         borderVisible: false,
         scaleMargins: { top: 0.08, bottom: 0.08 },
-        textColor: "rgba(160,160,160,0.7)",
+        textColor: compact ? "rgba(212,175,55,0.55)" : "rgba(160,160,160,0.7)",
       },
       timeScale: {
         borderVisible: false,
         timeVisible: true,
         secondsVisible: interval === "1s" || interval === "30s",
-        borderColor: "rgba(255,255,255,0.06)",
       },
       handleScroll: true,
       handleScale: true,
