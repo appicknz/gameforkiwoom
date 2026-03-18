@@ -619,20 +619,14 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     const bankerDigit = parseInt(decimalPart[0] ?? "0")
     const playerDigit = parseInt(decimalPart[1] ?? "0")
 
-    console.log("[v0] applyFinalDigit - closingPrice:", closingPrice, "priceStr:", priceStr, "decimalPart:", decimalPart, "banker:", bankerDigit, "player:", playerDigit)
+    // 뱅커 카드와 플레이어 카드 생성 (각각 정확한 digit 숫자를 받음)
+    // seed: 라운드 기반 + timestamp로 무늬만 랜덤
+    const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
+    const finalSeeded = makeSeededRand(getRoundSeed() * 1_000_000 + finalTsSeed)
+    const finalRandSuit = () => Math.floor(finalSeeded() * 4)
 
-    // seed 생성 (라운드슬롯 * 100 + timestamp로 조작불가 조건)
-    const seeded = makeSeededRand(getRoundSeed() * 100 + Math.floor(Date.now() / 1000) % 1000)
-    const randSuit = () => Math.floor(seeded() * 4)
-
-    // 뱅커에 첫번째 자리 카드, 플레이어에 두번째 자리 카드 생성
-    // seed는 startDeal과 독립적이며 3번째 카드의 무늬만 결정
-    const tsSeed = Math.floor(Date.now() / 100) % 1_000_000
-    const seeded = makeSeededRand(getRoundSeed() * 1_000_000 + tsSeed)
-    const randSuit = () => Math.floor(seeded() * 4)
-
-    const bankerCard = digitToCard(bankerDigit, randSuit())
-    const playerCard = digitToCard(playerDigit, randSuit())
+    const bankerCard = digitToCard(bankerDigit, finalRandSuit())
+    const playerCard = digitToCard(playerDigit, finalRandSuit())
 
     // 1. 뱅커 카드 팝업
     setState(prev => ({ ...prev, finalCard: bankerCard }))
