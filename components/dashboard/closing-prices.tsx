@@ -147,14 +147,21 @@ export function ClosingPrices() {
             )
           }
 
+          // :00 또는 :30 초 여부 판정 (라운드별 히든 카드 결정가)
+          const seconds = new Date(item.time * 1000).getSeconds()
+          const isRoundBoundary = seconds === 0 || seconds === 30
+          const boundaryBg = isRoundBoundary ? "rgba(34,197,94,0.15)" : ROW_BG
+          const boundaryBorder = isRoundBoundary ? "rgba(34,197,94,0.3)" : ROW_BORDER
+
           return (
             <div
               key={`${item.time}-${idx}`}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 gap: 8, padding: "7px 10px", borderRadius: 8,
-                background: ROW_BG, border: `1px solid ${ROW_BORDER}`,
+                background: boundaryBg, border: `1px solid ${boundaryBorder}`,
                 fontSize: 12,
+                transition: "background 0.2s, border-color 0.2s",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
