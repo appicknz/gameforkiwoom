@@ -147,9 +147,9 @@ function RealtimePrices({ prices, rounds }: { prices: ClosingPrice[]; rounds: Ro
 }
 
 // ── 섹션 2: 30초 마감 기준가 (DB) ───────────────────────────────────────────
-function DbClosingPrices({ rounds }: { rounds: RoundData[] }) {
+function DbClosingPrices({ rounds, limit = 10 }: { rounds: RoundData[]; limit?: number }) {
   const [showAll, setShowAll] = useState(false)
-  const displayLimit = showAll ? 100 : 10
+  const displayLimit = showAll ? 100 : limit
   const displayRounds = rounds.slice(0, displayLimit)
 
   const getBetInfo = (r: RoundData) => {
@@ -170,7 +170,7 @@ function DbClosingPrices({ rounds }: { rounds: RoundData[] }) {
   return (
     <div style={{ background: CARD_BG, border: `1px solid ${GOLD_BORDER}`, borderRadius: 14, padding: 16, boxShadow: "0 2px 24px rgba(0,0,0,0.5)" }}>
       <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 12, letterSpacing: "0.04em" }}>
-        30초 마감 기준가 (최근 {displayLimit}개)
+        30초 마감 기준가 (최근 {limit}개)
       </h3>
       {displayRounds.length === 0 ? (
         <div style={{ color: GOLD_DIM, fontSize: 12, textAlign: "center", padding: "12px 0" }}>데이터 없음</div>
@@ -274,12 +274,12 @@ export function ClosingPrices() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* 30초 마감 기준가 — DB 영구 저장 데이터 (최근 2개) */}
+      <DbClosingPrices rounds={rounds} limit={2} />
       {/* 1초 실시간 — 새로고침 시 초기화되는 인메모리 데이터 */}
       {closingPrices.length > 0 && (
         <RealtimePrices prices={closingPrices} rounds={rounds} />
       )}
-      {/* 30초 마감 기준가 — DB 영구 저장 데이터 */}
-      <DbClosingPrices rounds={rounds} />
     </div>
   )
 }
