@@ -219,7 +219,7 @@ export default function TasksPage() {
                 const isOdd = lastDigit % 2 !== 0
                 const isLong = diff > 0
                 return (
-                  <div key={p.time} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-secondary/50 transition-colors text-sm">
+                  <div key={`${p.time}-${i}`} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-secondary/50 transition-colors text-sm">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-muted-foreground text-xs w-20 shrink-0">
                         {new Date(p.time * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}

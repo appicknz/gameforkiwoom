@@ -395,8 +395,8 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 interface BakaBettingGameProps {
   /** 15초 시점: page가 주입해 준 startDeal 트리거 */
   onStartDealTrigger?: () => void
-  /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 */
-  onFinalDigitTrigger?: (digit: number) => void
+  /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 (끝자리 가격 전체를 전달) */
+  onFinalDigitTrigger?: (closingPrice: number) => void
   /** 바카라 배팅 확정 시 선택 사이드를 BaccaratGame에 전달 */
   onBetSideTrigger?: (side: "player" | "banker" | "tie" | null) => void
   /** timeLeft/phase 변경 시 page로 전달 */
@@ -504,16 +504,20 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       const serverBacResult: "player" | "banker" | "tie" =
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-      // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 전달 → applyFinalDigit 실행)
-      //    applyFinalDigit 내부에서 digit 기반으로 결과 직접 계산 (이벤트 불필요)
-      onFinalDigitTrigger?.(lastDigit)
+      // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 가격 전달 → applyFinalDigit 실행)
+      //    applyFinalDigit 내부에서 소수점 2자리를 분리해 각 사이드에 카드 배분
+      onFinalDigitTrigger?.(closePrice)
 
       // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
       //    baccarat_result도 함께 저장해야 빅로드가 쌓임
-      // const snapshotBase = basePriceRef.current
-      // if (snapshotBase !== null) {
-      //   fetch("/api/rounds/save", { ... }).catch(() => {})
-      // }
+      const snapshotBase = basePriceRef.current
+      if (snapshotBase !== null) {
+        fetch("/api/rounds/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ basePrice: snapshotBase, closePrice, baccaratResult: serverBacResult }),
+        }).catch(() => {})
+      }
 
       // 4) 배팅 없으면 기준가 업데이트 후 종료
       const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
@@ -617,9 +621,11 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       //      (applyFinalDigit 완료 시점이 정확히 전달됨 → 고정 딜레이 불필요)
       //    - 바카라 배팅 없음: 카드 연출과 무관, 즉시 정산
       if (betBaccaratRef.current) {
-        const onDealComplete = () => {
+        const onDealComplete = (e: Event) => {
           window.removeEventListener("baccarat:deal-complete", onDealComplete)
-          settle(serverBacResult)
+          // applyFinalDigit이 실제 카드 점수로 계산한 결과 사용
+          const actualResult = (e as CustomEvent).detail?.result as "player" | "banker" | "tie" | undefined
+          settle(actualResult ?? serverBacResult)
         }
         window.addEventListener("baccarat:deal-complete", onDealComplete)
         // 안전 타임아웃: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백)
@@ -986,7 +992,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
               {/* 배팅 금액 */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>금액</span>
+                <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>��액</span>
                 <div className="flex gap-1 flex-1 flex-wrap">
                   {CHIPS.map(c => (
                     <button key={c.value}
