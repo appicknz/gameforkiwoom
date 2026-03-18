@@ -8,24 +8,8 @@ interface ClosingPrice {
   price: number
 }
 
-interface RoundData {
-  id: string
-  base_price: number
-  result_price: number
-  result_digit: number
-  started_at: string
-  ended_at: string
-  bet_history: Array<{
-    bet_direction?: string | null
-    bet_digit?: string | null
-    bet_parity?: string | null
-    result?: string | null
-  }>
-}
-
 export function NeonClosingPrices() {
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
-  const [rounds, setRounds] = useState<RoundData[]>([])
   const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
