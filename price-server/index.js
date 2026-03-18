@@ -86,8 +86,7 @@ function connectTrade() {
   tradeWs.on("message", (data) => {
     try {
       const msg = JSON.parse(data.toString())
-      // 선물 aggTrade: p=price, T=tradeTime(ms)
-      // 현물 aggTrade도 동일 구조
+      // 현물 @trade: p=price, T=tradeTime(ms)
       const price = parseFloat(msg.p)
       const time = Math.floor(msg.T / 1000)
       if (isNaN(price) || price <= 0) return
