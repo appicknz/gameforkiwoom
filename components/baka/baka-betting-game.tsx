@@ -447,7 +447,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   const betParityAmountRef = useRef(0)
   const betBaccaratAmountRef = useRef(0)
   const basePriceRef = useRef<number | null>(null)
-  const price00sRef = useRef<number | null>(null)  // 00초 가격 스냅샷
   const roundRef = useRef<number>(0)
   const currentPriceRef = useRef<number | null>(null)
   // BaccaratGame이 applyFinalDigit 후 setState → onCardsChange → setBaccaratResult 순으로 전달
@@ -466,7 +465,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     return () => window.removeEventListener("baccarat:result", handler)
   }, [])
 
-  // 잔고 ���기 로드
+  // 잔고 초기 로드
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -490,18 +489,15 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   usePriceWorker({
     onPrice: useCallback((price: number) => {
-      // Railway price를 00초 가격으로 스냅샷 (1초마다 업데이트되므로 가장 최신 값)
-      price00sRef.current = price
-      // 전역 상태에도 저장 (baccarat-game.tsx의 applyFinalDigit에서 읽음)
-      if (typeof window !== "undefined") {
-        (window as any).__bitcoinPrice00s = price
-      }
+      // Railway 가격은 게임 로직(타이머, 결과 판정)에만 사용
+      // UI 현재가 표시는 BitcoinChart kline WS가 단독 발행하는 baka:price를 구독
       setCurrentPrice(price)
       currentPriceRef.current = price
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
       const closePrice = price
-      const lastDigit = calcLastDigit(closePrice)
+      const lastDigit = calcLastDigit(closePrice)  // 소수점 2자리 합 끝자리
+      // baka:closing은 BitcoinChart kline WS가 단독 발행 — 여기서는 게임 로직만 처리
 
       // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
       // 0~4=player(5), 5~8=banker(4), 9=tie(1)
@@ -513,18 +509,13 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       onFinalDigitTrigger?.(closePrice)
 
       // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
+      //    baccarat_result도 함께 저장해야 빅로드가 쌓임
       const snapshotBase = basePriceRef.current
-      const snapshot00s = price00sRef.current  // 00초 가격 스냅샷
       if (snapshotBase !== null) {
         fetch("/api/rounds/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            basePrice: snapshotBase, 
-            closePrice, 
-            basePrice00s: snapshot00s,  // 00초 가격 저장
-            baccaratResult: serverBacResult 
-          }),
+          body: JSON.stringify({ basePrice: snapshotBase, closePrice, baccaratResult: serverBacResult }),
         }).catch(() => {})
       }
 

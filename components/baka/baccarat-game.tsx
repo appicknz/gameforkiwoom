@@ -608,14 +608,14 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
     // 새 규칙: 00초와 30초 비트코인 끝자리 2개를 사용
     // closingPrice는 30초 종가
-    // 00초 종가는 전역에서 읽음 (Railway에서 계속 업데이트)
-    const price00s = (window as any).__bitcoinPrice00s ?? closingPrice  // 폴백: 없으면 30초 가격 사용
+    // 00초 종가는 별도로 필요하므로, 현재 저장된 가격 데이터에서 꺼냄
+    // (대체: 현재 코드에선 closingPrice만 받으므로, 요구사항 재확인 필요)
+    // 임시 처리: 30초 가격 소수점 2자리를 기반으로 생성하되,
+    // 향후 00초 가격도 함께 전달받도록 수정 필요
     
-    const truncated30 = Math.floor(closingPrice * 100)
-    const truncated00 = Math.floor(price00s * 100)
-    
-    const d1 = Math.floor(truncated00 / 10) % 10  // 00초 소수점 첫째 자리 (뱅커용)
-    const d2 = truncated30 % 10                    // 30초 소수점 둘째 자리 (플레이어용)
+    const truncated = Math.floor(closingPrice * 100)
+    const d1 = Math.floor(truncated / 10) % 10  // 뱅커용
+    const d2 = truncated % 10                    // 플레이어용
 
     // 무늬 랜덤
     const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
