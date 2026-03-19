@@ -147,96 +147,61 @@ function RealtimePrices({ prices, rounds }: { prices: ClosingPrice[]; rounds: Ro
 }
 
 // ── 섹션 2: 30초 마감 기준가 (DB) ───────────────────────────────────────────
-function DbClosingPrices({ rounds }: { rounds: RoundData[] }) {
+function DbClosingPrices({ prices }: { prices: ClosingPrice[] }) {
   const [showAll, setShowAll] = useState(false)
   const displayLimit = showAll ? 100 : 10
-  
-  // ended_at 시간으로 내림차순 정렬 (최신 마감가 먼저)
-  const sortedRounds = [...rounds].sort((a, b) => {
-    const timeA = new Date(a.ended_at).getTime()
-    const timeB = new Date(b.ended_at).getTime()
-    return timeB - timeA  // 최신 순서
-  })
-  
-  const displayRounds = sortedRounds.slice(0, displayLimit)
-
-  const getBetInfo = (r: RoundData) => {
-    if (!r.bet_history?.length) return { direction: null, digit: null, parity: null, directionWon: null, digitWon: null, parityWon: null }
-    const dirRow = r.bet_history.find(b => b.bet_direction)
-    const digRow = r.bet_history.find(b => b.bet_digit)
-    const parRow = r.bet_history.find(b => b.bet_parity)
-    return {
-      direction: dirRow?.bet_direction ? (dirRow.bet_direction === "long" ? "롱" : "숏") : null,
-      digit: digRow?.bet_digit ? (digRow.bet_digit === "over" ? "오버" : "언더") : null,
-      parity: parRow?.bet_parity ? (parRow.bet_parity === "odd" ? "홀" : "짝") : null,
-      directionWon: dirRow ? dirRow.result === "win" : null,
-      digitWon: digRow ? digRow.result === "win" : null,
-      parityWon: parRow ? parRow.result === "win" : null,
-    }
-  }
+  // prices는 이미 최신순으로 정렬되어 전달됨
+  const displayPrices = prices.slice(0, displayLimit)
 
   return (
     <div style={{ background: CARD_BG, border: `1px solid ${GOLD_BORDER}`, borderRadius: 14, padding: 16, boxShadow: "0 2px 24px rgba(0,0,0,0.5)" }}>
       <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 12, letterSpacing: "0.04em" }}>
         30초 마감 기준가 (최근 {displayLimit}개)
       </h3>
-      {displayRounds.length === 0 ? (
+      {displayPrices.length === 0 ? (
         <div style={{ color: GOLD_DIM, fontSize: 12, textAlign: "center", padding: "12px 0" }}>데이터 없음</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 400, overflowY: "auto" }}>
-          {displayRounds.map((r, idx) => {
-            const ts = Math.floor(new Date(r.ended_at).getTime() / 1000)
-            const price = r.result_price
-            const betInfo = getBetInfo(r)
-            const digit = getLastDigit(price)
-            const prevRound = displayRounds[idx + 1]
-            const resultDirection = prevRound ? (price >= prevRound.result_price ? "롱" : "숏") : null
+          {displayPrices.map((item, idx) => {
+            const digit = getLastDigit(item.price)
+            const prevItem = displayPrices[idx + 1]
+            const resultDirection = prevItem ? (item.price >= prevItem.price ? "롱" : "숏") : null
             const resultDigit = getDigitType(digit)
             const resultParity = getParityType(digit)
-            const dirBetMatch = betInfo.direction === resultDirection
-            const digBetMatch = betInfo.digit === resultDigit
-            const parBetMatch = betInfo.parity === resultParity
-
-            // 00초/30초 강조 (DB 마감가는 항상 해당하지만 혹시를 위해 체크)
-            const seconds = new Date(ts * 1000).getSeconds()
-            const isRoundBoundary = seconds === 0 || seconds === 30
-            const boundaryBg = isRoundBoundary ? "rgba(34,197,94,0.15)" : ROW_BG
-            const boundaryBorder = isRoundBoundary ? "rgba(34,197,94,0.3)" : ROW_BORDER
 
             // 소수점 두 자리 — 뱅커: 첫째, 플레이어: 둘째
-            const truncated = Math.floor(price * 100)
+            const truncated = Math.floor(item.price * 100)
             const bankerDigit = Math.floor(truncated / 10) % 10
             const playerDigit = truncated % 10
 
             return (
               <div
-                key={`db-${r.id}`}
+                key={`db-${item.time}`}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                   gap: 8, padding: "7px 10px", borderRadius: 8,
-                  background: boundaryBg, border: `1px solid ${boundaryBorder}`,
-                  fontSize: 12, transition: "background 0.2s",
+                  background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)",
+                  fontSize: 12,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ color: GOLD_DIM, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{fmtTime(ts)}</span>
-                  <span style={{ fontWeight: 700, color: "rgba(232,213,163,0.9)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{fmtPrice(price)}</span>
-                  {/* 뱅커/플레이어 카드 힌트 */}
+                  <span style={{ color: GOLD_DIM, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{fmtTime(item.time)}</span>
+                  <span style={{ fontWeight: 700, color: "rgba(232,213,163,0.9)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{fmtPrice(item.price)}</span>
                   <span style={{ fontSize: 10, color: "rgba(34,197,94,0.7)", fontVariantNumeric: "tabular-nums" }}>
                     B{bankerDigit} P{playerDigit}
                   </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <Tag label={resultDirection ?? "—"} isBet={dirBetMatch && !!betInfo.direction} won={dirBetMatch && !!betInfo.direction ? betInfo.directionWon : null} />
-                  <Tag label={resultDigit} isBet={digBetMatch && !!betInfo.digit} won={digBetMatch && !!betInfo.digit ? betInfo.digitWon : null} />
-                  <Tag label={resultParity} isBet={parBetMatch && !!betInfo.parity} won={parBetMatch && !!betInfo.parity ? betInfo.parityWon : null} />
+                  <Tag label={resultDirection ?? "—"} isBet={false} won={null} />
+                  <Tag label={resultDigit} isBet={false} won={null} />
+                  <Tag label={resultParity} isBet={false} won={null} />
                 </div>
               </div>
             )
           })}
         </div>
       )}
-      {!showAll && rounds.length > 10 && (
+      {!showAll && prices.length > 10 && (
         <button
           onClick={() => setShowAll(true)}
           style={{ width: "100%", marginTop: 8, padding: "7px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, color: GOLD_DIM, background: "transparent", border: `1px solid ${GOLD_BORDER}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
@@ -252,6 +217,7 @@ function DbClosingPrices({ rounds }: { rounds: RoundData[] }) {
 export function ClosingPrices() {
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
   const [rounds, setRounds] = useState<RoundData[]>([])
+  const [dbClosingPrices, setDbClosingPrices] = useState<ClosingPrice[]>([])
 
   const fetchRounds = () => {
     fetch("/api/rounds")
@@ -260,17 +226,40 @@ export function ClosingPrices() {
       .catch(() => {})
   }
 
+  // DB에서 30초 마감가 목록 불러오기 (최신순)
+  const fetchDbClosingPrices = () => {
+    fetch("/api/closing-price")
+      .then(r => r.json())
+      .then(data => {
+        if (data.prices && Array.isArray(data.prices)) {
+          // API는 오래된 순으로 반환 → 역순 정렬하여 최신 먼저
+          const sorted = [...data.prices].sort((a, b) => b.time - a.time)
+          setDbClosingPrices(sorted)
+        }
+      })
+      .catch(() => {})
+  }
+
   useEffect(() => {
+    // 인메모리 초기값 (window.__bitcoinClosingPrices)
     const initPrices: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
     if (initPrices.length > 0) setClosingPrices(initPrices)
+
     fetchRounds()
+    fetchDbClosingPrices()
 
     const onClosing = (e: Event) => {
       const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
+      // 1초 실시간 목록 업데이트
       setClosingPrices(prev => {
         const last = prev[prev.length - 1]
         if (last?.time === time) return prev
         return [...prev, { time, price }].slice(-100)
+      })
+      // 30초 DB 목록에도 즉시 반영 (DB 저장 완료 전 낙관적 업데이트)
+      setDbClosingPrices(prev => {
+        if (prev[0]?.time === time) return prev
+        return [{ time, price }, ...prev].slice(0, 100)
       })
       fetchRounds()
     }
@@ -278,7 +267,7 @@ export function ClosingPrices() {
     return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
-  if (closingPrices.length === 0 && rounds.length === 0) return null
+  if (closingPrices.length === 0 && dbClosingPrices.length === 0 && rounds.length === 0) return null
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -286,8 +275,8 @@ export function ClosingPrices() {
       {closingPrices.length > 0 && (
         <RealtimePrices prices={closingPrices} rounds={rounds} />
       )}
-      {/* 30초 마감 기준가 — DB 영구 저장 데이터 */}
-      <DbClosingPrices rounds={rounds} />
+      {/* 30초 마감 기준가 — /api/closing-price DB 데이터 (실시간 baka:closing으로도 업데이트) */}
+      <DbClosingPrices prices={dbClosingPrices} />
     </div>
   )
 }

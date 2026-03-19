@@ -20,7 +20,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid price or time" }, { status: 400 })
     }
 
-    const lastDigit = Math.floor(Math.abs(price * 10)) % 10
+    // 현물 가격은 소수점 2자리: 70013.48 → 끝자리 8
+    const lastDigit = Math.floor(Math.abs(price * 100)) % 10
 
     // 30초봉 started_at: time - 30초 (해당 봉의 시작 시각)
     const startedAt = new Date((time - 30) * 1000).toISOString()
