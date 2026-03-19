@@ -9,13 +9,15 @@ import { NextResponse } from "next/server"
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { basePrice, closePrice } = body
+    const { basePrice, closePrice, basePrice00s } = body
 
     if (typeof basePrice !== "number" || typeof closePrice !== "number") {
       return NextResponse.json({ error: "Invalid price data" }, { status: 400 })
     }
 
-    const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
+    const lastDigit = Math.floor(Math.abs(closePrice * 100)) % 10
+    const lastDigit00s = basePrice00s ? Math.floor(Math.abs(basePrice00s * 100)) % 10 : null
+    
     const baccaratResult: "player" | "banker" | "tie" =
       lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
@@ -37,6 +39,7 @@ export async function POST(request: Request) {
           base_price: basePrice,
           result_price: closePrice,
           result_digit: lastDigit,
+          base_price_00s: basePrice00s,  // 00초 가격 저장
           baccarat_result: baccaratResult,
           started_at: startedAt,
           ended_at: endedAt,
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
       if (error) throw error
     }
 
-    return NextResponse.json({ success: true, baccaratResult, lastDigit })
+    return NextResponse.json({ success: true, baccaratResult, lastDigit, lastDigit00s })
   } catch (err) {
     console.error("[v0] rounds/save error:", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
