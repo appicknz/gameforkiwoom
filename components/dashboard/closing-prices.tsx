@@ -150,7 +150,15 @@ function RealtimePrices({ prices, rounds }: { prices: ClosingPrice[]; rounds: Ro
 function DbClosingPrices({ rounds }: { rounds: RoundData[] }) {
   const [showAll, setShowAll] = useState(false)
   const displayLimit = showAll ? 100 : 10
-  const displayRounds = rounds.slice(0, displayLimit)
+  
+  // ended_at 시간으로 내림차순 정렬 (최신 마감가 먼저)
+  const sortedRounds = [...rounds].sort((a, b) => {
+    const timeA = new Date(a.ended_at).getTime()
+    const timeB = new Date(b.ended_at).getTime()
+    return timeB - timeA  // 최신 순서
+  })
+  
+  const displayRounds = sortedRounds.slice(0, displayLimit)
 
   const getBetInfo = (r: RoundData) => {
     if (!r.bet_history?.length) return { direction: null, digit: null, parity: null, directionWon: null, digitWon: null, parityWon: null }
