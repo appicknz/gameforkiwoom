@@ -20,8 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid price or time" }, { status: 400 })
     }
 
-    // 현물 가격은 소수점 2자리: 70013.48 → 끝자리 8
-    const lastDigit = Math.floor(Math.abs(price * 100)) % 10
+    const lastDigit = Math.floor(Math.abs(price * 10)) % 10
 
     // 30초봉 started_at: time - 30초 (해당 봉의 시작 시각)
     const startedAt = new Date((time - 30) * 1000).toISOString()
@@ -72,13 +71,13 @@ export async function GET() {
 
     if (error) throw error
 
-    // order("ended_at", { ascending: false }) 이므로 이미 최신순 — reverse 불필요
     const prices = (data ?? [])
       .filter((r) => r.result_price !== null)
       .map((r) => ({
         price: Number(r.result_price),
         time: Math.floor(new Date(r.ended_at!).getTime() / 1000),
       }))
+      .reverse()
 
     return NextResponse.json({ prices })
   } catch (err) {

@@ -18,7 +18,7 @@ const nextConfig = {
     "@supabase/realtime-js",
     "@supabase/storage-js",
   ],
-  // 매 빌드마다 고유 ID 생성 → 캐시 무효화 (빌드 시마다 재생성)
+  // 매 빌드마다 고유 ID 생성 → 캐시 무효화
   generateBuildId: async () => {
     return `build-${Date.now()}`
   },

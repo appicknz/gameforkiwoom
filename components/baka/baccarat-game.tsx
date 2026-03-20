@@ -77,15 +77,22 @@ function handScore(cards: Card[]) {
   return total % 10
 }
 
-// ─── 바카라 3번째 카드 규칙 (현재 미사용 — 새 규칙: 무조건 3장 배분) ────────────────────────
-// 이전 규칙: 5 이하면 추가 카드 1장 더 받음 → 이제 모든 플레이어/뱅커가 무조건 3장을 받음
+// ─── 바카라 3번째 카드 규칙 ────────────────────────────────────────────────
 function shouldPlayerDraw(pScore: number) {
-  // 더 이상 미사용
-  return false
+  return pScore <= 5
 }
 
 function shouldBankerDraw(bScore: number, pScore: number, pThird: Card | null): boolean {
-  // 더 이상 미사용
+  if (!pThird) {
+    // 플레이어가 스탠드 → 뱅커도 동일 규칙 (5 이하 히트)
+    return bScore <= 5
+  }
+  const pt = pThird.value
+  if (bScore <= 2) return true
+  if (bScore === 3) return pt !== 8
+  if (bScore === 4) return pt >= 2 && pt <= 7
+  if (bScore === 5) return pt >= 4 && pt <= 7
+  if (bScore === 6) return pt === 6 || pt === 7
   return false
 }
 
@@ -606,27 +613,27 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     let { finalP, finalB } = mid
     midStateRef.current = null
 
-    // 3번째 카드 기준: 현재가(비트코인 현물 실시간) 소수점 2자리
-    // d1 = 소수점 첫째 자리 (뱅커 카드), d2 = 소수점 둘째 자리 (플레이어 카드)
-    const currentPrice: number = (window as any).__bitcoinCurrentPrice ?? closingPrice
-    const truncated = Math.floor(currentPrice * 100)
-    const d1 = Math.floor(truncated / 10) % 10  // 뱅커용 (현재가 소수점 첫째 자리)
-    const d2 = truncated % 10                    // 플레이어용 (현재가 소수점 둘째 자리)
+    // 끝자리 소수점 2자리 추출: .87 → bankerDigit=8, playerDigit=7
+    // toFixed()는 반올림 발생 → Math.floor로 절사 후 문자열 파싱
+    const truncated = Math.floor(closingPrice * 100)  // 74227.59 → 7422759
+    const d1 = Math.floor(truncated / 10) % 10        // 소수점 첫째 자리 (뱅커)
+    const d2 = truncated % 10                          // 소수점 둘째 자리 (플레이어)
+    const bankerDigit = d1
+    const playerDigit = d2
 
-    // 무늬 랜덤
+    // 무늬 랜덤 (seed: 라운드 + timestamp, 숫자는 이미 확정)
     const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
     const finalSeeded = makeSeededRand(getRoundSeed() * 1_000_000 + finalTsSeed)
     const finalRandSuit = () => Math.floor(finalSeeded() * 4)
 
-    // 추가 카드 (각 1장)
-    const bankerCard = digitToCard(d1, finalRandSuit())
-    const playerCard = digitToCard(d2, finalRandSuit())
+    const bankerCard = digitToCard(bankerDigit, finalRandSuit())
+    const playerCard = digitToCard(playerDigit, finalRandSuit())
 
     // 1. 뱅커 카드 팝업
     setState(prev => ({ ...prev, finalCard: bankerCard }))
     await sleep(950)
 
-    // 2. 뱅커 카드 추가 (총 3장)
+    // 2. 뱅커 카드 추가
     finalB = [...finalB, bankerCard]
     setState(prev => ({ ...prev, bankerCards: finalB, finalCard: null }))
     await sleep(350)
@@ -635,12 +642,12 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     setState(prev => ({ ...prev, finalCard: playerCard }))
     await sleep(950)
 
-    // 4. 플레이어 카드 추가 (총 3장)
+    // 4. 플레이어 카드 추가
     finalP = [...finalP, playerCard]
     setState(prev => ({ ...prev, playerCards: finalP, finalCard: null }))
     await sleep(350)
 
-    // 5. 점수 계산: 3장 합산 끝자리로 9에 가까운 쪽 승리
+    // 5. 점수 계산 및 승부 결정 (9에 가까운 쪽이 이김)
     const pScore = handScore(finalP)
     const bScore = handScore(finalB)
 

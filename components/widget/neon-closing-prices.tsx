@@ -29,17 +29,19 @@ export function NeonClosingPrices() {
   const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
-    // DB에서 30초 마감가 목록 로드 (최신순)
     fetch("/api/closing-price")
       .then((r) => r.json())
       .then((data) => {
         if (data.prices && data.prices.length > 0) {
-          // API는 ended_at DESC → 최신순. 오래된→최신 순으로 뒤집어서 저장
-          const sorted = [...data.prices].sort((a: ClosingPrice, b: ClosingPrice) => a.time - b.time)
-          setClosingPrices(sorted)
+          const existing: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
+          if (existing.length === 0) {
+            ;(window as any).__bitcoinClosingPrices = data.prices
+            setClosingPrices(data.prices)
+          }
         }
       })
       .catch(() => {})
+
   }, [])
 
   const fetchRounds = () => {
@@ -51,18 +53,17 @@ export function NeonClosingPrices() {
 
   useEffect(() => {
     fetchRounds()
-
-    // baka:closing = Railway kline_30s 단일 소스 — 30초마다 확정 종가 수신
-    const onClosing = (e: Event) => {
-      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
-      setClosingPrices(prev => {
-        if (prev[prev.length - 1]?.time === time) return prev
-        return [...prev, { time, price }].slice(-100)
-      })
-      fetchRounds()
+    const interval = setInterval(() => {
+      if (typeof window !== "undefined" && (window as any).__bitcoinClosingPrices) {
+        setClosingPrices((window as any).__bitcoinClosingPrices)
+      }
+    }, 500)
+    // rounds도 5초마다 갱신 (결과 반영)
+    const roundsInterval = setInterval(fetchRounds, 5000)
+    return () => {
+      clearInterval(interval)
+      clearInterval(roundsInterval)
     }
-    window.addEventListener("baka:closing", onClosing)
-    return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
   if (closingPrices.length === 0) return null

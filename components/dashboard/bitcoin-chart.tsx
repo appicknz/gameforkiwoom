@@ -322,8 +322,16 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
           handlePrice(closePrice, Math.floor(Date.now() / 1000))
           window.dispatchEvent(new CustomEvent("baka:price", { detail: { price: closePrice } }))
 
-          // 30초 마감가 dispatch는 use-price-worker.ts (Railway kline_30s)가 단독 담당
-          // bitcoin-chart.tsx는 캔들 렌더링만 담당하고 baka:closing을 발행하지 않음
+          // 30초 마감가: k.x === true (마감 확정) 캔들에서만 발행
+          if (k.x) {
+            const closeTime = Math.floor(k.T / 1000)
+            const prev: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
+            const last = prev[prev.length - 1]
+            if (!last || last.time !== closeTime) {
+              (window as any).__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
+            }
+            window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: closePrice, time: closeTime } }))
+          }
 
           // 실시간 MA 업데이트 — 최근 99개 캔들로 계산
           const allCandles = Array.from(candleMapRef.current.values()).sort((a, b) => a.time - b.time)

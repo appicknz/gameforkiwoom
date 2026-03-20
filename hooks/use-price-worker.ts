@@ -68,8 +68,6 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
               const last = prev[prev.length - 1]
               if (!last || last.time !== data.time) {
                 win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
-                // baka:closing 커스텀 이벤트 dispatch → closing-prices.tsx 등 구독자에게 전달
-                window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: data.price, time: data.time } }))
                 // 마감가 확정 → DB 저장 (서버에 한 번만 저장, fire-and-forget)
                 fetch("/api/closing-price", {
                   method: "POST",
@@ -113,10 +111,10 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
       let tradeRetry: ReturnType<typeof setTimeout> | null = null
       let klineRetry: ReturnType<typeof setTimeout> | null = null
 
-      // @trade: 현물 현재가 실시간 (소수점 2자리)
+      // aggTrade: 선물 현재가 실시간 (fstream — 바이낸스 선물 차트와 동일 소스, 최저 레이턴시)
       const connectTrade = () => {
         if (closed) return
-        tradeWs = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@trade")
+        tradeWs = new WebSocket("wss://fstream.binance.com/ws/btcusdt@aggTrade")
 
         tradeWs.onopen = () => optsRef.current.onConnected?.()
 
@@ -139,10 +137,10 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         tradeWs.onerror = () => tradeWs?.close()
       }
 
-      // kline_30s: 현물 30초봉 종가 — k.x===true 마감 확정 시만 처리
+      // kline_30s: 선물 30초봉 종가 — k.x===true 마감 확정 시만 처리
       const connectKline = () => {
         if (closed) return
-        klineWs = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@kline_30s")
+        klineWs = new WebSocket("wss://fstream.binance.com/ws/btcusdt@kline_30s")
 
         klineWs.onmessage = (event) => {
           try {
@@ -155,8 +153,6 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             optsRef.current.onClosingPrice?.(closePrice, closeTime)
             const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
             win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
-            // baka:closing 커스텀 이벤트 dispatch
-            window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: closePrice, time: closeTime } }))
             // 마감가 확정 → DB 저장 (fire-and-forget)
             fetch("/api/closing-price", {
               method: "POST",
