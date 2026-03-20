@@ -465,7 +465,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     return () => window.removeEventListener("baccarat:result", handler)
   }, [])
 
-  // 잔고 �����기 로드
+  // 잔고 �������기 로드
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -1063,7 +1063,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
               const payout = side === "player" ? "1:1" : side === "banker" ? "0.95:1" : "8:1"
-              const label = side === "banker" ? "���커" : side === "tie" ? "타이" : "플레이어"
+              const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
               const solidBg   = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
               const dimBg     = side === "banker" ? "#7f1d1d" : side === "tie" ? "#14532d" : "#1e3a8a"

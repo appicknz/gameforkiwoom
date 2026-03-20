@@ -156,7 +156,7 @@ function DbClosingPrices({ prices }: { prices: ClosingPrice[] }) {
   return (
     <div style={{ background: CARD_BG, border: `1px solid ${GOLD_BORDER}`, borderRadius: 14, padding: 16, boxShadow: "0 2px 24px rgba(0,0,0,0.5)" }}>
       <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 12, letterSpacing: "0.04em" }}>
-        30초 마��� 기준가 (최근 {displayLimit}개)
+        30초 ����� 기준가 (최근 {displayLimit}개)
       </h3>
       {displayPrices.length === 0 ? (
         <div style={{ color: GOLD_DIM, fontSize: 12, textAlign: "center", padding: "12px 0" }}>데이터 없음</div>
@@ -252,7 +252,9 @@ export function ClosingPrices() {
       fetchRounds()
     }
     window.addEventListener("baka:closing", onClosing)
-    return () => window.removeEventListener("baka:closing", onClosing)
+    return () => {
+      window.removeEventListener("baka:closing", onClosing)
+    }
   }, [])
 
   if (closingPrices.length === 0) return null

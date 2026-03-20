@@ -20,35 +20,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid price or time" }, { status: 400 })
     }
 
-    // 현물 가격은 소수점 2자리: 70013.48 → 끝자리 8
     const lastDigit = Math.floor(Math.abs(price * 100)) % 10
 
-    // 30초봉 started_at: time - 30초 (해당 봉의 시작 시각)
+    // 30초봉: ended_at = time, started_at = time - 30
     const startedAt = new Date((time - 30) * 1000).toISOString()
-    const endedAt = new Date(time * 1000).toISOString()
+    const endedAt   = new Date(time * 1000).toISOString()
 
-    // upsert: 같은 started_at 이면 덮어쓰기 (중복 방지)
+    // ended_at 기준 중복 체크 — 이미 있으면 저장 스킵
+    const { data: existing } = await adminSupabase
+      .from("rounds")
+      .select("id")
+      .eq("ended_at", endedAt)
+      .maybeSingle()
+
+    if (existing) {
+      return NextResponse.json({ success: true, skipped: true })
+    }
+
     const { error } = await adminSupabase
       .from("rounds")
-      .upsert(
-        {
-          result_price: price,
-          result_digit: lastDigit,
-          started_at: startedAt,
-          ended_at: endedAt,
-        },
-        { onConflict: "started_at", ignoreDuplicates: false }
-      )
-
-    if (error) {
-      // started_at unique 제약이 없는 경우 일반 insert로 폴백
-      await adminSupabase.from("rounds").insert({
+      .insert({
         result_price: price,
         result_digit: lastDigit,
         started_at: startedAt,
         ended_at: endedAt,
       })
-    }
+
+    if (error) throw error
 
     return NextResponse.json({ success: true })
   } catch (err) {

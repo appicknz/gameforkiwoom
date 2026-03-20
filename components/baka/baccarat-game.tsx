@@ -597,7 +597,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   // 규칙:
   //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
   //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
-  //   3. 승부는 반드시 ��자��� 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
+  //   3. 승부는 반드시 끝자리 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
   //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
   const applyFinalDigit = useCallback(async (closingPrice: number) => {
     const mid = midStateRef.current
@@ -606,7 +606,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     let { finalP, finalB } = mid
     midStateRef.current = null
 
-    // 3번째 카드 기준: 현재가(비트코인 현물 실시간) 소수점 2자리
+    // 3번째 카드 ��준: 현재가(비트코인 현물 실시간) 소수점 2자리
     // d1 = 소수점 첫째 자리 (뱅커 카드), d2 = 소수점 둘째 자리 (플레이어 카드)
     const currentPrice: number = (window as any).__bitcoinCurrentPrice ?? closingPrice
     const truncated = Math.floor(currentPrice * 100)
