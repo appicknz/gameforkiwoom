@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     const wonDirection = closePrice >= basePrice ? "long" : "short"
 
     // 2) 언더/오버: 종료가 소수점 첫째 자리 (0~4 언더, 5~9 오버)
-    const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
+    const lastDigit = Math.floor(Math.abs(closePrice * 100)) % 10
     const wonDigit = lastDigit <= 4 ? "under" : "over"
 
     // 3) 홀/짝: 같은 자릿수 기준

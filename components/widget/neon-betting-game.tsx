@@ -263,7 +263,7 @@ function NeonBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
 // ── 결과 시트 ────────────────────────────────────────────────────────────────
 function NeonResultSheet({ result, open, onClose }: { result: RoundResult | null; open: boolean; onClose: () => void }) {
   if (!open || !result) return null
-  const lastDigit = Math.floor(Math.abs(result.closePrice * 10)) % 10
+  const lastDigit = Math.floor(Math.abs(result.closePrice * 100)) % 10
   const bets = [
     result.direction && { key: result.direction, label: NEON_LABEL[result.direction], won: result.wonDirection, amount: result.directionAmount },
     result.digit && { key: result.digit, label: NEON_LABEL[result.digit], won: result.wonDigit, amount: result.digitAmount },
@@ -455,7 +455,7 @@ export function NeonBettingGame() {
 
       // 배팅 있으면 새 마감가로 즉시 정산
       const closePrice = price
-      const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
+      const lastDigit = Math.floor(Math.abs(closePrice * 100)) % 10
       const wonDirection = betRef.current ? (betRef.current === "long" ? closePrice >= basePriceRef.current : closePrice < basePriceRef.current) : false
       const wonDigit = betDigitRef.current ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
       const wonParity = betParityRef.current ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
@@ -672,7 +672,7 @@ export function NeonBettingGame() {
 
   const priceDiff = currentPrice !== null && basePrice !== null ? currentPrice - basePrice : null
   const isUp = priceDiff !== null && priceDiff >= 0
-  const lastDigit = currentPrice !== null ? Math.floor(Math.abs(currentPrice * 10)) % 10 : null
+  const lastDigit = currentPrice !== null ? Math.floor(Math.abs(currentPrice * 100)) % 10 : null
 
   // 총 배팅 예상 수익
   const totalBet = betDirectionAmount + betDigitAmount + betParityAmount
