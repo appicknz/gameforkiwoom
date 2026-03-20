@@ -91,7 +91,7 @@ function RealtimePrices({ prices, rounds }: { prices: ClosingPrice[]; rounds: Ro
   return (
     <div style={{ background: CARD_BG, border: `1px solid ${GOLD_BORDER}`, borderRadius: 14, padding: 16, boxShadow: "0 2px 24px rgba(0,0,0,0.5)" }}>
       <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 12, letterSpacing: "0.04em" }}>
-        1초 실시간 (최근 {displayLimit}개)
+        라운드 결과 (최근 {displayLimit}개)
       </h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 400, overflowY: "auto" }}>
         {displayPrices.map((item, idx) => {
@@ -156,7 +156,7 @@ function DbClosingPrices({ prices }: { prices: ClosingPrice[] }) {
   return (
     <div style={{ background: CARD_BG, border: `1px solid ${GOLD_BORDER}`, borderRadius: 14, padding: 16, boxShadow: "0 2px 24px rgba(0,0,0,0.5)" }}>
       <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 12, letterSpacing: "0.04em" }}>
-        30초 마감 기준가 (최근 {displayLimit}개)
+        30초 마��� 기준가 (최근 {displayLimit}개)
       </h3>
       {displayPrices.length === 0 ? (
         <div style={{ color: GOLD_DIM, fontSize: 12, textAlign: "center", padding: "12px 0" }}>데이터 없음</div>
@@ -265,16 +265,14 @@ export function ClosingPrices() {
     }
   }, [])
 
-  if (closingPrices.length === 0 && dbClosingPrices.length === 0 && rounds.length === 0) return null
+  if (closingPrices.length === 0 && rounds.length === 0) return null
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* 1초 실시간 — 새로고침 시 초기화되는 인메모리 데이터 */}
+      {/* 라운드 결과 — 30초마다 기록되는 kline 마감가 */}
       {closingPrices.length > 0 && (
         <RealtimePrices prices={closingPrices} rounds={rounds} />
       )}
-      {/* 30초 마감 기준가 — /api/closing-price DB 데이터 (실시간 baka:closing으로도 업데이트) */}
-      <DbClosingPrices prices={dbClosingPrices} />
     </div>
   )
 }

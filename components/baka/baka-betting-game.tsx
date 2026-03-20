@@ -465,7 +465,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     return () => window.removeEventListener("baccarat:result", handler)
   }, [])
 
-  // 잔고 초기 로드
+  // 잔고 ���기 로드
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -489,10 +489,12 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   usePriceWorker({
     onPrice: useCallback((price: number) => {
-      // Railway 가격은 게임 로직(타이머, 결과 판정)에만 사용
-      // UI 현재가 표시는 BitcoinChart kline WS가 단독 발행하는 baka:price를 구독
       setCurrentPrice(price)
       currentPriceRef.current = price
+      // 전역에 현재가 저장 — baccarat-game.tsx의 applyFinalDigit에서 3번째 카드 결정에 사용
+      if (typeof window !== "undefined") {
+        (window as any).__bitcoinCurrentPrice = price
+      }
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
       const closePrice = price
