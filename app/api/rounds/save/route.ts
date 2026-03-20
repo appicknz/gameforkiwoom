@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid price data" }, { status: 400 })
     }
 
-    const lastDigit = Math.floor(Math.abs(closePrice * 100)) % 10
+    const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
     const baccaratResult: "player" | "banker" | "tie" =
       lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 

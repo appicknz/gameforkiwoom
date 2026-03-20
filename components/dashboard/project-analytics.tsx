@@ -23,7 +23,7 @@ export function ProjectAnalytics() {
         const digitCounts = Array(10).fill(0)
 
         recentPrices.forEach((item) => {
-          const lastDigit = Math.floor(item.price * 100) % 10
+          const lastDigit = Math.floor(item.price * 10) % 10
           digitCounts[lastDigit]++
         })
 

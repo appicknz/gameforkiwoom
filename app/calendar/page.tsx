@@ -67,14 +67,14 @@ export default function CalendarPage() {
     Array.from({ length: 10 }, (_, i) => [i, 0])
   )
   prices.forEach((p) => {
-    const d = Math.floor(Math.abs(p.price * 100)) % 10
+    const d = Math.floor(Math.abs(p.price * 10)) % 10
     digitCount[d]++
   })
   const total = prices.length
   const maxCount = Math.max(...Object.values(digitCount), 1)
 
   // 연속 패턴 분석 (최근 20개)
-  const recent = [...prices].slice(-20).map((p) => Math.floor(Math.abs(p.price * 100)) % 10)
+  const recent = [...prices].slice(-20).map((p) => Math.floor(Math.abs(p.price * 10)) % 10)
 
   // 가장 많이 / 적게 나온 끝자리
   const sortedDigits = Array.from({ length: 10 }, (_, i) => ({ digit: i, count: digitCount[i] }))

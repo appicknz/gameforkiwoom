@@ -63,22 +63,19 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             }
 
             if (data.type === "closing") {
-              // 현재가 스냅샷 — 배팅가 수평선과 동일한 값 사용
-              const spotPrice: number = win.__bitcoinCurrentPrice ?? data.price
-              optsRef.current.onClosingPrice?.(spotPrice, data.time)
+              optsRef.current.onClosingPrice?.(data.price, data.time)
               const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
               const last = prev[prev.length - 1]
               if (!last || last.time !== data.time) {
-                // __bitcoinClosingPrices에도 현재가 스냅샷 저장
-                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: spotPrice }].slice(-100)
-                // baka:closing 이벤트에 현재가 스냅샷 포함
-                window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: spotPrice, time: data.time } }))
-                // DB 저장도 현재가 스냅샷으로
+                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
+                // baka:closing 커스텀 이벤트 dispatch → closing-prices.tsx 등 구독자에게 전달
+                window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: data.price, time: data.time } }))
+                // 마감가 확정 → DB 저장 (서버에 한 번만 저장, fire-and-forget)
                 fetch("/api/closing-price", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ price: spotPrice, time: data.time }),
-                }).catch(() => {})
+                  body: JSON.stringify({ price: data.price, time: data.time }),
+                }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
               }
             }
           } catch { /* ignore malformed messages */ }
@@ -153,23 +150,19 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             const k = msg.k
             if (!k || !k.x) return  // 마감 확정된 캔들만 처리
 
+            const closePrice = parseFloat(k.c)
             const closeTime = Math.floor(k.T / 1000)
-            // 현재가 스냅샷 사용 (없으면 kline closePrice 폴백)
-            const spotPrice: number = win.__bitcoinCurrentPrice ?? parseFloat(k.c)
-
-            // 중복 방지 — 같은 closeTime은 한 번만 처리
+            optsRef.current.onClosingPrice?.(closePrice, closeTime)
             const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-            const last = prev[prev.length - 1]
-            if (last && last.time === closeTime) return
-
-            optsRef.current.onClosingPrice?.(spotPrice, closeTime)
-            win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: spotPrice }].slice(-100)
-            window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: spotPrice, time: closeTime } }))
+            win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
+            // baka:closing 커스텀 이벤트 dispatch
+            window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: closePrice, time: closeTime } }))
+            // 마감가 확정 → DB 저장 (fire-and-forget)
             fetch("/api/closing-price", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ price: spotPrice, time: closeTime }),
-            }).catch(() => {})
+              body: JSON.stringify({ price: closePrice, time: closeTime }),
+            }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
           } catch { /* ignore */ }
         }
 

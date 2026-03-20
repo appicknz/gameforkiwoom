@@ -263,7 +263,7 @@ interface ResultSheetProps {
 function ResultSheet({ result, open, onClose }: ResultSheetProps) {
   if (!open || !result) return null
 
-  const lastDigit = Math.floor(Math.abs(result.closePrice * 100)) % 10
+  const lastDigit = Math.floor(Math.abs(result.closePrice * 10)) % 10
   const priceChange = result.closePrice - result.basePrice
   const isUp = priceChange >= 0
 
@@ -564,7 +564,7 @@ export function BettingGame() {
       if (basePriceRef.current === null) return
 
       const closePrice = price
-      const lastDigit = Math.floor(Math.abs(closePrice * 100)) % 10
+      const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
       const wonDirection = betRef.current ? (betRef.current === "long" ? closePrice >= basePriceRef.current : closePrice < basePriceRef.current) : false
       const wonDigit = betDigitRef.current ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5) : false
       const wonParity = betParityRef.current ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0) : false
@@ -912,7 +912,7 @@ export function BettingGame() {
           {phase === "result" && lastResult && (
             <div className="absolute inset-0 flex items-center justify-between bg-background/95 rounded-lg px-1 gap-1">
               <p className="text-[10px] text-muted-foreground shrink-0">
-                끝자리 {Math.floor(lastResult.closePrice * 100) % 10}
+                끝자리 {Math.floor(lastResult.closePrice * 10) % 10}
               </p>
               <div className="flex gap-1">
                 {lastResult.direction && (

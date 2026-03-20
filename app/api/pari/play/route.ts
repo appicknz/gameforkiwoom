@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     const rt = parseInt(roundTime)
 
     // ── 서버에서 승패 계산 ───────────────────────────────────────────────
-    const lastDigit    = Math.floor(Math.abs(closePrice * 100)) % 10
+    const lastDigit    = Math.floor(Math.abs(closePrice * 10)) % 10
     const wonDirection = closePrice >= (body.basePrice ?? closePrice) ? "long" : "short"
     const wonDigit     = lastDigit <= 4 ? "under" : "over"
     const wonParity    = lastDigit % 2 === 0 ? "even" : "odd"

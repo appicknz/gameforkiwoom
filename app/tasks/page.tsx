@@ -38,7 +38,7 @@ function calcStats(prices: ClosingPrice[]): Stats {
   for (let i = 1; i < prices.length; i++) {
     const prev = prices[i - 1].price
     const cur  = prices[i].price
-    const lastDigit = Math.floor(Math.abs(cur * 100)) % 10
+    const lastDigit = Math.floor(Math.abs(cur * 10)) % 10
 
     if (cur > prev) long++
     else if (cur < prev) short++
@@ -214,7 +214,7 @@ export default function TasksPage() {
               {[...prices].reverse().slice(0, 100).map((p, i, arr) => {
                 const prev = arr[i + 1]
                 const diff = prev ? p.price - prev.price : 0
-                const lastDigit = Math.floor(Math.abs(p.price * 100)) % 10
+                const lastDigit = Math.floor(Math.abs(p.price * 10)) % 10
                 const isOver = lastDigit >= 5
                 const isOdd = lastDigit % 2 !== 0
                 const isLong = diff > 0

@@ -465,7 +465,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     return () => window.removeEventListener("baccarat:result", handler)
   }, [])
 
-  // 잔고 �������기 로드
+  // 잔고 ���기 로드
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -498,18 +498,20 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
       const closePrice = price
-      // 배팅 기준가 = 30초 마감 시점의 현재가(현물) 스냅샷
-      // closePrice(kline 종가)가 아닌 currentPriceRef(실시간 현재가)를 사용
-      const snapshotCurrentPrice = currentPriceRef.current ?? closePrice
-      const lastDigit = calcLastDigit(closePrice)
+      const lastDigit = calcLastDigit(closePrice)  // 소수점 2자리 합 끝자리
+      // baka:closing은 BitcoinChart kline WS가 단독 발행 — 여기서는 게임 로직만 처리
 
+      // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
+      // 0~4=player(5), 5~8=banker(4), 9=tie(1)
       const serverBacResult: "player" | "banker" | "tie" =
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-      // 1) 카드 연출 트리거
+      // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 가격 전달 → applyFinalDigit 실행)
+      //    applyFinalDigit 내부에서 소수점 2자리를 분리해 각 사이드에 카드 배분
       onFinalDigitTrigger?.(closePrice)
 
-      // 2) 매 라운드 DB 저장 — 배팅 기준가는 현재가 스냅샷으로 저장
+      // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
+      //    baccarat_result도 함께 저장해야 빅로드가 쌓임
       const snapshotBase = basePriceRef.current
       if (snapshotBase !== null) {
         fetch("/api/rounds/save", {
@@ -519,16 +521,16 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         }).catch(() => {})
       }
 
-      // 4) 배팅 없으면 현재가로 기준가 업데이트 후 종료
+      // 4) 배팅 없으면 기준가 업데이트 후 종료
       const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
       if (!hasBet) {
-        setBasePrice(snapshotCurrentPrice)
-        basePriceRef.current = snapshotCurrentPrice
+        setBasePrice(price)
+        basePriceRef.current = price
         return
       }
 
-      // basePriceRef가 null이면 현재가 스냅샷으로 대체 (엣지케이스 방어)
-      const effectiveBase = snapshotBase ?? snapshotCurrentPrice
+      // basePriceRef가 null이면 현재가로 대체 (엣지케이스 방어)
+      const effectiveBase = snapshotBase ?? closePrice
 
       const wonDirection = betRef.current
         ? (betRef.current === "long" ? closePrice >= effectiveBase : closePrice < effectiveBase)

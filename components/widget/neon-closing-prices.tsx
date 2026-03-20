@@ -79,7 +79,7 @@ export function NeonClosingPrices() {
     }
   })
 
-  const getLastDigit = (price: number) => Math.floor(Math.abs(price * 100)) % 10
+  const getLastDigit = (price: number) => Math.floor(Math.abs(price * 10)) % 10
   const getDigitType = (digit: number) => (digit <= 4 ? "언더" : "오버")
   const getParityType = (digit: number) => (digit % 2 === 0 ? "짝" : "홀")
 
