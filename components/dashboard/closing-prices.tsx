@@ -215,9 +215,9 @@ function DbClosingPrices({ prices }: { prices: ClosingPrice[] }) {
 
 // ── 메인 컴포넌트 ──────────────────────────────────────────────────────────
 export function ClosingPrices() {
+  // closingPrices = 30초 라운드 결과 목록 (baka:closing 이벤트 + DB 초기값)
   const [closingPrices, setClosingPrices] = useState<ClosingPrice[]>([])
   const [rounds, setRounds] = useState<RoundData[]>([])
-  const [dbClosingPrices, setDbClosingPrices] = useState<ClosingPrice[]>([])
 
   const fetchRounds = () => {
     fetch("/api/rounds")
@@ -226,53 +226,44 @@ export function ClosingPrices() {
       .catch(() => {})
   }
 
-  // DB에서 30초 마감가 목록 불러오기 (최신순)
-  const fetchDbClosingPrices = () => {
+  useEffect(() => {
+    // 초기값: DB에서 30초 마감가 목록 로드 (최신순 → 오래된순으로 변환해서 저장)
     fetch("/api/closing-price")
       .then(r => r.json())
       .then(data => {
         if (data.prices && Array.isArray(data.prices)) {
-          // API가 ended_at DESC 순서로 반환 → 이미 최신순
-          setDbClosingPrices(data.prices)
+          // API는 ended_at DESC → 최신이 앞. 오래된순으로 뒤집어서 저장 (push 방식과 일치)
+          const sorted = [...data.prices].sort((a: ClosingPrice, b: ClosingPrice) => a.time - b.time)
+          setClosingPrices(sorted)
         }
       })
       .catch(() => {})
-  }
-
-  useEffect(() => {
-    // 인메모리 초기값 (window.__bitcoinClosingPrices)
-    const initPrices: ClosingPrice[] = (window as any).__bitcoinClosingPrices ?? []
-    if (initPrices.length > 0) setClosingPrices(initPrices)
 
     fetchRounds()
-    fetchDbClosingPrices()
 
-    // baka:closing = Railway kline_30s 단일 소스에서만 오는 30초 마감가
+    // baka:closing = 30초마다 현재가 스냅샷이 담겨 오는 단일 소스
     const onClosing = (e: Event) => {
       const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
-      // 30초 DB 목록에 즉시 반영 (낙관적 업데이트)
-      setDbClosingPrices(prev => {
-        if (prev[0]?.time === time) return prev
-        return [{ time, price }, ...prev].slice(0, 100)
+      setClosingPrices(prev => {
+        // 중복 방지
+        if (prev[prev.length - 1]?.time === time) return prev
+        return [...prev, { time, price }].slice(-200)
       })
       fetchRounds()
     }
     window.addEventListener("baka:closing", onClosing)
-    window.addEventListener("baka:price", onPrice)
-    return () => {
-      window.removeEventListener("baka:closing", onClosing)
-      window.removeEventListener("baka:price", onPrice)
-    }
+    return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
-  if (closingPrices.length === 0 && rounds.length === 0) return null
+  if (closingPrices.length === 0) return null
+
+  // 최신순으로 정렬해서 렌더링
+  const sorted = [...closingPrices].sort((a, b) => b.time - a.time)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* 라운드 결과 — 30초마다 기록되는 kline 마감가 */}
-      {closingPrices.length > 0 && (
-        <RealtimePrices prices={closingPrices} rounds={rounds} />
-      )}
+      {/* 라운드 결과 — 30초마다 현재가 스냅샷 */}
+      <RealtimePrices prices={sorted} rounds={rounds} />
     </div>
   )
 }
