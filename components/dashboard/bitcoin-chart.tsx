@@ -137,7 +137,17 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
     })
   }, [])
 
-  // 30초봉 마감가 수신 → ref 저장 + 노란 수평선 즉각 갱신
+  // 30초봉 마감 시점의 현재가(baka:price 마지막 값)를 배팅 기준가로 사용
+  const latestSpotPriceRef = useRef<number | null>(null)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      latestSpotPriceRef.current = (e as CustomEvent<{ price: number }>).detail.price
+    }
+    window.addEventListener("baka:price", handler)
+    return () => window.removeEventListener("baka:price", handler)
+  }, [])
+
+  // 30초봉 마감 수신 → 배팅가 수평선은 현재가(현물) 기준으로 갱신
   const handleClosingPrice = useCallback((price: number, time: number) => {
     latestClosingPriceRef.current = price
     setClosingPrices(prev => {
@@ -145,7 +155,9 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
       if (last?.time === time) return prev
       return [...prev, { time, price }].slice(-100)
     })
-    drawPriceLine(price)
+    // 배팅 기준가 수평선: 현재가 스냅샷 (없으면 마감가 폴백)
+    const linePrice = latestSpotPriceRef.current ?? price
+    drawPriceLine(linePrice)
   }, [drawPriceLine])
 
   // 초기 마감가 배열 수신 (새로고침 복원) → 마지막 값으로 수평선
