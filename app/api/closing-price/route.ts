@@ -72,13 +72,13 @@ export async function GET() {
 
     if (error) throw error
 
+    // order("ended_at", { ascending: false }) 이므로 이미 최신순 — reverse 불필요
     const prices = (data ?? [])
       .filter((r) => r.result_price !== null)
       .map((r) => ({
         price: Number(r.result_price),
         time: Math.floor(new Date(r.ended_at!).getTime() / 1000),
       }))
-      .reverse()
 
     return NextResponse.json({ prices })
   } catch (err) {

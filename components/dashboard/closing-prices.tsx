@@ -232,9 +232,8 @@ export function ClosingPrices() {
       .then(r => r.json())
       .then(data => {
         if (data.prices && Array.isArray(data.prices)) {
-          // API는 오래된 순으로 반환 → 역순 정렬하여 최신 먼저
-          const sorted = [...data.prices].sort((a, b) => b.time - a.time)
-          setDbClosingPrices(sorted)
+          // API가 ended_at DESC 순서로 반환 → 이미 최신순
+          setDbClosingPrices(data.prices)
         }
       })
       .catch(() => {})
