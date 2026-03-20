@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import useSWR from "swr"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
+// closing-prices: 라운드 결과 목록 (30초 현재가 스냅샷 기반)
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 
 const swrFetcher = (url: string) => fetch(url).then(r => r.json())
@@ -606,12 +607,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     let { finalP, finalB } = mid
     midStateRef.current = null
 
-    // 3번째 카드 ��준: 현재가(비트코인 현물 실시간) 소수점 2자리
-    // d1 = 소수점 첫째 자리 (뱅커 카드), d2 = 소수점 둘째 자리 (플레이어 카드)
-    const currentPrice: number = (window as any).__bitcoinCurrentPrice ?? closingPrice
-    const truncated = Math.floor(currentPrice * 100)
-    const d1 = Math.floor(truncated / 10) % 10  // 뱅커용 (현재가 소수점 첫째 자리)
-    const d2 = truncated % 10                    // 플레이어용 (현재가 소수점 둘째 자리)
+    // 3번째 카드 기준: 배팅 기준가(baka:closing 시점의 현재가 스냅샷) 소수점 2자리
+    // e.g. 70288.91 → d1(뱅커)=9, d2(플레이어)=1
+    const truncated = Math.floor(closingPrice * 100)
+    const d1 = Math.floor(truncated / 10) % 10  // 뱅커: 소수점 첫째 자리
+    const d2 = truncated % 10                    // 플레이어: 소수점 둘째 자리
 
     // 무늬 랜덤
     const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
