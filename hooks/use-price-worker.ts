@@ -63,19 +63,22 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             }
 
             if (data.type === "closing") {
-              optsRef.current.onClosingPrice?.(data.price, data.time)
+              // 현재가 스냅샷 — 배팅가 수평선과 동일한 값 사용
+              const spotPrice: number = win.__bitcoinCurrentPrice ?? data.price
+              optsRef.current.onClosingPrice?.(spotPrice, data.time)
               const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
               const last = prev[prev.length - 1]
               if (!last || last.time !== data.time) {
-                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
-                // baka:closing 커스텀 이벤트 dispatch → closing-prices.tsx 등 구독자에게 전달
-                window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: data.price, time: data.time } }))
-                // 마감가 확정 → DB 저장 (서버에 한 번만 저장, fire-and-forget)
+                // __bitcoinClosingPrices에도 현재가 스냅샷 저장
+                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: spotPrice }].slice(-100)
+                // baka:closing 이벤트에 현재가 스냅샷 포함
+                window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: spotPrice, time: data.time } }))
+                // DB 저장도 현재가 스냅샷으로
                 fetch("/api/closing-price", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ price: data.price, time: data.time }),
-                }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
+                  body: JSON.stringify({ price: spotPrice, time: data.time }),
+                }).catch(() => {})
               }
             }
           } catch { /* ignore malformed messages */ }

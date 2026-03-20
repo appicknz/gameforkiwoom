@@ -149,15 +149,16 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
 
   // 30초봉 마감 수신 → 배팅가 수평선은 현재가(현물) 기준으로 갱신
   const handleClosingPrice = useCallback((price: number, time: number) => {
-    latestClosingPriceRef.current = price
+    // 수평선에 쓰이는 값 = 현재가 스냅샷 (없으면 kline closePrice 폴백)
+    const spotPrice = latestSpotPriceRef.current ?? price
+    latestClosingPriceRef.current = spotPrice
     setClosingPrices(prev => {
       const last = prev[prev.length - 1]
       if (last?.time === time) return prev
-      return [...prev, { time, price }].slice(-100)
+      // 라운드 결과에 저장되는 price도 현재가 스냅샷
+      return [...prev, { time, price: spotPrice }].slice(-100)
     })
-    // 배팅 기준가 수평선: 현재가 스냅샷 (없으면 마감가 폴백)
-    const linePrice = latestSpotPriceRef.current ?? price
-    drawPriceLine(linePrice)
+    drawPriceLine(spotPrice)
   }, [drawPriceLine])
 
   // 초기 마감가 배열 수신 (새로고침 복원) → 마지막 값으로 수평선
