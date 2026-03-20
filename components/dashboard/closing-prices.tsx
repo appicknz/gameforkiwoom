@@ -247,15 +247,10 @@ export function ClosingPrices() {
     fetchRounds()
     fetchDbClosingPrices()
 
+    // baka:closing = Railway kline_30s 단일 소스에서만 오는 30초 마감가
     const onClosing = (e: Event) => {
       const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
-      // 1초 실시간 목록 업데이트
-      setClosingPrices(prev => {
-        const last = prev[prev.length - 1]
-        if (last?.time === time) return prev
-        return [...prev, { time, price }].slice(-100)
-      })
-      // 30초 DB 목록에도 즉시 반영 (DB 저장 완료 전 낙관적 업데이트)
+      // 30초 DB 목록에 즉시 반영 (낙관적 업데이트)
       setDbClosingPrices(prev => {
         if (prev[0]?.time === time) return prev
         return [{ time, price }, ...prev].slice(0, 100)
@@ -263,7 +258,11 @@ export function ClosingPrices() {
       fetchRounds()
     }
     window.addEventListener("baka:closing", onClosing)
-    return () => window.removeEventListener("baka:closing", onClosing)
+    window.addEventListener("baka:price", onPrice)
+    return () => {
+      window.removeEventListener("baka:closing", onClosing)
+      window.removeEventListener("baka:price", onPrice)
+    }
   }, [])
 
   if (closingPrices.length === 0 && dbClosingPrices.length === 0 && rounds.length === 0) return null
