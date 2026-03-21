@@ -61,26 +61,42 @@ function EmptySlot({ s = 1 }: { s?: number }) {
   )
 }
 
-// 배팅 기준가: 마지막 30초 마감봉 가격 — baka:closing 이벤트 단일 소스
-function HeaderBasePrice() {
-  const spanRef = useRef<HTMLSpanElement>(null)
+// 배팅 기준가 + 30초 끝자리: baka:closing 이벤트 단일 소스
+function HeaderBasePriceAndDigits() {
+  const priceRef = useRef<HTMLSpanElement>(null)
+  const digitsRef = useRef<HTMLSpanElement>(null)
+
   useEffect(() => {
     // 초기값
     const init: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
-    if (init.length > 0 && spanRef.current) {
+    if (init.length > 0) {
       const p = init[init.length - 1].price
-      spanRef.current.textContent = `$${p.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+      if (priceRef.current) {
+        priceRef.current.textContent = `$${p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      }
+      // 30초 끝자리 두 자리
+      const d1 = Math.floor(p * 100) % 100  // 70463.48 → 48
+      if (digitsRef.current) {
+        digitsRef.current.textContent = `${d1.toString().padStart(2, "0")}`
+      }
     }
+
     const onClosing = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
-      if (spanRef.current) {
-        spanRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+      if (priceRef.current) {
+        priceRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      }
+      // 30초 끝자리 두 자리
+      const d1 = Math.floor(price * 100) % 100
+      if (digitsRef.current) {
+        digitsRef.current.textContent = `${d1.toString().padStart(2, "0")}`
       }
     }
     window.addEventListener("baka:closing", onClosing)
     return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
-  return <span ref={spanRef}>—</span>
+
+  return { priceSpan: <span ref={priceRef}>—</span>, digitsSpan: <span ref={digitsRef}>—</span> }
 }
 
 export default function BakaPage() {
@@ -176,7 +192,7 @@ export default function BakaPage() {
                 <div>
                   <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1 }}>배팅 기준가</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: "#d4af37", fontVariantNumeric: "tabular-nums" }}>
-                    <HeaderBasePrice />
+                    {HeaderBasePriceAndDigits().priceSpan}
                   </div>
                 </div>
               </div>
@@ -202,6 +218,20 @@ export default function BakaPage() {
               padding: "12px",
             }}>
               <BigRoad history={roadState.history} round={roadState.round} />
+            </div>
+
+            {/* 30초 끝자리 */}
+            <div style={{
+              background: "rgba(5,15,10,0.92)",
+              border: "1px solid rgba(212,175,55,0.2)",
+              borderRadius: 12,
+              padding: "10px 14px",
+            }}>
+              <div style={{ fontSize: 9, color: "rgba(212,175,55,0.5)", letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase" }}>30초 끝자리</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {HeaderBasePriceAndDigits().digitsSpan}
+                <span style={{ fontSize: 11, color: "rgba(212,175,55,0.4)" }}>B{Math.floor(Math.floor(priceState.base ?? 0 * 100) / 10) % 10} P{Math.floor(Math.floor(priceState.base ?? 0 * 100)) % 10}</span>
+              </div>
             </div>
 
             {/* ── 0초 끝자리 카드 센터 팝업 오버레이 ── */}
