@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 
 function extractDigit(price: number): number {
-  const priceStr = price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  // 소수점 2자리 기준 끝자리 — BitcoinChart kline close 값과 동일 포맷
+  const priceStr = price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return parseInt(priceStr[priceStr.length - 1]) || 0
 }
 

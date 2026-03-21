@@ -7,7 +7,6 @@ import { TopBar } from "@/components/dashboard/top-bar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
-import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
 
 interface Card { suit: string; value: number; label: string; id: string }
 interface CardOverlayData {
@@ -16,6 +15,7 @@ interface CardOverlayData {
   pScore: number
   bScore: number
   result: "player" | "banker" | "tie" | null
+  finalCard?: Card | null
 }
 
 type BaccaratResult = "player" | "banker" | "tie" | null
@@ -60,26 +60,46 @@ function EmptySlot({ s = 1 }: { s?: number }) {
   )
 }
 
-// 배팅 기준가: 마지막 30초 마감봉 가격 — baka:closing 이벤트 단일 소스
-function HeaderBasePrice() {
-  const spanRef = useRef<HTMLSpanElement>(null)
+// 배팅 기준가 + 30초 끝자리: baka:closing 이벤트 단일 소스
+function HeaderBasePriceAndDigits() {
+  const priceRef = useRef<HTMLSpanElement>(null)
+  const digitsRef = useRef<HTMLSpanElement>(null)
+
   useEffect(() => {
     // 초기값
     const init: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
-    if (init.length > 0 && spanRef.current) {
+    if (init.length > 0) {
       const p = init[init.length - 1].price
-      spanRef.current.textContent = `$${p.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+      if (priceRef.current) {
+        priceRef.current.textContent = `$${p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      }
+      // 30초 끝자리 두 자리: .XX 부분
+      const truncated = Math.floor(p * 100)
+      const d1 = Math.floor(truncated / 10) % 10  // 소수점 첫째 자리 (뱅커)
+      const d2 = truncated % 10                    // 소수점 둘째 자리 (플레이어)
+      if (digitsRef.current) {
+        digitsRef.current.textContent = `B${d1} P${d2}`
+      }
     }
+
     const onClosing = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
-      if (spanRef.current) {
-        spanRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+      if (priceRef.current) {
+        priceRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      }
+      // 30초 끝자리 두 자리: .XX 부분
+      const truncated = Math.floor(price * 100)
+      const d1 = Math.floor(truncated / 10) % 10
+      const d2 = truncated % 10
+      if (digitsRef.current) {
+        digitsRef.current.textContent = `B${d1} P${d2}`
       }
     }
     window.addEventListener("baka:closing", onClosing)
     return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
-  return <span ref={spanRef}>—</span>
+
+  return { priceSpan: <span ref={priceRef}>—</span>, digitsSpan: <span ref={digitsRef}>—</span> }
 }
 
 export default function BakaPage() {
@@ -108,7 +128,8 @@ export default function BakaPage() {
     const onPrice = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
       if (headerCurrentRef.current) {
-        headerCurrentRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+        // 소수점 정확히 2자리: 직접 포매팅
+        headerCurrentRef.current.textContent = `$${price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
       }
     }
     window.addEventListener("baka:price", onPrice)
@@ -175,7 +196,7 @@ export default function BakaPage() {
                 <div>
                   <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1 }}>배팅 기준가</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: "#d4af37", fontVariantNumeric: "tabular-nums" }}>
-                    <HeaderBasePrice />
+                    {HeaderBasePriceAndDigits().priceSpan}
                   </div>
                 </div>
               </div>
@@ -202,6 +223,50 @@ export default function BakaPage() {
             }}>
               <BigRoad history={roadState.history} round={roadState.round} />
             </div>
+
+            {/* ── 0초 끝자리 카드 센터 팝업 오버레이 ── */}
+            {cardData.finalCard && (() => {
+              const fc = cardData.finalCard!
+              const isRed = fc.suit === "♥" || fc.suit === "♦"
+              return (
+                <div style={{
+                  position: "fixed", inset: 0, zIndex: 9999,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "rgba(0,0,0,0.55)",
+                  animation: "fadeInOverlay 0.15s ease",
+                }}>
+                  <div style={{
+                    background: "linear-gradient(145deg,#1c1408,#12100a)",
+                    border: `3px solid ${isRed ? "#e85c5c" : "#d4af37"}`,
+                    borderRadius: 20,
+                    padding: "28px 36px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 8,
+                    boxShadow: `0 0 60px ${isRed ? "#e85c5c" : "#d4af37"}80, 0 12px 48px rgba(0,0,0,0.8)`,
+                    animation: "popupCard 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+                    minWidth: 160,
+                  }}>
+                    {/* 끝자리 숫자 크게 */}
+                    <span style={{ fontSize: 80, fontWeight: 900, lineHeight: 1, color: isRed ? "#e85c5c" : "#d4af37", fontFamily: "Georgia, serif" }}>
+                      {fc.label}
+                    </span>
+                    {/* 무늬 */}
+                    <span style={{ fontSize: 48, lineHeight: 1, color: isRed ? "#e85c5c" : "#d4af37" }}>
+                      {fc.suit}
+                    </span>
+                    <span style={{ fontSize: 12, color: "rgba(212,175,55,0.7)", letterSpacing: "0.1em", marginTop: 4 }}>
+                      BTC 끝자리 카드
+                    </span>
+                  </div>
+                  <style>{`
+                    @keyframes fadeInOverlay { from { opacity: 0 } to { opacity: 1 } }
+                    @keyframes popupCard { from { transform: scale(0.2) rotate(-15deg); opacity: 0 } to { transform: scale(1) rotate(0deg); opacity: 1 } }
+                  `}</style>
+                </div>
+              )
+            })()}
 
             {/* BANKER / PLAYER 카드 패널 + 중앙 상태 박스 */}
             <div style={{

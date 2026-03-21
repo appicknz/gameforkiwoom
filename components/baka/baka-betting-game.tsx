@@ -3,8 +3,6 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp, Shuffle } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
-import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type BetDirection = "long" | "short" | null
@@ -71,6 +69,18 @@ const LABEL_MAP: Record<string, { text: string; color: string; bg: string; borde
 function getToken(): string | null {
   if (typeof window === "undefined") return null
   try { return localStorage.getItem("app_token") } catch { return null }
+}
+
+// ─── 비트코인 끝자리 계산 ────────────────────────────────────────────────────
+// 소수점 2자리 두 숫자의 합의 끝자리
+// e.g. 74,087.39 → 3+9=12 → 2
+// e.g. 74,079.83 → 8+3=11 → 1
+function calcLastDigit(price: number): number {
+  const str = price.toFixed(2)          // "74087.39"
+  const dec = str.split(".")[1] ?? "00" // "39"
+  const d1 = parseInt(dec[0] ?? "0")
+  const d2 = parseInt(dec[1] ?? "0")
+  return (d1 + d2) % 10
 }
 
 // ─── 자동 배팅 설정 ────────────────────────────────────────────────────────
@@ -263,7 +273,7 @@ function BakaBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
 function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null; open: boolean; onClose: () => void }) {
   if (!open || !result) return null
 
-  const lastDigit = Math.floor(Math.abs(result.closePrice * 10)) % 10
+  const lastDigit = calcLastDigit(result.closePrice)
   const priceChange = result.closePrice - result.basePrice
   const isUp = priceChange >= 0
 
@@ -383,8 +393,8 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 interface BakaBettingGameProps {
   /** 15초 시점: page가 주입해 준 startDeal 트리거 */
   onStartDealTrigger?: () => void
-  /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 */
-  onFinalDigitTrigger?: (digit: number) => void
+  /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 (끝자리 가격 전체를 전달) */
+  onFinalDigitTrigger?: (closingPrice: number) => void
   /** 바카라 배팅 확정 시 선택 사이드를 BaccaratGame에 전달 */
   onBetSideTrigger?: (side: "player" | "banker" | "tie" | null) => void
   /** timeLeft/phase 변경 시 page로 전달 */
@@ -453,7 +463,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     return () => window.removeEventListener("baccarat:result", handler)
   }, [])
 
-  // 잔고 초기 로드
+  // 잔고 ���기 로드
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -477,29 +487,29 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   usePriceWorker({
     onPrice: useCallback((price: number) => {
+      // Railway 가격은 게임 로직(타이머, 결과 판정)에만 사용
+      // UI 현재가 표시는 BitcoinChart kline WS가 단독 발행하는 baka:price를 구독
       setCurrentPrice(price)
       currentPriceRef.current = price
-      // 전체 /baka 페이지 컴포넌트가 구독할 수 있도록 브로드캐스트
-      window.dispatchEvent(new CustomEvent("baka:price", { detail: { price } }))
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
       const closePrice = price
-      const lastDigit = Math.floor(Math.abs(closePrice * 10)) % 10
-      // 마감가 브로드캐스트 — ClosingPrices, ClosingPricesBadges, BitcoinChart가 구독
-      window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price, time } }))
+      const lastDigit = calcLastDigit(closePrice)  // 소수점 2자리 합 끝자리
+      // baka:closing은 BitcoinChart kline WS가 단독 발행 — 여기서는 게임 로직만 처리
 
       // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
       // 0~4=player(5), 5~8=banker(4), 9=tie(1)
       const serverBacResult: "player" | "banker" | "tie" =
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-      // 1) 카드 연출 트리거 (BaccaratGame에 끝자리 전달 → applyFinalDigit 실행)
-      //    applyFinalDigit 내부에서 digit 기반으로 결과 직접 계산 (이벤트 불필요)
-      onFinalDigitTrigger?.(lastDigit)
+      // 1) 카드 연출 트리거: 배팅 기준가(basePriceRef) 기반으로 3번째 카드 숫자 결정
+      //    applyFinalDigit 내부에서 소수점 2자리를 분리해 각 사이드에 카드 배분
+      const snapshotBase = basePriceRef.current
+      const cardBasisPrice = snapshotBase ?? closePrice  // 배팅 기준가 우선, 없으면 kline 종가
+      onFinalDigitTrigger?.(cardBasisPrice)
 
       // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
       //    baccarat_result도 함께 저장해야 빅로드가 쌓임
-      const snapshotBase = basePriceRef.current
       if (snapshotBase !== null) {
         fetch("/api/rounds/save", {
           method: "POST",
@@ -610,9 +620,11 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       //      (applyFinalDigit 완료 시점이 정확히 전달됨 → 고정 딜레이 불필요)
       //    - 바카라 배팅 없음: 카드 연출과 무관, 즉시 정산
       if (betBaccaratRef.current) {
-        const onDealComplete = () => {
+        const onDealComplete = (e: Event) => {
           window.removeEventListener("baccarat:deal-complete", onDealComplete)
-          settle(serverBacResult)
+          // applyFinalDigit이 실제 카드 점수로 계산한 결과 사용
+          const actualResult = (e as CustomEvent).detail?.result as "player" | "banker" | "tie" | undefined
+          settle(actualResult ?? serverBacResult)
         }
         window.addEventListener("baccarat:deal-complete", onDealComplete)
         // 안전 타임아웃: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백)
@@ -655,10 +667,10 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   // 배팅 가능 시간: 30초~15초 초과 구간
   const canBet = timeLeft > 15
 
-  // autoBet state → ref 동기화
+  // autoBet state → ref ��기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
-  // 자동 배팅: canBet false→true 전환 시 새 라운드 플���그 초기화
+  // �������동 배팅: canBet false→true 전환 시 새 라운드 플���그 초기화
   const prevCanBetRef = useRef(false)
   useEffect(() => {
     const was = prevCanBetRef.current
@@ -979,7 +991,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
               {/* 배팅 금액 */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>금액</span>
+                <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>��액</span>
                 <div className="flex gap-1 flex-1 flex-wrap">
                   {CHIPS.map(c => (
                     <button key={c.value}
@@ -1047,24 +1059,30 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         {/* ── 바카라 종목 ── */}
         <div className="mb-1.5">
           <div className="grid grid-cols-3 gap-1.5">
-            {(["player", "banker", "tie"] as const).map((side) => {
-              const meta = LABEL_MAP[side]
+            {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
               const payout = side === "player" ? "1:1" : side === "banker" ? "0.95:1" : "8:1"
+              const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레��어"
+              const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
+              const solidBg   = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
+              const dimBg     = side === "banker" ? "#7f1d1d" : side === "tie" ? "#14532d" : "#1e3a8a"
+              const dimBorder = side === "banker" ? "#b91c1c" : side === "tie" ? "#15803d" : "#1d4ed8"
               return (
                 <button key={side}
                   onClick={() => openDialog("baccarat", side)}
                   disabled={!canBet || (betBaccarat !== null && !isSelected)}
-                  className="h-10 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
+                  className="rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
-                    background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
-                    border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                    color: isSelected ? meta.color : G.gold,
+                    height: 64,
+                    background: isSelected ? solidBg : dimBg,
+                    border: `2px solid ${isSelected ? solidColor : dimBorder}`,
+                    color: "#fff",
+                    boxShadow: isSelected ? `0 0 14px ${solidColor}` : "none",
                   }}>
-                  <span>{meta.text}</span>
-                  <span className="text-[8px] opacity-60">{payout}</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.03em" }}>{label}</span>
+                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
                   {isSelected && betBaccaratAmount > 0 && (
-                    <span className="text-[9px]" style={{ color: meta.color }}>
+                    <span style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>
                       ₩{betBaccaratAmount >= 10000 ? `${betBaccaratAmount / 10000}만` : betBaccaratAmount.toLocaleString()}
                     </span>
                   )}
@@ -1169,12 +1187,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
             <span className="font-semibold text-red-500">{losses}패</span>
           </span>
         </div>
-      </div>
-
-      {/* 끝자리 원형 배지 + 분포도 */}
-      <div className="mt-3 flex flex-col gap-3">
-        <ClosingPricesBadges />
-        <ProjectAnalytics />
       </div>
 
       {/* 다이얼로그 + 결과 시트 */}
