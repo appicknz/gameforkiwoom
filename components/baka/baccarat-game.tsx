@@ -44,7 +44,7 @@ const SUITS: Suit[] = ["♠", "♥", "♦", "♣"]
 // seed가 동일하면 항상 동일한 숫자 시퀀스를 반환 → 모든 유저 동일한 카드
 function makeSeededRand(seed: number) {
   let s = seed >>> 0
-  return function (): number {
+  return function(): number {
     s = Math.imul(s ^ (s >>> 15), s | 1)
     s ^= s + Math.imul(s ^ (s >>> 7), s | 61)
     return ((s ^ (s >>> 14)) >>> 0) / 0x100000000
@@ -273,120 +273,119 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
         </a>
       </div>
 
+      {/* 차트 — 그리드 위 */}
+      <div style={{
+        borderRadius: 8,
+        border: "1px solid rgba(212,175,55,0.12)",
+        background: "rgba(0,0,0,0.25)",
+        overflow: "hidden",
+        marginBottom: 4,
+        height: 140,
+      }}>
+        <BitcoinChart compact />
+      </div>
+
       {/* 그리드 + 카드 이미지 flex row */}
       <div style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
 
-        {/* 빅로드 그리드 */}
-        <div style={{
-          borderRadius: 8,
-          border: "1px solid rgba(212,175,55,0.12)",
-          background: "rgba(0,0,0,0.25)",
-          padding: 4,
-          overflow: "hidden",
-          flexShrink: 0,
-        }}>
-          <div style={{ position: "relative", width, height, flexShrink: 0 }}>
-
-            {/* 차트 — 그리드 내부 배경 */}
-            <div style={{
-              position: "absolute",
-              inset: 0,
-              zIndex: 1,
-              pointerEvents: "none",
-              opacity: 0.45,
-            }}>
-              <BitcoinChart compact />
-            </div>
-            {/* 격자 배경 */}
-            {Array.from({ length: MAX_ROWS }).map((_, r) =>
-              Array.from({ length: totalCols }).map((_, c) => (
-                <div
-                  key={`grid-${r}-${c}`}
-                  style={{
-                    position: "absolute",
-                    left: c * (cellSize + GAP),
-                    top: r * (cellSize + GAP),
-                    width: cellSize,
-                    height: cellSize,
-                    border: "1px solid rgba(212,175,55,0.06)",
-                    borderRadius: 3,
-                    zIndex: 2,
-                  }}
-                />
-              ))
-            )}
-
-            {/* 결과 원 */}
-            {cells.map((cell, i) => {
-              const color = cell.result === "banker" ? "#ef4444" : "#3b82f6"
-              const isLatest = i === cells.length - 1
-              return (
-                <div
-                  key={i}
-                  style={{
-                    position: "absolute",
-                    left: cell.col * (cellSize + GAP),
-                    top: cell.row * (cellSize + GAP),
-                    width: cellSize,
-                    height: cellSize,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    zIndex: 2,
-                  }}
-                >
-                  {/* 원 */}
-                  <div style={{
-                    width: cellSize - 4,
-                    height: cellSize - 4,
-                    borderRadius: "50%",
-                    border: `2px solid ${color}`,
-                    background: isLatest ? `${color}22` : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    position: "relative",
-                    boxShadow: isLatest ? `0 0 6px ${color}66` : "none",
-                    transition: "box-shadow 0.3s",
-                  }}>
-                    {/* 타이 사선 표시 */}
-                    {cell.tieCount > 0 && (
-                      <svg
-                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
-                        viewBox="0 0 18 18"
-                      >
-                        <line x1="2" y1="16" x2="16" y2="2" stroke="#22c55e" strokeWidth="1.8" strokeLinecap="round" />
-                        {cell.tieCount > 1 && (
-                          <text x="13" y="6" fontSize="5" fill="#22c55e" fontWeight="bold">{cell.tieCount}</text>
-                        )}
-                      </svg>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* 캐릭터 카드 이미지 — 그리드 테두리 바깥 오른쪽 flex sibling */}
-        <div style={{
-          width: cardW,
-          flexShrink: 0,
-          borderRadius: 8,
-          border: "1px solid rgba(212,175,55,0.25)",
-          overflow: "hidden",
-          background: "rgba(0,0,0,0.4)",
-        }}>
-          {cardImageUrl ? (
-            <img
-              src={cardImageUrl}
-              alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
-            />
-          ) : (
-            <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
+      {/* 빅로드 그리드 */}
+      <div style={{
+        borderRadius: 8,
+        border: "1px solid rgba(212,175,55,0.12)",
+        background: "rgba(0,0,0,0.25)",
+        padding: 4,
+        overflow: "hidden",
+        flexShrink: 0,
+      }}>
+        <div style={{ position: "relative", width, height, flexShrink: 0 }}>
+          {/* 격자 배경 */}
+          {Array.from({ length: MAX_ROWS }).map((_, r) =>
+            Array.from({ length: totalCols }).map((_, c) => (
+              <div
+                key={`grid-${r}-${c}`}
+                style={{
+                  position: "absolute",
+                  left: c * (cellSize + GAP),
+                  top: r * (cellSize + GAP),
+                  width: cellSize,
+                  height: cellSize,
+                  border: "1px solid rgba(212,175,55,0.06)",
+                  borderRadius: 3,
+                }}
+              />
+            ))
           )}
+
+          {/* 결과 원 */}
+          {cells.map((cell, i) => {
+            const color = cell.result === "banker" ? "#ef4444" : "#3b82f6"
+            const isLatest = i === cells.length - 1
+            return (
+              <div
+                key={i}
+                style={{
+                  position: "absolute",
+                  left: cell.col * (cellSize + GAP),
+                  top: cell.row * (cellSize + GAP),
+                  width: cellSize,
+                  height: cellSize,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {/* 원 */}
+                <div style={{
+                  width: cellSize - 4,
+                  height: cellSize - 4,
+                  borderRadius: "50%",
+                  border: `2px solid ${color}`,
+                  background: isLatest ? `${color}22` : "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                  boxShadow: isLatest ? `0 0 6px ${color}66` : "none",
+                  transition: "box-shadow 0.3s",
+                }}>
+                  {/* 타이 사선 표시 */}
+                  {cell.tieCount > 0 && (
+                    <svg
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+                      viewBox="0 0 18 18"
+                    >
+                      <line x1="2" y1="16" x2="16" y2="2" stroke="#22c55e" strokeWidth="1.8" strokeLinecap="round" />
+                      {cell.tieCount > 1 && (
+                        <text x="13" y="6" fontSize="5" fill="#22c55e" fontWeight="bold">{cell.tieCount}</text>
+                      )}
+                    </svg>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
+      </div>
+
+      {/* 캐릭터 카드 이미지 — 그리드 테두리 바깥 오른쪽 flex sibling */}
+      <div style={{
+        width: cardW,
+        flexShrink: 0,
+        borderRadius: 8,
+        border: "1px solid rgba(212,175,55,0.25)",
+        overflow: "hidden",
+        background: "rgba(0,0,0,0.4)",
+      }}>
+        {cardImageUrl ? (
+          <img
+            src={cardImageUrl}
+            alt=""
+            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
+          />
+        ) : (
+          <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
+        )}
+      </div>
 
       </div>{/* flex row 끝 */}
     </div>
@@ -478,7 +477,7 @@ function PlayingCard({
 }
 
 interface BaccaratGameProps {
-  onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"]; finalCard: Card | null }) => void
+  onCardsChange?: (data: { playerCards: Card[]; bankerCards: Card[]; pScore: number; bScore: number; result: GameState["result"] }) => void
   /** BaccaratGame이 page에 startDeal 함수를 등록 */
   onStartDealRequest?: (handler: () => void) => void
   /** BaccaratGame이 page에 applyFinalDigit 함수를 등록 */
@@ -551,7 +550,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   // history/roundCount 변경 시 page로 전달
   useEffect(() => {
     onRoadChange?.(state.history, state.roundCount)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.history, state.roundCount])
 
   // ─── 15초 딜 시작 ───────────────────────────────────────��─────────────────
@@ -565,100 +564,111 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     dealingRef.current = true
     midStateRef.current = null
 
-    const side = betSideRef.current  // null이면 배팅 없음 (관전 모드)
+    const side = betSideRef.current  // null이면 배팅 없음 (���전 모드)
 
-    // seed = 라운드슬롯 * 1_000_000 + 현재 timestamp 초 단위 끝 6자리
-    // → 라운드 기반이지만 timestamp로 조작불가 (매 게임 다른 카드)
-    const tsSeed = Math.floor(Date.now() / 100) % 1_000_000
-    const seeded = makeSeededRand(getRoundSeed() * 1_000_000 + tsSeed)
-    const rand = () => Math.floor(seeded() * 10)  // 0~9 카드 숫자
+    // 현재 30초 라운드 슬롯을 seed로 → 모든 유저 동일한 카드 시퀀스
+    const seeded = makeSeededRand(getRoundSeed())
+    const rand     = () => Math.floor(seeded() * 10)  // 0~9 카드 숫자
     const randSuit = () => Math.floor(seeded() * 4)   // 0~3 무늬
 
     setState(prev => ({ ...prev, phase: "dealing", playerCards: [], bankerCards: [], result: null }))
     await sleep(80)
 
-    // 플레이어/뱅커 항상 각 2장씩 — P1, B1, P2, B2 순서 (바카라 정식 딜 순서)
-    const p1 = digitToCard(rand(), randSuit())
-    const b1 = digitToCard(rand(), randSuit())
-    const p2 = digitToCard(rand(), randSuit())
-    const b2 = digitToCard(rand(), randSuit())
+    // 베팅 사이드에 따라 카드 수 결정
+    // betTarget: 0초 끝자리를 받을 쪽 (베팅 사이드)
+    // betTarget이 player(또는 tie/null): player 1장, banker 2장
+    // betTarget이 banker: banker 1장, player 2장
+    const betTarget: "player" | "banker" = (side === "banker") ? "banker" : "player"
 
-    setState(prev => ({ ...prev, playerCards: [p1] }))
-    await sleep(320)
-    setState(prev => ({ ...prev, bankerCards: [b1] }))
-    await sleep(320)
-    setState(prev => ({ ...prev, playerCards: [p1, p2] }))
-    await sleep(320)
-    setState(prev => ({ ...prev, bankerCards: [b1, b2] }))
-    await sleep(320)
+    let finalP: Card[] = []
+    let finalB: Card[] = []
 
-    const finalP: Card[] = [p1, p2]
-    const finalB: Card[] = [b1, b2]
+    if (betTarget === "player") {
+      // Player 1장, Banker 2장
+      const p1 = digitToCard(rand(), randSuit())
+      const b1 = digitToCard(rand(), randSuit())
+      const b2 = digitToCard(rand(), randSuit())
+
+      setState(prev => ({ ...prev, playerCards: [p1] }))
+      await sleep(350)
+      setState(prev => ({ ...prev, bankerCards: [b1] }))
+      await sleep(350)
+      setState(prev => ({ ...prev, bankerCards: [b1, b2] }))
+      await sleep(350)
+
+      finalP = [p1]
+      finalB = [b1, b2]
+    } else {
+      // Banker 1장, Player 2장
+      const b1 = digitToCard(rand(), randSuit())
+      const p1 = digitToCard(rand(), randSuit())
+      const p2 = digitToCard(rand(), randSuit())
+
+      setState(prev => ({ ...prev, bankerCards: [b1] }))
+      await sleep(350)
+      setState(prev => ({ ...prev, playerCards: [p1] }))
+      await sleep(350)
+      setState(prev => ({ ...prev, playerCards: [p1, p2] }))
+      await sleep(350)
+
+      finalP = [p1, p2]
+      finalB = [b1]
+    }
 
     // 중간 상태 저장 → 0초 끝자리 카드 대기
     midStateRef.current = { finalP, finalB, betSide: side }
     setState(prev => ({ ...prev, playerCards: finalP, bankerCards: finalB }))
   }, [])
 
-  // ─── 0초 끝자리 카드 → 베팅 사이��에 부여 → 추가 카드 연출 → 최종 승부 표시 ──
+  // ─── 0초 끝자리 카드 → 베팅 사이드에 부여 → 추가 카드 연출 → 최종 승부 표시 ──
   // 규칙:
   //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
   //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
-  //   3. 승부는 반드시 끝자리 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
+  //   3. 승부는 반드시 ��자��� 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
   //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
-  const applyFinalDigit = useCallback(async (closingPrice: number) => {
+  const applyFinalDigit = useCallback(async (digit: number) => {
     const mid = midStateRef.current
     if (!mid) return
 
     let { finalP, finalB } = mid
+    const { betSide } = mid
     midStateRef.current = null
 
-    // 끝자리 소수점 2자리 추출: .87 → bankerDigit=8, playerDigit=7
-    // toFixed()는 반올림 발생 → Math.floor로 절사 후 문자열 파싱
-    const truncated = Math.floor(closingPrice * 100)  // 74227.59 → 7422759
-    const d1 = Math.floor(truncated / 10) % 10        // 소수점 첫째 자리 (뱅커)
-    const d2 = truncated % 10                          // 소수점 둘째 자리 (플레이어)
-    const bankerDigit = d1
-    const playerDigit = d2
+    const betTarget: "player" | "banker" = (betSide === "banker") ? "banker" : "player"
+    // seed = 라운드슬롯 * 100 + digit → startDeal seed와 구분되면서 결정론적
+    const seeded = makeSeededRand(getRoundSeed() * 100 + digit)
+    const randSuit = () => Math.floor(seeded() * 4)
+    const finalCard = digitToCard(digit, randSuit())
 
-    // 무늬 랜덤 (seed: 라운드 + timestamp, 숫자는 이미 확정)
-    const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
-    const finalSeeded = makeSeededRand(getRoundSeed() * 1_000_000 + finalTsSeed)
-    const finalRandSuit = () => Math.floor(finalSeeded() * 4)
-
-    const bankerCard = digitToCard(bankerDigit, finalRandSuit())
-    const playerCard = digitToCard(playerDigit, finalRandSuit())
-
-    // 1. 뱅커 카드 팝업
-    setState(prev => ({ ...prev, finalCard: bankerCard }))
-    await sleep(950)
-
-    // 2. 뱅커 카드 추가
-    finalB = [...finalB, bankerCard]
-    setState(prev => ({ ...prev, bankerCards: finalB, finalCard: null }))
-    await sleep(350)
-
-    // 3. 플레이어 카드 팝업
-    setState(prev => ({ ...prev, finalCard: playerCard }))
-    await sleep(950)
-
-    // 4. 플레이어 카드 추가
-    finalP = [...finalP, playerCard]
-    setState(prev => ({ ...prev, playerCards: finalP, finalCard: null }))
-    await sleep(350)
-
-    // 5. 점수 계산 및 승부 결정 (9에 가까운 쪽이 이김)
-    const pScore = handScore(finalP)
-    const bScore = handScore(finalB)
-
-    let result: "player" | "banker" | "tie"
-    if (pScore > bScore) {
-      result = "player"
-    } else if (bScore > pScore) {
-      result = "banker"
+    // 1. 끝자리 카드를 betTarget에게 부여 (연출)
+    if (betTarget === "player") {
+      finalP = [...finalP, finalCard]
+      setState(prev => ({ ...prev, playerCards: finalP }))
     } else {
-      result = "tie"
+      finalB = [...finalB, finalCard]
+      setState(prev => ({ ...prev, bankerCards: finalB }))
     }
+    await sleep(300)  // 280→300ms (카드 플립 연출)
+
+    // 2. 추가 카드 연출 (승부와 무관, 시각적 연출만)
+    const targetScore = betTarget === "player" ? handScore(finalP) : handScore(finalB)
+    if (targetScore <= 5) {
+      const extraCard = digitToCard(Math.floor(seeded() * 10), randSuit())
+      if (betTarget === "player" && finalB.length < 3) {
+        finalB = [...finalB, extraCard]
+        setState(prev => ({ ...prev, bankerCards: finalB }))
+        await sleep(280)  // 380→280ms
+      } else if (betTarget === "banker" && finalP.length < 3) {
+        finalP = [...finalP, extraCard]
+        setState(prev => ({ ...prev, playerCards: finalP }))
+        await sleep(280)  // 380→280ms
+      }
+    }
+
+    // 3. 승부는 항상 끝자리 기반으로 결정 (카드 점수 폴백 없음)
+    //    동일 digit → 동일 result → 모든 유저 동일
+    const result: "player" | "banker" | "tie" =
+      digit <= 4 ? "player" : digit <= 8 ? "banker" : "tie"
 
     setState(prev => ({
       ...prev,
@@ -668,11 +678,12 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       bankerCards: finalB,
       roundCount: prev.roundCount + 1,
       history: [...prev.history.slice(-49), result],
-      finalCard: null,
+      finalCard,  // 이미지 오버레이에 끝자리 카드 정보 전달
     }))
 
     dealingRef.current = false
-    window.dispatchEvent(new CustomEvent("baccarat:deal-complete", { detail: { result } }))
+    // applyFinalDigit 완료 시점을 외부에 알림 (settle 딜레이 제거용)
+    window.dispatchEvent(new CustomEvent("baccarat:deal-complete"))
   }, [])
 
   // 콜백 등록
@@ -687,7 +698,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
   // 카드 상태를 부모로 전달 (차트 오버레이용)
   useEffect(() => {
-    onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result, finalCard: state.finalCard ?? null })
+    onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result })
   }, [state.playerCards, state.bankerCards, state.result, pScore, bScore, onCardsChange])
 
   const lastDigit = Math.floor(state.priceDisplay) % 10
@@ -768,13 +779,13 @@ function CardCharacterDisplay({ roundSeed, card, phase }: {
     if (!selectedVideo || !videoRef.current) return
     if (phase === "betting") {
       videoRef.current.currentTime = 0
-      videoRef.current.play().catch(() => { })
+      videoRef.current.play().catch(() => {})
     }
   }, [phase, selectedVideo?.url])
 
   const suitColor = "#ffffff"
   const label = card?.label ?? ""
-  const suit = card?.suit ?? ""
+  const suit  = card?.suit  ?? ""
 
   return (
     <div style={{
@@ -837,7 +848,7 @@ function CardCharacterDisplay({ roundSeed, card, phase }: {
         </>
       )}
 
-      {/* 카드 ���보 없을 때: 대기 표시 */}
+      {/* 카드 정보 없을 때: 대기 표시 */}
       {!card && (
         <div style={{
           position: "absolute", top: 10, left: 12,
