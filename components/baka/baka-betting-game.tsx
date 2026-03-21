@@ -939,7 +939,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                 const meta: Record<typeof type, { opts: string[]; labels: string[]; nullLabel: string }> = {
                   direction: { opts: ["long", "short", "random"], labels: ["롱", "숏", "랜덤"], nullLabel: "방향" },
                   digit: { opts: ["over", "under", "random"], labels: ["오버", "언더", "랜덤"], nullLabel: "크기" },
-                  parity: { opts: ["odd", "even", "random"], labels: ["홀", "짝", "랜���"], nullLabel: "홀짝" },
+                  parity: { opts: ["odd", "even", "random"], labels: ["홀", "짝", "랜덤"], nullLabel: "홀짝" },
                 }
                 const { opts, labels, nullLabel } = meta[type]
                 const current = autoBet[type]
@@ -998,7 +998,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
               {/* 배팅 금액 */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>��액</span>
+                <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>금액</span>
                 <div className="flex gap-1 flex-1 flex-wrap">
                   {CHIPS.map(c => (
                     <button key={c.value}
@@ -1026,7 +1026,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                   />
                 </div>
                 <div>
-                  <p className="text-[10px] mb-1" style={{ color: G.textDim }}>손실 한도 ₩ (빈 ��=무제한)</p>
+                  <p className="text-[10px] mb-1" style={{ color: G.textDim }}>손실 한도 ₩ (빈 칸=무제한)</p>
                   <input
                     type="number" min={0}
                     value={autoBet.maxLoss ?? ""}
