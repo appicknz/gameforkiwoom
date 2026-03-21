@@ -3,8 +3,6 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp, Shuffle } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { ClosingPricesBadges } from "@/components/dashboard/closing-prices-badges"
-import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type BetDirection = "long" | "short" | null
@@ -465,7 +463,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     return () => window.removeEventListener("baccarat:result", handler)
   }, [])
 
-  // 잔고 초기 로드
+  // 잔고 ���기 로드
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -1063,7 +1061,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
               const payout = side === "player" ? "1:1" : side === "banker" ? "0.95:1" : "8:1"
-              const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
+              const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레��어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
               const solidBg   = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
               const dimBg     = side === "banker" ? "#7f1d1d" : side === "tie" ? "#14532d" : "#1e3a8a"
@@ -1188,12 +1186,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
             <span className="font-semibold text-red-500">{losses}패</span>
           </span>
         </div>
-      </div>
-
-      {/* 끝자리 원형 배지 + 분포도 */}
-      <div className="mt-3 flex flex-col gap-3">
-        <ClosingPricesBadges />
-        <ProjectAnalytics />
       </div>
 
       {/* 다이얼로그 + 결과 시트 */}
