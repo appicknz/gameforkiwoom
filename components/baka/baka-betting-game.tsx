@@ -33,11 +33,11 @@ interface RoundResult {
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
 const CHIPS = [
-  { label: "1만",  value: 10_000 },
-  { label: "5만",  value: 50_000 },
+  { label: "1만", value: 10_000 },
+  { label: "5만", value: 50_000 },
   { label: "10만", value: 100_000 },
   { label: "50만", value: 500_000 },
-  { label: "100만",value: 1_000_000 },
+  { label: "100만", value: 1_000_000 },
 ]
 const PAYOUT_RATIO = 1.95
 
@@ -55,15 +55,15 @@ const G = {
 }
 
 const LABEL_MAP: Record<string, { text: string; color: string; bg: string; border: string }> = {
-  long:   { text: "롱",    color: "#10b981", bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.4)"  },
-  short:  { text: "숏",    color: "#ef4444", bg: "rgba(239,68,68,0.15)",   border: "rgba(239,68,68,0.4)"   },
-  over:   { text: "오버",  color: "#f97316", bg: "rgba(249,115,22,0.15)",  border: "rgba(249,115,22,0.4)"  },
-  under:  { text: "언더",  color: "#60a5fa", bg: "rgba(96,165,250,0.15)",  border: "rgba(96,165,250,0.4)"  },
-  odd:    { text: "홀",    color: "#a78bfa", bg: "rgba(167,139,250,0.15)", border: "rgba(167,139,250,0.4)" },
-  even:   { text: "짝",    color: "#ec4899", bg: "rgba(236,72,153,0.15)",  border: "rgba(236,72,153,0.4)"  },
-  player: { text: "PLAYER", color: "#3b82f6", bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.4)"  },
-  banker: { text: "BANKER", color: "#ef4444", bg: "rgba(239,68,68,0.15)",  border: "rgba(239,68,68,0.4)"   },
-  tie:    { text: "TIE",    color: "#22c55e", bg: "rgba(34,197,94,0.15)",  border: "rgba(34,197,94,0.4)"   },
+  long: { text: "롱", color: "#10b981", bg: "rgba(16,185,129,0.15)", border: "rgba(16,185,129,0.4)" },
+  short: { text: "숏", color: "#ef4444", bg: "rgba(239,68,68,0.15)", border: "rgba(239,68,68,0.4)" },
+  over: { text: "오버", color: "#f97316", bg: "rgba(249,115,22,0.15)", border: "rgba(249,115,22,0.4)" },
+  under: { text: "언더", color: "#60a5fa", bg: "rgba(96,165,250,0.15)", border: "rgba(96,165,250,0.4)" },
+  odd: { text: "홀", color: "#a78bfa", bg: "rgba(167,139,250,0.15)", border: "rgba(167,139,250,0.4)" },
+  even: { text: "짝", color: "#ec4899", bg: "rgba(236,72,153,0.15)", border: "rgba(236,72,153,0.4)" },
+  player: { text: "PLAYER", color: "#3b82f6", bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.4)" },
+  banker: { text: "BANKER", color: "#ef4444", bg: "rgba(239,68,68,0.15)", border: "rgba(239,68,68,0.4)" },
+  tie: { text: "TIE", color: "#22c55e", bg: "rgba(34,197,94,0.15)", border: "rgba(34,197,94,0.4)" },
 }
 
 function getToken(): string | null {
@@ -278,17 +278,24 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
   const isUp = priceChange >= 0
 
   const bets = [
-    result.direction && { key: result.direction, label: LABEL_MAP[result.direction], won: result.wonDirection, amount: result.directionAmount,
-      payout: result.wonDirection ? Math.floor(result.directionAmount * PAYOUT_RATIO) : 0 },
-    result.digit && { key: result.digit, label: LABEL_MAP[result.digit], won: result.wonDigit, amount: result.digitAmount,
-      payout: result.wonDigit ? Math.floor(result.digitAmount * PAYOUT_RATIO) : 0 },
-    result.parity && { key: result.parity, label: LABEL_MAP[result.parity], won: result.wonParity, amount: result.parityAmount,
-      payout: result.wonParity ? Math.floor(result.parityAmount * PAYOUT_RATIO) : 0 },
-    result.baccarat && { key: result.baccarat, label: LABEL_MAP[result.baccarat], won: result.wonBaccarat, amount: result.baccaratAmount,
+    result.direction && {
+      key: result.direction, label: LABEL_MAP[result.direction], won: result.wonDirection, amount: result.directionAmount,
+      payout: result.wonDirection ? Math.floor(result.directionAmount * PAYOUT_RATIO) : 0
+    },
+    result.digit && {
+      key: result.digit, label: LABEL_MAP[result.digit], won: result.wonDigit, amount: result.digitAmount,
+      payout: result.wonDigit ? Math.floor(result.digitAmount * PAYOUT_RATIO) : 0
+    },
+    result.parity && {
+      key: result.parity, label: LABEL_MAP[result.parity], won: result.wonParity, amount: result.parityAmount,
+      payout: result.wonParity ? Math.floor(result.parityAmount * PAYOUT_RATIO) : 0
+    },
+    result.baccarat && {
+      key: result.baccarat, label: LABEL_MAP[result.baccarat], won: result.wonBaccarat, amount: result.baccaratAmount,
       payout: result.wonBaccarat
         ? result.baccarat === "player" ? Math.floor(result.baccaratAmount * 2)
           : result.baccarat === "banker" ? Math.floor(result.baccaratAmount * 1.95)
-          : Math.floor(result.baccaratAmount * 9)
+            : Math.floor(result.baccaratAmount * 9)
         : result.baccaratRefund ? result.baccaratAmount : 0,
       isRefund: result.baccaratRefund && !result.wonBaccarat,
     },
@@ -309,7 +316,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
         <div className="px-5 pt-5 pb-4 flex items-center justify-between"
           style={{ background: allWon ? "rgba(212,175,55,0.08)" : allLost ? "rgba(239,68,68,0.08)" : "rgba(212,175,55,0.04)" }}>
           <div>
-            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>���운드 #{result.round} 결과</p>
+            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라운드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight"
               style={{ color: allWon ? G.gold : allLost ? "#ef4444" : "#f97316" }}>
               {allWon ? "승리!" : allLost ? "패배" : "부분 승리"}
@@ -470,7 +477,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => setBalance(d.balance ?? 0))
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   // SSE 잔고 동기화
@@ -515,7 +522,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ basePrice: snapshotBase, closePrice, baccaratResult: serverBacResult }),
-        }).catch(() => {})
+        }).catch(() => { })
       }
 
       // 4) 배팅 없으면 기준가 업데이트 후 종료
@@ -571,7 +578,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
               setBalance(data.newBalance)
               window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance }))
             }
-          }).catch(() => {})
+          }).catch(() => { })
         }
 
         const result: RoundResult = {
@@ -667,10 +674,10 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   // 배팅 가능 시간: 30초~15초 초과 구간
   const canBet = timeLeft > 15
 
-  // autoBet state → ref ��기화
+  // autoBet state → ref 초기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
-  // �������동 배팅: canBet false→true 전환 시 새 라운드 플���그 초기화
+  // 자동 배팅: canBet false→true 전환 시 새 라운드 플래그 초기화
   const prevCanBetRef = useRef(false)
   useEffect(() => {
     const was = prevCanBetRef.current
@@ -744,15 +751,15 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       }
     }
 
-    ;(async () => {
-      try {
-        if (dir) await placeSingle("direction", dir)
-        if (dig) await placeSingle("digit", dig)
-        if (par) await placeSingle("parity", par)
-        if (bac) await placeSingle("baccarat", bac)
-        setPhase("waiting")
-      } catch (e) { console.error("[v0 autoBet]", e) }
-    })()
+      ; (async () => {
+        try {
+          if (dir) await placeSingle("direction", dir)
+          if (dig) await placeSingle("digit", dig)
+          if (par) await placeSingle("parity", par)
+          if (bac) await placeSingle("baccarat", bac)
+          setPhase("waiting")
+        } catch (e) { console.error("[v0 autoBet]", e) }
+      })()
   }, [canBet, balance, onBetSideTrigger])
 
   // 자동 배팅 결과 트래킹
@@ -860,14 +867,14 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   // basePrice/currentPrice 변경 시 page로 전달
   useEffect(() => {
     onPriceChange?.(basePrice, currentPrice)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basePrice, currentPrice])
 
   // timeLeft/phase 변경 시 page로 전달
   useEffect(() => {
     const phaseStatus = timeLeft > 15 ? "betting" : timeLeft > 0 ? "dealing" : phase
     onStatusChange?.(timeLeft, phaseStatus as "betting" | "waiting" | "result" | "dealing")
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft, phase])
 
   const priceDiff = currentPrice !== null && basePrice !== null ? currentPrice - basePrice : null
@@ -931,8 +938,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
               {(["direction", "digit", "parity"] as const).map((type) => {
                 const meta: Record<typeof type, { opts: string[]; labels: string[]; nullLabel: string }> = {
                   direction: { opts: ["long", "short", "random"], labels: ["롱", "숏", "랜덤"], nullLabel: "방향" },
-                  digit:     { opts: ["over", "under", "random"],  labels: ["오버", "언더", "랜덤"], nullLabel: "크기" },
-                  parity:    { opts: ["odd", "even", "random"],    labels: ["홀", "짝", "랜���"],  nullLabel: "홀짝" },
+                  digit: { opts: ["over", "under", "random"], labels: ["오버", "언더", "랜덤"], nullLabel: "크기" },
+                  parity: { opts: ["odd", "even", "random"], labels: ["홀", "짝", "랜���"], nullLabel: "홀짝" },
                 }
                 const { opts, labels, nullLabel } = meta[type]
                 const current = autoBet[type]
@@ -1062,10 +1069,10 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
               const payout = side === "player" ? "1:1" : side === "banker" ? "0.95:1" : "8:1"
-              const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레��어"
+              const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
-              const solidBg   = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
-              const dimBg     = side === "banker" ? "#7f1d1d" : side === "tie" ? "#14532d" : "#1e3a8a"
+              const solidBg = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
+              const dimBg = side === "banker" ? "#7f1d1d" : side === "tie" ? "#14532d" : "#1e3a8a"
               const dimBorder = side === "banker" ? "#b91c1c" : side === "tie" ? "#15803d" : "#1d4ed8"
               return (
                 <button key={side}
