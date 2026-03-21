@@ -74,10 +74,12 @@ function HeaderBasePriceAndDigits() {
       if (priceRef.current) {
         priceRef.current.textContent = `$${p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       }
-      // 30초 끝자리 두 자리
-      const d1 = Math.floor(p * 100) % 100  // 70463.48 → 48
+      // 30초 끝자리 두 자리: .XX 부분
+      const truncated = Math.floor(p * 100)
+      const d1 = Math.floor(truncated / 10) % 10  // 소수점 첫째 자리 (뱅커)
+      const d2 = truncated % 10                    // 소수점 둘째 자리 (플레이어)
       if (digitsRef.current) {
-        digitsRef.current.textContent = `${d1.toString().padStart(2, "0")}`
+        digitsRef.current.textContent = `B${d1} P${d2}`
       }
     }
 
@@ -86,10 +88,12 @@ function HeaderBasePriceAndDigits() {
       if (priceRef.current) {
         priceRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       }
-      // 30초 끝자리 두 자리
-      const d1 = Math.floor(price * 100) % 100
+      // 30초 끝자리 두 자리: .XX 부분
+      const truncated = Math.floor(price * 100)
+      const d1 = Math.floor(truncated / 10) % 10
+      const d2 = truncated % 10
       if (digitsRef.current) {
-        digitsRef.current.textContent = `${d1.toString().padStart(2, "0")}`
+        digitsRef.current.textContent = `B${d1} P${d2}`
       }
     }
     window.addEventListener("baka:closing", onClosing)
@@ -125,7 +129,7 @@ export default function BakaPage() {
     const onPrice = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
       if (headerCurrentRef.current) {
-        headerCurrentRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+        headerCurrentRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       }
     }
     window.addEventListener("baka:price", onPrice)
@@ -228,9 +232,8 @@ export default function BakaPage() {
               padding: "10px 14px",
             }}>
               <div style={{ fontSize: 9, color: "rgba(212,175,55,0.5)", letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase" }}>30초 끝자리</div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#d4af37", fontVariantNumeric: "tabular-nums" }}>
                 {HeaderBasePriceAndDigits().digitsSpan}
-                <span style={{ fontSize: 11, color: "rgba(212,175,55,0.4)" }}>B{Math.floor(Math.floor(priceState.base ?? 0 * 100) / 10) % 10} P{Math.floor(Math.floor(priceState.base ?? 0 * 100)) % 10}</span>
               </div>
             </div>
 
