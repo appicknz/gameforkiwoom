@@ -7,7 +7,6 @@ import { TopBar } from "@/components/dashboard/top-bar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
-import { ClosingPricesList } from "@/components/dashboard/closing-prices-list"
 
 interface Card { suit: string; value: number; label: string; id: string }
 interface CardOverlayData {
@@ -224,9 +223,6 @@ export default function BakaPage() {
             }}>
               <BigRoad history={roadState.history} round={roadState.round} />
             </div>
-
-            {/* 30초 끝자리 목록 */}
-            <ClosingPricesList />
 
             {/* ── 0초 끝자리 카드 센터 팝업 오버레이 ── */}
             {cardData.finalCard && (() => {
