@@ -129,7 +129,8 @@ export default function BakaPage() {
     const onPrice = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
       if (headerCurrentRef.current) {
-        headerCurrentRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        // 소수점 정확히 2자리: 직접 포매팅
+        headerCurrentRef.current.textContent = `$${price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
       }
     }
     window.addEventListener("baka:price", onPrice)
@@ -224,16 +225,45 @@ export default function BakaPage() {
               <BigRoad history={roadState.history} round={roadState.round} />
             </div>
 
-            {/* 30초 끝자리 */}
+            {/* 30초 끝자리 목록 */}
             <div style={{
               background: "rgba(5,15,10,0.92)",
               border: "1px solid rgba(212,175,55,0.2)",
               borderRadius: 12,
-              padding: "10px 14px",
+              overflow: "hidden",
             }}>
-              <div style={{ fontSize: 9, color: "rgba(212,175,55,0.5)", letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase" }}>30초 끝자리</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#d4af37", fontVariantNumeric: "tabular-nums" }}>
-                {HeaderBasePriceAndDigits().digitsSpan}
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(212,175,55,0.1)" }}>
+                <div style={{ fontSize: 9, color: "rgba(212,175,55,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>30초 끝자리 (최근 10개)</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", maxHeight: 200, overflowY: "auto" }}>
+                {(() => {
+                  const prices: { time: number; price: number }[] = (window as any).__bitcoinClosingPrices ?? []
+                  const sorted = [...prices].sort((a, b) => b.time - a.time).slice(0, 10)
+                  return sorted.length === 0 ? (
+                    <div style={{ padding: "10px 14px", color: "rgba(212,175,55,0.3)", fontSize: 12 }}>—</div>
+                  ) : (
+                    sorted.map((p, i) => {
+                      const truncated = Math.floor(p.price * 100)
+                      const d1 = Math.floor(truncated / 10) % 10
+                      const d2 = truncated % 10
+                      const time = new Date(p.time * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
+                      return (
+                        <div key={i} style={{
+                          padding: "8px 14px",
+                          borderBottom: i < sorted.length - 1 ? "1px solid rgba(212,175,55,0.08)" : "none",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          fontSize: 12,
+                        }}>
+                          <span style={{ color: "rgba(212,175,55,0.5)", minWidth: 50 }}>{time}</span>
+                          <span style={{ color: "#d4af37", fontWeight: 600, fontVariantNumeric: "tabular-nums", flex: 1, textAlign: "right" }}>${p.price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}</span>
+                          <span style={{ color: "rgba(212,175,55,0.6)", fontSize: 11, marginLeft: 12 }}>B{d1} P{d2}</span>
+                        </div>
+                      )
+                    })
+                  )
+                })()}
               </div>
             </div>
 
