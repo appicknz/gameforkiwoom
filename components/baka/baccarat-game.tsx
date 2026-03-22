@@ -613,11 +613,10 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     let { finalP, finalB } = mid
     midStateRef.current = null
 
-    // 끝자리 소수점 2자리 추출: .87 → bankerDigit=8, playerDigit=7
-    // toFixed()는 반올림 발생 → Math.floor로 절사 후 문자열 파싱
-    const truncated = Math.floor(closingPrice * 100)  // 74227.59 → 7422759
-    const d1 = Math.floor(truncated / 10) % 10        // 소수점 첫째 자리 (뱅커)
-    const d2 = truncated % 10                          // 소수점 둘째 자리 (플레이어)
+    // 소수점 2자리 추출: 68,500.83 → truncated=6850083 → d1=8(뱅커), d2=3(플레이어)
+    const truncated = Math.floor(closingPrice * 100)
+    const d1 = Math.floor(truncated / 10) % 10   // 소수점 첫째 자리 → 뱅커 3번째 카드
+    const d2 = truncated % 10                      // 소수점 둘째 자리 → 플레이어 3번째 카드
     const bankerDigit = d1
     const playerDigit = d2
 
