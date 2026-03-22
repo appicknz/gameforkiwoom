@@ -330,7 +330,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  ��카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  ���카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -521,7 +521,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       const closePrice = price
       const snapshotBase = basePriceRef.current
 
-      // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
+      // 2) 매 라운드 DB 저장 (빅로드용, 배�� 무관)
       //    baccarat_result도 함께 저장해야 빅로드가 쌓임
       if (snapshotBase !== null) {
         fetch("/api/rounds/save", {
@@ -646,9 +646,9 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           settle(serverBacResult)
         }, 1200)
       } else {
-        settle(null)  // 즉�� 정산 (바카라 외 종목)
+        settle(null)  // 즉시 정산 (바카라 외 종목)
       }
-    }, []),
+    }, [onFinalDigitTrigger]),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
       if (prices.length > 0 && !betRef.current && !betDigitRef.current && !betParityRef.current && !betBaccaratRef.current) {
         const latest = prices[prices.length - 1].price
