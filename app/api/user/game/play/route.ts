@@ -55,10 +55,9 @@ export async function POST(request: Request) {
     // 3) 홀/짝: 같은 자릿수 기준
     const wonParity = lastDigit % 2 === 0 ? "even" : "odd"
 
-    // 4) 바카라: 끝자리로 서버에서 결정적으로 계산 (모든 유저 동일)
-    //    0~4 → player, 5~8 → banker, 9 → tie
-    const baccaratResult: "player" | "banker" | "tie" =
-      lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
+    // 4) 바카라: bets.baccaratResult가 서버에서 검증용으로 전달됨
+    //    (카드 딜 결과는 클라이언트에서 이미 완료 — 결과만 검증)
+    const baccaratResult: string | undefined = bets.baccaratResult // "player" | "banker" | "tie"
 
     // ── 수익 계산 (서버에서만) ───────────────────────────────
     let totalPayout = 0
@@ -113,7 +112,6 @@ export async function POST(request: Request) {
         base_price: basePrice,
         result_price: closePrice,
         result_digit: lastDigit,
-        baccarat_result: baccaratResult,
         started_at: new Date(Math.floor(Date.now() / 1000 / 30) * 30 * 1000 - 30000).toISOString(),
         ended_at: new Date(Math.floor(Date.now() / 1000 / 30) * 30 * 1000).toISOString(),
       })

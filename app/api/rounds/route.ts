@@ -1,24 +1,29 @@
-import { createClient } from "@supabase/supabase-js"
+import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { NextResponse } from "next/server"
-
-// anon 클라이언트 사용 — service role보다 빠르고 statement timeout 없음
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { db: { schema: "public" }, auth: { persistSession: false } }
-)
 
 export async function GET() {
   try {
-    // RPC 함수 호출 — 인덱스를 직접 활용해 timeout 방지
-    const { data, error } = await supabase.rpc("get_recent_rounds", { p_limit: 10 })
+    const { data: rounds, error } = await admin
+      .from("rounds")
+      .select(
+        `
+        id,
+        base_price,
+        result_price,
+        result_digit,
+        started_at,
+        ended_at,
+        bet_history(bet_direction, bet_digit, bet_parity, result)
+      `
+      )
+      .order("id", { ascending: false })
+      .limit(100)
 
-    if (error) {
-      console.error("[v0] Rounds API error:", error)
-      return NextResponse.json({ error: "Failed to fetch rounds", rounds: [] }, { status: 500 })
-    }
+    if (error) throw error
 
-    return NextResponse.json({ rounds: data || [] })
+    return NextResponse.json({
+      rounds: rounds || [],
+    })
   } catch (err) {
     console.error("[v0] Rounds API error:", err)
     return NextResponse.json({ error: "Failed to fetch rounds", rounds: [] }, { status: 500 })

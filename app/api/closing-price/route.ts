@@ -1,14 +1,5 @@
 import { adminSupabase } from "@/lib/supabase-admin"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
-
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
-
-const REDIS_KEY = "btc:closing:latest"
-const REDIS_VERSION_KEY = "btc:closing:version"
 
 /**
  * 30초봉 마감가 저장 API
@@ -57,12 +48,6 @@ export async function POST(request: Request) {
         ended_at: endedAt,
       })
     }
-
-    // Redis에 최신 마감가 저장 + version increment → SSE 스트림이 감지해서 모든 클라이언트에 push
-    await Promise.all([
-      redis.set(REDIS_KEY, { price, time }, { ex: 120 }),
-      redis.incr(REDIS_VERSION_KEY),
-    ])
 
     return NextResponse.json({ success: true })
   } catch (err) {
