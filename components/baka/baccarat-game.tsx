@@ -485,12 +485,14 @@ interface BaccaratGameProps {
   onFinalDigitRequest?: (handler: (digit: number) => void) => void
   /** BaccaratGame이 page에 setBetSide 함수를 등록 — 배팅 사이드를 딜 전에 주입 */
   onBetSideRequest?: (handler: (side: BetSide) => void) => void
+  /** BaccaratGame이 page에 resetCards 함수를 등록 — 배팅 시작(rem===30)에 카드 초기화 */
+  onResetCardsRequest?: (handler: () => void) => void
   /** history/roundCount 변경 시 page로 전달 */
   onRoadChange?: (history: RoadResult[], round: number) => void
 }
 
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest, onRoadChange }: BaccaratGameProps = {}) {
+export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest, onResetCardsRequest, onRoadChange }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
@@ -565,12 +567,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     dealingRef.current = true
     midStateRef.current = null
 
-    const side = betSideRef.current  // null이면 배팅 없음 (���전 모드)
+    const side = betSideRef.current  // null이면 배팅 없음 (관전 모드)
 
-    // seed = 라운드슬롯 * 1_000_000 + 현재 timestamp 초 단위 끝 6자리
-    // → 라운드 기반이지만 timestamp로 조작불가 (매 게임 다른 카드)
-    const tsSeed = Math.floor(Date.now() / 100) % 1_000_000
-    const seeded = makeSeededRand(getRoundSeed() * 1_000_000 + tsSeed)
+    // seed = 순수 라운드슬롯 번호만 사용
+    // → 같은 라운드에 접속한 모든 클라이언트가 100% 동일한 카드를 받음
+    const seeded = makeSeededRand(getRoundSeed())
     const rand     = () => Math.floor(seeded() * 10)  // 0~9 카드 숫자
     const randSuit = () => Math.floor(seeded() * 4)   // 0~3 무늬
 
@@ -620,9 +621,8 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     const bankerDigit = d1
     const playerDigit = d2
 
-    // 무늬 랜덤 (seed: 라운드 + timestamp, 숫자는 이미 확정)
-    const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
-    const finalSeeded = makeSeededRand(getRoundSeed() * 1_000_000 + finalTsSeed)
+    // 무늬: 라운드 seed + 오프셋(4)으로 고정 → 모든 기기 동일한 무늬
+    const finalSeeded = makeSeededRand(getRoundSeed() + 4)
     const finalRandSuit = () => Math.floor(finalSeeded() * 4)
 
     const bankerCard = digitToCard(bankerDigit, finalRandSuit())
@@ -674,9 +674,25 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     window.dispatchEvent(new CustomEvent("baccarat:deal-complete", { detail: { result } }))
   }, [])
 
+  // 배팅 시작(rem===30)에 카드 초기화 → 배팅 가능 상태로 복귀
+  const resetCards = useCallback(() => {
+    dealingRef.current = false
+    midStateRef.current = null
+    betSideRef.current = null
+    setState(prev => ({
+      ...prev,
+      phase: "betting",
+      playerCards: [],
+      bankerCards: [],
+      result: null,
+      finalCard: null,
+    }))
+  }, [])
+
   // 콜백 등록
   useEffect(() => { onStartDealRequest?.(startDeal) }, [onStartDealRequest, startDeal])
   useEffect(() => { onFinalDigitRequest?.(applyFinalDigit) }, [onFinalDigitRequest, applyFinalDigit])
+  useEffect(() => { onResetCardsRequest?.(resetCards) }, [onResetCardsRequest, resetCards])
   useEffect(() => {
     onBetSideRequest?.((side) => { betSideRef.current = side })
   }, [onBetSideRequest])
