@@ -136,7 +136,7 @@ function connectKline() {
       if (closingPrices.length > 100) closingPrices.shift()
 
       broadcast({ type: "closing", price: closePrice, time: closeTime })
-      console.log(`[server] 30s kline closed: ${closePrice} at ${new Date(k.T).toISOString()}`)
+      console.log(`[server] closing price (SPOT v2): ${closePrice} at ${new Date(k.T).toISOString()}`)
     } catch {}
   })
 
