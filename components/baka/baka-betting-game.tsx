@@ -330,7 +330,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  ���카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  ����카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -463,6 +463,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   const baccaratResultRef = useRef<"player" | "banker" | "tie" | null>(null)
   // 15초 트리거 중복 방지
   const dealTriggeredRoundRef = useRef<number>(-1)
+  // 0초(rem===30) 마감가 폴링 트리거 중복 방지
+  const closingTriggeredRoundRef = useRef<number>(-1)
   // onStartDealTrigger / onFinalDigitTrigger는 props로 직접 받으므로 별도 ref 불필요
 
   // baka/page.tsx에서 BaccaratGame 결과를 브로드캐스트 → baccaratResultRef 동기화
@@ -504,19 +506,13 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       currentPriceRef.current = price
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
-      // price = 지금 막 마감된 30초봉의 현물가 = 배팅 기준가 그 자체
-      // 소수점 두 자리: d1=뱅커 3번째 카드, d2=플레이어 3번째 카드
-      const d1 = calcBankerDigit(price)  // 소수점 첫째 자리
-      const d2 = calcPlayerDigit(price)  // 소수점 둘째 자리
+      // 소수점 둘째 자리로 바카라 결과 결정
+      const truncated = Math.floor(price * 100)
+      const d2 = truncated % 10  // 소수점 둘째 자리
       const lastDigit = d2
 
-      // 끝자리로 바카라 결과 결정
-      // 0~4=player, 5~8=banker, 9=tie
       const serverBacResult: "player" | "banker" | "tie" =
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
-
-      // 1) 카드 연출 트리거: price 소수점 두 자리로 3번째 카드 직접 결정
-      onFinalDigitTrigger?.(price)
 
       const closePrice = price
       const snapshotBase = basePriceRef.current
@@ -648,7 +644,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       } else {
         settle(null)  // 즉시 정산 (바카라 외 종목)
       }
-    }, [onFinalDigitTrigger]),
+    }, []),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
       if (prices.length > 0 && !betRef.current && !betDigitRef.current && !betParityRef.current && !betBaccaratRef.current) {
         const latest = prices[prices.length - 1].price
@@ -658,24 +654,54 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     }, []),
   })
 
-  // 타이머 + 15초 딜 시작 트리거
+  // 타이머 + 15초 딜 시작 트리거 + 0초 마감가 DB 폴링
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Math.floor(Date.now() / 1000)
       const rem = 30 - (now % 30)
+      // rem===30 은 새 라운드 시작(=이전 라운드 0초)
+      // roundNum: 방금 끝난 라운드 번호 (rem===30일 때 이전 라운드)
       const roundNum = Math.floor(now / 30)
       setTimeLeft(rem)
       roundRef.current = roundNum
       setRoundNumber(roundNum)
 
-      // 15초: 딜 시작 (라운드당 1회)
+      // rem===30 (=0초 경과, 새 라운드 시작):
+      //   1) 카드 초기화 → 배팅 가능 상태
+      //   2) DB에서 최신 마감가 폴링 → 모든 기기 동일한 값으로 3번째 카드 결정
+      if (rem === 30 && closingTriggeredRoundRef.current !== roundNum) {
+        closingTriggeredRoundRef.current = roundNum
+        // 카드 초기화는 baccarat-game.tsx의 startDeal 전에 별도 이벤트로 처리
+        // 마감가 폴링: 서버에서 가장 최근 확정된 마감가를 가져옴
+        // 최대 3번 재시도 (Binance → DB 저장 딜레이 대응)
+        let attempts = 0
+        const poll = () => {
+          fetch("/api/closing-price/latest")
+            .then(r => r.json())
+            .then(data => {
+              if (data.price) {
+                onFinalDigitTrigger?.(data.price)
+              } else if (attempts < 3) {
+                attempts++
+                setTimeout(poll, 1000)
+              }
+            })
+            .catch(() => {
+              if (attempts < 3) { attempts++; setTimeout(poll, 1000) }
+            })
+        }
+        // 500ms 후 폴링 시작 (Binance → DB 저장 딜레이 대응)
+        setTimeout(poll, 500)
+      }
+
+      // rem===15: 딜 시작 (라운드당 1회)
       if (rem === 15 && dealTriggeredRoundRef.current !== roundNum) {
         dealTriggeredRoundRef.current = roundNum
         onStartDealTrigger?.()
       }
     }, 200)
     return () => clearInterval(tick)
-  }, [onStartDealTrigger])
+  }, [onStartDealTrigger, onFinalDigitTrigger])
 
   // 배팅 가능 시간: 30초~15초 초과 구간
   const canBet = timeLeft > 15

@@ -607,22 +607,18 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   //   3. 승부는 반드시 ��자��� 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
   //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
   const applyFinalDigit = useCallback(async (closingPrice: number) => {
-    console.log("[v0] applyFinalDigit called with closingPrice:", closingPrice)
     const mid = midStateRef.current
     if (!mid) return
 
     let { finalP, finalB } = mid
     midStateRef.current = null
 
-    // 끝자리 소수점 2자리 추출: .87 → bankerDigit=8, playerDigit=7
-    // toFixed()는 반올림 발생 → Math.floor로 절사 후 문자열 파싱
-    const truncated = Math.floor(closingPrice * 100)  // 74227.59 → 7422759
-    const d1 = Math.floor(truncated / 10) % 10        // 소수점 첫째 자리 (뱅커)
-    const d2 = truncated % 10                          // 소수점 둘째 자리 (플레이어)
+    // 소수점 2자리 추출: 68,500.83 → truncated=6850083 → d1=8(뱅커), d2=3(플레이어)
+    const truncated = Math.floor(closingPrice * 100)
+    const d1 = Math.floor(truncated / 10) % 10   // 소수점 첫째 자리 → 뱅커 3번째 카드
+    const d2 = truncated % 10                      // 소수점 둘째 자리 → 플레이어 3번째 카드
     const bankerDigit = d1
     const playerDigit = d2
-
-    console.log("[v0] closingPrice:", closingPrice, "truncated:", truncated, "d1(banker):", d1, "d2(player):", d2)
 
     // 무늬 랜덤 (seed: 라운드 + timestamp, 숫자는 이미 확정)
     const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
