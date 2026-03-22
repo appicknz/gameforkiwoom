@@ -330,7 +330,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  ����카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  �����카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -667,31 +667,33 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       setRoundNumber(roundNum)
 
       // rem===30 (=0초 경과, 새 라운드 시작):
-      //   1) 카드 초기화 → 배팅 가능 상태
-      //   2) DB에서 최신 마감가 폴링 → 모든 기기 동일한 값으로 3번째 카드 결정
+      // DB에서 현재 라운드 마감가 폴링 → 모든 기기 동일한 값으로 3번째 카드 결정
       if (rem === 30 && closingTriggeredRoundRef.current !== roundNum) {
         closingTriggeredRoundRef.current = roundNum
-        // 카드 초기화는 baccarat-game.tsx의 startDeal 전에 별도 이벤트로 처리
-        // 마감가 폴링: 서버에서 가장 최근 확정된 마감가를 가져옴
-        // 최대 3번 재시도 (Binance → DB 저장 딜레이 대응)
+        // 현재 라운드 시작 시간 = 지금(0초 경과) = roundNum * 30
+        const roundStartTime = roundNum * 30
         let attempts = 0
+        const MAX_ATTEMPTS = 10 // 최대 10초 재시도 (0.5s 간격)
         const poll = () => {
-          fetch("/api/closing-price/latest")
+          // after=roundStartTime: 이번 라운드 시작 이후 마감된 값만 반환
+          fetch(`/api/closing-price/latest?after=${roundStartTime}`)
             .then(r => r.json())
             .then(data => {
               if (data.price) {
+                // 정상적으로 현재 라운드 마감가 수신 → 3번째 카드 배분
                 onFinalDigitTrigger?.(data.price)
-              } else if (attempts < 3) {
+              } else if (attempts < MAX_ATTEMPTS) {
+                // 아직 DB에 저장 안 됨 → 0.5초 후 재시도
                 attempts++
-                setTimeout(poll, 1000)
+                setTimeout(poll, 500)
               }
             })
             .catch(() => {
-              if (attempts < 3) { attempts++; setTimeout(poll, 1000) }
+              if (attempts < MAX_ATTEMPTS) { attempts++; setTimeout(poll, 500) }
             })
         }
-        // 500ms 후 폴링 시작 (Binance → DB 저장 딜레이 대응)
-        setTimeout(poll, 500)
+        // 1초 후 첫 시도 (Binance kline 마감 → DB 저장까지 약 1-2초 딜레이)
+        setTimeout(poll, 1000)
       }
 
       // rem===15: 딜 시작 (라운드당 1회)
