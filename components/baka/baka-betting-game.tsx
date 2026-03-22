@@ -330,7 +330,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  �������카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  ��������카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -402,8 +402,6 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 
 // ─── 메인 게임 컴포넌트 ─────────────────────────────────────────────────────
 interface BakaBettingGameProps {
-  /** 30초(배팅 시작): 카드 초기화 트리거 */
-  onResetCardsTrigger?: () => void
   /** 15초 시점: page가 주입해 준 startDeal 트리거 */
   onStartDealTrigger?: () => void
   /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 (끝자리 가격 전체를 전달) */
@@ -416,7 +414,7 @@ interface BakaBettingGameProps {
   onPriceChange?: (basePrice: number | null, currentPrice: number | null) => void
 }
 
-export function BakaBettingGame({ onResetCardsTrigger, onStartDealTrigger, onFinalDigitTrigger, onBetSideTrigger, onStatusChange, onPriceChange }: BakaBettingGameProps = {}) {
+export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBetSideTrigger, onStatusChange, onPriceChange }: BakaBettingGameProps = {}) {
   const [timeLeft, setTimeLeft] = useState(30)
   const [roundNumber, setRoundNumber] = useState(0)
   const [betDirection, setBetDirection] = useState<BetDirection>(null)
@@ -659,13 +657,9 @@ export function BakaBettingGame({ onResetCardsTrigger, onStartDealTrigger, onFin
     }, []),
   })
 
-  // rem===30(새 라운드 시작) 트리거 중복 방지
-  const resetTriggeredRoundRef = useRef<number>(-1)
-
   // 타이머: 서버 시간 offset 보정 적용 → PC/모바일 불일치 해결
-  // rem===30: 카드 초기화 (배팅 가능 상태)
   // rem===15: 딜 시작
-  // 마감가(0초): SSE → onClosingPrice → onFinalDigitTrigger
+  // rem===0 → SSE 마감가 수신 → onClosingPrice → onFinalDigitTrigger → 3번째카드 → 5초 정산 → 카드 초기화
   useEffect(() => {
     const tick = setInterval(() => {
       const offsetMs = (window as any).__serverTimeOffsetMs ?? 0
@@ -676,12 +670,6 @@ export function BakaBettingGame({ onResetCardsTrigger, onStartDealTrigger, onFin
       roundRef.current = roundNum
       setRoundNumber(roundNum)
 
-      // rem===30: 새 라운드 시작 → 카드 초기화 (배팅 가능 상태로 복귀)
-      if (rem === 30 && resetTriggeredRoundRef.current !== roundNum) {
-        resetTriggeredRoundRef.current = roundNum
-        onResetCardsTrigger?.()
-      }
-
       // rem===15: 딜 시작 (라운드당 1회)
       if (rem === 15 && dealTriggeredRoundRef.current !== roundNum) {
         dealTriggeredRoundRef.current = roundNum
@@ -689,7 +677,7 @@ export function BakaBettingGame({ onResetCardsTrigger, onStartDealTrigger, onFin
       }
     }, 200)
     return () => clearInterval(tick)
-  }, [onResetCardsTrigger, onStartDealTrigger])
+  }, [onStartDealTrigger])
 
   // 배팅 가능 시간: 30초~15초 초과 구간
   const canBet = timeLeft > 15

@@ -140,7 +140,6 @@ export default function BakaPage() {
   const startDealRef = useRef<(() => void) | null>(null)
   const applyFinalDigitRef = useRef<((digit: number) => void) | null>(null)
   const setBetSideRef = useRef<((side: "player" | "banker" | "tie" | null) => void) | null>(null)
-  const resetCardsRef = useRef<(() => void) | null>(null)
 
   const handleCardsChange = useCallback((data: CardOverlayData) => {
     setCardData(data)
@@ -154,13 +153,11 @@ export default function BakaPage() {
   const handleRegisterStartDeal = useCallback((fn: () => void) => { startDealRef.current = fn }, [])
   const handleRegisterFinalDigit = useCallback((fn: (digit: number) => void) => { applyFinalDigitRef.current = fn }, [])
   const handleRegisterBetSide = useCallback((fn: (side: "player" | "banker" | "tie" | null) => void) => { setBetSideRef.current = fn }, [])
-  const handleRegisterResetCards = useCallback((fn: () => void) => { resetCardsRef.current = fn }, [])
 
   // BakaBettingGame → page: 트리거
   const handleStartDealTrigger = useCallback(() => { startDealRef.current?.() }, [])
   const handleFinalDigitTrigger = useCallback((digit: number) => { applyFinalDigitRef.current?.(digit) }, [])
   const handleBetSideTrigger = useCallback((side: "player" | "banker" | "tie" | null) => { setBetSideRef.current?.(side) }, [])
-  const handleResetCardsTrigger = useCallback(() => { resetCardsRef.current?.() }, [])
 
   return (
     <div
@@ -368,7 +365,6 @@ export default function BakaPage() {
 
             {/* 배팅 게임 */}
             <BakaBettingGame
-              onResetCardsTrigger={handleResetCardsTrigger}
               onStartDealTrigger={handleStartDealTrigger}
               onFinalDigitTrigger={handleFinalDigitTrigger}
               onBetSideTrigger={handleBetSideTrigger}
@@ -391,7 +387,6 @@ export default function BakaPage() {
                 onStartDealRequest={handleRegisterStartDeal}
                 onFinalDigitRequest={handleRegisterFinalDigit}
                 onBetSideRequest={handleRegisterBetSide}
-                onResetCardsRequest={handleRegisterResetCards}
                 onRoadChange={handleRoadChange}
               />
             </div>

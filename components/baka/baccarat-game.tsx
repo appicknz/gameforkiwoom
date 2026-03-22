@@ -485,14 +485,12 @@ interface BaccaratGameProps {
   onFinalDigitRequest?: (handler: (digit: number) => void) => void
   /** BaccaratGame이 page에 setBetSide 함수를 등록 — 배팅 사이드를 딜 전에 주입 */
   onBetSideRequest?: (handler: (side: BetSide) => void) => void
-  /** BaccaratGame이 page에 resetCards 함수를 등록 — 배팅 시작(rem===30)에 카드 초기화 */
-  onResetCardsRequest?: (handler: () => void) => void
   /** history/roundCount 변경 시 page로 전달 */
   onRoadChange?: (history: RoadResult[], round: number) => void
 }
 
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest, onResetCardsRequest, onRoadChange }: BaccaratGameProps = {}) {
+export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest, onRoadChange }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
@@ -606,7 +604,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
   //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
   //   3. 승부는 반드시 ��자��� 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
-  //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
+  //      → 카드 점수는 연출용이�� 승부에 영향 없음 (유저 간 일관성 보장)
   const applyFinalDigit = useCallback(async (closingPrice: number) => {
     const mid = midStateRef.current
     if (!mid) return
@@ -659,6 +657,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       result = "tie"
     }
 
+    // phase: "result" → 정산 중 표시
     setState(prev => ({
       ...prev,
       phase: "result",
@@ -671,11 +670,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     }))
 
     dealingRef.current = false
+    // 정산 완료 이벤트 → BakaBettingGame이 정산 처리
     window.dispatchEvent(new CustomEvent("baccarat:deal-complete", { detail: { result } }))
-  }, [])
 
-  // 배팅 시작(rem===30)에 카드 초기화 → 배팅 가능 상태로 복귀
-  const resetCards = useCallback(() => {
+    // 5초 정산 대기 후 카드 초기화 (배팅 가능 상태로 복귀)
+    await sleep(5000)
     dealingRef.current = false
     midStateRef.current = null
     betSideRef.current = null
@@ -692,7 +691,6 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   // 콜백 등록
   useEffect(() => { onStartDealRequest?.(startDeal) }, [onStartDealRequest, startDeal])
   useEffect(() => { onFinalDigitRequest?.(applyFinalDigit) }, [onFinalDigitRequest, applyFinalDigit])
-  useEffect(() => { onResetCardsRequest?.(resetCards) }, [onResetCardsRequest, resetCards])
   useEffect(() => {
     onBetSideRequest?.((side) => { betSideRef.current = side })
   }, [onBetSideRequest])
