@@ -72,26 +72,15 @@ function getToken(): string | null {
 }
 
 // ─── 비트코인 끝자리 계산 ────────────────────────────────────────────────────
-// 소수점 2자리를 그대로 사용: 첫째 자리 = 뱅커, 둘째 자리 = 플레이어
-// e.g. 74,087.39 → d1=3(뱅커), d2=9(플레이어)
-// e.g. 70,628.08 → d1=0(뱅커), d2=8(플레이어)
+// 소수점 2자리 두 숫자의 합의 끝자리
+// e.g. 74,087.39 → 3+9=12 → 2
+// e.g. 74,079.83 → 8+3=11 → 1
 function calcLastDigit(price: number): number {
-  // 하위 호환: 단일 숫자가 필요한 곳에서는 d2(플레이어 자리) 반환
-  const str = price.toFixed(2)
-  const dec = str.split(".")[1] ?? "00"
-  return parseInt(dec[1] ?? "0")
-}
-
-function calcBankerDigit(price: number): number {
-  const str = price.toFixed(2)
-  const dec = str.split(".")[1] ?? "00"
-  return parseInt(dec[0] ?? "0")
-}
-
-function calcPlayerDigit(price: number): number {
-  const str = price.toFixed(2)
-  const dec = str.split(".")[1] ?? "00"
-  return parseInt(dec[1] ?? "0")
+  const str = price.toFixed(2)          // "74087.39"
+  const dec = str.split(".")[1] ?? "00" // "39"
+  const d1 = parseInt(dec[0] ?? "0")
+  const d2 = parseInt(dec[1] ?? "0")
+  return (d1 + d2) % 10
 }
 
 // ─── 자동 배팅 설정 ────────────────────────────────────────────────────────
@@ -284,7 +273,7 @@ function BakaBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
 function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null; open: boolean; onClose: () => void }) {
   if (!open || !result) return null
 
-  const lastDigit = calcPlayerDigit(result.closePrice)  // 소수점 둘째 자리 (플레이어 기준)
+  const lastDigit = calcLastDigit(result.closePrice)
   const priceChange = result.closePrice - result.basePrice
   const isUp = priceChange >= 0
 
@@ -330,7 +319,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  ���카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  바카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -504,24 +493,22 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       currentPriceRef.current = price
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
-      // price = 지금 막 마감된 30초봉의 현물가 = 배팅 기준가 그 자체
-      // 소수점 두 자리: d1=뱅커 3번째 카드, d2=플레이어 3번째 카드
-      const d1 = calcBankerDigit(price)  // 소수점 첫째 자리
-      const d2 = calcPlayerDigit(price)  // 소수점 둘째 자리
-      const lastDigit = d2
+      const closePrice = price
+      const lastDigit = calcLastDigit(closePrice)  // 소수점 2자리 합 끝자리
+      // baka:closing은 BitcoinChart kline WS가 단독 발행 — 여기서는 게임 로직만 처리
 
-      // 끝자리로 바카라 결과 결정
-      // 0~4=player, 5~8=banker, 9=tie
+      // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
+      // 0~4=player(5), 5~8=banker(4), 9=tie(1)
       const serverBacResult: "player" | "banker" | "tie" =
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-      // 1) 카드 연출 트리거: price 소수점 두 자리로 3번째 카드 직접 결정
-      onFinalDigitTrigger?.(price)
-
-      const closePrice = price
+      // 1) 카드 연출 트리거: 배팅 기준가(basePriceRef) 기반으로 3번째 카드 숫자 결정
+      //    applyFinalDigit 내부에서 소수점 2자리를 분리해 각 사이드에 카드 배분
       const snapshotBase = basePriceRef.current
+      const cardBasisPrice = snapshotBase ?? closePrice  // 배팅 기준가 우선, 없으면 kline 종가
+      onFinalDigitTrigger?.(cardBasisPrice)
 
-      // 2) 매 라운드 DB 저장 (빅로드용, 배�� 무관)
+      // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
       //    baccarat_result도 함께 저장해야 빅로드가 쌓임
       if (snapshotBase !== null) {
         fetch("/api/rounds/save", {
@@ -648,7 +635,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       } else {
         settle(null)  // 즉시 정산 (바카라 외 종목)
       }
-    }, [onFinalDigitTrigger]),
+    }, []),
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
       if (prices.length > 0 && !betRef.current && !betDigitRef.current && !betParityRef.current && !betBaccaratRef.current) {
         const latest = prices[prices.length - 1].price
