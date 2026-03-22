@@ -1,16 +1,12 @@
 {
-  "name": "btc-price-server",
+  "name": "binance-price-server",
   "version": "1.0.0",
-  "description": "BTC real-time price WebSocket broadcast server",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "ws": "^8.17.1"
-  },
-  "engines": {
-    "node": ">=18"
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
   }
 }
