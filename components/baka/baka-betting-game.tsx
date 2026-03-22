@@ -72,26 +72,15 @@ function getToken(): string | null {
 }
 
 // ─── 비트코인 끝자리 계산 ────────────────────────────────────────────────────
-// 소수점 2자리를 그대로 사용: 첫째 자리 = 뱅커, 둘째 자리 = 플레이어
-// e.g. 74,087.39 → d1=3(뱅커), d2=9(플레이어)
-// e.g. 70,628.08 → d1=0(뱅커), d2=8(플레이어)
+// 소수점 2자리 두 숫자의 합의 끝자리
+// e.g. 74,087.39 → 3+9=12 → 2
+// e.g. 74,079.83 → 8+3=11 → 1
 function calcLastDigit(price: number): number {
-  // 하위 호환: 단일 숫자가 필요한 곳에서는 d2(플레이어 자리) 반환
-  const str = price.toFixed(2)
-  const dec = str.split(".")[1] ?? "00"
-  return parseInt(dec[1] ?? "0")
-}
-
-function calcBankerDigit(price: number): number {
-  const str = price.toFixed(2)
-  const dec = str.split(".")[1] ?? "00"
-  return parseInt(dec[0] ?? "0")
-}
-
-function calcPlayerDigit(price: number): number {
-  const str = price.toFixed(2)
-  const dec = str.split(".")[1] ?? "00"
-  return parseInt(dec[1] ?? "0")
+  const str = price.toFixed(2)          // "74087.39"
+  const dec = str.split(".")[1] ?? "00" // "39"
+  const d1 = parseInt(dec[0] ?? "0")
+  const d2 = parseInt(dec[1] ?? "0")
+  return (d1 + d2) % 10
 }
 
 // ─── 자동 배팅 설정 ────────────────────────────────────────────────────────
@@ -284,7 +273,7 @@ function BakaBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
 function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null; open: boolean; onClose: () => void }) {
   if (!open || !result) return null
 
-  const lastDigit = calcPlayerDigit(result.closePrice)  // 소수점 둘째 자리 (플레이어 기준)
+  const lastDigit = calcLastDigit(result.closePrice)
   const priceChange = result.closePrice - result.basePrice
   const isUp = priceChange >= 0
 
@@ -330,7 +319,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  ����카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  바카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -463,8 +452,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   const baccaratResultRef = useRef<"player" | "banker" | "tie" | null>(null)
   // 15초 트리거 중복 방지
   const dealTriggeredRoundRef = useRef<number>(-1)
-  // 0초(rem===30) 마감가 폴링 트리거 중복 방지
-  const closingTriggeredRoundRef = useRef<number>(-1)
   // onStartDealTrigger / onFinalDigitTrigger는 props로 직접 받으므로 별도 ref 불필요
 
   // baka/page.tsx에서 BaccaratGame 결과를 브로드캐스트 → baccaratResultRef 동기화
@@ -506,18 +493,22 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       currentPriceRef.current = price
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
-      // 소수점 둘째 자리로 바카라 결과 결정
-      const truncated = Math.floor(price * 100)
-      const d2 = truncated % 10  // 소수점 둘째 자리
-      const lastDigit = d2
+      const closePrice = price
+      const lastDigit = calcLastDigit(closePrice)  // 소수점 2자리 합 끝자리
+      // baka:closing은 BitcoinChart kline WS가 단독 발행 — 여기서는 게임 로직만 처리
 
+      // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
+      // 0~4=player(5), 5~8=banker(4), 9=tie(1)
       const serverBacResult: "player" | "banker" | "tie" =
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-      const closePrice = price
+      // 1) 카드 연출 트리거: 배팅 기준가(basePriceRef) 기반으로 3번째 카드 숫자 결정
+      //    applyFinalDigit 내부에서 소수점 2자리를 분리해 각 사이드에 카드 배분
       const snapshotBase = basePriceRef.current
+      const cardBasisPrice = snapshotBase ?? closePrice  // 배팅 기준가 우선, 없으면 kline 종가
+      onFinalDigitTrigger?.(cardBasisPrice)
 
-      // 2) 매 라운드 DB 저장 (빅로드용, 배�� 무관)
+      // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
       //    baccarat_result도 함께 저장해야 빅로드가 쌓임
       if (snapshotBase !== null) {
         fetch("/api/rounds/save", {
@@ -654,54 +645,24 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     }, []),
   })
 
-  // 타이머 + 15초 딜 시작 트리거 + 0초 마감가 DB 폴링
+  // 타이머 + 15초 딜 시작 트리거
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Math.floor(Date.now() / 1000)
       const rem = 30 - (now % 30)
-      // rem===30 은 새 라운드 시작(=이전 라운드 0초)
-      // roundNum: 방금 끝난 라운드 번호 (rem===30일 때 이전 라운드)
       const roundNum = Math.floor(now / 30)
       setTimeLeft(rem)
       roundRef.current = roundNum
       setRoundNumber(roundNum)
 
-      // rem===30 (=0초 경과, 새 라운드 시작):
-      //   1) 카드 초기화 → 배팅 가능 상태
-      //   2) DB에서 최신 마감가 폴링 → 모든 기기 동일한 값으로 3번째 카드 결정
-      if (rem === 30 && closingTriggeredRoundRef.current !== roundNum) {
-        closingTriggeredRoundRef.current = roundNum
-        // 카드 초기화는 baccarat-game.tsx의 startDeal 전에 별도 이벤트로 처리
-        // 마감가 폴링: 서버에서 가장 최근 확정된 마감가를 가져옴
-        // 최대 3번 재시도 (Binance → DB 저장 딜레이 대응)
-        let attempts = 0
-        const poll = () => {
-          fetch("/api/closing-price/latest")
-            .then(r => r.json())
-            .then(data => {
-              if (data.price) {
-                onFinalDigitTrigger?.(data.price)
-              } else if (attempts < 3) {
-                attempts++
-                setTimeout(poll, 1000)
-              }
-            })
-            .catch(() => {
-              if (attempts < 3) { attempts++; setTimeout(poll, 1000) }
-            })
-        }
-        // 500ms 후 폴링 시작 (Binance → DB 저장 딜레이 대응)
-        setTimeout(poll, 500)
-      }
-
-      // rem===15: 딜 시작 (라운드당 1회)
+      // 15초: 딜 시작 (라운드당 1회)
       if (rem === 15 && dealTriggeredRoundRef.current !== roundNum) {
         dealTriggeredRoundRef.current = roundNum
         onStartDealTrigger?.()
       }
     }, 200)
     return () => clearInterval(tick)
-  }, [onStartDealTrigger, onFinalDigitTrigger])
+  }, [onStartDealTrigger])
 
   // 배팅 가능 시간: 30초~15초 초과 구간
   const canBet = timeLeft > 15
