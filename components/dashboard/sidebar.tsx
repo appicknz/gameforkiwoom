@@ -12,6 +12,7 @@ import {
   Mail,
   Bell,
   MessageCircle,
+  Layers,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
@@ -23,6 +24,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "비트벳 공식", href: "/" },
   { icon: TrendingUp,      label: "마감가 분석", href: "/tasks" },
   { icon: Hash,            label: "끝자리 분석", href: "/calendar" },
+  { icon: Layers,          label: "바카라 통계", href: "/baccarat-stats" },
   { icon: BookOpen,        label: "게임방법",    href: "/analytics" },
   {
     icon: ExternalLink,
@@ -148,9 +150,9 @@ export function Sidebar() {
         </div>
 
         {/* 스크롤 영역 */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* 메뉴 */}
-          <div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 flex flex-col">
+          {/* 메뉴 - 고정 크기, 스크롤 안 됨 */}
+          <div className="shrink-0">
             <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">메뉴</p>
             <nav className="space-y-0.5">
               {menuItems.map((item) => {
@@ -185,13 +187,13 @@ export function Sidebar() {
             </nav>
           </div>
 
-          {/* 채팅 섹션 - 항상 표시 */}
-          <div className="flex flex-col flex-1 min-h-0">
+          {/* 채팅 섹션 - 고정 높이, 내부 스크롤만 */}
+          <div className="flex flex-col shrink-0 max-h-[640px]">
             <div className="flex items-center gap-2 mb-2">
               <MessageCircle className="w-3.5 h-3.5 text-primary" />
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">채팅</p>
             </div>
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <ChatPanel />
             </div>
           </div>

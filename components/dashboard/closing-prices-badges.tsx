@@ -4,56 +4,70 @@ import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 
 function extractDigit(price: number): number {
-  const priceStr = price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  // 소수점 2자리 기준 끝자리 — BitcoinChart kline close 값과 동일 포맷
+  const priceStr = price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return parseInt(priceStr[priceStr.length - 1]) || 0
 }
 
 export function ClosingPricesBadges() {
   const [lastDigits, setLastDigits] = useState<number[]>([])
 
-  // 새로고침 시 DB에서 초기 끝자리 데이터 로드
   useEffect(() => {
-    fetch("/api/closing-price")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.prices && data.prices.length > 0) {
-          const existing: any[] = (window as any).__bitcoinClosingPrices ?? []
-          if (existing.length === 0) {
-            ;(window as any).__bitcoinClosingPrices = data.prices
-          }
-          const digits = data.prices.map((item: { price: number }) => extractDigit(item.price))
-          setLastDigits(digits.slice(-10).reverse())
-        }
-      })
-      .catch(() => {})
-  }, [])
-
-  // 이후 실시간 업데이트는 window 폴링
-  useEffect(() => {
-    const updateDigits = () => {
-      const closingPrices = (window as any).__bitcoinClosingPrices || []
-      const digits = closingPrices.map((item: { price: number }) => extractDigit(item.price))
-      setLastDigits(digits.slice(-10).reverse())
+    // 초기값: window.__bitcoinClosingPrices
+    const initPrices: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
+    if (initPrices.length > 0) {
+      setLastDigits(initPrices.slice(-10).reverse().map(i => extractDigit(i.price)))
     }
 
-    updateDigits()
-    const interval = setInterval(updateDigits, 1000)
-    return () => clearInterval(interval)
+    // baka:closing 이벤트 구독 — Railway 단일 소스
+    const onClosing = () => {
+      const prices: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
+      setLastDigits(prices.slice(-10).reverse().map(i => extractDigit(i.price)))
+    }
+    window.addEventListener("baka:closing", onClosing)
+    return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
+  const GOLD = "#d4af37"
+  const GOLD_BORDER = "rgba(212,175,55,0.18)"
+  const CARD_BG = "rgba(5,13,10,0.85)"
+
   return (
-    <Card className="p-6 transition-all duration-500 hover:shadow-xl animate-slide-in-up" style={{ animationDelay: "500ms" }}>
-      <h2 className="text-xl font-semibold text-foreground mb-3">30초 끝자리</h2>
-      <div className="flex flex-wrap gap-2">
+    <div
+      style={{
+        background: CARD_BG,
+        border: `1px solid ${GOLD_BORDER}`,
+        borderRadius: 14,
+        padding: "16px",
+        boxShadow: "0 2px 24px rgba(0,0,0,0.5)",
+      }}
+    >
+      <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 12, letterSpacing: "0.04em" }}>
+        30초 끝자리
+      </h3>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {lastDigits.map((digit, idx) => (
           <div
             key={idx}
-            className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm transition-all duration-300 hover:scale-110 hover:shadow-lg"
+            style={{
+              width: 38, height: 38, borderRadius: "50%",
+              background: "rgba(34,197,94,0.15)",
+              border: "1px solid rgba(34,197,94,0.35)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 700, fontSize: 15,
+              color: "#22c55e",
+              boxShadow: "0 0 8px rgba(34,197,94,0.15)",
+              transition: "transform 0.2s, box-shadow 0.2s",
+              cursor: "default",
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1.12)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 14px rgba(34,197,94,0.35)" }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 8px rgba(34,197,94,0.15)" }}
           >
             {digit}
           </div>
         ))}
       </div>
-    </Card>
+    </div>
   )
 }
