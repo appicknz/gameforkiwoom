@@ -13,8 +13,9 @@ const BINANCE_TRADE_URL = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade";
 const clients = new Set();
 const closingPrices = []; // 최근 100개
 let latestPrice = null;
-let lastBucket = null;      // 현재 30초 버킷 번호 (Math.floor(now/30))
-let lastTradePrice = null;  // 마지막으로 받은 거래 가격
+let lastBucket = null;         // 현재 30초 버킷 번호 (Math.floor(now/30))
+let lastTradePrice = null;     // 마지막으로 받은 거래 가격
+let prevBucketLastPrice = null; // 이전 버킷의 마지막 가격 (closing 확정용)
 
 // ─── 서버 WS ───────────────────────────────────────────────────────
 const wss = new WebSocketServer({ port: PORT });
@@ -90,9 +91,34 @@ function connectTrade() {
 
       if (isNaN(price) || price <= 0) return;
 
+      // ── 30초 버킷 기반 closing 판정 ──────────────────────────
+      // 버킷이 바뀌는 시점을 먼저 판정 → 이전 버킷의 마지막 가격(prevBucketLastPrice) 사용
+      const nowSec = Math.floor(Date.now() / 1000);
+      const bucket = Math.floor(nowSec / 30);
+
+      if (lastBucket !== null && bucket !== lastBucket) {
+        // 버킷이 바뀜: prevBucketLastPrice = 이전 버킷에서 마지막으로 받은 거래 가격
+        const closePrice = prevBucketLastPrice ?? lastTradePrice;
+        const closeTime = lastBucket * 30; // 마감 시각 (이전 버킷 시작 초)
+
+        const entry = { time: closeTime, price: closePrice };
+        closingPrices.push(entry);
+        if (closingPrices.length > 100) closingPrices.shift();
+
+        broadcast({ type: "closing", price: closePrice, time: closeTime });
+        console.log(`[closing] bucket ${lastBucket}→${bucket}: ${closePrice} @ ${new Date(closeTime * 1000).toISOString()} → ${clients.size} clients`);
+
+        // 새 버킷으로 전환: 이전 버킷의 마지막 가격 초기화
+        prevBucketLastPrice = null;
+      }
+
+      // 버킷 판정 이후 현재 가격 업데이트
+      lastBucket = bucket;
+      prevBucketLastPrice = price; // 이 버킷에서 마지막으로 받은 가격
+      lastTradePrice = price;
+
       // 현재가 브로드캐스트
       latestPrice = { price, time };
-      lastTradePrice = price;
       broadcast({ type: "price", price, time });
 
       // 로그 5초마다 (스팸 방지)
@@ -100,26 +126,6 @@ function connectTrade() {
         console.log(`[price] BTC/USDT: ${price} @ ${new Date(time * 1000).toISOString()}`);
         tradeWs.lastLog = Date.now();
       }
-
-      // ── 30초 버킷 기반 closing 판정 ──────────────────────────
-      // 서버 UTC 기준 Math.floor(now/30) 이 바뀌면 직전 가격을 closing으로 확정
-      const nowSec = Math.floor(Date.now() / 1000);
-      const bucket = Math.floor(nowSec / 30);
-
-      if (lastBucket !== null && bucket !== lastBucket) {
-        // 버킷이 바뀜 = 00초 또는 30초 경계 통과 → 직전 가격이 closing
-        const closeTime = lastBucket * 30; // 마감 시각 (버킷 시작)
-        const closePrice = lastTradePrice;
-
-        const entry = { time: closeTime, price: closePrice };
-        closingPrices.push(entry);
-        if (closingPrices.length > 100) closingPrices.shift();
-
-        broadcast({ type: "closing", price: closePrice, time: closeTime });
-        console.log(`[closing] bucket ${lastBucket}→${bucket}: ${closePrice} → broadcasting to ${clients.size} clients`);
-      }
-
-      lastBucket = bucket;
 
     } catch (e) { }
   });
