@@ -322,16 +322,8 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
           handlePrice(closePrice, Math.floor(Date.now() / 1000))
           window.dispatchEvent(new CustomEvent("baka:price", { detail: { price: closePrice } }))
 
-          // 30초 마감가: k.x === true (마감 확정) 캔들에서만 발행
-          if (k.x) {
-            const closeTime = Math.floor(k.T / 1000)
-            const prev: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
-            const last = prev[prev.length - 1]
-            if (!last || last.time !== closeTime) {
-              (window as any).__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
-            }
-            window.dispatchEvent(new CustomEvent("baka:closing", { detail: { price: closePrice, time: closeTime } }))
-          }
+          // 30초 마감가 dispatch는 use-price-worker(Railway) 단일 소스로 통합
+          // bitcoin-chart에서는 baka:closing을 발행하지 않음 (중복 방지)
 
           // 실시간 MA 업데이트 — 최근 99개 캔들로 계산
           const allCandles = Array.from(candleMapRef.current.values()).sort((a, b) => a.time - b.time)
@@ -344,9 +336,7 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
           const ma25p = maPoint(25); if (ma25p && ma25Ref.current) try { ma25Ref.current.update(ma25p) } catch {}
           const ma99p = maPoint(99); if (ma99p && ma99Ref.current) try { ma99Ref.current.update(ma99p) } catch {}
 
-          // 차트 라벨과 동일한 Binance close 가격을 현재가로 브로드캐스트
-          handlePrice(closePrice, Math.floor(Date.now() / 1000))
-          window.dispatchEvent(new CustomEvent("baka:price", { detail: { price: closePrice } }))
+
         } catch { /* JSON parse 오류 무시 */ }
       }
 

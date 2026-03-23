@@ -330,7 +330,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  ������카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  �������카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -463,7 +463,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   const baccaratResultRef = useRef<"player" | "banker" | "tie" | null>(null)
   // 15초 트리거 중복 방지
   const dealTriggeredRoundRef = useRef<number>(-1)
-  // onStartDealTrigger / onFinalDigitTrigger는 props로 직접 받으므로 별도 ref 불필요
+  // closing 트리거 중복 방지 (같은 라운드에 baka:closing이 여러 번 와도 1회만 처리)
+  const closingTriggeredRoundRef = useRef<number>(-1)
 
   // baka/page.tsx에서 BaccaratGame 결과를 브로드캐스트 → baccaratResultRef 동기화
   useEffect(() => {
@@ -496,9 +497,14 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   const getRoundNumber = useCallback(() => Math.floor(Date.now() / 1000 / 30), [])
 
-  // baka:closing 이벤트 직접 구독 — bitcoin-chart.tsx의 k.x===true Binance 공식 종가와 동일한 값 사용
+  // baka:closing 이벤트 직접 구독 — Railway type:"closing" 단일 소스
   // 패널(ClosingPrices)도 동일한 이벤트를 구독하므로 카드와 패널이 항상 같은 가격을 씀
   const handleClosingPrice = useCallback((price: number, time: number) => {
+      // 같은 라운드에 closing이 중복으로 오는 경우 무시 (Railway + bitcoin-chart 이중 발행 방어)
+      const thisRound = Math.floor(time / 30)
+      if (closingTriggeredRoundRef.current === thisRound) return
+      closingTriggeredRoundRef.current = thisRound
+
       const closePrice = price
 
       // 소수점 2자리 toFixed 파싱 → 부동소수점 오차 없음
@@ -996,7 +1002,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                       : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
                   >없음</button>
                   {(["player", "banker", "tie", "random"] as const).map((opt) => {
-                    const labels: Record<typeof opt, string> = { player: "플레이어", banker: "뱅커", tie: "타이", random: "랜덤" }
+                    const labels: Record<typeof opt, string> = { player: "플레이어", banker: "뱅��", tie: "타이", random: "랜덤" }
                     return (
                       <button key={opt}
                         onClick={() => setAutoBet(prev => ({ ...prev, baccarat: opt }))}
