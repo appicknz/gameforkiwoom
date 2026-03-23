@@ -74,6 +74,10 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
                   body: JSON.stringify({ price: data.price, time: data.time }),
                 }).catch(() => {})
               }
+              // 패널(ClosingPrices), 차트 등 모든 구독자에게 동일 소스로 전달
+              window.dispatchEvent(new CustomEvent("baka:closing", {
+                detail: { price: data.price, time: data.time }
+              }))
             }
           } catch { /* ignore malformed messages */ }
         }
@@ -149,12 +153,14 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             optsRef.current.onClosingPrice?.(closePrice, closeTime)
             const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
             win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
-            // 마감가 확정 → DB 저장 (fire-and-forget)
             fetch("/api/closing-price", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ price: closePrice, time: closeTime }),
-            }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
+            }).catch(() => {})
+            window.dispatchEvent(new CustomEvent("baka:closing", {
+              detail: { price: closePrice, time: closeTime }
+            }))
           } catch { /* ignore */ }
         }
 
