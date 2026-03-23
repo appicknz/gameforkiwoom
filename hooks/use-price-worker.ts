@@ -11,16 +11,13 @@ interface UsePriceWorkerOptions {
 }
 
 /**
- * Railway에 배포된 BTC price WebSocket 서버에 연결합니다.
+ * Railway BTC price WebSocket 서버 단일 연결
+ * - type:"price"   → 1초마다 현재가 (aggTrade 1초 집계)
+ * - type:"closing" → 30초 버킷 마감가 (모든 클라이언트 동시 수신)
+ * - type:"init"    → 접속 시 최근 closing 100개 초기값
  *
- * 서버(price-server/index.js)가 Binance aggTrade WebSocket 하나를 열고
- * 1초 집계 후 모든 클라이언트에 동시 브로드캐스트합니다.
- * → 전 세계 모든 사용자가 정확히 동일한 가격을 수신합니다.
- *
- * 환경변수: NEXT_PUBLIC_PRICE_SERVER_URL
- * 예) wss://your-app.railway.app
- *
- * 미설정 시 Binance에 직접 연결(개발용 폴백)
+ * 모든 비트코인 가격 (차트, 1초 실시간, 30초 마감, 3번째 카드) 을
+ * Railway 단일 소스에서 수신합니다. 폴백 없음.
  */
 export function usePriceWorker(options: UsePriceWorkerOptions) {
   const optsRef = useRef(options)
@@ -35,153 +32,71 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
     let closed = false
 
     const serverUrl = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
-
-    if (serverUrl) {
-      // ── Railway Price Server 모드 ──────────────────────────
-      const connect = () => {
-        if (closed) return
-        ws = new WebSocket(serverUrl)
-
-        ws.onopen = () => {
-          optsRef.current.onConnected?.()
-        }
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data as string)
-
-            if (data.type === "init") {
-              optsRef.current.onInitClosing?.(data.closingPrices)
-              win.__bitcoinClosingPrices = data.closingPrices
-              return
-            }
-
-            if (data.type === "price") {
-              optsRef.current.onPrice?.(data.price, data.time)
-              win.__bitcoinCurrentPrice = data.price
-              return
-            }
-
-            if (data.type === "closing") {
-              optsRef.current.onClosingPrice?.(data.price, data.time)
-              const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-              const last = prev[prev.length - 1]
-              if (!last || last.time !== data.time) {
-                win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
-                fetch("/api/closing-price", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ price: data.price, time: data.time }),
-                }).catch(() => {})
-              }
-              // 패널(ClosingPrices), 차트 등 모든 구독자에게 동일 소스로 전달
-              window.dispatchEvent(new CustomEvent("baka:closing", {
-                detail: { price: data.price, time: data.time }
-              }))
-            }
-          } catch { /* ignore malformed messages */ }
-        }
-
-        ws.onclose = () => {
-          optsRef.current.onDisconnected?.()
-          if (!closed) retryTimer = setTimeout(connect, 3000)
-        }
-
-        ws.onerror = () => { ws?.close() }
-      }
-
-      connect()
-
-    } else {
-      // ── 폴백: Binance 직접 연결 ──────────────────────
-      console.warn("[usePriceWorker] no PRICE_SERVER_URL, falling back to Binance direct")
-
-      // Railway 서버 없을 때 DB에서 초기 마감가 로드 (새로고침 대응)
-      fetch("/api/closing-price")
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.prices && data.prices.length > 0 && !win.__bitcoinClosingPrices?.length) {
-            win.__bitcoinClosingPrices = data.prices
-            optsRef.current.onInitClosing?.(data.prices)
-          }
-        })
-        .catch(() => {})
-
-      let tradeWs: WebSocket | null = null
-      let klineWs: WebSocket | null = null
-      let tradeRetry: ReturnType<typeof setTimeout> | null = null
-      let klineRetry: ReturnType<typeof setTimeout> | null = null
-
-      // aggTrade: 현물 현재가 실시간 (stream.binance.com — 소수점 2자리 현물 가격)
-      const connectTrade = () => {
-        if (closed) return
-        tradeWs = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@aggTrade")
-
-        tradeWs.onopen = () => optsRef.current.onConnected?.()
-
-        tradeWs.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data as string)
-            const price = parseFloat(msg.p)
-            const time = Math.floor(msg.T / 1000)
-            if (isNaN(price) || price <= 0) return
-            optsRef.current.onPrice?.(price, time)
-            win.__bitcoinCurrentPrice = price
-          } catch { /* ignore */ }
-        }
-
-        tradeWs.onclose = () => {
-          optsRef.current.onDisconnected?.()
-          if (!closed) tradeRetry = setTimeout(connectTrade, 3000)
-        }
-
-        tradeWs.onerror = () => tradeWs?.close()
-      }
-
-      // kline_30s: 현물 30초봉 종가 — k.x===true 마감 확정 시만 처리
-      const connectKline = () => {
-        if (closed) return
-        klineWs = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@kline_30s")
-
-        klineWs.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data as string)
-            const k = msg.k
-            if (!k || !k.x) return
-            const closePrice = parseFloat(k.c)
-            const closeTime = Math.floor(k.T / 1000)
-            optsRef.current.onClosingPrice?.(closePrice, closeTime)
-            const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-            win.__bitcoinClosingPrices = [...prev, { time: closeTime, price: closePrice }].slice(-100)
-            fetch("/api/closing-price", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ price: closePrice, time: closeTime }),
-            }).catch(() => {})
-            window.dispatchEvent(new CustomEvent("baka:closing", {
-              detail: { price: closePrice, time: closeTime }
-            }))
-          } catch { /* ignore */ }
-        }
-
-        klineWs.onclose = () => {
-          if (!closed) klineRetry = setTimeout(connectKline, 3000)
-        }
-
-        klineWs.onerror = () => klineWs?.close()
-      }
-
-      connectTrade()
-      connectKline()
-
-      return () => {
-        closed = true
-        if (tradeRetry) clearTimeout(tradeRetry)
-        if (klineRetry) clearTimeout(klineRetry)
-        tradeWs?.close()
-        klineWs?.close()
-      }
+    if (!serverUrl) {
+      console.error("[usePriceWorker] NEXT_PUBLIC_PRICE_SERVER_URL is not set")
+      return
     }
+
+    const connect = () => {
+      if (closed) return
+      ws = new WebSocket(serverUrl)
+
+      ws.onopen = () => {
+        optsRef.current.onConnected?.()
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data as string)
+
+          if (data.type === "init") {
+            win.__bitcoinClosingPrices = data.closingPrices
+            optsRef.current.onInitClosing?.(data.closingPrices)
+            return
+          }
+
+          if (data.type === "price") {
+            win.__bitcoinCurrentPrice = data.price
+            optsRef.current.onPrice?.(data.price, data.time)
+            // 차트·기타 구독자에게 전달 (bitcoin-chart.tsx는 baka:price 이벤트 구독)
+            window.dispatchEvent(new CustomEvent("baka:price", {
+              detail: { price: data.price, time: data.time }
+            }))
+            return
+          }
+
+          if (data.type === "closing") {
+            // window 전역에 최신 closing 누적 (차트 등 직접 참조하는 곳에서 사용)
+            const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
+            const last = prev[prev.length - 1]
+            if (!last || last.time !== data.time) {
+              win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
+              // DB 저장 (fire-and-forget)
+              fetch("/api/closing-price", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ price: data.price, time: data.time }),
+              }).catch(() => {})
+            }
+            // 3번째 카드 트리거
+            optsRef.current.onClosingPrice?.(data.price, data.time)
+            // 패널·차트 등 모든 구독자에게 단일 이벤트로 전달
+            window.dispatchEvent(new CustomEvent("baka:closing", {
+              detail: { price: data.price, time: data.time }
+            }))
+          }
+        } catch { /* ignore malformed messages */ }
+      }
+
+      ws.onclose = () => {
+        optsRef.current.onDisconnected?.()
+        if (!closed) retryTimer = setTimeout(connect, 3000)
+      }
+
+      ws.onerror = () => { ws?.close() }
+    }
+
+    connect()
 
     return () => {
       closed = true

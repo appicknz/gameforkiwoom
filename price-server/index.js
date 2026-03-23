@@ -13,9 +13,10 @@ const BINANCE_TRADE_URL = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade";
 const clients = new Set();
 const closingPrices = []; // 최근 100개
 let latestPrice = null;
-let lastBucket = null;         // 현재 30초 버킷 번호 (Math.floor(now/30))
-let lastTradePrice = null;     // 마지막으로 받은 거래 가격
+let lastBucket = null;          // 현재 30초 버킷 번호 (Math.floor(now/30))
+let lastTradePrice = null;      // 마지막으로 받은 거래 가격
 let prevBucketLastPrice = null; // 이전 버킷의 마지막 가격 (closing 확정용)
+let lastPriceBroadcastSec = 0;  // 마지막으로 price를 브로드캐스트한 초 (1초 스로틀)
 
 // ─── 서버 WS ───────────────────────────────────────────────────────
 const wss = new WebSocketServer({ port: PORT });
@@ -116,15 +117,17 @@ function connectTrade() {
       lastBucket = bucket;
       prevBucketLastPrice = price; // 이 버킷에서 마지막으로 받은 가격
       lastTradePrice = price;
-
-      // 현재가 브로드캐스트
       latestPrice = { price, time };
-      broadcast({ type: "price", price, time });
 
-      // 로그 5초마다 (스팸 방지)
-      if (!tradeWs.lastLog || Date.now() - tradeWs.lastLog > 5000) {
-        console.log(`[price] BTC/USDT: ${price} @ ${new Date(time * 1000).toISOString()}`);
-        tradeWs.lastLog = Date.now();
+      // 현재가 브로드캐스트: 1초에 한 번만 (aggTrade는 초당 수십 개)
+      if (nowSec > lastPriceBroadcastSec) {
+        lastPriceBroadcastSec = nowSec;
+        broadcast({ type: "price", price, time });
+        // 로그 5초마다
+        if (!tradeWs.lastLog || Date.now() - tradeWs.lastLog > 5000) {
+          console.log(`[price] BTC/USDT: ${price} @ ${new Date(time * 1000).toISOString()}`);
+          tradeWs.lastLog = Date.now();
+        }
       }
 
     } catch (e) { }
