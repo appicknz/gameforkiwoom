@@ -330,7 +330,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  ���카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  ����카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -522,8 +522,9 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       const serverBacResult: "player" | "banker" | "tie" =
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-      // 1) 카드 연출 트리거: 배팅 기준가 소수점 두 자리로 3번째 카드 결정
-      onFinalDigitTrigger?.(cardBasisPrice)
+      // 1) 카드 연출 트리거: 이번 라운드 마감가(closePrice) 소수점으로 3번째 카드 결정
+      //    cardBasisPrice(배팅기준가)가 아닌 closePrice를 직접 전달
+      onFinalDigitTrigger?.(closePrice)
 
       // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
       //    baccarat_result도 함께 저장해야 빅로드가 쌓임
@@ -644,7 +645,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           settle(actualResult ?? serverBacResult)
         }
         window.addEventListener("baccarat:deal-complete", onDealComplete)
-        // 안전 타임아웃: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백)
+        // 안전 타임아웃: 이벤��� 미수신 시 1200ms 후 강제 정산 (폴백)
         setTimeout(() => {
           window.removeEventListener("baccarat:deal-complete", onDealComplete)
           settle(serverBacResult)
