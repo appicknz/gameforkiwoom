@@ -34,25 +34,21 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
 
-    // Railway IP 차단 문제로 항상 Binance 직접 연결 사용
-    // const serverUrl = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
-    const serverUrl = null
+    const serverUrl = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
 
     if (serverUrl) {
-      // ── Price Server 모드 (프로덕션) ──────────────────────────
+      // ── Railway Price Server 모드 ──────────────────────────
       const connect = () => {
         if (closed) return
         ws = new WebSocket(serverUrl)
 
         ws.onopen = () => {
-          console.log("[v0] Railway WS connected:", serverUrl)
           optsRef.current.onConnected?.()
         }
 
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data as string)
-            console.log("[v0] Railway message type:", data.type, data.type === "closing" ? "price:" + data.price : "")
 
             if (data.type === "init") {
               optsRef.current.onInitClosing?.(data.closingPrices)
@@ -67,40 +63,34 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             }
 
             if (data.type === "closing") {
-              console.log("[v0] closing price received:", data.price, "time:", data.time)
               optsRef.current.onClosingPrice?.(data.price, data.time)
               const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
               const last = prev[prev.length - 1]
               if (!last || last.time !== data.time) {
                 win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
-                // 마감가 확정 → DB 저장 (서버에 한 번만 저장, fire-and-forget)
                 fetch("/api/closing-price", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ price: data.price, time: data.time }),
-                }).catch(() => {/* 저장 실패해도 게임 진행에 영향 없음 */})
+                }).catch(() => {})
               }
             }
           } catch { /* ignore malformed messages */ }
         }
 
-        ws.onclose = (e) => {
-          console.log("[v0] Railway WS closed, code:", e.code, "reason:", e.reason)
+        ws.onclose = () => {
           optsRef.current.onDisconnected?.()
           if (!closed) retryTimer = setTimeout(connect, 3000)
         }
 
-        ws.onerror = (e) => {
-          console.log("[v0] Railway WS error:", e)
-          ws?.close()
-        }
+        ws.onerror = () => { ws?.close() }
       }
 
       connect()
 
     } else {
-      // ── 개발용 폴백: Binance 직접 연결 ──────────────────────
-      console.warn("[usePriceWorker] NEXT_PUBLIC_PRICE_SERVER_URL not set, falling back to Binance direct connection")
+      // ── 폴백: Binance 직접 연결 ──────────────────────
+      console.warn("[usePriceWorker] no PRICE_SERVER_URL, falling back to Binance direct")
 
       // Railway 서버 없을 때 DB에서 초기 마감가 로드 (새로고침 대응)
       fetch("/api/closing-price")
@@ -153,17 +143,7 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
           try {
             const msg = JSON.parse(event.data as string)
             const k = msg.k
-            if (!k) return
-            if (!k.x) {
-              // 진행 중 kline (5초마다 로그)
-              if (!klineWs.__lastLog || Date.now() - klineWs.__lastLog > 5000) {
-                console.log("[v0] kline in-progress: c=" + k.c + " x=" + k.x)
-                klineWs.__lastLog = Date.now()
-              }
-              return
-            }
-
-            console.log("[v0] kline CLOSED! price:", k.c, "→ onClosingPrice 호출")
+            if (!k || !k.x) return
             const closePrice = parseFloat(k.c)
             const closeTime = Math.floor(k.T / 1000)
             optsRef.current.onClosingPrice?.(closePrice, closeTime)
