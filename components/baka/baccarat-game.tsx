@@ -567,10 +567,8 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
     const side = betSideRef.current  // null이면 배팅 없음 (���전 모드)
 
-    // seed = 라운드슬롯 * 1_000_000 + 현재 timestamp 초 단위 끝 6자리
-    // → 라운드 기반이지만 timestamp로 조작불가 (매 게임 다른 카드)
-    const tsSeed = Math.floor(Date.now() / 100) % 1_000_000
-    const seeded = makeSeededRand(getRoundSeed() * 1_000_000 + tsSeed)
+    // seed = 순수 라운드슬롯 번호 → 같은 라운드의 모든 클라이언트 동일한 카드
+    const seeded = makeSeededRand(getRoundSeed())
     const rand     = () => Math.floor(seeded() * 10)  // 0~9 카드 숫자
     const randSuit = () => Math.floor(seeded() * 4)   // 0~3 무늬
 
@@ -607,23 +605,29 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
   //   3. 승부는 반드시 ��자��� 기반으로 결정 (0~4=player, 5~8=banker, 9=tie)
   //      → 카드 점수는 연출용이며 승부에 영향 없음 (유저 간 일관성 보장)
   const applyFinalDigit = useCallback(async (closingPrice: number) => {
-    const mid = midStateRef.current
-    if (!mid) return
+    // midStateRef가 아직 준비 안 됐으면 최대 3초 대기 (startDeal 애니메이션 딜레이 대응)
+    let mid = midStateRef.current
+    if (!mid) {
+      for (let i = 0; i < 30; i++) {
+        await sleep(100)
+        mid = midStateRef.current
+        if (mid) break
+      }
+    }
+    if (!mid) return  // 3초 대기 후에도 없으면 (딜 시작 안 됨) 무시
 
     let { finalP, finalB } = mid
     midStateRef.current = null
 
-    // 끝자리 소수점 2자리 추출: .87 → bankerDigit=8, playerDigit=7
-    // toFixed()는 반올림 발생 → Math.floor로 절사 후 문자열 파싱
-    const truncated = Math.floor(closingPrice * 100)  // 74227.59 → 7422759
-    const d1 = Math.floor(truncated / 10) % 10        // 소수점 첫째 자리 (뱅커)
-    const d2 = truncated % 10                          // 소수점 둘째 자리 (플레이어)
+    // 소수점 2자리 추출: 70780.12 → truncated=7078012 → d1=1(뱅커), d2=2(플레이어)
+    const truncated = Math.floor(closingPrice * 100)
+    const d1 = Math.floor(truncated / 10) % 10   // 소수점 첫째 자리 → 뱅커 3번째 카드
+    const d2 = truncated % 10                      // 소수점 둘째 자리 → 플레이어 3번째 카드
     const bankerDigit = d1
     const playerDigit = d2
 
-    // 무늬 랜덤 (seed: 라운드 + timestamp, 숫자는 이미 확정)
-    const finalTsSeed = Math.floor(Date.now() / 100) % 1_000_000
-    const finalSeeded = makeSeededRand(getRoundSeed() * 1_000_000 + finalTsSeed)
+    // 무늬 seed: 라운드 기반 고정값 → 모든 기기 동일
+    const finalSeeded = makeSeededRand(getRoundSeed() + 9999)
     const finalRandSuit = () => Math.floor(finalSeeded() * 4)
 
     const bankerCard = digitToCard(bankerDigit, finalRandSuit())
