@@ -337,7 +337,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  비트바카�� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -649,7 +649,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         settle(serverBacResult)
       }, 1200)
     } else {
-      settle(null)  // 즉시 정산 (바카라 외 종목)
+      settle(null)  // 즉시 정산 (바카라 외 ���목)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onFinalDigitTrigger])
@@ -1009,7 +1009,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                       : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
                   >없음</button>
                   {(["player", "banker", "tie", "random"] as const).map((opt) => {
-                    const labels: Record<typeof opt, string> = { player: "플레이어", banker: "뱅커", tie: "타이", random: "랜덤" }
+                    const labels: Record<typeof opt, string> = { player: "플레이어", banker: "��커", tie: "타이", random: "랜덤" }
                     return (
                       <button key={opt}
                         onClick={() => setAutoBet(prev => ({ ...prev, baccarat: opt }))}
@@ -1111,7 +1111,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                     background: isSelected ? solidBg : dimBg,
                     border: `2px solid ${isSelected ? solidColor : dimBorder}`,
                     color: "#fff",
-                    boxShadow: isSelected ? `0 0 14px ${solidColor}` : "none",
                   }}>
                   <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.03em" }}>{label}</span>
                   <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
