@@ -330,7 +330,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  ����카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  �����카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -505,36 +505,29 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
     }, []),
     onClosingPrice: useCallback((price: number, time: number) => {
       const closePrice = price
-      // 배팅 기준가 스냅샷 — 3번째 카드와 승패 모두 이 값 기준
-      const snapshotBase = basePriceRef.current
-      const cardBasisPrice = snapshotBase ?? closePrice
 
-      // 소수점 두 자리: d1=뱅커 3번째 카드, d2=플레이어 3번째 카드
-      const d1 = calcBankerDigit(cardBasisPrice)  // 소수점 첫째 자리
-      const d2 = calcPlayerDigit(cardBasisPrice)  // 소수점 둘째 자리
+      // 패널에 표시된 30초 마감가 소수점 그대로 카드 결정 (toFixed 문자열 파싱, 부동소수점 오차 없음)
+      const decStr = closePrice.toFixed(2).split(".")[1] ?? "00"
+      const d1 = parseInt(decStr[0] ?? "0")   // 소수점 첫째 자리 → 뱅커
+      const d2 = parseInt(decStr[1] ?? "0")   // 소수점 둘째 자리 → 플레이어
 
-      // 바카라 승패: 뱅커 최종 합 vs 플레이어 최종 합은 baccarat-game에서 계산
-      // 여기서는 단순히 d2(플레이어 자리)로 over/under/odd/even 기준값 사용
-      const lastDigit = d2
-
-      // 끝자리로 바카라 결과 결정 (모든 유저 동일, 서버도 같은 공식 사용)
-      // 0~4=player(5), 5~8=banker(4), 9=tie(1)
+      // 0~4=player, 5~8=banker, 9=tie
       const serverBacResult: "player" | "banker" | "tie" =
-        lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
+        d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
 
-      // 1) 카드 연출 트리거: 이번 라운드 마감가(closePrice) 소수점으로 3번째 카드 결정
-      //    cardBasisPrice(배팅기준가)가 아닌 closePrice를 직접 전달
+      // 3번째 카드: 패널 최신 마감가 closePrice 그대로 전달
       onFinalDigitTrigger?.(closePrice)
 
+      // 배팅 기준가 스냅샷
+      const snapshotBase = basePriceRef.current
+      const effectiveBase = snapshotBase ?? closePrice
+
       // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
-      //    baccarat_result도 함께 저장해야 빅로드가 쌓임
-      if (snapshotBase !== null) {
-        fetch("/api/rounds/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ basePrice: snapshotBase, closePrice, baccaratResult: serverBacResult }),
-        }).catch(() => {})
-      }
+      fetch("/api/rounds/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ basePrice: effectiveBase, closePrice, baccaratResult: serverBacResult }),
+      }).catch(() => {})
 
       // 4) 배팅 없으면 기준가 업데이트 후 종료
       const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
@@ -544,17 +537,14 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         return
       }
 
-      // basePriceRef가 null이면 현재가로 대체 (엣지케이스 방어)
-      const effectiveBase = snapshotBase ?? closePrice
-
       const wonDirection = betRef.current
         ? (betRef.current === "long" ? closePrice >= effectiveBase : closePrice < effectiveBase)
         : false
       const wonDigit = betDigitRef.current
-        ? (betDigitRef.current === "under" ? lastDigit <= 4 : lastDigit >= 5)
+        ? (betDigitRef.current === "under" ? d2 <= 4 : d2 >= 5)
         : false
       const wonParity = betParityRef.current
-        ? (betParityRef.current === "odd" ? lastDigit % 2 !== 0 : lastDigit % 2 === 0)
+        ? (betParityRef.current === "odd" ? d2 % 2 !== 0 : d2 % 2 === 0)
         : false
 
       // 정산 함수 — bacResult: 확정된 바카라 결과 (없으면 null)
