@@ -43,12 +43,14 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
         ws = new WebSocket(serverUrl)
 
         ws.onopen = () => {
+          console.log("[v0] Railway WS connected:", serverUrl)
           optsRef.current.onConnected?.()
         }
 
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data as string)
+            console.log("[v0] Railway message type:", data.type, data.type === "closing" ? "price:" + data.price : "")
 
             if (data.type === "init") {
               optsRef.current.onInitClosing?.(data.closingPrices)
@@ -63,6 +65,7 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             }
 
             if (data.type === "closing") {
+              console.log("[v0] closing price received:", data.price, "time:", data.time)
               optsRef.current.onClosingPrice?.(data.price, data.time)
               const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
               const last = prev[prev.length - 1]
@@ -79,12 +82,14 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
           } catch { /* ignore malformed messages */ }
         }
 
-        ws.onclose = () => {
+        ws.onclose = (e) => {
+          console.log("[v0] Railway WS closed, code:", e.code, "reason:", e.reason)
           optsRef.current.onDisconnected?.()
           if (!closed) retryTimer = setTimeout(connect, 3000)
         }
 
-        ws.onerror = () => {
+        ws.onerror = (e) => {
+          console.log("[v0] Railway WS error:", e)
           ws?.close()
         }
       }
