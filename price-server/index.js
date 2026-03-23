@@ -1,4 +1,4 @@
-/**
+카/**
  * BTC Price WebSocket Server
  * - 현재가: 현물 @aggTrade (실시간)
  * - 종가: aggTrade 기반 서버 시간 30초 버킷 판정 (kline_30s 차단 우회)
