@@ -330,7 +330,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  �����카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  ������카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -496,17 +496,12 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
 
   const getRoundNumber = useCallback(() => Math.floor(Date.now() / 1000 / 30), [])
 
-  usePriceWorker({
-    onPrice: useCallback((price: number) => {
-      // Railway 가격은 게임 로직(타이머, 결과 판정)에만 사용
-      // UI 현재가 표시는 BitcoinChart kline WS가 단독 발행하는 baka:price를 구독
-      setCurrentPrice(price)
-      currentPriceRef.current = price
-    }, []),
-    onClosingPrice: useCallback((price: number, time: number) => {
+  // baka:closing 이벤트 직접 구독 — bitcoin-chart.tsx의 k.x===true Binance 공식 종가와 동일한 값 사용
+  // 패널(ClosingPrices)도 동일한 이벤트를 구독하므로 카드와 패널이 항상 같은 가격을 씀
+  const handleClosingPrice = useCallback((price: number, time: number) => {
       const closePrice = price
 
-      // 패널에 표시된 30초 마감가 소수점 그대로 카드 결정 (toFixed 문자열 파싱, 부동소수점 오차 없음)
+      // 소수점 2자리 toFixed 파싱 → 부동소수점 오차 없음
       const decStr = closePrice.toFixed(2).split(".")[1] ?? "00"
       const d1 = parseInt(decStr[0] ?? "0")   // 소수점 첫째 자리 → 뱅커
       const d2 = parseInt(decStr[1] ?? "0")   // 소수점 둘째 자리 → 플레이어
@@ -515,7 +510,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       const serverBacResult: "player" | "banker" | "tie" =
         d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
 
-      // 3번째 카드: 패널 최신 마감가 closePrice 그대로 전달
+      // 3번째 카드: 패널과 동일한 마감가로 전달
       onFinalDigitTrigger?.(closePrice)
 
       // 배팅 기준가 스냅샷
@@ -643,7 +638,15 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       } else {
         settle(null)  // 즉�� 정산 (바카라 외 종목)
       }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onFinalDigitTrigger])
+
+  usePriceWorker({
+    onPrice: useCallback((price: number) => {
+      setCurrentPrice(price)
+      currentPriceRef.current = price
     }, []),
+    // Railway closing은 baka:closing 이벤트로 통합됐으므로 여기서는 무시
     onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
       if (prices.length > 0 && !betRef.current && !betDigitRef.current && !betParityRef.current && !betBaccaratRef.current) {
         const latest = prices[prices.length - 1].price
@@ -652,6 +655,16 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       }
     }, []),
   })
+
+  // baka:closing 이벤트 구독 — bitcoin-chart.tsx k.x===true 공식 종가 = 패널과 동일 소스
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
+      handleClosingPrice(price, time)
+    }
+    window.addEventListener("baka:closing", handler)
+    return () => window.removeEventListener("baka:closing", handler)
+  }, [handleClosingPrice])
 
   // 타이머 + 15초 딜 시작 트리거
   useEffect(() => {
