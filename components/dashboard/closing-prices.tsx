@@ -93,33 +93,48 @@ function PriceRow({
 }
 
 export function ClosingPrices() {
-  // 1초 실시간 — 전체 스트림
+  // 1초 실시간 — baka:price 이벤트 (Railway 1초 단위 가격)
   const [realtimePrices, setRealtimePrices] = useState<PriceEntry[]>([])
-  // 30초 마감 — 00초/30초만 필터링
+  // 30초 마감 — baka:closing 이벤트 (Railway 30초 마감가)
   const [boundaryPrices, setBoundaryPrices] = useState<PriceEntry[]>([])
   const [showAllRealtime, setShowAllRealtime] = useState(false)
 
+  // 페이지 로드 시 DB에서 기존 30초 마감가 불러오기
   useEffect(() => {
-    const onClosing = (e: Event) => {
-      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
+    fetch("/api/closing-price")
+      .then(r => r.json())
+      .then(({ prices }) => {
+        if (Array.isArray(prices) && prices.length > 0) {
+          setBoundaryPrices(prices.slice(-20))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
+  // 1초 실시간: baka:price 이벤트 구독
+  useEffect(() => {
+    const onPrice = (e: Event) => {
+      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
       setRealtimePrices(prev => {
         const last = prev[prev.length - 1]
         if (last?.time === time) return prev
         return [...prev, { time, price }].slice(-100)
       })
-
-      // 00초 또는 30초 → 30초 마감 기준가로 캐시
-      const sec = new Date(time * 1000).getSeconds()
-      if (sec === 0 || sec === 30) {
-        setBoundaryPrices(prev => {
-          const last = prev[prev.length - 1]
-          if (last?.time === time) return prev
-          return [...prev, { time, price }].slice(-20)
-        })
-      }
     }
+    window.addEventListener("baka:price", onPrice)
+    return () => window.removeEventListener("baka:price", onPrice)
+  }, [])
 
+  // 30초 마감: baka:closing 이벤트 구독
+  useEffect(() => {
+    const onClosing = (e: Event) => {
+      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
+      setBoundaryPrices(prev => {
+        const last = prev[prev.length - 1]
+        if (last?.time === time) return prev
+        return [...prev, { time, price }].slice(-20)
+      })
+    }
     window.addEventListener("baka:closing", onClosing)
     return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
@@ -130,7 +145,7 @@ export function ClosingPrices() {
     ? [...realtimePrices].reverse()
     : [...realtimePrices].reverse().slice(0, 10)
 
-  const boundaryDisplay = [...boundaryPrices].reverse().slice(0, 2)
+  const boundaryDisplay = [...boundaryPrices].reverse().slice(0, 10)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -142,7 +157,7 @@ export function ClosingPrices() {
           borderRadius: 12, padding: "14px 14px 10px",
         }}>
           <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 10, letterSpacing: "0.04em" }}>
-            30초 마감 기준가 (최근 2개)
+            30초 마감 기준가 (최근 10개)
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             {boundaryDisplay.map((entry, idx) => {
