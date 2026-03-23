@@ -51,7 +51,7 @@ function broadcast(data) {
 }
 
 // ─── 공통 연결 함수 (ping/pong + heartbeat) ────────────────────────
-function createBinanceWS(url, name) {
+function createBinanceWS(url, name, onClose) {
   console.log(`[${name}] connecting to ${url}...`);
   const ws = new WebSocket(url);
 
@@ -64,7 +64,7 @@ function createBinanceWS(url, name) {
 
   ws.on("close", () => {
     console.log(`[${name}] closed, reconnecting in 2s...`);
-    setTimeout(() => connect(name), 2000);
+    setTimeout(onClose, 2000);
   });
 
   ws.on("error", (err) => {
@@ -79,7 +79,7 @@ function createBinanceWS(url, name) {
 let tickerWs = null;
 
 function connectTicker() {
-  tickerWs = createBinanceWS(BINANCE_TICKER_URL, "ticker");
+  tickerWs = createBinanceWS(BINANCE_TICKER_URL, "ticker", connectTicker);
 
   tickerWs.on("message", (data) => {
     try {
@@ -105,13 +105,23 @@ function connectTicker() {
 let klineWs = null;
 
 function connectKline() {
-  klineWs = createBinanceWS(BINANCE_KLINE_URL, "kline_30s");
+  klineWs = createBinanceWS(BINANCE_KLINE_URL, "kline_30s", connectKline);
 
   klineWs.on("message", (data) => {
     try {
       const msg = JSON.parse(data.toString());
       const k = msg.k;
-      if (!k || !k.x) return;
+
+      // k.x가 아닐 때도 로그 (디버그용: 메시지는 오는지 확인)
+      if (!k) return;
+      if (!k.x) {
+        // 진행 중인 kline 메시지 - 5초마다만 로그
+        if (!klineWs.lastKlineLog || Date.now() - klineWs.lastKlineLog > 5000) {
+          console.log(`[kline_30s] in-progress: c=${k.c} x=${k.x}`);
+          klineWs.lastKlineLog = Date.now();
+        }
+        return;
+      }
 
       const closePrice = parseFloat(k.c);
       const closeTime = Math.floor(k.T / 1000);
@@ -121,8 +131,10 @@ function connectKline() {
       if (closingPrices.length > 100) closingPrices.shift();
 
       broadcast({ type: "closing", price: closePrice, time: closeTime });
-      console.log(`[server] 30s kline closed: ${closePrice} at ${new Date(k.T).toISOString()}`);
-    } catch (e) { }
+      console.log(`[kline_30s] CLOSED: ${closePrice} at ${new Date(k.T).toISOString()} → broadcasting to ${clients.size} clients`);
+    } catch (e) {
+      console.error(`[kline_30s] parse error:`, e.message);
+    }
   });
 }
 
