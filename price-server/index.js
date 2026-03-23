@@ -1,19 +1,20 @@
 /**
- * BTC Price WebSocket Server - 원본 기능 + @ticker 실시간 느낌 결합
- * - 현재가: 현물 @ticker (매 1초 업데이트, c 필드 사용)
- * - 종가: 현물 kline_30s (k.x true 시 공식 종가)
- * - 원본처럼 init, closingPrices 유지
+ * BTC Price WebSocket Server
+ * - 현재가: 현물 @aggTrade (실시간)
+ * - 종가: aggTrade 기반 서버 시간 30초 버킷 판정 (kline_30s 차단 우회)
+ *   → 서버 UTC 기준 00초/30초에 직전 가격을 closing으로 브로드캐스트
  */
 
 const { WebSocket, WebSocketServer } = require("ws");
 
 const PORT = process.env.PORT || 8080;
-const BINANCE_TICKER_URL = "wss://stream.binance.com:9443/ws/btcusdt@ticker"; // 매 1초 업데이트
-const BINANCE_KLINE_URL = "wss://stream.binance.com:9443/ws/btcusdt@kline_30s";
+const BINANCE_TRADE_URL = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade";
 
 const clients = new Set();
 const closingPrices = []; // 최근 100개
 let latestPrice = null;
+let lastBucket = null;      // 현재 30초 버킷 번호 (Math.floor(now/30))
+let lastTradePrice = null;  // 마지막으로 받은 거래 가격
 
 // ─── 서버 WS ───────────────────────────────────────────────────────
 const wss = new WebSocketServer({ port: PORT });
@@ -75,75 +76,59 @@ function createBinanceWS(url, name, onClose) {
   return ws;
 }
 
-// ─── @ticker (실시간 현재가, 매 1초) ──────────────────────────────
-let tickerWs = null;
+// ─── aggTrade (실시간 현재가 + 30초 버킷 기반 closing 판정) ─────────
+let tradeWs = null;
 
-function connectTicker() {
-  tickerWs = createBinanceWS(BINANCE_TICKER_URL, "ticker", connectTicker);
+function connectTrade() {
+  tradeWs = createBinanceWS(BINANCE_TRADE_URL, "aggTrade", connectTrade);
 
-  tickerWs.on("message", (data) => {
+  tradeWs.on("message", (data) => {
     try {
       const msg = JSON.parse(data.toString());
-      const price = parseFloat(msg.c); // 현재가 필드 'c'
-      const time = Math.floor(msg.E / 1000); // 이벤트 시간
+      const price = parseFloat(msg.p);
+      const time = Math.floor(msg.T / 1000);
 
       if (isNaN(price) || price <= 0) return;
 
+      // 현재가 브로드캐스트
       latestPrice = { price, time };
+      lastTradePrice = price;
       broadcast({ type: "price", price, time });
 
       // 로그 5초마다 (스팸 방지)
-      if (!tickerWs.lastLog || Date.now() - tickerWs.lastLog > 5000) {
+      if (!tradeWs.lastLog || Date.now() - tradeWs.lastLog > 5000) {
         console.log(`[price] BTC/USDT: ${price} @ ${new Date(time * 1000).toISOString()}`);
-        tickerWs.lastLog = Date.now();
+        tradeWs.lastLog = Date.now();
       }
+
+      // ── 30초 버킷 기반 closing 판정 ──────────────────────────
+      // 서버 UTC 기준 Math.floor(now/30) 이 바뀌면 직전 가격을 closing으로 확정
+      const nowSec = Math.floor(Date.now() / 1000);
+      const bucket = Math.floor(nowSec / 30);
+
+      if (lastBucket !== null && bucket !== lastBucket) {
+        // 버킷이 바뀜 = 00초 또는 30초 경계 통과 → 직전 가격이 closing
+        const closeTime = lastBucket * 30; // 마감 시각 (버킷 시작)
+        const closePrice = lastTradePrice;
+
+        const entry = { time: closeTime, price: closePrice };
+        closingPrices.push(entry);
+        if (closingPrices.length > 100) closingPrices.shift();
+
+        broadcast({ type: "closing", price: closePrice, time: closeTime });
+        console.log(`[closing] bucket ${lastBucket}→${bucket}: ${closePrice} → broadcasting to ${clients.size} clients`);
+      }
+
+      lastBucket = bucket;
+
     } catch (e) { }
-  });
-}
-
-// ─── kline_30s (30초 종가, 원본 그대로) ────────────────────────────
-let klineWs = null;
-
-function connectKline() {
-  klineWs = createBinanceWS(BINANCE_KLINE_URL, "kline_30s", connectKline);
-
-  klineWs.on("message", (data) => {
-    try {
-      const msg = JSON.parse(data.toString());
-      const k = msg.k;
-
-      // k.x가 아닐 때도 로그 (디버그용: 메시지는 오는지 확인)
-      if (!k) return;
-      if (!k.x) {
-        // 진행 중인 kline 메시지 - 5초마다만 로그
-        if (!klineWs.lastKlineLog || Date.now() - klineWs.lastKlineLog > 5000) {
-          console.log(`[kline_30s] in-progress: c=${k.c} x=${k.x}`);
-          klineWs.lastKlineLog = Date.now();
-        }
-        return;
-      }
-
-      const closePrice = parseFloat(k.c);
-      const closeTime = Math.floor(k.T / 1000);
-
-      const entry = { time: closeTime, price: closePrice };
-      closingPrices.push(entry);
-      if (closingPrices.length > 100) closingPrices.shift();
-
-      broadcast({ type: "closing", price: closePrice, time: closeTime });
-      console.log(`[kline_30s] CLOSED: ${closePrice} at ${new Date(k.T).toISOString()} → broadcasting to ${clients.size} clients`);
-    } catch (e) {
-      console.error(`[kline_30s] parse error:`, e.message);
-    }
   });
 }
 
 // ─── heartbeat ──────────────────────────────────────────────────────
 setInterval(() => {
-  if (tickerWs?.readyState === WebSocket.OPEN) tickerWs.pong();
-  if (klineWs?.readyState === WebSocket.OPEN) klineWs.pong();
+  if (tradeWs?.readyState === WebSocket.OPEN) tradeWs.pong();
 }, 30000);
 
 // ─── 시작 ───────────────────────────────────────────────────────────
-connectTicker();
-connectKline();
+connectTrade();
