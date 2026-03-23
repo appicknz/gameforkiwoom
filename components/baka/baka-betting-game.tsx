@@ -330,7 +330,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  바카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  ��카라 {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -523,6 +523,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
       // 1) 카드 연출 트리거: 배팅 기준가 소수점 두 자리로 3번째 카드 결정
+      console.log("[v0] onClosingPrice called - price:", price, "cardBasisPrice:", cardBasisPrice, "d1(banker):", d1, "d2(player):", d2)
+      console.log("[v0] calling onFinalDigitTrigger with:", cardBasisPrice)
       onFinalDigitTrigger?.(cardBasisPrice)
 
       // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)

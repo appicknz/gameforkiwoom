@@ -34,7 +34,9 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
 
-    const serverUrl = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
+    // Railway IP 차단 문제로 항상 Binance 직접 연결 사용
+    // const serverUrl = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
+    const serverUrl = null
 
     if (serverUrl) {
       // ── Price Server 모드 (프로덕션) ──────────────────────────
@@ -151,8 +153,17 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
           try {
             const msg = JSON.parse(event.data as string)
             const k = msg.k
-            if (!k || !k.x) return  // 마감 확정된 캔들만 처리
+            if (!k) return
+            if (!k.x) {
+              // 진행 중 kline (5초마다 로그)
+              if (!klineWs.__lastLog || Date.now() - klineWs.__lastLog > 5000) {
+                console.log("[v0] kline in-progress: c=" + k.c + " x=" + k.x)
+                klineWs.__lastLog = Date.now()
+              }
+              return
+            }
 
+            console.log("[v0] kline CLOSED! price:", k.c, "→ onClosingPrice 호출")
             const closePrice = parseFloat(k.c)
             const closeTime = Math.floor(k.T / 1000)
             optsRef.current.onClosingPrice?.(closePrice, closeTime)
