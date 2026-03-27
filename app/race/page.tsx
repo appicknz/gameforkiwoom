@@ -1,12 +1,14 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { TopBar } from "@/components/dashboard/top-bar"
 import { useRaceGame } from "@/components/race/race-game"
 import { RaceScoreboard } from "@/components/race/race-scoreboard"
 import { RaceBetting } from "@/components/race/race-betting"
 import { RaceClosingPrices } from "@/components/race/race-closing-prices"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
+import { BigRoad, type RoadResult } from "@/components/baka/baccarat-game"
 
 const BIT_COLOR = "#3b82f6"
 const COIN_COLOR = "#f97316"
@@ -145,6 +147,20 @@ export default function RacePage() {
   // Railway WebSocket 연결 유지 (baka:price / baka:closing 이벤트 발행)
   usePriceWorker({})
 
+  // BigRoad: race winner를 road history로 기록 (BIT=banker, COIN=player, TIE=tie)
+  const [roadState, setRoadState] = useState<{ history: RoadResult[]; round: number }>({ history: [], round: 0 })
+  const prevWinnerRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (state.winner && state.winner !== prevWinnerRef.current) {
+      prevWinnerRef.current = state.winner
+      const mapped: RoadResult = state.winner === "bit" ? "banker" : state.winner === "coin" ? "player" : "tie"
+      setRoadState(prev => ({ history: [...prev.history, mapped], round: prev.round + 1 }))
+    }
+    if (!state.winner) {
+      prevWinnerRef.current = null
+    }
+  }, [state.winner])
+
   return (
     <div
       className="min-h-screen font-sans"
@@ -161,6 +177,16 @@ export default function RacePage() {
           <div className="lg:col-span-2 space-y-4">
             {/* 현재가 헤더 */}
             <LivePriceHeader />
+
+            {/* BigRoad */}
+            <div style={{
+              background: "rgba(5,15,10,0.92)",
+              border: "1px solid rgba(212,175,55,0.2)",
+              borderRadius: 16,
+              padding: "12px",
+            }}>
+              <BigRoad history={roadState.history} round={roadState.round} />
+            </div>
 
             {/* 게임 제목 배너 */}
             <div style={{
@@ -235,8 +261,20 @@ export default function RacePage() {
             )}
           </div>
 
-          {/* 오른쪽: 5분 마감 기준가 패널 */}
+          {/* 오른쪽: 차트 + 5분 마감 기준가 */}
           <div className="space-y-4">
+            {/* BitcoinChart — baka와 동일 */}
+            <div
+              className="rounded-2xl overflow-hidden sticky top-4"
+              style={{
+                border: "1px solid rgba(212,175,55,0.2)",
+                boxShadow: "0 0 50px rgba(212,175,55,0.06)",
+              }}
+            >
+              <BitcoinChart />
+            </div>
+
+            {/* 5분 마감 기준가 + 게임 규칙 */}
             <div style={{
               background: "rgba(5,13,10,0.95)",
               border: "1px solid rgba(212,175,55,0.2)",
