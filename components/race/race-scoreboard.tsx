@@ -39,40 +39,76 @@ function AnimatedScore({ value, color }: { value: number; color: string }) {
   )
 }
 
-// 진행 바: BIT vs COIN 비율
-function ScoreBar({ bit, coin }: { bit: number; coin: number }) {
-  const total = bit + coin
-  const bitPct = total === 0 ? 50 : Math.round((bit / total) * 100)
-  const coinPct = 100 - bitPct
+// 트랙 아이콘: 스코어 컴포넌트 둘레를 이기는 팀 아이콘이 한 바퀴 도는 애니메이션
+// 1라운드=300초에 한 바퀴 (배팅60+레이싱240)
+function OrbitTrack({
+  phase,
+  secondsInRound,
+  leading,
+}: {
+  phase: string
+  secondsInRound: number
+  leading: "bit" | "coin" | "tie"
+}) {
+  const isActive = phase === "racing" || phase === "betting"
+  const color = leading === "bit" ? BIT_COLOR : leading === "coin" ? COIN_COLOR : GOLD
+  const icon = leading === "bit" ? "₿" : leading === "coin" ? "◎" : "="
+
+  // 300초 기준 각도 (0=top, 시계방향)
+  const angleDeg = isActive ? (secondsInRound / 300) * 360 : 0
+  const angleRad = ((angleDeg - 90) * Math.PI) / 180
+
+  // 트랙 타원: rx=반가로, ry=반세로 (컴포넌트 크기에 맞춤)
+  const RX = 0.5  // % 단위 대신 relative 사용
+  const RY = 0.5
 
   return (
-    <div style={{ width: "100%", position: "relative" }}>
-      {/* 배경 */}
+    <div style={{
+      position: "absolute",
+      inset: -3,
+      pointerEvents: "none",
+      borderRadius: 23,
+      zIndex: 2,
+    }}>
+      {/* 트랙 테두리 */}
       <div style={{
-        height: 12,
-        borderRadius: 6,
-        overflow: "hidden",
-        display: "flex",
-        background: "rgba(255,255,255,0.06)",
-      }}>
-        <div style={{
-          width: `${bitPct}%`,
-          background: BIT_COLOR,
-          transition: "width 0.6s cubic-bezier(0.34,1.56,0.64,1)",
-          borderRadius: "6px 0 0 6px",
-        }} />
-        <div style={{
-          width: `${coinPct}%`,
-          background: COIN_COLOR,
-          transition: "width 0.6s cubic-bezier(0.34,1.56,0.64,1)",
-          borderRadius: "0 6px 6px 0",
-        }} />
-      </div>
-      {/* % 레이블 */}
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-        <span style={{ fontSize: 11, color: BIT_COLOR, fontWeight: 700 }}>{bitPct}%</span>
-        <span style={{ fontSize: 11, color: COIN_COLOR, fontWeight: 700 }}>{coinPct}%</span>
-      </div>
+        position: "absolute",
+        inset: 0,
+        borderRadius: 23,
+        border: `1.5px dashed ${isActive ? `${color}44` : "rgba(255,255,255,0.06)"}`,
+        transition: "border-color 0.5s",
+      }} />
+
+      {/* 아이콘 — CSS animation으로 정확한 타원 궤도 */}
+      {isActive && (
+        <div
+          key={`${phase}-orbit`}
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: 28,
+            height: 28,
+            marginLeft: -14,
+            marginTop: -14,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "50%",
+            background: color,
+            fontSize: 13,
+            fontWeight: 900,
+            color: "#fff",
+            boxShadow: `0 0 12px ${color}`,
+            animation: `orbitRound ${300 - secondsInRound}s linear forwards`,
+            animationDelay: "0s",
+            // 이미 진행된 각도에서 시작
+            transform: `rotate(${angleDeg}deg) translateX(calc(50% + 2px))`,
+          }}
+        >
+          {icon}
+        </div>
+      )}
     </div>
   )
 }
@@ -129,6 +165,10 @@ export function RaceScoreboard({ state }: Props) {
     : phase === "racing" ? COIN_COLOR
     : GOLD
 
+  // 이기는 팀
+  const leading: "bit" | "coin" | "tie" =
+    bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
+
   // 타이머 원형 진행률
   const maxSec = phase === "betting" ? 60 : 240
   const elapsed = phase === "betting" ? 60 - timeLeft : 240 - timeLeft
@@ -145,12 +185,36 @@ export function RaceScoreboard({ state }: Props) {
       display: "flex",
       flexDirection: "column",
       gap: 20,
+      position: "relative",
     }}>
-      {/* 헤더: 타이머 + 페이즈 */}
+      {/* 트랙 아이콘 (스코어 컴포넌트 둘레) */}
+      <OrbitTrack phase={phase} secondsInRound={secondsInRound} leading={leading} />
+      {/* 헤더: 타이머 + 페이즈 + 선두 팀 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 11, color: GOLD_DIM, letterSpacing: "0.08em", marginBottom: 2 }}>BTC RACE</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: phaseColor }}>{phaseLabel}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: phaseColor }}>{phaseLabel}</div>
+            {phase === "racing" && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 4,
+                background: leading === "bit" ? "rgba(59,130,246,0.15)" : leading === "coin" ? "rgba(249,115,22,0.15)" : "rgba(212,175,55,0.1)",
+                border: `1px solid ${leading === "bit" ? BIT_COLOR : leading === "coin" ? COIN_COLOR : GOLD}44`,
+                borderRadius: 20,
+                padding: "2px 8px",
+              }}>
+                <span style={{ fontSize: 12 }}>
+                  {leading === "bit" ? "₿" : leading === "coin" ? "◎" : "="}
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  color: leading === "bit" ? BIT_COLOR : leading === "coin" ? COIN_COLOR : GOLD,
+                }}>
+                  {leading === "bit" ? "BIT 리드" : leading === "coin" ? "COIN 리드" : "동점"}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         {/* 원형 타이머 */}
         <div style={{ position: "relative", width: 72, height: 72 }}>
@@ -224,9 +288,6 @@ export function RaceScoreboard({ state }: Props) {
         </div>
       </div>
 
-      {/* 진행 바 */}
-      <ScoreBar bit={bitScore} coin={coinScore} />
-
       {/* 현재 기준 가격 */}
       {lastPrice && (
         <div style={{
@@ -273,6 +334,7 @@ export function RaceScoreboard({ state }: Props) {
           to { opacity: 1; }
         }
       `}</style>
+      {/* phaseLabel 표시 — "레이싱 중" 옆 타이머 */}
     </div>
   )
 }

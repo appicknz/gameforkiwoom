@@ -188,38 +188,6 @@ export default function RacePage() {
               <BigRoad history={roadState.history} round={roadState.round} />
             </div>
 
-            {/* 게임 제목 배너 */}
-            <div style={{
-              padding: "16px 20px",
-              background: "rgba(5,13,20,0.92)",
-              border: "1px solid rgba(212,175,55,0.2)",
-              borderRadius: 16,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: GOLD, letterSpacing: "0.06em" }}>BTC RACE</div>
-                <div style={{ fontSize: 11, color: "rgba(212,175,55,0.5)", marginTop: 2 }}>
-                  소수점 숫자 누적 대결 · 5분 1라운드
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "rgba(59,130,246,0.7)" }}>BIT 팀</div>
-                  <div style={{ fontSize: 11, color: BIT_COLOR, fontWeight: 700 }}>소수점 첫째</div>
-                </div>
-                <div style={{ fontSize: 16, fontWeight: 900, color: GOLD }}>VS</div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "rgba(249,115,22,0.7)" }}>COIN 팀</div>
-                  <div style={{ fontSize: 11, color: COIN_COLOR, fontWeight: 700 }}>소수점 둘째</div>
-                </div>
-              </div>
-            </div>
-
-            {/* 레이스 트랙 */}
-            <RaceTrack secondsInRound={state.secondsInRound} phase={state.phase} />
-
             {/* 스코어보드 */}
             <RaceScoreboard state={state} />
 
