@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { TopBar } from "@/components/dashboard/top-bar"
 import { useRaceGame } from "@/components/race/race-game"
 import { RaceScoreboard } from "@/components/race/race-scoreboard"
-import { RaceBetting } from "@/components/race/race-betting"
+import { RaceBettingGame } from "@/components/race/race-betting-game"
 import { RaceClosingPrices } from "@/components/race/race-closing-prices"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
@@ -223,12 +223,8 @@ export default function RacePage() {
             {/* 스코어보드 */}
             <RaceScoreboard state={state} />
 
-            {/* 배팅 */}
-            <RaceBetting
-              phase={state.phase}
-              roundId={state.roundId}
-              winner={state.winner}
-            />
+            {/* 배팅 — baka와 동일 구조, BIT/COIN팀으로 레이블 변경 */}
+            <RaceBettingGame />
 
             {/* 최근 득점 플래시 (레이싱 중) */}
             {state.phase === "racing" && flashes.length > 0 && (
