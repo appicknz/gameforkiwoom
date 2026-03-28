@@ -150,11 +150,35 @@ export default function RacePage() {
   // BigRoad: race winner를 road history로 기록 (BIT=banker, COIN=player, TIE=tie)
   const [roadState, setRoadState] = useState<{ history: RoadResult[]; round: number }>({ history: [], round: 0 })
   const prevWinnerRef = useRef<string | null>(null)
+
+  // 마운트 시 DB에서 과거 결과 로드 → 누구나 같은 히스토리
+  useEffect(() => {
+    fetch("/api/race-results")
+      .then(r => r.json())
+      .then(({ results }) => {
+        if (!Array.isArray(results) || results.length === 0) return
+        const history: RoadResult[] = results.map((r: { winner: string }) =>
+          r.winner === "bit" ? "banker" : r.winner === "coin" ? "player" : "tie"
+        )
+        setRoadState({ history, round: history.length })
+      })
+      .catch(() => {})
+  }, [])
+
+  // 새 라운드 결과를 실시간으로 추가 + race:closing 이벤트에서도 수신
+  useEffect(() => {
+    const onClosing = (e: Event) => {
+      const { winner } = (e as CustomEvent<{ winner: "bit" | "coin" | "tie" }>).detail
+      const mapped: RoadResult = winner === "bit" ? "banker" : winner === "coin" ? "player" : "tie"
+      setRoadState(prev => ({ history: [...prev.history, mapped], round: prev.round + 1 }))
+    }
+    window.addEventListener("race:closing", onClosing)
+    return () => window.removeEventListener("race:closing", onClosing)
+  }, [])
+
   useEffect(() => {
     if (state.winner && state.winner !== prevWinnerRef.current) {
       prevWinnerRef.current = state.winner
-      const mapped: RoadResult = state.winner === "bit" ? "banker" : state.winner === "coin" ? "player" : "tie"
-      setRoadState(prev => ({ history: [...prev.history, mapped], round: prev.round + 1 }))
     }
     if (!state.winner) {
       prevWinnerRef.current = null
