@@ -1,57 +1,43 @@
-import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase-client"
+import { adminSupabase } from "@/lib/supabase-admin"
+import { NextResponse } from "next/server"
 
-export async function GET(req: NextRequest) {
-  try {
-    const supabase = createClient()
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-    
-    if (userError || !userData.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("chat_nickname")
-      .eq("id", userData.user.id)
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ chat_nickname: data?.chat_nickname || "" })
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
-  }
+async function getUserFromToken(req: Request) {
+  const auth = req.headers.get("authorization")
+  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null
+  if (!token) return null
+  const { data: { user } } = await adminSupabase.auth.getUser(token)
+  return user ?? null
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const supabase = createClient()
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-    
-    if (userError || !userData.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+export async function GET(req: Request) {
+  const user = await getUserFromToken(req)
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const { chat_nickname } = await req.json()
+  const { data, error } = await adminSupabase
+    .from("profiles")
+    .select("chat_nickname")
+    .eq("id", user.id)
+    .single()
 
-    if (!chat_nickname || typeof chat_nickname !== "string" || chat_nickname.length > 20) {
-      return NextResponse.json({ error: "Invalid nickname" }, { status: 400 })
-    }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ chat_nickname: data?.chat_nickname ?? "" })
+}
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ chat_nickname })
-      .eq("id", userData.user.id)
+export async function POST(req: Request) {
+  const user = await getUserFromToken(req)
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+  const { chat_nickname } = await req.json()
 
-    return NextResponse.json({ success: true, chat_nickname })
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+  if (!chat_nickname || typeof chat_nickname !== "string" || chat_nickname.length > 20) {
+    return NextResponse.json({ error: "Invalid nickname" }, { status: 400 })
   }
+
+  const { error } = await adminSupabase
+    .from("profiles")
+    .update({ chat_nickname })
+    .eq("id", user.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true, chat_nickname })
 }
