@@ -337,7 +337,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카���� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  비트바카����� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -444,6 +444,27 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   const [isPlacingBet, setIsPlacingBet] = useState(false)
   const [locked, setLocked] = useState(false)
   const [lockedAmount, setLockedAmount] = useState<number | null>(null)
+  // 실시간 배당률
+  const [liveOdds, setLiveOdds] = useState<{ player: number; banker: number; tie: number }>({ player: 1.95, banker: 1.95, tie: 9 })
+
+  useEffect(() => {
+    const fetchOdds = async () => {
+      try {
+        const token = getToken()
+        const res = await fetch("/api/game/odds?type=baccarat", {
+          headers: token ? { authorization: `Bearer ${token}` } : {},
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.odds) setLiveOdds(data.odds)
+        }
+      } catch {}
+    }
+    fetchOdds()
+    const iv = setInterval(fetchOdds, 5000)
+    return () => clearInterval(iv)
+  }, [])
+
   // 자동 배팅
   const [autoBet, setAutoBet] = useState<AutoBetConfig>(DEFAULT_AUTO_BET)
   const [autoBetOpen, setAutoBetOpen] = useState(false)
@@ -1059,7 +1080,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           <div className="grid grid-cols-3 gap-1.5">
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
-              const payout = side === "player" ? "1:1" : side === "banker" ? "0.95:1" : "8:1"
+              const oddsVal = side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie
+              const payout = `${oddsVal.toFixed(2)}:1`
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
               const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"

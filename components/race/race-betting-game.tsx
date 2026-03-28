@@ -404,6 +404,27 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   const [autoBetRounds, setAutoBetRounds] = useState(0)
   const [autoBetPnl, setAutoBetPnl] = useState(0)
 
+  // 실시간 배당률
+  const [liveOdds, setLiveOdds] = useState<{ bit: number; coin: number; tie: number }>({ bit: 1.95, coin: 1.95, tie: 9 })
+
+  useEffect(() => {
+    const fetchOdds = async () => {
+      try {
+        const token = getToken()
+        const res = await fetch("/api/game/odds?type=race", {
+          headers: token ? { authorization: `Bearer ${token}` } : {},
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.odds) setLiveOdds(data.odds)
+        }
+      } catch {}
+    }
+    fetchOdds()
+    const iv = setInterval(fetchOdds, 5000)
+    return () => clearInterval(iv)
+  }, [])
+
   const betRef = useRef<BetDirection>(null)
   const betDigitRef = useRef<BetDigit>(null)
   const betParityRef = useRef<BetParity>(null)
@@ -742,7 +763,8 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       <div className="grid grid-cols-3 gap-1.5">
         {(["bit", "tie", "coin"] as const).map((side) => {
           const isSelected = betRace === side
-          const payout = side === "coin" ? "1:1" : side === "bit" ? "0.95:1" : "8:1"
+          const oddsVal = side === "bit" ? liveOdds.bit : side === "coin" ? liveOdds.coin : liveOdds.tie
+          const payout = `${oddsVal.toFixed(2)}:1`
           const label = side === "bit" ? "BIT팀" : side === "tie" ? "TIE" : "COIN팀"
           const solidBg = side === "bit" ? BIT_BG : side === "coin" ? COIN_BG : "rgba(34,197,94,0.85)"
           const dimBg = side === "bit" ? "rgba(59,130,246,0.35)" : side === "coin" ? "rgba(249,115,22,0.35)" : "rgba(34,197,94,0.35)"

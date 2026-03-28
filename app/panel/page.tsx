@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon, Film } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon, Film, TrendingDown, TrendingUp, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -32,6 +32,54 @@ interface Branch {
   betting_mode: "fixed" | "pari"
   lp_enabled: boolean
   lp_amount: number
+  lp_amount_baccarat?: number
+  lp_amount_race?: number
+}
+
+// LP 설정 행 컴포넌트 (바카라/레이스 개별 설정)
+function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void }) {
+  const [baccaratLp, setBaccaratLp] = useState(String(branch.lp_amount_baccarat ?? branch.lp_amount ?? 50000))
+  const [raceLp, setRaceLp] = useState(String(branch.lp_amount_race ?? branch.lp_amount ?? 50000))
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+  const handleSave = async () => {
+    setSaving(true); setMsg(null)
+    const token = getToken(); if (!token) return
+    const res = await fetch("/api/admin/branches/betting", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        branchId: branch.id,
+        lpAmountBaccarat: parseInt(baccaratLp) || 0,
+        lpAmountRace: parseInt(raceLp) || 0,
+      }),
+    })
+    if (res.ok) { setMsg({ text: "저장됨", ok: true }); onSaved() }
+    else { setMsg({ text: "저장 실패", ok: false }) }
+    setSaving(false)
+    setTimeout(() => setMsg(null), 2000)
+  }
+
+  return (
+    <div className="px-5 py-4">
+      <p className="text-sm font-semibold text-foreground mb-3">{branch.name}</p>
+      <div className="flex gap-3 flex-wrap items-end">
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">바카라 LP</p>
+          <Input type="number" value={baccaratLp} onChange={e => setBaccaratLp(e.target.value)} className="h-8 w-32 text-sm" />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">레이스 LP</p>
+          <Input type="number" value={raceLp} onChange={e => setRaceLp(e.target.value)} className="h-8 w-32 text-sm" />
+        </div>
+        <Button size="sm" className="h-8 text-xs" onClick={handleSave} disabled={saving}>
+          {saving ? "저장 중..." : "저장"}
+        </Button>
+        {msg && <span className={`text-xs font-medium ${msg.ok ? "text-emerald-500" : "text-red-500"}`}>{msg.text}</span>}
+      </div>
+    </div>
+  )
 }
 
 export default function PanelPage() {
@@ -45,7 +93,7 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "lp" | "cards" | "videos">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "lp" | "house" | "cards" | "videos">("users")
 
   // 카드 이미지 관리
   interface CardImage { url: string; pathname: string; uploadedAt: string }
@@ -131,6 +179,48 @@ export default function PanelPage() {
     if (res.ok) { const d = await res.json(); setLpHistory(d.history ?? []); setLpTotal(d.totalLpUsed ?? 0) }
     setLpLoading(false)
   }, [])
+
+  // 하우스 손익 통계
+  interface HouseStat {
+    id: number; branch_id: string; game_type: string
+    total_bet: number; total_payout: number; total_lp_used: number
+    total_fee: number; total_collected: number; updated_at: string
+    branches: { name: string; code: string } | null
+  }
+  interface FeeCollection { id: number; branch_id: string; game_type: string; collected_amount: number; note: string; created_at: string; branches: { name: string } | null }
+  interface MasterSummary { totalBet: number; totalPayout: number; totalLpUsed: number; totalFee: number; totalCollected: number; pendingFee: number; houseProfit: number }
+
+  const [houseStats, setHouseStats] = useState<HouseStat[]>([])
+  const [feeCollections, setFeeCollections] = useState<FeeCollection[]>([])
+  const [masterSummary, setMasterSummary] = useState<MasterSummary | null>(null)
+  const [houseLoading, setHouseLoading] = useState(false)
+  const [collectingId, setCollectingId] = useState<string | null>(null)
+
+  const loadHouseStats = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setHouseLoading(true)
+    const res = await fetch("/api/admin/house-stats", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) {
+      const d = await res.json()
+      setHouseStats(d.stats ?? [])
+      setFeeCollections(d.collections ?? [])
+      setMasterSummary(d.masterSummary ?? null)
+    }
+    setHouseLoading(false)
+  }, [])
+
+  const handleCollect = async (branchId: string, gameType: string) => {
+    const key = `${branchId}-${gameType}`
+    setCollectingId(key)
+    const token = getToken(); if (!token) return
+    const res = await fetch("/api/admin/house-stats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ branch_id: branchId, game_type: gameType, note: "수금 처리" }),
+    })
+    if (res.ok) await loadHouseStats()
+    setCollectingId(null)
+  }
 
   // 회원 목록
   const [users, setUsers] = useState<User[]>([])
@@ -474,6 +564,14 @@ export default function PanelPage() {
             }`}
           >
             <Wallet className="w-4 h-4" /> LP 히스토리
+          </button>
+          <button
+            onClick={() => { setActiveTab("house"); loadHouseStats() }}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "house" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <TrendingDown className="w-4 h-4" /> 하우스 손익
           </button>
           {isSuperAdmin && (
             <button
@@ -859,6 +957,162 @@ export default function PanelPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* 하우스 손익 탭 */}
+      {activeTab === "house" && (
+        <div className="space-y-5">
+
+          {/* 마스터 전체 집계 요약 */}
+          {masterSummary && (
+            <div className="bg-card border border-border rounded-2xl p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                <TrendingDown className="w-4 h-4 text-primary" /> 전체 지점 합산
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: "총 배팅액", value: masterSummary.totalBet, color: "text-foreground" },
+                  { label: "총 지급액", value: masterSummary.totalPayout, color: "text-red-500" },
+                  { label: "하우스 손익", value: masterSummary.houseProfit, color: masterSummary.houseProfit >= 0 ? "text-emerald-500" : "text-red-500" },
+                  { label: "총 LP 사용", value: masterSummary.totalLpUsed, color: "text-blue-500" },
+                  { label: "누적 수수료", value: masterSummary.totalFee, color: "text-amber-500" },
+                  { label: "수금 완료", value: masterSummary.totalCollected, color: "text-muted-foreground" },
+                  { label: "미수금", value: masterSummary.pendingFee, color: masterSummary.pendingFee > 0 ? "text-orange-500" : "text-muted-foreground" },
+                ].map(item => (
+                  <div key={item.label} className="bg-background rounded-xl p-3">
+                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                    <p className={`text-base font-bold tabular-nums mt-0.5 ${item.color}`}>
+                      {item.value >= 0 ? "" : "-"}₩{Math.abs(item.value).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 지점별 상세 */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">지점별 하우스 손익</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">게임 유형별 배팅·지급·LP·수수료 집계</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={loadHouseStats} disabled={houseLoading} className="gap-1.5 text-xs">
+                <RefreshCw className={`w-3.5 h-3.5 ${houseLoading ? "animate-spin" : ""}`} /> 새로고침
+              </Button>
+            </div>
+
+            {houseLoading ? (
+              <div className="py-10 flex justify-center">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : houseStats.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">아직 집계 데이터가 없습니다.</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {houseStats.map(stat => {
+                  const pending = Math.max(0, stat.total_fee - stat.total_collected)
+                  const housePnl = stat.total_bet - stat.total_payout
+                  const key = `${stat.branch_id}-${stat.game_type}`
+                  return (
+                    <div key={stat.id} className="px-5 py-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground">
+                            {stat.branches?.name ?? stat.branch_id}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                            {stat.game_type === "baccarat" ? "바카라" : "레이스"}
+                          </span>
+                        </div>
+                        {isSuperAdmin && pending > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1.5"
+                            disabled={collectingId === key}
+                            onClick={() => handleCollect(stat.branch_id, stat.game_type)}
+                          >
+                            <Download className="w-3 h-3" />
+                            {collectingId === key ? "처리 중..." : `₩${pending.toLocaleString()} 수금`}
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">총 배팅</p>
+                          <p className="font-semibold text-foreground tabular-nums">₩{stat.total_bet.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">총 지급</p>
+                          <p className="font-semibold text-red-500 tabular-nums">₩{stat.total_payout.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">하우스 손익</p>
+                          <p className={`font-bold tabular-nums ${housePnl >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                            {housePnl >= 0 ? "+" : "-"}₩{Math.abs(housePnl).toLocaleString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">LP 사용</p>
+                          <p className="font-semibold text-blue-500 tabular-nums">₩{stat.total_lp_used.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">미수금 수수료</p>
+                          <p className={`font-bold tabular-nums ${pending > 0 ? "text-orange-500" : "text-muted-foreground"}`}>
+                            ₩{pending.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 수금 이력 */}
+          {feeCollections.length > 0 && (
+            <div className="bg-card border border-border rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border">
+                <h3 className="text-sm font-semibold text-foreground">수금 이력</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">최근 20건</p>
+              </div>
+              <div className="divide-y divide-border">
+                {feeCollections.map(fc => (
+                  <div key={fc.id} className="px-5 py-3 flex items-center justify-between text-sm">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-foreground">{fc.branches?.name ?? fc.branch_id}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                          {fc.game_type === "baccarat" ? "바카라" : "레이스"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{fc.note} · {new Date(fc.created_at).toLocaleString("ko-KR")}</p>
+                    </div>
+                    <p className="font-bold text-emerald-500 tabular-nums">₩{fc.collected_amount.toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 지점별 LP 설정 (마스터 전용) */}
+          {isSuperAdmin && (
+            <div className="bg-card border border-border rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border">
+                <h3 className="text-sm font-semibold text-foreground">지점별 LP 금액 설정</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">바카라 / 레이스 게임별 LP 유동성 금액 (마스터 전용)</p>
+              </div>
+              <div className="divide-y divide-border">
+                {branches.map(branch => (
+                  <LpBranchRow key={branch.id} branch={branch} onSaved={loadHouseStats} />
+                ))}
+                {branches.length === 0 && <p className="py-6 text-center text-xs text-muted-foreground">지점이 없습니다.</p>}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
