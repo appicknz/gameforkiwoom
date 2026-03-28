@@ -745,9 +745,9 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
           const payout = side === "coin" ? "1:1" : side === "bit" ? "0.95:1" : "8:1"
           const label = side === "bit" ? "BIT팀" : side === "tie" ? "TIE" : "COIN팀"
           const solidBg = side === "bit" ? BIT_BG : side === "coin" ? COIN_BG : "rgba(34,197,94,0.85)"
-          const dimBg = side === "bit" ? BIT_DIM_BG : side === "coin" ? COIN_DIM_BG : "rgba(34,197,94,0.15)"
+          const dimBg = side === "bit" ? "rgba(59,130,246,0.35)" : side === "coin" ? "rgba(249,115,22,0.35)" : "rgba(34,197,94,0.35)"
           const solidColor = side === "bit" ? BIT_COLOR : side === "coin" ? COIN_COLOR : "#22c55e"
-          const dimBorder = side === "bit" ? BIT_DIM_BORDER : side === "coin" ? COIN_DIM_BORDER : "rgba(34,197,94,0.4)"
+          const dimBorder = side === "bit" ? "rgba(59,130,246,0.7)" : side === "coin" ? "rgba(249,115,22,0.7)" : "rgba(34,197,94,0.7)"
 
           return (
             <button
@@ -757,8 +757,8 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
               className="rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
               style={{
                 height: 64,
-                border: `2px solid ${isSelected ? solidColor : dimBorder}`,
-                background: isSelected ? solidBg : dimBg,
+                border: `2px solid ${isSelected ? solidColor : canBet ? dimBorder : "rgba(255,255,255,0.1)"}`,
+                background: isSelected ? solidBg : canBet ? dimBg : "rgba(255,255,255,0.04)",
                 color: "#fff",
                 cursor: canBet ? "pointer" : "default",
               }}>
@@ -811,36 +811,6 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
         {/* 자동 배팅 패널 */}
         {autoBetOpen && (
           <div className="mt-2 rounded-xl p-3 space-y-3" style={{ background: G.bgMuted, border: `1px solid ${G.goldBorder}` }}>
-            {(["direction", "digit", "parity"] as const).map((type) => {
-              const meta: Record<typeof type, { opts: string[]; labels: string[]; nullLabel: string }> = {
-                direction: { opts: ["long", "short", "random"], labels: ["롱", "숏", "랜덤"], nullLabel: "방향" },
-                digit: { opts: ["over", "under", "random"], labels: ["오버", "언더", "랜덤"], nullLabel: "크기" },
-                parity: { opts: ["odd", "even", "random"], labels: ["홀", "짝", "랜덤"], nullLabel: "홀짝" },
-              }
-              const { opts, labels, nullLabel } = meta[type]
-              const current = autoBet[type]
-              return (
-                <div key={type} className="flex items-center gap-2">
-                  <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>{nullLabel}</span>
-                  <div className="flex gap-1 flex-1">
-                    <button onClick={() => setAutoBet(prev => ({ ...prev, [type]: null }))}
-                      className="px-2 py-1 rounded text-[10px] font-semibold"
-                      style={current === null
-                        ? { background: G.goldFaint, color: G.gold, border: `1px solid ${G.gold}` }
-                        : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}>없음</button>
-                    {opts.map((opt, i) => (
-                      <button key={opt} onClick={() => setAutoBet(prev => ({ ...prev, [type]: opt as any }))}
-                        className="flex-1 px-1 py-1 rounded text-[10px] font-semibold"
-                        style={current === opt
-                          ? { background: G.goldFaint, color: G.gold, border: `1px solid ${G.gold}` }
-                          : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}>
-                        {labels[i]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
 
             {/* 레이스 */}
             <div className="flex items-center gap-2">

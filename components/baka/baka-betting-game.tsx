@@ -337,7 +337,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카��� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  비트바카���� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -649,7 +649,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         settle(serverBacResult)
       }, 1200)
     } else {
-      settle(null)  // 즉시 정산 (바���라 외 ���목)
+      settle(null)  // 즉시 정산 (������라 외 ���목)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onFinalDigitTrigger])
@@ -961,42 +961,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           {autoBetOpen && (
             <div className="mt-2 rounded-xl p-3 space-y-3" style={{ background: G.bgMuted, border: `1px solid ${G.goldBorder}` }}>
 
-              {/* 방향 / 크기 / 홀짝 */}
-              {(["direction", "digit", "parity"] as const).map((type) => {
-                const meta: Record<typeof type, { opts: string[]; labels: string[]; nullLabel: string }> = {
-                  direction: { opts: ["long", "short", "random"], labels: ["롱", "숏", "랜덤"], nullLabel: "방향" },
-                  digit: { opts: ["over", "under", "random"], labels: ["오버", "언더", "랜덤"], nullLabel: "크기" },
-                  parity: { opts: ["odd", "even", "random"], labels: ["홀", "짝", "랜덤"], nullLabel: "홀짝" },
-                }
-                const { opts, labels, nullLabel } = meta[type]
-                const current = autoBet[type]
-                return (
-                  <div key={type} className="flex items-center gap-2">
-                    <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>{nullLabel}</span>
-                    <div className="flex gap-1 flex-1">
-                      <button
-                        onClick={() => setAutoBet(prev => ({ ...prev, [type]: null }))}
-                        className="px-2 py-1 rounded text-[10px] font-semibold transition-all"
-                        style={current === null
-                          ? { background: G.goldFaint, color: G.gold, border: `1px solid ${G.gold}` }
-                          : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
-                      >없음</button>
-                      {opts.map((opt, i) => (
-                        <button key={opt}
-                          onClick={() => setAutoBet(prev => ({ ...prev, [type]: opt as any }))}
-                          className="flex-1 px-1 py-1 rounded text-[10px] font-semibold transition-all flex items-center justify-center gap-0.5"
-                          style={current === opt
-                            ? { background: G.goldFaint, color: G.gold, border: `1px solid ${G.gold}` }
-                            : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
-                        >
-                          {labels[i]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-
               {/* 바카라 */}
               <div className="flex items-center gap-2">
                 <span className="text-[10px] w-8 shrink-0" style={{ color: G.textDim }}>바카라</span>
@@ -1009,7 +973,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                       : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
                   >없음</button>
                   {(["player", "banker", "tie", "random"] as const).map((opt) => {
-                    const labels: Record<typeof opt, string> = { player: "플레이어", banker: "��커", tie: "타이", random: "랜덤" }
+                    const labels: Record<typeof opt, string> = { player: "플레이���", banker: "��커", tie: "타이", random: "랜덤" }
                     return (
                       <button key={opt}
                         onClick={() => setAutoBet(prev => ({ ...prev, baccarat: opt }))}
@@ -1099,8 +1063,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
               const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"
-              const dimBg = side === "banker" ? "rgba(239,68,68,0.15)" : side === "tie" ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.15)"
-              const dimBorder = side === "banker" ? "rgba(239,68,68,0.4)" : side === "tie" ? "rgba(34,197,94,0.4)" : "rgba(59,130,246,0.4)"
+              const dimBg = side === "banker" ? "rgba(239,68,68,0.35)" : side === "tie" ? "rgba(34,197,94,0.35)" : "rgba(59,130,246,0.35)"
+              const dimBorder = side === "banker" ? "rgba(239,68,68,0.7)" : side === "tie" ? "rgba(34,197,94,0.7)" : "rgba(59,130,246,0.7)"
               return (
                 <button key={side}
                   onClick={() => openDialog("baccarat", side)}
@@ -1108,8 +1072,8 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
                   className="rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     height: 64,
-                    background: isSelected ? solidBg : dimBg,
-                    border: `2px solid ${isSelected ? solidColor : dimBorder}`,
+                    background: isSelected ? solidBg : canBet ? dimBg : "rgba(255,255,255,0.04)",
+                    border: `2px solid ${isSelected ? solidColor : canBet ? dimBorder : "rgba(255,255,255,0.1)"}`,
                     color: "#fff",
                   }}>
                   <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.03em" }}>{label}</span>
