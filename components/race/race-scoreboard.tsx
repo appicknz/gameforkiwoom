@@ -269,10 +269,10 @@ function VerticalTimer({
         flexDirection: "column",
         justifyContent: "flex-start",
       }}>
-        {/* 위에서부터 채워짐: 시간이 줄어들수록 높이가 줄어들고 위부터 사라짐 */}
+        {/* 위에서부터 사라짐: 시간이 줄어들수록 위쪽 빈칸이 커짐 */}
         <div style={{
           width: "100%",
-          height: `${pct * 100}%`,
+          height: `${(1 - pct) * 100}%`,
           background: phaseColor,
           borderRadius: 3,
           transition: "height 0.8s linear",
