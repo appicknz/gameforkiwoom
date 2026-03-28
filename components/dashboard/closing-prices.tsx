@@ -93,11 +93,8 @@ function PriceRow({
 }
 
 export function ClosingPrices() {
-  // 1초 실시간 — baka:price 이벤트 (Railway 1초 단위 가격)
-  const [realtimePrices, setRealtimePrices] = useState<PriceEntry[]>([])
   // 30초 마감 — baka:closing 이벤트 (Railway 30초 마감가)
   const [boundaryPrices, setBoundaryPrices] = useState<PriceEntry[]>([])
-  const [showAllRealtime, setShowAllRealtime] = useState(false)
 
   // 페이지 로드 시 DB에서 기존 30초 마감가 불러오기
   useEffect(() => {
@@ -109,20 +106,6 @@ export function ClosingPrices() {
         }
       })
       .catch(() => {})
-  }, [])
-
-  // 1초 실시간: baka:price 이벤트 구독
-  useEffect(() => {
-    const onPrice = (e: Event) => {
-      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
-      setRealtimePrices(prev => {
-        const last = prev[prev.length - 1]
-        if (last?.time === time) return prev
-        return [...prev, { time, price }].slice(-100)
-      })
-    }
-    window.addEventListener("baka:price", onPrice)
-    return () => window.removeEventListener("baka:price", onPrice)
   }, [])
 
   // 30초 마감: baka:closing 이벤트 구독
@@ -139,18 +122,14 @@ export function ClosingPrices() {
     return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
-  if (realtimePrices.length === 0) return null
-
-  const realtimeDisplay = showAllRealtime
-    ? [...realtimePrices].reverse()
-    : [...realtimePrices].reverse().slice(0, 10)
+  if (boundaryPrices.length === 0) return null
 
   const boundaryDisplay = [...boundaryPrices].reverse().slice(0, 10)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-      {/* 30초 마감 기준가 — 최근 2개 */}
+      {/* 30초 마감 기준가 */}
       {boundaryDisplay.length > 0 && (
         <div style={{
           background: CARD_BG, border: `1px solid ${GOLD_BORDER}`,
@@ -175,44 +154,6 @@ export function ClosingPrices() {
           </div>
         </div>
       )}
-
-      {/* 1초 실시간 */}
-      <div style={{
-        background: CARD_BG, border: `1px solid ${GOLD_BORDER}`,
-        borderRadius: 12, padding: "14px 14px 10px",
-      }}>
-        <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 10, letterSpacing: "0.04em" }}>
-          1초 실시간 (최근 {showAllRealtime ? realtimePrices.length : 10}개)
-        </h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          {realtimeDisplay.map((entry, idx, arr) => {
-            const prev = arr[idx + 1]
-            const sec = new Date(entry.time * 1000).getSeconds()
-            const isRoundBoundary = sec === 0 || sec === 30
-            return (
-              <PriceRow
-                key={`rt-${entry.time}-${idx}`}
-                entry={entry}
-                prev={prev}
-                isRoundBoundary={isRoundBoundary}
-                showBaccarat={false}
-              />
-            )
-          })}
-        </div>
-        {realtimePrices.length > 10 && (
-          <button
-            onClick={() => setShowAllRealtime(v => !v)}
-            style={{
-              width: "100%", marginTop: 8, padding: "8px 0",
-              background: "rgba(212,175,55,0.06)", border: `1px solid ${GOLD_BORDER}`,
-              borderRadius: 8, color: GOLD_DIM, fontSize: 12, cursor: "pointer",
-            }}
-          >
-            {showAllRealtime ? "접기 ∧" : "더보기 ∨"}
-          </button>
-        )}
-      </div>
 
     </div>
   )
