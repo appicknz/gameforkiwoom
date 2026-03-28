@@ -337,7 +337,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카����� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  비트바카������ {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -444,25 +444,22 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   const [isPlacingBet, setIsPlacingBet] = useState(false)
   const [locked, setLocked] = useState(false)
   const [lockedAmount, setLockedAmount] = useState<number | null>(null)
-  // 실시간 배당률
-  const [liveOdds, setLiveOdds] = useState<{ player: number; banker: number; tie: number }>({ player: 1.95, banker: 1.95, tie: 9 })
+  // 실시간 배당률 (SSE - 배팅 즉시 반영, 폴링 없음)
+  const [liveOdds, setLiveOdds] = useState<{ player: number; banker: number; tie: number } | null>(null)
 
   useEffect(() => {
-    const fetchOdds = async () => {
+    const token = getToken()
+    const url = `/api/game/odds/stream?type=baccarat${token ? `&token=${token}` : ""}`
+    const es = new EventSource(url)
+    es.onmessage = (e) => {
       try {
-        const token = getToken()
-        const res = await fetch("/api/game/odds?type=baccarat", {
-          headers: token ? { authorization: `Bearer ${token}` } : {},
-        })
-        if (res.ok) {
-          const data = await res.json()
-          if (data.odds) setLiveOdds(data.odds)
-        }
+        const data = JSON.parse(e.data)
+        if (data.odds) setLiveOdds(data.odds)
+        else setLiveOdds(null) // 배팅 없으면 null
       } catch {}
     }
-    fetchOdds()
-    const iv = setInterval(fetchOdds, 5000)
-    return () => clearInterval(iv)
+    es.onerror = () => es.close()
+    return () => es.close()
   }, [])
 
   // 자동 배팅
@@ -664,7 +661,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         settle(actualResult ?? serverBacResult)
       }
       window.addEventListener("baccarat:deal-complete", onDealComplete)
-      // 안전 타임아웃: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백)
+      // 안전 타임아���: 이벤트 미수신 시 1200ms 후 강제 정산 (폴백)
       setTimeout(() => {
         window.removeEventListener("baccarat:deal-complete", onDealComplete)
         settle(serverBacResult)
@@ -861,10 +858,14 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       const token = getToken()
       if (!token) throw new Error("로그인이 필요합니다")
 
+      const betSide = dialog.type === "baccarat" ? dialog.value : undefined
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ betAmount: amount }),
+        body: JSON.stringify({
+          betAmount: amount,
+          ...(betSide ? { gameType: "baccarat", side: betSide } : {}),
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Bet failed")
@@ -1080,8 +1081,10 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           <div className="grid grid-cols-3 gap-1.5">
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
-              const oddsVal = side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie
-              const payout = `${oddsVal.toFixed(2)}:1`
+              const oddsVal = liveOdds
+                ? (side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie)
+                : null
+              const payout = oddsVal !== null ? `${oddsVal.toFixed(2)}:1` : "-"
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
               const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"

@@ -404,25 +404,22 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   const [autoBetRounds, setAutoBetRounds] = useState(0)
   const [autoBetPnl, setAutoBetPnl] = useState(0)
 
-  // 실시간 배당률
-  const [liveOdds, setLiveOdds] = useState<{ bit: number; coin: number; tie: number }>({ bit: 1.95, coin: 1.95, tie: 9 })
+  // 실시간 배당률 (SSE - 배팅 즉시 반영, 폴링 없음)
+  const [liveOdds, setLiveOdds] = useState<{ bit: number; coin: number; tie: number } | null>(null)
 
   useEffect(() => {
-    const fetchOdds = async () => {
+    const token = getToken()
+    const url = `/api/game/odds/stream?type=race${token ? `&token=${token}` : ""}`
+    const es = new EventSource(url)
+    es.onmessage = (e) => {
       try {
-        const token = getToken()
-        const res = await fetch("/api/game/odds?type=race", {
-          headers: token ? { authorization: `Bearer ${token}` } : {},
-        })
-        if (res.ok) {
-          const data = await res.json()
-          if (data.odds) setLiveOdds(data.odds)
-        }
+        const data = JSON.parse(e.data)
+        if (data.odds) setLiveOdds(data.odds)
+        else setLiveOdds(null)
       } catch {}
     }
-    fetchOdds()
-    const iv = setInterval(fetchOdds, 5000)
-    return () => clearInterval(iv)
+    es.onerror = () => es.close()
+    return () => es.close()
   }, [])
 
   const betRef = useRef<BetDirection>(null)
@@ -728,10 +725,14 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     try {
       const token = getToken()
       if (!token) throw new Error("로그인 필요")
+      const betSide = dialog.type === "race" ? dialog.value : undefined
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ betAmount: amount }),
+        body: JSON.stringify({
+          betAmount: amount,
+          ...(betSide ? { gameType: "race", side: betSide } : {}),
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Bet failed")
@@ -763,8 +764,10 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       <div className="grid grid-cols-3 gap-1.5">
         {(["bit", "tie", "coin"] as const).map((side) => {
           const isSelected = betRace === side
-          const oddsVal = side === "bit" ? liveOdds.bit : side === "coin" ? liveOdds.coin : liveOdds.tie
-          const payout = `${oddsVal.toFixed(2)}:1`
+          const oddsVal = liveOdds
+            ? (side === "bit" ? liveOdds.bit : side === "coin" ? liveOdds.coin : liveOdds.tie)
+            : null
+          const payout = oddsVal !== null ? `${oddsVal.toFixed(2)}:1` : "-"
           const label = side === "bit" ? "BIT팀" : side === "tie" ? "TIE" : "COIN팀"
           const solidBg = side === "bit" ? BIT_BG : side === "coin" ? COIN_BG : "rgba(34,197,94,0.85)"
           const dimBg = side === "bit" ? "rgba(59,130,246,0.35)" : side === "coin" ? "rgba(249,115,22,0.35)" : "rgba(34,197,94,0.35)"

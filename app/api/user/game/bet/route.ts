@@ -11,7 +11,9 @@ export async function POST(request: Request) {
   const supabase = adminSupabase
 
   try {
-    const { betAmount } = await request.json()
+    const { betAmount, gameType, side } = await request.json()
+    // gameType: "baccarat" | "race" (optional)
+    // side: "player"|"banker"|"tie" for baccarat, "bit"|"coin"|"tie" for race (optional)
     if (!betAmount || betAmount <= 0) {
       return NextResponse.json({ error: "Invalid bet amount" }, { status: 400 })
     }
@@ -75,11 +77,27 @@ export async function POST(request: Request) {
       note: `배팅 차감`,
     })
 
-    // Redis에 최신 잔고 저장 + version increment → SSE 스트림이 변경 감지
-    await Promise.all([
+    // Redis에 최신 잔고 저장 + version increment → balance SSE가 변경 감지
+    const redisOps: Promise<unknown>[] = [
       redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),
       redis.incr(`balance_version:${userId}`),
-    ])
+    ]
+
+    // 배팅 풀 집계 + odds SSE 트리거
+    if (gameType && side) {
+      const roundNumber = Math.floor(Date.now() / 1000 / 30)
+      const poolKey = `pool:${gameType}:${roundNumber}`
+      const userSetKey = `users:${gameType}:${roundNumber}`
+      redisOps.push(
+        redis.hincrby(poolKey, side, betAmount),
+        redis.sadd(userSetKey, userId),
+        redis.expire(poolKey, 120),
+        redis.expire(userSetKey, 120),
+        redis.incr(`odds_version:${gameType}`),
+      )
+    }
+
+    await Promise.all(redisOps)
 
     return NextResponse.json({ success: true, newBalance })
   } catch (error) {
