@@ -299,7 +299,7 @@ export function TopBar() {
           className="p-2 rounded-lg hover:bg-muted transition-colors"
           aria-label="홈으로 이동"
         >
-          <Home className="w-5 h-5" />
+          <Home className="w-5 h-5 text-green-500" />
         </Link>
 
         {/* 중앙 잔고 */}
