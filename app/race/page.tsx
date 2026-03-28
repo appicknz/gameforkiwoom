@@ -175,31 +175,29 @@ export default function RacePage() {
 
           {/* 왼쪽: 메인 게임 영역 */}
           <div className="lg:col-span-2 space-y-4">
-            {/* 현재가 헤더 — 레이싱 중 기준가 + 마지막 소수점 */}
-            {state.phase === "racing" && (
-              <div style={{
-                background: "rgba(5,13,10,0.92)",
-                border: "1px solid rgba(212,175,55,0.2)",
-                borderRadius: 16,
-                padding: "12px 16px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 20,
-              }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", marginBottom: 4 }}>기준가</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
-                    ${(state.lastPrice || 0).toFixed(2)}
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, color: "rgba(212,175,55,0.4)" }}>
-                  <span style={{ color: BIT_COLOR, fontWeight: 700 }}>BIT+{state.lastBitDigit}</span>
-                  <span style={{ margin: "0 8px" }}>/</span>
-                  <span style={{ color: COIN_COLOR, fontWeight: 700 }}>COIN+{state.lastCoinDigit}</span>
+            {/* 현재가 헤더 — 기준가 + 마지막 소수점 */}
+            <div style={{
+              background: "rgba(5,13,10,0.92)",
+              border: "1px solid rgba(212,175,55,0.2)",
+              borderRadius: 16,
+              padding: "12px 16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 20,
+            }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", marginBottom: 4 }}>기준가</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
+                  ${(state.lastPrice || 0).toFixed(2)}
                 </div>
               </div>
-            )}
+              <div style={{ fontSize: 12, color: "rgba(212,175,55,0.4)" }}>
+                <span style={{ color: BIT_COLOR, fontWeight: 700 }}>BIT+{state.lastBitDigit}</span>
+                <span style={{ margin: "0 8px" }}>/</span>
+                <span style={{ color: COIN_COLOR, fontWeight: 700 }}>COIN+{state.lastCoinDigit}</span>
+              </div>
+            </div>
 
             {/* BigRoad */}
             <div style={{
