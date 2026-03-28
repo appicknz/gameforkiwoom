@@ -289,7 +289,7 @@ function RaceResultSheet({ result, open, onClose }: { result: RoundResult | null
             <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라운드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight"
               style={{ color: allWon ? G.gold : allLost ? "#ef4444" : "#f97316" }}>
-              {allWon ? "승리!" : allLost ? "패배" : "부분 승리"}
+              {allWon ? "승리!" : allLost ? "패배" : "���분 승리"}
             </p>
             <p className="text-[11px] mt-0.5" style={{ color: G.textDim }}>
               {isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
@@ -505,12 +505,19 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     const raceResult: "bit" | "coin" | "tie" =
       bit > coin ? "bit" : coin > bit ? "coin" : "tie"
 
-    // 5분 마감가 이벤트 발행
+    // 라운드 결과 이벤트 발행 + DB 저장
     const closingPrice = currentPriceRef.current
     if (closingPrice !== null) {
+      const resultTime = Math.floor(Date.now() / 1000)
       window.dispatchEvent(new CustomEvent("race:closing", {
-        detail: { price: closingPrice, time: Math.floor(Date.now() / 1000), bit, coin, winner: raceResult }
+        detail: { price: closingPrice, time: resultTime, bit, coin, winner: raceResult }
       }))
+      // DB 영구 저장 (누구나 같은 결과를 볼 수 있음)
+      fetch("/api/race-results", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ time: resultTime, price: closingPrice, bit_score: bit, coin_score: coin, winner: raceResult }),
+      }).catch(() => {})
     }
 
     const closePrice = currentPriceRef.current ?? 0

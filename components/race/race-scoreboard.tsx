@@ -40,170 +40,209 @@ function AnimatedScore({ value, color }: { value: number; color: string }) {
   )
 }
 
-// SVG 외곽 트랙: 전체 컴포넌트 테두리를 따라 아이콘이 한 바퀴
-// 레이싱 240초 기준, 상단 가운데(12시 방향)에서 출발 → 시계방향
+// 직사각형 라운드 코너 경로를 따라 progress(0→1) 위치 좌표 반환
+// W×H viewBox, r=코너 반지름, 12시(상단 가운데)에서 시계방향 출발
+function getRoundRectPoint(t: number, W: number, H: number, r: number): { x: number; y: number } {
+  // 세그먼트 길이 계산 (비율 단위)
+  const halfTop = W / 2 - r   // 12시→우상단 직선
+  const cTR = (Math.PI / 2) * r
+  const rightV = H - 2 * r
+  const cBR = (Math.PI / 2) * r
+  const bottomH = W - 2 * r
+  const cBL = (Math.PI / 2) * r
+  const leftV = H - 2 * r
+  const cTL = (Math.PI / 2) * r
+  const topLeft = W / 2 - r   // 좌상단→12시 복귀
+
+  const total = halfTop + cTR + rightV + cBR + bottomH + cBL + leftV + cTL + topLeft
+  let d = ((t % 1) + 1) % 1 * total
+
+  if (d <= halfTop) return { x: W / 2 + d, y: 0 }
+  d -= halfTop
+  if (d <= cTR) {
+    const a = -Math.PI / 2 + (d / cTR) * (Math.PI / 2)
+    return { x: W - r + Math.cos(a) * r, y: r + Math.sin(a) * r }
+  }
+  d -= cTR
+  if (d <= rightV) return { x: W, y: r + d }
+  d -= rightV
+  if (d <= cBR) {
+    const a = (d / cBR) * (Math.PI / 2)
+    return { x: W - r + Math.cos(a) * r, y: H - r + Math.sin(a) * r }
+  }
+  d -= cBR
+  if (d <= bottomH) return { x: W - r - d, y: H }
+  d -= bottomH
+  if (d <= cBL) {
+    const a = Math.PI / 2 + (d / cBL) * (Math.PI / 2)
+    return { x: r + Math.cos(a) * r, y: H - r + Math.sin(a) * r }
+  }
+  d -= cBL
+  if (d <= leftV) return { x: 0, y: H - r - d }
+  d -= leftV
+  if (d <= cTL) {
+    const a = Math.PI + (d / cTL) * (Math.PI / 2)
+    return { x: r + Math.cos(a) * r, y: r + Math.sin(a) * r }
+  }
+  d -= cTL
+  return { x: r + d, y: 0 }
+}
+
+// 아이콘 하나: 지정된 래퍼(outer/inner) 위를 도는 아이콘
+function TrackIcon({
+  progress,
+  color,
+  icon,
+  W,
+  H,
+  r,
+  inset,
+}: {
+  progress: number
+  color: string
+  icon: string
+  W: number
+  H: number
+  r: number
+  inset: number
+}) {
+  const pos = getRoundRectPoint(progress, W, H, r)
+  return (
+    <div style={{
+      position: "absolute",
+      left: `calc(${inset < 0 ? `${-inset}px` : "0px"} + ${pos.x / W * 100}%)`,
+      top: `calc(${inset < 0 ? `${-inset}px` : "0px"} + ${pos.y / H * 100}%)`,
+      transform: "translate(-50%, -50%)",
+      width: 18,
+      height: 18,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: "50%",
+      background: color,
+      fontSize: 9,
+      fontWeight: 900,
+      color: "#fff",
+      boxShadow: `0 0 10px ${color}`,
+      transition: "left 0.9s linear, top 0.9s linear",
+      zIndex: 10,
+      pointerEvents: "none",
+    }}>
+      {icon}
+    </div>
+  )
+}
+
+// 외곽 트랙 오버레이 (스코어보드 전체 감싸는 컨테이너에 붙음)
+// leading 팀 아이콘 → 해당 팀 스코어 박스 내 트랙
+// losing 팀 아이콘  → 전체 외곽 트랙
+// 스코어 박스의 relative 위치를 ref로 받아서 정확히 박스 테두리를 돌게 함
 function OrbitTrack({
   phase,
   timeLeft,
   leading,
+  bitBoxRef,
+  coinBoxRef,
+  outerRef,
 }: {
   phase: string
   timeLeft: number
   leading: "bit" | "coin" | "tie"
+  bitBoxRef: React.RefObject<HTMLDivElement | null>
+  coinBoxRef: React.RefObject<HTMLDivElement | null>
+  outerRef: React.RefObject<HTMLDivElement | null>
 }) {
   const isRacing = phase === "racing"
-  // 10초마다 한 바퀴
   const elapsed = isRacing ? Math.max(0, 240 - timeLeft) : 0
-  const progress = (elapsed % 10) / 10 // 0→1, 10초마다 리셋
+  const progress = (elapsed % 10) / 10
 
-  // BIT 아이콘은 progress, COIN 아이콘은 반대편(+0.5)
-  const progressCoin = (progress + 0.5) % 1
+  const [outerSize, setOuterSize] = useState({ w: 400, h: 200 })
+  const [bitSize, setBitSize] = useState({ x: 0, y: 0, w: 150, h: 150 })
+  const [coinSize, setCoinSize] = useState({ x: 0, y: 0, w: 150, h: 150 })
 
-
-  // SVG 경로: 외곽 rect (상단 가운데 12시 방향 시작, 시계방향)
-  // viewBox는 실제 컴포넌트 크기와 무관하게 100×100으로 정규화
-  // r=18 (border-radius 약 20px)
-  const r = 8 // rounded corner radius (normalized)
-  const W = 100, H = 100
-
-  // 직사각형 둘레 길이 (r 코너 포함)
-  // 상단 가운데(50, 0)에서 시계방향: 오른쪽→하단→왼쪽→상단 복귀
-  // motion-path: 'M 50 0 L (W-r) 0 Q W 0 W r L W (H-r) Q W H (W-r) H L r H Q 0 H 0 (H-r) L 0 r Q 0 0 r 0 Z'
-  // stroke-dashoffset으로 진행도 표현
-  const pathD = `M 50 0 L ${W - r} 0 Q ${W} 0 ${W} ${r} L ${W} ${H - r} Q ${W} ${H} ${W - r} ${H} L ${r} ${H} Q 0 ${H} 0 ${H - r} L 0 ${r} Q 0 0 ${r} 0 Z`
-
-  // 둘레 길이 근사치 (직선 + 코너)
-  const perimeter = 2 * (W - 2 * r) + 2 * (H - 2 * r) + 2 * Math.PI * r
-  const dashOffset = perimeter * (1 - progress)
-
-  // 아이콘 위치: progress에 따라 경로 위 좌표 계산
-  // 상단 직선(50→W-r), 오른쪽 코너, 오른쪽 수직, 하단 코너, 하단 직선, 좌측 코너, 좌측 수직, 상단 코너, 상단 직선(r→50)
-  function getPoint(t: number): { x: number; y: number; } {
-    // 각 세그먼트 길이
-    const topRight = W - r - 50       // 50→(W-r)
-    const cornerTR = (Math.PI / 2) * r
-    const rightV = H - 2 * r
-    const cornerBR = (Math.PI / 2) * r
-    const bottomL = W - 2 * r
-    const cornerBL = (Math.PI / 2) * r
-    const leftV = H - 2 * r
-    const cornerTL = (Math.PI / 2) * r
-    const topLeft = W - r - 50        // r→50
-
-    const total = topRight + cornerTR + rightV + cornerBR + bottomL + cornerBL + leftV + cornerTL + topLeft
-    let d = t * total
-
-    // 1. 상단 우측 직선
-    if (d <= topRight) return { x: 50 + d, y: 0 }
-    d -= topRight
-    // 2. 오른쪽 상단 코너 (90도, 시계방향)
-    if (d <= cornerTR) {
-      const a = -Math.PI / 2 + (d / cornerTR) * (Math.PI / 2)
-      return { x: W - r + Math.cos(a) * r, y: r + Math.sin(a) * r }
+  useEffect(() => {
+    function measure() {
+      const outer = outerRef.current
+      const bit = bitBoxRef.current
+      const coin = coinBoxRef.current
+      if (!outer || !bit || !coin) return
+      const outerR = outer.getBoundingClientRect()
+      const bitR = bit.getBoundingClientRect()
+      const coinR = coin.getBoundingClientRect()
+      setOuterSize({ w: outerR.width, h: outerR.height })
+      setBitSize({ x: bitR.left - outerR.left, y: bitR.top - outerR.top, w: bitR.width, h: bitR.height })
+      setCoinSize({ x: coinR.left - outerR.left, y: coinR.top - outerR.top, w: coinR.width, h: coinR.height })
     }
-    d -= cornerTR
-    // 3. 오른쪽 수직
-    if (d <= rightV) return { x: W, y: r + d }
-    d -= rightV
-    // 4. 오른쪽 하단 코너
-    if (d <= cornerBR) {
-      const a = 0 + (d / cornerBR) * (Math.PI / 2)
-      return { x: W - r + Math.cos(a) * r, y: H - r + Math.sin(a) * r }
-    }
-    d -= cornerBR
-    // 5. 하단 수평
-    if (d <= bottomL) return { x: W - r - d, y: H }
-    d -= bottomL
-    // 6. 왼쪽 하단 코너
-    if (d <= cornerBL) {
-      const a = Math.PI / 2 + (d / cornerBL) * (Math.PI / 2)
-      return { x: r + Math.cos(a) * r, y: H - r + Math.sin(a) * r }
-    }
-    d -= cornerBL
-    // 7. 왼쪽 수직
-    if (d <= leftV) return { x: 0, y: H - r - d }
-    d -= leftV
-    // 8. 왼쪽 상단 코너
-    if (d <= cornerTL) {
-      const a = Math.PI + (d / cornerTL) * (Math.PI / 2)
-      return { x: r + Math.cos(a) * r, y: r + Math.sin(a) * r }
-    }
-    d -= cornerTL
-    // 9. 상단 좌측 직선
-    return { x: r + d, y: 0 }
-  }
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [outerRef, bitBoxRef, coinBoxRef])
 
-  const bitPos = getPoint(progress)
-  const coinPos = getPoint(progressCoin)
+  if (!isRacing) return null
+
+  // 이기는 팀 → 해당 박스 테두리, 지는 팀 → 외곽
+  // tie일 때 둘 다 외곽
+  const bitLeading = leading === "bit"
+  const coinLeading = leading === "coin"
+
+  // 아이콘 위치 계산
+  // BIT 아이콘
+  const bitTrack = bitLeading
+    ? { x: bitSize.x, y: bitSize.y, w: bitSize.w, h: bitSize.h, r: 14 }
+    : { x: 0, y: 0, w: outerSize.w, h: outerSize.h, r: 20 }
+  const bitPos = getRoundRectPoint(progress, bitTrack.w, bitTrack.h, bitTrack.r)
+
+  // COIN 아이콘 (반대편: +0.5)
+  const coinTrack = coinLeading
+    ? { x: coinSize.x, y: coinSize.y, w: coinSize.w, h: coinSize.h, r: 14 }
+    : { x: 0, y: 0, w: outerSize.w, h: outerSize.h, r: 20 }
+  const coinProgress = (progress + 0.5) % 1
+  const coinPos = getRoundRectPoint(coinProgress, coinTrack.w, coinTrack.h, coinTrack.r)
 
   return (
-    <div style={{
-      position: "absolute",
-      inset: -2,
-      pointerEvents: "none",
-      zIndex: 2,
-      borderRadius: 20,
-    }}>
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
-      >
-        {/* 배경 점선 트랙만 — 진행선 없음 */}
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5, overflow: "visible" }}>
+      {/* 외곽 점선 트랙 */}
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }} viewBox={`0 0 ${outerSize.w} ${outerSize.h}`} preserveAspectRatio="none">
         <path
-          d={pathD}
+          d={`M ${outerSize.w/2} 0 L ${outerSize.w-20} 0 Q ${outerSize.w} 0 ${outerSize.w} 20 L ${outerSize.w} ${outerSize.h-20} Q ${outerSize.w} ${outerSize.h} ${outerSize.w-20} ${outerSize.h} L 20 ${outerSize.h} Q 0 ${outerSize.h} 0 ${outerSize.h-20} L 0 20 Q 0 0 20 0 Z`}
           fill="none"
-          stroke="rgba(255,255,255,0.08)"
-          strokeWidth="0.6"
-          strokeDasharray="2 3"
+          stroke="rgba(255,255,255,0.07)"
+          strokeWidth="1"
+          strokeDasharray="3 4"
         />
       </svg>
 
       {/* BIT 아이콘 */}
-      {isRacing && (
-        <div style={{
-          position: "absolute",
-          left: `${bitPos.x}%`,
-          top: `${bitPos.y}%`,
-          transform: "translate(-50%, -50%)",
-          width: 18,
-          height: 18,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: "50%",
-          background: BIT_COLOR,
-          fontSize: 9,
-          fontWeight: 900,
-          color: "#fff",
-          boxShadow: `0 0 8px ${BIT_COLOR}`,
-          transition: "left 0.9s linear, top 0.9s linear",
-          zIndex: 3,
-        }}>₿</div>
-      )}
+      <div style={{
+        position: "absolute",
+        left: bitTrack.x + bitPos.x,
+        top: bitTrack.y + bitPos.y,
+        transform: "translate(-50%, -50%)",
+        width: 18, height: 18,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        borderRadius: "50%",
+        background: BIT_COLOR,
+        fontSize: 9, fontWeight: 900, color: "#fff",
+        boxShadow: `0 0 10px ${BIT_COLOR}`,
+        transition: "left 0.9s linear, top 0.9s linear",
+        zIndex: 10,
+      }}>₿</div>
 
-      {/* COIN 아이콘 (반대편) */}
-      {isRacing && (
-        <div style={{
-          position: "absolute",
-          left: `${coinPos.x}%`,
-          top: `${coinPos.y}%`,
-          transform: "translate(-50%, -50%)",
-          width: 18,
-          height: 18,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: "50%",
-          background: COIN_COLOR,
-          fontSize: 9,
-          fontWeight: 900,
-          color: "#fff",
-          boxShadow: `0 0 8px ${COIN_COLOR}`,
-          transition: "left 0.9s linear, top 0.9s linear",
-          zIndex: 3,
-        }}>◎</div>
-      )}
+      {/* COIN 아이콘 */}
+      <div style={{
+        position: "absolute",
+        left: coinTrack.x + coinPos.x,
+        top: coinTrack.y + coinPos.y,
+        transform: "translate(-50%, -50%)",
+        width: 18, height: 18,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        borderRadius: "50%",
+        background: COIN_COLOR,
+        fontSize: 9, fontWeight: 900, color: "#fff",
+        boxShadow: `0 0 10px ${COIN_COLOR}`,
+        transition: "left 0.9s linear, top 0.9s linear",
+        zIndex: 10,
+      }}>◎</div>
     </div>
   )
 }
@@ -317,8 +356,12 @@ export function RaceScoreboard({ state }: Props) {
   const leading: "bit" | "coin" | "tie" =
     bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
 
+  const outerRef = useRef<HTMLDivElement>(null)
+  const bitBoxRef = useRef<HTMLDivElement>(null)
+  const coinBoxRef = useRef<HTMLDivElement>(null)
+
   return (
-    <div style={{
+    <div ref={outerRef} style={{
       background: "rgba(5,13,10,0.95)",
       border: "1px solid rgba(212,175,55,0.2)",
       borderRadius: 20,
@@ -329,10 +372,17 @@ export function RaceScoreboard({ state }: Props) {
       position: "relative",
       width: "100%",
       boxSizing: "border-box",
-      overflow: "hidden",
+      overflow: "visible",
     }}>
-      {/* 외곽 트랙 아이콘: 레이싱 240초 한 바퀴, 상단 가운데 출발 */}
-      <OrbitTrack phase={phase} timeLeft={timeLeft} leading={leading} />
+      {/* 트랙 아이콘: 이기는 팀→스코어 박스, 지는 팀→외곽 */}
+      <OrbitTrack
+        phase={phase}
+        timeLeft={timeLeft}
+        leading={leading}
+        bitBoxRef={bitBoxRef}
+        coinBoxRef={coinBoxRef}
+        outerRef={outerRef}
+      />
 
       {/* 스코어 + 타이머 */}
       <div style={{
@@ -342,7 +392,7 @@ export function RaceScoreboard({ state }: Props) {
         width: "100%",
       }}>
         {/* BIT팀 */}
-        <div style={{
+        <div ref={bitBoxRef} style={{
           flex: 1,
           minWidth: 0,
           background: winner === "bit" ? "rgba(59,130,246,0.15)" : "rgba(59,130,246,0.06)",
@@ -366,7 +416,7 @@ export function RaceScoreboard({ state }: Props) {
         <VerticalTimer timeLeft={timeLeft} phase={phase} />
 
         {/* COIN팀 */}
-        <div style={{
+        <div ref={coinBoxRef} style={{
           flex: 1,
           minWidth: 0,
           background: winner === "coin" ? "rgba(249,115,22,0.15)" : "rgba(249,115,22,0.06)",

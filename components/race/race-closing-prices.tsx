@@ -34,8 +34,17 @@ function fmtPrice(p: number) {
 export function RaceClosingPrices() {
   const [entries, setEntries] = useState<RaceEntry[]>([])
 
-  // race:closing 이벤트 구독 — 라운드 종료 시 race-betting-game이 발행
-  // detail: { price, time, bit, coin, winner }
+  // 마운트 시 DB에서 최근 결과 로드 (누구나 같은 히스토리)
+  useEffect(() => {
+    fetch("/api/race-results")
+      .then(r => r.json())
+      .then(({ results }) => {
+        if (Array.isArray(results)) setEntries(results)
+      })
+      .catch(() => {})
+  }, [])
+
+  // race:closing 이벤트 구독 — 라운드 종료 시 실시간 추가
   useEffect(() => {
     const onClosing = (e: Event) => {
       const { price, time, bit, coin, winner } =
