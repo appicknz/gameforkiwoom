@@ -31,15 +31,28 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
   const pollRef = useRef<NodeJS.Timeout | null>(null)
   const isInitialLoad = useRef(true)
 
-  // 닉네임 초기화
+  // 닉네임 초기화 및 로드
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(NICKNAME_KEY)
-      if (saved) { setNickname(saved); return }
-    } catch {}
-    const nick = getRandomNickname()
-    setNickname(nick)
-    try { localStorage.setItem(NICKNAME_KEY, nick) } catch {}
+    const loadNickname = async () => {
+      try {
+        const res = await fetch("/api/user/chat-nickname")
+        if (res.ok) {
+          const data = await res.json()
+          if (data.chat_nickname) {
+            setNickname(data.chat_nickname)
+            return
+          }
+        }
+      } catch {}
+      // 폴백: 로컬스토리지 또는 랜덤 생성
+      try {
+        const saved = localStorage.getItem(NICKNAME_KEY)
+        if (saved) { setNickname(saved); return }
+      } catch {}
+      const nick = getRandomNickname()
+      setNickname(nick)
+    }
+    loadNickname()
   }, [])
 
   const fetchMessages = useCallback(async () => {
@@ -96,9 +109,22 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
     }
   }
 
-  const saveNickname = () => {
+  const saveNickname = async () => {
     const n = nickInput.trim().slice(0, 20)
     if (!n) return
+    try {
+      const res = await fetch("/api/user/chat-nickname", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_nickname: n }),
+      })
+      if (res.ok) {
+        setNickname(n)
+        setEditingNick(false)
+        return
+      }
+    } catch {}
+    // 폴백: 로컬스토리지에 저장
     setNickname(n)
     try { localStorage.setItem(NICKNAME_KEY, n) } catch {}
     setEditingNick(false)
