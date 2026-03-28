@@ -315,8 +315,8 @@ export function TopBar() {
             className="flex items-center gap-2 rounded-full hover:scale-110 transition-all duration-300"
             aria-label="프로필"
           >
-            <Avatar className="w-10 h-10 bg-green-600">
-              <AvatarFallback className="bg-green-600 text-white text-xs font-bold">
+            <Avatar className="w-10 h-10 bg-green-700">
+              <AvatarFallback className="bg-green-700 text-white text-xs font-bold">
                 {initials}
               </AvatarFallback>
             </Avatar>
