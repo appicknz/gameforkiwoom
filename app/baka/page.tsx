@@ -21,13 +21,12 @@ interface CardOverlayData {
 type BaccaratResult = "player" | "banker" | "tie" | null
 
 // 카드 슬롯 — 차트 위 오버레이용 (scale 지원)
-// 기본 카드 크기: 52×74 (PlayingCard와 동일), s 배율로 조정
 function OverlayCard({ card, s = 1 }: { card: Card; s?: number }) {
   const isRed = card.suit === "♥" || card.suit === "♦"
-  const W = Math.round(52 * s)
-  const H = Math.round(74 * s)
-  const R = Math.round(8 * s)
-  const P = `${Math.round(5 * s)}px ${Math.round(6 * s)}px`
+  const W = Math.round(36 * s)
+  const H = Math.round(52 * s)
+  const R = Math.round(6 * s)
+  const P = `${Math.round(3 * s)}px ${Math.round(4 * s)}px`
   return (
     <div style={{
       width: W, height: H, borderRadius: R,
@@ -39,11 +38,11 @@ function OverlayCard({ card, s = 1 }: { card: Card; s?: number }) {
       animation: "cardDeal 0.35s cubic-bezier(0.23,1,0.32,1)",
       flexShrink: 0,
     }}>
-      <div style={{ fontSize: Math.round(13 * s), fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
-        {card.label}<span style={{ fontSize: Math.round(10 * s) }}>{card.suit}</span>
+      <div style={{ fontSize: Math.round(11 * s), fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>
+        {card.label}<span style={{ fontSize: Math.round(8 * s) }}>{card.suit}</span>
       </div>
-      <div style={{ fontSize: Math.round(22 * s), textAlign: "center", color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>{card.suit}</div>
-      <div style={{ fontSize: Math.round(13 * s), fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
+      <div style={{ fontSize: Math.round(15 * s), textAlign: "center", color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1 }}>{card.suit}</div>
+      <div style={{ fontSize: Math.round(11 * s), fontWeight: 700, color: isRed ? "#e85c5c" : "#d4af37", lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>
         {card.label}
       </div>
     </div>
@@ -53,7 +52,7 @@ function OverlayCard({ card, s = 1 }: { card: Card; s?: number }) {
 function EmptySlot({ s = 1 }: { s?: number }) {
   return (
     <div style={{
-      width: Math.round(52 * s), height: Math.round(74 * s), borderRadius: Math.round(8 * s),
+      width: Math.round(36 * s), height: Math.round(52 * s), borderRadius: Math.round(6 * s),
       border: "1px dashed rgba(212,175,55,0.2)",
       background: "rgba(212,175,55,0.02)",
       flexShrink: 0,
@@ -185,7 +184,7 @@ function BakaLivePriceBar() {
 export default function BakaPage() {
   const isMobile = useIsMobile()
   // PC: 1.6배 확대, 모바일: 1배 유지
-  const S = isMobile ? 1 : 1.4
+  const S = isMobile ? 1 : 1.6
   const [cardData, setCardData] = useState<CardOverlayData>({
     playerCards: [], bankerCards: [], pScore: 0, bScore: 0, result: null,
   })
@@ -399,7 +398,7 @@ export default function BakaPage() {
                     </div>
                     <div style={{ display: "flex", gap: Math.round(6 * S) }}>
                       {cards.map((card, ci) => <OverlayCard key={`${card.id}-${ci}`} card={card} s={S} />)}
-                      {Array.from({ length: Math.max(0, 3 - cards.length) }).map((_, i) => <EmptySlot key={i} s={S} />)}
+                      {Array.from({ length: Math.max(0, 2 - cards.length) }).map((_, i) => <EmptySlot key={i} s={S} />)}
                     </div>
                   </div>
                 )
