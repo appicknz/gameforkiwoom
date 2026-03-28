@@ -55,9 +55,9 @@ function OrbitTrack({
   const color = leading === "bit" ? BIT_COLOR : leading === "coin" ? COIN_COLOR : GOLD
   const icon = leading === "bit" ? "₿" : leading === "coin" ? "◎" : "="
 
-  // 240초 중 경과 비율 (0→1)
+  // 30초마다 한 바퀴 (240초 = 8바퀴)
   const elapsed = isRacing ? Math.max(0, 240 - timeLeft) : 0
-  const progress = elapsed / 240 // 0=출발, 1=한바퀴 완료
+  const progress = (elapsed % 30) / 30 // 0→1, 30초마다 리셋
 
   // SVG 경로: 외곽 rect (상단 가운데 12시 방향 시작, 시계방향)
   // viewBox는 실제 컴포넌트 크기와 무관하게 100×100으로 정규화
@@ -249,25 +249,24 @@ function VerticalTimer({
       gap: 6,
       flexShrink: 0,
     }}>
-      {/* 세로 막대 */}
+      {/* 세로 막대 — 모래시계: 아래쪽이 채워짐 (pct=남은비율, 줄어들수록 아래 채움) */}
       <div style={{
         width: 6,
         height: 80,
         borderRadius: 3,
         background: "rgba(255,255,255,0.06)",
         overflow: "hidden",
-        position: "relative",
         display: "flex",
         flexDirection: "column",
+        justifyContent: "flex-end",
       }}>
-        {/* 위→아래 채워진 바가 줄어드는 효과: 남은 비율만큼 위부터 채움 */}
+        {/* 아래에서부터 채워짐: 시간이 줄어들수록 높이가 커짐 */}
         <div style={{
           width: "100%",
-          height: `${pct * 100}%`,
+          height: `${(1 - pct) * 100}%`,
           background: phaseColor,
           borderRadius: 3,
           transition: "height 0.8s linear",
-          flexShrink: 0,
         }} />
       </div>
 
