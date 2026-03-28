@@ -309,9 +309,11 @@ export default function BakaPage() {
               gap: Math.round(6 * S),
               alignItems: "stretch",
             }}>
-              {/* 게임 상태 박스 — 중앙, 같은 높이 */}
+              {/* 게임 상태 박스 — 중앙, /race VerticalTimer 스타일 */}
               {(() => {
                 const { timeLeft, phase } = gameStatus
+                const maxSec = phase === "betting" ? 15 : 15
+                const pct = Math.min(timeLeft / maxSec, 1)
                 const statusColor = phase === "betting" ? "#10b981" : phase === "dealing" ? "#f97316" : "#6366f1"
                 const statusLabel = phase === "betting" ? "배팅 가능" : phase === "dealing" ? "딜링 중" : phase === "result" ? "정산 중" : "대기 중"
                 return (
@@ -319,23 +321,29 @@ export default function BakaPage() {
                     width: Math.round(52 * S),
                     flexShrink: 0,
                     order: 1,
-                    borderRadius: Math.round(10 * S),
-                    border: `1px solid ${statusColor}55`,
-                    background: `${statusColor}0d`,
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: Math.round(4 * S),
-                    padding: `${Math.round(6 * S)}px ${Math.round(4 * S)}px`,
+                    gap: Math.round(6 * S),
                   }}>
-                    {/* 원형 pulse 인디케이터 */}
-                    <div style={{ position: "relative", width: Math.round(10 * S), height: Math.round(10 * S) }}>
+                    {/* 세로 막대 — 위에서부터 비워짐 (/race 스타일) */}
+                    <div style={{
+                      width: Math.round(6 * S),
+                      height: Math.round(80 * S),
+                      borderRadius: 3,
+                      background: "rgba(255,255,255,0.06)",
+                      overflow: "hidden",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "flex-end",
+                    }}>
                       <div style={{
-                        width: "100%", height: "100%",
-                        borderRadius: "50%",
+                        width: "100%",
+                        height: `${pct * 100}%`,
                         background: statusColor,
-                        animation: phase !== "result" ? "pulseDot 1.2s ease-in-out infinite" : "none",
+                        borderRadius: 3,
+                        transition: "height 0.8s linear",
                       }} />
                     </div>
                     {/* 상태 텍스트 */}
@@ -343,13 +351,12 @@ export default function BakaPage() {
                       fontSize: Math.round(9 * S),
                       fontWeight: 700,
                       color: statusColor,
-                      letterSpacing: "0.04em",
-                      textAlign: "center",
-                      lineHeight: 1.2,
+                      letterSpacing: "0.08em",
                       writingMode: "vertical-rl",
                       textOrientation: "mixed",
+                      lineHeight: 1,
                     }}>{statusLabel}</span>
-                    {/* 타이머 */}
+                    {/* 숫자 */}
                     {phase !== "result" && (
                       <span style={{
                         fontSize: Math.round(14 * S),
