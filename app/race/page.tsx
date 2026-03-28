@@ -199,29 +199,62 @@ export default function RacePage() {
 
           {/* 왼쪽: 메인 게임 영역 */}
           <div className="lg:col-span-2 space-y-4">
-            {/* 현재가 헤더 — 기준가 + 마지막 소수점 */}
+            {/* 헤더: 기준가+현재가 왼쪽 한 줄, 스코어 오른쪽 */}
             <div style={{
               background: "rgba(5,13,10,0.92)",
               border: "1px solid rgba(212,175,55,0.2)",
               borderRadius: 16,
-              padding: "12px 16px",
+              padding: "10px 16px",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              gap: 20,
+              justifyContent: "space-between",
             }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", marginBottom: 4 }}>기준가</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
+              {/* 왼쪽: 기준가 라벨 + 가격 한 줄 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>기준가</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
                   ${(state.lastPrice || 0).toFixed(2)}
-                </div>
+                </span>
               </div>
-              <div style={{ fontSize: 12, color: "rgba(212,175,55,0.4)" }}>
-                <span style={{ color: BIT_COLOR, fontWeight: 700 }}>BIT+{state.lastBitDigit}</span>
-                <span style={{ margin: "0 8px" }}>/</span>
-                <span style={{ color: COIN_COLOR, fontWeight: 700 }}>COIN+{state.lastCoinDigit}</span>
+              {/* 오른쪽: 스코어 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}>
+                <span style={{ color: BIT_COLOR }}>BIT+{state.lastBitDigit}</span>
+                <span style={{ color: "rgba(212,175,55,0.35)" }}>/</span>
+                <span style={{ color: COIN_COLOR }}>COIN+{state.lastCoinDigit}</span>
               </div>
             </div>
+
+            {/* 최근 득점 (헤더 아래 ~ 빅로드 위) */}
+            {flashes.length > 0 && (
+              <div style={{
+                background: "rgba(5,13,10,0.9)",
+                border: "1px solid rgba(212,175,55,0.15)",
+                borderRadius: 12,
+                padding: "8px 14px",
+                display: "flex",
+                gap: 6,
+                alignItems: "center",
+                overflowX: "auto",
+              }}>
+                <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", whiteSpace: "nowrap", marginRight: 2 }}>최근 득점:</span>
+                {flashes.slice(-8).reverse().map(f => (
+                  <span key={f.id} style={{
+                    fontSize: 11,
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 6,
+                    padding: "2px 8px",
+                    fontVariantNumeric: "tabular-nums",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                  }}>
+                    <span style={{ color: BIT_COLOR }}>+{f.bit}</span>
+                    <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 3px" }}>/</span>
+                    <span style={{ color: COIN_COLOR }}>+{f.coin}</span>
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* BigRoad */}
             <div style={{
@@ -239,35 +272,7 @@ export default function RacePage() {
             {/* 배팅 — baka와 동일 구조, BIT/COIN팀으로 레이블 변경 */}
             <RaceBettingGame />
 
-            {/* 최근 득점 플래시 (레이싱 중) */}
-            {state.phase === "racing" && flashes.length > 0 && (
-              <div style={{
-                background: "rgba(5,13,10,0.9)",
-                border: "1px solid rgba(212,175,55,0.15)",
-                borderRadius: 12,
-                padding: "10px 14px",
-                display: "flex",
-                gap: 6,
-                flexWrap: "wrap",
-                alignItems: "center",
-              }}>
-                <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", marginRight: 4 }}>최근 득점:</span>
-                {flashes.slice(-8).reverse().map(f => (
-                  <span key={f.id} style={{
-                    fontSize: 11,
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 6,
-                    padding: "2px 8px",
-                    fontVariantNumeric: "tabular-nums",
-                  }}>
-                    <span style={{ color: BIT_COLOR }}>+{f.bit}</span>
-                    <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 3px" }}>/</span>
-                    <span style={{ color: COIN_COLOR }}>+{f.coin}</span>
-                  </span>
-                ))}
-              </div>
-            )}
+
           </div>
 
           {/* 오른쪽: 차트 + 5분 마감 기준가 */}
