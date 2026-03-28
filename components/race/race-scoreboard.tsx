@@ -6,7 +6,6 @@ import type { RaceState } from "./race-game"
 const BIT_COLOR = "#3b82f6"
 const COIN_COLOR = "#f97316"
 const GOLD = "#d4af37"
-const GOLD_DIM = "rgba(212,175,55,0.5)"
 
 // 숫자가 올라갈 때 애니메이션
 function AnimatedScore({ value, color }: { value: number; color: string }) {
@@ -25,14 +24,16 @@ function AnimatedScore({ value, color }: { value: number; color: string }) {
   return (
     <span style={{
       fontVariantNumeric: "tabular-nums",
-      fontSize: 72,
+      // clamp: 모바일(375px=아이폰미니) ~ 데스크탑까지 반응형
+      fontSize: "clamp(40px, 10vw, 80px)",
       fontWeight: 900,
       lineHeight: 1,
       color: flash ? "#fff" : color,
       textShadow: flash ? `0 0 32px ${color}, 0 0 8px ${color}` : "none",
       transition: "color 0.15s, text-shadow 0.15s",
-      letterSpacing: "-2px",
+      letterSpacing: "-1px",
       fontFamily: "Georgia, 'Times New Roman', serif",
+      display: "block",
     }}>
       {value.toLocaleString()}
     </span>
@@ -40,7 +41,6 @@ function AnimatedScore({ value, color }: { value: number; color: string }) {
 }
 
 // 트랙 아이콘: 스코어 컴포넌트 둘레를 이기는 팀 아이콘이 한 바퀴 도는 애니메이션
-// 1라운드=300초에 한 바퀴 (배팅60+레이싱240)
 function OrbitTrack({
   phase,
   secondsInRound,
@@ -53,59 +53,29 @@ function OrbitTrack({
   const isActive = phase === "racing" || phase === "betting"
   const color = leading === "bit" ? BIT_COLOR : leading === "coin" ? COIN_COLOR : GOLD
   const icon = leading === "bit" ? "₿" : leading === "coin" ? "◎" : "="
-
-  // 300초 기준 각도 (0=top, 시계방향)
   const angleDeg = isActive ? (secondsInRound / 300) * 360 : 0
-  const angleRad = ((angleDeg - 90) * Math.PI) / 180
-
-  // 트랙 타원: rx=반가로, ry=반세로 (컴포넌트 크기에 맞춤)
-  const RX = 0.5  // % 단위 대신 relative 사용
-  const RY = 0.5
 
   return (
-    <div style={{
-      position: "absolute",
-      inset: -3,
-      pointerEvents: "none",
-      borderRadius: 23,
-      zIndex: 2,
-    }}>
-      {/* 트랙 테두리 */}
+    <div style={{ position: "absolute", inset: -3, pointerEvents: "none", borderRadius: 23, zIndex: 2 }}>
       <div style={{
-        position: "absolute",
-        inset: 0,
-        borderRadius: 23,
+        position: "absolute", inset: 0, borderRadius: 23,
         border: `1.5px dashed ${isActive ? `${color}44` : "rgba(255,255,255,0.06)"}`,
         transition: "border-color 0.5s",
       }} />
-
-      {/* 아이콘 — CSS animation으로 정확한 타원 궤도 */}
       {isActive && (
-        <div
-          key={`${phase}-orbit`}
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            width: 28,
-            height: 28,
-            marginLeft: -14,
-            marginTop: -14,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "50%",
-            background: color,
-            fontSize: 13,
-            fontWeight: 900,
-            color: "#fff",
-            boxShadow: `0 0 12px ${color}`,
-            animation: `orbitRound ${300 - secondsInRound}s linear forwards`,
-            animationDelay: "0s",
-            // 이미 진행된 각도에서 시작
-            transform: `rotate(${angleDeg}deg) translateX(calc(50% + 2px))`,
-          }}
-        >
+        <div style={{
+          position: "absolute",
+          top: "50%", left: "50%",
+          width: 26, height: 26,
+          marginLeft: -13, marginTop: -13,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          borderRadius: "50%",
+          background: color,
+          fontSize: 12, fontWeight: 900, color: "#fff",
+          boxShadow: `0 0 10px ${color}`,
+          transform: `rotate(${angleDeg}deg) translateX(calc(50% + 2px))`,
+          transition: "transform 1s linear",
+        }}>
           {icon}
         </div>
       )}
@@ -128,22 +98,87 @@ function DigitFlash({ digit, color, label }: { digit: number | null; color: stri
 
   return (
     <div style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 6,
+      display: "flex", alignItems: "center", gap: 4,
       opacity: visible ? 1 : 0,
       transform: visible ? "translateY(0)" : "translateY(6px)",
       transition: "opacity 0.2s, transform 0.2s",
-      height: 28,
+      height: 24,
+      justifyContent: "center",
     }}>
-      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.06em" }}>{label}</span>
-      <span style={{
-        fontSize: 18,
-        fontWeight: 900,
-        color,
-        textShadow: `0 0 12px ${color}`,
-        fontFamily: "Georgia, serif",
-      }}>+{displayDigit}</span>
+      <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>{label}</span>
+      <span style={{ fontSize: "clamp(14px, 4vw, 18px)", fontWeight: 900, color, textShadow: `0 0 10px ${color}`, fontFamily: "Georgia, serif" }}>
+        +{displayDigit}
+      </span>
+    </div>
+  )
+}
+
+// 세로 타이머: /baka의 딜링중 스타일 — 가운데 배치, 위에서 아래로 채워진 바가 줄어드는 방식
+function VerticalTimer({
+  timeLeft,
+  phase,
+}: {
+  timeLeft: number
+  phase: string
+}) {
+  const maxSec = phase === "betting" ? 60 : 240
+  const pct = Math.min(timeLeft / maxSec, 1) // 남은 시간 비율 (1→0으로 줄어듦)
+  const phaseColor = phase === "betting" ? "#10b981" : COIN_COLOR
+  const phaseLabel = phase === "betting" ? "배팅" : phase === "racing" ? "레이싱" : "결과"
+
+  return (
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 6,
+      flexShrink: 0,
+    }}>
+      {/* 세로 막대 */}
+      <div style={{
+        width: 6,
+        height: 80,
+        borderRadius: 3,
+        background: "rgba(255,255,255,0.06)",
+        overflow: "hidden",
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+      }}>
+        {/* 위→아래 채워진 바가 줄어드는 효과: 남은 비율만큼 위부터 채움 */}
+        <div style={{
+          width: "100%",
+          height: `${pct * 100}%`,
+          background: phaseColor,
+          borderRadius: 3,
+          transition: "height 0.8s linear",
+          flexShrink: 0,
+        }} />
+      </div>
+
+      {/* 레이블 */}
+      <div style={{
+        fontSize: 9,
+        fontWeight: 700,
+        color: phaseColor,
+        letterSpacing: "0.08em",
+        writingMode: "vertical-rl",
+        textOrientation: "mixed",
+        lineHeight: 1,
+      }}>
+        {phaseLabel}
+      </div>
+
+      {/* 숫자 */}
+      <div style={{
+        fontSize: "clamp(14px, 4vw, 20px)",
+        fontWeight: 800,
+        color: phaseColor,
+        fontVariantNumeric: "tabular-nums",
+        lineHeight: 1,
+      }}>
+        {timeLeft}
+      </div>
     </div>
   )
 }
@@ -153,136 +188,76 @@ interface Props {
 }
 
 export function RaceScoreboard({ state }: Props) {
-  const { phase, bitScore, coinScore, winner, lastPrice, lastBitDigit, lastCoinDigit, timeLeft, secondsInRound } = state
+  const { phase, bitScore, coinScore, winner, lastBitDigit, lastCoinDigit, timeLeft, secondsInRound } = state
 
-  const phaseLabel =
-    phase === "betting" ? "배팅 가능"
-    : phase === "racing" ? "레이싱 중"
-    : "결과"
-
-  const phaseColor =
-    phase === "betting" ? "#10b981"
-    : phase === "racing" ? COIN_COLOR
-    : GOLD
-
-  // 이기는 팀
   const leading: "bit" | "coin" | "tie" =
     bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
-
-  // 타이머 원형 진행률
-  const maxSec = phase === "betting" ? 60 : 240
-  const elapsed = phase === "betting" ? 60 - timeLeft : 240 - timeLeft
-  const pct = Math.min(elapsed / maxSec, 1)
-  const R = 28, C = 2 * Math.PI * R
-  const dash = C * (1 - pct)
 
   return (
     <div style={{
       background: "rgba(5,13,10,0.95)",
-      border: `1px solid rgba(212,175,55,0.2)`,
+      border: "1px solid rgba(212,175,55,0.2)",
       borderRadius: 20,
-      padding: "24px 20px",
+      padding: "clamp(12px, 3vw, 24px) clamp(10px, 2.5vw, 20px)",
       display: "flex",
       flexDirection: "column",
-      gap: 20,
+      gap: "clamp(12px, 3vw, 20px)",
       position: "relative",
+      width: "100%",
+      boxSizing: "border-box",
+      overflow: "hidden",
     }}>
-      {/* 트랙 아이콘 (스코어 컴포넌트 둘레) */}
+      {/* 트랙 아이콘 */}
       <OrbitTrack phase={phase} secondsInRound={secondsInRound} leading={leading} />
-      {/* 헤더: 타이머 + 페이즈 + 선두 팀 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 11, color: GOLD_DIM, letterSpacing: "0.08em", marginBottom: 2 }}>BTC RACE</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: phaseColor }}>{phaseLabel}</div>
-            {phase === "racing" && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 4,
-                background: leading === "bit" ? "rgba(59,130,246,0.15)" : leading === "coin" ? "rgba(249,115,22,0.15)" : "rgba(212,175,55,0.1)",
-                border: `1px solid ${leading === "bit" ? BIT_COLOR : leading === "coin" ? COIN_COLOR : GOLD}44`,
-                borderRadius: 20,
-                padding: "2px 8px",
-              }}>
-                <span style={{ fontSize: 12 }}>
-                  {leading === "bit" ? "₿" : leading === "coin" ? "◎" : "="}
-                </span>
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  color: leading === "bit" ? BIT_COLOR : leading === "coin" ? COIN_COLOR : GOLD,
-                }}>
-                  {leading === "bit" ? "BIT 리드" : leading === "coin" ? "COIN 리드" : "동점"}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-        {/* 원형 타이머 */}
-        <div style={{ position: "relative", width: 72, height: 72 }}>
-          <svg width="72" height="72" style={{ transform: "rotate(-90deg)" }}>
-            <circle cx="36" cy="36" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4" />
-            <circle
-              cx="36" cy="36" r={R} fill="none"
-              stroke={phaseColor}
-              strokeWidth="4"
-              strokeDasharray={C}
-              strokeDashoffset={dash}
-              strokeLinecap="round"
-              style={{ transition: "stroke-dashoffset 0.5s linear" }}
-            />
-          </svg>
-          <div style={{
-            position: "absolute", inset: 0,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18, fontWeight: 800, color: phaseColor, fontVariantNumeric: "tabular-nums",
-          }}>
-            {timeLeft}
-          </div>
-        </div>
-      </div>
 
-      {/* 스코어 메인 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      {/* 스코어 + 타이머 */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "clamp(6px, 2vw, 16px)",
+        width: "100%",
+      }}>
         {/* BIT팀 */}
         <div style={{
           flex: 1,
+          minWidth: 0,
           background: winner === "bit" ? "rgba(59,130,246,0.15)" : "rgba(59,130,246,0.06)",
           border: `1px solid ${winner === "bit" ? BIT_COLOR : "rgba(59,130,246,0.25)"}`,
-          borderRadius: 16,
-          padding: "16px 12px",
+          borderRadius: 14,
+          padding: "clamp(10px, 2.5vw, 16px) clamp(8px, 2vw, 12px)",
           textAlign: "center",
           transition: "all 0.4s",
-          boxShadow: winner === "bit" ? `0 0 30px rgba(59,130,246,0.3)` : "none",
+          boxShadow: winner === "bit" ? "0 0 30px rgba(59,130,246,0.3)" : "none",
         }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: BIT_COLOR, letterSpacing: "0.12em", marginBottom: 4 }}>
+          <div style={{ fontSize: "clamp(9px, 2.2vw, 11px)", fontWeight: 700, color: BIT_COLOR, letterSpacing: "0.1em", marginBottom: 3 }}>
             BIT 팀
-            {winner === "bit" && <span style={{ marginLeft: 6, background: BIT_COLOR, color: "#fff", padding: "1px 6px", borderRadius: 3, fontSize: 9 }}>WIN</span>}
+            {winner === "bit" && <span style={{ marginLeft: 5, background: BIT_COLOR, color: "#fff", padding: "1px 5px", borderRadius: 3, fontSize: 8 }}>WIN</span>}
           </div>
-          <div style={{ fontSize: 9, color: "rgba(59,130,246,0.6)", marginBottom: 8 }}>소수점 첫째 자리</div>
+          <div style={{ fontSize: "clamp(8px, 1.8vw, 10px)", color: "rgba(59,130,246,0.6)", marginBottom: 6 }}>소수점 첫째</div>
           <AnimatedScore value={bitScore} color={BIT_COLOR} />
           <DigitFlash digit={lastBitDigit} color={BIT_COLOR} label="+BIT" />
         </div>
 
-        {/* VS */}
-        <div style={{ flexShrink: 0, textAlign: "center" }}>
-          <div style={{ fontSize: 14, fontWeight: 900, color: GOLD, letterSpacing: "0.1em" }}>VS</div>
-        </div>
+        {/* 가운데: 타이머 */}
+        <VerticalTimer timeLeft={timeLeft} phase={phase} />
 
         {/* COIN팀 */}
         <div style={{
           flex: 1,
+          minWidth: 0,
           background: winner === "coin" ? "rgba(249,115,22,0.15)" : "rgba(249,115,22,0.06)",
           border: `1px solid ${winner === "coin" ? COIN_COLOR : "rgba(249,115,22,0.25)"}`,
-          borderRadius: 16,
-          padding: "16px 12px",
+          borderRadius: 14,
+          padding: "clamp(10px, 2.5vw, 16px) clamp(8px, 2vw, 12px)",
           textAlign: "center",
           transition: "all 0.4s",
-          boxShadow: winner === "coin" ? `0 0 30px rgba(249,115,22,0.3)` : "none",
+          boxShadow: winner === "coin" ? "0 0 30px rgba(249,115,22,0.3)" : "none",
         }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: COIN_COLOR, letterSpacing: "0.12em", marginBottom: 4 }}>
+          <div style={{ fontSize: "clamp(9px, 2.2vw, 11px)", fontWeight: 700, color: COIN_COLOR, letterSpacing: "0.1em", marginBottom: 3 }}>
             COIN 팀
-            {winner === "coin" && <span style={{ marginLeft: 6, background: COIN_COLOR, color: "#fff", padding: "1px 6px", borderRadius: 3, fontSize: 9 }}>WIN</span>}
+            {winner === "coin" && <span style={{ marginLeft: 5, background: COIN_COLOR, color: "#fff", padding: "1px 5px", borderRadius: 3, fontSize: 8 }}>WIN</span>}
           </div>
-          <div style={{ fontSize: 9, color: "rgba(249,115,22,0.6)", marginBottom: 8 }}>소수점 둘째 자리</div>
+          <div style={{ fontSize: "clamp(8px, 1.8vw, 10px)", color: "rgba(249,115,22,0.6)", marginBottom: 6 }}>소수점 둘째</div>
           <AnimatedScore value={coinScore} color={COIN_COLOR} />
           <DigitFlash digit={lastCoinDigit} color={COIN_COLOR} label="+COIN" />
         </div>
@@ -292,16 +267,16 @@ export function RaceScoreboard({ state }: Props) {
       {phase === "result" && winner && (
         <div style={{
           textAlign: "center",
-          padding: "16px",
+          padding: "clamp(10px, 3vw, 16px)",
           background: winner === "tie" ? "rgba(212,175,55,0.1)" : winner === "bit" ? "rgba(59,130,246,0.15)" : "rgba(249,115,22,0.15)",
           border: `1px solid ${winner === "tie" ? GOLD : winner === "bit" ? BIT_COLOR : COIN_COLOR}`,
           borderRadius: 12,
           animation: "winnerPulse 1s ease-in-out infinite alternate",
         }}>
-          <div style={{ fontSize: 24, fontWeight: 900, color: winner === "tie" ? GOLD : winner === "bit" ? BIT_COLOR : COIN_COLOR }}>
+          <div style={{ fontSize: "clamp(16px, 5vw, 24px)", fontWeight: 900, color: winner === "tie" ? GOLD : winner === "bit" ? BIT_COLOR : COIN_COLOR }}>
             {winner === "tie" ? "TIE" : winner === "bit" ? "BIT 팀 승리!" : "COIN 팀 승리!"}
           </div>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>
+          <div style={{ fontSize: "clamp(11px, 3vw, 14px)", color: "rgba(255,255,255,0.5)", marginTop: 4 }}>
             {bitScore} : {coinScore}
           </div>
         </div>
@@ -313,7 +288,6 @@ export function RaceScoreboard({ state }: Props) {
           to { opacity: 1; }
         }
       `}</style>
-      {/* phaseLabel 표시 — "레이싱 중" 옆 타이머 */}
     </div>
   )
 }
