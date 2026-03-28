@@ -58,13 +58,13 @@ const G = {
 
 const BIT_COLOR = "#3b82f6"
 const BIT_BG = "rgba(59,130,246,0.85)"
-const BIT_DIM_BG = "rgba(59,130,246,0.08)"
-const BIT_DIM_BORDER = "rgba(59,130,246,0.25)"
+const BIT_DIM_BG = "rgba(59,130,246,0.15)"
+const BIT_DIM_BORDER = "rgba(59,130,246,0.4)"
 
 const COIN_COLOR = "#f97316"
 const COIN_BG = "rgba(249,115,22,0.85)"
-const COIN_DIM_BG = "rgba(249,115,22,0.08)"
-const COIN_DIM_BORDER = "rgba(249,115,22,0.25)"
+const COIN_DIM_BG = "rgba(249,115,22,0.15)"
+const COIN_DIM_BORDER = "rgba(249,115,22,0.4)"
 
 const LABEL_MAP: Record<string, { text: string; color: string; bg: string; border: string }> = {
   long:  { text: "롱",   color: "#10b981", bg: "rgba(16,185,129,0.15)", border: "rgba(16,185,129,0.4)" },
@@ -745,9 +745,9 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
           const payout = side === "coin" ? "1:1" : side === "bit" ? "0.95:1" : "8:1"
           const label = side === "bit" ? "BIT팀" : side === "tie" ? "TIE" : "COIN팀"
           const solidBg = side === "bit" ? BIT_BG : side === "coin" ? COIN_BG : "rgba(34,197,94,0.85)"
-          const dimBg = side === "bit" ? BIT_DIM_BG : side === "coin" ? COIN_DIM_BG : "rgba(34,197,94,0.08)"
+          const dimBg = side === "bit" ? BIT_DIM_BG : side === "coin" ? COIN_DIM_BG : "rgba(34,197,94,0.15)"
           const solidColor = side === "bit" ? BIT_COLOR : side === "coin" ? COIN_COLOR : "#22c55e"
-          const dimBorder = side === "bit" ? BIT_DIM_BORDER : side === "coin" ? COIN_DIM_BORDER : "rgba(34,197,94,0.25)"
+          const dimBorder = side === "bit" ? BIT_DIM_BORDER : side === "coin" ? COIN_DIM_BORDER : "rgba(34,197,94,0.4)"
 
           return (
             <button
