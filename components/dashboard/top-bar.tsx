@@ -296,10 +296,10 @@ export function TopBar() {
         {/* 좌측 홈 버튼 */}
         <Link
           href="/"
-          className="p-2 rounded-lg hover:bg-muted transition-colors"
+          className="w-10 h-10 rounded-full bg-green-600 hover:bg-green-700 transition-all duration-300 flex items-center justify-center hover:scale-110"
           aria-label="홈으로 이동"
         >
-          <Home className="w-5 h-5 text-green-500" />
+          <Home className="w-5 h-5 text-white" />
         </Link>
 
         {/* 중앙 잔고 */}
