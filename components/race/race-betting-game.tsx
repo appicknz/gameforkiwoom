@@ -916,24 +916,6 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
 
         {/* BIT / TIE / COIN 버튼 */}
         {renderBaccaratButtons()}
-
-        {/* 타이머 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: "50%",
-            background: `conic-gradient(${timerColor} ${timerPercent}%, rgba(255,255,255,0.06) 0%)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: "50%", background: "rgba(8,20,12,0.98)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 9, fontWeight: 800, color: timerColor,
-            }}>
-              {timeLeft > 60 ? `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, "0")}` : timeLeft}
-            </div>
-          </div>
-          <span style={{ fontSize: 11, fontWeight: 700, color: timerColor }}>{timerLabel}</span>
-        </div>
       </div>
 
       <RaceBetDialog
