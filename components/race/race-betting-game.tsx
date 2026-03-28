@@ -289,7 +289,7 @@ function RaceResultSheet({ result, open, onClose }: { result: RoundResult | null
             <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라운드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight"
               style={{ color: allWon ? G.gold : allLost ? "#ef4444" : "#f97316" }}>
-              {allWon ? "승리!" : allLost ? "패배" : "���분 승리"}
+              {allWon ? "승리!" : allLost ? "패배" : "����분 승리"}
             </p>
             <p className="text-[11px] mt-0.5" style={{ color: G.textDim }}>
               {isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
@@ -917,87 +917,22 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
         {/* BIT / TIE / COIN 버튼 */}
         {renderBaccaratButtons()}
 
-        {/* 방향 배팅 */}
-        <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-          {(["long", "short"] as const).map(dir => {
-            const isSelected = betDirection === dir
-            const meta = LABEL_MAP[dir]
-            return (
-              <button key={dir} onClick={() => openDialog("direction", dir)} disabled={!canBet || isSelected}
-                style={{
-                  height: 44, borderRadius: 10, border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                  background: isSelected ? meta.bg : G.bgMuted, color: isSelected ? meta.color : G.textDim,
-                  fontSize: 12, fontWeight: 700, cursor: canBet && !isSelected ? "pointer" : "default",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  opacity: !canBet ? 0.5 : 1,
-                }}>
-                {dir === "long" ? "↗" : "↘"} {meta.text}
-                {isSelected && betDirectionAmount > 0 && <span style={{ fontSize: 10, opacity: 0.7 }}>₩{betDirectionAmount.toLocaleString()}</span>}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* 오버/언더, 홀/짝 */}
-        <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-          {(["over", "under"] as const).map(opt => {
-            const isSelected = betDigit === opt; const meta = LABEL_MAP[opt]
-            return (
-              <button key={opt} onClick={() => openDialog("digit", opt)} disabled={!canBet || isSelected}
-                style={{
-                  height: 40, borderRadius: 10, border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                  background: isSelected ? meta.bg : G.bgMuted, color: isSelected ? meta.color : G.textDim,
-                  fontSize: 11, fontWeight: 700, cursor: canBet && !isSelected ? "pointer" : "default",
-                  opacity: !canBet ? 0.5 : 1,
-                }}>
-                {meta.text}
-                <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>{opt === "over" ? "5~9" : "0~4"}</span>
-                {isSelected && betDigitAmount > 0 && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 4 }}>₩{betDigitAmount.toLocaleString()}</span>}
-              </button>
-            )
-          })}
-        </div>
-        <div className="grid grid-cols-2 gap-1.5 mb-3">
-          {(["odd", "even"] as const).map(opt => {
-            const isSelected = betParity === opt; const meta = LABEL_MAP[opt]
-            return (
-              <button key={opt} onClick={() => openDialog("parity", opt)} disabled={!canBet || isSelected}
-                style={{
-                  height: 40, borderRadius: 10, border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                  background: isSelected ? meta.bg : G.bgMuted, color: isSelected ? meta.color : G.textDim,
-                  fontSize: 11, fontWeight: 700, cursor: canBet && !isSelected ? "pointer" : "default",
-                  opacity: !canBet ? 0.5 : 1,
-                }}>
-                {meta.text}
-                <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>{opt === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
-                {isSelected && betParityAmount > 0 && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 4 }}>₩{betParityAmount.toLocaleString()}</span>}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* 타이머 + 승패 */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {/* 타이머 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: "50%",
+            background: `conic-gradient(${timerColor} ${timerPercent}%, rgba(255,255,255,0.06) 0%)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
             <div style={{
-              width: 36, height: 36, borderRadius: "50%",
-              background: `conic-gradient(${timerColor} ${timerPercent}%, rgba(255,255,255,0.06) 0%)`,
+              width: 28, height: 28, borderRadius: "50%", background: "rgba(8,20,12,0.98)",
               display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 9, fontWeight: 800, color: timerColor,
             }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%", background: "rgba(8,20,12,0.98)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 9, fontWeight: 800, color: timerColor,
-              }}>
-                {timeLeft > 60 ? `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, "0")}` : timeLeft}
-              </div>
+              {timeLeft > 60 ? `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, "0")}` : timeLeft}
             </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: timerColor }}>{timerLabel}</span>
           </div>
-          <span style={{ fontSize: 12, color: G.goldDim }}>
-            <span style={{ color: "#10b981" }}>{wins}승</span>{" / "}
-            <span style={{ color: "#ef4444" }}>{losses}패</span>
-          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: timerColor }}>{timerLabel}</span>
         </div>
       </div>
 
