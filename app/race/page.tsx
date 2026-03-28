@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import { TopBar } from "@/components/dashboard/top-bar"
 import { useRaceGame } from "@/components/race/race-game"
 import { RaceScoreboard } from "@/components/race/race-scoreboard"
 import { RaceBettingGame } from "@/components/race/race-betting-game"
@@ -190,10 +189,6 @@ export default function RacePage() {
       className="min-h-screen font-sans"
       style={{ background: "radial-gradient(ellipse at 50% 30%, #0f1a2a 0%, #080d15 60%, #050a0d 100%)" }}
     >
-      <div style={{ background: "rgba(5,10,13,0.95)", borderBottom: "1px solid rgba(212,175,55,0.12)" }}>
-        <TopBar />
-      </div>
-
       <main className="max-w-7xl mx-auto p-3 md:p-5">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 

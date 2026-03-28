@@ -3,7 +3,6 @@
 import { useState, useCallback, useRef, useEffect } from "react"
 import BaccaratGame, { BigRoad, type RoadResult } from "@/components/baka/baccarat-game"
 import { BakaBettingGame } from "@/components/baka/baka-betting-game"
-import { TopBar } from "@/components/dashboard/top-bar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
 import { ProjectAnalytics } from "@/components/dashboard/project-analytics"
@@ -231,11 +230,6 @@ export default function BakaPage() {
       className="min-h-screen font-sans"
       style={{ background: "radial-gradient(ellipse at 50% 30%, #0f2a1a 0%, #081510 60%, #050d0a 100%)" }}
     >
-      {/* TopBar */}
-      <div style={{ background: "rgba(5,13,10,0.95)", borderBottom: "1px solid rgba(212,175,55,0.12)" }}>
-        <TopBar />
-      </div>
-
       <main className="max-w-7xl mx-auto p-3 md:p-5">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
