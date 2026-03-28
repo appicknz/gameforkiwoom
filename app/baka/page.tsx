@@ -194,7 +194,7 @@ export default function BakaPage() {
   const handleRoadChange = useCallback((history: RoadResult[], round: number) => {
     setRoadState({ history, round })
   }, [])
-  const [gameStatus, setGameStatus] = useState<{ timeLeft: number; phase: "betting" | "waiting" | "result" | "dealing" }>({ timeLeft: 15, phase: "betting" })
+  const [gameStatus, setGameStatus] = useState<{ timeLeft: number; phase: "betting" | "waiting" | "result" | "dealing" }>({ timeLeft: 30, phase: "betting" })
   const handleStatusChange = useCallback((timeLeft: number, phase: "betting" | "waiting" | "result" | "dealing") => {
     setGameStatus({ timeLeft, phase })
   }, [])

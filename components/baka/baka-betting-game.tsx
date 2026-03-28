@@ -337,7 +337,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카����� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  비트바카���� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -685,11 +685,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       const now = Math.floor(Date.now() / 1000)
       const rem = 30 - (now % 30)
       const roundNum = Math.floor(now / 30)
-      
-      // 페이즈별 독립 타이머: 배팅 가능 (15~30초 = 15초), 딜링 중 (0~15초 = 15초)
-      const phaseTimer = rem > 15 ? rem - 15 : rem
-      
-      setTimeLeft(phaseTimer)
+      setTimeLeft(rem)
       roundRef.current = roundNum
       setRoundNumber(roundNum)
 

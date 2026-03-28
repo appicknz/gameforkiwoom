@@ -702,7 +702,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     onCardsChange?.({ playerCards: state.playerCards, bankerCards: state.bankerCards, pScore, bScore, result: state.result, finalCard: state.finalCard ?? null })
   }, [state.playerCards, state.bankerCards, state.result, pScore, bScore, onCardsChange])
 
-  const lastDigit = Math.floor(state.priceDisplay * 100) % 10
+  const lastDigit = Math.floor(state.priceDisplay) % 10
 
   return (
     <div
