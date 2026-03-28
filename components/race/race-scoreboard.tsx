@@ -52,12 +52,13 @@ function OrbitTrack({
   leading: "bit" | "coin" | "tie"
 }) {
   const isRacing = phase === "racing"
-  const color = leading === "bit" ? BIT_COLOR : leading === "coin" ? COIN_COLOR : GOLD
-  const icon = leading === "bit" ? "₿" : leading === "coin" ? "◎" : "="
-
-  // 30초마다 한 바퀴 (240초 = 8바퀴)
+  // 10초마다 한 바퀴
   const elapsed = isRacing ? Math.max(0, 240 - timeLeft) : 0
-  const progress = (elapsed % 30) / 30 // 0→1, 30초마다 리셋
+  const progress = (elapsed % 10) / 10 // 0→1, 10초마다 리셋
+
+  // BIT 아이콘은 progress, COIN 아이콘은 반대편(+0.5)
+  const progressCoin = (progress + 0.5) % 1
+
 
   // SVG 경로: 외곽 rect (상단 가운데 12시 방향 시작, 시계방향)
   // viewBox는 실제 컴포넌트 크기와 무관하게 100×100으로 정규화
@@ -132,7 +133,8 @@ function OrbitTrack({
     return { x: r + d, y: 0 }
   }
 
-  const iconPos = getPoint(progress)
+  const bitPos = getPoint(progress)
+  const coinPos = getPoint(progressCoin)
 
   return (
     <div style={{
@@ -147,52 +149,60 @@ function OrbitTrack({
         preserveAspectRatio="none"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
       >
-        {/* 배경 점선 트랙 */}
+        {/* 배경 점선 트랙만 — 진행선 없음 */}
         <path
           d={pathD}
           fill="none"
-          stroke={`${color}28`}
-          strokeWidth="0.8"
-          strokeDasharray="3 2"
+          stroke="rgba(255,255,255,0.08)"
+          strokeWidth="0.6"
+          strokeDasharray="2 3"
         />
-        {/* 진행된 트랙 (밝은 색) */}
-        {isRacing && progress > 0 && (
-          <path
-            d={pathD}
-            fill="none"
-            stroke={color}
-            strokeWidth="1.2"
-            strokeDasharray={`${perimeter} ${perimeter}`}
-            strokeDashoffset={dashOffset}
-            strokeLinecap="round"
-            style={{ transition: "stroke-dashoffset 0.9s linear" }}
-          />
-        )}
       </svg>
 
-      {/* 아이콘: viewBox 좌표 → % 로 환산하여 배치 */}
+      {/* BIT 아이콘 */}
       {isRacing && (
         <div style={{
           position: "absolute",
-          left: `${iconPos.x}%`,
-          top: `${iconPos.y}%`,
+          left: `${bitPos.x}%`,
+          top: `${bitPos.y}%`,
           transform: "translate(-50%, -50%)",
-          width: 26,
-          height: 26,
+          width: 18,
+          height: 18,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           borderRadius: "50%",
-          background: color,
-          fontSize: 12,
+          background: BIT_COLOR,
+          fontSize: 9,
           fontWeight: 900,
           color: "#fff",
-          boxShadow: `0 0 14px ${color}, 0 0 4px ${color}`,
+          boxShadow: `0 0 8px ${BIT_COLOR}`,
           transition: "left 0.9s linear, top 0.9s linear",
           zIndex: 3,
-        }}>
-          {icon}
-        </div>
+        }}>₿</div>
+      )}
+
+      {/* COIN 아이콘 (반대편) */}
+      {isRacing && (
+        <div style={{
+          position: "absolute",
+          left: `${coinPos.x}%`,
+          top: `${coinPos.y}%`,
+          transform: "translate(-50%, -50%)",
+          width: 18,
+          height: 18,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: "50%",
+          background: COIN_COLOR,
+          fontSize: 9,
+          fontWeight: 900,
+          color: "#fff",
+          boxShadow: `0 0 8px ${COIN_COLOR}`,
+          transition: "left 0.9s linear, top 0.9s linear",
+          zIndex: 3,
+        }}>◎</div>
       )}
     </div>
   )
