@@ -40,41 +40,156 @@ function AnimatedScore({ value, color }: { value: number; color: string }) {
   )
 }
 
-// 트랙 아이콘: 스코어 컴포넌트 둘레를 이기는 팀 아이콘이 한 바퀴 도는 애니메이션
+// SVG 외곽 트랙: 전체 컴포넌트 테두리를 따라 아이콘이 한 바퀴
+// 레이싱 240초 기준, 상단 가운데(12시 방향)에서 출발 → 시계방향
 function OrbitTrack({
   phase,
-  secondsInRound,
+  timeLeft,
   leading,
 }: {
   phase: string
-  secondsInRound: number
+  timeLeft: number
   leading: "bit" | "coin" | "tie"
 }) {
-  const isActive = phase === "racing" || phase === "betting"
+  const isRacing = phase === "racing"
   const color = leading === "bit" ? BIT_COLOR : leading === "coin" ? COIN_COLOR : GOLD
   const icon = leading === "bit" ? "₿" : leading === "coin" ? "◎" : "="
-  const angleDeg = isActive ? (secondsInRound / 300) * 360 : 0
+
+  // 240초 중 경과 비율 (0→1)
+  const elapsed = isRacing ? Math.max(0, 240 - timeLeft) : 0
+  const progress = elapsed / 240 // 0=출발, 1=한바퀴 완료
+
+  // SVG 경로: 외곽 rect (상단 가운데 12시 방향 시작, 시계방향)
+  // viewBox는 실제 컴포넌트 크기와 무관하게 100×100으로 정규화
+  // r=18 (border-radius 약 20px)
+  const r = 8 // rounded corner radius (normalized)
+  const W = 100, H = 100
+
+  // 직사각형 둘레 길이 (r 코너 포함)
+  // 상단 가운데(50, 0)에서 시계방향: 오른쪽→하단→왼쪽→상단 복귀
+  // motion-path: 'M 50 0 L (W-r) 0 Q W 0 W r L W (H-r) Q W H (W-r) H L r H Q 0 H 0 (H-r) L 0 r Q 0 0 r 0 Z'
+  // stroke-dashoffset으로 진행도 표현
+  const pathD = `M 50 0 L ${W - r} 0 Q ${W} 0 ${W} ${r} L ${W} ${H - r} Q ${W} ${H} ${W - r} ${H} L ${r} ${H} Q 0 ${H} 0 ${H - r} L 0 ${r} Q 0 0 ${r} 0 Z`
+
+  // 둘레 길이 근사치 (직선 + 코너)
+  const perimeter = 2 * (W - 2 * r) + 2 * (H - 2 * r) + 2 * Math.PI * r
+  const dashOffset = perimeter * (1 - progress)
+
+  // 아이콘 위치: progress에 따라 경로 위 좌표 계산
+  // 상단 직선(50→W-r), 오른쪽 코너, 오른쪽 수직, 하단 코너, 하단 직선, 좌측 코너, 좌측 수직, 상단 코너, 상단 직선(r→50)
+  function getPoint(t: number): { x: number; y: number; } {
+    // 각 세그먼트 길이
+    const topRight = W - r - 50       // 50→(W-r)
+    const cornerTR = (Math.PI / 2) * r
+    const rightV = H - 2 * r
+    const cornerBR = (Math.PI / 2) * r
+    const bottomL = W - 2 * r
+    const cornerBL = (Math.PI / 2) * r
+    const leftV = H - 2 * r
+    const cornerTL = (Math.PI / 2) * r
+    const topLeft = W - r - 50        // r→50
+
+    const total = topRight + cornerTR + rightV + cornerBR + bottomL + cornerBL + leftV + cornerTL + topLeft
+    let d = t * total
+
+    // 1. 상단 우측 직선
+    if (d <= topRight) return { x: 50 + d, y: 0 }
+    d -= topRight
+    // 2. 오른쪽 상단 코너 (90도, 시계방향)
+    if (d <= cornerTR) {
+      const a = -Math.PI / 2 + (d / cornerTR) * (Math.PI / 2)
+      return { x: W - r + Math.cos(a) * r, y: r + Math.sin(a) * r }
+    }
+    d -= cornerTR
+    // 3. 오른쪽 수직
+    if (d <= rightV) return { x: W, y: r + d }
+    d -= rightV
+    // 4. 오른쪽 하단 코너
+    if (d <= cornerBR) {
+      const a = 0 + (d / cornerBR) * (Math.PI / 2)
+      return { x: W - r + Math.cos(a) * r, y: H - r + Math.sin(a) * r }
+    }
+    d -= cornerBR
+    // 5. 하단 수평
+    if (d <= bottomL) return { x: W - r - d, y: H }
+    d -= bottomL
+    // 6. 왼쪽 하단 코너
+    if (d <= cornerBL) {
+      const a = Math.PI / 2 + (d / cornerBL) * (Math.PI / 2)
+      return { x: r + Math.cos(a) * r, y: H - r + Math.sin(a) * r }
+    }
+    d -= cornerBL
+    // 7. 왼쪽 수직
+    if (d <= leftV) return { x: 0, y: H - r - d }
+    d -= leftV
+    // 8. 왼쪽 상단 코너
+    if (d <= cornerTL) {
+      const a = Math.PI + (d / cornerTL) * (Math.PI / 2)
+      return { x: r + Math.cos(a) * r, y: r + Math.sin(a) * r }
+    }
+    d -= cornerTL
+    // 9. 상단 좌측 직선
+    return { x: r + d, y: 0 }
+  }
+
+  const iconPos = getPoint(progress)
 
   return (
-    <div style={{ position: "absolute", inset: -3, pointerEvents: "none", borderRadius: 23, zIndex: 2 }}>
-      <div style={{
-        position: "absolute", inset: 0, borderRadius: 23,
-        border: `1.5px dashed ${isActive ? `${color}44` : "rgba(255,255,255,0.06)"}`,
-        transition: "border-color 0.5s",
-      }} />
-      {isActive && (
+    <div style={{
+      position: "absolute",
+      inset: -2,
+      pointerEvents: "none",
+      zIndex: 2,
+      borderRadius: 20,
+    }}>
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+      >
+        {/* 배경 점선 트랙 */}
+        <path
+          d={pathD}
+          fill="none"
+          stroke={`${color}28`}
+          strokeWidth="0.8"
+          strokeDasharray="3 2"
+        />
+        {/* 진행된 트랙 (밝은 색) */}
+        {isRacing && progress > 0 && (
+          <path
+            d={pathD}
+            fill="none"
+            stroke={color}
+            strokeWidth="1.2"
+            strokeDasharray={`${perimeter} ${perimeter}`}
+            strokeDashoffset={dashOffset}
+            strokeLinecap="round"
+            style={{ transition: "stroke-dashoffset 0.9s linear" }}
+          />
+        )}
+      </svg>
+
+      {/* 아이콘: viewBox 좌표 → % 로 환산하여 배치 */}
+      {isRacing && (
         <div style={{
           position: "absolute",
-          top: "50%", left: "50%",
-          width: 26, height: 26,
-          marginLeft: -13, marginTop: -13,
-          display: "flex", alignItems: "center", justifyContent: "center",
+          left: `${iconPos.x}%`,
+          top: `${iconPos.y}%`,
+          transform: "translate(-50%, -50%)",
+          width: 26,
+          height: 26,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           borderRadius: "50%",
           background: color,
-          fontSize: 12, fontWeight: 900, color: "#fff",
-          boxShadow: `0 0 10px ${color}`,
-          transform: `rotate(${angleDeg}deg) translateX(calc(50% + 2px))`,
-          transition: "transform 1s linear",
+          fontSize: 12,
+          fontWeight: 900,
+          color: "#fff",
+          boxShadow: `0 0 14px ${color}, 0 0 4px ${color}`,
+          transition: "left 0.9s linear, top 0.9s linear",
+          zIndex: 3,
         }}>
           {icon}
         </div>
@@ -207,8 +322,8 @@ export function RaceScoreboard({ state }: Props) {
       boxSizing: "border-box",
       overflow: "hidden",
     }}>
-      {/* 트랙 아이콘 */}
-      <OrbitTrack phase={phase} secondsInRound={secondsInRound} leading={leading} />
+      {/* 외곽 트랙 아이콘: 레이싱 240초 한 바퀴, 상단 가운데 출발 */}
+      <OrbitTrack phase={phase} timeLeft={timeLeft} leading={leading} />
 
       {/* 스코어 + 타이머 */}
       <div style={{
