@@ -8,7 +8,7 @@ const FEE_RATE = 0.20
 const MIN_ODDS = 1.05
 const MAX_ODDS = 9.0
 
-function getMode(userCount: number) {
+function getMode(userCount) {
   if (userCount >= 10) return "pari"
   if (userCount >= 3) return "hybrid"
   return "lp-dominant"
