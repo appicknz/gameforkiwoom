@@ -288,27 +288,6 @@ export function RaceScoreboard({ state }: Props) {
         </div>
       </div>
 
-      {/* 현재 기준 가격 */}
-      {lastPrice && (
-        <div style={{
-          textAlign: "center",
-          fontSize: 12,
-          color: GOLD_DIM,
-          fontVariantNumeric: "tabular-nums",
-        }}>
-          기준가: <span style={{ color: GOLD, fontWeight: 700 }}>
-            ${lastPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
-          {lastBitDigit !== null && (
-            <span style={{ marginLeft: 8 }}>
-              <span style={{ color: BIT_COLOR }}>BIT+{lastBitDigit}</span>
-              <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 4px" }}>/</span>
-              <span style={{ color: COIN_COLOR }}>COIN+{lastCoinDigit}</span>
-            </span>
-          )}
-        </div>
-      )}
-
       {/* 결과 배너 */}
       {phase === "result" && winner && (
         <div style={{
