@@ -7,7 +7,8 @@
  * - 잔고: balance:update 커스텀 이벤트로 betting-game과 동기화
  */
 
-import { Menu, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield, GitBranch } from "lucide-react"
+import { Home, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield, GitBranch } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState, useEffect, useRef } from "react"
@@ -292,14 +293,14 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
       <div className="flex h-14 items-center justify-between px-4">
-        {/* 좌측 햄버거 */}
-        <button
-          onClick={() => setMenuOpen(v => !v)}
+        {/* 좌측 홈 버튼 */}
+        <Link
+          href="/"
           className="p-2 rounded-lg hover:bg-muted transition-colors"
-          aria-label="메뉴"
+          aria-label="홈으로 이동"
         >
-          {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+          <Home className="w-5 h-5" />
+        </Link>
 
         {/* 중앙 잔고 */}
         <button className="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full hover:bg-primary/20 transition-colors">

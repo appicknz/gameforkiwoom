@@ -22,7 +22,7 @@ export default function DashboardPage() {
       id: "chartchart",
       name: "차트차트",
       description: "비트코인 끝자리 배팅",
-      href: "#",
+      href: "/race",
       icon: "⚽",
       gradient: "from-green-600 to-emerald-500",
       users: "19,025",
