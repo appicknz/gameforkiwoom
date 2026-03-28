@@ -258,7 +258,7 @@ function VerticalTimer({
       gap: 6,
       flexShrink: 0,
     }}>
-      {/* 세로 막대 — 아래에서부터 사라짐: 시간이 줄어들수록 아래부터 빈칸 생김 (모래시계) */}
+      {/* 세로 막대 — 위에서부터 사라짐: 시간이 줄어들수록 위부터 빈칸 생김 (모래시계) */}
       <div style={{
         width: 6,
         height: 80,
@@ -267,9 +267,9 @@ function VerticalTimer({
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "flex-start",
+        justifyContent: "flex-end",
       }}>
-        {/* 아래에서부터 사라짐: 시간이 줄어들수록 아래쪽 빈칸이 커짐 */}
+        {/* 위에서부터 사라짐: 시간이 줄어들수록 위쪽 빈칸이 커짐 */}
         <div style={{
           width: "100%",
           height: `${pct * 100}%`,
