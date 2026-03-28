@@ -312,11 +312,11 @@ export function TopBar() {
         <div className="flex items-center gap-2" ref={dropdownRef}>
           <button
             onClick={() => setDropdownOpen(v => !v)}
-            className="flex items-center gap-2 p-1 rounded-full hover:bg-muted transition-colors"
+            className="flex items-center gap-2 rounded-full hover:scale-110 transition-all duration-300"
             aria-label="프로필"
           >
-            <Avatar className="w-8 h-8 bg-primary">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
+            <Avatar className="w-10 h-10 bg-green-600">
+              <AvatarFallback className="bg-green-600 text-white text-xs font-bold">
                 {initials}
               </AvatarFallback>
             </Avatar>
