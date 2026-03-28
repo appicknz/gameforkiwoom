@@ -244,9 +244,6 @@ export default function BakaPage() {
             {/* 헤더: 기준가 왼쪽, 뱅커/플레이어 끝자리 오른쪽 (/race 스타일) */}
             <BakaHeader />
 
-            {/* 실시간 가격 바 */}
-            <BakaLivePriceBar />
-
             {/* BigRoad */}
             <style>{`@keyframes cardDeal{from{opacity:0;transform:rotateY(90deg)}to{opacity:1;transform:rotateY(0deg)}}@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.6)}}`}</style>
             <div style={{

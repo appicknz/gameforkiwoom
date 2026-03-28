@@ -737,10 +737,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         <BitcoinChart />
       </div>
 
-      {/* 30초 마감 기준가 */}
-      <div style={{ padding: "0 12px 12px" }}>
-        <ClosingPrices />
-      </div>
+
 
     </div>
   )
