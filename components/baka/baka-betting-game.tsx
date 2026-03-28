@@ -337,7 +337,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카�� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  비트바카��� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -649,7 +649,7 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
         settle(serverBacResult)
       }, 1200)
     } else {
-      settle(null)  // 즉시 정산 (바카라 외 ���목)
+      settle(null)  // 즉시 정산 (바���라 외 ���목)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onFinalDigitTrigger])
@@ -1098,9 +1098,9 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
               const payout = side === "player" ? "1:1" : side === "banker" ? "0.95:1" : "8:1"
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
-              const solidBg = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
-              const dimBg = side === "banker" ? "#7f1d1d" : side === "tie" ? "#14532d" : "#1e3a8a"
-              const dimBorder = side === "banker" ? "#b91c1c" : side === "tie" ? "#15803d" : "#1d4ed8"
+              const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"
+              const dimBg = side === "banker" ? "rgba(239,68,68,0.15)" : side === "tie" ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.15)"
+              const dimBorder = side === "banker" ? "rgba(239,68,68,0.4)" : side === "tie" ? "rgba(34,197,94,0.4)" : "rgba(59,130,246,0.4)"
               return (
                 <button key={side}
                   onClick={() => openDialog("baccarat", side)}
@@ -1125,101 +1125,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
           </div>
         </div>
 
-        {/* ── 기존 6종목 ── */}
-        <div className="grid grid-cols-3 gap-1.5">
-          {/* 롱 / 숏 */}
-          <div className="flex flex-col gap-1.5">
-            {(["long", "short"] as const).map((dir) => {
-              const meta = LABEL_MAP[dir]
-              const isSelected = betDirection === dir
-              return (
-                <button key={dir}
-                  onClick={() => openDialog("direction", dir)}
-                  disabled={!canBet || betDirection !== null}
-                  className="h-10 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
-                  style={{
-                    background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
-                    border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                    color: isSelected ? meta.color : G.gold,
-                  }}>
-                  <div className="flex items-center gap-1">
-                    {dir === "long" ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                    <span>{dir === "long" ? "롱" : "숏"}</span>
-                  </div>
-                  {isSelected && betDirectionAmount > 0 && (
-                    <span className="text-[9px]">
-                      ₩{betDirectionAmount >= 10000 ? `${betDirectionAmount / 10000}만` : betDirectionAmount.toLocaleString()}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* 오버 / 언더 */}
-          <div className="flex flex-col gap-1.5">
-            {(["over", "under"] as const).map((dig) => {
-              const meta = LABEL_MAP[dig]
-              const isSelected = betDigit === dig
-              return (
-                <button key={dig}
-                  onClick={() => openDialog("digit", dig)}
-                  disabled={!canBet || betDigit !== null}
-                  className="h-10 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
-                  style={{
-                    background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
-                    border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                    color: isSelected ? meta.color : G.gold,
-                  }}>
-                  <span>{dig === "over" ? "오버" : "언더"}</span>
-                  <span className="text-[9px] opacity-60">{dig === "over" ? "5~9" : "0~4"}</span>
-                  {isSelected && betDigitAmount > 0 && (
-                    <span className="text-[9px]">
-                      ₩{betDigitAmount >= 10000 ? `${betDigitAmount / 10000}만` : betDigitAmount.toLocaleString()}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* 홀 / 짝 */}
-          <div className="flex flex-col gap-1.5">
-            {(["odd", "even"] as const).map((par) => {
-              const meta = LABEL_MAP[par]
-              const isSelected = betParity === par
-              return (
-                <button key={par}
-                  onClick={() => openDialog("parity", par)}
-                  disabled={!canBet || betParity !== null}
-                  className="h-10 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
-                  style={{
-                    background: isSelected ? meta.bg : "rgba(212,175,55,0.04)",
-                    border: `1px solid ${isSelected ? meta.border : G.goldBorder}`,
-                    color: isSelected ? meta.color : G.gold,
-                  }}>
-                  <span>{par === "odd" ? "홀" : "짝"}</span>
-                  <span className="text-[9px] opacity-60">{par === "odd" ? "1·3·5·7·9" : "0·2·4·6·8"}</span>
-                  {isSelected && betParityAmount > 0 && (
-                    <span className="text-[9px]">
-                      ₩{betParityAmount >= 10000 ? `${betParityAmount / 10000}만` : betParityAmount.toLocaleString()}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* 하단: 잔고 + 승패 */}
-        <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${G.goldBorder}` }}>
-          <span />
-          <span className="text-[11px]">
-            <span className="font-semibold" style={{ color: G.gold }}>{wins}승</span>
-            <span style={{ color: G.textDim }}> / </span>
-            <span className="font-semibold text-red-500">{losses}패</span>
-          </span>
-        </div>
       </div>
 
       {/* 다이얼로그 + 결과 시트 */}
