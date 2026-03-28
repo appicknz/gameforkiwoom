@@ -754,21 +754,21 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
               key={side}
               onClick={() => openDialog("race", side)}
               disabled={!canBet}
+              className="rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
               style={{
                 height: 64,
-                borderRadius: 12,
                 border: `2px solid ${isSelected ? solidColor : dimBorder}`,
                 background: isSelected ? solidBg : dimBg,
                 color: "#fff",
                 cursor: canBet ? "pointer" : "default",
-                opacity: !canBet ? 0.5 : 1,
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
               }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? "#fff" : solidColor }}>{label}</span>
+              <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.03em" }}>{label}</span>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
               {betRaceAmount > 0 && isSelected && (
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>₩{betRaceAmount.toLocaleString()}</span>
+                <span style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>
+                  ₩{betRaceAmount >= 10000 ? `${betRaceAmount / 10000}만` : betRaceAmount.toLocaleString()}
+                </span>
               )}
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>{payout}</span>
             </button>
           )
         })}

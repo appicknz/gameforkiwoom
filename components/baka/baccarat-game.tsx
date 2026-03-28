@@ -153,7 +153,15 @@ export function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
 
 const DISPLAY_LIMIT = 18 // 슬라이딩 윈도우 최대 표시 개수
 
-export function BigRoad({ history, round }: { history: RoadResult[]; round: number }) {
+export function BigRoad({
+  history,
+  round,
+  colorMap,
+}: {
+  history: RoadResult[]
+  round: number
+  colorMap?: { banker: string; player: string; statBanker?: string; statPlayer?: string }
+}) {
   // 18개 슬라이딩 윈도우: 18개 초과 시 맨 앞 잘라내기
   const displayHistory = history.length > DISPLAY_LIMIT ? history.slice(-DISPLAY_LIMIT) : history
 
@@ -247,8 +255,8 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
             <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,213,163,0.7)" }}>
               #{round}
             </span>
-            <StatChip color="#3b82f6" label="P" count={pCount} />
-            <StatChip color="#ef4444" label="B" count={bCount} />
+            <StatChip color={colorMap?.statPlayer ?? colorMap?.player ?? "#3b82f6"} label="P" count={pCount} />
+            <StatChip color={colorMap?.statBanker ?? colorMap?.banker ?? "#ef4444"} label="B" count={bCount} />
             <StatChip color="#22c55e" label="T" count={tCount} />
           </div>
         </div>
@@ -318,7 +326,9 @@ export function BigRoad({ history, round }: { history: RoadResult[]; round: numb
 
             {/* 결과 원 */}
             {cells.map((cell, i) => {
-              const color = cell.result === "banker" ? "#ef4444" : "#3b82f6"
+              const bankerColor = colorMap?.banker ?? "#ef4444"
+              const playerColor = colorMap?.player ?? "#3b82f6"
+              const color = cell.result === "banker" ? bankerColor : playerColor
               const isLatest = i === cells.length - 1
               return (
                 <div

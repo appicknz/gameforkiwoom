@@ -263,7 +263,11 @@ export default function RacePage() {
               borderRadius: 16,
               padding: "12px",
             }}>
-              <BigRoad history={roadState.history} round={roadState.round} />
+              <BigRoad
+                history={roadState.history}
+                round={roadState.round}
+                colorMap={{ banker: BIT_COLOR, player: COIN_COLOR }}
+              />
             </div>
 
             {/* 스코어보드 */}
