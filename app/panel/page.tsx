@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon, Film, TrendingDown, TrendingUp, Download } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon, Film, TrendingDown, TrendingUp, Download, Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
+import { RoundMonitor } from "@/components/admin/round-monitor"
 
 const SUPER_ROLES = ["master", "super_admin"]
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
@@ -93,7 +94,7 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "lp" | "house" | "cards" | "videos">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "lp" | "house" | "monitor" | "cards" | "videos">("users")
 
   // 카드 이미지 관리
   interface CardImage { url: string; pathname: string; uploadedAt: string }
@@ -394,7 +395,7 @@ export default function PanelPage() {
     })
     const data = await res.json()
     if (!res.ok) {
-      setChargeMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
+      setChargeMsg({ text: data.error ?? "��류가 발생했습니다.", ok: false })
     } else {
       setChargeMsg({ text: `잔고가 ${delta > 0 ? "충전" : "차감"}됐습니다.`, ok: true })
       setChargeAmount("")
@@ -572,6 +573,14 @@ export default function PanelPage() {
             }`}
           >
             <TrendingDown className="w-4 h-4" /> 하우스 손익
+          </button>
+          <button
+            onClick={() => setActiveTab("monitor")}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "monitor" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Activity className="w-4 h-4" /> 라운드 모니터
           </button>
           {isSuperAdmin && (
             <button
@@ -1113,6 +1122,13 @@ export default function PanelPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 라운드 모니터 탭 */}
+      {activeTab === "monitor" && (
+        <div className="space-y-5">
+          <RoundMonitor />
         </div>
       )}
 
