@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon, Film, TrendingDown, TrendingUp, Download, Activity } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon, Film, TrendingDown, Download, Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -559,22 +559,6 @@ export default function PanelPage() {
             </button>
           )}
           <button
-            onClick={() => { setActiveTab("lp"); loadLpHistory() }}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "lp" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Wallet className="w-4 h-4" /> LP 히스토리
-          </button>
-          <button
-            onClick={() => { setActiveTab("house"); loadHouseStats() }}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "house" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <TrendingDown className="w-4 h-4" /> 하우스 손익
-          </button>
-          <button
             onClick={() => setActiveTab("monitor")}
             className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === "monitor" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
@@ -918,7 +902,7 @@ export default function PanelPage() {
             </div>
           </>
         )}
-      {/* LP 히스토리 탭 */}
+      {/* LP 히스토리 탭 - 라운드 모니터로 통합됨 */}
       {activeTab === "lp" && (
         <div className="space-y-4">
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
@@ -1125,10 +1109,10 @@ export default function PanelPage() {
         </div>
       )}
 
-      {/* 라운드 모니터 탭 */}
+      {/* 라운드 모니터 탭 (LP 히스토리 + 하우스 손익 통합) */}
       {activeTab === "monitor" && (
         <div className="space-y-5">
-          <RoundMonitor />
+          <RoundMonitor isSuperAdmin={isSuperAdmin} branches={branches} />
         </div>
       )}
 
