@@ -109,6 +109,8 @@ export function RoundMonitor() {
     mode: "lp-dominant" as const,
     prediction: {},
   }
+
+  return (
     <div className="space-y-5">
       {/* 게임 선택 탭 */}
       <div className="flex gap-2">
