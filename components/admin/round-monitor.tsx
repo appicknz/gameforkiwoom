@@ -254,6 +254,7 @@ export function RoundMonitor() {
             </div>
           </div>
         )}
+      </Card>
 
       {/* 참고: 이 모니터는 예상치이며, 실제 결과는 다를 수 있음 */}
       <p className="text-xs text-muted-foreground bg-muted rounded-lg p-3">
