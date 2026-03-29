@@ -56,14 +56,30 @@ export function RoundMonitor() {
 
   useEffect(() => {
     loadStats()
-    const iv = setInterval(loadStats, 2000) // 2초 주기 갱신
+    const iv = setInterval(loadStats, 2000)
     return () => clearInterval(iv)
   }, [gameType])
 
-  if (!stats) {
+  const handleRefresh = () => {
+    setLoading(true)
+    loadStats()
+  }
+
+  if (loading && !stats) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
         데이터 로딩 중...
+      </div>
+    )
+  }
+
+  if (!stats) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-sm text-muted-foreground mb-4">데이터를 불러올 수 없습니다.</p>
+        <Button onClick={handleRefresh} size="sm" variant="outline">
+          <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> 다시 시도
+        </Button>
       </div>
     )
   }
@@ -81,7 +97,18 @@ export function RoundMonitor() {
         { key: "tie", label: "TIE", color: "text-amber-500" },
       ]
 
-  return (
+  // stats 없으면 빈 상태로 기본 UI 표시
+  const displayStats = stats || {
+    round: String(Math.floor(Date.now() / 1000 / 30)),
+    gameType,
+    timestamp: new Date().toISOString(),
+    pools: isBaccarat ? { player: 0, banker: 0, tie: 0 } : { bit: 0, coin: 0, tie: 0 },
+    userCount: 0,
+    totalBet: 0,
+    lpAmount: 0,
+    mode: "lp-dominant" as const,
+    prediction: {},
+  }
     <div className="space-y-5">
       {/* 게임 선택 탭 */}
       <div className="flex gap-2">
@@ -115,17 +142,17 @@ export function RoundMonitor() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-xs text-muted-foreground">현재 라운드</p>
-            <p className="text-2xl font-bold text-foreground">#{stats.round}</p>
+            <p className="text-2xl font-bold text-foreground">#{displayStats.round}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-muted-foreground">모드</p>
             <p className={`text-lg font-semibold ${
-              stats.mode === "pari" ? "text-emerald-500" : 
-              stats.mode === "hybrid" ? "text-amber-500" : 
+              displayStats.mode === "pari" ? "text-emerald-500" : 
+              displayStats.mode === "hybrid" ? "text-amber-500" : 
               "text-blue-500"
             }`}>
-              {stats.mode === "pari" ? "파리뮤추얼" : 
-               stats.mode === "hybrid" ? "하이브리드" : 
+              {displayStats.mode === "pari" ? "파리뮤추얼" : 
+               displayStats.mode === "hybrid" ? "하이브리드" : 
                "LP 주도"}
             </p>
           </div>
@@ -133,24 +160,24 @@ export function RoundMonitor() {
         <div className="grid grid-cols-4 gap-3 text-sm">
           <div className="bg-background rounded-lg p-3">
             <p className="text-muted-foreground text-xs">참여 유저</p>
-            <p className="font-bold text-lg text-foreground mt-1">{stats.userCount}</p>
+            <p className="font-bold text-lg text-foreground mt-1">{displayStats.userCount}</p>
           </div>
           <div className="bg-background rounded-lg p-3">
             <p className="text-muted-foreground text-xs">총 배팅액</p>
             <p className="font-bold text-lg text-foreground tabular-nums mt-1">
-              ₩{stats.totalBet.toLocaleString()}
+              ₩{displayStats.totalBet.toLocaleString()}
             </p>
           </div>
           <div className="bg-background rounded-lg p-3">
             <p className="text-muted-foreground text-xs">시스템 LP</p>
             <p className="font-bold text-lg text-blue-500 tabular-nums mt-1">
-              ₩{stats.lpAmount.toLocaleString()}
+              ₩{displayStats.lpAmount.toLocaleString()}
             </p>
           </div>
           <div className="bg-background rounded-lg p-3">
             <p className="text-muted-foreground text-xs">시간</p>
             <p className="font-bold text-lg text-foreground tabular-nums mt-1">
-              {new Date(stats.timestamp).toLocaleTimeString("ko-KR", { second: "2-digit" })}
+              {new Date(displayStats.timestamp).toLocaleTimeString("ko-KR", { second: "2-digit" })}
             </p>
           </div>
         </div>
@@ -161,9 +188,9 @@ export function RoundMonitor() {
         <h3 className="text-sm font-semibold text-foreground mb-4">배팅 방향별 집계</h3>
         <div className="space-y-3">
           {sides.map(({ key, label, color }) => {
-            const bet = (stats.pools as Record<string, number>)[key] || 0
-            const profit = (stats.prediction as Record<string, number>)[`${key}Profit`] || 0
-            const percentage = stats.totalBet > 0 ? ((bet / stats.totalBet) * 100).toFixed(1) : "0.0"
+            const bet = (displayStats.pools as Record<string, number>)[key] || 0
+            const profit = (displayStats.prediction as Record<string, number>)[`${key}Profit`] || 0
+            const percentage = displayStats.totalBet > 0 ? ((bet / displayStats.totalBet) * 100).toFixed(1) : "0.0"
             return (
               <div key={key} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <div className="flex-1">
@@ -184,7 +211,7 @@ export function RoundMonitor() {
                       className={`h-full flex items-center justify-end pr-2 transition-all ${
                         profit >= 0 ? "bg-emerald-500/20" : "bg-red-500/20"
                       }`}
-                      style={{ width: `${Math.min(100, (bet / (stats.totalBet / 100)) || 0)}%` }}
+                      style={{ width: `${Math.min(100, (bet / (displayStats.totalBet / 100)) || 0)}%` }}
                     >
                       {bet > 0 && <span className="text-xs font-bold">{percentage}%</span>}
                     </div>
@@ -201,25 +228,30 @@ export function RoundMonitor() {
         <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
           <TrendingUp className="w-4 h-4" /> 예상 손익 시나리오
         </h3>
-        <div className="bg-background rounded-lg p-4 space-y-2 text-sm">
-          <p className="text-muted-foreground">
-            각 사이드별 우승 시 시스템의 손익:
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            {sides.map(({ key, label }) => {
-              const profit = (stats.prediction as Record<string, number>)[`${key}Profit`] || 0
-              return (
-                <div key={key} className="bg-muted rounded p-2 text-center">
-                  <p className="text-xs text-muted-foreground mb-1">{label} 우승 시</p>
-                  <p className={`font-bold tabular-nums ${profit >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                    {profit >= 0 ? "+" : "-"}₩{Math.abs(profit).toLocaleString()}
-                  </p>
-                </div>
-              )
-            })}
+        {displayStats.totalBet === 0 ? (
+          <div className="bg-background rounded-lg p-4 text-center text-sm text-muted-foreground">
+            아직 배팅이 없습니다. 배팅이 들어오면 예상 손익이 표시됩니다.
           </div>
-        </div>
-      </Card>
+        ) : (
+          <div className="bg-background rounded-lg p-4 space-y-2 text-sm">
+            <p className="text-muted-foreground">
+              각 사이드별 우승 시 시스템의 손익:
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {sides.map(({ key, label }) => {
+                const profit = (displayStats.prediction as Record<string, number>)[`${key}Profit`] || 0
+                return (
+                  <div key={key} className="bg-muted rounded p-2 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">{label} 우승 시</p>
+                    <p className={`font-bold tabular-nums ${profit >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                      {profit >= 0 ? "+" : "-"}₩{Math.abs(profit).toLocaleString()}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
       {/* 참고: 이 모니터는 예상치이며, 실제 결과는 다를 수 있음 */}
       <p className="text-xs text-muted-foreground bg-muted rounded-lg p-3">

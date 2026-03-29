@@ -45,26 +45,24 @@ export async function GET(request: Request) {
 
     // Redis에서 배팅 풀, 유저 수, LP 설정 조회
     const [pools, userIds, lpConfig] = await Promise.all([
-      redis.hgetall(poolKey) as Promise<Record<string, number>>,
-      redis.smembers(userSetKey) as Promise<string[]>,
-      redis.get(lpConfigKey) as Promise<string | null>,
+      redis.hgetall(poolKey).catch(() => null),
+      redis.smembers(userSetKey).catch(() => []),
+      redis.get(lpConfigKey).catch(() => null),
     ])
 
-    const poolData = {
-      player: pools?.player ?? 0,
-      banker: pools?.banker ?? 0,
-      tie: pools?.tie ?? 0,
-    }
+    const poolData = gameType === "baccarat" 
+      ? {
+          player: (pools?.player as number) || 0,
+          banker: (pools?.banker as number) || 0,
+          tie: (pools?.tie as number) || 0,
+        }
+      : {
+          bit: (pools?.bit as number) || 0,
+          coin: (pools?.coin as number) || 0,
+          tie: (pools?.tie as number) || 0,
+        }
 
-    if (gameType === "race") {
-      Object.assign(poolData, {
-        bit: pools?.bit ?? 0,
-        coin: pools?.coin ?? 0,
-        tie: pools?.tie ?? 0,
-      })
-    }
-
-    const userCount = userIds?.length ?? 0
+    const userCount = (userIds && Array.isArray(userIds)) ? userIds.length : 0
     const totalBet = Object.values(poolData).reduce((a, b) => a + b, 0)
 
     // LP 설정 파싱
