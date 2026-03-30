@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       .eq("id", userId)
       .single()
 
-    if (!profile || !["super_admin", "admin"].includes(profile.role)) {
+    if (!profile || !["master", "super_admin", "branch_admin"].includes(profile.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

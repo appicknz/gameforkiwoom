@@ -39,7 +39,7 @@ interface LpTx {
 interface Branch { id: string; name: string; lp_enabled: boolean; lp_amount_baccarat?: number; lp_amount_race?: number }
 
 // ── 헬퍼 ──────────────────────────────────────────────────
-const getToken = () => { try { return localStorage.getItem("sb-token") } catch { return null } }
+const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
 
 // ── LP 설정 행 서브컴포넌트 ───────────────────────────────
 function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void }) {
@@ -168,7 +168,7 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
 
   const isBaccarat = gameType === "baccarat"
   const sides = isBaccarat
-    ? [{ key: "player", label: "플레이어", color: "text-blue-500" }, { key: "banker", label: "뱅커", color: "text-red-500" }, { key: "타이", label: "타이", color: "text-amber-500" }]
+    ? [{ key: "player", label: "플레이어", color: "text-blue-500" }, { key: "banker", label: "뱅커", color: "text-red-500" }, { key: "tie", label: "타이", color: "text-amber-500" }]
     : [{ key: "bit", label: "BIT팀", color: "text-blue-500" }, { key: "coin", label: "COIN팀", color: "text-red-500" }, { key: "tie", label: "TIE", color: "text-amber-500" }]
 
   const displayStats = roundStats ?? {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon, Film, TrendingDown, Download, Activity } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon, Film, Activity, TrendingDown, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -94,7 +94,7 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "lp" | "house" | "monitor" | "cards" | "videos">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "cards" | "videos">("users")
 
   // 카드 이미지 관리
   interface CardImage { url: string; pathname: string; uploadedAt: string }
@@ -902,8 +902,8 @@ export default function PanelPage() {
             </div>
           </>
         )}
-      {/* LP 히스토리 탭 - 라운드 모니터로 통합됨 */}
-      {activeTab === "lp" && (
+      {/* LP 히스토리 탭 - 라운드 모니터로 통합됨 (이 블록은 도달 안됨) */}
+      {false && (
         <div className="space-y-4">
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
@@ -953,8 +953,8 @@ export default function PanelPage() {
         </div>
       )}
 
-      {/* 하우스 손익 탭 */}
-      {activeTab === "house" && (
+      {/* 하우스 손익 탭 - 라운드 모니터로 통합됨 */}
+      {false && (
         <div className="space-y-5">
 
           {/* 마스터 전체 집계 요약 */}
