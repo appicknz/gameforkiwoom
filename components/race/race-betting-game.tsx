@@ -408,18 +408,34 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   const [liveOdds, setLiveOdds] = useState<{ bit: number; coin: number; tie: number } | null>(null)
 
   useEffect(() => {
-    const token = getToken()
-    const url = `/api/game/odds/stream?type=race${token ? `&token=${token}` : ""}`
-    const es = new EventSource(url)
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data)
-        if (data.odds) setLiveOdds(data.odds)
-        else setLiveOdds(null)
-      } catch {}
+    let es: EventSource | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let destroyed = false
+
+    const connect = () => {
+      if (destroyed) return
+      const token = getToken()
+      const url = `/api/game/odds/stream?type=race${token ? `&token=${token}` : ""}`
+      es = new EventSource(url)
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          if (data.odds) setLiveOdds(data.odds)
+          else setLiveOdds(null)
+        } catch {}
+      }
+      es.onerror = () => {
+        es?.close()
+        if (!destroyed) retryTimer = setTimeout(connect, 2000)
+      }
     }
-    es.onerror = () => es.close()
-    return () => es.close()
+
+    connect()
+    return () => {
+      destroyed = true
+      if (retryTimer) clearTimeout(retryTimer)
+      es?.close()
+    }
   }, [])
 
   const betRef = useRef<BetDirection>(null)

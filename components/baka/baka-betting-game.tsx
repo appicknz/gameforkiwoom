@@ -337,7 +337,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카������ {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  비트바카������� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -448,18 +448,34 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
   const [liveOdds, setLiveOdds] = useState<{ player: number; banker: number; tie: number } | null>(null)
 
   useEffect(() => {
-    const token = getToken()
-    const url = `/api/game/odds/stream?type=baccarat${token ? `&token=${token}` : ""}`
-    const es = new EventSource(url)
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data)
-        if (data.odds) setLiveOdds(data.odds)
-        else setLiveOdds(null) // 배팅 없으면 null
-      } catch {}
+    let es: EventSource | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let destroyed = false
+
+    const connect = () => {
+      if (destroyed) return
+      const token = getToken()
+      const url = `/api/game/odds/stream?type=baccarat${token ? `&token=${token}` : ""}`
+      es = new EventSource(url)
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          if (data.odds) setLiveOdds(data.odds)
+          else setLiveOdds(null)
+        } catch {}
+      }
+      es.onerror = () => {
+        es?.close()
+        if (!destroyed) retryTimer = setTimeout(connect, 2000)
+      }
     }
-    es.onerror = () => es.close()
-    return () => es.close()
+
+    connect()
+    return () => {
+      destroyed = true
+      if (retryTimer) clearTimeout(retryTimer)
+      es?.close()
+    }
   }, [])
 
   // 자동 배팅

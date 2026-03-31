@@ -176,7 +176,7 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
     gameType,
     timestamp: new Date().toISOString(),
     pools: isBaccarat ? { player: 0, banker: 0, tie: 0 } : { bit: 0, coin: 0, tie: 0 },
-    userCount: 0, totalBet: 0, lpAmount: 0, mode: "lp-dominant", prediction: {},
+    userCount: 0, totalBet: 0, lpAmount: 0, mode: "lp-dominant", prediction: {}, odds: null,
   }
 
   return (
@@ -242,6 +242,7 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
               const bet = (displayStats.pools as Record<string, number>)[key] || 0
               const pct = displayStats.totalBet > 0 ? (bet / displayStats.totalBet) * 100 : 0
               const profit = (displayStats.prediction as Record<string, number>)[`${key}Profit`] ?? 0
+              const odds = displayStats.odds ? (displayStats.odds as Record<string, number>)[key] : null
               return (
                 <div key={key} className="flex items-center gap-3 text-sm">
                   <span className="w-16 text-xs text-muted-foreground shrink-0">{label}</span>
@@ -249,6 +250,11 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
                     <div className={`h-full ${color} opacity-70 transition-all`} style={{ width: `${pct}%` }} />
                   </div>
                   <span className="w-28 tabular-nums text-xs text-right text-foreground shrink-0">₩{bet.toLocaleString()}</span>
+                  {odds != null && (
+                    <span className="w-16 text-xs text-right tabular-nums text-amber-500 font-semibold shrink-0">
+                      {odds.toFixed(2)}x
+                    </span>
+                  )}
                   {displayStats.totalBet > 0 && (
                     <span className={`w-20 text-xs text-right tabular-nums shrink-0 ${profit >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                       {profit >= 0 ? "+" : ""}₩{Math.abs(profit).toLocaleString()}
@@ -260,7 +266,7 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
           </div>
 
           {displayStats.totalBet === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-2">이번 라운드에 아직 배팅이 없습니다.</p>
+            <p className="text-xs text-muted-foreground text-center py-2">이번 라운드에 아직 배팅이 없습니다. 배팅이 들어오면 자동으로 기록됩니다.</p>
           )}
         </div>
       </div>

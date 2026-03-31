@@ -40,30 +40,30 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
     }
   }
 
-  // Redis에서 현재 라운드 배팅 풀 조회
+  // Redis에서 현재 라운드 배팅 풀 + 유저 수 조회
+  // userSet은 SADD로 저장되므로 SCARD로 읽어야 함
   const poolKey = `pool:${gameType}:${roundNumber}`
-  const userCountKey = `users:${gameType}:${roundNumber}`
-  const [poolData, userCountRaw] = await Promise.all([
+  const userSetKey = `users:${gameType}:${roundNumber}`
+  const [poolData, userCount] = await Promise.all([
     redis.hgetall(poolKey),
-    redis.get<string>(userCountKey),
+    redis.scard(userSetKey),
   ])
 
-  const userCount = parseInt(userCountRaw ?? "0") || 0
-  const hasAnyBet = poolData && Object.values(poolData).some(v => parseInt(v as string) > 0)
+  const safeCount = userCount ?? 0
 
   if (gameType === "baccarat") {
     const userPools = {
       player: parseInt((poolData?.player as string) ?? "0") || 0,
       banker: parseInt((poolData?.banker as string) ?? "0") || 0,
-      tie:    parseInt((poolData?.tie as string)    ?? "0") || 0,
+      tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
     }
-    // 배팅이 하나도 없으면 odds null 반환 (UI에서 "배팅 대기 중" 표시)
-    if (!hasAnyBet) {
-      return { gameType, roundNumber, userCount, pools: userPools, odds: null, mode: "waiting" }
+    // LP가 활성화되어 있으면 배팅이 없어도 odds 계산 가능 (LP가 양쪽에 깔려 있음)
+    if (!lpConfig.enabled && !Object.values(userPools).some(v => v > 0)) {
+      return { gameType, roundNumber, userCount: safeCount, pools: userPools, odds: null, mode: "waiting" }
     }
-    const result = calcBaccaratOdds(userPools, lpConfig, userCount)
+    const result = calcBaccaratOdds(userPools, lpConfig, safeCount)
     return {
-      gameType, roundNumber, userCount, pools: userPools,
+      gameType, roundNumber, userCount: safeCount, pools: userPools,
       odds: { player: result.playerOdds, banker: result.bankerOdds, tie: result.tieOdds },
       mode: result.mode,
     }
@@ -73,12 +73,12 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
       coin: parseInt((poolData?.coin as string) ?? "0") || 0,
       tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
     }
-    if (!hasAnyBet) {
-      return { gameType, roundNumber, userCount, pools: userPools, odds: null, mode: "waiting" }
+    if (!lpConfig.enabled && !Object.values(userPools).some(v => v > 0)) {
+      return { gameType, roundNumber, userCount: safeCount, pools: userPools, odds: null, mode: "waiting" }
     }
-    const result = calcRaceOdds(userPools, lpConfig, userCount)
+    const result = calcRaceOdds(userPools, lpConfig, safeCount)
     return {
-      gameType, roundNumber, userCount, pools: userPools,
+      gameType, roundNumber, userCount: safeCount, pools: userPools,
       odds: { bit: result.bitOdds, coin: result.coinOdds, tie: result.tieOdds },
       mode: result.mode,
     }

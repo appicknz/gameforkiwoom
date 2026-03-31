@@ -1,6 +1,7 @@
 import { adminSupabase } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
+import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -74,11 +75,53 @@ export async function GET(request: Request) {
       }
     } catch {}
 
-    // 손익 계산 (간단한 시뮬레이션)
-    // 실제로는 확률 기반 계산 필요
-    const mode = userCount >= 10 ? "pari" : userCount >= 3 ? "hybrid" : "lp-dominant"
-    const lpMultiplier = mode === "pari" ? 0.1 : mode === "hybrid" ? 0.5 : 1.0
-    const effectiveLP = Math.floor(lpAmount * lpMultiplier)
+    // LP 설정 구성
+    const lpConfig = {
+      enabled: true,
+      lpAmountBaccarat: lpAmount,
+      lpAmountRace: lpAmount,
+    }
+
+    // lp-system으로 실제 배당률 + 손익 계산
+    let mode: "lp-dominant" | "hybrid" | "pari" = "lp-dominant"
+    let effectiveLP = 0
+    let prediction: Record<string, number> = {}
+    let oddsResult: Record<string, number> = {}
+
+    if (gameType === "baccarat") {
+      const pools = poolData as { player: number; banker: number; tie: number }
+      const result = calcBaccaratOdds(pools, lpConfig, userCount)
+      mode = result.mode
+      effectiveLP = result.totalPool - totalBet // LP 기여분 = 총 풀 - 유저 배팅
+      oddsResult = { player: result.playerOdds, banker: result.bankerOdds, tie: result.tieOdds }
+
+      // 각 사이드 우승 시 하우스 손익:
+      // 수집액(유저 배팅) + LP 회수 - 승자 지급 = 하우스 손익
+      // 단순화: 수수료(fee) - LP 순투입이 하우스 실익
+      const playerPayout = pools.player * result.playerOdds
+      const bankerPayout = pools.banker * result.bankerOdds
+      const tiePayout    = pools.tie    * result.tieOdds
+      prediction = {
+        playerProfit: Math.floor(result.fee + totalBet - playerPayout),
+        bankerProfit: Math.floor(result.fee + totalBet - bankerPayout),
+        tieProfit:    Math.floor(result.fee + totalBet - tiePayout),
+      }
+    } else {
+      const pools = poolData as { bit: number; coin: number; tie: number }
+      const result = calcRaceOdds(pools, lpConfig, userCount)
+      mode = result.mode
+      effectiveLP = result.totalPool - totalBet
+      oddsResult = { bit: result.bitOdds, coin: result.coinOdds, tie: result.tieOdds }
+
+      const bitPayout  = pools.bit  * result.bitOdds
+      const coinPayout = pools.coin * result.coinOdds
+      const tiePayout  = pools.tie  * result.tieOdds
+      prediction = {
+        bitProfit:  Math.floor(result.fee + totalBet - bitPayout),
+        coinProfit: Math.floor(result.fee + totalBet - coinPayout),
+        tieProfit:  Math.floor(result.fee + totalBet - tiePayout),
+      }
+    }
 
     const stats = {
       round: currentRound,
@@ -87,20 +130,10 @@ export async function GET(request: Request) {
       pools: poolData,
       userCount,
       totalBet,
-      lpAmount: effectiveLP,
+      lpAmount: Math.max(0, effectiveLP),
       mode,
-      prediction: {
-        // 각 사이드별 예상 수익 (균등 배분 기준)
-        ...(gameType === "baccarat" ? {
-          playerProfit: Math.floor((totalBet - poolData.player * 1.95) * 0.2),
-          bankerProfit: Math.floor((totalBet - poolData.banker * 0.95) * 0.2),
-          tieProfit: Math.floor((totalBet - poolData.tie * 8) * 0.2),
-        } : {
-          bitProfit: Math.floor((totalBet - poolData.bit * 1.95) * 0.2),
-          coinProfit: Math.floor((totalBet - poolData.coin * 1.95) * 0.2),
-          tieProfit: Math.floor((totalBet - poolData.tie * 8) * 0.2),
-        }),
-      },
+      odds: oddsResult,
+      prediction,
     }
 
     return NextResponse.json(stats)
