@@ -80,27 +80,42 @@ export function calcBaccaratOdds(
   const mode = getMode(userCount)
   const lpMult = getLpMultiplier(mode)
 
-  // LP 투입량 (유저 수에 따라 조정)
   const baseLp = lpConfig.enabled ? lpConfig.lpAmountBaccarat : 0
-  const lpPerSide = Math.floor((baseLp * lpMult) / 3)
+  const totalLp = Math.floor(baseLp * lpMult)
 
-  // 총 풀 = 유저 배팅 + LP
-  const totalPlayer = userPools.player + lpPerSide
-  const totalBanker = userPools.banker + lpPerSide
-  const totalTie    = userPools.tie + Math.floor(lpPerSide * 0.3) // 타이 LP는 더 적게
+  // LP를 빈 사이드에 집중 투입: 유저 배팅이 없는 사이드에 더 많이 넣어 배당이
+  // MIN_ODDS에 캡되는 상황을 방지한다. 타이는 항상 적게(30%).
+  // 1) 각 사이드의 "부족분" 계산
+  const userTotal = userPools.player + userPools.banker + userPools.tie
+  const avgSide = userTotal > 0 ? Math.floor(userTotal / 2) : 0 // player+banker 기준
+
+  // 빈 사이드에 LP 가중 배분 (최소 기본값 확보)
+  const basePerSide = Math.floor(totalLp / 3)
+  const tieBase     = Math.floor(basePerSide * 0.3)
+  const mainLp      = totalLp - tieBase   // player+banker에 배분할 LP
+
+  // player/banker 중 더 적은 쪽에 LP를 더 넣어 균형 유지
+  const pUser = userPools.player
+  const bUser = userPools.banker
+  const pBias = bUser > pUser ? 0.65 : pUser > bUser ? 0.35 : 0.50  // 부족한 쪽에 더 배분
+  const lpForPlayer = Math.floor(mainLp * pBias)
+  const lpForBanker = mainLp - lpForPlayer
+
+  const totalPlayer = pUser + lpForPlayer
+  const totalBanker = bUser + lpForBanker
+  const totalTie    = userPools.tie + tieBase
 
   const totalPool = totalPlayer + totalBanker + totalTie
-  const fee = Math.floor(totalPool * FEE_RATE)
-  const giveout = totalPool - fee
+  const fee       = Math.floor(totalPool * FEE_RATE)
+  const giveout   = totalPool - fee
 
-  // 배당률 계산 (수익 풀 / 해당 사이드 풀)
   const rawPlayerOdds = giveout / totalPlayer
   const rawBankerOdds = giveout / totalBanker
-  const rawTieOdds    = giveout / totalTie
+  const rawTieOdds    = totalTie > 0 ? giveout / totalTie : MAX_ODDS_TIE
 
   return {
-    playerOdds: Math.min(MAX_ODDS, Math.max(MIN_ODDS, parseFloat(rawPlayerOdds.toFixed(2)))),
-    bankerOdds: Math.min(MAX_ODDS, Math.max(MIN_ODDS, parseFloat(rawBankerOdds.toFixed(2)))),
+    playerOdds: Math.min(MAX_ODDS,     Math.max(MIN_ODDS, parseFloat(rawPlayerOdds.toFixed(2)))),
+    bankerOdds: Math.min(MAX_ODDS,     Math.max(MIN_ODDS, parseFloat(rawBankerOdds.toFixed(2)))),
     tieOdds:    Math.min(MAX_ODDS_TIE, Math.max(MIN_ODDS, parseFloat(rawTieOdds.toFixed(2)))),
     fee,
     totalPool,
@@ -119,24 +134,33 @@ export function calcRaceOdds(
   const mode = getMode(userCount)
   const lpMult = getLpMultiplier(mode)
 
-  const baseLp = lpConfig.enabled ? lpConfig.lpAmountRace : 0
-  const lpPerSide = Math.floor((baseLp * lpMult) / 3)
+  const baseLp  = lpConfig.enabled ? lpConfig.lpAmountRace : 0
+  const totalLp = Math.floor(baseLp * lpMult)
+  const tieBase = Math.floor(totalLp * 0.1)   // 타이에 10%만
+  const mainLp  = totalLp - tieBase
 
-  const totalBit  = userPools.bit + lpPerSide
-  const totalCoin = userPools.coin + lpPerSide
-  const totalTie  = userPools.tie + Math.floor(lpPerSide * 0.3)
+  // 부족한 쪽(bit/coin)에 LP 집중 투입
+  const bUser = userPools.bit
+  const cUser = userPools.coin
+  const bBias = cUser > bUser ? 0.65 : bUser > cUser ? 0.35 : 0.50
+  const lpForBit  = Math.floor(mainLp * bBias)
+  const lpForCoin = mainLp - lpForBit
+
+  const totalBit  = bUser + lpForBit
+  const totalCoin = cUser + lpForCoin
+  const totalTie  = userPools.tie + tieBase
 
   const totalPool = totalBit + totalCoin + totalTie
-  const fee = Math.floor(totalPool * FEE_RATE)
-  const giveout = totalPool - fee
+  const fee       = Math.floor(totalPool * FEE_RATE)
+  const giveout   = totalPool - fee
 
   const rawBitOdds  = giveout / totalBit
   const rawCoinOdds = giveout / totalCoin
-  const rawTieOdds  = giveout / totalTie
+  const rawTieOdds  = totalTie > 0 ? giveout / totalTie : MAX_ODDS_TIE
 
   return {
-    bitOdds:  Math.min(MAX_ODDS, Math.max(MIN_ODDS, parseFloat(rawBitOdds.toFixed(2)))),
-    coinOdds: Math.min(MAX_ODDS, Math.max(MIN_ODDS, parseFloat(rawCoinOdds.toFixed(2)))),
+    bitOdds:  Math.min(MAX_ODDS,     Math.max(MIN_ODDS, parseFloat(rawBitOdds.toFixed(2)))),
+    coinOdds: Math.min(MAX_ODDS,     Math.max(MIN_ODDS, parseFloat(rawCoinOdds.toFixed(2)))),
     tieOdds:  Math.min(MAX_ODDS_TIE, Math.max(MIN_ODDS, parseFloat(rawTieOdds.toFixed(2)))),
     fee,
     totalPool,
