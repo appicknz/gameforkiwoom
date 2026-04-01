@@ -41,10 +41,10 @@ interface Branch {
 
 // LP 설정 행 컴포넌트
 function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void }) {
-  const [baccaratMinLp,  setBaccaratMinLp]  = useState(String(branch.lp_amount_baccarat ?? branch.lp_amount ?? 50000))
-  const [raceMinLp,      setRaceMinLp]      = useState(String(branch.lp_amount_race     ?? branch.lp_amount ?? 50000))
-  const [baccaratMult,   setBaccaratMult]   = useState(String(branch.lp_multiplier_baccarat ?? 1.0))
-  const [raceMult,       setRaceMult]       = useState(String(branch.lp_multiplier_race     ?? 1.0))
+  const [baccaratMinLp, setBaccaratMinLp] = useState(String(branch.lp_amount_baccarat ?? branch.lp_amount ?? 50000))
+  const [raceMinLp, setRaceMinLp] = useState(String(branch.lp_amount_race ?? branch.lp_amount ?? 50000))
+  const [baccaratMult, setBaccaratMult] = useState(String(branch.lp_multiplier_baccarat ?? 1.0))
+  const [raceMult, setRaceMult] = useState(String(branch.lp_multiplier_race ?? 1.0))
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
@@ -56,10 +56,10 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         branchId: branch.id,
-        lpAmountBaccarat:     parseInt(baccaratMinLp) || 0,
-        lpAmountRace:         parseInt(raceMinLp)     || 0,
+        lpAmountBaccarat: parseInt(baccaratMinLp) || 0,
+        lpAmountRace: parseInt(raceMinLp) || 0,
         lpMultiplierBaccarat: parseFloat(baccaratMult) || 1.0,
-        lpMultiplierRace:     parseFloat(raceMult)     || 1.0,
+        lpMultiplierRace: parseFloat(raceMult) || 1.0,
       }),
     })
     if (res.ok) { setMsg({ text: "저장됨", ok: true }); onSaved() }
@@ -301,7 +301,7 @@ export default function PanelPage() {
   const handlePwSubmit = async () => {
     setPwError("")
     setLoading(true)
-    
+
     // 입력한 비밀번호 검증 (실제 로그인 시도)
     const res = await fetch("/api/admin/verify-password", {
       method: "POST",
@@ -421,7 +421,7 @@ export default function PanelPage() {
     }
     const res = await fetch("/api/admin/charge", {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
       },
@@ -429,7 +429,7 @@ export default function PanelPage() {
     })
     const data = await res.json()
     if (!res.ok) {
-      setChargeMsg({ text: data.error ?? "��류가 발생했습니다.", ok: false })
+      setChargeMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
     } else {
       setChargeMsg({ text: `잔고가 ${delta > 0 ? "충전" : "차감"}됐습니다.`, ok: true })
       setChargeAmount("")
@@ -447,7 +447,7 @@ export default function PanelPage() {
     if (!token) { setBranchLoading(false); return }
     const res = await fetch("/api/admin/branches", {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
       },
@@ -576,36 +576,32 @@ export default function PanelPage() {
         <div className="flex px-6">
           <button
             onClick={() => setActiveTab("users")}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "users" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "users" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
           >
             <Users className="w-4 h-4" /> 회원관리
           </button>
           {isSuperAdmin && (
             <button
               onClick={() => setActiveTab("branches")}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
             >
               <GitBranch className="w-4 h-4" /> 지점관리
             </button>
           )}
           <button
             onClick={() => setActiveTab("monitor")}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "monitor" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "monitor" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
           >
             <Activity className="w-4 h-4" /> 라운드 모니터
           </button>
           {isSuperAdmin && (
             <button
               onClick={() => { setActiveTab("cards"); loadCardImages() }}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
             >
               <ImageIcon className="w-4 h-4" /> 카드이���지
             </button>
@@ -613,9 +609,8 @@ export default function PanelPage() {
           {isSuperAdmin && (
             <button
               onClick={() => { setActiveTab("videos"); loadCardVideos() }}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "videos" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "videos" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
             >
               <Film className="w-4 h-4" /> 영상관리
             </button>
@@ -701,7 +696,7 @@ export default function PanelPage() {
                           <div className="mt-3 p-3 bg-muted rounded-lg">
                             <p className="text-xs font-medium text-foreground mb-2">잔고 충전 / 차감</p>
                             <div className="flex gap-2">
-                              <Input type="number" placeholder="금����� 입력" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} className="h-8 text-sm" />
+                              <Input type="number" placeholder="금액 입력" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} className="h-8 text-sm" />
                               <Button size="sm" className="gap-1 h-8 text-xs" onClick={() => handleCharge(user.id, 1)} disabled={chargeLoading}>
                                 <Plus className="w-3 h-3" /> 충전
                               </Button>
@@ -936,416 +931,416 @@ export default function PanelPage() {
             </div>
           </>
         )}
-      {/* LP 히스토리 탭 - 라운드 모니터로 통합됨 (이 블록은 도달 안됨) */}
-      {false && (
-        <div className="space-y-4">
-          <div className="bg-card border border-border rounded-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">LP 유동성 히스토리</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">파리뮤추얼 라운드별 LP 투입 기록</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">총 LP 사용액</p>
-                <p className="text-sm font-bold text-foreground">₩{lpTotal.toLocaleString()}</p>
-              </div>
-            </div>
-
-            {lpLoading ? (
-              <div className="flex justify-center py-10"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
-            ) : lpHistory.length === 0 ? (
-              <div className="py-10 text-center text-sm text-muted-foreground">LP 사용 내역이 없습니다.</div>
-            ) : (
-              <div className="divide-y divide-border">
-                {lpHistory.map(tx => {
-                  const poolLabel: Record<string, string> = { long_short: "롱/숏", under_over: "언더/오버", odd_even: "홀/짝" }
-                  const sideLabel = tx.side === "a" ? "A (롱·언더·홀)" : "B (숏·오버·짝)"
-                  return (
-                    <div key={tx.id} className="px-5 py-3 flex items-center justify-between text-sm">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-foreground">{poolLabel[tx.pool_type] ?? tx.pool_type}</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">{sideLabel}</span>
-                          {tx.settled_odds != null && (
-                            <span className="text-xs text-muted-foreground">확정 x{tx.settled_odds.toFixed(2)}</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          라운드 {new Date(tx.round_time * 1000).toLocaleString("ko-KR")} · 사용자 배팅 ₩{tx.user_amount.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-foreground">₩{tx.lp_amount.toLocaleString()}</p>
-                        <p className="text-[11px] text-muted-foreground">{new Date(tx.created_at).toLocaleTimeString("ko-KR")}</p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 하우스 손익 탭 - 라운드 모니터로 통합됨 */}
-      {false && (
-        <div className="space-y-5">
-
-          {/* 마스터 전체 집계 요약 */}
-          {masterSummary && (
-            <div className="bg-card border border-border rounded-2xl p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-                <TrendingDown className="w-4 h-4 text-primary" /> 전체 지점 합산
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { label: "총 배팅액", value: masterSummary.totalBet, color: "text-foreground" },
-                  { label: "총 지급액", value: masterSummary.totalPayout, color: "text-red-500" },
-                  { label: "하우스 손익", value: masterSummary.houseProfit, color: masterSummary.houseProfit >= 0 ? "text-emerald-500" : "text-red-500" },
-                  { label: "총 LP 사용", value: masterSummary.totalLpUsed, color: "text-blue-500" },
-                  { label: "누적 수수료", value: masterSummary.totalFee, color: "text-amber-500" },
-                  { label: "수금 완료", value: masterSummary.totalCollected, color: "text-muted-foreground" },
-                  { label: "미수금", value: masterSummary.pendingFee, color: masterSummary.pendingFee > 0 ? "text-orange-500" : "text-muted-foreground" },
-                ].map(item => (
-                  <div key={item.label} className="bg-background rounded-xl p-3">
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                    <p className={`text-base font-bold tabular-nums mt-0.5 ${item.color}`}>
-                      {item.value >= 0 ? "" : "-"}₩{Math.abs(item.value).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 지점별 상세 */}
-          <div className="bg-card border border-border rounded-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">지점별 하우스 손익</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">게임 유형별 배팅·지급·LP·수수료 집계</p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={loadHouseStats} disabled={houseLoading} className="gap-1.5 text-xs">
-                <RefreshCw className={`w-3.5 h-3.5 ${houseLoading ? "animate-spin" : ""}`} /> 새로고침
-              </Button>
-            </div>
-
-            {houseLoading ? (
-              <div className="py-10 flex justify-center">
-                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : houseStats.length === 0 ? (
-              <div className="py-10 text-center text-sm text-muted-foreground">아직 집계 데이터가 없습니다.</div>
-            ) : (
-              <div className="divide-y divide-border">
-                {houseStats.map(stat => {
-                  const pending = Math.max(0, stat.total_fee - stat.total_collected)
-                  const housePnl = stat.total_bet - stat.total_payout
-                  const key = `${stat.branch_id}-${stat.game_type}`
-                  return (
-                    <div key={stat.id} className="px-5 py-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-foreground">
-                            {stat.branches?.name ?? stat.branch_id}
-                          </span>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
-                            {stat.game_type === "baccarat" ? "바카라" : "레이스"}
-                          </span>
-                        </div>
-                        {isSuperAdmin && pending > 0 && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs gap-1.5"
-                            disabled={collectingId === key}
-                            onClick={() => handleCollect(stat.branch_id, stat.game_type)}
-                          >
-                            <Download className="w-3 h-3" />
-                            {collectingId === key ? "처리 중..." : `₩${pending.toLocaleString()} 수금`}
-                          </Button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                        <div>
-                          <p className="text-muted-foreground">총 배팅</p>
-                          <p className="font-semibold text-foreground tabular-nums">₩{stat.total_bet.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">총 지급</p>
-                          <p className="font-semibold text-red-500 tabular-nums">₩{stat.total_payout.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">하우스 손익</p>
-                          <p className={`font-bold tabular-nums ${housePnl >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                            {housePnl >= 0 ? "+" : "-"}₩{Math.abs(housePnl).toLocaleString()}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">LP 사용</p>
-                          <p className="font-semibold text-blue-500 tabular-nums">₩{stat.total_lp_used.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">미수금 수수료</p>
-                          <p className={`font-bold tabular-nums ${pending > 0 ? "text-orange-500" : "text-muted-foreground"}`}>
-                            ₩{pending.toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* 수금 이력 */}
-          {feeCollections.length > 0 && (
+        {/* LP 히스토리 탭 - 라운드 모니터로 통합됨 (이 블록은 도달 안됨) */}
+        {false && (
+          <div className="space-y-4">
             <div className="bg-card border border-border rounded-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-border">
-                <h3 className="text-sm font-semibold text-foreground">수금 이력</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">최근 20건</p>
-              </div>
-              <div className="divide-y divide-border">
-                {feeCollections.map(fc => (
-                  <div key={fc.id} className="px-5 py-3 flex items-center justify-between text-sm">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground">{fc.branches?.name ?? fc.branch_id}</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                          {fc.game_type === "baccarat" ? "바카라" : "레이스"}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{fc.note} · {new Date(fc.created_at).toLocaleString("ko-KR")}</p>
-                    </div>
-                    <p className="font-bold text-emerald-500 tabular-nums">₩{fc.collected_amount.toLocaleString()}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 지점별 LP 설정 (마스터 전용) */}
-          {isSuperAdmin && (
-            <div className="bg-card border border-border rounded-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-border">
-                <h3 className="text-sm font-semibold text-foreground">지점별 LP 금액 설정</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">바카라 / 레이스 게임별 LP 유동성 금액 (마스터 전용)</p>
-              </div>
-              <div className="divide-y divide-border">
-                {branches.map(branch => (
-                  <LpBranchRow key={branch.id} branch={branch} onSaved={loadHouseStats} />
-                ))}
-                {branches.length === 0 && <p className="py-6 text-center text-xs text-muted-foreground">지점이 없습니다.</p>}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 라운드 모니터 탭 (LP 히스토리 + 하우스 손익 통합) */}
-      {activeTab === "monitor" && (
-        <div className="space-y-5">
-          <RoundMonitor isSuperAdmin={isSuperAdmin} branches={branches} />
-        </div>
-      )}
-
-      {/* 카드관리 탭 */}
-      {activeTab === "cards" && (
-        <div className="space-y-4">
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">카드 이미지 관리</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">바카라 게임에 표시될 카드 이미지를 업로드하세요</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleCardUpload}
-                  className="hidden"
-                />
-                <Button
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="gap-1.5 text-xs"
-                >
-                  {uploading ? "업로드 중..." : "이미지 추가"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={loadCardImages}
-                  disabled={cardLoading}
-                  className="gap-1.5 text-xs"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${cardLoading ? "animate-spin" : ""}`} /> 새로고침
-                </Button>
-              </div>
-            </div>
-
-            {uploadError && (
-              <div className="px-5 py-2 bg-destructive/10 border-b border-border">
-                <p className="text-xs text-destructive">{uploadError}</p>
-              </div>
-            )}
-
-            {cardLoading ? (
-              <div className="flex justify-center py-10">
-                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : cardImages.length === 0 ? (
-              <div className="py-16 text-center">
-                <ImageIcon className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
-                <p className="text-sm text-muted-foreground">등록된 카드 이미지가 없습니다.</p>
-                <p className="text-xs text-muted-foreground mt-1">이미지를 추가해주세요.</p>
-              </div>
-            ) : (
-              <div className="p-5">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {cardImages.map((img, idx) => (
-                    <div key={img.url} className="relative group">
-                      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-muted border border-border relative">
-                        <img
-                          src={img.url}
-                          alt={`Card ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center">
-                          <button
-                            onClick={() => handleCardDelete(img.url)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-2 hover:bg-destructive/90"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="absolute top-2 left-2 bg-background/90 backdrop-blur-sm text-foreground text-xs font-semibold px-2 py-1 rounded-full">
-                          #{idx + 1}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">LP 유동성 히스토리</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">파리뮤추얼 라운드별 LP 투입 기록</p>
                 </div>
-                <div className="mt-4 pt-4 border-t border-border">
-                  <p className="text-xs text-muted-foreground">
-                    총 {cardImages.length}개 카드 이미지 • 라운드마다 순번 기반 랜덤 표시
-                  </p>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">총 LP 사용액</p>
+                  <p className="text-sm font-bold text-foreground">₩{lpTotal.toLocaleString()}</p>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* 영상관리 탭 */}
-      {activeTab === "videos" && (
-        <div className="space-y-4">
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">영상 관리</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">배팅 시작 시 카드에 표시될 영상을 업로드하세요 (MP4 / WebM / MOV)</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  ref={videoFileInputRef}
-                  type="file"
-                  accept="video/mp4,video/webm,video/mov,video/quicktime"
-                  multiple
-                  onChange={handleVideoUpload}
-                  className="hidden"
-                />
-                <Button
-                  size="sm"
-                  onClick={() => videoFileInputRef.current?.click()}
-                  disabled={videoUploading}
-                  className="gap-1.5 text-xs"
-                >
-                  <Film className="w-3.5 h-3.5" />
-                  {videoUploading ? (videoUploadProgress || "업로드 중...") : "영상 추가"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={loadCardVideos}
-                  disabled={videoLoading}
-                  className="gap-1.5 text-xs"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${videoLoading ? "animate-spin" : ""}`} /> 새로고침
-                </Button>
-              </div>
-            </div>
-
-            {videoUploadError && (
-              <div className="px-5 py-2 bg-destructive/10 border-b border-border">
-                <p className="text-xs text-destructive">{videoUploadError}</p>
-              </div>
-            )}
-
-            {videoLoading ? (
-              <div className="flex justify-center py-10">
-                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : cardVideos.length === 0 ? (
-              <div className="py-16 text-center">
-                <Film className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
-                <p className="text-sm text-muted-foreground">등록된 영상이 없습니다.</p>
-                <p className="text-xs text-muted-foreground mt-1">영상 파일을 추가해주세요.</p>
-              </div>
-            ) : (
-              <div className="p-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {cardVideos.map((video, idx) => (
-                    <div key={video.url} className="relative group">
-                      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-black border border-border relative">
-                        <video
-                          src={video.url}
-                          className="w-full h-full object-cover"
-                          muted
-                          loop
-                          playsInline
-                          preload="metadata"
-                          onMouseEnter={e => (e.currentTarget as HTMLVideoElement).play()}
-                          onMouseLeave={e => { const v = e.currentTarget as HTMLVideoElement; v.pause(); v.currentTime = 0 }}
-                        />
-                        {/* hover overlay with delete */}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center">
-                          <button
-                            onClick={() => handleVideoDelete(video.pathname)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-2 hover:bg-destructive/90"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+              {lpLoading ? (
+                <div className="flex justify-center py-10"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+              ) : lpHistory.length === 0 ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">LP 사용 내역이 없습니다.</div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {lpHistory.map(tx => {
+                    const poolLabel: Record<string, string> = { long_short: "롱/숏", under_over: "언더/오버", odd_even: "홀/짝" }
+                    const sideLabel = tx.side === "a" ? "A (롱·언더·홀)" : "B (숏·오버·짝)"
+                    return (
+                      <div key={tx.id} className="px-5 py-3 flex items-center justify-between text-sm">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-foreground">{poolLabel[tx.pool_type] ?? tx.pool_type}</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">{sideLabel}</span>
+                            {tx.settled_odds != null && (
+                              <span className="text-xs text-muted-foreground">확정 x{tx.settled_odds.toFixed(2)}</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            라운드 {new Date(tx.round_time * 1000).toLocaleString("ko-KR")} · 사용자 배팅 ₩{tx.user_amount.toLocaleString()}
+                          </p>
                         </div>
-                        {/* index badge */}
-                        <div className="absolute top-2 left-2 bg-background/90 backdrop-blur-sm text-foreground text-xs font-semibold px-2 py-1 rounded-full">
-                          #{idx + 1}
-                        </div>
-                        {/* file size badge */}
-                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                          {formatFileSize(video.size)}
+                        <div className="text-right">
+                          <p className="font-semibold text-foreground">₩{tx.lp_amount.toLocaleString()}</p>
+                          <p className="text-[11px] text-muted-foreground">{new Date(tx.created_at).toLocaleTimeString("ko-KR")}</p>
                         </div>
                       </div>
-                      <p className="mt-1.5 text-[11px] text-muted-foreground truncate px-0.5">
-                        {video.pathname.split("/").pop()}
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 하우스 손익 탭 - 라운드 모니터로 통합됨 */}
+        {false && (
+          <div className="space-y-5">
+
+            {/* 마스터 전체 집계 요약 */}
+            {masterSummary && (
+              <div className="bg-card border border-border rounded-2xl p-5">
+                <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <TrendingDown className="w-4 h-4 text-primary" /> 전체 지점 합산
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: "총 배팅액", value: masterSummary.totalBet, color: "text-foreground" },
+                    { label: "총 지급액", value: masterSummary.totalPayout, color: "text-red-500" },
+                    { label: "하우스 손익", value: masterSummary.houseProfit, color: masterSummary.houseProfit >= 0 ? "text-emerald-500" : "text-red-500" },
+                    { label: "총 LP 사용", value: masterSummary.totalLpUsed, color: "text-blue-500" },
+                    { label: "누적 수수료", value: masterSummary.totalFee, color: "text-amber-500" },
+                    { label: "수금 완료", value: masterSummary.totalCollected, color: "text-muted-foreground" },
+                    { label: "미수금", value: masterSummary.pendingFee, color: masterSummary.pendingFee > 0 ? "text-orange-500" : "text-muted-foreground" },
+                  ].map(item => (
+                    <div key={item.label} className="bg-background rounded-xl p-3">
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className={`text-base font-bold tabular-nums mt-0.5 ${item.color}`}>
+                        {item.value >= 0 ? "" : "-"}₩{Math.abs(item.value).toLocaleString()}
                       </p>
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 pt-4 border-t border-border">
-                  <p className="text-xs text-muted-foreground">
-                    총 {cardVideos.length}개 영상 • 호버 시 미리보기 • 라운드마다 순번 기반 랜덤 재생
-                  </p>
+              </div>
+            )}
+
+            {/* 지점별 상세 */}
+            <div className="bg-card border border-border rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">지점별 하우스 손익</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">게임 유형별 배팅·지급·LP·수수료 집계</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={loadHouseStats} disabled={houseLoading} className="gap-1.5 text-xs">
+                  <RefreshCw className={`w-3.5 h-3.5 ${houseLoading ? "animate-spin" : ""}`} /> 새로고침
+                </Button>
+              </div>
+
+              {houseLoading ? (
+                <div className="py-10 flex justify-center">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : houseStats.length === 0 ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">아직 집계 데이터가 없습니다.</div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {houseStats.map(stat => {
+                    const pending = Math.max(0, stat.total_fee - stat.total_collected)
+                    const housePnl = stat.total_bet - stat.total_payout
+                    const key = `${stat.branch_id}-${stat.game_type}`
+                    return (
+                      <div key={stat.id} className="px-5 py-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-foreground">
+                              {stat.branches?.name ?? stat.branch_id}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                              {stat.game_type === "baccarat" ? "바카라" : "레이스"}
+                            </span>
+                          </div>
+                          {isSuperAdmin && pending > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs gap-1.5"
+                              disabled={collectingId === key}
+                              onClick={() => handleCollect(stat.branch_id, stat.game_type)}
+                            >
+                              <Download className="w-3 h-3" />
+                              {collectingId === key ? "처리 중..." : `₩${pending.toLocaleString()} 수금`}
+                            </Button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                          <div>
+                            <p className="text-muted-foreground">총 배팅</p>
+                            <p className="font-semibold text-foreground tabular-nums">₩{stat.total_bet.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">총 지급</p>
+                            <p className="font-semibold text-red-500 tabular-nums">₩{stat.total_payout.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">하우스 손익</p>
+                            <p className={`font-bold tabular-nums ${housePnl >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                              {housePnl >= 0 ? "+" : "-"}₩{Math.abs(housePnl).toLocaleString()}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">LP 사용</p>
+                            <p className="font-semibold text-blue-500 tabular-nums">₩{stat.total_lp_used.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">미수금 수수료</p>
+                            <p className={`font-bold tabular-nums ${pending > 0 ? "text-orange-500" : "text-muted-foreground"}`}>
+                              ₩{pending.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 수금 이력 */}
+            {feeCollections.length > 0 && (
+              <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h3 className="text-sm font-semibold text-foreground">수금 이력</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">최근 20건</p>
+                </div>
+                <div className="divide-y divide-border">
+                  {feeCollections.map(fc => (
+                    <div key={fc.id} className="px-5 py-3 flex items-center justify-between text-sm">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">{fc.branches?.name ?? fc.branch_id}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                            {fc.game_type === "baccarat" ? "바카라" : "레이스"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{fc.note} · {new Date(fc.created_at).toLocaleString("ko-KR")}</p>
+                      </div>
+                      <p className="font-bold text-emerald-500 tabular-nums">₩{fc.collected_amount.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 지점별 LP 설정 (마스터 전용) */}
+            {isSuperAdmin && (
+              <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h3 className="text-sm font-semibold text-foreground">지점별 LP 금액 설정</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">바카라 / 레이스 게임별 LP 유동성 금액 (마스터 전용)</p>
+                </div>
+                <div className="divide-y divide-border">
+                  {branches.map(branch => (
+                    <LpBranchRow key={branch.id} branch={branch} onSaved={loadHouseStats} />
+                  ))}
+                  {branches.length === 0 && <p className="py-6 text-center text-xs text-muted-foreground">지점이 없습니다.</p>}
                 </div>
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* 라운드 모니터 탭 (LP 히스토리 + 하우스 손익 통합) */}
+        {activeTab === "monitor" && (
+          <div className="space-y-5">
+            <RoundMonitor isSuperAdmin={isSuperAdmin} branches={branches} />
+          </div>
+        )}
+
+        {/* 카드관리 탭 */}
+        {activeTab === "cards" && (
+          <div className="space-y-4">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">카드 이미지 관리</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">바카라 게임에 표시될 카드 이미지를 업로드하세요</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleCardUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="gap-1.5 text-xs"
+                  >
+                    {uploading ? "업로드 중..." : "이미지 추가"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={loadCardImages}
+                    disabled={cardLoading}
+                    className="gap-1.5 text-xs"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${cardLoading ? "animate-spin" : ""}`} /> 새로고침
+                  </Button>
+                </div>
+              </div>
+
+              {uploadError && (
+                <div className="px-5 py-2 bg-destructive/10 border-b border-border">
+                  <p className="text-xs text-destructive">{uploadError}</p>
+                </div>
+              )}
+
+              {cardLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : cardImages.length === 0 ? (
+                <div className="py-16 text-center">
+                  <ImageIcon className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+                  <p className="text-sm text-muted-foreground">등록된 카드 이미지가 없습니다.</p>
+                  <p className="text-xs text-muted-foreground mt-1">이미지를 추가해주세요.</p>
+                </div>
+              ) : (
+                <div className="p-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {cardImages.map((img, idx) => (
+                      <div key={img.url} className="relative group">
+                        <div className="aspect-[2/3] rounded-lg overflow-hidden bg-muted border border-border relative">
+                          <img
+                            src={img.url}
+                            alt={`Card ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center">
+                            <button
+                              onClick={() => handleCardDelete(img.url)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-2 hover:bg-destructive/90"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="absolute top-2 left-2 bg-background/90 backdrop-blur-sm text-foreground text-xs font-semibold px-2 py-1 rounded-full">
+                            #{idx + 1}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-xs text-muted-foreground">
+                      총 {cardImages.length}개 카드 이미지 • 라운드마다 순번 기반 랜덤 표시
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 영상관리 탭 */}
+        {activeTab === "videos" && (
+          <div className="space-y-4">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">영상 관리</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">배팅 시작 시 카드에 표시될 영상을 업로드하세요 (MP4 / WebM / MOV)</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={videoFileInputRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/mov,video/quicktime"
+                    multiple
+                    onChange={handleVideoUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => videoFileInputRef.current?.click()}
+                    disabled={videoUploading}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Film className="w-3.5 h-3.5" />
+                    {videoUploading ? (videoUploadProgress || "업로드 중...") : "영상 추가"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={loadCardVideos}
+                    disabled={videoLoading}
+                    className="gap-1.5 text-xs"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${videoLoading ? "animate-spin" : ""}`} /> 새로고침
+                  </Button>
+                </div>
+              </div>
+
+              {videoUploadError && (
+                <div className="px-5 py-2 bg-destructive/10 border-b border-border">
+                  <p className="text-xs text-destructive">{videoUploadError}</p>
+                </div>
+              )}
+
+              {videoLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : cardVideos.length === 0 ? (
+                <div className="py-16 text-center">
+                  <Film className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+                  <p className="text-sm text-muted-foreground">등록된 영상이 없습니다.</p>
+                  <p className="text-xs text-muted-foreground mt-1">영상 파일을 추가해주세요.</p>
+                </div>
+              ) : (
+                <div className="p-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {cardVideos.map((video, idx) => (
+                      <div key={video.url} className="relative group">
+                        <div className="aspect-[2/3] rounded-lg overflow-hidden bg-black border border-border relative">
+                          <video
+                            src={video.url}
+                            className="w-full h-full object-cover"
+                            muted
+                            loop
+                            playsInline
+                            preload="metadata"
+                            onMouseEnter={e => (e.currentTarget as HTMLVideoElement).play()}
+                            onMouseLeave={e => { const v = e.currentTarget as HTMLVideoElement; v.pause(); v.currentTime = 0 }}
+                          />
+                          {/* hover overlay with delete */}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center">
+                            <button
+                              onClick={() => handleVideoDelete(video.pathname)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-2 hover:bg-destructive/90"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                          {/* index badge */}
+                          <div className="absolute top-2 left-2 bg-background/90 backdrop-blur-sm text-foreground text-xs font-semibold px-2 py-1 rounded-full">
+                            #{idx + 1}
+                          </div>
+                          {/* file size badge */}
+                          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                            {formatFileSize(video.size)}
+                          </div>
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-muted-foreground truncate px-0.5">
+                          {video.pathname.split("/").pop()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-xs text-muted-foreground">
+                      총 {cardVideos.length}개 영상 • 호버 시 미리보기 • 라운드마다 순번 기반 랜덤 재생
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       </main>
     </div>
