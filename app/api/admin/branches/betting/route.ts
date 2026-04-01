@@ -38,7 +38,8 @@ export async function PATCH(req: Request) {
   }
 
   const body = await req.json()
-  const { branchId, bettingMode, lpEnabled, lpAmount, lpAmountBaccarat, lpAmountRace } = body
+  const { branchId, bettingMode, lpEnabled, lpAmount, lpAmountBaccarat, lpAmountRace,
+          lpMultiplierBaccarat, lpMultiplierRace } = body
 
   if (!branchId) {
     return NextResponse.json({ error: "branchId required" }, { status: 400 })
@@ -64,6 +65,14 @@ export async function PATCH(req: Request) {
     if (lpAmountRace < 0) return NextResponse.json({ error: "lpAmountRace must be >= 0" }, { status: 400 })
     updates.lp_amount_race = lpAmountRace
   }
+  if (lpMultiplierBaccarat !== undefined) {
+    if (lpMultiplierBaccarat < 0) return NextResponse.json({ error: "lpMultiplierBaccarat must be >= 0" }, { status: 400 })
+    updates.lp_multiplier_baccarat = lpMultiplierBaccarat
+  }
+  if (lpMultiplierRace !== undefined) {
+    if (lpMultiplierRace < 0) return NextResponse.json({ error: "lpMultiplierRace must be >= 0" }, { status: 400 })
+    updates.lp_multiplier_race = lpMultiplierRace
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No updates provided" }, { status: 400 })
@@ -73,7 +82,7 @@ export async function PATCH(req: Request) {
     .from("branches")
     .update(updates)
     .eq("id", branchId)
-    .select("id, name, betting_mode, lp_enabled, lp_amount, lp_amount_baccarat, lp_amount_race")
+    .select("id, name, betting_mode, lp_enabled, lp_amount, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -20,8 +20,10 @@ export interface RacePools {
 
 export interface LpConfig {
   enabled: boolean
-  lpAmountBaccarat: number  // 바카라용 LP 기본 투입액
-  lpAmountRace: number      // 레이스용 LP 기본 투입액
+  lpAmountBaccarat: number      // 바카라 최소 보장 LP (배팅이 0원일 때 바닥값)
+  lpAmountRace: number          // 레이스 최소 보장 LP
+  lpMultiplierBaccarat: number  // 배팅풀 대비 LP 배율 (1.0 = 배팅액 100% 대응)
+  lpMultiplierRace: number      // 레이스 배율
 }
 
 export interface OddsResult {
@@ -40,6 +42,32 @@ export interface RaceOddsResult {
   fee: number
   totalPool: number
   mode: "lp-dominant" | "hybrid" | "pari"
+}
+
+// 기본 LP 설정 (DB 조회 실패 시 fallback)
+export const DEFAULT_LP_CONFIG: LpConfig = {
+  enabled: true,
+  lpAmountBaccarat: 50000,
+  lpAmountRace: 50000,
+  lpMultiplierBaccarat: 1.0,  // 배팅액 100% 대응
+  lpMultiplierRace: 1.0,
+}
+
+/** DB branches 행에서 LpConfig 추출 */
+export function branchToLpConfig(branch: {
+  lp_enabled?: boolean | null
+  lp_amount_baccarat?: number | null
+  lp_amount_race?: number | null
+  lp_multiplier_baccarat?: number | null
+  lp_multiplier_race?: number | null
+}): LpConfig {
+  return {
+    enabled:              branch.lp_enabled              ?? true,
+    lpAmountBaccarat:     branch.lp_amount_baccarat      ?? DEFAULT_LP_CONFIG.lpAmountBaccarat,
+    lpAmountRace:         branch.lp_amount_race          ?? DEFAULT_LP_CONFIG.lpAmountRace,
+    lpMultiplierBaccarat: branch.lp_multiplier_baccarat  ?? DEFAULT_LP_CONFIG.lpMultiplierBaccarat,
+    lpMultiplierRace:     branch.lp_multiplier_race      ?? DEFAULT_LP_CONFIG.lpMultiplierRace,
+  }
 }
 
 // 수수료율 (20%)
@@ -80,19 +108,32 @@ export function calcBaccaratOdds(
   const mode = getMode(userCount)
   const lpMult = getLpMultiplier(mode)
 
-  const baseLp = lpConfig.enabled ? lpConfig.lpAmountBaccarat : 0
-  const totalLp = Math.floor(baseLp * lpMult)
+  if (!lpConfig.enabled) {
+    // LP 비활성: 유저 배팅만으로 계산 (배팅 없으면 MIN_ODDS 반환)
+    const totalPool = userPools.player + userPools.banker + userPools.tie
+    if (totalPool === 0) return { playerOdds: MIN_ODDS, bankerOdds: MIN_ODDS, tieOdds: MIN_ODDS, fee: 0, totalPool: 0, mode }
+    const fee = Math.floor(totalPool * FEE_RATE)
+    const giveout = totalPool - fee
+    return {
+      playerOdds: Math.min(MAX_ODDS, Math.max(MIN_ODDS, parseFloat((giveout / (userPools.player || 1)).toFixed(2)))),
+      bankerOdds: Math.min(MAX_ODDS, Math.max(MIN_ODDS, parseFloat((giveout / (userPools.banker || 1)).toFixed(2)))),
+      tieOdds:    Math.min(MAX_ODDS_TIE, Math.max(MIN_ODDS, parseFloat((giveout / (userPools.tie || 1)).toFixed(2)))),
+      fee, totalPool, mode,
+    }
+  }
 
-  // LP를 빈 사이드에 집중 투입: 유저 배팅이 없는 사이드에 더 많이 넣어 배당이
-  // MIN_ODDS에 캡되는 상황을 방지한다. 타이는 항상 적게(30%).
-  // 1) 각 사이드의 "부족분" 계산
-  const userTotal = userPools.player + userPools.banker + userPools.tie
-  const avgSide = userTotal > 0 ? Math.floor(userTotal / 2) : 0 // player+banker 기준
+  // 실제 LP = max(최소보장LP, 실제배팅풀합계 × 배율) × 유저수모드보정
+  const userBettingTotal = userPools.player + userPools.banker + userPools.tie
+  const multiplier = lpConfig.lpMultiplierBaccarat ?? 1.0
+  const rawLp = Math.max(
+    lpConfig.lpAmountBaccarat,                           // 최소 보장 (바닥값)
+    Math.floor(userBettingTotal * multiplier)            // 배팅액 × 배율
+  )
+  const totalLp = Math.floor(rawLp * lpMult)
 
-  // 빈 사이드에 LP 가중 배분 (최소 기본값 확보)
-  const basePerSide = Math.floor(totalLp / 3)
-  const tieBase     = Math.floor(basePerSide * 0.3)
-  const mainLp      = totalLp - tieBase   // player+banker에 배분할 LP
+  // 타이에 10%, 나머지 90%를 player/banker에 집중 배분
+  const tieBase = Math.floor(totalLp * 0.10)
+  const mainLp  = totalLp - tieBase   // player+banker에 배분할 LP
 
   // player/banker 중 더 적은 쪽에 LP를 더 넣어 균형 유지
   const pUser = userPools.player
@@ -134,9 +175,27 @@ export function calcRaceOdds(
   const mode = getMode(userCount)
   const lpMult = getLpMultiplier(mode)
 
-  const baseLp  = lpConfig.enabled ? lpConfig.lpAmountRace : 0
-  const totalLp = Math.floor(baseLp * lpMult)
-  const tieBase = Math.floor(totalLp * 0.1)   // 타이에 10%만
+  if (!lpConfig.enabled) {
+    const totalPool = userPools.bit + userPools.coin + userPools.tie
+    if (totalPool === 0) return { bitOdds: MIN_ODDS, coinOdds: MIN_ODDS, tieOdds: MIN_ODDS, fee: 0, totalPool: 0, mode }
+    const fee = Math.floor(totalPool * FEE_RATE)
+    const giveout = totalPool - fee
+    return {
+      bitOdds:  Math.min(MAX_ODDS, Math.max(MIN_ODDS, parseFloat((giveout / (userPools.bit  || 1)).toFixed(2)))),
+      coinOdds: Math.min(MAX_ODDS, Math.max(MIN_ODDS, parseFloat((giveout / (userPools.coin || 1)).toFixed(2)))),
+      tieOdds:  Math.min(MAX_ODDS_TIE, Math.max(MIN_ODDS, parseFloat((giveout / (userPools.tie || 1)).toFixed(2)))),
+      fee, totalPool, mode,
+    }
+  }
+
+  const userBettingTotal = userPools.bit + userPools.coin + userPools.tie
+  const multiplier = lpConfig.lpMultiplierRace ?? 1.0
+  const rawLp = Math.max(
+    lpConfig.lpAmountRace,
+    Math.floor(userBettingTotal * multiplier)
+  )
+  const totalLp = Math.floor(rawLp * lpMult)
+  const tieBase = Math.floor(totalLp * 0.10)
   const mainLp  = totalLp - tieBase
 
   // 부족한 쪽(bit/coin)에 LP 집중 투입

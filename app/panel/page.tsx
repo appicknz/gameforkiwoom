@@ -35,12 +35,16 @@ interface Branch {
   lp_amount: number
   lp_amount_baccarat?: number
   lp_amount_race?: number
+  lp_multiplier_baccarat?: number
+  lp_multiplier_race?: number
 }
 
-// LP 설정 행 컴포넌트 (바카라/레이스 개별 설정)
+// LP 설정 행 컴포넌트
 function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void }) {
-  const [baccaratLp, setBaccaratLp] = useState(String(branch.lp_amount_baccarat ?? branch.lp_amount ?? 50000))
-  const [raceLp, setRaceLp] = useState(String(branch.lp_amount_race ?? branch.lp_amount ?? 50000))
+  const [baccaratMinLp,  setBaccaratMinLp]  = useState(String(branch.lp_amount_baccarat ?? branch.lp_amount ?? 50000))
+  const [raceMinLp,      setRaceMinLp]      = useState(String(branch.lp_amount_race     ?? branch.lp_amount ?? 50000))
+  const [baccaratMult,   setBaccaratMult]   = useState(String(branch.lp_multiplier_baccarat ?? 1.0))
+  const [raceMult,       setRaceMult]       = useState(String(branch.lp_multiplier_race     ?? 1.0))
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
@@ -52,8 +56,10 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         branchId: branch.id,
-        lpAmountBaccarat: parseInt(baccaratLp) || 0,
-        lpAmountRace: parseInt(raceLp) || 0,
+        lpAmountBaccarat:     parseInt(baccaratMinLp) || 0,
+        lpAmountRace:         parseInt(raceMinLp)     || 0,
+        lpMultiplierBaccarat: parseFloat(baccaratMult) || 1.0,
+        lpMultiplierRace:     parseFloat(raceMult)     || 1.0,
       }),
     })
     if (res.ok) { setMsg({ text: "저장됨", ok: true }); onSaved() }
@@ -63,17 +69,45 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
   }
 
   return (
-    <div className="px-5 py-4">
-      <p className="text-sm font-semibold text-foreground mb-3">{branch.name}</p>
-      <div className="flex gap-3 flex-wrap items-end">
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">바카라 LP</p>
-          <Input type="number" value={baccaratLp} onChange={e => setBaccaratLp(e.target.value)} className="h-8 w-32 text-sm" />
+    <div className="px-5 py-4 space-y-3">
+      <p className="text-sm font-semibold text-foreground">{branch.name}</p>
+
+      {/* 배율 설정 — 핵심 */}
+      <div className="rounded-lg bg-muted/50 border border-border p-3 space-y-2">
+        <p className="text-xs font-medium text-foreground">LP 배율 (실제LP = max(최소LP, 배팅풀 × 배율))</p>
+        <p className="text-[11px] text-muted-foreground">1.0 = 배팅액 100% 대응 · 백만원 배팅 → LP도 백만원 자동 투입</p>
+        <div className="flex gap-3 flex-wrap items-end">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">바카라 배율</p>
+            <Input type="number" step="0.1" min="0" value={baccaratMult}
+              onChange={e => setBaccaratMult(e.target.value)} className="h-8 w-24 text-sm" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">레이스 배율</p>
+            <Input type="number" step="0.1" min="0" value={raceMult}
+              onChange={e => setRaceMult(e.target.value)} className="h-8 w-24 text-sm" />
+          </div>
         </div>
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">레이스 LP</p>
-          <Input type="number" value={raceLp} onChange={e => setRaceLp(e.target.value)} className="h-8 w-32 text-sm" />
+      </div>
+
+      {/* 최소 보장 LP — 배팅이 없을 때 바닥값 */}
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-foreground">최소 보장 LP (배팅 0원일 때 바닥값)</p>
+        <div className="flex gap-3 flex-wrap items-end">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">바카라 최소 LP</p>
+            <Input type="number" value={baccaratMinLp}
+              onChange={e => setBaccaratMinLp(e.target.value)} className="h-8 w-32 text-sm" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">레이스 최소 LP</p>
+            <Input type="number" value={raceMinLp}
+              onChange={e => setRaceMinLp(e.target.value)} className="h-8 w-32 text-sm" />
+          </div>
         </div>
+      </div>
+
+      <div className="flex items-center gap-3">
         <Button size="sm" className="h-8 text-xs" onClick={handleSave} disabled={saving}>
           {saving ? "저장 중..." : "저장"}
         </Button>
@@ -381,7 +415,7 @@ export default function PanelPage() {
     }
     const amount = parseInt(chargeAmount)
     if (!chargeAmount || isNaN(amount) || amount <= 0) {
-      setChargeMsg({ text: "올바른 금액을 입력하세요.", ok: false })
+      setChargeMsg({ text: "올바른 금액을 ���력하세요.", ok: false })
       setChargeLoading(false)
       return
     }
@@ -573,7 +607,7 @@ export default function PanelPage() {
                 activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              <ImageIcon className="w-4 h-4" /> 카드이미지
+              <ImageIcon className="w-4 h-4" /> 카드이���지
             </button>
           )}
           {isSuperAdmin && (

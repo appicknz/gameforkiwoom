@@ -7,7 +7,7 @@
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
-import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
+import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -39,24 +39,14 @@ export async function GET(request: Request) {
     }
 
     // 지점 LP 설정 조회
-    let lpConfig = {
-      enabled: true,
-      lpAmountBaccarat: 50000,
-      lpAmountRace: 50000,
-    }
+    let lpConfig = { ...DEFAULT_LP_CONFIG }
     if (branchId) {
       const { data: branch } = await admin
         .from("branches")
-        .select("lp_enabled, lp_amount_baccarat, lp_amount_race")
+        .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
         .eq("id", branchId)
         .single()
-      if (branch) {
-        lpConfig = {
-          enabled: branch.lp_enabled ?? true,
-          lpAmountBaccarat: branch.lp_amount_baccarat ?? 50000,
-          lpAmountRace: branch.lp_amount_race ?? 50000,
-        }
-      }
+      if (branch) lpConfig = branchToLpConfig(branch)
     }
 
     // Redis에서 현재 라운드 배팅 풀 조회

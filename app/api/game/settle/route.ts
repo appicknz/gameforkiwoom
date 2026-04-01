@@ -15,7 +15,7 @@
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
-import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
+import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
 export const runtime = "nodejs"
 
@@ -150,7 +150,7 @@ export async function POST(request: Request) {
 
       // 유저 지점 LP 설정 (캐시 or DB)
       const lpCacheKey = `lp:config:user:${userId}`
-      let lpConfig = { enabled: true, lpAmountBaccarat: 50000, lpAmountRace: 50000 }
+      let lpConfig = { ...DEFAULT_LP_CONFIG }
       const cachedLp = await redis.get<string>(lpCacheKey)
       if (cachedLp) {
         try { lpConfig = typeof cachedLp === "string" ? JSON.parse(cachedLp) : cachedLp } catch {}
@@ -160,17 +160,10 @@ export async function POST(request: Request) {
         if (profileData?.branch_id) {
           const { data: branch } = await admin
             .from("branches")
-            .select("lp_enabled, lp_amount_baccarat, lp_amount_race")
+            .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
             .eq("id", profileData.branch_id)
             .single()
-          if (branch) {
-            lpConfig = {
-              enabled: branch.lp_enabled ?? true,
-              lpAmountBaccarat: branch.lp_amount_baccarat ?? 50000,
-              lpAmountRace: branch.lp_amount_race ?? 50000,
-            }
-          }
-          // LP 설정 5분 캐시
+          if (branch) lpConfig = branchToLpConfig(branch)
           await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 300 })
         }
       }
@@ -253,14 +246,11 @@ export async function POST(request: Request) {
             .from("profiles").select("branch_id").eq("id", userId).single()
           if (profileData?.branch_id) {
             const { data: branch } = await admin
-              .from("branches").select("lp_enabled, lp_amount_baccarat, lp_amount_race")
+              .from("branches")
+              .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
               .eq("id", profileData.branch_id).single()
             if (branch) {
-              lpConfig = {
-                enabled: branch.lp_enabled ?? true,
-                lpAmountBaccarat: branch.lp_amount_baccarat ?? 50000,
-                lpAmountRace: branch.lp_amount_race ?? 50000,
-              }
+              lpConfig = branchToLpConfig(branch)
               await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 300 })
             }
           }

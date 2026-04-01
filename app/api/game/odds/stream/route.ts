@@ -1,6 +1,6 @@
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
-import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
+import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -14,21 +14,15 @@ const redis = new Redis({
 async function getOddsPayload(gameType: string, branchId: string | null) {
   const roundNumber = Math.floor(Math.floor(Date.now() / 1000) / 30)
 
-  // LP 설정 조회 — LP는 항상 켜져 있음 (지점 설정 참조)
-  let lpConfig = { enabled: true, lpAmountBaccarat: 50000, lpAmountRace: 50000 }
+  // LP 설정 조회
+  let lpConfig = { ...DEFAULT_LP_CONFIG }
   if (branchId) {
     const { data: branch } = await admin
       .from("branches")
-      .select("lp_enabled, lp_amount_baccarat, lp_amount_race")
+      .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
       .eq("id", branchId)
       .single()
-    if (branch) {
-      lpConfig = {
-        enabled: branch.lp_enabled ?? true,
-        lpAmountBaccarat: branch.lp_amount_baccarat ?? 50000,
-        lpAmountRace: branch.lp_amount_race ?? 50000,
-      }
-    }
+    if (branch) lpConfig = branchToLpConfig(branch)
   }
 
   const poolKey = `pool:${gameType}:${roundNumber}`
