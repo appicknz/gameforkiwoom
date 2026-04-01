@@ -1,7 +1,7 @@
 import { adminSupabase } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -9,118 +9,111 @@ const redis = new Redis({
 })
 
 // POST /api/pari/bet
-// 파리뮤추얼 배팅: 잔고 차감 + pari_pools 풀에 금액 추가
-// 기존 /api/user/game/bet 와 완전 독립, 기존 로직 무변경
+// 배팅: 잔고 차감 + Redis pool 추가 + lp-system으로 배당 계산 반환
+// pari 전용 엔드포인트이지만 배당 계산은 lp-system.ts로 통일
 export async function POST(req: Request) {
   try {
     const token = req.headers.get("authorization")?.replace("Bearer ", "")
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const anonClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-    const { data: { user }, error: authErr } = await anonClient.auth.getUser(token)
+    const { data: { user }, error: authErr } = await adminSupabase.auth.getUser(token)
     if (authErr || !user) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
     const body = await req.json()
-    const { branchId, roundTime, betAmount, poolType, side } = body
-    // poolType: "long_short" | "under_over" | "odd_even"
-    // side: "a" | "b"  (a=long/under/odd, b=short/over/even)
+    const { roundTime, betAmount, poolType, side } = body
+    // poolType: "baccarat" | "race"
+    // side: "player"|"banker"|"tie" (baccarat) / "bit"|"coin"|"tie" (race)
 
-    if (!branchId || !roundTime || !betAmount || !poolType || !side) {
+    if (!roundTime || !betAmount || !poolType || !side) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
-    }
-    if (!["long_short", "under_over", "odd_even"].includes(poolType)) {
-      return NextResponse.json({ error: "Invalid poolType" }, { status: 400 })
-    }
-    if (!["a", "b"].includes(side)) {
-      return NextResponse.json({ error: "Invalid side" }, { status: 400 })
     }
     if (betAmount <= 0) {
       return NextResponse.json({ error: "Invalid betAmount" }, { status: 400 })
     }
 
-    // 지점 파리뮤추얼 모드 확인
-    const { data: branch } = await adminSupabase
-      .from("branches")
-      .select("betting_mode")
-      .eq("id", branchId)
-      .single()
-
-    if (!branch || branch.betting_mode !== "pari") {
-      return NextResponse.json({ error: "Branch is not in pari mode" }, { status: 400 })
-    }
-
-    // Atomic 잔고 차감 (기존 RPC 재사용)
-    const { data: newBalance, error: rpcErr } = await adminSupabase
-      .rpc("atomic_deduct_balance", { p_user_id: user.id, p_amount: betAmount })
-
-    if (rpcErr) return NextResponse.json({ error: "Balance update failed" }, { status: 500 })
-    if ((newBalance as number) === -1) return NextResponse.json({ error: "Insufficient balance" }, { status: 400 })
-
-    const balanceBefore = (newBalance as number) + betAmount
-
-    // pari_pools에 베팅금 추가 (upsert 후 increment)
-    const col = side === "a" ? "side_a_amount" : "side_b_amount"
-    const rt = parseInt(roundTime)
-
-    // 풀이 없으면 먼저 생성 (LP 없이)
-    await adminSupabase
-      .from("pari_pools")
-      .upsert({
-        branch_id: branchId,
-        round_time: rt,
-        pool_type: poolType,
-        side_a_amount: 0,
-        side_b_amount: 0,
-        lp_a: 0,
-        lp_b: 0,
-      }, { onConflict: "branch_id,round_time,pool_type", ignoreDuplicates: true })
-
-    // atomic increment
-    await adminSupabase.rpc("increment_pari_pool", {
-      p_branch_id: branchId,
-      p_round_time: rt,
-      p_pool_type: poolType,
-      p_col: col,
-      p_amount: betAmount,
-    })
-
-    // LP 자동 조정: balance_lp RPC가 반대쪽에 사용자 배팅액만큼 LP 투입 후
-    // odds_a/odds_b 를 직접 반환 → 풀 재조회 불필요
-    const { data: lpResult, error: lpErr } = await adminSupabase.rpc("balance_lp", {
-      p_branch_id: branchId,
-      p_round_time: rt,
-      p_pool_type: poolType,
-    })
-    if (lpErr) console.error("[pari/bet] balance_lp error:", lpErr)
-
-    // RPC는 TABLE 반환 → rows[0] 로 접근
-    const lpRow = Array.isArray(lpResult) ? lpResult[0] : lpResult
-    const totalA = parseFloat(lpRow?.lp_a ?? 0)
-    const totalB = parseFloat(lpRow?.lp_b ?? 0)
-    // 배팅한 사이드의 확정 배율
-    const odds: number = side === "a"
-      ? parseFloat(lpRow?.odds_a ?? 1.90)
-      : parseFloat(lpRow?.odds_b ?? 1.90)
-
-    // 잔고 트랜잭션 기록
-    const { data: profileData } = await adminSupabase
+    // 유저 지점 조회 + LP 설정
+    const { data: profile } = await adminSupabase
       .from("profiles")
       .select("branch_id")
       .eq("id", user.id)
       .single()
+    const branchId = profile?.branch_id ?? null
 
+    let lpConfig = { enabled: true, lpAmountBaccarat: 50000, lpAmountRace: 50000 }
+    if (branchId) {
+      const { data: branch } = await adminSupabase
+        .from("branches")
+        .select("lp_enabled, lp_amount_baccarat, lp_amount_race")
+        .eq("id", branchId)
+        .single()
+      if (branch) {
+        lpConfig = {
+          enabled: branch.lp_enabled ?? true,
+          lpAmountBaccarat: branch.lp_amount_baccarat ?? 50000,
+          lpAmountRace: branch.lp_amount_race ?? 50000,
+        }
+      }
+    }
+
+    // Atomic 잔고 차감
+    const { data: newBalance, error: rpcErr } = await adminSupabase
+      .rpc("atomic_deduct_balance", { p_user_id: user.id, p_amount: betAmount })
+    if (rpcErr) return NextResponse.json({ error: "Balance update failed" }, { status: 500 })
+    if ((newBalance as number) === -1) return NextResponse.json({ error: "Insufficient balance" }, { status: 400 })
+    const balanceBefore = (newBalance as number) + betAmount
+
+    // Redis pool에 배팅금 추가
+    const roundNum = parseInt(roundTime)
+    const poolKey = `pool:${poolType}:${roundNum}`
+    const userSetKey = `users:${poolType}:${roundNum}`
+    await Promise.all([
+      redis.hincrby(poolKey, side, betAmount),
+      redis.sadd(userSetKey, user.id),
+      redis.expire(poolKey, 120),
+      redis.expire(userSetKey, 120),
+      redis.incr(`odds_version:${poolType}`),
+    ])
+
+    // 최신 풀 조회 후 lp-system으로 배당 계산
+    const [poolRaw, userCount] = await Promise.all([
+      redis.hgetall(poolKey),
+      redis.scard(userSetKey),
+    ])
+
+    const toInt = (v: unknown) => parseInt((v as string) ?? "0") || 0
+
+    let odds = 1.6
+    if (poolType === "baccarat") {
+      const pools = {
+        player: toInt(poolRaw?.player),
+        banker: toInt(poolRaw?.banker),
+        tie:    toInt(poolRaw?.tie),
+      }
+      const result = calcBaccaratOdds(pools, lpConfig, userCount ?? 1)
+      odds = side === "player" ? result.playerOdds
+           : side === "banker" ? result.bankerOdds
+           : result.tieOdds
+    } else {
+      const pools = {
+        bit:  toInt(poolRaw?.bit),
+        coin: toInt(poolRaw?.coin),
+        tie:  toInt(poolRaw?.tie),
+      }
+      const result = calcRaceOdds(pools, lpConfig, userCount ?? 1)
+      odds = side === "bit"  ? result.bitOdds
+           : side === "coin" ? result.coinOdds
+           : result.tieOdds
+    }
+
+    // 잔고 트랜잭션 기록
     await adminSupabase.from("balance_transactions").insert({
       user_id: user.id,
-      branch_id: profileData?.branch_id ?? null,
+      branch_id: branchId,
       type: "bet",
       amount: -betAmount,
       balance_before: balanceBefore,
       balance_after: newBalance as number,
-      note: `파리뮤추얼 배팅 (${poolType}/${side})`,
+      note: `배팅 (${poolType}/${side}) 배율 ${odds.toFixed(2)}x`,
     })
 
     // Redis 잔고 갱신 + balance SSE 트리거
@@ -132,9 +125,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       newBalance,
-      odds,          // 배팅 완료 시 확정 배율 — 클라이언트에서 게임중 화면에 표시
-      totalA,
-      totalB,
+      odds,
     })
   } catch (err) {
     console.error("[pari/bet] error:", err)

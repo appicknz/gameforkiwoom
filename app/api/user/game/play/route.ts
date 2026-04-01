@@ -160,34 +160,18 @@ export async function POST(request: Request) {
       redis.incr(`balance_version:${user.id}`),
     ])
 
-    // ── house_stats 업데이트 ─────────────────────────────────
+    // ── house_stats 업데이트 (atomic upsert RPC — 레이스 컨디션 없음) ──
     if (branchId && totalUserBet > 0) {
       const fee = Math.floor(totalUserBet * 0.2)
-      const { data: existing } = await admin
-        .from("house_stats")
-        .select("id, total_bet, total_payout, total_fee")
-        .eq("branch_id", branchId)
-        .eq("game_type", "baccarat")
-        .single()
-
-      if (existing) {
-        await admin.from("house_stats").update({
-          total_bet: (existing.total_bet ?? 0) + totalUserBet,
-          total_payout: (existing.total_payout ?? 0) + totalPayout,
-          total_fee: (existing.total_fee ?? 0) + fee,
-          updated_at: new Date().toISOString(),
-        }).eq("id", existing.id)
-      } else {
-        await admin.from("house_stats").insert({
-          branch_id: branchId,
-          game_type: "baccarat",
-          total_bet: totalUserBet,
-          total_payout: totalPayout,
-          total_fee: fee,
-          total_lp_used: 0,
-          total_collected: 0,
-        })
-      }
+      const lpUsed = baccaratOdds.totalPool - baccaratPool.player - baccaratPool.banker - baccaratPool.tie
+      await admin.rpc("upsert_house_stats", {
+        p_branch_id: branchId,
+        p_game_type: "baccarat",
+        p_bet:       totalUserBet,
+        p_payout:    totalPayout,
+        p_fee:       fee,
+        p_lp_used:   Math.max(0, lpUsed),
+      })
     }
 
     // ── rounds 테이블 기록 ────────────────────────────────────
