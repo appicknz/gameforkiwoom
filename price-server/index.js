@@ -6,9 +6,54 @@
  */
 
 const { WebSocket, WebSocketServer } = require("ws");
+const https = require("https");
 
 const PORT = process.env.PORT || 8080;
 const BINANCE_TRADE_URL = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade";
+
+// Supabase REST API로 DB에서 최근 closing 가격 복원
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+
+function fetchRecentClosingPrices() {
+  return new Promise((resolve) => {
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      console.log("[restore] No Supabase env vars, skipping DB restore");
+      return resolve([]);
+    }
+    const url = `${SUPABASE_URL}/rest/v1/btc_closing_prices?order=time.desc&limit=100`;
+    const options = {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+      },
+    };
+    https.get(url, options, (res) => {
+      let body = "";
+      res.on("data", (d) => body += d);
+      res.on("end", () => {
+        try {
+          const rows = JSON.parse(body);
+          if (!Array.isArray(rows)) return resolve([]);
+          // 오름차순 정렬 (최신순으로 받았으므로 역순)
+          const sorted = rows
+            .filter(r => r.time && r.price)
+            .map(r => ({ time: Number(r.time), price: parseFloat(r.price) }))
+            .sort((a, b) => a.time - b.time);
+          console.log(`[restore] Loaded ${sorted.length} closing prices from DB`);
+          resolve(sorted);
+        } catch (e) {
+          console.error("[restore] Parse error:", e.message);
+          resolve([]);
+        }
+      });
+    }).on("error", (e) => {
+      console.error("[restore] HTTP error:", e.message);
+      resolve([]);
+    });
+  });
+}
 
 const clients = new Set();
 const closingPrices = []; // 최근 100개
@@ -139,5 +184,13 @@ setInterval(() => {
   if (tradeWs?.readyState === WebSocket.OPEN) tradeWs.pong();
 }, 30000);
 
-// ─── 시작 ───────────────────────────────────────────────────────────
-connectTrade();
+// ─── 시작: DB에서 closing 복원 후 Binance 연결 ───────────────────────
+(async () => {
+  const restored = await fetchRecentClosingPrices();
+  if (restored.length > 0) {
+    closingPrices.push(...restored);
+    if (closingPrices.length > 100) closingPrices.splice(0, closingPrices.length - 100);
+    console.log(`[restore] Seeded ${closingPrices.length} closing prices into memory`);
+  }
+  connectTrade();
+})();
