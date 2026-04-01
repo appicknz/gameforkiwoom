@@ -1,4 +1,4 @@
-카/**
+/**
  * BTC Price WebSocket Server
  * - 현재가: 현물 @aggTrade (실시간)
  * - 종가: aggTrade 기반 서버 시간 30초 버킷 판정 (kline_30s 차단 우회)
@@ -194,7 +194,7 @@ function connectTrade() {
       lastTradePrice = price;
       latestPrice = { price, time };
 
-      // 현재가 브로드캐스트: 1초에 한 번만 (aggTrade는 초당 수십 개)
+      // 현재가 브로드캐스���: 1초에 한 번만 (aggTrade는 초당 수십 개)
       if (nowSec > lastPriceBroadcastSec) {
         lastPriceBroadcastSec = nowSec;
         broadcast({ type: "price", price, time });
