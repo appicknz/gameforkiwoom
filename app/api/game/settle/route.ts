@@ -284,18 +284,18 @@ export async function POST(request: Request) {
         branchAccum[branchId].totalPayout  += userPayout
       }
 
-      // 지점별 house_stats upsert
+      // 지점별 house_stats 증분 누적 (RPC — 덮어쓰지 않고 누적)
       for (const [bId, acc] of Object.entries(branchAccum)) {
-        const fee = Math.floor(acc.totalBet * 0.20)  // 수수료 20%
-        await admin.from("house_stats").upsert({
-          branch_id: bId,
-          game_type: "baccarat",
-          total_bet:     acc.totalBet,
-          total_payout:  acc.totalPayout,
-          total_fee:     fee,
-          total_lp_used: Math.max(0, acc.totalPayout - acc.totalBet + fee),  // LP 보전액
-          updated_at:    new Date().toISOString(),
-        }, { onConflict: "branch_id,game_type", ignoreDuplicates: false }).then(() => {}).catch(() => {})
+        const fee    = Math.floor(acc.totalBet * 0.20)
+        const lpUsed = Math.max(0, acc.totalPayout - acc.totalBet + fee)
+        await admin.rpc("increment_house_stats", {
+          p_branch_id: bId,
+          p_game_type: "baccarat",
+          p_bet:       acc.totalBet,
+          p_payout:    acc.totalPayout,
+          p_fee:       fee,
+          p_lp_used:   lpUsed,
+        }).then(() => {}).catch(() => {})
       }
     }
 
@@ -314,7 +314,7 @@ export async function POST(request: Request) {
 
         // LP 설정 조회
         const lpCacheKey = `lp:config:user:${userId}`
-        let lpConfig = { enabled: true, lpAmountBaccarat: 50000, lpAmountRace: 50000 }
+        let lpConfig = { ...DEFAULT_LP_CONFIG }
         const cachedLp = await redis.get<string>(lpCacheKey)
         if (cachedLp) {
           try { lpConfig = typeof cachedLp === "string" ? JSON.parse(cachedLp) : cachedLp } catch {}
@@ -437,16 +437,16 @@ export async function POST(request: Request) {
       }
 
       for (const [bId, acc] of Object.entries(raceBranchAccum)) {
-        const fee = Math.floor(acc.totalBet * 0.20)
-        await admin.from("house_stats").upsert({
-          branch_id: bId,
-          game_type: "race",
-          total_bet:     acc.totalBet,
-          total_payout:  acc.totalPayout,
-          total_fee:     fee,
-          total_lp_used: Math.max(0, acc.totalPayout - acc.totalBet + fee),
-          updated_at:    new Date().toISOString(),
-        }, { onConflict: "branch_id,game_type", ignoreDuplicates: false }).then(() => {}).catch(() => {})
+        const fee    = Math.floor(acc.totalBet * 0.20)
+        const lpUsed = Math.max(0, acc.totalPayout - acc.totalBet + fee)
+        await admin.rpc("increment_house_stats", {
+          p_branch_id: bId,
+          p_game_type: "race",
+          p_bet:       acc.totalBet,
+          p_payout:    acc.totalPayout,
+          p_fee:       fee,
+          p_lp_used:   lpUsed,
+        }).then(() => {}).catch(() => {})
       }
     }
 
