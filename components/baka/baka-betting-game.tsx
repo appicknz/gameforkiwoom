@@ -307,18 +307,18 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
       key: result.baccarat, label: LABEL_MAP[result.baccarat], won: result.wonBaccarat, amount: result.baccaratAmount,
       payout: result.wonBaccarat
         ? (() => {
-            // 실시간 LP 배당률 사용 (없으면 고정 배율 폴백)
-            if (result.baccaratOdds) {
-              const odds = result.baccarat === "player" ? result.baccaratOdds.player
-                : result.baccarat === "banker" ? result.baccaratOdds.banker
+          // 실시간 LP 배당률 사용 (없으면 고정 배율 폴백)
+          if (result.baccaratOdds) {
+            const odds = result.baccarat === "player" ? result.baccaratOdds.player
+              : result.baccarat === "banker" ? result.baccaratOdds.banker
                 : result.baccaratOdds.tie
-              return Math.floor(result.baccaratAmount * odds)
-            }
-            // 폴백 (baccaratOdds가 null일 때만)
-            return result.baccarat === "player" ? Math.floor(result.baccaratAmount * 2)
-              : result.baccarat === "banker" ? Math.floor(result.baccaratAmount * 1.95)
-                : Math.floor(result.baccaratAmount * 9)
-          })()
+            return Math.floor(result.baccaratAmount * odds)
+          }
+          // 폴백 (baccaratOdds가 null일 때만)
+          return result.baccarat === "player" ? Math.floor(result.baccaratAmount * 2)
+            : result.baccarat === "banker" ? Math.floor(result.baccaratAmount * 1.95)
+              : Math.floor(result.baccaratAmount * 9)
+        })()
         : result.baccaratRefund ? result.baccaratAmount : 0,
       isRefund: result.baccaratRefund && !result.wonBaccarat,
     },
@@ -342,14 +342,14 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
             <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라운드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight"
               style={{ color: allWon ? G.gold : allLost ? "#ef4444" : "#f97316" }}>
-              {allWon ? "승리!" : allLost ? "패배" : "부분 승리"}
+              {allWon ? "WIN" : allLost ? "LOSS" : "승리!"}
             </p>
             <p className="text-[11px] mt-0.5" style={{ color: G.textDim }}>
               끝자리 <span className="font-bold" style={{ color: G.gold }}>{lastDigit}</span>
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카���������� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  비트바카{result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -476,7 +476,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           const data = JSON.parse(e.data)
           if (data.odds) setLiveOdds(data.odds)
           else setLiveOdds(null)
-        } catch {}
+        } catch { }
       }
       es.onerror = () => {
         es?.close()
@@ -875,14 +875,14 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       const betSide = dialog.type === "baccarat" ? dialog.value : undefined
       // bets 전체를 함께 전송 → Redis에 저장 → settle API가 읽어 일괄 정산
       const betsPayload = {
-        direction:       dialog.type === "direction" ? dialog.value : (betRef.current ?? undefined),
+        direction: dialog.type === "direction" ? dialog.value : (betRef.current ?? undefined),
         directionAmount: betDirectionAmountRef.current > 0 ? betDirectionAmountRef.current : (dialog.type === "direction" ? amount : undefined),
-        digit:           dialog.type === "digit" ? dialog.value : (betDigitRef.current ?? undefined),
-        digitAmount:     betDigitAmountRef.current > 0 ? betDigitAmountRef.current : (dialog.type === "digit" ? amount : undefined),
-        parity:          dialog.type === "parity" ? dialog.value : (betParityRef.current ?? undefined),
-        parityAmount:    betParityAmountRef.current > 0 ? betParityAmountRef.current : (dialog.type === "parity" ? amount : undefined),
-        baccaratSide:    dialog.type === "baccarat" ? dialog.value : (betBaccaratRef.current ?? undefined),
-        baccaratAmount:  betBaccaratAmountRef.current > 0 ? betBaccaratAmountRef.current : (dialog.type === "baccarat" ? amount : undefined),
+        digit: dialog.type === "digit" ? dialog.value : (betDigitRef.current ?? undefined),
+        digitAmount: betDigitAmountRef.current > 0 ? betDigitAmountRef.current : (dialog.type === "digit" ? amount : undefined),
+        parity: dialog.type === "parity" ? dialog.value : (betParityRef.current ?? undefined),
+        parityAmount: betParityAmountRef.current > 0 ? betParityAmountRef.current : (dialog.type === "parity" ? amount : undefined),
+        baccaratSide: dialog.type === "baccarat" ? dialog.value : (betBaccaratRef.current ?? undefined),
+        baccaratAmount: betBaccaratAmountRef.current > 0 ? betBaccaratAmountRef.current : (dialog.type === "baccarat" ? amount : undefined),
       }
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
