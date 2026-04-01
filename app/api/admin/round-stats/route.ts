@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     const lpConfigKey = `lp_config:${gameType}:${currentRound}`
 
     // Redis에서 배팅 풀, 유저 수, LP 설정 조회
-    const [pools, userIds, lpConfig] = await Promise.all([
+    const [pools, userIds, lpConfigRaw] = await Promise.all([
       redis.hgetall(poolKey).catch(() => null),
       redis.smembers(userSetKey).catch(() => []),
       redis.get(lpConfigKey).catch(() => null),
@@ -69,9 +69,9 @@ export async function GET(request: Request) {
     // LP 설정 파싱
     let lpAmount = 50000
     try {
-      if (lpConfig) {
-        const config = JSON.parse(lpConfig)
-        lpAmount = gameType === "baccarat" ? config.baccarat : config.race
+      if (lpConfigRaw) {
+        const parsed = typeof lpConfigRaw === "string" ? JSON.parse(lpConfigRaw) : lpConfigRaw
+        lpAmount = gameType === "baccarat" ? (parsed.baccarat ?? parsed.lpAmountBaccarat ?? 50000) : (parsed.race ?? parsed.lpAmountRace ?? 50000)
       }
     } catch {}
 

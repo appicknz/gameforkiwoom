@@ -16,6 +16,7 @@ interface RoundStats {
   lpAmount: number
   mode: string
   prediction: Record<string, number>
+  odds: Record<string, number> | null
 }
 interface HouseStat {
   id: number; branch_id: string; game_type: string
