@@ -222,6 +222,83 @@ export async function POST(request: Request) {
       }
     }
 
+    // ── 바카라 house_stats 지점별 집계 ──────────────────────
+    // 유저별 배팅액과 지급액을 집계해 지점별 수수료(=배팅액×20%) / 총배팅 / 총지급 기록
+    {
+      // branchId → { totalBet, totalPayout } 맵
+      const branchAccum: Record<string, { totalBet: number; totalPayout: number }> = {}
+
+      for (const userId of userIds as string[]) {
+        const betsKey = `bet:bets:baccarat:${roundNumber}:${userId}`
+        const betsRaw = await redis.get<string>(betsKey)
+        if (!betsRaw) continue
+        const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
+
+        // 유저의 지점 조회 (캐시 우선)
+        const profileCacheKey = `profile:branch:${userId}`
+        let branchId: string | null = await redis.get<string>(profileCacheKey)
+        if (!branchId) {
+          const { data: p } = await admin.from("profiles").select("branch_id").eq("id", userId).single()
+          branchId = p?.branch_id ?? null
+          if (branchId) await redis.set(profileCacheKey, branchId, { ex: 3600 })
+        }
+        if (!branchId) continue
+
+        const lpCacheKey = `lp:config:user:${userId}`
+        let lpConfig = { ...DEFAULT_LP_CONFIG }
+        const cachedLp = await redis.get<string>(lpCacheKey)
+        if (cachedLp) { try { lpConfig = typeof cachedLp === "string" ? JSON.parse(cachedLp) : cachedLp } catch {} }
+
+        const baccaratOddsSnap = calcBaccaratOdds(baccaratPool, lpConfig, userCount)
+
+        let userBet = 0
+        let userPayout = 0
+
+        if (bets.directionAmount > 0) {
+          userBet += bets.directionAmount
+          if (bets.direction === wonDirection) userPayout += Math.floor(bets.directionAmount * FIXED_ODDS)
+        }
+        if (bets.digitAmount > 0) {
+          userBet += bets.digitAmount
+          if (bets.digit === wonDigit) userPayout += Math.floor(bets.digitAmount * FIXED_ODDS)
+        }
+        if (bets.parityAmount > 0) {
+          userBet += bets.parityAmount
+          if (bets.parity === wonParity) userPayout += Math.floor(bets.parityAmount * FIXED_ODDS)
+        }
+        if (bets.baccaratAmount > 0) {
+          userBet += bets.baccaratAmount
+          const side = bets.baccaratSide as "player" | "banker" | "tie"
+          if (side === baccaratResult) {
+            const odds = side === "player" ? baccaratOddsSnap.playerOdds
+              : side === "banker" ? baccaratOddsSnap.bankerOdds
+              : baccaratOddsSnap.tieOdds
+            userPayout += Math.floor(bets.baccaratAmount * odds)
+          } else if (baccaratResult === "tie" && (side === "player" || side === "banker")) {
+            userPayout += bets.baccaratAmount  // 타이 원금 반환
+          }
+        }
+
+        if (!branchAccum[branchId]) branchAccum[branchId] = { totalBet: 0, totalPayout: 0 }
+        branchAccum[branchId].totalBet     += userBet
+        branchAccum[branchId].totalPayout  += userPayout
+      }
+
+      // 지점별 house_stats upsert
+      for (const [bId, acc] of Object.entries(branchAccum)) {
+        const fee = Math.floor(acc.totalBet * 0.20)  // 수수료 20%
+        await admin.from("house_stats").upsert({
+          branch_id: bId,
+          game_type: "baccarat",
+          total_bet:     acc.totalBet,
+          total_payout:  acc.totalPayout,
+          total_fee:     fee,
+          total_lp_used: Math.max(0, acc.totalPayout - acc.totalBet + fee),  // LP 보전액
+          updated_at:    new Date().toISOString(),
+        }, { onConflict: "branch_id,game_type", ignoreDuplicates: false }).then(() => {}).catch(() => {})
+      }
+    }
+
     // ── race 유저 정산 (5분 라운드 마지막 tick에서만) ───────
     if (isLastRaceTick && raceUserIds.length > 0) {
       const raceWinner: "bit" | "coin" | "tie" =
@@ -301,6 +378,76 @@ export async function POST(request: Request) {
         }
       }
       console.log(`[settle] race round=${raceRoundNumber} winner=${raceWinner} settled=${raceUserIds.length} users`)
+
+      // race house_stats 지점별 집계
+      const raceBranchAccum: Record<string, { totalBet: number; totalPayout: number }> = {}
+      for (const userId of raceUserIds as string[]) {
+        const betsKey = `bet:bets:race:${raceRoundNumber}:${userId}`
+        const betsRaw = await redis.get<string>(betsKey)
+        if (!betsRaw) continue
+        const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
+
+        const profileCacheKey = `profile:branch:${userId}`
+        let branchId: string | null = await redis.get<string>(profileCacheKey)
+        if (!branchId) {
+          const { data: p } = await admin.from("profiles").select("branch_id").eq("id", userId).single()
+          branchId = p?.branch_id ?? null
+          if (branchId) await redis.set(profileCacheKey, branchId, { ex: 3600 })
+        }
+        if (!branchId) continue
+
+        const lpCacheKey = `lp:config:user:${userId}`
+        let lpConfig = { ...DEFAULT_LP_CONFIG }
+        const cachedLp = await redis.get<string>(lpCacheKey)
+        if (cachedLp) { try { lpConfig = typeof cachedLp === "string" ? JSON.parse(cachedLp) : cachedLp } catch {} }
+
+        const raceOddsSnap = calcRaceOdds(racePool, lpConfig, raceUserCount)
+
+        let userBet = 0
+        let userPayout = 0
+
+        if (bets.directionAmount > 0) {
+          userBet += bets.directionAmount
+          if (bets.direction === wonDirection) userPayout += Math.floor(bets.directionAmount * FIXED_ODDS)
+        }
+        if (bets.digitAmount > 0) {
+          userBet += bets.digitAmount
+          if (bets.digit === wonDigit) userPayout += Math.floor(bets.digitAmount * FIXED_ODDS)
+        }
+        if (bets.parityAmount > 0) {
+          userBet += bets.parityAmount
+          if (bets.parity === wonParity) userPayout += Math.floor(bets.parityAmount * FIXED_ODDS)
+        }
+        if (bets.raceAmount > 0) {
+          userBet += bets.raceAmount
+          const side = bets.raceSide as "bit" | "coin" | "tie"
+          if (side === raceWinner) {
+            const odds = side === "bit" ? raceOddsSnap.bitOdds
+              : side === "coin" ? raceOddsSnap.coinOdds
+              : raceOddsSnap.tieOdds
+            userPayout += Math.floor(bets.raceAmount * odds)
+          } else if (raceWinner === "tie" && (side === "bit" || side === "coin")) {
+            userPayout += bets.raceAmount
+          }
+        }
+
+        if (!raceBranchAccum[branchId]) raceBranchAccum[branchId] = { totalBet: 0, totalPayout: 0 }
+        raceBranchAccum[branchId].totalBet    += userBet
+        raceBranchAccum[branchId].totalPayout += userPayout
+      }
+
+      for (const [bId, acc] of Object.entries(raceBranchAccum)) {
+        const fee = Math.floor(acc.totalBet * 0.20)
+        await admin.from("house_stats").upsert({
+          branch_id: bId,
+          game_type: "race",
+          total_bet:     acc.totalBet,
+          total_payout:  acc.totalPayout,
+          total_fee:     fee,
+          total_lp_used: Math.max(0, acc.totalPayout - acc.totalBet + fee),
+          updated_at:    new Date().toISOString(),
+        }, { onConflict: "branch_id,game_type", ignoreDuplicates: false }).then(() => {}).catch(() => {})
+      }
     }
 
     // ── rounds 테이블 기록 (라운드당 1회) ───────────────────
