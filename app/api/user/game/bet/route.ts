@@ -32,31 +32,17 @@ export async function POST(request: Request) {
 
     const userId = userData.user.id
 
-    // 현재 잔고 조회
-    const { data: balanceData, error: balanceError } = await supabase
-      .from("balances")
-      .select("amount")
-      .eq("user_id", userId)
-      .single()
+    // atomic RPC로 잔고 차감 — SELECT→UPDATE 레이스 컨디션 완전 제거
+    const { data: newBalance, error: deductError } = await supabase
+      .rpc("deduct_balance_for_bet", { p_user_id: userId, p_amount: betAmount })
 
-    if (balanceError) {
-      return NextResponse.json({ error: "Balance not found" }, { status: 404 })
-    }
-
-    const currentBalance = balanceData?.amount ?? 0
-    if (currentBalance < betAmount) {
-      return NextResponse.json({ error: "Insufficient balance" }, { status: 400 })
-    }
-
-    // 배팅 금액 차감
-    const newBalance = currentBalance - betAmount
-    const { error: updateError } = await supabase
-      .from("balances")
-      .update({ amount: newBalance })
-      .eq("user_id", userId)
-
-    if (updateError) {
-      return NextResponse.json({ error: "Failed to update balance" }, { status: 500 })
+    if (deductError) {
+      // INSUFFICIENT_BALANCE 또는 유저 없음
+      const isInsufficient = deductError.message?.includes("INSUFFICIENT_BALANCE")
+      return NextResponse.json(
+        { error: isInsufficient ? "Insufficient balance" : "Failed to update balance" },
+        { status: isInsufficient ? 400 : 500 }
+      )
     }
 
     // 유저의 branch_id 조회 (balance_transactions FK 필요)
@@ -72,14 +58,14 @@ export async function POST(request: Request) {
       branch_id: profileData?.branch_id ?? null,
       type: "bet",
       amount: -betAmount,
-      balance_before: currentBalance,
       balance_after: newBalance,
       note: `배팅 차감`,
     })
 
     // Redis에 최신 잔고 저장 + version increment → balance SSE가 변경 감지
+    // newBalance는 DB atomic RPC에서 반환한 실제 차감 후 잔고
     const redisOps: Promise<unknown>[] = [
-      redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),
+      redis.set(`balance:${userId}`, newBalance as number, { ex: 3600 }),
       redis.incr(`balance_version:${userId}`),
     ]
 

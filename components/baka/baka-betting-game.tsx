@@ -337,7 +337,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카������� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  비트바카�������� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -598,12 +598,13 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
       // 서버 정산 API
       const token = getToken()
       if (token) {
+        // roundNumber를 서버에 전달 — 서버가 DB에서 해당 라운드 마감가를 직접 조회
+        // closePrice/basePrice는 더 이상 클라이언트에서 보내지 않음 (조작 방지)
         fetch("/api/user/game/play", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
-            basePrice: effectiveBase,
-            closePrice,
+            roundNumber: Math.floor(Date.now() / 1000 / 30) - 1,
             bets: {
               direction: betRef.current ?? undefined,
               directionAmount: betRef.current ? betDirectionAmountRef.current : undefined,
@@ -613,7 +614,6 @@ export function BakaBettingGame({ onStartDealTrigger, onFinalDigitTrigger, onBet
               parityAmount: betParityRef.current ? betParityAmountRef.current : undefined,
               baccaratSide: betBaccaratRef.current ?? undefined,
               baccaratAmount: betBaccaratRef.current ? betBaccaratAmountRef.current : undefined,
-              baccaratResult: bacResult ?? undefined,
             },
           }),
         }).then(r => r.json()).then(data => {

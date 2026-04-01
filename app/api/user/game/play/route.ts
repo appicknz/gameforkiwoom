@@ -17,14 +17,37 @@ export async function POST(request: Request) {
     if (authError || !user) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
     const body = await request.json()
-    const { basePrice, closePrice, bets } = body
+    const { bets, roundNumber: clientRoundNumber } = body
 
-    if (typeof basePrice !== "number" || typeof closePrice !== "number") {
-      return NextResponse.json({ error: "Invalid price data" }, { status: 400 })
-    }
     if (!bets || typeof bets !== "object") {
       return NextResponse.json({ error: "Invalid bets" }, { status: 400 })
     }
+
+    // ── 마감가를 서버 DB에서 직접 조회 (클라이언트 신뢰 제거) ──
+    // 클라이언트가 보낸 라운드 번호를 기준으로 DB에서 해당 라운드 마감가 조회
+    // 없으면 직전 라운드 사용 (정산이 약간 늦게 올 수 있음)
+    const targetRound = typeof clientRoundNumber === "number"
+      ? clientRoundNumber
+      : Math.floor(Date.now() / 1000 / 30) - 1
+
+    const { data: closingRow } = await admin
+      .from("btc_closing_prices")
+      .select("price, base_price, time")
+      .or(`time.eq.${targetRound},time.eq.${targetRound - 1}`)
+      .order("time", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!closingRow) {
+      return NextResponse.json({ error: "Closing price not available yet. Retry in a moment." }, { status: 404 })
+    }
+
+    const closePrice: number = typeof closingRow.price === "string"
+      ? parseFloat(closingRow.price)
+      : closingRow.price
+    const basePrice: number = closingRow.base_price
+      ? (typeof closingRow.base_price === "string" ? parseFloat(closingRow.base_price) : closingRow.base_price)
+      : closePrice
 
     // ── 서버에서 직접 승패 계산 ─────────────────────────────
     const wonDirection = closePrice >= basePrice ? "long" : "short"
@@ -125,36 +148,32 @@ export async function POST(request: Request) {
       totalPayout += baccaratPayout
     }
 
-    // ── 현재 잔고 조회 ───────────────────────────────────────
-    const cachedBalance = await redis.get<number>(`balance:${user.id}`)
-    let currentBalance: number
-    if (cachedBalance !== null) {
-      currentBalance = cachedBalance
-    } else {
-      const { data: balanceData } = await admin
-        .from("balances")
-        .select("amount")
-        .eq("user_id", user.id)
-        .single()
-      currentBalance = balanceData?.amount ?? 0
-    }
-
-    // ── 잔고 지급 (당첨 시에만 지급, 패배는 이미 bet API에서 차감) ──
-    const newBalance = currentBalance + totalPayout
+    // ── 잔고 지급 — atomic RPC (당첨 시에만, 패배는 bet API에서 이미 차감됨) ──
+    let newBalance: number
     if (totalPayout > 0) {
-      await admin.from("balances").update({ amount: newBalance }).eq("user_id", user.id)
+      const { data: afterPayout, error: payoutError } = await admin
+        .rpc("add_balance_for_payout", { p_user_id: user.id, p_amount: totalPayout })
+      if (payoutError) {
+        console.error("[game/play] add_balance_for_payout error:", payoutError)
+        return NextResponse.json({ error: "Payout failed" }, { status: 500 })
+      }
+      newBalance = afterPayout as number
       await admin.from("balance_transactions").insert({
         user_id: user.id,
         branch_id: branchId,
         type: "win",
         amount: totalPayout,
-        balance_before: currentBalance,
         balance_after: newBalance,
         note: `게임 당첨 (LP 배당 ${baccaratOdds.mode})`,
       })
+    } else {
+      // 패배: DB에서 현재 잔고를 읽어 Redis 동기화
+      const { data: balanceData } = await admin
+        .from("balances").select("amount").eq("user_id", user.id).single()
+      newBalance = balanceData?.amount ?? 0
     }
 
-    // 항상 Redis 잔고 갱신 + SSE 트리거 (당첨/패배 무관)
+    // 항상 Redis 잔고 갱신 + SSE 트리거
     await Promise.all([
       redis.set(`balance:${user.id}`, newBalance, { ex: 3600 }),
       redis.incr(`balance_version:${user.id}`),
