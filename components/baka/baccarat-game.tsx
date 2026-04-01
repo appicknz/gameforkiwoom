@@ -610,7 +610,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     setState(prev => ({ ...prev, playerCards: finalP, bankerCards: finalB }))
   }, [])
 
-  // ─── 0초 끝자리 카드 → 베팅 사이에 부여 → 추가 카드 연출 → 최종 승부 표시 ──
+  // ─── 0초 끝자��� 카드 → 베팅 사이에 부여 → 추가 카드 연출 → 최종 승부 표시 ──
   // 규칙:
   //   1. 끝자리 카드를 betTarget(베팅 사이드)의 마지막 카드로 부여 (카드 연출)
   //   2. betTarget 점수 ≤5 → 상대방 추가 1장 연출 (이미 3장이면 스킵)
@@ -661,32 +661,31 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     setState(prev => ({ ...prev, playerCards: finalP, finalCard: null }))
     await sleep(350)
 
-    // 5. 점수 계산 및 승부 결정 (9에 가까운 쪽이 이김)
+    // 5. 승부 결정: BTC 끝자리 기반 (카드 연출은 시각적 표현일 뿐, 승패는 규칙 우선)
+    // 소수점 둘째 자리(playerDigit) 기준: 0~4=player, 5~8=banker, 9=tie
+    const decStr2 = closingPrice.toFixed(2).split(".")[1] ?? "00"
+    const finalPlayerDigit = parseInt(decStr2[1] ?? "0")
+    const btcResult: "player" | "banker" | "tie" =
+      finalPlayerDigit <= 4 ? "player" : finalPlayerDigit <= 8 ? "banker" : "tie"
+
+    // 카드 점수는 표시용으로만 사용
     const pScore = handScore(finalP)
     const bScore = handScore(finalB)
-
-    let result: "player" | "banker" | "tie"
-    if (pScore > bScore) {
-      result = "player"
-    } else if (bScore > pScore) {
-      result = "banker"
-    } else {
-      result = "tie"
-    }
 
     setState(prev => ({
       ...prev,
       phase: "result",
-      result,
+      result: btcResult,
       playerCards: finalP,
       bankerCards: finalB,
       roundCount: prev.roundCount + 1,
-      history: [...prev.history.slice(-49), result],
+      history: [...prev.history.slice(-49), btcResult],
       finalCard: null,
     }))
 
     dealingRef.current = false
-    window.dispatchEvent(new CustomEvent("baccarat:deal-complete", { detail: { result } }))
+    // btcResult를 dispatch — baka-betting-game의 settle()이 이 값을 승패 판정에 사용
+    window.dispatchEvent(new CustomEvent("baccarat:deal-complete", { detail: { result: btcResult, pScore, bScore } }))
   }, [])
 
   // 라운드 전환 시 카드 초기화 — dealing 중이 아닐 때만 리셋

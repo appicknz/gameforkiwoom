@@ -29,6 +29,8 @@ interface RoundResult {
   digitAmount: number
   parityAmount: number
   baccaratAmount: number
+  // 정산 시점의 실시간 LP 배당률 스냅샷
+  baccaratOdds: { player: number; banker: number; tie: number } | null
 }
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
@@ -304,9 +306,19 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
     result.baccarat && {
       key: result.baccarat, label: LABEL_MAP[result.baccarat], won: result.wonBaccarat, amount: result.baccaratAmount,
       payout: result.wonBaccarat
-        ? result.baccarat === "player" ? Math.floor(result.baccaratAmount * 2)
-          : result.baccarat === "banker" ? Math.floor(result.baccaratAmount * 1.95)
-            : Math.floor(result.baccaratAmount * 9)
+        ? (() => {
+            // 실시간 LP 배당률 사용 (없으면 고정 배율 폴백)
+            if (result.baccaratOdds) {
+              const odds = result.baccarat === "player" ? result.baccaratOdds.player
+                : result.baccarat === "banker" ? result.baccaratOdds.banker
+                : result.baccaratOdds.tie
+              return Math.floor(result.baccaratAmount * odds)
+            }
+            // 폴백 (baccaratOdds가 null일 때만)
+            return result.baccarat === "player" ? Math.floor(result.baccaratAmount * 2)
+              : result.baccarat === "banker" ? Math.floor(result.baccaratAmount * 1.95)
+                : Math.floor(result.baccaratAmount * 9)
+          })()
         : result.baccaratRefund ? result.baccaratAmount : 0,
       isRefund: result.baccaratRefund && !result.wonBaccarat,
     },
@@ -337,7 +349,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
               {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
               {result.baccaratResult && (
                 <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카��������� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+                  비트바카���������� {result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
                 </span>
               )}
             </p>
@@ -612,6 +624,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         digitAmount: betDigitAmountRef.current,
         parityAmount: betParityAmountRef.current,
         baccaratAmount: betBaccaratAmountRef.current,
+        // 정산 시점 배당률 스냅샷 — 팝업에서 실제 수익 계산에 사용
+        baccaratOdds: liveOdds,
       }
       setLastResult(result)
       setShowResultSheet(true)
