@@ -15,7 +15,7 @@
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
-import { calcBaccaratOdds } from "@/lib/lp-system"
+import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
 
 export const runtime = "nodejs"
 
@@ -70,8 +70,23 @@ export async function POST(request: Request) {
     const baccaratResult: "player" | "banker" | "tie" =
       lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-    // ── Redis 배팅 풀 + 유저 목록 조회 ──────────────────────
-    const poolKey   = `pool:baccarat:${roundNumber}`
+    // ── race 결과 계산 (5분 라운드 기준) ────────────────────
+    // race는 5분(300초) 라운드: raceRoundNumber = Math.floor(closeTime / 300)
+    const raceRoundNumber = Math.floor(closeTime / 300)
+    const racePoolKey    = `pool:race:${raceRoundNumber}`
+    const raceUserSetKey = `users:race:${raceRoundNumber}`
+
+    // race 점수는 price-server가 Redis에 저장한 누적 값 사용
+    // bit_score / coin_score 키: race-betting-game.tsx가 아닌 price-server에서 주도하려면
+    // 현재는 클라이언트가 올린 `race:closing` 이벤트 대신 pool 비율로 판정
+    // (추후 price-server가 score를 Redis에 저장하는 방식으로 개선 가능)
+    const [racePoolData, raceUserIds] = await Promise.all([
+      redis.hgetall(racePoolKey).catch(() => null),
+      redis.smembers(raceUserSetKey).catch(() => [] as string[]),
+    ])
+
+    // ── baccarat 풀 + 유저 목록 조회 ────────────────────────
+    const poolKey    = `pool:baccarat:${roundNumber}`
     const userSetKey = `users:baccarat:${roundNumber}`
     const [poolData, userIds] = await Promise.all([
       redis.hgetall(poolKey).catch(() => null),
@@ -85,7 +100,14 @@ export async function POST(request: Request) {
       tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
     }
 
-    // 결과를 Redis에 저장 → 클라이언트가 baka:closing 수신 후 poll
+    const raceUserCount = (raceUserIds as string[]).length
+    const racePool = {
+      bit:  parseInt((racePoolData?.bit  as string) ?? "0") || 0,
+      coin: parseInt((racePoolData?.coin as string) ?? "0") || 0,
+      tie:  parseInt((racePoolData?.tie  as string) ?? "0") || 0,
+    }
+
+    // baccarat 결과를 Redis에 저장
     const resultPayload = {
       roundNumber,
       closePrice: resolvedClose,
@@ -97,6 +119,21 @@ export async function POST(request: Request) {
       settledAt: Date.now(),
     }
     await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 120 })
+
+    // race 결과 저장 (5분 라운드 마지막 30초 구간에서만 실제 정산)
+    // raceRoundNumber가 이전 라운드와 같으면 아직 race 라운드 진행 중
+    const isLastRaceTick = (closeTime % 300) >= 270  // 300초 라운드의 마지막 30초
+    if (isLastRaceTick) {
+      // race 풀 비율로 winner 결정 (점수가 없는 경우 fallback)
+      const raceWinner: "bit" | "coin" | "tie" =
+        racePool.bit > racePool.coin ? "bit"
+        : racePool.coin > racePool.bit ? "coin"
+        : "tie"
+      await redis.set(`game:result:race:${raceRoundNumber}`, JSON.stringify({
+        raceRoundNumber, raceWinner, closePrice: resolvedClose, settledAt: Date.now(),
+      }), { ex: 600 })
+    }
+
     // 정산 완료 플래그 (중복 방지, 5분 TTL)
     await redis.set(`settled:${roundNumber}`, 1, { ex: 300 })
 
@@ -105,7 +142,7 @@ export async function POST(request: Request) {
     const settlementResults: Array<{ userId: string; payout: number }> = []
 
     for (const userId of userIds as string[]) {
-      const betsKey = `bet:bets:${roundNumber}:${userId}`
+      const betsKey = `bet:bets:baccarat:${roundNumber}:${userId}`
       const betsRaw = await redis.get<string>(betsKey)
       if (!betsRaw) continue
 
@@ -190,6 +227,90 @@ export async function POST(request: Request) {
           ])
         }
       }
+    }
+
+    // ── race 유저 정산 (5분 라운드 마지막 tick에서만) ───────
+    if (isLastRaceTick && raceUserIds.length > 0) {
+      const raceWinner: "bit" | "coin" | "tie" =
+        racePool.bit > racePool.coin ? "bit"
+        : racePool.coin > racePool.bit ? "coin"
+        : "tie"
+
+      for (const userId of raceUserIds as string[]) {
+        const betsKey = `bet:bets:race:${raceRoundNumber}:${userId}`
+        const betsRaw = await redis.get<string>(betsKey)
+        if (!betsRaw) continue
+        const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
+
+        // LP 설정 조회
+        const lpCacheKey = `lp:config:user:${userId}`
+        let lpConfig = { enabled: true, lpAmountBaccarat: 50000, lpAmountRace: 50000 }
+        const cachedLp = await redis.get<string>(lpCacheKey)
+        if (cachedLp) {
+          try { lpConfig = typeof cachedLp === "string" ? JSON.parse(cachedLp) : cachedLp } catch {}
+        } else {
+          const { data: profileData } = await admin
+            .from("profiles").select("branch_id").eq("id", userId).single()
+          if (profileData?.branch_id) {
+            const { data: branch } = await admin
+              .from("branches").select("lp_enabled, lp_amount_baccarat, lp_amount_race")
+              .eq("id", profileData.branch_id).single()
+            if (branch) {
+              lpConfig = {
+                enabled: branch.lp_enabled ?? true,
+                lpAmountBaccarat: branch.lp_amount_baccarat ?? 50000,
+                lpAmountRace: branch.lp_amount_race ?? 50000,
+              }
+              await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 300 })
+            }
+          }
+        }
+
+        const raceOdds = calcRaceOdds(racePool, lpConfig, raceUserCount)
+        let totalPayout = 0
+
+        // direction/digit/parity — FIXED_ODDS
+        if (bets.direction && bets.directionAmount > 0 && bets.direction === wonDirection)
+          totalPayout += Math.floor(bets.directionAmount * FIXED_ODDS)
+        if (bets.digit && bets.digitAmount > 0 && bets.digit === wonDigit)
+          totalPayout += Math.floor(bets.digitAmount * FIXED_ODDS)
+        if (bets.parity && bets.parityAmount > 0 && bets.parity === wonParity)
+          totalPayout += Math.floor(bets.parityAmount * FIXED_ODDS)
+
+        // race side — LP 기반 배당
+        if (bets.raceSide && bets.raceAmount > 0) {
+          const side = bets.raceSide as "bit" | "coin" | "tie"
+          if (side === raceWinner) {
+            const odds = side === "bit" ? raceOdds.bitOdds
+              : side === "coin" ? raceOdds.coinOdds
+              : raceOdds.tieOdds
+            totalPayout += Math.floor(bets.raceAmount * odds)
+          } else if (raceWinner === "tie" && (side === "bit" || side === "coin")) {
+            totalPayout += bets.raceAmount  // 타이 시 원금 반환
+          }
+        }
+
+        if (totalPayout > 0) {
+          const { data: newBal, error } = await admin
+            .rpc("add_balance_for_payout", { p_user_id: userId, p_amount: totalPayout })
+          if (!error && typeof newBal === "number") {
+            await Promise.all([
+              redis.set(`balance:${userId}`, newBal, { ex: 3600 }),
+              redis.incr(`balance_version:${userId}`),
+            ])
+          }
+        } else {
+          const { data: balData } = await admin
+            .from("balances").select("amount").eq("user_id", userId).single()
+          if (balData) {
+            await Promise.all([
+              redis.set(`balance:${userId}`, balData.amount, { ex: 3600 }),
+              redis.incr(`balance_version:${userId}`),
+            ])
+          }
+        }
+      }
+      console.log(`[settle] race round=${raceRoundNumber} winner=${raceWinner} settled=${raceUserIds.length} users`)
     }
 
     // ── rounds 테이블 기록 (라운드당 1회) ───────────────────

@@ -598,35 +598,9 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       }),
     }).catch(() => {})
 
+    // 정산은 price-server → game/settle이 주도 (클라이언트 fetch 제거)
+    // 잔고 업데이트는 balance/stream SSE가 자동으로 push
     if (hasBet) {
-      const token = getToken()
-      if (token) {
-        fetch("/api/user/game/play", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            basePrice: effectiveBase, closePrice,
-            bets: {
-              direction: betRef.current ?? undefined,
-              directionAmount: betRef.current ? betDirectionAmountRef.current : undefined,
-              digit: betDigitRef.current ?? undefined,
-              digitAmount: betDigitRef.current ? betDigitAmountRef.current : undefined,
-              parity: betParityRef.current ?? undefined,
-              parityAmount: betParityRef.current ? betParityAmountRef.current : undefined,
-              baccaratSide: betRaceRef.current
-                ? betRaceRef.current === "bit" ? "banker" : betRaceRef.current === "coin" ? "player" : "tie"
-                : undefined,
-              baccaratAmount: betRaceRef.current ? betRaceAmountRef.current : undefined,
-              baccaratResult: raceResult === "bit" ? "banker" : raceResult === "coin" ? "player" : "tie",
-            },
-          }),
-        }).then(r => r.json()).then(data => {
-          if (typeof data.newBalance === "number") {
-            setBalance(data.newBalance)
-            window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance }))
-          }
-        }).catch(() => {})
-      }
 
       const result: RoundResult = {
         round: roundNum,
@@ -695,10 +669,24 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     if (!token) return
 
     const placeSingle = async (type: BetType, value: string) => {
+      const autoBetsPayload = {
+        direction:       type === "direction" ? value : undefined,
+        directionAmount: type === "direction" ? cfg.amount : undefined,
+        digit:           type === "digit" ? value : undefined,
+        digitAmount:     type === "digit" ? cfg.amount : undefined,
+        parity:          type === "parity" ? value : undefined,
+        parityAmount:    type === "parity" ? cfg.amount : undefined,
+        raceSide:        type === "race" ? value : undefined,
+        raceAmount:      type === "race" ? cfg.amount : undefined,
+      }
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ betAmount: cfg.amount }),
+        body: JSON.stringify({
+          betAmount: cfg.amount,
+          bets: autoBetsPayload,
+          ...(type === "race" ? { gameType: "race", side: value } : {}),
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -760,11 +748,23 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       const token = getToken()
       if (!token) throw new Error("로그인 필요")
       const betSide = dialog.type === "race" ? dialog.value : undefined
+      // bets 전체를 함께 전송 → Redis bet:bets:race:{round}:{userId}에 저장 → settle이 읽음
+      const betsPayload = {
+        direction:       dialog.type === "direction" ? dialog.value : (betRef.current ?? undefined),
+        directionAmount: betDirectionAmountRef.current > 0 ? betDirectionAmountRef.current : (dialog.type === "direction" ? amount : undefined),
+        digit:           dialog.type === "digit" ? dialog.value : (betDigitRef.current ?? undefined),
+        digitAmount:     betDigitAmountRef.current > 0 ? betDigitAmountRef.current : (dialog.type === "digit" ? amount : undefined),
+        parity:          dialog.type === "parity" ? dialog.value : (betParityRef.current ?? undefined),
+        parityAmount:    betParityAmountRef.current > 0 ? betParityAmountRef.current : (dialog.type === "parity" ? amount : undefined),
+        raceSide:        dialog.type === "race" ? dialog.value : (betRaceRef.current ?? undefined),
+        raceAmount:      betRaceAmountRef.current > 0 ? betRaceAmountRef.current : (dialog.type === "race" ? amount : undefined),
+      }
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           betAmount: amount,
+          bets: betsPayload,
           ...(betSide ? { gameType: "race", side: betSide } : {}),
         }),
       })

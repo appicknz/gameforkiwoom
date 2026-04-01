@@ -74,11 +74,17 @@ export async function POST(request: Request) {
     ]
 
     // 배팅 풀 집계 + 유저별 bets 저장 (settle API 사용)
+    // baccarat: 30초 라운드, race: 5분(300초) 라운드
     if (gameType && side) {
-      const roundNumber = Math.floor(Date.now() / 1000 / 30)
-      const poolKey = `pool:${gameType}:${roundNumber}`
+      const nowSec = Math.floor(Date.now() / 1000)
+      const roundNumber = gameType === "race"
+        ? Math.floor(nowSec / 300)
+        : Math.floor(nowSec / 30)
+      const ttl = gameType === "race" ? 600 : 120  // race는 TTL 10분
+
+      const poolKey    = `pool:${gameType}:${roundNumber}`
       const userSetKey = `users:${gameType}:${roundNumber}`
-      const betsKey = `bet:bets:${roundNumber}:${userId}`
+      const betsKey    = `bet:bets:${gameType}:${roundNumber}:${userId}`
 
       // 기존 bets에 merge (여러 번 배팅 가능 — accumulate)
       const existing = await redis.get<string>(betsKey)
@@ -88,9 +94,9 @@ export async function POST(request: Request) {
       redisOps.push(
         redis.hincrby(poolKey, side, betAmount),
         redis.sadd(userSetKey, userId),
-        redis.set(betsKey, JSON.stringify(merged), { ex: 120 }),
-        redis.expire(poolKey, 120),
-        redis.expire(userSetKey, 120),
+        redis.set(betsKey, JSON.stringify(merged), { ex: ttl }),
+        redis.expire(poolKey, ttl),
+        redis.expire(userSetKey, ttl),
       )
     }
 

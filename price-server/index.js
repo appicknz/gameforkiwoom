@@ -180,7 +180,8 @@ function connectTrade() {
         broadcast({ type: "closing", price: closePrice, time: closeTime });
         console.log(`[closing] bucket ${lastBucket}→${bucket}: ${closePrice} @ ${new Date(closeTime * 1000).toISOString()} → ${clients.size} clients`);
 
-        // 게임 엔진: closing 시점에 Vercel 정산 API 호출 (클라이언트 독립)
+        // 게임 엔진: 매 30초마다 Vercel game/settle 호출
+        // baccarat 정산 + race는 5분 라운드 마지막 30초 tick에서 game/settle 내부에서 자동 판단
         triggerSettlement(closePrice, closeTime);
 
         // 새 버킷으로 전환: 이전 버킷의 마지막 가격 초기화
