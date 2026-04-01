@@ -1,12 +1,3 @@
-/**
- * 실시간 배당률 SSE 스트림
- * GET /api/game/odds/stream?type=baccarat|race&token=<jwt>
- *
- * Upstash Redis Pub/Sub 기반:
- * - 배팅 발생 → redis.publish("odds:baccarat"|"odds:race", payload)
- * - 이 스트림이 즉시 메시지 수신 → 클라이언트에 push
- * - 폴링 없음, 이벤트 발생 시에만 Redis 읽기
- */
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
@@ -20,9 +11,9 @@ const redis = new Redis({
 })
 
 async function getOddsPayload(gameType: string, branchId: string | null) {
-  const now = Math.floor(Date.now() / 1000)
-  const roundNumber = Math.floor(now / 30)
+  const roundNumber = Math.floor(Math.floor(Date.now() / 1000) / 30)
 
+  // LP 설정 조회 — LP는 항상 켜져 있음 (지점 설정 참조)
   let lpConfig = { enabled: true, lpAmountBaccarat: 50000, lpAmountRace: 50000 }
   if (branchId) {
     const { data: branch } = await admin
@@ -42,8 +33,8 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
   const poolKey = `pool:${gameType}:${roundNumber}`
   const userSetKey = `users:${gameType}:${roundNumber}`
   const [poolData, userCount] = await Promise.all([
-    redis.hgetall(poolKey),
-    redis.scard(userSetKey),
+    redis.hgetall(poolKey).catch(() => null),
+    redis.scard(userSetKey).catch(() => 0),
   ])
 
   const safeCount = userCount ?? 0
@@ -53,9 +44,6 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
       player: parseInt((poolData?.player as string) ?? "0") || 0,
       banker: parseInt((poolData?.banker as string) ?? "0") || 0,
       tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
-    }
-    if (!lpConfig.enabled && !Object.values(userPools).some(v => v > 0)) {
-      return { gameType, roundNumber, userCount: safeCount, pools: userPools, odds: null, mode: "waiting" }
     }
     const result = calcBaccaratOdds(userPools, lpConfig, safeCount)
     return {
@@ -68,9 +56,6 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
       bit:  parseInt((poolData?.bit  as string) ?? "0") || 0,
       coin: parseInt((poolData?.coin as string) ?? "0") || 0,
       tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
-    }
-    if (!lpConfig.enabled && !Object.values(userPools).some(v => v > 0)) {
-      return { gameType, roundNumber, userCount: safeCount, pools: userPools, odds: null, mode: "waiting" }
     }
     const result = calcRaceOdds(userPools, lpConfig, safeCount)
     return {
@@ -103,9 +88,7 @@ export async function GET(request: Request) {
 
   const encoder = new TextEncoder()
   let closed = false
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let subscriber: any = null
-  const channel = `odds:${gameType}`
+  const versionKey = `odds_version:${gameType}`
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -116,69 +99,37 @@ export async function GET(request: Request) {
         } catch {}
       }
 
-      // 1) 연결 즉시 현재 배당률 전송
+      // 1) 연결 즉시 현재 배당률 전송 (LP 기반이므로 배팅 없어도 odds 있음)
       const initial = await getOddsPayload(gameType, branchId)
       send(initial)
 
-      // 2) Pub/Sub 구독
-      try {
-        subscriber = redis.subscribe([channel])
+      // 2) 버전 카운터 폴링 — 배팅 발생(incr) 또는 라운드 전환 시 갱신
+      let lastVersion = (await redis.get<number>(versionKey)) ?? 0
+      let lastRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
 
-        subscriber.on("message", async () => {
-          if (closed) return
-          // 라운드가 바뀌었을 수도 있으므로 항상 최신값 재계산
-          const payload = await getOddsPayload(gameType, branchId)
-          send(payload)
-        })
+      const interval = setInterval(async () => {
+        if (closed) { clearInterval(interval); return }
+        try {
+          const version = (await redis.get<number>(versionKey)) ?? 0
+          const currentRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
 
-        // 30초마다 라운드 전환 감지용 keepalive + 강제 갱신
-        let lastRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
-        const pingTimer = setInterval(async () => {
-          if (closed) { clearInterval(pingTimer); return }
-          try {
-            controller.enqueue(encoder.encode(": ping\n\n"))
-            const currentRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
-            if (currentRound !== lastRound) {
-              lastRound = currentRound
-              const payload = await getOddsPayload(gameType, branchId)
-              send(payload)
-            }
-          } catch {}
-        }, 30_000)
-
-        request.signal.addEventListener("abort", async () => {
-          closed = true
-          clearInterval(pingTimer)
-          try { await subscriber?.unsubscribe?.() } catch {}
-          try { controller.close() } catch {}
-        })
-      } catch {
-        // Pub/Sub 실패 시 500ms 폴링으로 fallback
-        const versionKey = `odds_version:${gameType}`
-        let lastVersion = (await redis.get<number>(versionKey)) ?? 0
-        let lastRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
-
-        const interval = setInterval(async () => {
-          if (closed) { clearInterval(interval); return }
-          try {
-            const version = (await redis.get<number>(versionKey)) ?? 0
-            const currentRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
-            if (version !== lastVersion || currentRound !== lastRound) {
-              lastVersion = version
-              lastRound = currentRound
-              const payload = await getOddsPayload(gameType, branchId)
-              send(payload)
-            }
-            controller.enqueue(encoder.encode(": ping\n\n"))
-          } catch { clearInterval(interval) }
-        }, 500)
-
-        request.signal.addEventListener("abort", () => {
-          closed = true
+          if (version !== lastVersion || currentRound !== lastRound) {
+            lastVersion = version
+            lastRound = currentRound
+            const payload = await getOddsPayload(gameType, branchId)
+            send(payload)
+          }
+          controller.enqueue(encoder.encode(": ping\n\n"))
+        } catch {
           clearInterval(interval)
-          try { controller.close() } catch {}
-        })
-      }
+        }
+      }, 500)
+
+      request.signal.addEventListener("abort", () => {
+        closed = true
+        clearInterval(interval)
+        try { controller.close() } catch {}
+      })
     },
   })
 
@@ -186,7 +137,7 @@ export async function GET(request: Request) {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
+      "Connection": "keep-alive",
       "X-Accel-Buffering": "no",
     },
   })

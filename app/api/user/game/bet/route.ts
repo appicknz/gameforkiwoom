@@ -96,18 +96,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // 잔고 변경 → balance SSE 즉시 push (Pub/Sub)
-    // odds 변경 → odds SSE 즉시 push (Pub/Sub)
+    // pool 저장 완료 후 SSE 트리거 (버전 카운터 increment)
     await Promise.all(redisOps)
 
-    // publish는 pool 저장 완료 후 순서 보장을 위해 별도 실행
-    const publishOps: Promise<unknown>[] = [
-      redis.publish(`balance:${userId}`, newBalance),
-    ]
+    const triggerOps: Promise<unknown>[] = []
     if (gameType && side) {
-      publishOps.push(redis.publish(`odds:${gameType}`, "1"))
+      triggerOps.push(redis.incr(`odds_version:${gameType}`))
     }
-    await Promise.all(publishOps)
+    if (triggerOps.length > 0) await Promise.all(triggerOps)
 
     return NextResponse.json({ success: true, newBalance })
   } catch (error) {
