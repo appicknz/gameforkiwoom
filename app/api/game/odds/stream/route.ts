@@ -2,9 +2,10 @@
  * 실시간 배당률 SSE 스트림
  * GET /api/game/odds/stream?type=baccarat|race&token=<jwt>
  *
- * 배팅이 들어올 때마다 Redis version key를 increment →
- * 이 스트림이 변경을 감지해 즉시 클라이언트로 push
- * 폴링 없음, 이벤트 기반 실시간 배당률 전달
+ * Upstash Redis Pub/Sub 기반:
+ * - 배팅 발생 → redis.publish("odds:baccarat"|"odds:race", payload)
+ * - 이 스트림이 즉시 메시지 수신 → 클라이언트에 push
+ * - 폴링 없음, 이벤트 발생 시에만 Redis 읽기
  */
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
@@ -19,11 +20,9 @@ const redis = new Redis({
 })
 
 async function getOddsPayload(gameType: string, branchId: string | null) {
-  // 현재 라운드 번호 (30초 기준)
   const now = Math.floor(Date.now() / 1000)
   const roundNumber = Math.floor(now / 30)
 
-  // 지점 LP 설정
   let lpConfig = { enabled: true, lpAmountBaccarat: 50000, lpAmountRace: 50000 }
   if (branchId) {
     const { data: branch } = await admin
@@ -40,8 +39,6 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
     }
   }
 
-  // Redis에서 현재 라운드 배팅 풀 + 유저 수 조회
-  // userSet은 SADD로 저장되므로 SCARD로 읽어야 함
   const poolKey = `pool:${gameType}:${roundNumber}`
   const userSetKey = `users:${gameType}:${roundNumber}`
   const [poolData, userCount] = await Promise.all([
@@ -57,7 +54,6 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
       banker: parseInt((poolData?.banker as string) ?? "0") || 0,
       tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
     }
-    // LP가 활성화되어 있으면 배팅이 없어도 odds 계산 가능 (LP가 양쪽에 깔려 있음)
     if (!lpConfig.enabled && !Object.values(userPools).some(v => v > 0)) {
       return { gameType, roundNumber, userCount: safeCount, pools: userPools, odds: null, mode: "waiting" }
     }
@@ -92,7 +88,6 @@ export async function GET(request: Request) {
     request.headers.get("Authorization")?.replace("Bearer ", "") ??
     url.searchParams.get("token")
 
-  // 인증 (optional - 비로그인도 배당 볼 수 있도록 허용)
   let branchId: string | null = null
   if (token) {
     const { data: { user } } = await admin.auth.getUser(token)
@@ -108,6 +103,9 @@ export async function GET(request: Request) {
 
   const encoder = new TextEncoder()
   let closed = false
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let subscriber: any = null
+  const channel = `odds:${gameType}`
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -118,45 +116,69 @@ export async function GET(request: Request) {
         } catch {}
       }
 
-      // 연결 즉시 현재 배당률 전송
+      // 1) 연결 즉시 현재 배당률 전송
       const initial = await getOddsPayload(gameType, branchId)
       send(initial)
 
-      // version key 감시 (배팅 발생 시 increment)
-      const versionKey = `odds_version:${gameType}`
-      let lastVersion = (await redis.get<number>(versionKey)) ?? 0
-      // 라운드 변경 감지용
-      let lastRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
+      // 2) Pub/Sub 구독
+      try {
+        subscriber = redis.subscribe([channel])
 
-      const interval = setInterval(async () => {
-        if (closed) { clearInterval(interval); return }
-        try {
-          const [version, pingCheck] = await Promise.all([
-            redis.get<number>(versionKey),
-            Promise.resolve(null),
-          ])
-          const currentRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
+        subscriber.on("message", async () => {
+          if (closed) return
+          // 라운드가 바뀌었을 수도 있으므로 항상 최신값 재계산
+          const payload = await getOddsPayload(gameType, branchId)
+          send(payload)
+        })
 
-          // 라운드 전환 또는 배팅 발생 시 즉시 push
-          if ((version ?? 0) !== lastVersion || currentRound !== lastRound) {
-            lastVersion = version ?? 0
-            lastRound = currentRound
-            const payload = await getOddsPayload(gameType, branchId)
-            send(payload)
-          }
-
-          // keepalive
-          if (!closed) {
+        // 30초마다 라운드 전환 감지용 keepalive + 강제 갱신
+        let lastRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
+        const pingTimer = setInterval(async () => {
+          if (closed) { clearInterval(pingTimer); return }
+          try {
             controller.enqueue(encoder.encode(": ping\n\n"))
-          }
-        } catch { clearInterval(interval) }
-      }, 500) // 500ms마다 version 체크 - 배팅 즉시 감지
+            const currentRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
+            if (currentRound !== lastRound) {
+              lastRound = currentRound
+              const payload = await getOddsPayload(gameType, branchId)
+              send(payload)
+            }
+          } catch {}
+        }, 30_000)
 
-      request.signal.addEventListener("abort", () => {
-        closed = true
-        clearInterval(interval)
-        try { controller.close() } catch {}
-      })
+        request.signal.addEventListener("abort", async () => {
+          closed = true
+          clearInterval(pingTimer)
+          try { await subscriber?.unsubscribe?.() } catch {}
+          try { controller.close() } catch {}
+        })
+      } catch {
+        // Pub/Sub 실패 시 500ms 폴링으로 fallback
+        const versionKey = `odds_version:${gameType}`
+        let lastVersion = (await redis.get<number>(versionKey)) ?? 0
+        let lastRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
+
+        const interval = setInterval(async () => {
+          if (closed) { clearInterval(interval); return }
+          try {
+            const version = (await redis.get<number>(versionKey)) ?? 0
+            const currentRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
+            if (version !== lastVersion || currentRound !== lastRound) {
+              lastVersion = version
+              lastRound = currentRound
+              const payload = await getOddsPayload(gameType, branchId)
+              send(payload)
+            }
+            controller.enqueue(encoder.encode(": ping\n\n"))
+          } catch { clearInterval(interval) }
+        }, 500)
+
+        request.signal.addEventListener("abort", () => {
+          closed = true
+          clearInterval(interval)
+          try { controller.close() } catch {}
+        })
+      }
     },
   })
 

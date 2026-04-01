@@ -123,10 +123,10 @@ export async function POST(req: Request) {
       note: `파리뮤추얼 배팅 (${poolType}/${side})`,
     })
 
-    // Redis 잔고 갱신
+    // Redis 잔고 갱신 + balance SSE 즉시 push
     await Promise.all([
       redis.set(`balance:${user.id}`, newBalance as number, { ex: 3600 }),
-      redis.incr(`balance_version:${user.id}`),
+      redis.publish(`balance:${user.id}`, newBalance as number),
     ])
 
     return NextResponse.json({

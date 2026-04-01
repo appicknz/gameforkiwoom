@@ -183,7 +183,7 @@ export async function POST(req: Request) {
 
         await Promise.all([
           redis.set(`balance:${user.id}`, newBalance, { ex: 3600 }),
-          redis.incr(`balance_version:${user.id}`),
+          redis.publish(`balance:${user.id}`, newBalance),
         ])
       }
     }

@@ -10,15 +10,12 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 export async function GET(request: Request) {
-  // 1) JWT 검증 (서버에서만 - 위변조 방지)
-  // EventSource는 커스텀 헤더를 지원 안 하므로 쿼리 파라미터로도 수신
   const url = new URL(request.url)
   const token =
     request.headers.get("Authorization")?.replace("Bearer ", "") ??
     url.searchParams.get("token")
-  if (!token) {
-    return new Response("Unauthorized", { status: 401 })
-  }
+
+  if (!token) return new Response("Unauthorized", { status: 401 })
 
   const { data: userData, error } = await supabase.auth.getUser(token)
   if (error || !userData?.user?.id) {
@@ -26,11 +23,13 @@ export async function GET(request: Request) {
   }
 
   const userId = userData.user.id
-  const redisKey = `balance:${userId}`
+  const balanceKey = `balance:${userId}`
+  const channel = `balance:${userId}`
 
-  // 2) SSE 스트림 생성
   const encoder = new TextEncoder()
   let closed = false
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let subscriber: any = null
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -41,46 +40,77 @@ export async function GET(request: Request) {
         } catch {}
       }
 
-      // 연결 즉시 현재 잔고 전송
-      const current = await redis.get<number>(redisKey)
-      if (current !== null) {
-        send({ balance: current })
+      // 1) 연결 즉시 현재 잔고 전송
+      const cached = await redis.get<number>(balanceKey)
+      if (cached !== null) {
+        send({ balance: cached })
       } else {
-        // Redis에 없으면 DB에서 조회
         const { data: bal } = await supabase
           .from("balances")
           .select("amount")
           .eq("user_id", userId)
           .single()
         if (bal) {
-          await redis.set(redisKey, bal.amount, { ex: 3600 })
+          await redis.set(balanceKey, bal.amount, { ex: 3600 })
           send({ balance: bal.amount })
         }
       }
 
-      // 변경 감지: Redis에서 version 키를 watch (배팅/정산 시 increment)
-      const versionKey = `balance_version:${userId}`
-      let lastVersion = (await redis.get<number>(versionKey)) ?? 0
+      // 2) Pub/Sub 구독 — publish 시에만 동작, 폴링 없음
+      try {
+        subscriber = redis.subscribe([channel])
 
-      const interval = setInterval(async () => {
-        if (closed) { clearInterval(interval); return }
-        try {
-          const version = (await redis.get<number>(versionKey)) ?? 0
-          if (version !== lastVersion) {
-            lastVersion = version
-            const newBalance = await redis.get<number>(redisKey)
-            if (newBalance !== null) send({ balance: newBalance })
+        subscriber.on("message", async (msg: { channel: string; message: unknown }) => {
+          if (closed) return
+          // publish 페이로드가 직접 잔고값이거나 { balance } 형태
+          const raw = msg.message
+          if (typeof raw === "number") {
+            send({ balance: raw })
+          } else if (raw && typeof raw === "object" && "balance" in (raw as object)) {
+            send(raw as object)
+          } else {
+            // fallback: Redis에서 최신값 읽기
+            const latest = await redis.get<number>(balanceKey)
+            if (latest !== null) send({ balance: latest })
           }
-          // keepalive ping (30초마다)
-          controller.enqueue(encoder.encode(": ping\n\n"))
-        } catch { clearInterval(interval) }
-      }, 3_000) // 3초마다 version 확인 (변경 시에만 push - 폴링보다 부하 적음)
+        })
 
-      request.signal.addEventListener("abort", () => {
-        closed = true
-        clearInterval(interval)
-        try { controller.close() } catch {}
-      })
+        // keepalive — SSE 연결을 30초마다 ping으로 유지
+        const pingTimer = setInterval(() => {
+          if (closed) { clearInterval(pingTimer); return }
+          try { controller.enqueue(encoder.encode(": ping\n\n")) } catch {}
+        }, 30_000)
+
+        request.signal.addEventListener("abort", async () => {
+          closed = true
+          clearInterval(pingTimer)
+          try { await subscriber?.unsubscribe?.() } catch {}
+          try { controller.close() } catch {}
+        })
+      } catch {
+        // Pub/Sub 실패 시 3초 폴링으로 fallback
+        const versionKey = `balance_version:${userId}`
+        let lastVersion = (await redis.get<number>(versionKey)) ?? 0
+
+        const interval = setInterval(async () => {
+          if (closed) { clearInterval(interval); return }
+          try {
+            const version = (await redis.get<number>(versionKey)) ?? 0
+            if (version !== lastVersion) {
+              lastVersion = version
+              const newBalance = await redis.get<number>(balanceKey)
+              if (newBalance !== null) send({ balance: newBalance })
+            }
+            controller.enqueue(encoder.encode(": ping\n\n"))
+          } catch { clearInterval(interval) }
+        }, 3_000)
+
+        request.signal.addEventListener("abort", () => {
+          closed = true
+          clearInterval(interval)
+          try { controller.close() } catch {}
+        })
+      }
     },
   })
 

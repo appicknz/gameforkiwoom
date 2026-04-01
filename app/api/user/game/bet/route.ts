@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       redis.incr(`balance_version:${userId}`),
     ]
 
-    // 배팅 풀 집계 + odds SSE 트리거
+    // 배팅 풀 집계
     if (gameType && side) {
       const roundNumber = Math.floor(Date.now() / 1000 / 30)
       const poolKey = `pool:${gameType}:${roundNumber}`
@@ -93,11 +93,21 @@ export async function POST(request: Request) {
         redis.sadd(userSetKey, userId),
         redis.expire(poolKey, 120),
         redis.expire(userSetKey, 120),
-        redis.incr(`odds_version:${gameType}`),
       )
     }
 
+    // 잔고 변경 → balance SSE 즉시 push (Pub/Sub)
+    // odds 변경 → odds SSE 즉시 push (Pub/Sub)
     await Promise.all(redisOps)
+
+    // publish는 pool 저장 완료 후 순서 보장을 위해 별도 실행
+    const publishOps: Promise<unknown>[] = [
+      redis.publish(`balance:${userId}`, newBalance),
+    ]
+    if (gameType && side) {
+      publishOps.push(redis.publish(`odds:${gameType}`, "1"))
+    }
+    await Promise.all(publishOps)
 
     return NextResponse.json({ success: true, newBalance })
   } catch (error) {
