@@ -123,6 +123,34 @@ function createBinanceWS(url, name, onClose) {
   return ws;
 }
 
+// ─── 정산 엔진 — closing 시 Railway에서 직접 실행 ─────────────────────
+// Vercel game/play 대신 여기서 정산: 클라이언트 요청 없이 서버가 주도
+const VERCEL_URL = process.env.VERCEL_URL || process.env.NEXT_PUBLIC_APP_URL;
+
+function triggerSettlement(closePrice, closeTime) {
+  if (!VERCEL_URL) {
+    console.log("[engine] No VERCEL_URL, skipping settlement trigger");
+    return;
+  }
+  const url = `${VERCEL_URL}/api/game/settle`;
+  const body = JSON.stringify({ closePrice, closeTime, source: "price-server" });
+  const options = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-internal-secret": process.env.INTERNAL_SECRET || "tasko-internal",
+    },
+  };
+  // fire-and-forget, 에러는 로그만
+  const req = url.startsWith("https")
+    ? require("https").request(url, options)
+    : require("http").request(url, options);
+  req.on("error", (e) => console.error("[engine] settlement trigger error:", e.message));
+  req.write(body);
+  req.end();
+  console.log(`[engine] settlement triggered: closePrice=${closePrice}, time=${closeTime}`);
+}
+
 // ─── aggTrade (실시간 현재가 + 30초 버킷 기반 closing 판정) ─────────
 let tradeWs = null;
 
@@ -138,14 +166,12 @@ function connectTrade() {
       if (isNaN(price) || price <= 0) return;
 
       // ── 30초 버킷 기반 closing 판정 ──────────────────────────
-      // 버킷이 바뀌는 시점을 먼저 판정 → 이전 버킷의 마지막 가격(prevBucketLastPrice) 사용
       const nowSec = Math.floor(Date.now() / 1000);
       const bucket = Math.floor(nowSec / 30);
 
       if (lastBucket !== null && bucket !== lastBucket) {
-        // 버킷이 바뀜: prevBucketLastPrice = 이전 버킷에서 마지막으로 받은 거래 가격
         const closePrice = prevBucketLastPrice ?? lastTradePrice;
-        const closeTime = lastBucket * 30; // 마감 시각 (이전 버킷 시작 초)
+        const closeTime = lastBucket * 30;
 
         const entry = { time: closeTime, price: closePrice };
         closingPrices.push(entry);
@@ -153,6 +179,9 @@ function connectTrade() {
 
         broadcast({ type: "closing", price: closePrice, time: closeTime });
         console.log(`[closing] bucket ${lastBucket}→${bucket}: ${closePrice} @ ${new Date(closeTime * 1000).toISOString()} → ${clients.size} clients`);
+
+        // 게임 엔진: closing 시점에 Vercel 정산 API 호출 (클라이언트 독립)
+        triggerSettlement(closePrice, closeTime);
 
         // 새 버킷으로 전환: 이전 버킷의 마지막 가격 초기화
         prevBucketLastPrice = null;

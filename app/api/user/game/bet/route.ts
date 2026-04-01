@@ -11,9 +11,10 @@ export async function POST(request: Request) {
   const supabase = adminSupabase
 
   try {
-    const { betAmount, gameType, side } = await request.json()
+    const { betAmount, gameType, side, bets: betsPayload } = await request.json()
     // gameType: "baccarat" | "race" (optional)
     // side: "player"|"banker"|"tie" for baccarat, "bit"|"coin"|"tie" for race (optional)
+    // bets: 전체 배팅 내역 (settle API가 읽음 — direction/digit/parity/baccaratSide 포함)
     if (!betAmount || betAmount <= 0) {
       return NextResponse.json({ error: "Invalid bet amount" }, { status: 400 })
     }
@@ -72,14 +73,22 @@ export async function POST(request: Request) {
       redis.incr(`balance_version:${userId}`),
     ]
 
-    // 배팅 풀 집계
+    // 배팅 풀 집계 + 유저별 bets 저장 (settle API 사용)
     if (gameType && side) {
       const roundNumber = Math.floor(Date.now() / 1000 / 30)
       const poolKey = `pool:${gameType}:${roundNumber}`
       const userSetKey = `users:${gameType}:${roundNumber}`
+      const betsKey = `bet:bets:${roundNumber}:${userId}`
+
+      // 기존 bets에 merge (여러 번 배팅 가능 — accumulate)
+      const existing = await redis.get<string>(betsKey)
+      const prev = existing ? (typeof existing === "string" ? JSON.parse(existing) : existing) : {}
+      const merged = betsPayload ? { ...prev, ...betsPayload } : prev
+
       redisOps.push(
         redis.hincrby(poolKey, side, betAmount),
         redis.sadd(userSetKey, userId),
+        redis.set(betsKey, JSON.stringify(merged), { ex: 120 }),
         redis.expire(poolKey, 120),
         redis.expire(userSetKey, 120),
       )

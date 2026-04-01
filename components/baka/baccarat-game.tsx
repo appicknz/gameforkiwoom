@@ -495,12 +495,14 @@ interface BaccaratGameProps {
   onFinalDigitRequest?: (handler: (digit: number) => void) => void
   /** BaccaratGame이 page에 setBetSide 함수를 등록 — 배팅 사이드를 딜 전에 주입 */
   onBetSideRequest?: (handler: (side: BetSide) => void) => void
+  /** BaccaratGame이 page에 resetCards 함수를 등록 — 라운드 전환 시 카드 초기화 */
+  onResetRequest?: (handler: () => void) => void
   /** history/roundCount 변경 시 page로 전달 */
   onRoadChange?: (history: RoadResult[], round: number) => void
 }
 
 // ─── 메인 게임 컴포넌트 ────────────────────────────────────────────────────
-export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest, onRoadChange }: BaccaratGameProps = {}) {
+export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFinalDigitRequest, onBetSideRequest, onResetRequest, onRoadChange }: BaccaratGameProps = {}) {
   const [state, setState] = useState<GameState>({
     phase: "betting",
     playerCards: [],
@@ -687,7 +689,22 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     window.dispatchEvent(new CustomEvent("baccarat:deal-complete", { detail: { result } }))
   }, [])
 
+  // 라운드 전환 시 카드 초기화 — dealing 중이 아닐 때만 리셋
+  const resetCards = useCallback(() => {
+    if (dealingRef.current) return  // 딜 중에는 리셋 무시
+    setState(prev => ({
+      ...prev,
+      phase: "betting",
+      playerCards: [],
+      bankerCards: [],
+      result: null,
+      finalCard: null,
+    }))
+    betSideRef.current = null
+  }, [])
+
   // 콜백 등록
+  useEffect(() => { onResetRequest?.(resetCards) }, [onResetRequest, resetCards])
   useEffect(() => { onStartDealRequest?.(startDeal) }, [onStartDealRequest, startDeal])
   useEffect(() => { onFinalDigitRequest?.(applyFinalDigit) }, [onFinalDigitRequest, applyFinalDigit])
   useEffect(() => {
