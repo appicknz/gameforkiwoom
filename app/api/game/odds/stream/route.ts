@@ -4,6 +4,7 @@ import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
+export const maxDuration = 60
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,

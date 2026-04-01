@@ -53,11 +53,14 @@ export async function POST(request: Request) {
       .single()
 
     // balance_transactions 기록 (배팅 차감 이력)
+    // balance_before = 차감 후 잔고 + 배팅금 (atomic RPC가 차감 후 잔고를 반환하므로 역산)
+    const balBefore = (newBalance as number) + betAmount
     await supabase.from("balance_transactions").insert({
       user_id: userId,
       branch_id: profileData?.branch_id ?? null,
       type: "bet",
       amount: -betAmount,
+      balance_before: balBefore,
       balance_after: newBalance,
       note: `배팅 차감`,
     })

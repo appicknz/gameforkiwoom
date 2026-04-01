@@ -24,30 +24,31 @@ export async function POST(request: Request) {
     }
 
     // ── 마감가를 서버 DB에서 직접 조회 (클라이언트 신뢰 제거) ──
-    // 클라이언트가 보낸 라운드 번호를 기준으로 DB에서 해당 라운드 마감가 조회
-    // 없으면 직전 라운드 사용 (정산이 약간 늦게 올 수 있음)
+    // btc_closing_prices 스키마: id, time(30초 버킷), price
+    // basePrice = 라운드 시작 버킷(targetRound - 1)의 price
+    // closePrice = 라운드 종료 버킷(targetRound)의 price
     const targetRound = typeof clientRoundNumber === "number"
       ? clientRoundNumber
       : Math.floor(Date.now() / 1000 / 30) - 1
 
-    const { data: closingRow } = await admin
+    const { data: priceRows } = await admin
       .from("btc_closing_prices")
-      .select("price, base_price, time")
-      .or(`time.eq.${targetRound},time.eq.${targetRound - 1}`)
+      .select("price, time")
+      .in("time", [targetRound, targetRound - 1])
       .order("time", { ascending: false })
-      .limit(1)
-      .single()
 
-    if (!closingRow) {
+    if (!priceRows || priceRows.length < 1) {
       return NextResponse.json({ error: "Closing price not available yet. Retry in a moment." }, { status: 404 })
     }
 
-    const closePrice: number = typeof closingRow.price === "string"
-      ? parseFloat(closingRow.price)
-      : closingRow.price
-    const basePrice: number = closingRow.base_price
-      ? (typeof closingRow.base_price === "string" ? parseFloat(closingRow.base_price) : closingRow.base_price)
-      : closePrice
+    const parsePrice = (v: unknown) => typeof v === "string" ? parseFloat(v) : (v as number)
+
+    // time이 더 큰 것이 closePrice, 작은 것이 basePrice
+    const closeRow = priceRows[0]
+    const baseRow  = priceRows[1] ?? priceRows[0]
+
+    const closePrice = parsePrice(closeRow.price)
+    const basePrice  = parsePrice(baseRow.price)
 
     // ── 서버에서 직접 승패 계산 ─────────────────────────────
     const wonDirection = closePrice >= basePrice ? "long" : "short"
@@ -163,6 +164,7 @@ export async function POST(request: Request) {
         branch_id: branchId,
         type: "win",
         amount: totalPayout,
+        balance_before: newBalance - totalPayout,
         balance_after: newBalance,
         note: `게임 당첨 (LP 배당 ${baccaratOdds.mode})`,
       })
@@ -179,7 +181,7 @@ export async function POST(request: Request) {
       redis.incr(`balance_version:${user.id}`),
     ])
 
-    // ── house_stats 업데이트 (atomic upsert RPC — 레이스 컨디션 없음) ──
+    // ── house_stats 업데이��� (atomic upsert RPC — 레이스 컨디션 없음) ──
     if (branchId && totalUserBet > 0) {
       const fee = Math.floor(totalUserBet * 0.2)
       const lpUsed = baccaratOdds.totalPool - baccaratPool.player - baccaratPool.banker - baccaratPool.tie
