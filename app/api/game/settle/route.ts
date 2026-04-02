@@ -126,8 +126,8 @@ export async function POST(request: Request) {
     const prevRaceRoundNumber = raceRoundNumber - 1  // 직전 5분 라운드
     const isFirstTickOfNewRace = (closeTime % 300) < 30  // 새 라운드 첫 30초 구간
     const prevRaceSettledKey = `settled:race:${prevRaceRoundNumber}`
-    const alreadySettled = await redis.get(prevRaceSettledKey)
-    const isLastRaceTick = isFirstTickOfNewRace && !alreadySettled
+    const raceAlreadySettled = await redis.get(prevRaceSettledKey)
+    const isLastRaceTick = isFirstTickOfNewRace && !raceAlreadySettled
 
     if (isLastRaceTick) {
       // race_results 테이블에서 실제 winner 조회 (클라이언트가 저장한 실제 점수 기반)
@@ -160,7 +160,7 @@ export async function POST(request: Request) {
     // 정산 완료 플래그 (중복 방지, 5분 TTL)
     await redis.set(`settled:${roundNumber}`, 1, { ex: 300 })
 
-    // ── 유저별 정산 ─────────────────────────────────────────
+    // ── 유저별 정산 ─────────────────────────────────���───────
     // bet:bets:{round}:{userId} 키에 배팅 내역이 저장되어 있음
     const settlementResults: Array<{ userId: string; payout: number }> = []
 
