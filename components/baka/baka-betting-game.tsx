@@ -388,12 +388,11 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-[10px] mb-0.5" style={{ color: G.textDim }}>
-                    {bet.won ? "수익" : bet.isRefund ? "반환" : "손실"}
+                    {bet.won ? "순수익" : bet.isRefund ? "반환" : "손실"}
                   </p>
                   <p className="text-sm font-bold tabular-nums"
                     style={{ color: bet.won ? G.gold : bet.isRefund ? "#60a5fa" : "#ef4444" }}>
                     {bet.won
-                      // 수익 = 순수익(payout - amount). 총 지급액이 아님
                       ? `+₩${(bet.payout - bet.amount).toLocaleString()}`
                       : bet.isRefund
                         ? `₩${bet.payout.toLocaleString()}`
@@ -401,7 +400,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
                   </p>
                   {bet.won && (
                     <p className="text-[9px]" style={{ color: G.goldDim }}>
-                      지급 ₩{bet.payout.toLocaleString()}
+                      총수령 ₩{bet.payout.toLocaleString()} (배팅+수익)
                     </p>
                   )}
                 </div>
@@ -1130,7 +1129,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
               const oddsVal = liveOdds
                 ? (side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie)
                 : null
-              const payout = oddsVal !== null ? `${oddsVal.toFixed(2)}:1` : "-"
+              // oddsVal = 총지급배수 (배팅액 × oddsVal = 지급액)
+              // 예: 1만원 배팅 × 1.31 = 13,100원 지급
+              const payout = oddsVal !== null ? `${oddsVal.toFixed(2)}x` : "-"
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
               const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"
