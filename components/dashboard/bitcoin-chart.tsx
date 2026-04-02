@@ -61,7 +61,7 @@ function formatQuoteVolume(usd: number): string {
   return krw.toLocaleString() + "원"
 }
 
-export function BitcoinChart({ headerOnly = false, compact = false }: { headerOnly?: boolean; compact?: boolean } = {}) {
+export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka" }: { headerOnly?: boolean; compact?: boolean; mode?: "baka" | "race" } = {}) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -121,7 +121,7 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
   }, [])
 
   // 수평선 그리기 헬퍼 — seriesRef가 살아있을 때만 동작
-  const drawPriceLine = useCallback((price: number) => {
+  const drawPriceLine = useCallback((price: number, label = "배팅가") => {
     if (!seriesRef.current) return
     if (priceLineRef.current) {
       try { seriesRef.current.removePriceLine(priceLineRef.current) } catch { }
@@ -133,57 +133,88 @@ export function BitcoinChart({ headerOnly = false, compact = false }: { headerOn
       lineWidth: 1,
       lineStyle: 2,  // Dashed
       axisLabelVisible: true,
-      title: "배팅가",
+      title: label,
     })
   }, [])
 
   // 30초봉 마감가 수신 → ref 저장 + 노란 수평선 즉각 갱신
-  const handleClosingPrice = useCallback((price: number, time: number) => {
+  const handleClosingPrice = useCallback((price: number, time: number, label?: string) => {
     latestClosingPriceRef.current = price
     setClosingPrices(prev => {
       const last = prev[prev.length - 1]
       if (last?.time === time) return prev
       return [...prev, { time, price }].slice(-100)
     })
-    drawPriceLine(price)
+    drawPriceLine(price, label)
   }, [drawPriceLine])
 
   // 초기 마감가 배열 수신 (새로고침 복원) → 마지막 값으로 수평선
-  const handleInitClosing = useCallback((prices: Array<{ time: number; price: number }>) => {
+  const handleInitClosing = useCallback((prices: Array<{ time: number; price: number }>, label?: string) => {
     if (prices.length === 0) return
     setClosingPrices(prices)
     const last = prices[prices.length - 1]
     if (last) {
       latestClosingPriceRef.current = last.price
-      // seriesRef가 아직 준비됐으면 즉각 그리고, 아직 초기화 중이면
-      // 차트 useEffect 내 fetchInitialCandles.then()에서 복원
       if (seriesRef.current) {
-        drawPriceLine(last.price)
+        drawPriceLine(last.price, label)
       }
     }
   }, [drawPriceLine])
 
-  // Railway WS는 BakaBettingGame 단일 인스턴스에서만 연결
-  // → baka:price / baka:closing CustomEvent를 구독
+  // mode="race": race:closing(5분 마감가) 이벤트 구독
+  // mode="baka"(기본): baka:price / baka:closing(30초 마감가) 이벤트 구독
   useEffect(() => {
-    const onPrice = (e: Event) => {
-      const { price } = (e as CustomEvent).detail
-      handlePrice(price, Math.floor(Date.now() / 1000))
+    if (mode === "race") {
+      // race 모드: race:closing 이벤트로 5분 기준가 수평선 표시
+      const onRaceClosing = (e: Event) => {
+        const { price, time } = (e as CustomEvent).detail
+        handleClosingPrice(price, time, "기준가")
+      }
+      window.addEventListener("race:closing", onRaceClosing)
+
+      // 초기 복원: DB에서 최근 race_results를 가져와 마지막 price를 수평선으로
+      fetch("/api/race-results")
+        .then(r => r.json())
+        .then(({ results }) => {
+          if (!Array.isArray(results) || results.length === 0) return
+          const prices = results
+            .filter((r: any) => r.price != null)
+            .map((r: any) => ({ time: r.time as number, price: parseFloat(r.price) }))
+            .sort((a: any, b: any) => a.time - b.time)
+          handleInitClosing(prices, "기준가")
+        })
+        .catch(() => {})
+
+      // baka:price 구독 (현재가 표시용만)
+      const onPrice = (e: Event) => {
+        const { price } = (e as CustomEvent).detail
+        handlePrice(price, Math.floor(Date.now() / 1000))
+      }
+      window.addEventListener("baka:price", onPrice)
+      return () => {
+        window.removeEventListener("race:closing", onRaceClosing)
+        window.removeEventListener("baka:price", onPrice)
+      }
+    } else {
+      // baka 모드: 30초 마감가
+      const onPrice = (e: Event) => {
+        const { price } = (e as CustomEvent).detail
+        handlePrice(price, Math.floor(Date.now() / 1000))
+      }
+      const onClosing = (e: Event) => {
+        const { price, time } = (e as CustomEvent).detail
+        handleClosingPrice(price, time, "배팅가")
+      }
+      window.addEventListener("baka:price", onPrice)
+      window.addEventListener("baka:closing", onClosing)
+      const initPrices: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
+      if (initPrices.length > 0) handleInitClosing(initPrices, "배팅가")
+      return () => {
+        window.removeEventListener("baka:price", onPrice)
+        window.removeEventListener("baka:closing", onClosing)
+      }
     }
-    const onClosing = (e: Event) => {
-      const { price, time } = (e as CustomEvent).detail
-      handleClosingPrice(price, time)
-    }
-    window.addEventListener("baka:price", onPrice)
-    window.addEventListener("baka:closing", onClosing)
-    // 초기 마감가: window.__bitcoinClosingPrices 에서 읽기 (BakaBettingGame의 usePriceWorker가 init 시 세팅)
-    const initPrices: Array<{ time: number; price: number }> = (window as any).__bitcoinClosingPrices ?? []
-    if (initPrices.length > 0) handleInitClosing(initPrices)
-    return () => {
-      window.removeEventListener("baka:price", onPrice)
-      window.removeEventListener("baka:closing", onClosing)
-    }
-  }, [handlePrice, handleClosingPrice, handleInitClosing])
+  }, [mode, handlePrice, handleClosingPrice, handleInitClosing])
 
   // connected 상태: baka:price 첫 수신 시 true
   useEffect(() => {

@@ -142,17 +142,30 @@ function RaceTrack({ secondsInRound, phase }: { secondsInRound: number; phase: s
 
 export default function RacePage() {
   const { state, flashes } = useRaceGame()
+  // 기준가 = 5분 마감가 (race:closing 이벤트) — baka 현재가 아님
   const [liveBasePrice, setLiveBasePrice] = useState<number | null>(null)
 
   // Railway WebSocket 연결 유지 (baka:price / baka:closing 이벤트 발행)
-  usePriceWorker({
-    onPrice: useCallback((price: number) => {
+  usePriceWorker({})
+
+  // race:closing 이벤트에서 5분 기준가 수신
+  useEffect(() => {
+    const onRaceClosing = (e: Event) => {
+      const { price } = (e as CustomEvent).detail
       setLiveBasePrice(price)
-    }, []),
-    onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
-      if (prices.length > 0) setLiveBasePrice(prices[prices.length - 1].price)
-    }, []),
-  })
+    }
+    window.addEventListener("race:closing", onRaceClosing)
+    // 초기값: DB에서 최근 race_results price 로드
+    fetch("/api/race-results")
+      .then(r => r.json())
+      .then(({ results }) => {
+        if (Array.isArray(results) && results.length > 0 && results[0].price) {
+          setLiveBasePrice(parseFloat(results[0].price))
+        }
+      })
+      .catch(() => {})
+    return () => window.removeEventListener("race:closing", onRaceClosing)
+  }, [])
 
   // BigRoad: race winner를 road history로 기록 (BIT=banker, COIN=player, TIE=tie)
   const [roadState, setRoadState] = useState<{ history: RoadResult[]; round: number }>({ history: [], round: 0 })
@@ -294,7 +307,7 @@ export default function RacePage() {
                 boxShadow: "0 0 50px rgba(212,175,55,0.06)",
               }}
             >
-              <BitcoinChart />
+                <BitcoinChart mode="race" />
             </div>
 
             {/* 5분 마감 기준가 + 게임 규칙 */}
