@@ -1,19 +1,21 @@
 /**
  * AMM 시드 풀 기반 파리뮤추얼 배당 시스템
  *
- * 구조:
- *   - LP는 Player / Banker / Tie 각 사이드에 균등 시딩
- *   - 유저 배팅이 추가될수록 해당 사이드 풀이 커지고 배당이 낮아짐
- *   - 수수료는 전체 풀(유저 + LP 시드)의 20% → 하우스 수익
- *   - 배당 = 전체 배당풀 / 해당 사이드 풀
+ * 핵심 원칙:
+ *   - LP는 Player / Banker / Tie 각 사이드에 균등 시딩 (유동성 안정화)
+ *   - 수수료는 "유저 배팅액"에서만 차감 — LP 시드에는 수수료 없음
+ *   - 배당풀 = (유저 총배팅 - 수수료) + LP 시드 총액
+ *   - 배당 = 배당풀 / 해당 사이드 풀(유저+LP)
  *
- * 예시 (LP 시드 각 1000만, Banker에 100만 추가):
- *   Player 10M / Banker 11M / Tie 10M = 총 31M
- *   수수료 6.2M → 하우스
- *   배당풀 24.8M
- *   Player 배당 = 24.8 / 10 = 2.48x
- *   Banker 배당 = 24.8 / 11 = 2.25x  ← 많이 걸릴수록 낮아짐
- *   Tie    배당 = 24.8 / 10 = 2.48x
+ * 예시 (LP 시드 각 1000만, Banker에 유저 100만 추가, 수수료 20%):
+ *   유저 총배팅 = 1M, 수수료 = 0.2M → 하우스
+ *   배당풀 = 0.8M + 30M(LP시드) = 30.8M
+ *   Player 풀 = 10M   → 배당 = 30.8 / 10  = 3.08x
+ *   Banker 풀 = 11M   → 배당 = 30.8 / 11  = 2.80x  ← 많이 걸릴수록 낮아짐
+ *   Tie    풀 = 10M   → 배당 = 30.8 / 10  = 3.08x
+ *
+ * LP는 수익 수단이 아닌 유동성 안정 장치.
+ * 하우스 수익 = 수수료 + 초기 LP EV (시장 불균형 시 자연 수익)
  */
 
 export interface BaccaratPools {
@@ -101,18 +103,23 @@ const MAX_ODDS = 50.0
 export function calcBaccaratOdds(
   userPools: BaccaratPools,
   lpConfig: LpConfig,
-  _userCount?: number   // 하위호환성 유지, 사용하지 않음
+  _userCount?: number
 ): OddsResult {
-  // LP 시드: 각 사이드에 균등 투입
   const seed = lpConfig.enabled ? lpConfig.lpAmountBaccarat : 0
 
+  // 사이드별 총 풀 = 유저 배팅 + LP 시드
   const totalPlayer = userPools.player + seed
   const totalBanker = userPools.banker + seed
   const totalTie    = userPools.tie    + seed
 
-  const totalPool = totalPlayer + totalBanker + totalTie
-  const fee       = Math.floor(totalPool * FEE_RATE)   // 하우스 무조건 20%
-  const giveout   = totalPool - fee                    // 배당풀
+  // 수수료는 유저 배팅에서만 차감 (LP 시드는 수수료 대상 아님)
+  const totalUserBet = userPools.player + userPools.banker + userPools.tie
+  const fee          = Math.floor(totalUserBet * FEE_RATE)
+  const lpSeedTotal  = seed * 3
+
+  // 배당풀 = (유저 배팅 - 수수료) + LP 시드 총액
+  const giveout  = (totalUserBet - fee) + lpSeedTotal
+  const totalPool = totalUserBet + lpSeedTotal
 
   // 배당 = 배당풀 / 각 사이드 풀
   const playerOdds = parseFloat((giveout / totalPlayer).toFixed(4))
@@ -125,7 +132,7 @@ export function calcBaccaratOdds(
     tieOdds:    Math.min(MAX_ODDS, Math.max(MIN_ODDS, tieOdds)),
     fee,
     totalPool,
-    lpSeed: seed * 3,
+    lpSeed: lpSeedTotal,
     mode: "seeded",
   }
 }
@@ -144,9 +151,14 @@ export function calcRaceOdds(
   const totalCoin = userPools.coin + seed
   const totalTie  = userPools.tie  + seed
 
-  const totalPool = totalBit + totalCoin + totalTie
-  const fee       = Math.floor(totalPool * FEE_RATE)
-  const giveout   = totalPool - fee
+  // 수수료는 유저 배팅에서만 차감
+  const totalUserBet = userPools.bit + userPools.coin + userPools.tie
+  const fee          = Math.floor(totalUserBet * FEE_RATE)
+  const lpSeedTotal  = seed * 3
+
+  // 배당풀 = (유저 배팅 - 수수료) + LP 시드 총액
+  const giveout   = (totalUserBet - fee) + lpSeedTotal
+  const totalPool = totalUserBet + lpSeedTotal
 
   const bitOdds  = parseFloat((giveout / totalBit).toFixed(4))
   const coinOdds = parseFloat((giveout / totalCoin).toFixed(4))
@@ -158,7 +170,7 @@ export function calcRaceOdds(
     tieOdds:  Math.min(MAX_ODDS, Math.max(MIN_ODDS, tieOdds)),
     fee,
     totalPool,
-    lpSeed: seed * 3,
+    lpSeed: lpSeedTotal,
     mode: "seeded",
   }
 }

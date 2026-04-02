@@ -67,9 +67,9 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
   const bSeedNum = parseInt(baccaratSeed) || 10_000_000
   const rSeedNum = parseInt(raceSeed)     || 10_000_000
   // 아무도 배팅 안 했을 때 배당 미리보기
-  // 총풀 = seed×3, 수수료 20%, 배당풀 = 총풀×0.8
-  // 배당 = 배당풀 / seed = (seed×3×0.8) / seed = 2.4x (항상)
-  const previewOdds = (bSeedNum * 3 * 0.8 / bSeedNum).toFixed(2)
+  // 유저 배팅 0 → 수수료 0, 배당풀 = LP시드×3, 각 사이드 = seed
+  // 배당 = (seed×3) / seed = 3.0x (항상, 유저 없을 때)
+  const previewOdds = (bSeedNum * 3 / bSeedNum).toFixed(2)
 
   return (
     <div className="px-5 py-4 space-y-3">
