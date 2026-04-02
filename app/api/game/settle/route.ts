@@ -120,18 +120,41 @@ export async function POST(request: Request) {
     }
     await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 120 })
 
-    // race 결과 저장 (5분 라운드 마지막 30초 구간에서만 실제 정산)
-    // raceRoundNumber가 이전 라운드와 같으면 아직 race 라운드 진행 중
-    const isLastRaceTick = (closeTime % 300) >= 270  // 300초 라운드의 마지막 30초
+    // race 결과 저장 및 정산 트리거
+    // 정산 시점: 라운드 경계(closeTime % 300 === 0~29) — 새 라운드 첫 tick에서 이전 라운드 정산
+    // 이 시점엔 클라이언트가 이미 /api/race-results에 저장했을 확률이 높음
+    const prevRaceRoundNumber = raceRoundNumber - 1  // 직전 5분 라운드
+    const isFirstTickOfNewRace = (closeTime % 300) < 30  // 새 라운드 첫 30초 구간
+    const prevRaceSettledKey = `settled:race:${prevRaceRoundNumber}`
+    const alreadySettled = await redis.get(prevRaceSettledKey)
+    const isLastRaceTick = isFirstTickOfNewRace && !alreadySettled
+
     if (isLastRaceTick) {
-      // race 풀 비율로 winner 결정 (점수가 없는 경우 fallback)
-      const raceWinner: "bit" | "coin" | "tie" =
-        racePool.bit > racePool.coin ? "bit"
-        : racePool.coin > racePool.bit ? "coin"
-        : "tie"
-      await redis.set(`game:result:race:${raceRoundNumber}`, JSON.stringify({
-        raceRoundNumber, raceWinner, closePrice: resolvedClose, settledAt: Date.now(),
-      }), { ex: 600 })
+      // race_results 테이블에서 실제 winner 조회 (클라이언트가 저장한 실제 점수 기반)
+      const raceResultTime = prevRaceRoundNumber * 300  // 직전 라운드 종료 timestamp
+      const { data: raceResultRow } = await admin
+        .from("race_results")
+        .select("winner, bit_score, coin_score")
+        .eq("time", raceResultTime)
+        .single()
+
+      // DB에 결과가 있으면 그 winner 사용, 없으면 배팅 풀 비율로 fallback
+      const raceWinner: "bit" | "coin" | "tie" = raceResultRow?.winner
+        ?? (racePool.bit > racePool.coin ? "bit"
+           : racePool.coin > racePool.bit ? "coin"
+           : "tie")
+
+      await Promise.all([
+        redis.set(`game:result:race:${prevRaceRoundNumber}`, JSON.stringify({
+          raceRoundNumber: prevRaceRoundNumber,
+          raceWinner,
+          closePrice: resolvedClose,
+          bitScore: raceResultRow?.bit_score ?? 0,
+          coinScore: raceResultRow?.coin_score ?? 0,
+          settledAt: Date.now(),
+        }), { ex: 600 }),
+        redis.set(prevRaceSettledKey, 1, { ex: 600 }),
+      ])
     }
 
     // 정산 완료 플래그 (중복 방지, 5분 TTL)
@@ -320,16 +343,26 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── race 유저 정산 (5분 라운드 마지막 tick에서만) ───────
+    // ── race 유저 정산 (새 라운드 첫 tick에서 직전 라운드 정산) ──
     if (isLastRaceTick && raceUserIds.length > 0) {
-      const raceWinner: "bit" | "coin" | "tie" =
-        racePool.bit > racePool.coin ? "bit"
-        : racePool.coin > racePool.bit ? "coin"
-        : "tie"
+      // raceWinner는 위 블록에서 race_results 테이블 기반으로 이미 결정됨
+      // Redis에서 직전 라운드 결과를 읽어 사용
+      const prevResultRaw = await redis.get<string>(`game:result:race:${prevRaceRoundNumber}`)
+      const prevResult = prevResultRaw
+        ? (typeof prevResultRaw === "string" ? JSON.parse(prevResultRaw) : prevResultRaw)
+        : null
+      const raceWinner: "bit" | "coin" | "tie" = prevResult?.raceWinner
+        ?? (racePool.bit > racePool.coin ? "bit"
+           : racePool.coin > racePool.bit ? "coin" : "tie")
 
-      for (const userId of raceUserIds as string[]) {
-        const betsKey     = `bet:bets:race:${raceRoundNumber}:${userId}`
-        const oddsSnapKey = `odds:snap:race:${raceRoundNumber}:${userId}`
+      // 직전 라운드의 유저 목록 조회
+      const prevRaceUserSetKey = `users:race:${prevRaceRoundNumber}`
+      const prevRaceUserIds: string[] = await redis.smembers(prevRaceUserSetKey).catch(() => [])
+      const settleTargetIds = prevRaceUserIds.length > 0 ? prevRaceUserIds : (raceUserIds as string[])
+
+      for (const userId of settleTargetIds) {
+        const betsKey     = `bet:bets:race:${prevRaceRoundNumber}:${userId}`
+        const oddsSnapKey = `odds:snap:race:${prevRaceRoundNumber}:${userId}`
         const [betsRaw, oddsSnapRaw] = await Promise.all([
           redis.get<string>(betsKey),
           redis.get<string>(oddsSnapKey),
@@ -406,12 +439,12 @@ export async function POST(request: Request) {
           }
         }
       }
-      console.log(`[settle] race round=${raceRoundNumber} winner=${raceWinner} settled=${raceUserIds.length} users`)
+      console.log(`[settle] race round=${prevRaceRoundNumber} winner=${raceWinner} settled=${settleTargetIds.length} users`)
 
       // race house_stats 지점별 집계
       const raceBranchAccum: Record<string, { totalBet: number; totalPayout: number }> = {}
-      for (const userId of raceUserIds as string[]) {
-        const betsKey = `bet:bets:race:${raceRoundNumber}:${userId}`
+      for (const userId of settleTargetIds) {
+        const betsKey = `bet:bets:race:${prevRaceRoundNumber}:${userId}`
         const betsRaw = await redis.get<string>(betsKey)
         if (!betsRaw) continue
         const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
@@ -468,7 +501,7 @@ export async function POST(request: Request) {
         if (userBet > 0) {
           const userFee = Math.floor(userBet * 0.20)
           await admin.from("fee_logs").insert({
-            round_number: raceRoundNumber,
+            round_number: prevRaceRoundNumber,
             game_type:    "race",
             user_id:      userId,
             branch_id:    branchId,
