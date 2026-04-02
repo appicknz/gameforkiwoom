@@ -6,9 +6,15 @@ const PLAYER_COLOR = "#60a5fa"
 const BANKER_COLOR = "#f97316"
 const TIE_COLOR    = "#22c55e"
 
+/** 가격의 소수점 두 자리를 문자열에서 직접 파싱 — 부동소수점 오차 방지 */
+function getPriceDecimals(price: number): { d1: number; d2: number } {
+  const dec = price.toFixed(2).split(".")[1] ?? "00"
+  return { d1: parseInt(dec[0] ?? "0"), d2: parseInt(dec[1] ?? "0") }
+}
+
 function getResult(price: number): "player" | "banker" | "tie" {
-  const d = Math.floor(Math.abs(price * 100)) % 10
-  return d <= 4 ? "player" : d <= 8 ? "banker" : "tie"
+  const { d2 } = getPriceDecimals(price)  // 소수점 둘째 자리 기준
+  return d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
 }
 
 interface ClosingPrice {
@@ -54,9 +60,7 @@ export function ClosingPricesList() {
           <div style={{ padding: "10px 14px", color: "rgba(212,175,55,0.3)", fontSize: 12 }}>—</div>
         ) : (
           prices.map((p, i) => {
-            const truncated = Math.floor(p.price * 100)
-            const d1 = Math.floor(truncated / 10) % 10
-            const d2 = truncated % 10
+            const { d1, d2 } = getPriceDecimals(p.price)
             const time = new Date(p.time * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
             const result = p.baccaratResult ?? getResult(p.price)
             const resultLabel = result === "player" ? "플레이어" : result === "banker" ? "뱅커" : "타이"

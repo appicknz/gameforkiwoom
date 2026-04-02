@@ -73,9 +73,9 @@ function BakaHeader() {
     function applyPrice(price: number) {
       if (priceRef.current)
         priceRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      const truncated = Math.floor(price * 100)
-      const d1 = Math.floor(truncated / 10) % 10
-      const d2 = truncated % 10
+      const dec = price.toFixed(2).split(".")[1] ?? "00"
+      const d1 = parseInt(dec[0] ?? "0")
+      const d2 = parseInt(dec[1] ?? "0")
       if (bankerDigitRef.current) bankerDigitRef.current.textContent = `BANKER+${d1}`
       if (playerDigitRef.current) playerDigitRef.current.textContent = `PLAYER+${d2}`
     }

@@ -29,9 +29,16 @@ function fmtPrice(p: number) {
   return "$" + p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+/** 가격의 소수점 두 자리를 문자열에서 직접 파싱 — 부동소수점 오차 방지 */
+function getPriceDecimals(price: number): { d1: number; d2: number } {
+  const s = price.toFixed(2)           // "66967.43"
+  const dec = s.split(".")[1] ?? "00"  // "43"
+  return { d1: parseInt(dec[0] ?? "0"), d2: parseInt(dec[1] ?? "0") }
+}
+
 function getComputedResult(price: number): "player" | "banker" | "tie" {
-  const lastDigit = Math.floor(Math.abs(price * 100)) % 10
-  return lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
+  const { d2 } = getPriceDecimals(price)  // 소수점 둘째 자리 기준
+  return d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
 }
 
 function BaccaratBadge({ result }: { result: "player" | "banker" | "tie" }) {
@@ -49,9 +56,7 @@ function BaccaratBadge({ result }: { result: "player" | "banker" | "tie" }) {
 }
 
 function PriceRow({ entry }: { entry: PriceEntry }) {
-  const truncated = Math.floor(entry.price * 100)
-  const d1 = Math.floor(truncated / 10) % 10   // 소수점 첫째 (B)
-  const d2 = truncated % 10                      // 소수점 둘째 (P)
+  const { d1, d2 } = getPriceDecimals(entry.price)  // 문자열 파싱으로 정확하게
 
   // baccarat_result: DB 저장값 우선, 없으면 가격에서 계산
   const baccaratResult = entry.baccaratResult ?? getComputedResult(entry.price)
