@@ -309,10 +309,23 @@ export default function BakaPage() {
               {/* 게임 상태 박스 — 중앙, /race VerticalTimer 스타일 */}
               {(() => {
                 const { timeLeft, phase } = gameStatus
-                const maxSec = phase === "betting" ? 15 : 15
-                const pct = Math.min(timeLeft / maxSec, 1)
-                const statusColor = phase === "betting" ? "#10b981" : phase === "dealing" ? "#f97316" : "#6366f1"
-                const statusLabel = phase === "betting" ? "배팅 가능" : phase === "dealing" ? "딜링 중" : phase === "result" ? "정산 중" : "대기 중"
+                // 구간별 상대 pct 계산
+                // 30~25: 정산 중 (파랑) → pct = timeLeft가 30→25 구간 비율
+                // 25~13: 배팅 가능 (초록) → pct = (timeLeft-13) / 12
+                // 13~0:  게임 중 (주황) → pct = timeLeft / 13
+                const pct = timeLeft > 25
+                  ? (timeLeft - 25) / 5          // 30→25 정산중: 1→0
+                  : timeLeft > 13
+                  ? (timeLeft - 13) / 12         // 25→13 배팅가능: 1→0
+                  : timeLeft / 13                // 13→0  게임중: 1→0
+                const statusColor = timeLeft > 25 ? "#60a5fa"   // 정산 중 — 파랑
+                  : timeLeft > 13 ? "#10b981"                   // 배팅 가능 — 초록
+                  : timeLeft > 3  ? "#f97316"                   // 게임 중 — 주황
+                  : "#ef4444"                                    // 마감 임박 — 빨강
+                const statusLabel = timeLeft > 25 ? "정산 중"
+                  : timeLeft > 13 ? "배팅 가능"
+                  : timeLeft > 0  ? "게임 중"
+                  : "정산 중"
                 return (
                   <div style={{
                     width: Math.round(52 * S),
