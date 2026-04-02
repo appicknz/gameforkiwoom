@@ -801,7 +801,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
           const oddsVal = liveOdds
             ? (side === "bit" ? liveOdds.bit : side === "coin" ? liveOdds.coin : liveOdds.tie)
             : null
-          const payout = oddsVal !== null ? `${oddsVal.toFixed(2)}:1` : "-"
+          const payout = oddsVal !== null ? `${oddsVal.toFixed(2)}x` : "-"
           const label = side === "bit" ? "BIT팀" : side === "tie" ? "TIE" : "COIN팀"
           const solidBg = side === "bit" ? BIT_BG : side === "coin" ? COIN_BG : "rgba(34,197,94,0.85)"
           const dimBg = side === "bit" ? "rgba(59,130,246,0.35)" : side === "coin" ? "rgba(249,115,22,0.35)" : "rgba(34,197,94,0.35)"

@@ -142,9 +142,17 @@ function RaceTrack({ secondsInRound, phase }: { secondsInRound: number; phase: s
 
 export default function RacePage() {
   const { state, flashes } = useRaceGame()
+  const [liveBasePrice, setLiveBasePrice] = useState<number | null>(null)
 
   // Railway WebSocket 연결 유지 (baka:price / baka:closing 이벤트 발행)
-  usePriceWorker({})
+  usePriceWorker({
+    onPrice: useCallback((price: number) => {
+      setLiveBasePrice(price)
+    }, []),
+    onInitClosing: useCallback((prices: Array<{ time: number; price: number }>) => {
+      if (prices.length > 0) setLiveBasePrice(prices[prices.length - 1].price)
+    }, []),
+  })
 
   // BigRoad: race winner를 road history로 기록 (BIT=banker, COIN=player, TIE=tie)
   const [roadState, setRoadState] = useState<{ history: RoadResult[]; round: number }>({ history: [], round: 0 })
@@ -208,7 +216,9 @@ export default function RacePage() {
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>기준가</span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
-                  ${(state.lastPrice || 0).toFixed(2)}
+                  {liveBasePrice !== null
+                    ? `$${liveBasePrice.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
+                    : "—"}
                 </span>
               </div>
               {/* 오른쪽: 스코어 */}
