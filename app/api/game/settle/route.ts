@@ -282,6 +282,19 @@ export async function POST(request: Request) {
         if (!branchAccum[branchId]) branchAccum[branchId] = { totalBet: 0, totalPayout: 0 }
         branchAccum[branchId].totalBet     += userBet
         branchAccum[branchId].totalPayout  += userPayout
+
+        // fee_logs: 유저별 상세 수수료 기록 (어느 지점 어느 유저에서 나온건지 추적)
+        if (userBet > 0) {
+          const userFee = Math.floor(userBet * 0.20)
+          await admin.from("fee_logs").insert({
+            round_number: roundNumber,
+            game_type:    "baccarat",
+            user_id:      userId,
+            branch_id:    branchId,
+            bet_amount:   userBet,
+            fee_amount:   userFee,
+          }).then(() => {}).catch(() => {})
+        }
       }
 
       // 지점별 house_stats 증분 누적 (RPC — 덮어쓰지 않고 누적)
@@ -434,6 +447,19 @@ export async function POST(request: Request) {
         if (!raceBranchAccum[branchId]) raceBranchAccum[branchId] = { totalBet: 0, totalPayout: 0 }
         raceBranchAccum[branchId].totalBet    += userBet
         raceBranchAccum[branchId].totalPayout += userPayout
+
+        // fee_logs: 유저별 상세 수수료 기록
+        if (userBet > 0) {
+          const userFee = Math.floor(userBet * 0.20)
+          await admin.from("fee_logs").insert({
+            round_number: raceRoundNumber,
+            game_type:    "race",
+            user_id:      userId,
+            branch_id:    branchId,
+            bet_amount:   userBet,
+            fee_amount:   userFee,
+          }).then(() => {}).catch(() => {})
+        }
       }
 
       for (const [bId, acc] of Object.entries(raceBranchAccum)) {

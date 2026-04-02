@@ -35,6 +35,17 @@ interface FeeCollection {
   collected_amount: number; note: string; created_at: string
   branches: { name: string } | null
 }
+interface FeeLog {
+  id: number; round_number: number; game_type: string
+  user_id: string; branch_id: string
+  bet_amount: number; fee_amount: number; created_at: string
+  profiles: { username: string; nickname: string } | null
+  branches: { name: string; code: string } | null
+}
+interface FeeBranchSummary {
+  branchId: string; branchName: string; branchCode: string
+  baccarat: number; race: number; total: number
+}
 interface MasterSummary {
   totalBet: number; totalPayout: number; totalLpUsed: number
   totalFee: number; totalCollected: number; pendingFee: number; houseProfit: number
@@ -190,6 +201,13 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
   const [houseLoading, setHouseLoading] = useState(false)
   const [collectingId, setCollectingId] = useState<string | null>(null)
 
+  // 수수료 상세
+  const [feeLogs, setFeeLogs] = useState<FeeLog[]>([])
+  const [feeByBranch, setFeeByBranch] = useState<FeeBranchSummary[]>([])
+
+  // 섹션 2 탭 (하우스 손익 / 지점별 수수료)
+  const [houseTab, setHouseTab] = useState<"house" | "fee">("house")
+
   // LP 히스토리
   const [lpHistory, setLpHistory] = useState<LpTx[]>([])
   const [lpTotal, setLpTotal] = useState(0)
@@ -215,6 +233,8 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
         setHouseStats(d.stats ?? [])
         setFeeCollections(d.collections ?? [])
         setMasterSummary(d.masterSummary ?? null)
+        setFeeLogs(d.feeLogs ?? [])
+        setFeeByBranch(d.feeByBranch ?? [])
       }
     } catch {}
     setHouseLoading(false)
@@ -333,9 +353,20 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <TrendingDown className="w-4 h-4 text-primary" />
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">하우스 손익 누적</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">지점별 배팅·지급·LP·수수료 집계</p>
+            <div className="flex items-center gap-2">
+              {/* 탭 */}
+              <button
+                onClick={() => setHouseTab("house")}
+                className={`text-sm font-semibold px-3 py-1 rounded-lg transition-colors ${houseTab === "house" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                하우스 손익 누적
+              </button>
+              <button
+                onClick={() => setHouseTab("fee")}
+                className={`text-sm font-semibold px-3 py-1 rounded-lg transition-colors ${houseTab === "fee" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                지점별 수수료 현황
+              </button>
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={loadHouseStats} disabled={houseLoading} className="h-7 gap-1 text-xs">
@@ -343,108 +374,193 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
           </Button>
         </div>
 
-        {masterSummary && (
-          <div className="px-5 pt-4 pb-2">
-            <p className="text-xs font-semibold text-muted-foreground mb-3">전체 지점 합산</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {[
-                { label: "총 배팅액",   value: masterSummary.totalBet,      color: "text-foreground"  },
-                { label: "총 지급액",   value: masterSummary.totalPayout,   color: "text-red-500"     },
-                { label: "하우스 손익", value: masterSummary.houseProfit,   color: masterSummary.houseProfit >= 0 ? "text-emerald-500" : "text-red-500" },
-                { label: "총 LP 사용",  value: masterSummary.totalLpUsed,   color: "text-blue-500"    },
-                { label: "누적 수수료", value: masterSummary.totalFee,      color: "text-amber-500"   },
-                { label: "미수금",      value: masterSummary.pendingFee,    color: masterSummary.pendingFee > 0 ? "text-orange-500" : "text-muted-foreground" },
-              ].map(item => (
-                <div key={item.label} className="bg-muted rounded-lg p-2.5">
-                  <p className="text-xs text-muted-foreground">{item.label}</p>
-                  <p className={`text-sm font-bold tabular-nums mt-0.5 ${item.color}`}>
-                    {item.value < 0 ? "-" : ""}{fmt(Math.abs(item.value))}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="divide-y divide-border mt-2">
-          {houseLoading ? (
-            <div className="py-8 flex justify-center"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
-          ) : houseStats.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              아직 집계 데이터가 없습니다.<br />
-              <span className="text-xs">배팅이 발생하면 자동으로 기록됩니다.</span>
-            </div>
-          ) : (
-            houseStats.map(stat => {
-              const pending  = Math.max(0, stat.total_fee - stat.total_collected)
-              const housePnl = stat.total_bet - stat.total_payout
-              const key      = `${stat.branch_id}-${stat.game_type}`
-              return (
-                <div key={stat.id} className="px-5 py-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {/* 지점 이름 + 게임 타입 — "어느 지점에서 나온 건지" */}
-                      <span className="text-sm font-semibold text-foreground">
-                        {stat.branches?.name ?? stat.branch_id}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                        {stat.game_type === "baccarat" ? "바카라" : "레이스"}
-                      </span>
-                      {stat.branches?.code && (
-                        <span className="text-xs text-muted-foreground">({stat.branches.code})</span>
-                      )}
-                    </div>
-                    {isSuperAdmin && pending > 0 && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" disabled={collectingId === key}
-                        onClick={() => handleCollect(stat.branch_id, stat.game_type)}>
-                        <Download className="w-3 h-3" />
-                        {collectingId === key ? "처리 중..." : `${fmt(pending)} 수금`}
-                      </Button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                    <div><p className="text-muted-foreground">총 배팅</p><p className="font-semibold tabular-nums">{fmt(stat.total_bet)}</p></div>
-                    <div><p className="text-muted-foreground">총 지급</p><p className="font-semibold text-red-500 tabular-nums">{fmt(stat.total_payout)}</p></div>
-                    <div>
-                      <p className="text-muted-foreground">하우스 손익</p>
-                      <p className={`font-bold tabular-nums ${housePnl >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                        {housePnl >= 0 ? "+" : "-"}{fmt(Math.abs(housePnl))}
+        {/* ── 탭: 하우스 손익 누적 ── */}
+        {houseTab === "house" && (
+          <>
+            {masterSummary && (
+              <div className="px-5 pt-4 pb-2">
+                <p className="text-xs font-semibold text-muted-foreground mb-3">전체 지점 합산</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {[
+                    { label: "총 배팅액",   value: masterSummary.totalBet,      color: "text-foreground"  },
+                    { label: "총 지급액",   value: masterSummary.totalPayout,   color: "text-red-500"     },
+                    { label: "하우스 손익", value: masterSummary.houseProfit,   color: masterSummary.houseProfit >= 0 ? "text-emerald-500" : "text-red-500" },
+                    { label: "총 LP 사용",  value: masterSummary.totalLpUsed,   color: "text-blue-500"    },
+                    { label: "누적 수수료", value: masterSummary.totalFee,      color: "text-amber-500"   },
+                    { label: "미수금",      value: masterSummary.pendingFee,    color: masterSummary.pendingFee > 0 ? "text-orange-500" : "text-muted-foreground" },
+                  ].map(item => (
+                    <div key={item.label} className="bg-muted rounded-lg p-2.5">
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className={`text-sm font-bold tabular-nums mt-0.5 ${item.color}`}>
+                        {item.value < 0 ? "-" : ""}{fmt(Math.abs(item.value))}
                       </p>
                     </div>
-                    <div><p className="text-muted-foreground">LP 투입</p><p className="font-semibold text-blue-500 tabular-nums">{fmt(stat.total_lp_used)}</p></div>
-                    <div>
-                      <p className="text-muted-foreground">미수금</p>
-                      <p className={`font-bold tabular-nums ${pending > 0 ? "text-orange-500" : "text-muted-foreground"}`}>{fmt(pending)}</p>
-                    </div>
-                  </div>
-                  {/* 수수료 원천 안내 */}
-                  {stat.total_bet > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      누적 수수료: {fmt(stat.total_fee)} (배팅액 × 20%)
-                    </p>
-                  )}
+                  ))}
                 </div>
-              )
-            })
-          )}
-        </div>
-
-        {feeCollections.length > 0 && (
-          <div className="border-t border-border">
-            <div className="px-5 py-3">
-              <p className="text-xs font-semibold text-muted-foreground mb-2">수금 이력 (최근 20건)</p>
-              <div className="space-y-2">
-                {feeCollections.map(fc => (
-                  <div key={fc.id} className="flex items-center justify-between text-xs">
-                    <span className="text-foreground">
-                      {fc.branches?.name ?? fc.branch_id} &middot; {fc.game_type === "baccarat" ? "바카라" : "레이스"} &middot; {new Date(fc.created_at).toLocaleString("ko-KR")}
-                    </span>
-                    <span className="font-bold text-emerald-500 tabular-nums">{fmt(fc.collected_amount)}</span>
-                  </div>
-                ))}
               </div>
+            )}
+
+            <div className="divide-y divide-border mt-2">
+              {houseLoading ? (
+                <div className="py-8 flex justify-center"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+              ) : houseStats.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  아직 집계 데이터가 없습니다.<br />
+                  <span className="text-xs">배팅이 발생하면 자동으로 기록됩니다.</span>
+                </div>
+              ) : (
+                houseStats.map(stat => {
+                  const pending  = Math.max(0, stat.total_fee - stat.total_collected)
+                  const housePnl = stat.total_bet - stat.total_payout
+                  const key      = `${stat.branch_id}-${stat.game_type}`
+                  return (
+                    <div key={stat.id} className="px-5 py-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground">
+                            {stat.branches?.name ?? stat.branch_id}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                            {stat.game_type === "baccarat" ? "바카라" : "레이스"}
+                          </span>
+                          {stat.branches?.code && (
+                            <span className="text-xs text-muted-foreground">({stat.branches.code})</span>
+                          )}
+                        </div>
+                        {isSuperAdmin && pending > 0 && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" disabled={collectingId === key}
+                            onClick={() => handleCollect(stat.branch_id, stat.game_type)}>
+                            <Download className="w-3 h-3" />
+                            {collectingId === key ? "처리 중..." : `${fmt(pending)} 수금`}
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                        <div><p className="text-muted-foreground">총 배팅</p><p className="font-semibold tabular-nums">{fmt(stat.total_bet)}</p></div>
+                        <div><p className="text-muted-foreground">총 지급</p><p className="font-semibold text-red-500 tabular-nums">{fmt(stat.total_payout)}</p></div>
+                        <div>
+                          <p className="text-muted-foreground">하우스 손익</p>
+                          <p className={`font-bold tabular-nums ${housePnl >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                            {housePnl >= 0 ? "+" : "-"}{fmt(Math.abs(housePnl))}
+                          </p>
+                        </div>
+                        <div><p className="text-muted-foreground">LP 투입</p><p className="font-semibold text-blue-500 tabular-nums">{fmt(stat.total_lp_used)}</p></div>
+                        <div>
+                          <p className="text-muted-foreground">미수금</p>
+                          <p className={`font-bold tabular-nums ${pending > 0 ? "text-orange-500" : "text-muted-foreground"}`}>{fmt(pending)}</p>
+                        </div>
+                      </div>
+                      {stat.total_bet > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1.5">
+                          누적 수수료: {fmt(stat.total_fee)} (배팅액 × 20%)
+                        </p>
+                      )}
+                    </div>
+                  )
+                })
+              )}
             </div>
-          </div>
+
+            {feeCollections.length > 0 && (
+              <div className="border-t border-border">
+                <div className="px-5 py-3">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">수금 이력 (최근 20건)</p>
+                  <div className="space-y-2">
+                    {feeCollections.map(fc => (
+                      <div key={fc.id} className="flex items-center justify-between text-xs">
+                        <span className="text-foreground">
+                          {fc.branches?.name ?? fc.branch_id} &middot; {fc.game_type === "baccarat" ? "바카라" : "레이스"} &middot; {new Date(fc.created_at).toLocaleString("ko-KR")}
+                        </span>
+                        <span className="font-bold text-emerald-500 tabular-nums">{fmt(fc.collected_amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── 탭: 지점별 수수료 현황 ── */}
+        {houseTab === "fee" && (
+          <>
+            {/* 지점별 요약 카드 */}
+            {feeByBranch.length > 0 && (
+              <div className="px-5 pt-4 pb-3">
+                <p className="text-xs font-semibold text-muted-foreground mb-3">지점별 수수료 합산</p>
+                <div className="space-y-2">
+                  {feeByBranch
+                    .sort((a, b) => b.total - a.total)
+                    .map(b => (
+                      <div key={b.branchId} className="flex items-center gap-3 bg-muted rounded-xl px-4 py-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-foreground">{b.branchName}</span>
+                            {b.branchCode && <span className="text-xs text-muted-foreground">({b.branchCode})</span>}
+                          </div>
+                          <div className="flex gap-3 mt-0.5 text-xs text-muted-foreground">
+                            <span>바카라 {fmt(b.baccarat)}</span>
+                            <span>레이스 {fmt(b.race)}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">누적 수수료</p>
+                          <p className="text-base font-black tabular-nums text-amber-500">{fmt(b.total)}</p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* 유저별 수수료 상세 로그 */}
+            <div className="border-t border-border">
+              <div className="px-5 py-3">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">
+                  유저별 수수료 상세 (최근 200건)
+                </p>
+              </div>
+              {houseLoading ? (
+                <div className="py-8 flex justify-center"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+              ) : feeLogs.length === 0 ? (
+                <div className="py-6 text-center text-sm text-muted-foreground">
+                  수수료 기록이 없습니다.<br />
+                  <span className="text-xs">배팅 정산 후 자동으로 기록됩니다.</span>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {feeLogs.map(log => {
+                    const displayName = (log.profiles as any)?.nickname || (log.profiles as any)?.username || log.user_id.slice(0, 8)
+                    const branchName  = (log.branches as any)?.name ?? log.branch_id.slice(0, 8)
+                    const branchCode  = (log.branches as any)?.code
+                    return (
+                      <div key={log.id} className="px-5 py-3 flex items-center justify-between text-sm">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-foreground truncate">{displayName}</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                              {branchName}{branchCode ? ` (${branchCode})` : ""}
+                            </span>
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                              {log.game_type === "baccarat" ? "바카라" : "레이스"}
+                            </span>
+                            <span className="text-xs text-muted-foreground shrink-0">#{log.round_number}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            배팅 {fmt(log.bet_amount)} &middot; {new Date(log.created_at).toLocaleString("ko-KR")}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0 ml-3">
+                          <p className="text-xs text-muted-foreground">수수료</p>
+                          <p className="font-bold tabular-nums text-amber-500">+{fmt(log.fee_amount)}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 

@@ -109,7 +109,48 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({ stats, collections, masterSummary })
+    // fee_logs: 지점별·유저별 수수료 상세 (최근 200건, 마스터만 전체 / 지점어드민은 자기 지점만)
+    let feeLogsQuery = admin
+      .from("fee_logs")
+      .select(`
+        id, round_number, game_type, user_id, branch_id,
+        bet_amount, fee_amount, created_at,
+        profiles(username, nickname),
+        branches(name, code)
+      `)
+      .order("created_at", { ascending: false })
+      .limit(200)
+
+    if (!master && myBranchId) {
+      feeLogsQuery = feeLogsQuery.eq("branch_id", myBranchId)
+    } else if (master && branchFilter) {
+      feeLogsQuery = feeLogsQuery.eq("branch_id", branchFilter)
+    }
+
+    const { data: feeLogs } = await feeLogsQuery
+
+    // 지점별 수수료 집계 (fee_logs 기반 — house_stats보다 상세)
+    const feeByBranch: Record<string, { branchName: string; branchCode: string; baccarat: number; race: number; total: number }> = {}
+    for (const log of feeLogs ?? []) {
+      const bid = log.branch_id
+      if (!feeByBranch[bid]) {
+        feeByBranch[bid] = {
+          branchName: (log.branches as any)?.name ?? bid,
+          branchCode: (log.branches as any)?.code ?? "",
+          baccarat: 0, race: 0, total: 0,
+        }
+      }
+      feeByBranch[bid][log.game_type as "baccarat" | "race"] += log.fee_amount
+      feeByBranch[bid].total += log.fee_amount
+    }
+
+    return NextResponse.json({
+      stats,
+      collections,
+      masterSummary,
+      feeLogs,
+      feeByBranch: Object.entries(feeByBranch).map(([branchId, v]) => ({ branchId, ...v })),
+    })
   } catch (err) {
     console.error("[house-stats GET]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
