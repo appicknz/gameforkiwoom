@@ -493,8 +493,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       es.onmessage = (e) => {
         try {
           const data = JSON.parse(e.data)
+          // odds가 있을 때만 갱신 — ping 등 다른 메시지로 null 초기화 방지
           if (data.odds) setLiveOdds(data.odds)
-          else setLiveOdds(null)
         } catch { }
       }
       es.onerror = () => {

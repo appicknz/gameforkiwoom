@@ -13,7 +13,9 @@ const redis = new Redis({
 })
 
 async function getOddsPayload(gameType: string, branchId: string | null) {
-  const roundNumber = Math.floor(Math.floor(Date.now() / 1000) / 30)
+  // race는 300초 라운드, baccarat은 30초 라운드
+  const roundSec = gameType === "race" ? 300 : 30
+  const roundNumber = Math.floor(Math.floor(Date.now() / 1000) / roundSec)
 
   // 브랜치 LP 설정 조회 (기본값 + 어드민 오버라이드)
   let lpConfig = { ...DEFAULT_LP_CONFIG }
@@ -115,14 +117,15 @@ export async function GET(request: Request) {
       send(initial)
 
       // 2) 버전 카운터 폴링 — 배팅 발생(incr) 또는 라운드 전환 시 갱신
+      const roundInterval = gameType === "race" ? 300 : 30
       let lastVersion = (await redis.get<number>(versionKey)) ?? 0
-      let lastRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
+      let lastRound = Math.floor(Math.floor(Date.now() / 1000) / roundInterval)
 
       const interval = setInterval(async () => {
         if (closed) { clearInterval(interval); return }
         try {
           const version = (await redis.get<number>(versionKey)) ?? 0
-          const currentRound = Math.floor(Math.floor(Date.now() / 1000) / 30)
+          const currentRound = Math.floor(Math.floor(Date.now() / 1000) / roundInterval)
 
           if (version !== lastVersion || currentRound !== lastRound) {
             lastVersion = version
