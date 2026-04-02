@@ -985,7 +985,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     : timeLeft > 13 ? "#10b981"                  // 배팅 가능 — 초록
     : timeLeft > 3  ? "#f97316"                  // 게임 중   — 주황
     : "#ef4444"                                  // 정산 임박 — 빨강
-  const timerLabel = timeLeft > 25 ? "딜링 중"
+  const timerLabel = timeLeft > 25 ? "정산 중"
     : timeLeft > 13 ? "배팅 가능"
     : timeLeft > 0  ? "게임 중"
     : "정산 중"
