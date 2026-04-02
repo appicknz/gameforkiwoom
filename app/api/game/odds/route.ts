@@ -8,6 +8,7 @@ import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
+import { calcAutoLpSeed } from "@/lib/lp-auto-seed"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -48,6 +49,14 @@ export async function GET(request: Request) {
         .single()
       if (branch) lpConfig = branchToLpConfig(branch)
     }
+
+    // 역대 실시간 배팅 기반 LP 시드 자동 계산
+    const fallbackSeed = gameType === "baccarat"
+      ? lpConfig.lpAmountBaccarat
+      : lpConfig.lpAmountRace
+    const autoSeed = await calcAutoLpSeed(gameType, branchId, fallbackSeed)
+    if (gameType === "baccarat") lpConfig.lpAmountBaccarat = autoSeed
+    else                         lpConfig.lpAmountRace     = autoSeed
 
     // Redis에서 현재 라운드 배팅 풀 조회
     const poolKey = `pool:${gameType}:${roundNumber}`
