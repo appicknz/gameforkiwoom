@@ -52,6 +52,8 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
           if (data.type === "init") {
             win.__bitcoinClosingPrices = data.closingPrices
             optsRef.current.onInitClosing?.(data.closingPrices)
+            // race-game이 접속 시점 스코어를 복원할 수 있도록 이벤트 발행
+            window.dispatchEvent(new CustomEvent("baka:init", { detail: { closingPrices: data.closingPrices } }))
             return
           }
 
