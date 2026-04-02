@@ -439,7 +439,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 interface BakaBettingGameProps {
   /** 30초(라운드 전환) 시점: 카드 리셋 트리거 — BaccaratGame에 새 라운드 준비 요청 */
   onResetCards?: () => void
-  /** 15초 시점: page가 주입해 준 startDeal 트리거 */
+  /** 25초 시점: 카드 공개 + 배팅 오픈 트리거 */
   onStartDealTrigger?: () => void
   /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 (끝자리 가격 전체를 전달) */
   onFinalDigitTrigger?: (closingPrice: number) => void
@@ -740,8 +740,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         onResetCards?.()
       }
 
-      // 15초: 딜 시작 (라운드당 1회)
-      if (rem === 15 && dealTriggeredRoundRef.current !== roundNum) {
+      // 25초: 딜 시작 — 카드를 먼저 공개한 뒤 배팅 오픈 (라운드당 1회)
+      // rem===25: 라운드 시작 5초 후. 이후 배팅 가능(12초) → 게임중(13초)
+      if (rem === 25 && dealTriggeredRoundRef.current !== roundNum) {
         dealTriggeredRoundRef.current = roundNum
         onStartDealTrigger?.()
       }
@@ -749,8 +750,11 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     return () => clearInterval(tick)
   }, [onResetCards, onStartDealTrigger])
 
-  // 배팅 가능 시간: 30초~15초 초과 구간
-  const canBet = timeLeft > 15
+  // 새 페이즈 구조 (30초 라운드 기준):
+  //   30 → 25초: 초기 대기 (딜링 준비, 배팅 불가)
+  //   25 → 13초: 배팅 가능 (카드 공개 후 12초)
+  //   13 → 0초:  게임 중 (배팅 마감, 결과 대기 13초)
+  const canBet = timeLeft <= 25 && timeLeft > 13
 
   // autoBet state → ref 초기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
@@ -966,7 +970,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // timeLeft/phase 변경 시 page로 전달
   useEffect(() => {
-    const phaseStatus = timeLeft > 15 ? "betting" : timeLeft > 0 ? "dealing" : phase
+    const phaseStatus = timeLeft > 25 ? "dealing"
+      : timeLeft > 13 ? "betting"
+      : timeLeft > 0  ? "dealing"
+      : phase
     onStatusChange?.(timeLeft, phaseStatus as "betting" | "waiting" | "result" | "dealing")
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft, phase])
@@ -974,8 +981,14 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const priceDiff = currentPrice !== null && basePrice !== null ? currentPrice - basePrice : null
   const isUp = priceDiff !== null && priceDiff >= 0
   const timerPercent = (timeLeft / 30) * 100
-  const timerColor = timeLeft > 15 ? "#10b981" : timeLeft > 3 ? "#f97316" : "#ef4444"
-  const timerLabel = timeLeft > 15 ? "배팅 가능" : timeLeft > 0 ? "딜링 중" : "정산 중"
+  const timerColor = timeLeft > 25 ? "#60a5fa"    // 초기 대기 — 파랑
+    : timeLeft > 13 ? "#10b981"                  // 배팅 가능 — 초록
+    : timeLeft > 3  ? "#f97316"                  // 게임 중   — 주황
+    : "#ef4444"                                  // 정산 임박 — 빨강
+  const timerLabel = timeLeft > 25 ? "딜링 중"
+    : timeLeft > 13 ? "배팅 가능"
+    : timeLeft > 0  ? "게임 중"
+    : "정산 중"
 
   return (
     <>
