@@ -41,10 +41,8 @@ interface Branch {
 
 // LP 설정 행 컴포넌트
 function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void }) {
-  const [baccaratMinLp, setBaccaratMinLp] = useState(String(branch.lp_amount_baccarat ?? branch.lp_amount ?? 50000))
-  const [raceMinLp, setRaceMinLp] = useState(String(branch.lp_amount_race ?? branch.lp_amount ?? 50000))
-  const [baccaratMult, setBaccaratMult] = useState(String(branch.lp_multiplier_baccarat ?? 1.0))
-  const [raceMult, setRaceMult] = useState(String(branch.lp_multiplier_race ?? 1.0))
+  const [baccaratSeed, setBaccaratSeed] = useState(String(branch.lp_amount_baccarat ?? 10_000_000))
+  const [raceSeed, setRaceSeed]         = useState(String(branch.lp_amount_race     ?? 10_000_000))
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
@@ -56,10 +54,8 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         branchId: branch.id,
-        lpAmountBaccarat: parseInt(baccaratMinLp) || 0,
-        lpAmountRace: parseInt(raceMinLp) || 0,
-        lpMultiplierBaccarat: parseFloat(baccaratMult) || 1.0,
-        lpMultiplierRace: parseFloat(raceMult) || 1.0,
+        lpAmountBaccarat: parseInt(baccaratSeed) || 10_000_000,
+        lpAmountRace:     parseInt(raceSeed)     || 10_000_000,
       }),
     })
     if (res.ok) { setMsg({ text: "저장됨", ok: true }); onSaved() }
@@ -68,41 +64,32 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
     setTimeout(() => setMsg(null), 2000)
   }
 
+  const bSeedNum = parseInt(baccaratSeed) || 10_000_000
+  const rSeedNum = parseInt(raceSeed)     || 10_000_000
+  // 아무도 배팅 안 했을 때 배당 미리보기
+  // 총풀 = seed×3, 수수료 20%, 배당풀 = 총풀×0.8
+  // 배당 = 배당풀 / seed = (seed×3×0.8) / seed = 2.4x (항상)
+  const previewOdds = (bSeedNum * 3 * 0.8 / bSeedNum).toFixed(2)
+
   return (
     <div className="px-5 py-4 space-y-3">
       <p className="text-sm font-semibold text-foreground">{branch.name}</p>
 
-      {/* 배율 설정 — 핵심 */}
       <div className="rounded-lg bg-muted/50 border border-border p-3 space-y-2">
-        <p className="text-xs font-medium text-foreground">LP 배율 (실제LP = max(최소LP, 배팅풀 × 배율))</p>
-        <p className="text-[11px] text-muted-foreground">1.0 = 배팅액 100% 대응 · 백만원 배팅 → LP도 백만원 자동 투입</p>
+        <p className="text-xs font-medium text-foreground">사이드별 LP 시드 금액</p>
+        <p className="text-[11px] text-muted-foreground">
+          Player / Banker / Tie 각각 이 금액으로 시작 · 아무도 배팅 안 했을 때 기본 배당: {previewOdds}x
+        </p>
         <div className="flex gap-3 flex-wrap items-end">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">바카라 배율</p>
-            <Input type="number" step="0.1" min="0" value={baccaratMult}
-              onChange={e => setBaccaratMult(e.target.value)} className="h-8 w-24 text-sm" />
+            <p className="text-xs text-muted-foreground mb-1">바카라 시드 (사이드당)</p>
+            <Input type="number" step="1000000" min="0" value={baccaratSeed}
+              onChange={e => setBaccaratSeed(e.target.value)} className="h-8 w-36 text-sm" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-1">레이스 배율</p>
-            <Input type="number" step="0.1" min="0" value={raceMult}
-              onChange={e => setRaceMult(e.target.value)} className="h-8 w-24 text-sm" />
-          </div>
-        </div>
-      </div>
-
-      {/* 최소 보장 LP — 배팅이 없을 때 바닥값 */}
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-foreground">최소 보장 LP (배팅 0원일 때 바닥값)</p>
-        <div className="flex gap-3 flex-wrap items-end">
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">바카라 최소 LP</p>
-            <Input type="number" value={baccaratMinLp}
-              onChange={e => setBaccaratMinLp(e.target.value)} className="h-8 w-32 text-sm" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">레이스 최소 LP</p>
-            <Input type="number" value={raceMinLp}
-              onChange={e => setRaceMinLp(e.target.value)} className="h-8 w-32 text-sm" />
+            <p className="text-xs text-muted-foreground mb-1">레이스 시드 (사이드당)</p>
+            <Input type="number" step="1000000" min="0" value={raceSeed}
+              onChange={e => setRaceSeed(e.target.value)} className="h-8 w-36 text-sm" />
           </div>
         </div>
       </div>
