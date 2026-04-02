@@ -34,12 +34,21 @@ function fmtPrice(p: number) {
 export function RaceClosingPrices() {
   const [entries, setEntries] = useState<RaceEntry[]>([])
 
-  // 마운트 시 DB에서 최근 결과 로드 (누구나 같은 히스토리)
+  // 마운트 시 DB에서 최근 결과 로드
   useEffect(() => {
     fetch("/api/race-results")
       .then(r => r.json())
       .then(({ results }) => {
-        if (Array.isArray(results)) setEntries(results)
+        if (!Array.isArray(results)) return
+        // API는 bit_score/coin_score 필드명으로 반환 → 컴포넌트 타입에 맞게 매핑
+        const mapped: RaceEntry[] = results.map((r: any) => ({
+          time:   r.time,
+          price:  typeof r.price === "string" ? parseFloat(r.price) : r.price,
+          bit:    r.bit_score ?? r.bit ?? 0,
+          coin:   r.coin_score ?? r.coin ?? 0,
+          winner: r.winner ?? "tie",
+        }))
+        setEntries(mapped)
       })
       .catch(() => {})
   }, [])
@@ -47,18 +56,24 @@ export function RaceClosingPrices() {
   // race:closing 이벤트 구독 — 라운드 종료 시 실시간 추가
   useEffect(() => {
     const onClosing = (e: Event) => {
-      const { price, time, bit, coin, winner } =
-        (e as CustomEvent<{ price: number; time: number; bit: number; coin: number; winner: "bit" | "coin" | "tie" }>).detail
+      const d = (e as CustomEvent<any>).detail
+      const entry: RaceEntry = {
+        time:   d.time,
+        price:  typeof d.price === "string" ? parseFloat(d.price) : d.price,
+        bit:    d.bit ?? d.bit_score ?? 0,
+        coin:   d.coin ?? d.coin_score ?? 0,
+        winner: d.winner ?? "tie",
+      }
       setEntries(prev => {
-        if (prev.find(p => p.time === time)) return prev
-        return [...prev, { time, price, bit, coin, winner }].slice(-20)
+        if (prev.find(p => p.time === entry.time)) return prev
+        return [...prev, entry].slice(-20)
       })
     }
     window.addEventListener("race:closing", onClosing)
     return () => window.removeEventListener("race:closing", onClosing)
   }, [])
 
-  const display = [...entries].reverse().slice(0, 10)
+  const display = [...entries].sort((a, b) => b.time - a.time).slice(0, 10)
 
   return (
     <div style={{
