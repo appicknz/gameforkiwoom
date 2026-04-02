@@ -78,20 +78,25 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             // window 전역에 최신 closing 누적 (차트 등 직접 참조하는 곳에서 사용)
             const prev: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
             const last = prev[prev.length - 1]
+            // 소수점 둘째 자리로 바카라 결과 계산 (0~4=player, 5~8=banker, 9=tie)
+            const dec2 = parseInt(data.price.toFixed(2).split(".")[1]?.[1] ?? "0")
+            const baccaratResult: "player" | "banker" | "tie" =
+              dec2 <= 4 ? "player" : dec2 <= 8 ? "banker" : "tie"
+
             if (!last || last.time !== data.time) {
               win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
-              // DB 저장 (fire-and-forget)
+              // DB 저장 (fire-and-forget) — baccarat_result 포함
               fetch("/api/closing-price", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ price: data.price, time: data.time }),
+                body: JSON.stringify({ price: data.price, time: data.time, baccarat_result: baccaratResult }),
               }).catch(() => {})
             }
             // 3번째 카드 트리거
             optsRef.current.onClosingPrice?.(data.price, data.time)
-            // 패널·차트 등 모든 구독자에게 단일 이벤트로 전달
+            // 패널·차트 등 모든 구독자에게 단일 이벤트로 전달 (baccaratResult 포함)
             window.dispatchEvent(new CustomEvent("baka:closing", {
-              detail: { price: data.price, time: data.time }
+              detail: { price: data.price, time: data.time, baccaratResult }
             }))
           }
         } catch { /* ignore malformed messages */ }
