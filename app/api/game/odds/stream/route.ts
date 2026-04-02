@@ -43,8 +43,11 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
     const result = calcBaccaratOdds(userPools, lpConfig, safeCount)
     return {
       gameType, roundNumber, userCount: safeCount, pools: userPools,
-      odds: { player: result.playerOdds, banker: result.bankerOdds, tie: result.tieOdds },
-      mode: result.mode,
+      // lpWeight, mode를 odds 안에 포함 → 클라이언트 liveOdds에서 바로 접근
+      odds: {
+        player: result.playerOdds, banker: result.bankerOdds, tie: result.tieOdds,
+        lpWeight: result.lpWeight, mode: result.mode,
+      },
     }
   } else {
     const userPools = {
@@ -55,8 +58,10 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
     const result = calcRaceOdds(userPools, lpConfig, safeCount)
     return {
       gameType, roundNumber, userCount: safeCount, pools: userPools,
-      odds: { bit: result.bitOdds, coin: result.coinOdds, tie: result.tieOdds },
-      mode: result.mode,
+      odds: {
+        bit: result.bitOdds, coin: result.coinOdds, tie: result.tieOdds,
+        lpWeight: result.lpWeight, mode: result.mode,
+      },
     }
   }
 }

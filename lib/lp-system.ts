@@ -1,21 +1,37 @@
 /**
  * AMM 시드 풀 기반 파리뮤추얼 배당 시스템
  *
- * 핵심 원칙:
- *   - LP는 Player / Banker / Tie 각 사이드에 균등 시딩 (유동성 안정화)
- *   - 수수료는 "유저 배팅액"에서만 차감 — LP 시드에는 수수료 없음
- *   - 배당풀 = (유저 총배팅 - 수수료) + LP 시드 총액
- *   - 배당 = 배당풀 / 해당 사이드 풀(유저+LP)
+ * ── 핵심 설계 원칙 ──────────────────────────────────────────────────────
  *
- * 예시 (LP 시드 각 1000만, Banker에 유저 100만 추가, 수수료 20%):
- *   유저 총배팅 = 1M, 수수료 = 0.2M → 하우스
- *   배당풀 = 0.8M + 30M(LP시드) = 30.8M
- *   Player 풀 = 10M   → 배당 = 30.8 / 10  = 3.08x
- *   Banker 풀 = 11M   → 배당 = 30.8 / 11  = 2.80x  ← 많이 걸릴수록 낮아짐
- *   Tie    풀 = 10M   → 배당 = 30.8 / 10  = 3.08x
+ * 1. LP 균등 시딩
+ *    Player / Banker / Tie 각 사이드에 동일한 금액(seed)을 시딩.
+ *    아무도 배팅 안 했을 때 배당 = 3.0x (seed×3 / seed).
  *
- * LP는 수익 수단이 아닌 유동성 안정 장치.
- * 하우스 수익 = 수수료 + 초기 LP EV (시장 불균형 시 자연 수익)
+ * 2. 수수료는 유저 배팅에서만 차감
+ *    LP 시드는 수수료 대상이 아님. 하우스 수익 = 유저 배팅 × 20%.
+ *
+ * 3. 집중 보호 (Concentration Guard)
+ *    한 사이드에 배팅이 몰리면 그 사이드 배당이 낮아지고
+ *    반대 사이드 배당이 높아짐 → 자연히 반대 배팅을 유도.
+ *    LP 시드가 이 효과를 안정시키는 역할.
+ *
+ * 4. LP 감쇠 (Decay) — 핵심
+ *    유저 배팅이 많아질수록 LP 기여도를 점진적으로 줄임.
+ *    LP 총액 대비 유저 배팅 비율(coverage)로 감쇠 계수 결정:
+ *
+ *      coverage = 유저총배팅 / LP시드총액
+ *      lpWeight = 1 / (1 + coverage × DECAY_FACTOR)
+ *
+ *    예: 시드 30M, DECAY_FACTOR=3
+ *      유저 0M    → coverage=0.00 → lpWeight=1.00 (LP 100% 반영)
+ *      유저 10M   → coverage=0.33 → lpWeight=0.50 (LP 50%)
+ *      유저 30M   → coverage=1.00 → lpWeight=0.25 (LP 25%)
+ *      유저 90M   → coverage=3.00 → lpWeight=0.10 (LP 10%)
+ *      유저 300M  → coverage=10.0 → lpWeight=0.03 (LP ~0%)
+ *
+ *    → 초기: LP가 배당을 안정시킴 (이상한 배당 방지)
+ *    → 성숙: 유저 풀이 배당을 결정 (순수 파리뮤추얼)
+ *    → 자연스러운 전환, 관리자 개입 불필요
  */
 
 export interface BaccaratPools {
@@ -32,51 +48,50 @@ export interface RacePools {
 
 export interface LpConfig {
   enabled: boolean
-  // 각 사이드에 균등 시딩되는 LP 금액
-  // Player, Banker, Tie 각각 이 금액으로 시작
-  lpAmountBaccarat: number  // 바카라 사이드별 시드 금액
-  lpAmountRace: number      // 레이스 사이드별 시드 금액
-  // 아래 두 필드는 하위호환성 유지용 (사용하지 않음)
+  lpAmountBaccarat: number  // 바카라 사이드당 시드 금액
+  lpAmountRace:     number  // 레이스 사이드당 시드 금액
+  // 하위호환성 유지용
   lpMultiplierBaccarat: number
-  lpMultiplierRace: number
+  lpMultiplierRace:     number
 }
 
 export interface OddsResult {
   playerOdds: number
   bankerOdds: number
-  tieOdds: number
-  fee: number         // 하우스 수수료
-  totalPool: number   // 전체 풀 (유저 + LP 시드 합계)
-  lpSeed: number      // LP 시드 총액 (각 사이드 × 3)
-  mode: "seeded"
+  tieOdds:    number
+  fee:        number   // 하우스 수수료 (유저 배팅 × 20%)
+  totalPool:  number   // 실효 풀 (유저 + 감쇠된 LP)
+  lpSeed:     number   // LP 시드 원금 (감쇠 전)
+  lpWeight:   number   // 현재 LP 기여 비율 (0~1)
+  mode:       "seeded" | "decay" | "natural"
 }
 
 export interface RaceOddsResult {
-  bitOdds: number
-  coinOdds: number
-  tieOdds: number
-  fee: number
+  bitOdds:   number
+  coinOdds:  number
+  tieOdds:   number
+  fee:       number
   totalPool: number
-  lpSeed: number
-  mode: "seeded"
+  lpSeed:    number
+  lpWeight:  number
+  mode:      "seeded" | "decay" | "natural"
 }
 
-// 기본 LP 설정 (DB 조회 실패 시 fallback)
+// 기본 LP 설정
 export const DEFAULT_LP_CONFIG: LpConfig = {
-  enabled: true,
-  lpAmountBaccarat: 10_000_000,  // 각 사이드 1000만원 시딩
-  lpAmountRace:     10_000_000,
+  enabled:              true,
+  lpAmountBaccarat:     10_000_000,
+  lpAmountRace:         10_000_000,
   lpMultiplierBaccarat: 1.0,
-  lpMultiplierRace: 1.0,
+  lpMultiplierRace:     1.0,
 }
 
-/** DB branches 행에서 LpConfig 추출 */
 export function branchToLpConfig(branch: {
-  lp_enabled?: boolean | null
-  lp_amount_baccarat?: number | null
-  lp_amount_race?: number | null
-  lp_multiplier_baccarat?: number | null
-  lp_multiplier_race?: number | null
+  lp_enabled?:              boolean | null
+  lp_amount_baccarat?:      number  | null
+  lp_amount_race?:          number  | null
+  lp_multiplier_baccarat?:  number  | null
+  lp_multiplier_race?:      number  | null
 }): LpConfig {
   return {
     enabled:              branch.lp_enabled             ?? true,
@@ -87,18 +102,42 @@ export function branchToLpConfig(branch: {
   }
 }
 
-// 수수료율 20% — 하우스가 무조건 차감
-const FEE_RATE = 0.20
+// ── 상수 ────────────────────────────────────────────────────────────────────
+const FEE_RATE    = 0.20   // 수수료율 (유저 배팅에만 적용)
+const MIN_ODDS    = 1.01
+const MAX_ODDS    = 50.0
+const DECAY_FACTOR = 3     // 높을수록 LP가 빨리 감쇠
+                           // 3 = 유저 배팅이 LP 시드와 같아질 때 lpWeight ≈ 0.25
 
-// 배당 캡 (비정상 상황 방어용)
-const MIN_ODDS = 1.01
-const MAX_ODDS = 50.0
+// ── 내부 유틸 ────────────────────────────────────────────────────────────────
+
+/**
+ * LP 감쇠 계수 계산
+ * coverage = totalUserBet / lpSeedTotal
+ * lpWeight = 1 / (1 + coverage * DECAY_FACTOR)
+ */
+function calcLpWeight(totalUserBet: number, lpSeedTotal: number): number {
+  if (lpSeedTotal <= 0) return 0
+  const coverage = totalUserBet / lpSeedTotal
+  return 1 / (1 + coverage * DECAY_FACTOR)
+}
+
+/** 배당률 클램핑 */
+function clamp(odds: number): number {
+  return Math.min(MAX_ODDS, Math.max(MIN_ODDS, odds))
+}
+
+/** 현재 모드 레이블 */
+function getMode(lpWeight: number): "seeded" | "decay" | "natural" {
+  if (lpWeight >= 0.80) return "seeded"   // LP 80% 이상 → 시딩 단계
+  if (lpWeight >= 0.10) return "decay"    // LP 10~80%   → 감쇠 단계
+  return "natural"                         // LP 10% 미만 → 자연 파리뮤추얼
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 
 /**
  * 바카라 배당률 계산
- *
- * @param userPools  유저가 배팅한 실제 금액
- * @param lpConfig   지점 LP 설정 (lpAmountBaccarat = 각 사이드 시드 금액)
  */
 export function calcBaccaratOdds(
   userPools: BaccaratPools,
@@ -107,33 +146,38 @@ export function calcBaccaratOdds(
 ): OddsResult {
   const seed = lpConfig.enabled ? lpConfig.lpAmountBaccarat : 0
 
-  // 사이드별 총 풀 = 유저 배팅 + LP 시드
-  const totalPlayer = userPools.player + seed
-  const totalBanker = userPools.banker + seed
-  const totalTie    = userPools.tie    + seed
-
-  // 수수료는 유저 배팅에서만 차감 (LP 시드는 수수료 대상 아님)
   const totalUserBet = userPools.player + userPools.banker + userPools.tie
-  const fee          = Math.floor(totalUserBet * FEE_RATE)
   const lpSeedTotal  = seed * 3
 
-  // 배당풀 = (유저 배팅 - 수수료) + LP 시드 총액
-  const giveout  = (totalUserBet - fee) + lpSeedTotal
-  const totalPool = totalUserBet + lpSeedTotal
+  // LP 감쇠 계수
+  const lpWeight = calcLpWeight(totalUserBet, lpSeedTotal)
 
-  // 배당 = 배당풀 / 각 사이드 풀
+  // 감쇠된 LP (각 사이드에 균등 반영)
+  const effectiveSeed = seed * lpWeight
+
+  // 사이드별 실효 풀 = 유저 배팅 + 감쇠된 LP 시드
+  const totalPlayer = userPools.player + effectiveSeed
+  const totalBanker = userPools.banker + effectiveSeed
+  const totalTie    = userPools.tie    + effectiveSeed
+
+  // 수수료는 유저 배팅에서만
+  const fee     = Math.floor(totalUserBet * FEE_RATE)
+  const giveout = (totalUserBet - fee) + (effectiveSeed * 3)
+  const totalPool = totalUserBet + lpSeedTotal  // 원금 기준 (UI 표시용)
+
   const playerOdds = parseFloat((giveout / totalPlayer).toFixed(4))
   const bankerOdds = parseFloat((giveout / totalBanker).toFixed(4))
   const tieOdds    = parseFloat((giveout / totalTie).toFixed(4))
 
   return {
-    playerOdds: Math.min(MAX_ODDS, Math.max(MIN_ODDS, playerOdds)),
-    bankerOdds: Math.min(MAX_ODDS, Math.max(MIN_ODDS, bankerOdds)),
-    tieOdds:    Math.min(MAX_ODDS, Math.max(MIN_ODDS, tieOdds)),
+    playerOdds: clamp(playerOdds),
+    bankerOdds: clamp(bankerOdds),
+    tieOdds:    clamp(tieOdds),
     fee,
     totalPool,
-    lpSeed: lpSeedTotal,
-    mode: "seeded",
+    lpSeed:   lpSeedTotal,
+    lpWeight: parseFloat(lpWeight.toFixed(4)),
+    mode:     getMode(lpWeight),
   }
 }
 
@@ -147,17 +191,18 @@ export function calcRaceOdds(
 ): RaceOddsResult {
   const seed = lpConfig.enabled ? lpConfig.lpAmountRace : 0
 
-  const totalBit  = userPools.bit  + seed
-  const totalCoin = userPools.coin + seed
-  const totalTie  = userPools.tie  + seed
-
-  // 수수료는 유저 배팅에서만 차감
   const totalUserBet = userPools.bit + userPools.coin + userPools.tie
-  const fee          = Math.floor(totalUserBet * FEE_RATE)
   const lpSeedTotal  = seed * 3
 
-  // 배당풀 = (유저 배팅 - 수수료) + LP 시드 총액
-  const giveout   = (totalUserBet - fee) + lpSeedTotal
+  const lpWeight      = calcLpWeight(totalUserBet, lpSeedTotal)
+  const effectiveSeed = seed * lpWeight
+
+  const totalBit  = userPools.bit  + effectiveSeed
+  const totalCoin = userPools.coin + effectiveSeed
+  const totalTie  = userPools.tie  + effectiveSeed
+
+  const fee     = Math.floor(totalUserBet * FEE_RATE)
+  const giveout = (totalUserBet - fee) + (effectiveSeed * 3)
   const totalPool = totalUserBet + lpSeedTotal
 
   const bitOdds  = parseFloat((giveout / totalBit).toFixed(4))
@@ -165,35 +210,32 @@ export function calcRaceOdds(
   const tieOdds  = parseFloat((giveout / totalTie).toFixed(4))
 
   return {
-    bitOdds:  Math.min(MAX_ODDS, Math.max(MIN_ODDS, bitOdds)),
-    coinOdds: Math.min(MAX_ODDS, Math.max(MIN_ODDS, coinOdds)),
-    tieOdds:  Math.min(MAX_ODDS, Math.max(MIN_ODDS, tieOdds)),
+    bitOdds:  clamp(bitOdds),
+    coinOdds: clamp(coinOdds),
+    tieOdds:  clamp(tieOdds),
     fee,
     totalPool,
-    lpSeed: lpSeedTotal,
-    mode: "seeded",
+    lpSeed:   lpSeedTotal,
+    lpWeight: parseFloat(lpWeight.toFixed(4)),
+    mode:     getMode(lpWeight),
   }
 }
 
 /**
- * 정산 시 실제 지급액 계산
- *
- * winner에게 지급 = winner 배팅액 × 배당률
- * 하우스 실수익  = 수수료 - (지급액 - 유저 배팅 합계)
- *                = 수수료가 LP 시드 손실을 커버하고 남은 부분
+ * 정산 지급액 계산
  */
 export function calcPayout(params: {
-  betAmount: number        // 유저 배팅액
-  side: "player" | "banker" | "tie" | "bit" | "coin"
-  result: string           // 실제 결과
-  odds: number             // 해당 사이드의 배당률
+  betAmount: number
+  side:   "player" | "banker" | "tie" | "bit" | "coin"
+  result: string
+  odds:   number
 }): number {
   if (params.side !== params.result) return 0
   return Math.floor(params.betAmount * params.odds)
 }
 
 /**
- * LP 투입액 계산 (라운드 정산용 — 하위호환)
+ * LP 투입액 계산 (하위호환)
  */
 export function calcLpUsed(
   _userPools: BaccaratPools | RacePools,
@@ -201,28 +243,18 @@ export function calcLpUsed(
   _userCount?: number
 ): number {
   if (!lpConfig.enabled) return 0
-  // 시드는 3 사이드에 균등 투입
   return lpConfig.lpAmountBaccarat * 3
 }
 
 /**
  * 하우스 손익 계산
- * 수수료(전체 풀의 20%) - LP 시드 중 지급에 사용된 부분
  */
 export function calcHousePnl(params: {
   totalUserBet: number
-  totalPayout: number
-  totalLpUsed: number
-  fee: number
-}): {
-  housePnl: number
-  netFee: number
-} {
-  // 하우스 순손익 = 수수료 + 유저 배팅 수집 - 지급액
-  // (LP 시드는 하우스 자금이므로 지급에 LP가 쓰이면 손해)
+  totalPayout:  number
+  totalLpUsed:  number
+  fee:          number
+}): { housePnl: number; netFee: number } {
   const housePnl = params.fee + params.totalUserBet - params.totalPayout
-  return {
-    housePnl,
-    netFee: params.fee,
-  }
+  return { housePnl, netFee: params.fee }
 }
