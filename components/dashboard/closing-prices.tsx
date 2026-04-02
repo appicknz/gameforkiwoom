@@ -48,30 +48,10 @@ function BaccaratBadge({ result }: { result: "player" | "banker" | "tie" }) {
   )
 }
 
-function DigitTag({ label }: { label: string }) {
-  return (
-    <span style={{
-      padding: "1px 7px", borderRadius: 4, fontSize: 10, fontWeight: 700,
-      background: "rgba(212,175,55,0.08)", color: GOLD_DIM,
-    }}>
-      {label}
-    </span>
-  )
-}
-
-function PriceRow({
-  entry,
-  prev,
-}: {
-  entry: PriceEntry
-  prev: PriceEntry | undefined
-}) {
+function PriceRow({ entry }: { entry: PriceEntry }) {
   const truncated = Math.floor(entry.price * 100)
   const d1 = Math.floor(truncated / 10) % 10   // 소수점 첫째 (B)
   const d2 = truncated % 10                      // 소수점 둘째 (P)
-
-  const diff = prev ? entry.price - prev.price : 0
-  const directionLabel = diff > 0 ? "롱" : diff < 0 ? "숏" : "—"
 
   // baccarat_result: DB 저장값 우선, 없으면 가격에서 계산
   const baccaratResult = entry.baccaratResult ?? getComputedResult(entry.price)
@@ -93,9 +73,6 @@ function PriceRow({
         B{d1} P{d2}
       </span>
       <BaccaratBadge result={baccaratResult} />
-      <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
-        <DigitTag label={directionLabel} />
-      </div>
     </div>
   )
 }
@@ -159,16 +136,9 @@ export function ClosingPrices() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        {display.map((entry, idx) => {
-          const prev = display[idx + 1]
-          return (
-            <PriceRow
-              key={`closing-${entry.time}`}
-              entry={entry}
-              prev={prev}
-            />
-          )
-        })}
+        {display.map((entry) => (
+          <PriceRow key={`closing-${entry.time}`} entry={entry} />
+        ))}
       </div>
     </div>
   )

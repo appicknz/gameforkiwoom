@@ -59,7 +59,7 @@ export function ClosingPricesList() {
             const d2 = truncated % 10
             const time = new Date(p.time * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
             const result = p.baccaratResult ?? getResult(p.price)
-            const resultLabel = result === "player" ? "P" : result === "banker" ? "B" : "T"
+            const resultLabel = result === "player" ? "플레이어" : result === "banker" ? "뱅커" : "타이"
             const resultColor = result === "player" ? PLAYER_COLOR : result === "banker" ? BANKER_COLOR : TIE_COLOR
             return (
               <div key={i} style={{
@@ -77,6 +77,7 @@ export function ClosingPricesList() {
                 <span style={{
                   fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
                   background: `${resultColor}22`, color: resultColor, border: `1px solid ${resultColor}55`,
+                  whiteSpace: "nowrap",
                 }}>
                   {resultLabel}
                 </span>
