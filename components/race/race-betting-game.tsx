@@ -557,11 +557,13 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     // 라운드 결과 이벤트 발행 + DB 저장
     const closingPrice = currentPriceRef.current
     if (closingPrice !== null) {
-      const resultTime = Math.floor(Date.now() / 1000)
+      // 5분 라운드 경계 시각 사용 (현재 초를 300으로 내림한 값)
+      const nowSec = Math.floor(Date.now() / 1000)
+      const resultTime = Math.floor(nowSec / 300) * 300  // 라운드 경계 timestamp
       window.dispatchEvent(new CustomEvent("race:closing", {
         detail: { price: closingPrice, time: resultTime, bit, coin, winner: raceResult }
       }))
-      // DB 영구 저장 (누구나 같은 결과를 볼 수 있음)
+      // DB 영구 저장
       fetch("/api/race-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -943,7 +945,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
           </div>
         )}
 
-        {/* BIT / TIE / COIN 버튼 */}
+        {/* BIT / TIE / COIN ���튼 */}
         {renderBaccaratButtons()}
       </div>
 

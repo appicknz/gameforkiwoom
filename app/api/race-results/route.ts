@@ -33,13 +33,16 @@ export async function POST(request: Request) {
 /**
  * 최근 라운드 결과 조회 (최근 20개)
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100)
+
     const { data, error } = await adminSupabase
       .from("race_results")
       .select("time, price, bit_score, coin_score, winner")
       .order("time", { ascending: false })
-      .limit(20)
+      .limit(limit)
 
     if (error) throw error
 

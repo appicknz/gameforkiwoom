@@ -19,31 +19,36 @@ function LivePriceHeader() {
   const baseRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
-    // 초기값
-    const initPrices: Array<{ price: number }> = (window as any).__bitcoinClosingPrices ?? []
-    if (initPrices.length > 0 && baseRef.current) {
-      const p = initPrices[initPrices.length - 1].price
-      baseRef.current.textContent = `$${p.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
-    }
-
     const onPrice = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
       if (currentRef.current) {
         currentRef.current.textContent = `$${price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
       }
     }
-    const onClosing = (e: Event) => {
+    // race 기준가는 baka:closing(30초)이 아닌 race:closing(5분 마감가) 사용
+    const onRaceClosing = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
       if (baseRef.current) {
         baseRef.current.textContent = `$${price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
       }
     }
 
+    // 초기값: DB에서 가장 최근 5분 마감가 복원
+    fetch("/api/race-results?limit=1")
+      .then(r => r.json())
+      .then(({ results }) => {
+        if (Array.isArray(results) && results.length > 0 && results[0].price && baseRef.current) {
+          const p = Number(results[0].price)
+          baseRef.current.textContent = `$${p.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
+        }
+      })
+      .catch(() => {})
+
     window.addEventListener("baka:price", onPrice)
-    window.addEventListener("baka:closing", onClosing)
+    window.addEventListener("race:closing", onRaceClosing)
     return () => {
       window.removeEventListener("baka:price", onPrice)
-      window.removeEventListener("baka:closing", onClosing)
+      window.removeEventListener("race:closing", onRaceClosing)
     }
   }, [])
 
@@ -155,12 +160,12 @@ export default function RacePage() {
       setLiveBasePrice(price)
     }
     window.addEventListener("race:closing", onRaceClosing)
-    // 초기값: DB에서 최근 race_results price 로드
-    fetch("/api/race-results")
+    // 초기값: DB에서 가장 최근 5분 마감가 1건 복원
+    fetch("/api/race-results?limit=1")
       .then(r => r.json())
       .then(({ results }) => {
         if (Array.isArray(results) && results.length > 0 && results[0].price) {
-          setLiveBasePrice(parseFloat(results[0].price))
+          setLiveBasePrice(Number(results[0].price))
         }
       })
       .catch(() => {})
@@ -291,7 +296,7 @@ export default function RacePage() {
             {/* 스코어보드 */}
             <RaceScoreboard state={state} />
 
-            {/* 배팅 — baka와 동일 구조, BIT/COIN팀으로 레이블 변경 */}
+            {/* 배팅 — baka와 동일 구조, BIT/COIN팀으로 레이��� 변경 */}
             <RaceBettingGame />
 
 

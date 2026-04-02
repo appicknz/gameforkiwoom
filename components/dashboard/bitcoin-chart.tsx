@@ -172,16 +172,15 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
       }
       window.addEventListener("race:closing", onRaceClosing)
 
-      // 초기 복원: DB에서 최근 race_results를 가져와 마지막 price를 수평선으로
-      fetch("/api/race-results")
+      // 초기 복원: DB에서 가장 최근 race_results 1건으로 수평선 복원
+      fetch("/api/race-results?limit=1")
         .then(r => r.json())
         .then(({ results }) => {
           if (!Array.isArray(results) || results.length === 0) return
-          const prices = results
-            .filter((r: any) => r.price != null)
-            .map((r: any) => ({ time: r.time as number, price: parseFloat(r.price) }))
-            .sort((a: any, b: any) => a.time - b.time)
-          handleInitClosing(prices, "기준가")
+          const latest = results[0]
+          if (latest?.price == null) return
+          // race 기준가 수평선: 가장 최근 5분 종료가 하나만 표시
+          handleClosingPrice(parseFloat(latest.price), latest.time as number, "기준가")
         })
         .catch(() => {})
 
