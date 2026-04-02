@@ -239,11 +239,11 @@ export default function RacePage() {
                     : "—"}
                 </span>
               </div>
-              {/* 오른쪽: 스코어 */}
+              {/* 오른쪽: 현재 라운드 누적 스코어 */}
               <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}>
-                <span style={{ color: BIT_COLOR }}>BIT+{state.lastBitDigit}</span>
+                <span style={{ color: BIT_COLOR }}>BIT {state.bitScore.toLocaleString()}</span>
                 <span style={{ color: "rgba(212,175,55,0.35)" }}>/</span>
-                <span style={{ color: COIN_COLOR }}>COIN+{state.lastCoinDigit}</span>
+                <span style={{ color: COIN_COLOR }}>COIN {state.coinScore.toLocaleString()}</span>
               </div>
             </div>
 

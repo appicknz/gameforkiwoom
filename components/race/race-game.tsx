@@ -90,6 +90,19 @@ export function useRaceGame() {
     return () => clearInterval(id)
   }, [])
 
+  // ── baka:price — 현재가 및 소수점 자리 업데이트 ─────────────────────────
+  useEffect(() => {
+    const onPrice = (e: Event) => {
+      const { price } = (e as CustomEvent<{ price: number }>).detail
+      const dec = price.toFixed(2).split(".")[1] ?? "00"
+      const d1 = parseInt(dec[0] ?? "0")
+      const d2 = parseInt(dec[1] ?? "0")
+      setState(prev => ({ ...prev, lastPrice: price, lastBitDigit: d1, lastCoinDigit: d2 }))
+    }
+    window.addEventListener("baka:price", onPrice)
+    return () => window.removeEventListener("baka:price", onPrice)
+  }, [])
+
   // ── baka:init — 접속 직후 서버의 현재 race 스코어 즉시 반영 ─────────────
   useEffect(() => {
     const onInit = (e: Event) => {
@@ -138,17 +151,49 @@ export function useRaceGame() {
     return () => window.removeEventListener("baka:race-score", onRaceScore)
   }, [])
 
-  // ── result 페이즈 진입 시 승자 결정 ──────────────────────────────
+  // ── result 페이즈 진입 시 승자 결정 + DB 저장 ────────────────────
+  const resultSavedRef = useRef<number>(-1)
   useEffect(() => {
     if (state.phase === "result" && state.winner === null && (state.bitScore > 0 || state.coinScore > 0)) {
-      setState(prev => ({
-        ...prev,
-        winner: prev.bitScore > prev.coinScore ? "bit"
-          : prev.coinScore > prev.bitScore ? "coin"
-          : "tie",
-      }))
+      const winner: "bit" | "coin" | "tie" =
+        state.bitScore > state.coinScore ? "bit"
+        : state.coinScore > state.bitScore ? "coin"
+        : "tie"
+
+      setState(prev => ({ ...prev, winner }))
+
+      // 중복 저장 방지
+      if (resultSavedRef.current === state.roundId) return
+      resultSavedRef.current = state.roundId
+
+      // 결과 시각: 이 라운드 종료 = 다음 라운드 시작 (:00초 형식)
+      const nowSec = Math.floor(Date.now() / 1000)
+      const resultTime = (Math.floor(nowSec / 300) + 1) * 300
+
+      // 현재가는 baka:price 마지막 수신값 사용
+      const lastPrice = state.lastPrice
+
+      // race:closing 이벤트 발행 (차트 기준가선 업데이트)
+      if (lastPrice !== null) {
+        window.dispatchEvent(new CustomEvent("race:closing", {
+          detail: { price: lastPrice, time: resultTime, bit: state.bitScore, coin: state.coinScore, winner }
+        }))
+
+        // DB 영구 저장 (ignoreDuplicates: true → 첫 저장값 보존)
+        fetch("/api/race-results", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            time: resultTime,
+            price: lastPrice,
+            bit_score: state.bitScore,
+            coin_score: state.coinScore,
+            winner,
+          }),
+        }).catch(() => {})
+      }
     }
-  }, [state.phase, state.winner, state.bitScore, state.coinScore])
+  }, [state.phase, state.winner, state.bitScore, state.coinScore, state.roundId, state.lastPrice])
 
   return { state, flashes }
 }

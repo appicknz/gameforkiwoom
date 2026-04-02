@@ -560,23 +560,8 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     const raceResult: "bit" | "coin" | "tie" =
       bit > coin ? "bit" : coin > bit ? "coin" : "tie"
 
-    // 라운드 결과 이벤트 발행 + DB 저장
-    const closingPrice = currentPriceRef.current
-    if (closingPrice !== null) {
-      // secInRound===299 시점의 실제 초를 라운드 결과 시각으로 사용
-      // (n*300 + 299 형태 → DB에서 22:09:59 같은 형식으로 표시)
-      const nowSec = Math.floor(Date.now() / 1000)
-      const resultTime = nowSec  // 실제 라운드 마지막 초
-      window.dispatchEvent(new CustomEvent("race:closing", {
-        detail: { price: closingPrice, time: resultTime, bit, coin, winner: raceResult }
-      }))
-      // DB 영구 저장 (ignoreDuplicates: true → 첫 저장값 보존, 중복 클라이언트 무시)
-      fetch("/api/race-results", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ time: resultTime, price: closingPrice, bit_score: bit, coin_score: coin, winner: raceResult }),
-      }).catch(() => {})
-    }
+      // race:closing 이벤트 및 DB 저장은 race-game.tsx result 페이즈에서 처리
+    // (서버 스코어 기반으로 정확한 값을 저장)
 
     const closePrice = currentPriceRef.current ?? 0
     const effectiveBase = basePriceRef.current ?? closePrice
