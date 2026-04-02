@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 interface PriceEntry {
   time: number
   price: number
+  baccaratResult?: "player" | "banker" | "tie" | null
 }
 
 const GOLD = "#d4af37"
@@ -14,13 +15,9 @@ const ROW_BORDER = "rgba(212,175,55,0.1)"
 const CARD_BG = "rgba(5,13,10,0.85)"
 const GOLD_BORDER = "rgba(212,175,55,0.18)"
 
-function Tag({ label }: { label: string }) {
-  return (
-    <span style={{ padding: "1px 7px", borderRadius: 4, fontSize: 10, fontWeight: 700, background: "rgba(212,175,55,0.08)", color: GOLD_DIM }}>
-      {label}
-    </span>
-  )
-}
+const PLAYER_COLOR = "#60a5fa"   // blue
+const BANKER_COLOR = "#f97316"   // orange
+const TIE_COLOR    = "#22c55e"   // green
 
 function fmtTime(ts: number) {
   return new Date(ts * 1000).toLocaleTimeString("ko-KR", {
@@ -32,77 +29,88 @@ function fmtPrice(p: number) {
   return "$" + p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function getTags(price: number) {
-  const truncated = Math.floor(price * 100)
-  const lastDigit = truncated % 10
-  const d1 = Math.floor(truncated / 10) % 10  // 소수점 첫째 (뱅커)
-  const d2 = truncated % 10                    // 소수점 둘째 (플레이어)
-  return {
-    lastDigit,
-    direction: null as string | null,         // 방향은 다음 봉과 비교 필요
-    digitLabel: lastDigit <= 4 ? "언더" : "오버",
-    parityLabel: lastDigit % 2 === 0 ? "짝" : "홀",
-    bankerDigit: d1,
-    playerDigit: d2,
-  }
+function getComputedResult(price: number): "player" | "banker" | "tie" {
+  const lastDigit = Math.floor(Math.abs(price * 100)) % 10
+  return lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
+}
+
+function BaccaratBadge({ result }: { result: "player" | "banker" | "tie" }) {
+  const label = result === "player" ? "플레이어" : result === "banker" ? "뱅커" : "타이"
+  const color = result === "player" ? PLAYER_COLOR : result === "banker" ? BANKER_COLOR : TIE_COLOR
+  return (
+    <span style={{
+      padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700,
+      background: `${color}22`, color, border: `1px solid ${color}55`,
+      whiteSpace: "nowrap",
+    }}>
+      {label}
+    </span>
+  )
+}
+
+function DigitTag({ label }: { label: string }) {
+  return (
+    <span style={{
+      padding: "1px 7px", borderRadius: 4, fontSize: 10, fontWeight: 700,
+      background: "rgba(212,175,55,0.08)", color: GOLD_DIM,
+    }}>
+      {label}
+    </span>
+  )
 }
 
 function PriceRow({
   entry,
   prev,
-  isRoundBoundary,
-  showBaccarat,
 }: {
   entry: PriceEntry
   prev: PriceEntry | undefined
-  isRoundBoundary: boolean
-  showBaccarat: boolean
 }) {
-  const { digitLabel, parityLabel, bankerDigit, playerDigit } = getTags(entry.price)
+  const truncated = Math.floor(entry.price * 100)
+  const d1 = Math.floor(truncated / 10) % 10   // 소수점 첫째 (B)
+  const d2 = truncated % 10                      // 소수점 둘째 (P)
+
   const diff = prev ? entry.price - prev.price : 0
   const directionLabel = diff > 0 ? "롱" : diff < 0 ? "숏" : "—"
 
-  const bg = isRoundBoundary ? "rgba(34,197,94,0.15)" : ROW_BG
-  const border = isRoundBoundary ? "rgba(34,197,94,0.3)" : ROW_BORDER
+  // baccarat_result: DB 저장값 우선, 없으면 가격에서 계산
+  const baccaratResult = entry.baccaratResult ?? getComputedResult(entry.price)
 
   return (
     <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      gap: 8, padding: "7px 10px", borderRadius: 8,
-      background: bg, border: `1px solid ${border}`,
-      fontSize: 12, transition: "background 0.2s",
+      display: "flex", alignItems: "center", gap: 8,
+      padding: "7px 10px", borderRadius: 8,
+      background: ROW_BG, border: `1px solid ${ROW_BORDER}`,
+      fontSize: 12,
     }}>
-      <span style={{ color: GOLD_DIM, fontFamily: "monospace", fontSize: 11, whiteSpace: "nowrap" }}>
+      <span style={{ color: GOLD_DIM, fontFamily: "monospace", fontSize: 11, whiteSpace: "nowrap", minWidth: 60 }}>
         {fmtTime(entry.time)}
       </span>
-      <span style={{ color: GOLD, fontWeight: 700, flex: 1, textAlign: "right", marginRight: 8 }}>
+      <span style={{ color: GOLD, fontWeight: 700, minWidth: 90, textAlign: "right" }}>
         {fmtPrice(entry.price)}
       </span>
-      {showBaccarat && isRoundBoundary && (
-        <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 700, marginRight: 4 }}>
-          B{bankerDigit} P{playerDigit}
-        </span>
-      )}
-      <div style={{ display: "flex", gap: 4 }}>
-        <Tag label={directionLabel} />
-        <Tag label={digitLabel} />
-        <Tag label={parityLabel} />
+      <span style={{ fontSize: 10, color: GOLD_DIM, minWidth: 36 }}>
+        B{d1} P{d2}
+      </span>
+      <BaccaratBadge result={baccaratResult} />
+      <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+        <DigitTag label={directionLabel} />
       </div>
     </div>
   )
 }
 
 export function ClosingPrices() {
-  // 30초 마감 — baka:closing 이벤트 (Railway 30초 마감가)
-  const [boundaryPrices, setBoundaryPrices] = useState<PriceEntry[]>([])
+  const [prices, setPrices] = useState<PriceEntry[]>([])
+  const [expanded, setExpanded] = useState(false)
 
-  // 페이지 로드 시 DB에서 기존 30초 마감가 불러오기
+  // 페이지 로드 시 DB에서 기존 마감가 불러오기 (최근 50개)
   useEffect(() => {
-    fetch("/api/closing-price")
+    fetch("/api/closing-price?limit=50")
       .then(r => r.json())
-      .then(({ prices }) => {
-        if (Array.isArray(prices) && prices.length > 0) {
-          setBoundaryPrices(prices.slice(-20))
+      .then(({ prices: fetched }) => {
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          setPrices(fetched as PriceEntry[])
         }
       })
       .catch(() => {})
@@ -111,50 +119,57 @@ export function ClosingPrices() {
   // 30초 마감: baka:closing 이벤트 구독
   useEffect(() => {
     const onClosing = (e: Event) => {
-      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
-      setBoundaryPrices(prev => {
+      const { price, time, baccaratResult } = (e as CustomEvent<{ price: number; time: number; baccaratResult?: "player" | "banker" | "tie" }>).detail
+      setPrices(prev => {
         const last = prev[prev.length - 1]
         if (last?.time === time) return prev
-        return [...prev, { time, price }].slice(-20)
+        return [...prev, { time, price, baccaratResult: baccaratResult ?? null }].slice(-50)
       })
     }
     window.addEventListener("baka:closing", onClosing)
     return () => window.removeEventListener("baka:closing", onClosing)
   }, [])
 
-  if (boundaryPrices.length === 0) return null
+  if (prices.length === 0) return null
 
-  const boundaryDisplay = [...boundaryPrices].reverse().slice(0, 10)
+  // 최신순 정렬 후 slice
+  const sorted = [...prices].reverse()
+  const displayCount = expanded ? 50 : 10
+  const display = sorted.slice(0, displayCount)
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{
+      background: CARD_BG, border: `1px solid ${GOLD_BORDER}`,
+      borderRadius: 12, padding: "14px 14px 10px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, letterSpacing: "0.04em" }}>
+          30초 마감 기준가 (최근 {expanded ? "50개" : "10개"})
+        </h3>
+        <button
+          onClick={() => setExpanded(v => !v)}
+          style={{
+            background: "rgba(212,175,55,0.08)", border: `1px solid ${GOLD_BORDER}`,
+            color: GOLD_DIM, fontSize: 11, fontWeight: 700, padding: "3px 10px",
+            borderRadius: 6, cursor: "pointer",
+          }}
+        >
+          {expanded ? "접기" : "전체보기"}
+        </button>
+      </div>
 
-      {/* 30초 마감 기준가 */}
-      {boundaryDisplay.length > 0 && (
-        <div style={{
-          background: CARD_BG, border: `1px solid ${GOLD_BORDER}`,
-          borderRadius: 12, padding: "14px 14px 10px",
-        }}>
-          <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 10, letterSpacing: "0.04em" }}>
-            30초 마감 기준가 (최근 10개)
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {boundaryDisplay.map((entry, idx) => {
-              const prev = boundaryDisplay[idx + 1]
-              return (
-                <PriceRow
-                  key={`boundary-${entry.time}`}
-                  entry={entry}
-                  prev={prev}
-                  isRoundBoundary={true}
-                  showBaccarat={true}
-                />
-              )
-            })}
-          </div>
-        </div>
-      )}
-
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        {display.map((entry, idx) => {
+          const prev = display[idx + 1]
+          return (
+            <PriceRow
+              key={`closing-${entry.time}`}
+              entry={entry}
+              prev={prev}
+            />
+          )
+        })}
+      </div>
     </div>
   )
 }

@@ -2,9 +2,19 @@
 
 import { useEffect, useRef, useState } from "react"
 
+const PLAYER_COLOR = "#60a5fa"
+const BANKER_COLOR = "#f97316"
+const TIE_COLOR    = "#22c55e"
+
+function getResult(price: number): "player" | "banker" | "tie" {
+  const d = Math.floor(Math.abs(price * 100)) % 10
+  return d <= 4 ? "player" : d <= 8 ? "banker" : "tie"
+}
+
 interface ClosingPrice {
   time: number
   price: number
+  baccaratResult?: "player" | "banker" | "tie" | null
 }
 
 export function ClosingPricesList() {
@@ -19,9 +29,9 @@ export function ClosingPricesList() {
 
     // baka:closing 이벤트로 30초마다 업데이트
     const onClosing = (e: Event) => {
-      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
+      const { price, time, baccaratResult } = (e as CustomEvent<{ price: number; time: number; baccaratResult?: "player" | "banker" | "tie" }>).detail
       setPrices(prev => {
-        const updated = [...prev, { time, price }]
+        const updated = [...prev, { time, price, baccaratResult: baccaratResult ?? null }]
         return updated.sort((a, b) => b.time - a.time).slice(0, 10)
       })
     }
@@ -48,6 +58,9 @@ export function ClosingPricesList() {
             const d1 = Math.floor(truncated / 10) % 10
             const d2 = truncated % 10
             const time = new Date(p.time * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
+            const result = p.baccaratResult ?? getResult(p.price)
+            const resultLabel = result === "player" ? "P" : result === "banker" ? "B" : "T"
+            const resultColor = result === "player" ? PLAYER_COLOR : result === "banker" ? BANKER_COLOR : TIE_COLOR
             return (
               <div key={i} style={{
                 padding: "8px 14px",
@@ -56,10 +69,17 @@ export function ClosingPricesList() {
                 justifyContent: "space-between",
                 alignItems: "center",
                 fontSize: 12,
+                gap: 8,
               }}>
                 <span style={{ color: "rgba(212,175,55,0.5)", minWidth: 50 }}>{time}</span>
                 <span style={{ color: "#d4af37", fontWeight: 600, fontVariantNumeric: "tabular-nums", flex: 1, textAlign: "right" }}>${p.price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}</span>
-                <span style={{ color: "rgba(212,175,55,0.6)", fontSize: 11, marginLeft: 12 }}>B{d1} P{d2}</span>
+                <span style={{ color: "rgba(212,175,55,0.6)", fontSize: 11 }}>B{d1} P{d2}</span>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
+                  background: `${resultColor}22`, color: resultColor, border: `1px solid ${resultColor}55`,
+                }}>
+                  {resultLabel}
+                </span>
               </div>
             )
           })
