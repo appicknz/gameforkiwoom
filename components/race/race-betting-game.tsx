@@ -526,10 +526,16 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     autoBetFiredRef.current = false
   }, [canBet])
 
+  // isDealing / onScoreChange를 ref로 관리 → 이벤트 핸들러 마운트 시 1회만 등록
+  const isDealingRef = useRef(isDealing)
+  const onScoreChangeRef = useRef(onScoreChange)
+  useEffect(() => { isDealingRef.current = isDealing }, [isDealing])
+  useEffect(() => { onScoreChangeRef.current = onScoreChange }, [onScoreChange])
+
   // 매 초 baka:price 구독 → 딜링 중에만 스코어 누적
   useEffect(() => {
     const handler = (e: Event) => {
-      if (!isDealing) return
+      if (!isDealingRef.current) return
       const { price } = (e as CustomEvent<{ price: number; time: number }>).detail
       const dec = price.toFixed(2).split(".")[1] ?? "00"
       const d1 = parseInt(dec[0] ?? "0")   // BIT팀: 소수점 첫째
@@ -538,11 +544,11 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       coinScoreRef.current += d2
       setBitScore(bitScoreRef.current)
       setCoinScore(coinScoreRef.current)
-      onScoreChange?.(bitScoreRef.current, coinScoreRef.current)
+      onScoreChangeRef.current?.(bitScoreRef.current, coinScoreRef.current)
     }
     window.addEventListener("baka:price", handler)
     return () => window.removeEventListener("baka:price", handler)
-  }, [isDealing, onScoreChange])
+  }, [])  // 빈 배열 → 마운트/언마운트 시 1회만 등록/해제
 
   // 라운드 마감 정산 — race:settle 이벤트로 트리거 (타이머 tick에서 secInRound===299에 발행)
   useEffect(() => {
@@ -557,13 +563,14 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     // 라운드 결과 이벤트 발행 + DB 저장
     const closingPrice = currentPriceRef.current
     if (closingPrice !== null) {
-      // 5분 라운드 경계 시각 사용 (현재 초를 300으로 내림한 값)
+      // secInRound===299 시점의 실제 초를 라운드 결과 시각으로 사용
+      // (n*300 + 299 형태 → DB에서 22:09:59 같은 형식으로 표시)
       const nowSec = Math.floor(Date.now() / 1000)
-      const resultTime = Math.floor(nowSec / 300) * 300  // 라운드 경계 timestamp
+      const resultTime = nowSec  // 실제 라운드 마지막 초
       window.dispatchEvent(new CustomEvent("race:closing", {
         detail: { price: closingPrice, time: resultTime, bit, coin, winner: raceResult }
       }))
-      // DB 영구 저장
+      // DB 영구 저장 (ignoreDuplicates: true → 첫 저장값 보존, 중복 클라이언트 무시)
       fetch("/api/race-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
