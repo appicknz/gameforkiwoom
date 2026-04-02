@@ -58,10 +58,48 @@ function fetchRecentClosingPrices() {
 const clients = new Set();
 const closingPrices = []; // 최근 100개
 let latestPrice = null;
-let lastBucket = null;          // 현재 30초 버킷 번호 (Math.floor(now/30))
-let lastTradePrice = null;      // 마지막으로 받은 거래 가격
-let prevBucketLastPrice = null; // 이전 버킷의 마지막 가격 (closing 확정용)
-let lastPriceBroadcastSec = 0;  // 마지막으로 price를 브로드캐스트한 초 (1초 스로틀)
+let lastBucket = null;
+let lastTradePrice = null;
+let prevBucketLastPrice = null;
+let lastPriceBroadcastSec = 0;
+
+// ─── Race 스코어 서버 계산 ──────────────────────────────────────────
+// 5분(300초) 라운드, 0~59초 배팅, 60~299초 레이싱
+// 1초 price tick마다 레이싱 구간이면 bit(소수점 첫째)·coin(소수점 둘째) 누적
+// 모든 클라이언트에 동일한 값을 브로드캐스트 → 기기/접속 시점 무관
+const RACE_ROUND_SEC = 300;
+const RACE_BETTING_SEC = 60;
+
+// roundId → { bit, coin } 현재 라운드 스코어 (이전 라운드는 폐기)
+let raceCurrentRoundId = -1;
+let raceBitScore = 0;
+let raceCoinScore = 0;
+
+function getRaceRoundId(nowSec) {
+  return Math.floor(nowSec / RACE_ROUND_SEC);
+}
+function getRaceSecInRound(nowSec) {
+  return nowSec % RACE_ROUND_SEC;
+}
+
+function updateRaceScore(price, nowSec) {
+  const roundId = getRaceRoundId(nowSec);
+  const secInRound = getRaceSecInRound(nowSec);
+
+  // 새 라운드 진입 → 스코어 초기화
+  if (roundId !== raceCurrentRoundId) {
+    raceCurrentRoundId = roundId;
+    raceBitScore = 0;
+    raceCoinScore = 0;
+  }
+
+  // 레이싱 구간(60~298초)에서만 득점
+  if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_ROUND_SEC - 2) return;
+
+  const dec = price.toFixed(2).split(".")[1] ?? "00";
+  raceBitScore  += parseInt(dec[0] ?? "0");
+  raceCoinScore += parseInt(dec[1] ?? "0");
+}
 
 // ─── 서버 WS ───────────────────────────────────────────────────────
 const wss = new WebSocketServer({ port: PORT });
@@ -74,12 +112,24 @@ wss.on("connection", (ws) => {
   clients.add(ws);
   console.log(`[server] client connected (total: ${clients.size})`);
 
-  if (closingPrices.length > 0) {
-    ws.send(JSON.stringify({ type: "init", closingPrices: closingPrices.slice(-100) }));
-  }
+  // init: closing 히스토리 + 현재 race 스코어 (접속 시점에 관계없이 동기화)
+  ws.send(JSON.stringify({
+    type: "init",
+    closingPrices: closingPrices.slice(-100),
+    raceScore: {
+      roundId: raceCurrentRoundId,
+      bit:     raceBitScore,
+      coin:    raceCoinScore,
+    },
+  }));
 
   if (latestPrice !== null) {
-    ws.send(JSON.stringify({ type: "price", price: latestPrice.price, time: latestPrice.time }));
+    ws.send(JSON.stringify({
+      type: "price",
+      price: latestPrice.price,
+      time: latestPrice.time,
+      raceScore: { roundId: raceCurrentRoundId, bit: raceBitScore, coin: raceCoinScore },
+    }));
   }
 
   ws.on("close", () => {
@@ -194,13 +244,20 @@ function connectTrade() {
       lastTradePrice = price;
       latestPrice = { price, time };
 
-      // 현재가 브로드캐스���: 1초에 한 번만 (aggTrade는 초당 수십 개)
+      // 현재가 브로드캐스트: 1초에 한 번만 (aggTrade는 초당 수십 개)
       if (nowSec > lastPriceBroadcastSec) {
         lastPriceBroadcastSec = nowSec;
-        broadcast({ type: "price", price, time });
+        // race 스코어 서버 계산 (1초마다 레이싱 구간이면 누적)
+        updateRaceScore(price, nowSec);
+        broadcast({
+          type: "price",
+          price,
+          time,
+          raceScore: { roundId: raceCurrentRoundId, bit: raceBitScore, coin: raceCoinScore },
+        });
         // 로그 5초마다
         if (!tradeWs.lastLog || Date.now() - tradeWs.lastLog > 5000) {
-          console.log(`[price] BTC/USDT: ${price} @ ${new Date(time * 1000).toISOString()}`);
+          console.log(`[price] BTC/USDT: ${price} @ ${new Date(time * 1000).toISOString()} race=${raceCurrentRoundId} bit=${raceBitScore} coin=${raceCoinScore}`);
           tradeWs.lastLog = Date.now();
         }
       }

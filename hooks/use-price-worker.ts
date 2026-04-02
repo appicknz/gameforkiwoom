@@ -52,18 +52,25 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
           if (data.type === "init") {
             win.__bitcoinClosingPrices = data.closingPrices
             optsRef.current.onInitClosing?.(data.closingPrices)
-            // race-game이 접속 시점 스코어를 복원할 수 있도록 이벤트 발행
-            window.dispatchEvent(new CustomEvent("baka:init", { detail: { closingPrices: data.closingPrices } }))
+            // race-game 스코어 동기화: 서버의 현재 race 스코어를 즉시 반영
+            window.dispatchEvent(new CustomEvent("baka:init", {
+              detail: { closingPrices: data.closingPrices, raceScore: data.raceScore }
+            }))
             return
           }
 
           if (data.type === "price") {
             win.__bitcoinCurrentPrice = data.price
             optsRef.current.onPrice?.(data.price, data.time)
-            // 차트·기타 구독자에게 전달 (bitcoin-chart.tsx는 baka:price 이벤트 구독)
             window.dispatchEvent(new CustomEvent("baka:price", {
               detail: { price: data.price, time: data.time }
             }))
+            // race 스코어가 포함된 경우 race-game에 전달
+            if (data.raceScore) {
+              window.dispatchEvent(new CustomEvent("baka:race-score", {
+                detail: data.raceScore  // { roundId, bit, coin }
+              }))
+            }
             return
           }
 
