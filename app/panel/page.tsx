@@ -39,12 +39,43 @@ interface Branch {
   lp_multiplier_race?: number
 }
 
+// 배팅 단위 프리셋 (사이드당 시드 = 목표인원×평균배팅 / 3)
+const BET_PRESETS = [
+  { label: "1만원 단위",   avgBet:     10_000 },
+  { label: "5만원 단위",   avgBet:     50_000 },
+  { label: "10만원 단위",  avgBet:    100_000 },
+  { label: "50만원 단위",  avgBet:    500_000 },
+  { label: "100만원 단위", avgBet:  1_000_000 },
+] as const
+
+function calcSeed(avgBet: number, targetPlayers: number, multiplier: number): number {
+  return Math.round((avgBet * targetPlayers) / (3 * multiplier))
+}
+
 // LP 설정 행 컴포넌트
 function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void }) {
-  const [baccaratSeed, setBaccaratSeed] = useState(String(branch.lp_amount_baccarat ?? 10_000_000))
-  const [raceSeed, setRaceSeed]         = useState(String(branch.lp_amount_race     ?? 10_000_000))
+  // 배팅 단위 프리셋 선택 (초기값: 10만원 단위)
+  const [betPresetIdx, setBetPresetIdx] = useState(2)  // index 2 = 10만원
+  const [targetPlayers, setTargetPlayers] = useState(10)
+  const [multiplier, setMultiplier] = useState(
+    branch.lp_multiplier_baccarat ?? 1.0
+  )
+  // 수동 오버라이드 (프리셋 자동계산 무시하고 직접 입력)
+  const [manualMode, setManualMode] = useState(false)
+  const [baccaratSeed, setBaccaratSeed] = useState(
+    String(branch.lp_amount_baccarat ?? 333_000)
+  )
+  const [raceSeed, setRaceSeed] = useState(
+    String(branch.lp_amount_race ?? 333_000)
+  )
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+  // 프리셋 변경 시 시드 자동 계산
+  const autoSeed = calcSeed(BET_PRESETS[betPresetIdx].avgBet, targetPlayers, multiplier)
+
+  const effectiveSeed = manualMode ? (parseInt(baccaratSeed) || 333_000) : autoSeed
+  const effectiveRaceSeed = manualMode ? (parseInt(raceSeed) || 333_000) : autoSeed
 
   const handleSave = async () => {
     setSaving(true); setMsg(null)
@@ -53,9 +84,11 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        branchId: branch.id,
-        lpAmountBaccarat: parseInt(baccaratSeed) || 10_000_000,
-        lpAmountRace:     parseInt(raceSeed)     || 10_000_000,
+        branchId:             branch.id,
+        lpAmountBaccarat:     effectiveSeed,
+        lpAmountRace:         effectiveRaceSeed,
+        lpMultiplierBaccarat: multiplier,
+        lpMultiplierRace:     multiplier,
       }),
     })
     if (res.ok) { setMsg({ text: "저장됨", ok: true }); onSaved() }
@@ -64,33 +97,124 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
     setTimeout(() => setMsg(null), 2000)
   }
 
-  const bSeedNum = parseInt(baccaratSeed) || 10_000_000
-  const rSeedNum = parseInt(raceSeed)     || 10_000_000
-  // 아무도 배팅 안 했을 때 배당 미리보기
-  // 유저 배팅 0 → 수수료 0, 배당풀 = LP시드×3, 각 사이드 = seed
-  // 배당 = (seed×3) / seed = 3.0x (항상, 유저 없을 때)
-  const previewOdds = (bSeedNum * 3 / bSeedNum).toFixed(2)
+  // LP 50% 시점 시뮬레이션
+  const halfPointTotal = effectiveSeed * 3 * multiplier
+  const fmt = (n: number) => n >= 10_000_000
+    ? `${(n / 10_000_000).toFixed(1)}천만`
+    : n >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(0)}백만`
+    : n >= 10_000
+    ? `${(n / 10_000).toFixed(0)}만`
+    : n.toLocaleString()
 
   return (
-    <div className="px-5 py-4 space-y-3">
+    <div className="px-5 py-4 space-y-4">
       <p className="text-sm font-semibold text-foreground">{branch.name}</p>
 
-      <div className="rounded-lg bg-muted/50 border border-border p-3 space-y-2">
-        <p className="text-xs font-medium text-foreground">사이드별 LP 시드 금액</p>
-        <p className="text-[11px] text-muted-foreground">
-          Player / Banker / Tie 각각 이 금액으로 시작 · 아무도 배팅 안 했을 때 기본 배당: {previewOdds}x
-        </p>
+      {/* 배팅 단위 프리셋 */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-foreground">배팅 단위 선택</p>
+        <div className="flex flex-wrap gap-1.5">
+          {BET_PRESETS.map((p, i) => (
+            <button
+              key={i}
+              onClick={() => { setBetPresetIdx(i); setManualMode(false) }}
+              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                !manualMode && betPresetIdx === i
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            onClick={() => setManualMode(true)}
+            className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+              manualMode
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            직접 입력
+          </button>
+        </div>
+      </div>
+
+      {/* 목표 인원 + 감쇠 속도 */}
+      {!manualMode && (
+        <div className="flex gap-4 flex-wrap items-end">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">LP 50% 기준 인원</p>
+            <div className="flex items-center gap-1.5">
+              {[5, 10, 20, 30].map(n => (
+                <button key={n} onClick={() => setTargetPlayers(n)}
+                  className={`text-xs px-2 py-1 rounded border transition-colors ${
+                    targetPlayers === n
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}>
+                  {n}명
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">감쇠 속도 (multiplier)</p>
+            <div className="flex items-center gap-1.5">
+              {[0.5, 1.0, 2.0].map(m => (
+                <button key={m} onClick={() => setMultiplier(m)}
+                  className={`text-xs px-2.5 py-1 rounded border transition-colors ${
+                    multiplier === m
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}>
+                  {m === 0.5 ? "빠름" : m === 1.0 ? "기본" : "느림"}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 수동 입력 모드 */}
+      {manualMode && (
         <div className="flex gap-3 flex-wrap items-end">
           <div>
             <p className="text-xs text-muted-foreground mb-1">바카라 시드 (사이드당)</p>
-            <Input type="number" step="1000000" min="0" value={baccaratSeed}
-              onChange={e => setBaccaratSeed(e.target.value)} className="h-8 w-36 text-sm" />
+            <Input type="number" value={baccaratSeed}
+              onChange={e => setBaccaratSeed(e.target.value)} className="h-8 w-32 text-sm" />
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-1">레이스 시드 (사이드당)</p>
-            <Input type="number" step="1000000" min="0" value={raceSeed}
-              onChange={e => setRaceSeed(e.target.value)} className="h-8 w-36 text-sm" />
+            <Input type="number" value={raceSeed}
+              onChange={e => setRaceSeed(e.target.value)} className="h-8 w-32 text-sm" />
           </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">감쇠 속도</p>
+            <Input type="number" step="0.1" min="0.1" max="5" value={multiplier}
+              onChange={e => setMultiplier(parseFloat(e.target.value) || 1.0)} className="h-8 w-20 text-sm" />
+          </div>
+        </div>
+      )}
+
+      {/* 결과 요약 */}
+      <div className="rounded-lg bg-muted/50 border border-border p-3 grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="text-muted-foreground">사이드당 시드</p>
+          <p className="font-bold text-foreground tabular-nums">{fmt(effectiveSeed)}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">LP 총액 (3개 사이드)</p>
+          <p className="font-bold text-foreground tabular-nums">{fmt(effectiveSeed * 3)}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">LP 50% 도달 배팅액</p>
+          <p className="font-bold text-amber-500 tabular-nums">{fmt(halfPointTotal)}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">유저 없을 때 배당</p>
+          <p className="font-bold text-emerald-500">3.00x</p>
         </div>
       </div>
 

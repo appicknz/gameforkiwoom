@@ -1,37 +1,43 @@
 /**
- * AMM 시드 풀 기반 파리뮤추얼 배당 시스템
+ * AMM 시드 풀 기반 파리뮤추얼 배당 시스템 — 배팅 단위 인식 감쇠
  *
- * ── 핵심 설계 원칙 ──────────────────────────────────────────────────────
+ * ────────────────────────────────────────────────────────────────────────
+ * 설계 원칙
+ * ────────────────────────────────────────────────────────────────────────
+ * 1. LP 균등 시딩: Player/Banker/Tie 각 사이드에 동일한 seed 투입
+ * 2. 수수료: 유저 배팅에서만 20% 차감 (LP 시드 비과세)
+ * 3. LP 감쇠: 유저 배팅이 halfPoint에 도달하면 LP 비중 50%, 이후 계속 감소
  *
- * 1. LP 균등 시딩
- *    Player / Banker / Tie 각 사이드에 동일한 금액(seed)을 시딩.
- *    아무도 배팅 안 했을 때 배당 = 3.0x (seed×3 / seed).
+ * ────────────────────────────────────────────────────────────────────────
+ * 감쇠 공식
+ * ────────────────────────────────────────────────────────────────────────
+ *   halfPoint = lpSeedTotal × lp_multiplier
+ *   lpWeight  = 1 / (1 + userTotalBet / halfPoint)
  *
- * 2. 수수료는 유저 배팅에서만 차감
- *    LP 시드는 수수료 대상이 아님. 하우스 수익 = 유저 배팅 × 20%.
+ *   lp_multiplier 의미:
+ *     0.5 → 유저 배팅이 LP 시드의  50%에 도달하면 LP 50% 감쇠 (빠른 감쇠)
+ *     1.0 → 유저 배팅이 LP 시드의 100%에 도달하면 LP 50% 감쇠 (기본)
+ *     2.0 → 유저 배팅이 LP 시드의 200%에 도달하면 LP 50% 감쇠 (느린 감쇠)
  *
- * 3. 집중 보호 (Concentration Guard)
- *    한 사이드에 배팅이 몰리면 그 사이드 배당이 낮아지고
- *    반대 사이드 배당이 높아짐 → 자연히 반대 배팅을 유도.
- *    LP 시드가 이 효과를 안정시키는 역할.
+ * ────────────────────────────────────────────────────────────────────────
+ * 시드 설정 가이드 (배팅 단위별 권장값, 목표 10명 기준, multiplier=1.0)
+ * ────────────────────────────────────────────────────────────────────────
+ *   seed(사이드당) = (목표인원 × 평균배팅) / 3
  *
- * 4. LP 감쇠 (Decay) — 핵심
- *    유저 배팅이 많아질수록 LP 기여도를 점진적으로 줄임.
- *    LP 총액 대비 유저 배팅 비율(coverage)로 감쇠 계수 결정:
+ *   1만원 단위  → seed ≈  33,000원  (10×1만/3)
+ *   5만원 단위  → seed ≈ 167,000원  (10×5만/3)
+ *   10만원 단위 → seed ≈ 333,000원  (10×10만/3)
+ *   50만원 단위 → seed ≈ 167만원    (10×50만/3)
+ *   100만원 단위→ seed ≈ 333만원    (10×100만/3)
  *
- *      coverage = 유저총배팅 / LP시드총액
- *      lpWeight = 1 / (1 + coverage × DECAY_FACTOR)
- *
- *    예: 시드 30M, DECAY_FACTOR=3
- *      유저 0M    → coverage=0.00 → lpWeight=1.00 (LP 100% 반영)
- *      유저 10M   → coverage=0.33 → lpWeight=0.50 (LP 50%)
- *      유저 30M   → coverage=1.00 → lpWeight=0.25 (LP 25%)
- *      유저 90M   → coverage=3.00 → lpWeight=0.10 (LP 10%)
- *      유저 300M  → coverage=10.0 → lpWeight=0.03 (LP ~0%)
- *
- *    → 초기: LP가 배당을 안정시킴 (이상한 배당 방지)
- *    → 성숙: 유저 풀이 배당을 결정 (순수 파리뮤추얼)
- *    → 자연스러운 전환, 관리자 개입 불필요
+ * ────────────────────────────────────────────────────────────────────────
+ * 예시: seed=33만(사이드당), 1만원 단위 유저
+ * ────────────────────────────────────────────────────────────────────────
+ *   유저 0명:          lpWeight=1.00  배당=3.00x  mode=seeded
+ *   유저 5명×1만원:    lpWeight=0.67  배당 완충   mode=seeded
+ *   유저 10명×1만원:   lpWeight=0.50  배당 중간   mode=decay
+ *   유저 30명×1만원:   lpWeight=0.25  LP 25%      mode=decay
+ *   유저 100명×1만원:  lpWeight=0.09  LP ~0%      mode=natural
  */
 
 export interface BaccaratPools {
@@ -78,10 +84,11 @@ export interface RaceOddsResult {
 }
 
 // 기본 LP 설정
+// seed=333,000 → 10만원 단위 × 10명 기준 (10×10만/3)
 export const DEFAULT_LP_CONFIG: LpConfig = {
   enabled:              true,
-  lpAmountBaccarat:     10_000_000,
-  lpAmountRace:         10_000_000,
+  lpAmountBaccarat:     333_000,
+  lpAmountRace:         333_000,
   lpMultiplierBaccarat: 1.0,
   lpMultiplierRace:     1.0,
 }
@@ -103,23 +110,31 @@ export function branchToLpConfig(branch: {
 }
 
 // ── 상수 ────────────────────────────────────────────────────────────────────
-const FEE_RATE    = 0.20   // 수수료율 (유저 배팅에만 적용)
-const MIN_ODDS    = 1.01
-const MAX_ODDS    = 50.0
-const DECAY_FACTOR = 3     // 높을수록 LP가 빨리 감쇠
-                           // 3 = 유저 배팅이 LP 시드와 같아질 때 lpWeight ≈ 0.25
+export const FEE_RATE = 0.20
+const MIN_ODDS        = 1.01
+const MAX_ODDS        = 50.0
 
 // ── 내부 유틸 ────────────────────────────────────────────────────────────────
 
 /**
- * LP 감쇠 계수 계산
- * coverage = totalUserBet / lpSeedTotal
- * lpWeight = 1 / (1 + coverage * DECAY_FACTOR)
+ * LP 감쇠 가중치 계산
+ *
+ * halfPoint = lpSeedTotal × multiplier
+ *   → userTotalBet 이 halfPoint 에 도달하면 lpWeight = 0.50
+ *
+ * multiplier(lp_multiplier) 로 감쇠 속도 조절:
+ *   0.5 → 빠른 감쇠 (유저 적어도 LP 비중 빨리 줄어듦)
+ *   1.0 → 기본
+ *   2.0 → 느린 감쇠 (유저 많아도 LP 비중 천천히 줄어듦)
  */
-function calcLpWeight(totalUserBet: number, lpSeedTotal: number): number {
+function calcLpWeight(
+  totalUserBet: number,
+  lpSeedTotal:  number,
+  multiplier:   number,
+): number {
   if (lpSeedTotal <= 0) return 0
-  const coverage = totalUserBet / lpSeedTotal
-  return 1 / (1 + coverage * DECAY_FACTOR)
+  const halfPoint = lpSeedTotal * Math.max(0.1, multiplier)
+  return 1 / (1 + totalUserBet / halfPoint)
 }
 
 /** 배당률 클램핑 */
@@ -144,13 +159,13 @@ export function calcBaccaratOdds(
   lpConfig: LpConfig,
   _userCount?: number
 ): OddsResult {
-  const seed = lpConfig.enabled ? lpConfig.lpAmountBaccarat : 0
+  const seed       = lpConfig.enabled ? lpConfig.lpAmountBaccarat : 0
+  const multiplier = lpConfig.lpMultiplierBaccarat ?? 1.0
 
   const totalUserBet = userPools.player + userPools.banker + userPools.tie
   const lpSeedTotal  = seed * 3
 
-  // LP 감쇠 계수
-  const lpWeight = calcLpWeight(totalUserBet, lpSeedTotal)
+  const lpWeight = calcLpWeight(totalUserBet, lpSeedTotal, multiplier)
 
   // 감쇠된 LP (각 사이드에 균등 반영)
   const effectiveSeed = seed * lpWeight
@@ -189,12 +204,13 @@ export function calcRaceOdds(
   lpConfig: LpConfig,
   _userCount?: number
 ): RaceOddsResult {
-  const seed = lpConfig.enabled ? lpConfig.lpAmountRace : 0
+  const seed       = lpConfig.enabled ? lpConfig.lpAmountRace : 0
+  const multiplier = lpConfig.lpMultiplierRace ?? 1.0
 
   const totalUserBet = userPools.bit + userPools.coin + userPools.tie
   const lpSeedTotal  = seed * 3
 
-  const lpWeight      = calcLpWeight(totalUserBet, lpSeedTotal)
+  const lpWeight = calcLpWeight(totalUserBet, lpSeedTotal, multiplier)
   const effectiveSeed = seed * lpWeight
 
   const totalBit  = userPools.bit  + effectiveSeed
@@ -257,4 +273,44 @@ export function calcHousePnl(params: {
 }): { housePnl: number; netFee: number } {
   const housePnl = params.fee + params.totalUserBet - params.totalPayout
   return { housePnl, netFee: params.fee }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 어드민 패널용 시드 자동 계산 헬퍼
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 권장 시드 역산
+ * "N명이 평균 X원 배팅할 때 LP가 50% 감쇠" 를 목표로 사이드당 시드 계산
+ *
+ *   halfPoint = targetPlayers × avgBet
+ *   lpSeedTotal = halfPoint / multiplier
+ *   seed(사이드당) = lpSeedTotal / 3
+ */
+export function calcRecommendedSeed(
+  avgBetAmount:  number,   // 평균 배팅 단위 (원)
+  targetPlayers: number,   // 기준 인원 (이 인원이 배팅하면 LP 50%)
+  multiplier:    number,   // lp_multiplier (감쇠 속도)
+): number {
+  const halfPoint = avgBetAmount * targetPlayers
+  return Math.round(halfPoint / (3 * multiplier))
+}
+
+/**
+ * 배팅 단위 프리셋 — 어드민 드롭다운용
+ * seed10: 목표 10명 기준, multiplier=1.0 일 때 권장 시드(사이드당)
+ */
+export const BET_UNIT_PRESETS = [
+  { label: "1만원 단위",    avgBet:     10_000, seed10:     33_000 },
+  { label: "5만원 단위",    avgBet:     50_000, seed10:    167_000 },
+  { label: "10만원 단위",   avgBet:    100_000, seed10:    333_000 },
+  { label: "50만원 단위",   avgBet:    500_000, seed10:  1_667_000 },
+  { label: "100만원 단위",  avgBet:  1_000_000, seed10:  3_333_000 },
+] as const
+
+/** LP 상태를 한국어로 표시 */
+export function getLpModeLabel(mode: "seeded" | "decay" | "natural"): string {
+  if (mode === "seeded")  return "유동성 안정 구간"
+  if (mode === "decay")   return "유동성 감쇠 중"
+  return "자연 배당 구간"
 }
