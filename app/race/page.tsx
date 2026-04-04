@@ -135,13 +135,14 @@ export default function RacePage() {
   const [roadState, setRoadState] = useState<{ history: RoadResult[]; round: number }>({ history: [], round: 0 })
   const prevWinnerRef = useRef<string | null>(null)
 
-  // 마운트 시 DB에서 과거 결과 로드 → 누구나 같은 히스토리
+  // 마운트 시 DB에서 과거 결과 로드 → 빅로드용 최근 10라운드만
   useEffect(() => {
-    fetch("/api/race-results")
+    fetch("/api/race-results?limit=10")
       .then(r => r.json())
       .then(({ results }) => {
         if (!Array.isArray(results) || results.length === 0) return
-        const history: RoadResult[] = results.map((r: { winner: string }) =>
+        // API는 최신순(DESC)으로 반환 → 빅로드는 오래된 순(ASC)으로 필요
+        const history: RoadResult[] = [...results].reverse().map((r: { winner: string }) =>
           r.winner === "bit" ? "banker" : r.winner === "coin" ? "player" : "tie"
         )
         setRoadState({ history, round: history.length })
@@ -154,7 +155,10 @@ export default function RacePage() {
     const onClosing = (e: Event) => {
       const { winner } = (e as CustomEvent<{ winner: "bit" | "coin" | "tie" }>).detail
       const mapped: RoadResult = winner === "bit" ? "banker" : winner === "coin" ? "player" : "tie"
-      setRoadState(prev => ({ history: [...prev.history, mapped], round: prev.round + 1 }))
+      setRoadState(prev => {
+        const next = [...prev.history, mapped].slice(-10)  // 최근 10개만 유지
+        return { history: next, round: prev.round + 1 }
+      })
     }
     window.addEventListener("race:closing", onClosing)
     return () => window.removeEventListener("race:closing", onClosing)
@@ -296,7 +300,7 @@ export default function RacePage() {
               />
             </div>
 
-            {/* 스코어보드 */}
+            {/* 스코어��드 */}
             <RaceScoreboard state={state} />
 
             {/* 배팅 — baka와 동일 구조, BIT/COIN팀으로 레이��� 변경 */}
