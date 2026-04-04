@@ -157,10 +157,12 @@ export function BigRoad({
   history,
   round,
   colorMap,
+  mode,
 }: {
   history: RoadResult[]
   round: number
   colorMap?: { banker: string; player: string; statBanker?: string; statPlayer?: string }
+  mode?: "baka" | "race"
 }) {
   // 18개 슬라이딩 윈도우: 18개 초과 시 맨 앞 잘라내기
   const displayHistory = history.length > DISPLAY_LIMIT ? history.slice(-DISPLAY_LIMIT) : history
@@ -303,7 +305,7 @@ export function BigRoad({
               pointerEvents: "none",
               opacity: 0.45,
             }}>
-              <BitcoinChart compact />
+              <BitcoinChart compact mode={mode === "race" ? "race" : undefined} />
             </div>
             {/* 격자 배경 */}
             {Array.from({ length: MAX_ROWS }).map((_, r) =>

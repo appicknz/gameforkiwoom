@@ -258,6 +258,7 @@ export default function RacePage() {
                 history={roadState.history}
                 round={roadState.round}
                 colorMap={{ banker: BIT_COLOR, player: COIN_COLOR }}
+                mode="race"
               />
             </div>
 
