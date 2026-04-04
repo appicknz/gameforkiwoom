@@ -115,29 +115,20 @@ function RaceTrack({ secondsInRound, phase }: { secondsInRound: number; phase: s
 
 export default function RacePage() {
   const { state, flashes } = useRaceGame()
-  // 기준가 = 5분 마감가 (race:closing 이벤트) — baka 현재가 아님
-  const [liveBasePrice, setLiveBasePrice] = useState<number | null>(null)
+  // 현재가 (baka:price 이벤트로 매 틱 업데이트)
+  const [liveCurrentPrice, setLiveCurrentPrice] = useState<number | null>(null)
 
   // Railway WebSocket 연결 유지 (baka:price / baka:closing 이벤트 발행)
   usePriceWorker({})
 
-  // race:closing 이벤트에서 5분 기준가 수신
+  // baka:price 이벤트에서 실시간 현재가 수신
   useEffect(() => {
-    const onRaceClosing = (e: Event) => {
-      const { price } = (e as CustomEvent).detail
-      setLiveBasePrice(price)
+    const onPrice = (e: Event) => {
+      const { price } = (e as CustomEvent<{ price: number }>).detail
+      setLiveCurrentPrice(price)
     }
-    window.addEventListener("race:closing", onRaceClosing)
-    // 초기값: DB에서 가장 최근 5분 마감가 1건 복원
-    fetch("/api/race-results?limit=1")
-      .then(r => r.json())
-      .then(({ results }) => {
-        if (Array.isArray(results) && results.length > 0 && results[0].price) {
-          setLiveBasePrice(Number(results[0].price))
-        }
-      })
-      .catch(() => {})
-    return () => window.removeEventListener("race:closing", onRaceClosing)
+    window.addEventListener("baka:price", onPrice)
+    return () => window.removeEventListener("baka:price", onPrice)
   }, [])
 
   // BigRoad: race winner를 road history로 기록 (BIT=banker, COIN=player, TIE=tie)
@@ -198,14 +189,33 @@ export default function RacePage() {
               alignItems: "center",
               justifyContent: "space-between",
             }}>
-              {/* 왼쪽: 기준가 라벨 + 가격 한 줄 */}
+              {/* 왼쪽: 현재가 + 소수점 뱃지 */}
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>기준가</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
-                  {liveBasePrice !== null
-                    ? `$${liveBasePrice.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
-                    : "—"}
-                </span>
+                <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>현재가</span>
+                {liveCurrentPrice !== null ? (() => {
+                  const fixed = liveCurrentPrice.toFixed(2)
+                  const [intPart, decPart] = fixed.split(".")
+                  const formatted = `$${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.`
+                  const d1 = decPart?.[0] ?? "0"
+                  const d2 = decPart?.[1] ?? "0"
+                  return (
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: GOLD }}>{formatted}</span>
+                      <span style={{
+                        width: 22, height: 22, borderRadius: "50%",
+                        background: "rgba(212,175,55,0.18)", border: "1px solid rgba(212,175,55,0.45)",
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 11, fontWeight: 800, color: GOLD,
+                      }}>{d1}</span>
+                      <span style={{
+                        width: 22, height: 22, borderRadius: "50%",
+                        background: "rgba(212,175,55,0.18)", border: "1px solid rgba(212,175,55,0.45)",
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 11, fontWeight: 800, color: GOLD,
+                      }}>{d2}</span>
+                    </span>
+                  )
+                })() : <span style={{ fontSize: 15, fontWeight: 700, color: GOLD }}>—</span>}
               </div>
               {/* 오른쪽: 현재 라운드 누적 스코어 */}
               <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}>
