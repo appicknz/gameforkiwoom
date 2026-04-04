@@ -16,39 +16,18 @@ const GOLD = "#d4af37"
 // 현재가 헤더 (baka:price 이벤트로 DOM 직접 업데이트)
 function LivePriceHeader() {
   const currentRef = useRef<HTMLSpanElement>(null)
-  const baseRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
+    // 상단 기준가 = 현재가 (매 틱 업데이트)
     const onPrice = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
       if (currentRef.current) {
         currentRef.current.textContent = `$${price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
       }
     }
-    // race 기준가는 baka:closing(30초)이 아닌 race:closing(5분 마감가) 사용
-    const onRaceClosing = (e: Event) => {
-      const { price } = (e as CustomEvent<{ price: number }>).detail
-      if (baseRef.current) {
-        baseRef.current.textContent = `$${price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
-      }
-    }
-
-    // 초기값: DB에서 가장 최근 5분 마감가 복원
-    fetch("/api/race-results?limit=1")
-      .then(r => r.json())
-      .then(({ results }) => {
-        if (Array.isArray(results) && results.length > 0 && results[0].price && baseRef.current) {
-          const p = Number(results[0].price)
-          baseRef.current.textContent = `$${p.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
-        }
-      })
-      .catch(() => {})
-
     window.addEventListener("baka:price", onPrice)
-    window.addEventListener("race:closing", onRaceClosing)
     return () => {
       window.removeEventListener("baka:price", onPrice)
-      window.removeEventListener("race:closing", onRaceClosing)
     }
   }, [])
 
@@ -56,32 +35,21 @@ function LivePriceHeader() {
     <div style={{
       display: "flex",
       alignItems: "center",
-      justifyContent: "space-between",
+      gap: 10,
       padding: "10px 14px",
       background: "rgba(5,15,10,0.92)",
       border: "1px solid rgba(212,175,55,0.15)",
       borderRadius: 12,
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: "50%",
-          background: "radial-gradient(circle at 35% 35%, #f7931a, #c06000)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 14, fontWeight: 900, color: "#fff", flexShrink: 0,
-        }}>₿</div>
-        <div>
-          <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1 }}>배팅 기준가</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
-            <span ref={baseRef}>—</span>
-          </div>
-        </div>
-      </div>
-      <div style={{ textAlign: "right" }}>
-        <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
-          현재가
-        </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: "#10b981", fontVariantNumeric: "tabular-nums" }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: "50%",
+        background: "radial-gradient(circle at 35% 35%, #f7931a, #c06000)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 14, fontWeight: 900, color: "#fff", flexShrink: 0,
+      }}>₿</div>
+      <div>
+        <div style={{ fontSize: 9, color: "rgba(232,213,163,0.45)", letterSpacing: "0.06em", marginBottom: 1 }}>기준가</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
           <span ref={currentRef}>—</span>
         </div>
       </div>

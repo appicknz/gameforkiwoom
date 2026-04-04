@@ -161,37 +161,17 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
     }
   }, [drawPriceLine])
 
-  // mode="race": race:closing(5분 마감가) 이벤트 구독
+  // mode="race": 수평선 없이 현재가만 표시
   // mode="baka"(기본): baka:price / baka:closing(30초 마감가) 이벤트 구독
   useEffect(() => {
     if (mode === "race") {
-      // race 모드: race:closing 이벤트로 5분 기준가 수평선 표시
-      const onRaceClosing = (e: Event) => {
-        const { price, time } = (e as CustomEvent).detail
-        handleClosingPrice(price, time, "기준가")
-      }
-      window.addEventListener("race:closing", onRaceClosing)
-
-      // 초기 복원: DB에서 가장 최근 race_results 1건으로 수평선 복원
-      fetch("/api/race-results?limit=1")
-        .then(r => r.json())
-        .then(({ results }) => {
-          if (!Array.isArray(results) || results.length === 0) return
-          const latest = results[0]
-          if (latest?.price == null) return
-          // race 기준가 수평선: 가장 최근 5분 종료가 하나만 표시
-          handleClosingPrice(parseFloat(latest.price), latest.time as number, "기준가")
-        })
-        .catch(() => {})
-
-      // baka:price 구독 (현재가 표시용만)
+      // race 모드: 수평선 표시 안 함. 현재가 표시만
       const onPrice = (e: Event) => {
         const { price } = (e as CustomEvent).detail
         handlePrice(price, Math.floor(Date.now() / 1000))
       }
       window.addEventListener("baka:price", onPrice)
       return () => {
-        window.removeEventListener("race:closing", onRaceClosing)
         window.removeEventListener("baka:price", onPrice)
       }
     } else {
@@ -274,7 +254,8 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
       },
       rightPriceScale: {
         borderVisible: false,
-        scaleMargins: { top: 0.08, bottom: 0.08 },
+        autoScale: true,
+        scaleMargins: { top: 0.1, bottom: 0.1 },
         textColor: compact ? "rgba(212,175,55,0.55)" : "rgba(160,160,160,0.7)",
       },
       timeScale: {

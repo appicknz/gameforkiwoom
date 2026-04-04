@@ -66,7 +66,8 @@ export function RaceClosingPrices() {
       }
       setEntries(prev => {
         if (prev.find(p => p.time === entry.time)) return prev
-        return [...prev, entry].slice(-20)
+        // 최신순 정렬 후 20개 보관 (display는 상위 10개만 표시)
+        return [...prev, entry].sort((a, b) => b.time - a.time).slice(0, 20)
       })
     }
     window.addEventListener("race:closing", onClosing)
