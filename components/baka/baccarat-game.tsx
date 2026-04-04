@@ -158,11 +158,17 @@ export function BigRoad({
   round,
   colorMap,
   mode,
+  playerLabel = "P",
+  bankerLabel = "B",
+  tieLabel = "T",
 }: {
   history: RoadResult[]
   round: number
   colorMap?: { banker: string; player: string; statBanker?: string; statPlayer?: string }
   mode?: "baka" | "race"
+  playerLabel?: string
+  bankerLabel?: string
+  tieLabel?: string
 }) {
   // 18개 슬라이딩 윈도우: 18개 초과 시 맨 앞 잘라내기
   const displayHistory = history.length > DISPLAY_LIMIT ? history.slice(-DISPLAY_LIMIT) : history
@@ -218,19 +224,26 @@ export function BigRoad({
 
   const StatChip = ({
     color, label, count,
-  }: { color: string; label: string; count: number }) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <div style={{
-        width: 18, height: 18, borderRadius: "50%",
-        background: color,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 9, fontWeight: 800, color: "#fff", flexShrink: 0,
-      }}>
-        {label}
+  }: { color: string; label: string; count: number }) => {
+    const isShort = label.length <= 1
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{
+          minWidth: isShort ? 18 : "auto",
+          height: 18,
+          paddingInline: isShort ? 0 : 6,
+          borderRadius: isShort ? "50%" : 9,
+          background: color,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 8, fontWeight: 800, color: "#fff", flexShrink: 0,
+          whiteSpace: "nowrap",
+        }}>
+          {label}
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,213,163,0.9)" }}>{count}</span>
       </div>
-      <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,213,163,0.9)" }}>{count}</span>
-    </div>
-  )
+    )
+  }
 
   const cardW = Math.round(height * CARD_RATIO)
 
@@ -257,9 +270,9 @@ export function BigRoad({
             <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,213,163,0.7)" }}>
               #{round}
             </span>
-            <StatChip color={colorMap?.statPlayer ?? colorMap?.player ?? "#3b82f6"} label="P" count={pCount} />
-            <StatChip color={colorMap?.statBanker ?? colorMap?.banker ?? "#ef4444"} label="B" count={bCount} />
-            <StatChip color="#22c55e" label="T" count={tCount} />
+            <StatChip color={colorMap?.statPlayer ?? colorMap?.player ?? "#3b82f6"} label={playerLabel} count={pCount} />
+            <StatChip color={colorMap?.statBanker ?? colorMap?.banker ?? "#ef4444"} label={bankerLabel} count={bCount} />
+            <StatChip color="#22c55e" label={tieLabel} count={tCount} />
           </div>
         </div>
         {/* 오른쪽: 전체보기 버튼 */}

@@ -71,7 +71,8 @@ export function useRaceGame() {
 
       setState(prev => {
         if (prev.roundId !== roundId) {
-          // 새 라운드 진입 → 스코어 초기화
+          // 새 라운드 진입 → 스코어 + 플래시 초기화
+          setFlashes([])
           return {
             ...prev, phase, timeLeft, roundId,
             bitScore: 0, coinScore: 0,
@@ -128,15 +129,14 @@ export function useRaceGame() {
         if (roundId !== prev.roundId) return prev
         if (prev.phase !== "racing") return prev
 
-        // 플래시: 이전 스코어와 diff로 이번 tick 득점 계산
+        // 플래시: 이전 스코어와 diff로 이번 tick 득점 계산 (영구 기록 — 라운드 초기화 전까지 유지)
         const bitDiff  = bit  - prev.bitScore
         const coinDiff = coin - prev.coinScore
         if (bitDiff > 0 || coinDiff > 0) {
           setFlashes(f => [
-            ...f.slice(-20),
             { id: flashId.current++, bit: bitDiff, coin: coinDiff, price: 0, ts: Date.now() },
+            ...f.slice(0, 49),  // 최신이 앞, 최대 50개 보관
           ])
-          setTimeout(() => setFlashes(f => f.filter(x => Date.now() - x.ts < 2000)), 2100)
         }
 
         return {

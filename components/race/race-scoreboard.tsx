@@ -207,19 +207,13 @@ function OrbitTrack({
   )
 }
 
-// 마지막 득점 플래시 태그
-function DigitFlash({ digit, color, label }: { digit: number | null; color: string; label: string }) {
-  const [visible, setVisible] = useState(false)
-  const [displayDigit, setDisplayDigit] = useState<number>(0)
-
+// 마지막 득점 플래시 태그 — tickKey가 바뀔 때마다 리마운트로 재애니메이션
+function DigitFlashInner({ digit, color, label }: { digit: number; color: string; label: string }) {
+  const [visible, setVisible] = useState(true)
   useEffect(() => {
-    if (digit === null) return
-    setDisplayDigit(digit)
-    setVisible(true)
     const t = setTimeout(() => setVisible(false), 1500)
     return () => clearTimeout(t)
-  }, [digit])
-
+  }, [])
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 4,
@@ -231,10 +225,26 @@ function DigitFlash({ digit, color, label }: { digit: number | null; color: stri
     }}>
       <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>{label}</span>
       <span style={{ fontSize: "clamp(14px, 4vw, 18px)", fontWeight: 900, color, textShadow: `0 0 10px ${color}`, fontFamily: "Georgia, serif" }}>
-        +{displayDigit}
+        +{digit}
       </span>
     </div>
   )
+}
+function DigitFlash({ digit, color, label }: { digit: number | null; color: string; label: string }) {
+  const tickRef = useRef(0)
+  const [tick, setTick] = useState(0)
+  const prevDigit = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (digit === null) return
+    // digit 값이 같아도 새 tick이면 항상 재애니메이션
+    tickRef.current += 1
+    setTick(tickRef.current)
+    prevDigit.current = digit
+  }, [digit])
+
+  if (digit === null || tick === 0) return <div style={{ height: 24 }} />
+  return <DigitFlashInner key={tick} digit={digit} color={color} label={label} />
 }
 
 // 세로 타이머: /baka의 딜링중 스타일 — 가운데 배치, 위에서 아래로 채워진 바가 줄어드는 방식

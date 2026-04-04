@@ -225,37 +225,58 @@ export default function RacePage() {
               </div>
             </div>
 
-            {/* 최근 득점 (헤더 아래 ~ 빅로드 위) */}
-            {flashes.length > 0 && (
-              <div style={{
-                background: "rgba(5,13,10,0.9)",
-                border: "1px solid rgba(212,175,55,0.15)",
-                borderRadius: 12,
-                padding: "8px 14px",
-                display: "flex",
-                gap: 6,
-                alignItems: "center",
-                overflowX: "auto",
-              }}>
-                <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", whiteSpace: "nowrap", marginRight: 2 }}>최근 득점:</span>
-                {flashes.slice(-8).reverse().map(f => (
-                  <span key={f.id} style={{
-                    fontSize: 11,
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 6,
-                    padding: "2px 8px",
-                    fontVariantNumeric: "tabular-nums",
-                    whiteSpace: "nowrap",
-                    flexShrink: 0,
-                  }}>
-                    <span style={{ color: BIT_COLOR }}>+{f.bit}</span>
-                    <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 3px" }}>/</span>
-                    <span style={{ color: COIN_COLOR }}>+{f.coin}</span>
-                  </span>
-                ))}
-              </div>
-            )}
+            {/* 최근 득점: 최신 1개 강조 + 오른쪽에 이전 기록 */}
+            <div style={{
+              background: "rgba(5,13,10,0.9)",
+              border: "1px solid rgba(212,175,55,0.15)",
+              borderRadius: 12,
+              padding: "7px 12px",
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+              overflowX: "auto",
+              minHeight: 38,
+            }}>
+              <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", whiteSpace: "nowrap", flexShrink: 0 }}>최근 득점</span>
+              {flashes.length === 0
+                ? <span style={{ fontSize: 11, color: "rgba(255,255,255,0.2)" }}>—</span>
+                : <>
+                    {/* 최신 1개 강조 */}
+                    <span style={{
+                      fontSize: 13, fontWeight: 800,
+                      background: "rgba(212,175,55,0.12)",
+                      border: "1px solid rgba(212,175,55,0.4)",
+                      borderRadius: 8,
+                      padding: "3px 10px",
+                      fontVariantNumeric: "tabular-nums",
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}>
+                      <span style={{ color: BIT_COLOR }}>+{flashes[0].bit}</span>
+                      <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 4px" }}>/</span>
+                      <span style={{ color: COIN_COLOR }}>+{flashes[0].coin}</span>
+                    </span>
+                    {/* 이전 기록들 — 작게 */}
+                    {flashes.slice(1, 16).map(f => (
+                      <span key={f.id} style={{
+                        fontSize: 10,
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.07)",
+                        borderRadius: 5,
+                        padding: "2px 7px",
+                        fontVariantNumeric: "tabular-nums",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                        color: "rgba(255,255,255,0.4)",
+                      }}>
+                        <span style={{ color: `${BIT_COLOR}99` }}>+{f.bit}</span>
+                        <span style={{ margin: "0 2px", opacity: 0.3 }}>/</span>
+                        <span style={{ color: `${COIN_COLOR}99` }}>+{f.coin}</span>
+                      </span>
+                    ))}
+                  </>
+              }
+            </div>
 
             {/* BigRoad */}
             <div style={{
@@ -269,6 +290,9 @@ export default function RacePage() {
                 round={roadState.round}
                 colorMap={{ banker: BIT_COLOR, player: COIN_COLOR }}
                 mode="race"
+                playerLabel="코인팀"
+                bankerLabel="비트팀"
+                tieLabel="타이"
               />
             </div>
 
