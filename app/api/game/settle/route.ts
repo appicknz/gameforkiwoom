@@ -73,16 +73,24 @@ export async function POST(request: Request) {
     // ── race 결과 계산 (5분 라운드 기준) ────────────────────
     // race는 5분(300초) 라운드: raceRoundNumber = Math.floor(closeTime / 300)
     const raceRoundNumber = Math.floor(closeTime / 300)
-    const racePoolKey    = `pool:race:${raceRoundNumber}`
-    const raceUserSetKey = `users:race:${raceRoundNumber}`
+    const racePoolKey     = `pool:race:${raceRoundNumber}`
+    const raceUserSetKey  = `users:race:${raceRoundNumber}`
+    // 서버측 race 스코어 누적 키 (30초 tick마다 합산)
+    const raceScoreKey    = `race:score:${raceRoundNumber}`
 
-    // race 점수는 price-server가 Redis에 저장한 누적 값 사용
-    // bit_score / coin_score 키: race-betting-game.tsx가 아닌 price-server에서 주도하려면
-    // 현재는 클라이언트가 올린 `race:closing` 이벤트 대신 pool 비율로 판정
-    // (추후 price-server가 score를 Redis에 저장하는 방식으로 개선 가능)
-    const [racePoolData, raceUserIds] = await Promise.all([
+    // 서버에서 직접 소수점 스코어 누적: d1(BIT) + d2(COIN)
+    // closeTime % 300 < 300: 모든 30초 tick에서 현재 라운드 스코어에 누적
+    const dec = resolvedClose.toFixed(2).split(".")[1] ?? "00"
+    const d1  = parseInt(dec[0] ?? "0")  // 소수점 첫째 → BIT
+    const d2  = parseInt(dec[1] ?? "0")  // 소수점 둘째 → COIN
+    await redis.hincrby(raceScoreKey, "bit",  d1).catch(() => {})
+    await redis.hincrby(raceScoreKey, "coin", d2).catch(() => {})
+    await redis.expire(raceScoreKey, 700).catch(() => {})  // 5분+여유
+
+    const [racePoolData, raceUserIds, raceScoreData] = await Promise.all([
       redis.hgetall(racePoolKey).catch(() => null),
       redis.smembers(raceUserSetKey).catch(() => [] as string[]),
+      redis.hgetall(raceScoreKey).catch(() => null),
     ])
 
     // ── baccarat 풀 + 유저 목록 조회 ────────────────────────
@@ -130,28 +138,55 @@ export async function POST(request: Request) {
     const isLastRaceTick = isFirstTickOfNewRace && !raceAlreadySettled
 
     if (isLastRaceTick) {
-      // race_results 테이블에서 실제 winner 조회 (클라이언트가 저장한 실제 점수 기반)
-      const raceResultTime = prevRaceRoundNumber * 300  // 직전 라운드 종료 timestamp
-      const { data: raceResultRow } = await admin
-        .from("race_results")
-        .select("winner, bit_score, coin_score")
-        .eq("time", raceResultTime)
-        .single()
+      // 직전 5분 라운드 스코어: Redis 누적값 사용 (서버가 직접 누적)
+      const prevRaceScoreKey = `race:score:${prevRaceRoundNumber}`
+      const prevRaceScore    = await redis.hgetall(prevRaceScoreKey).catch(() => null)
+      const serverBitScore   = parseInt((prevRaceScore?.bit  as string) ?? "0") || 0
+      const serverCoinScore  = parseInt((prevRaceScore?.coin as string) ?? "0") || 0
 
-      // DB에 결과가 있으면 그 winner 사용, 없으면 배팅 풀 비율로 fallback
-      const raceWinner: "bit" | "coin" | "tie" = raceResultRow?.winner
-        ?? (racePool.bit > racePool.coin ? "bit"
-           : racePool.coin > racePool.bit ? "coin"
-           : "tie")
+      // 직전 라운드 종료 가격: DB에서 조회 (closeTime이 새 라운드 첫 tick이므로 -30 이전 값)
+      const prevRaceResultTime = prevRaceRoundNumber * 300  // :00초 경계
+      const { data: prevClosingRow } = await admin
+        .from("btc_closing_prices")
+        .select("price")
+        .lte("time", prevRaceResultTime)
+        .order("time", { ascending: false })
+        .limit(1)
+        .single()
+      const prevRaceClosePrice = prevClosingRow
+        ? (typeof prevClosingRow.price === "string" ? parseFloat(prevClosingRow.price) : prevClosingRow.price)
+        : resolvedClose
+
+      const raceWinner: "bit" | "coin" | "tie" =
+        serverBitScore > serverCoinScore ? "bit"
+        : serverCoinScore > serverBitScore ? "coin"
+        : "tie"
+
+      // DB에 클라이언트가 이미 저장했으면 ignoreDuplicates로 스킵
+      const { data: existingRow } = await admin
+        .from("race_results")
+        .select("time")
+        .eq("time", prevRaceResultTime)
+        .maybeSingle()
+
+      if (!existingRow && (serverBitScore > 0 || serverCoinScore > 0)) {
+        await admin.from("race_results").insert({
+          time:       prevRaceResultTime,
+          price:      prevRaceClosePrice,
+          bit_score:  serverBitScore,
+          coin_score: serverCoinScore,
+          winner:     raceWinner,
+        }).then(() => {}).catch(() => {})
+      }
 
       await Promise.all([
         redis.set(`game:result:race:${prevRaceRoundNumber}`, JSON.stringify({
           raceRoundNumber: prevRaceRoundNumber,
           raceWinner,
-          closePrice: resolvedClose,
-          bitScore: raceResultRow?.bit_score ?? 0,
-          coinScore: raceResultRow?.coin_score ?? 0,
-          settledAt: Date.now(),
+          closePrice: prevRaceClosePrice,
+          bitScore:   serverBitScore,
+          coinScore:  serverCoinScore,
+          settledAt:  Date.now(),
         }), { ex: 600 }),
         redis.set(prevRaceSettledKey, 1, { ex: 600 }),
       ])
@@ -160,7 +195,7 @@ export async function POST(request: Request) {
     // 정산 완료 플래그 (중복 방지, 5분 TTL)
     await redis.set(`settled:${roundNumber}`, 1, { ex: 300 })
 
-    // ── 유저별 정산 ─────────────────────────────────���───────
+    // ── 유저별 정산 ──────────────────────────────��──���───────
     // bet:bets:{round}:{userId} 키에 배팅 내역이 저장되어 있음
     const settlementResults: Array<{ userId: string; payout: number }> = []
 
