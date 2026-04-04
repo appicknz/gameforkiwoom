@@ -255,15 +255,18 @@ export default function RacePage() {
                       fontVariantNumeric: "tabular-nums",
                       whiteSpace: "nowrap",
                       flexShrink: 0,
+                      display: "inline-flex", alignItems: "center", gap: 3,
                     }}>
+                      <span style={{ fontSize: 9, color: BIT_COLOR, opacity: 0.7 }}>B</span>
                       <span style={{ color: BIT_COLOR }}>+{flashes[0].bit}</span>
-                      <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 4px" }}>/</span>
+                      <span style={{ color: "rgba(255,255,255,0.25)", margin: "0 2px" }}>/</span>
+                      <span style={{ fontSize: 9, color: COIN_COLOR, opacity: 0.7 }}>C</span>
                       <span style={{ color: COIN_COLOR }}>+{flashes[0].coin}</span>
                     </span>
-                    {/* 이전 기록들 — 작게 */}
-                    {flashes.slice(1, 16).map(f => (
+                    {/* 이전 기록들 — 작게, 오른쪽으로 */}
+                    {flashes.slice(1, 20).map(f => (
                       <span key={f.id} style={{
-                        fontSize: 10,
+                        fontSize: 11,
                         background: "rgba(255,255,255,0.04)",
                         border: "1px solid rgba(255,255,255,0.07)",
                         borderRadius: 5,
@@ -271,11 +274,13 @@ export default function RacePage() {
                         fontVariantNumeric: "tabular-nums",
                         whiteSpace: "nowrap",
                         flexShrink: 0,
-                        color: "rgba(255,255,255,0.4)",
+                        display: "inline-flex", alignItems: "center", gap: 2,
                       }}>
-                        <span style={{ color: `${BIT_COLOR}99` }}>+{f.bit}</span>
-                        <span style={{ margin: "0 2px", opacity: 0.3 }}>/</span>
-                        <span style={{ color: `${COIN_COLOR}99` }}>+{f.coin}</span>
+                        <span style={{ fontSize: 8, color: BIT_COLOR, opacity: 0.5 }}>B</span>
+                        <span style={{ color: `${BIT_COLOR}bb` }}>+{f.bit}</span>
+                        <span style={{ margin: "0 2px", color: "rgba(255,255,255,0.2)" }}>/</span>
+                        <span style={{ fontSize: 8, color: COIN_COLOR, opacity: 0.5 }}>C</span>
+                        <span style={{ color: `${COIN_COLOR}bb` }}>+{f.coin}</span>
                       </span>
                     ))}
                   </>
