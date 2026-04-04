@@ -95,10 +95,8 @@ export function useRaceGame() {
   useEffect(() => {
     const onPrice = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
-      const dec = price.toFixed(2).split(".")[1] ?? "00"
-      const d1 = parseInt(dec[0] ?? "0")
-      const d2 = parseInt(dec[1] ?? "0")
-      setState(prev => ({ ...prev, lastPrice: price, lastBitDigit: d1, lastCoinDigit: d2 }))
+      // lastPrice만 업데이트 — lastBitDigit/lastCoinDigit은 baka:race-score에서만 변경
+      setState(prev => ({ ...prev, lastPrice: price }))
     }
     window.addEventListener("baka:price", onPrice)
     return () => window.removeEventListener("baka:price", onPrice)
@@ -143,6 +141,9 @@ export function useRaceGame() {
           ...prev,
           bitScore:  bit,
           coinScore: coin,
+          // 득점이 있을 때만 DigitFlash 트리거 (없으면 이전 값 유지해 불필요한 리플래시 방지)
+          lastBitDigit:  bitDiff  > 0 ? bitDiff  : prev.lastBitDigit,
+          lastCoinDigit: coinDiff > 0 ? coinDiff : prev.lastCoinDigit,
         }
       })
     }
