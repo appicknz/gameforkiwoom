@@ -64,7 +64,9 @@ export async function POST(request: Request) {
     const basePrice     = baseRow  ? parsePrice(baseRow.price)  : resolvedClose
 
     const wonDirection: "long" | "short" = resolvedClose >= basePrice ? "long" : "short"
-    const lastDigit = Math.floor(Math.abs(resolvedClose * 10)) % 10
+    // 소수점 둘째 자리(d2) 기준 — applyFinalDigit, ClosingPrices와 동일한 기준
+    const decStr = resolvedClose.toFixed(2).split(".")[1] ?? "00"
+    const lastDigit = parseInt(decStr[1] ?? "0")   // d2: 소수점 둘째 자리
     const wonDigit: "under" | "over" = lastDigit <= 4 ? "under" : "over"
     const wonParity: "odd" | "even" = lastDigit % 2 === 0 ? "even" : "odd"
     const baccaratResult: "player" | "banker" | "tie" =

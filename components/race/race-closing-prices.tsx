@@ -33,11 +33,12 @@ function fmtPrice(p: number) {
 
 export function RaceClosingPrices() {
   const [entries, setEntries] = useState<RaceEntry[]>([])
+  const [expanded, setExpanded] = useState(false)
 
   // 마운트 시: 백필 먼저 → 최근 결과 로드
   useEffect(() => {
     const loadResults = () =>
-      fetch("/api/race-results?limit=10")
+      fetch("/api/race-results?limit=20")
         .then(r => r.json())
         .then(({ results }) => {
           if (!Array.isArray(results)) return
@@ -72,14 +73,15 @@ export function RaceClosingPrices() {
       setEntries(prev => {
         if (prev.find(p => p.time === entry.time)) return prev
         // 최신순 정렬 후 20개 보관 (display는 상위 10개만 표시)
-        return [...prev, entry].sort((a, b) => b.time - a.time).slice(0, 20)
+        return [...prev, entry].sort((a, b) => b.time - a.time).slice(0, 50)
       })
     }
     window.addEventListener("race:closing", onClosing)
     return () => window.removeEventListener("race:closing", onClosing)
   }, [])
 
-  const display = [...entries].sort((a, b) => b.time - a.time).slice(0, 10)
+  const sorted = [...entries].sort((a, b) => b.time - a.time)
+  const display = sorted.slice(0, expanded ? 20 : 10)
 
   return (
     <div style={{
@@ -91,9 +93,21 @@ export function RaceClosingPrices() {
       flexDirection: "column",
       gap: 8,
     }}>
-      <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 4, letterSpacing: "0.04em" }}>
-        5분 레이스 결과 (최근 10라운드)
-      </h3>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, letterSpacing: "0.04em" }}>
+          5분 레이스 결과 (최근 {expanded ? "20" : "10"}라운드)
+        </h3>
+        <button
+          onClick={() => setExpanded(v => !v)}
+          style={{
+            background: "rgba(212,175,55,0.08)", border: `1px solid rgba(212,175,55,0.18)`,
+            color: "rgba(212,175,55,0.6)", fontSize: 11, fontWeight: 700, padding: "3px 10px",
+            borderRadius: 6, cursor: "pointer",
+          }}
+        >
+          {expanded ? "접기" : "전체보기"}
+        </button>
+      </div>
 
       {display.length === 0 && (
         <div style={{ textAlign: "center", color: GOLD_DIM, fontSize: 12, padding: "20px 0" }}>
