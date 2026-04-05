@@ -569,9 +569,15 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       .then(r => r.json())
       .then(data => {
         if (data.road && Array.isArray(data.road)) {
-          // 최근 50개만 유지 (클라이언트 메모리 절약)
+          // 최근 50개만 유지 (카운트+빅로드 기준)
           const recent = data.road.slice(-50)
-          setState(prev => ({ ...prev, history: recent }))
+          // DB total로 roundCount 초기화 — 클라이언트 없이도 #1부터 누적
+          const dbTotal = data.stats?.total ?? recent.length
+          setState(prev => ({
+            ...prev,
+            history: recent,
+            roundCount: dbTotal,  // DB 누적 라운드 수로 시작
+          }))
         }
       })
       .catch(err => console.error("[v0] Failed to load initial BigRoad history:", err))
