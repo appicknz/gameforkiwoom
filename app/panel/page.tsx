@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 import { RoundMonitor } from "@/components/admin/round-monitor"
+import { AutoBetMonitor } from "@/components/admin/auto-bet-monitor"
 
 const SUPER_ROLES = ["master", "super_admin"]
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
@@ -151,7 +152,7 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "cards" | "videos">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "auto-bet" | "cards" | "videos">("users")
 
   // 카드 이미지 관리
   interface CardImage { url: string; pathname: string; uploadedAt: string }
@@ -622,11 +623,19 @@ export default function PanelPage() {
           </button>
           {isSuperAdmin && (
             <button
+              onClick={() => setActiveTab("auto-bet")}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "auto-bet" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            >
+              <TrendingDown className="w-4 h-4" /> 자동배팅
+            </button>
+          )}
+          {isSuperAdmin && (
+            <button
               onClick={() => { setActiveTab("cards"); loadCardImages() }}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
             >
-              <ImageIcon className="w-4 h-4" /> 카드이���지
+              <ImageIcon className="w-4 h-4" /> 카드이미지
             </button>
           )}
           {isSuperAdmin && (
@@ -1163,8 +1172,15 @@ export default function PanelPage() {
 
         {/* 라운드 모니터 탭 (LP 히스토리 + 하우스 손익 통합) */}
         {activeTab === "monitor" && (
-          <div className="space-y-5">
+          <div>
             <RoundMonitor isSuperAdmin={isSuperAdmin} branches={branches} />
+          </div>
+        )}
+
+        {/* 자동배팅 탭 */}
+        {activeTab === "auto-bet" && isSuperAdmin && (
+          <div>
+            <AutoBetMonitor />
           </div>
         )}
 
