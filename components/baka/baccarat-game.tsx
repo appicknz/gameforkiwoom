@@ -151,7 +151,8 @@ export function buildBigRoad(history: RoadResult[]): BigRoadCell[] {
   return cells
 }
 
-const DISPLAY_LIMIT = 18 // 슬라이딩 윈도우 최대 표시 개수
+const DISPLAY_LIMIT = 20 // 슬라이딩 윈도우 최대 표시 개수
+const STAT_LIMIT    = 50 // 카운트 집계 기준: 최근 50개
 
 export function BigRoad({
   history,
@@ -217,10 +218,11 @@ export function BigRoad({
     ? cardData.images[round % cardData.images.length].url
     : null
 
-  // 카운트 집계 (전체 history 기준)
-  const pCount = history.filter(r => r === "player").length
-  const bCount = history.filter(r => r === "banker").length
-  const tCount = history.filter(r => r === "tie").length
+  // 카운트 집계: 최근 STAT_LIMIT(50)개 기준
+  const statHistory = history.length > STAT_LIMIT ? history.slice(-STAT_LIMIT) : history
+  const pCount = statHistory.filter(r => r === "player").length
+  const bCount = statHistory.filter(r => r === "banker").length
+  const tCount = statHistory.filter(r => r === "tie").length
 
   const StatChip = ({
     color, label, count,

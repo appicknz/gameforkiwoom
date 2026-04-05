@@ -135,25 +135,24 @@ export default function RacePage() {
   const [roadState, setRoadState] = useState<{ history: RoadResult[]; round: number }>({ history: [], round: 0 })
   const prevWinnerRef = useRef<string | null>(null)
 
-  // 마운트 시: 백필 먼저 → 빅로드용 최근 10라운드 로드
+  // 마운트 시: DB에서 최근 50라운드 로드 → 빅로드 초기화
   useEffect(() => {
-    // 1. 누락된 과거 라운드 백필 (btc_closing_prices 기반으로 직접 계산)
-    fetch("/api/cron/race-backfill")
-      .catch(() => {})
-      .finally(() => {
-        // 2. 백필 완료 후 최신 결과 로드
-        fetch("/api/race-results?limit=10")
-          .then(r => r.json())
-          .then(({ results }) => {
-            if (!Array.isArray(results) || results.length === 0) return
-            // API는 최신순(DESC)으로 반환 → 빅로드는 오래된 순(ASC)으로 필요
-            const history: RoadResult[] = [...results].reverse().map((r: { winner: string }) =>
-              r.winner === "bit" ? "banker" : r.winner === "coin" ? "player" : "tie"
-            )
-            setRoadState({ history, round: history.length })
-          })
-          .catch(() => {})
+    fetch("/api/race-results?limit=50")
+      .then(r => r.json())
+      .then(({ results }) => {
+        if (!Array.isArray(results) || results.length === 0) return
+        // API는 최신순(DESC) → 빅로드는 오래된 순(ASC) 필요
+        const sorted = [...results].reverse()
+        const history: RoadResult[] = sorted.map((r: { winner: string }) =>
+          r.winner === "bit" ? "banker" : r.winner === "coin" ? "player" : "tie"
+        )
+        // round는 DB 총 누적 라운드 수 기준 (race_results 전체 카운트 대신 time 기반)
+        const totalRound = results.length > 0
+          ? Math.floor(results[0].time / 300) // 가장 최신 라운드 번호
+          : history.length
+        setRoadState({ history, round: totalRound })
       })
+      .catch(() => {})
   }, [])
 
   // 새 라운드 결과를 실시간으로 추가 + race:closing 이벤트에서도 수신
@@ -162,7 +161,7 @@ export default function RacePage() {
       const { winner } = (e as CustomEvent<{ winner: "bit" | "coin" | "tie" }>).detail
       const mapped: RoadResult = winner === "bit" ? "banker" : winner === "coin" ? "player" : "tie"
       setRoadState(prev => {
-        const next = [...prev.history, mapped].slice(-10)  // 최근 10개만 유지
+        const next = [...prev.history, mapped].slice(-50)  // 최근 50개 유지 (카운트+빅로드)
         return { history: next, round: prev.round + 1 }
       })
     }

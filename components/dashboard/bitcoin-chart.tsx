@@ -255,8 +255,10 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
       rightPriceScale: {
         borderVisible: false,
         autoScale: true,
-        scaleMargins: { top: 0.1, bottom: 0.1 },
+        // compact(빅로드 내 작은 차트)는 라벨이 잘리지 않도록 마진을 더 크게 확보
+        scaleMargins: compact ? { top: 0.2, bottom: 0.2 } : { top: 0.1, bottom: 0.1 },
         textColor: compact ? "rgba(212,175,55,0.55)" : "rgba(160,160,160,0.7)",
+        minimumWidth: compact ? 60 : 50,
       },
       timeScale: {
         borderVisible: false,
@@ -379,7 +381,7 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
       startKlineWS()
       // race 모드에서는 수평선 복원 안 함
       if (mode !== "race") {
-        // 차트 재생성 후 기존 배팅 기준가 수평선 복원
+        // ���트 재생성 후 기존 배팅 기준가 수평선 복원
         if (latestClosingPriceRef.current !== null) {
           drawPriceLine(latestClosingPriceRef.current)
         } else {
