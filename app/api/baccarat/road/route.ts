@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
     let query = admin
       .from("rounds")
-      .select("id, baccarat_result, result_digit, ended_at")
+      .select("id, baccarat_result, result_digit, result_price, ended_at")
       .not("baccarat_result", "is", null)
       .order("ended_at", { ascending: false })
 
@@ -29,10 +29,21 @@ export async function GET(req: NextRequest) {
     if (error) throw error
 
     const rawRounds = (rounds || []).reverse() // 오래된 것부터
-    const results = rawRounds.map((r) => r.baccarat_result as "player" | "banker" | "tie")
+
+    // result_price(소수점 d2)로 재계산 — settle이 과거에 d1 기준으로 잘못 저장한 rounds.baccarat_result를 교정
+    function computeResult(r: { baccarat_result: string | null; result_price: number | null }): "player" | "banker" | "tie" {
+      if (r.result_price != null) {
+        const dec = Number(r.result_price).toFixed(2).split(".")[1] ?? "00"
+        const d2  = parseInt(dec[1] ?? "0")
+        return d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
+      }
+      return (r.baccarat_result ?? "player") as "player" | "banker" | "tie"
+    }
+
+    const results = rawRounds.map(computeResult)
     const rows = rawRounds.map((r) => ({
-      result: r.baccarat_result as "player" | "banker" | "tie",
-      digit: r.result_digit as number,
+      result:   computeResult(r),
+      digit:    r.result_digit as number,
       ended_at: r.ended_at as string,
     }))
 
