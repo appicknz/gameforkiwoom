@@ -167,9 +167,9 @@ export function useRaceGame() {
       if (resultSavedRef.current === state.roundId) return
       resultSavedRef.current = state.roundId
 
-      // 결과 시각: 이 라운드 종료 = 다음 라운드 시작 (:00초 형식)
-      const nowSec = Math.floor(Date.now() / 1000)
-      const resultTime = (Math.floor(nowSec / 300) + 1) * 300
+      // 결과 시각: 이 roundId(raceRoundNumber)의 종료 경계 = roundId * 300
+      // state.roundId 가 raceRoundNumber이므로 종료 시각은 (roundId + 1) * 300
+      const resultTime = (state.roundId + 1) * 300
 
       // 현재가는 baka:price 마지막 수신값 사용
       const lastPrice = state.lastPrice

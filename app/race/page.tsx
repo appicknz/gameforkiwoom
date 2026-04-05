@@ -135,19 +135,25 @@ export default function RacePage() {
   const [roadState, setRoadState] = useState<{ history: RoadResult[]; round: number }>({ history: [], round: 0 })
   const prevWinnerRef = useRef<string | null>(null)
 
-  // 마운트 시 DB에서 과거 결과 로드 → 빅로드용 최근 10라운드만
+  // 마운트 시: 백필 먼저 → 빅로드용 최근 10라운드 로드
   useEffect(() => {
-    fetch("/api/race-results?limit=10")
-      .then(r => r.json())
-      .then(({ results }) => {
-        if (!Array.isArray(results) || results.length === 0) return
-        // API는 최신순(DESC)으로 반환 → 빅로드는 오래된 순(ASC)으로 필요
-        const history: RoadResult[] = [...results].reverse().map((r: { winner: string }) =>
-          r.winner === "bit" ? "banker" : r.winner === "coin" ? "player" : "tie"
-        )
-        setRoadState({ history, round: history.length })
-      })
+    // 1. 누락된 과거 라운드 백필 (btc_closing_prices 기반으로 직접 계산)
+    fetch("/api/cron/race-backfill")
       .catch(() => {})
+      .finally(() => {
+        // 2. 백필 완료 후 최신 결과 로드
+        fetch("/api/race-results?limit=10")
+          .then(r => r.json())
+          .then(({ results }) => {
+            if (!Array.isArray(results) || results.length === 0) return
+            // API는 최신순(DESC)으로 반환 → 빅로드는 오래된 순(ASC)으로 필요
+            const history: RoadResult[] = [...results].reverse().map((r: { winner: string }) =>
+              r.winner === "bit" ? "banker" : r.winner === "coin" ? "player" : "tie"
+            )
+            setRoadState({ history, round: history.length })
+          })
+          .catch(() => {})
+      })
   }, [])
 
   // 새 라운드 결과를 실시간으로 추가 + race:closing 이벤트에서도 수신

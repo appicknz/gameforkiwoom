@@ -34,23 +34,28 @@ function fmtPrice(p: number) {
 export function RaceClosingPrices() {
   const [entries, setEntries] = useState<RaceEntry[]>([])
 
-  // 마운트 시 DB에서 최근 결과 로드
+  // 마운트 시: 백필 먼저 → 최근 결과 로드
   useEffect(() => {
-    fetch("/api/race-results?limit=10")
-      .then(r => r.json())
-      .then(({ results }) => {
-        if (!Array.isArray(results)) return
-        // API는 bit_score/coin_score 필드명으로 반환 → 컴포넌트 타입에 맞게 매핑
-        const mapped: RaceEntry[] = results.map((r: any) => ({
-          time:   r.time,
-          price:  typeof r.price === "string" ? parseFloat(r.price) : r.price,
-          bit:    r.bit_score ?? r.bit ?? 0,
-          coin:   r.coin_score ?? r.coin ?? 0,
-          winner: r.winner ?? "tie",
-        }))
-        setEntries(mapped)
-      })
+    const loadResults = () =>
+      fetch("/api/race-results?limit=10")
+        .then(r => r.json())
+        .then(({ results }) => {
+          if (!Array.isArray(results)) return
+          const mapped: RaceEntry[] = results.map((r: any) => ({
+            time:   r.time,
+            price:  typeof r.price === "string" ? parseFloat(r.price) : r.price,
+            bit:    r.bit_score ?? r.bit ?? 0,
+            coin:   r.coin_score ?? r.coin ?? 0,
+            winner: r.winner ?? "tie",
+          }))
+          setEntries(mapped)
+        })
+        .catch(() => {})
+
+    // 백필 후 결과 로드 (백필 실패해도 results는 로드)
+    fetch("/api/cron/race-backfill")
       .catch(() => {})
+      .finally(loadResults)
   }, [])
 
   // race:closing 이벤트 구독 — 라운드 종료 시 실시간 추가
