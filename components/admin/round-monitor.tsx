@@ -213,6 +213,41 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
   const [lpTotal, setLpTotal] = useState(0)
   const [lpLoading, setLpLoading] = useState(false)
 
+  // LP 전역 ON/OFF
+  const [lpGlobal, setLpGlobal] = useState<boolean>(true)
+  const [lpToggling, setLpToggling] = useState(false)
+  const [lpBranches, setLpBranches] = useState<{ id: string; lp_enabled: boolean }[]>([])
+
+  const loadLpState = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    try {
+      const res = await fetch("/api/admin/branches", { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) return
+      const data = await res.json()
+      const list: { id: string; lp_enabled: boolean }[] = data.branches ?? []
+      setLpBranches(list)
+      setLpGlobal(list.length === 0 || list.some((b) => b.lp_enabled !== false))
+    } catch {}
+  }, [])
+
+  const handleLpToggle = async () => {
+    const token = getToken(); if (!token) return
+    const next = !lpGlobal
+    setLpToggling(true)
+    try {
+      const targets = lpBranches.length > 0 ? lpBranches : branches
+      await Promise.all(targets.map(b =>
+        fetch("/api/admin/branches/betting", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ branchId: b.id, lpEnabled: next }),
+        })
+      ))
+      setLpGlobal(next)
+    } catch {}
+    setLpToggling(false)
+  }
+
   const loadRoundStats = useCallback(async () => {
     const token = getToken(); if (!token) return
     setRoundLoading(true)
@@ -263,8 +298,8 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
   }
 
   useEffect(() => {
-    loadRoundStats(); loadHouseStats(); loadLpHistory()
-  }, [loadRoundStats, loadHouseStats, loadLpHistory])
+    loadRoundStats(); loadHouseStats(); loadLpHistory(); loadLpState()
+  }, [loadRoundStats, loadHouseStats, loadLpHistory, loadLpState])
 
   useEffect(() => {
     const iv = setInterval(loadRoundStats, 2000)
@@ -307,9 +342,26 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
               <p className="text-xs text-muted-foreground mt-0.5">바카라(30초) + 레이스(5분) 동시 표시 &middot; 2초 갱신</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={loadRoundStats} disabled={roundLoading} className="h-7 gap-1 text-xs">
-            <RefreshCw className={`w-3 h-3 ${roundLoading ? "animate-spin" : ""}`} />
-          </Button>
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <Button
+                variant={lpGlobal ? "outline" : "destructive"}
+                size="sm"
+                onClick={handleLpToggle}
+                disabled={lpToggling}
+                className="h-7 text-xs gap-1.5"
+              >
+                {lpToggling
+                  ? <RefreshCw className="w-3 h-3 animate-spin" />
+                  : <span className={`w-2 h-2 rounded-full inline-block ${lpGlobal ? "bg-emerald-500" : "bg-red-400"}`} />
+                }
+                LP {lpGlobal ? "활성" : "비활성"}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={loadRoundStats} disabled={roundLoading} className="h-7 gap-1 text-xs">
+              <RefreshCw className={`w-3 h-3 ${roundLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
         </div>
 
         {/* 전체 합산 4칸 */}
@@ -348,7 +400,7 @@ export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperA
         </div>
       </div>
 
-      {/* ── 섹션 2: 하우스 손익 누적 ── */}
+      {/* ── ���션 2: 하우스 손익 누적 ── */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
