@@ -59,8 +59,10 @@ export async function GET(request: Request) {
 
     // 3. Redis가 비어있으면 btc_closing_prices에서 직접 계산
     if (bitScore === 0 && coinScore === 0) {
-      const rangeStart = prevRaceTime - 299  // 5분 구간 시작
-      const rangeEnd   = prevRaceTime        // 5분 구간 끝
+      // 5분 라운드 구간: prevRaceRound * 300 이 이 라운드 종료 시각
+      // 해당 라운드 시작 = (prevRaceRound - 1) * 300 + 1
+      const rangeStart = (prevRaceRound - 1) * 300 + 1
+      const rangeEnd   = prevRaceTime
 
       const { data: closingRows } = await admin
         .from("btc_closing_prices")

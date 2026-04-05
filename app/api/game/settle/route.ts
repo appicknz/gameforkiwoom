@@ -138,11 +138,31 @@ export async function POST(request: Request) {
     const isLastRaceTick = isFirstTickOfNewRace && !raceAlreadySettled
 
     if (isLastRaceTick) {
-      // 직전 5분 라운드 스코어: Redis 누적값 사용 (서버가 직접 누적)
+      // 직전 5분 라운드 스코어: Redis 누적값 우선, 없으면 btc_closing_prices에서 직접 계산
       const prevRaceScoreKey = `race:score:${prevRaceRoundNumber}`
       const prevRaceScore    = await redis.hgetall(prevRaceScoreKey).catch(() => null)
-      const serverBitScore   = parseInt((prevRaceScore?.bit  as string) ?? "0") || 0
-      const serverCoinScore  = parseInt((prevRaceScore?.coin as string) ?? "0") || 0
+      let serverBitScore   = parseInt((prevRaceScore?.bit  as string) ?? "0") || 0
+      let serverCoinScore  = parseInt((prevRaceScore?.coin as string) ?? "0") || 0
+
+      // Redis가 비어있으면 btc_closing_prices에서 직접 집계
+      if (serverBitScore === 0 && serverCoinScore === 0) {
+        const rangeStart = (prevRaceRoundNumber - 1) * 300 + 1
+        const rangeEnd   = prevRaceRoundNumber * 300
+        const { data: priceRows } = await admin
+          .from("btc_closing_prices")
+          .select("price")
+          .gte("time", rangeStart)
+          .lte("time", rangeEnd)
+          .order("time", { ascending: true })
+        if (priceRows && priceRows.length > 0) {
+          for (const row of priceRows) {
+            const p   = typeof row.price === "string" ? parseFloat(row.price) : row.price
+            const dec = p.toFixed(2).split(".")[1] ?? "00"
+            serverBitScore  += parseInt(dec[0] ?? "0")
+            serverCoinScore += parseInt(dec[1] ?? "0")
+          }
+        }
+      }
 
       // 직전 라운드 종료 가격: DB에서 조회 (closeTime이 새 라운드 첫 tick이므로 -30 이전 값)
       const prevRaceResultTime = prevRaceRoundNumber * 300  // :00초 경계
@@ -169,14 +189,14 @@ export async function POST(request: Request) {
         .eq("time", prevRaceResultTime)
         .maybeSingle()
 
-      if (!existingRow && (serverBitScore > 0 || serverCoinScore > 0)) {
-        await admin.from("race_results").insert({
+      if (serverBitScore > 0 || serverCoinScore > 0) {
+        await admin.from("race_results").upsert({
           time:       prevRaceResultTime,
           price:      prevRaceClosePrice,
           bit_score:  serverBitScore,
           coin_score: serverCoinScore,
           winner:     raceWinner,
-        }).then(() => {}).catch(() => {})
+        }, { onConflict: "time" }).then(() => {}).catch(() => {})
       }
 
       await Promise.all([

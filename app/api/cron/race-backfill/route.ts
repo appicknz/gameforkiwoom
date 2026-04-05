@@ -33,8 +33,8 @@ export async function GET() {
   const saved: number[] = []
 
   for (const round of missing) {
-    const roundEnd   = round * 300          // 라운드 종료 경계
-    const roundStart = roundEnd - 270       // 30초 × 9 = 270초 (직전 5분 구간)
+    const roundEnd   = round * 300                 // 라운드 종료 경계
+    const roundStart = (round - 1) * 300 + 1      // 직전 라운드 종료 +1초 ~ 이 라운드 종료
 
     const { data: rows } = await admin
       .from("btc_closing_prices")
