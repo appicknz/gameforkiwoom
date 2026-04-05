@@ -130,16 +130,15 @@ export async function POST(request: Request) {
     }
     await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 120 })
 
-    // race 결과 저장 및 정산 트리거
-    // 정산 시점: 라운드 경계(closeTime % 300 === 0~29) — 새 라운드 첫 tick에서 이전 라운드 정산
-    // 이 시점엔 클라이언트가 이미 /api/race-results에 저장했을 확률이 높음
+    // race 결과 저장: 매 tick마다 직전 라운드가 아직 저장 안 됐으면 저장
+    // baka처럼 클라이언트 없이도 항상 저장되도록 조건을 완화
     const prevRaceRoundNumber = raceRoundNumber - 1  // 직전 5분 라운드
-    const isFirstTickOfNewRace = (closeTime % 300) < 30  // 새 라운드 첫 30초 구간
     const prevRaceSettledKey = `settled:race:${prevRaceRoundNumber}`
     const raceAlreadySettled = await redis.get(prevRaceSettledKey)
-    const isLastRaceTick = isFirstTickOfNewRace && !raceAlreadySettled
 
-    if (isLastRaceTick) {
+    // 직전 라운드가 아직 미저장 상태이면 항상 시도
+    // (raceRoundNumber > prevRaceRoundNumber 이면 직전 라운드는 반드시 종료됨)
+    if (!raceAlreadySettled) {
       // 직전 5분 라운드 스코어: Redis 누적값 우선, 없으면 btc_closing_prices에서 직접 계산
       const prevRaceScoreKey = `race:score:${prevRaceRoundNumber}`
       const prevRaceScore    = await redis.hgetall(prevRaceScoreKey).catch(() => null)
@@ -183,13 +182,6 @@ export async function POST(request: Request) {
         serverBitScore > serverCoinScore ? "bit"
         : serverCoinScore > serverBitScore ? "coin"
         : "tie"
-
-      // DB에 클라이언트가 이미 저장했으면 ignoreDuplicates로 스킵
-      const { data: existingRow } = await admin
-        .from("race_results")
-        .select("time")
-        .eq("time", prevRaceResultTime)
-        .maybeSingle()
 
       if (serverBitScore > 0 || serverCoinScore > 0) {
         await admin.from("race_results").upsert({
