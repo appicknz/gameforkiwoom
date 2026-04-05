@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/race-settle",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

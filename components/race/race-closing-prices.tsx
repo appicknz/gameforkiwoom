@@ -36,7 +36,7 @@ export function RaceClosingPrices() {
 
   // 마운트 시 DB에서 최근 결과 로드
   useEffect(() => {
-    fetch("/api/race-results")
+    fetch("/api/race-results?limit=10")
       .then(r => r.json())
       .then(({ results }) => {
         if (!Array.isArray(results)) return
