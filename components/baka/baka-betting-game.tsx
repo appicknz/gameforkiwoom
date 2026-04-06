@@ -623,7 +623,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       : false
 
     // 정산 함수 — bacResult: 확정된 바카라 결과 (없으면 null)
-    // 서버 정산(game/settle)은 price-server가 직접 호출 → 클라이언트는 결과만 수신
+    // 클라이언트에서 직접 /api/game/settle 호출 → Railway 유무와 무관하게 항상 정산
     const settle = (bacResult: "player" | "banker" | "tie" | null) => {
       const wonBaccarat = betBaccaratRef.current ? betBaccaratRef.current === bacResult : false
       const baccaratRefund = !wonBaccarat && bacResult === "tie"
@@ -657,6 +657,31 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       if (anyWon) setWins(w => w + 1)
       if (anyLost) setLosses(l => l + 1)
       setPhase("result")
+
+      // 서버 정산 호출 — Railway 유무와 무관하게 클라이언트가 직접 실행
+      // 배팅이 있는 경우에만 호출 (잔고 반영)
+      const token = getToken()
+      if (token) {
+        fetch("/api/game/settle-me", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            closePrice,
+            basePrice: effectiveBase,
+            roundNumber: getRoundNumber(),
+            gameType: "baccarat",
+          }),
+        })
+          .then(r => r.json())
+          .then(d => {
+            // 정산 완료 후 잔고 갱신
+            if (typeof d.balance === "number") {
+              setBalance(d.balance)
+              window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
+            }
+          })
+          .catch(() => {})
+      }
 
       // 베팅 상태 초기화 (다음 라운드 준비)
       betRef.current = null; betDigitRef.current = null

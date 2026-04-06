@@ -172,11 +172,35 @@ export default function RacePage() {
   useEffect(() => {
     if (state.winner && state.winner !== prevWinnerRef.current) {
       prevWinnerRef.current = state.winner
+
+      // 라운드 종료 시 클라이언트 직접 정산 — Railway 없이도 잔고 반영
+      const token = typeof window !== "undefined"
+        ? localStorage.getItem("app_token")
+        : null
+      if (token) {
+        const raceRoundNumber = Math.floor(Date.now() / 1000 / 300)
+        fetch("/api/game/settle-me", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            closePrice: state.lastPrice ?? 0,
+            roundNumber: raceRoundNumber,
+            gameType: "race",
+          }),
+        })
+          .then(r => r.json())
+          .then(d => {
+            if (typeof d.balance === "number") {
+              window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
+            }
+          })
+          .catch(() => {})
+      }
     }
     if (!state.winner) {
       prevWinnerRef.current = null
     }
-  }, [state.winner])
+  }, [state.winner, state.lastPrice])
 
   return (
     <div

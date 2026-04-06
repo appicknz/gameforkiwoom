@@ -112,7 +112,7 @@ export async function POST(request: Request) {
           .eq("id", branchId).single()
         if (branch) {
           lpConfig = branchToLpConfig(branch)
-          await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 300 })
+          await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 30 })
         }
       }
 

@@ -239,7 +239,7 @@ export async function POST(request: Request) {
               .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
               .eq("id", profileData.branch_id).single()
             if (branch) lpConfig = branchToLpConfig(branch)
-            await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 300 })
+            await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 30 })
           }
         }
         const r = calcBaccaratOdds(baccaratPool, lpConfig, userCount)
@@ -435,7 +435,7 @@ export async function POST(request: Request) {
                 .eq("id", profileData.branch_id).single()
               if (branch) {
                 lpConfig = branchToLpConfig(branch)
-                await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 300 })
+                await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 30 })
               }
             }
           }
