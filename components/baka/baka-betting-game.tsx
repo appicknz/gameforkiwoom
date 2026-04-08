@@ -476,8 +476,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const [lockedAmount, setLockedAmount] = useState<number | null>(null)
   // 실시간 배당률 (SSE - 배팅 즉시 반영, 폴링 없음)
   const [liveOdds, setLiveOdds] = useState<{
-    player: number; banker: number; tie: number
-    lpWeight?: number; mode?: "seeded" | "decay" | "natural"
+    player: number | null; banker: number | null; tie: number | null
+    available?: boolean
+    lpWeight?: number; mode?: "seeded" | "decay" | "natural" | "pending"
   } | null>(null)
 
   useEffect(() => {
@@ -1164,12 +1165,12 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           <div className="grid grid-cols-3 gap-1.5">
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
-              const oddsVal = liveOdds
+              // available=false(LP 비활성+배팅 없음): 배당 미확정 → "-" 표시
+              const oddsAvailable = liveOdds?.available !== false
+              const oddsVal = (liveOdds && oddsAvailable)
                 ? (side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie)
                 : null
-              // oddsVal = 총지급배수 (배팅액 × oddsVal = 지급액)
-              // 예: 1만원 배팅 × 1.31 = 13,100원 지급
-              const payout = oddsVal !== null ? `${oddsVal.toFixed(2)}x` : "-"
+              const payout = oddsVal != null ? `${(oddsVal as number).toFixed(2)}x` : "-"
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
               const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"
@@ -1201,20 +1202,28 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           {/* LP 유동성 모드 인디케이터 */}
           {liveOdds?.mode && (
             <div className="mt-1.5 flex items-center justify-center gap-1.5">
-              <span style={{
-                fontSize: 10,
-                color: liveOdds.mode === "natural" ? "#22c55e"
-                  : liveOdds.mode === "decay" ? "#f97316"
-                  : "rgba(255,255,255,0.4)",
-              }}>
-                {liveOdds.mode === "seeded" && "유동성 안정 구간"}
-                {liveOdds.mode === "decay"  && "유동성 감쇠 중"}
-                {liveOdds.mode === "natural" && "자연 배당 구간"}
-              </span>
-              {liveOdds.lpWeight !== undefined && (
-                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
-                  LP {(liveOdds.lpWeight * 100).toFixed(0)}%
+              {liveOdds.mode === "pending" ? (
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+                  배팅 후 배당 자동 확정
                 </span>
+              ) : (
+                <>
+                  <span style={{
+                    fontSize: 10,
+                    color: liveOdds.mode === "natural" ? "#22c55e"
+                      : liveOdds.mode === "decay" ? "#f97316"
+                      : "rgba(255,255,255,0.4)",
+                  }}>
+                    {liveOdds.mode === "seeded" && "유동성 안정 구간"}
+                    {liveOdds.mode === "decay"  && "유동성 감쇠 중"}
+                    {liveOdds.mode === "natural" && "자연 배당 구간"}
+                  </span>
+                  {liveOdds.lpWeight !== undefined && (
+                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+                      LP {(liveOdds.lpWeight * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </>
               )}
             </div>
           )}

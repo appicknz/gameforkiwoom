@@ -59,7 +59,7 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
       // lpWeight, mode를 odds 안에 포함 → 클라이언트 liveOdds에서 바로 접근
       odds: {
         player: result.playerOdds, banker: result.bankerOdds, tie: result.tieOdds,
-        lpWeight: result.lpWeight, mode: result.mode,
+        lpWeight: result.lpWeight, mode: result.mode, available: result.available,
       },
     }
   } else {
@@ -73,7 +73,7 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
       gameType, roundNumber, userCount: safeCount, pools: userPools,
       odds: {
         bit: result.bitOdds, coin: result.coinOdds, tie: result.tieOdds,
-        lpWeight: result.lpWeight, mode: result.mode,
+        lpWeight: result.lpWeight, mode: result.mode, available: result.available,
       },
     }
   }

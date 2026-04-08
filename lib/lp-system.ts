@@ -62,25 +62,27 @@ export interface LpConfig {
 }
 
 export interface OddsResult {
-  playerOdds: number
-  bankerOdds: number
-  tieOdds:    number
-  fee:        number   // 하우스 수수료 (유저 배팅 × 20%)
-  totalPool:  number   // 실효 풀 (유저 + 감쇠된 LP)
-  lpSeed:     number   // LP 시드 원금 (감쇠 전)
-  lpWeight:   number   // 현재 LP 기여 비율 (0~1)
-  mode:       "seeded" | "decay" | "natural"
+  playerOdds: number | null  // null = LP 비활성 + 유저 배팅 없음 → 배당 미표시
+  bankerOdds: number | null
+  tieOdds:    number | null
+  available:  boolean        // false이면 UI에서 배당 숨김
+  fee:        number
+  totalPool:  number
+  lpSeed:     number
+  lpWeight:   number
+  mode:       "seeded" | "decay" | "natural" | "pending"
 }
 
 export interface RaceOddsResult {
-  bitOdds:   number
-  coinOdds:  number
-  tieOdds:   number
+  bitOdds:   number | null
+  coinOdds:  number | null
+  tieOdds:   number | null
+  available:  boolean
   fee:       number
   totalPool: number
   lpSeed:    number
   lpWeight:  number
-  mode:      "seeded" | "decay" | "natural"
+  mode:      "seeded" | "decay" | "natural" | "pending"
 }
 
 // 기본 LP 설정
@@ -163,22 +165,27 @@ export function calcBaccaratOdds(
   const multiplier = lpConfig.lpMultiplierBaccarat ?? 1.0
 
   const totalUserBet = userPools.player + userPools.banker + userPools.tie
+
+  // LP 비활성 + 유저 배팅 없음 → 배당 미확정 (pending)
+  if (!lpConfig.enabled && totalUserBet === 0) {
+    return {
+      playerOdds: null, bankerOdds: null, tieOdds: null,
+      available: false,
+      fee: 0, totalPool: 0, lpSeed: 0, lpWeight: 0, mode: "pending",
+    }
+  }
+
   const lpSeedTotal  = seed * 3
-
   const lpWeight = calcLpWeight(totalUserBet, lpSeedTotal, multiplier)
-
-  // 감쇠된 LP (각 사이드에 균등 반영)
   const effectiveSeed = seed * lpWeight
 
-  // 사이드별 실효 풀 = 유저 배팅 + 감쇠된 LP 시드
   const totalPlayer = userPools.player + effectiveSeed
   const totalBanker = userPools.banker + effectiveSeed
   const totalTie    = userPools.tie    + effectiveSeed
 
-  // 수수료는 유저 배팅에서만
   const fee     = Math.floor(totalUserBet * FEE_RATE)
   const giveout = (totalUserBet - fee) + (effectiveSeed * 3)
-  const totalPool = totalUserBet + lpSeedTotal  // 원금 기준 (UI 표시용)
+  const totalPool = totalUserBet + lpSeedTotal
 
   const playerOdds = parseFloat((giveout / totalPlayer).toFixed(4))
   const bankerOdds = parseFloat((giveout / totalBanker).toFixed(4))
@@ -188,6 +195,7 @@ export function calcBaccaratOdds(
     playerOdds: clamp(playerOdds),
     bankerOdds: clamp(bankerOdds),
     tieOdds:    clamp(tieOdds),
+    available:  true,
     fee,
     totalPool,
     lpSeed:   lpSeedTotal,
@@ -208,8 +216,17 @@ export function calcRaceOdds(
   const multiplier = lpConfig.lpMultiplierRace ?? 1.0
 
   const totalUserBet = userPools.bit + userPools.coin + userPools.tie
-  const lpSeedTotal  = seed * 3
 
+  // LP 비활성 + 유저 배팅 없음 → 배당 미확정 (pending)
+  if (!lpConfig.enabled && totalUserBet === 0) {
+    return {
+      bitOdds: null, coinOdds: null, tieOdds: null,
+      available: false,
+      fee: 0, totalPool: 0, lpSeed: 0, lpWeight: 0, mode: "pending",
+    }
+  }
+
+  const lpSeedTotal  = seed * 3
   const lpWeight = calcLpWeight(totalUserBet, lpSeedTotal, multiplier)
   const effectiveSeed = seed * lpWeight
 
@@ -219,7 +236,7 @@ export function calcRaceOdds(
 
   const fee     = Math.floor(totalUserBet * FEE_RATE)
   const giveout = (totalUserBet - fee) + (effectiveSeed * 3)
-  const totalPool = totalUserBet + lpSeedTotal
+  const totalPool = userPools.bit + userPools.coin + userPools.tie + lpSeedTotal
 
   const bitOdds  = parseFloat((giveout / totalBit).toFixed(4))
   const coinOdds = parseFloat((giveout / totalCoin).toFixed(4))
@@ -229,6 +246,7 @@ export function calcRaceOdds(
     bitOdds:  clamp(bitOdds),
     coinOdds: clamp(coinOdds),
     tieOdds:  clamp(tieOdds),
+    available: true,
     fee,
     totalPool,
     lpSeed:   lpSeedTotal,
