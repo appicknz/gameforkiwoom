@@ -2,6 +2,7 @@ import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
+import { redis } from "@/lib/upstash"
 
 async function getUserFromToken(token: string) {
   const anonClient = createClient(
@@ -86,5 +87,18 @@ export async function PATCH(req: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // LP 설정 변경 시 모든 유저의 LP config 캐시 삭제 (즉시 반영)
+  try {
+    const { data: allUsers } = await adminSupabase.from("profiles").select("id").eq("branch_id", branchId)
+    if (allUsers && allUsers.length > 0) {
+      const cacheKeys = allUsers.flatMap(u => [
+        `lp:config:user:${u.id}`,
+        `branch:${branchId}:lp:config`,
+      ])
+      await redis.del(...cacheKeys).catch(() => {})
+    }
+  } catch {}
+
   return NextResponse.json({ branch: data })
 }

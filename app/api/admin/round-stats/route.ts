@@ -48,17 +48,19 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string) {
   const userCount = Array.isArray(userIds) ? userIds.length : 0
   const totalBet  = Object.values(poolData).reduce((a, b) => a + b, 0)
 
+  let lpEnabled = true
   let lpAmount = 50000
   try {
     if (lpConfigRaw) {
       const parsed = typeof lpConfigRaw === "string" ? JSON.parse(lpConfigRaw) : lpConfigRaw
+      lpEnabled = parsed.enabled ?? true
       lpAmount = gameType === "baccarat"
         ? (parsed.baccarat ?? parsed.lpAmountBaccarat ?? 50000)
         : (parsed.race    ?? parsed.lpAmountRace     ?? 50000)
     }
   } catch {}
 
-  const lpConfig = { enabled: true, lpAmountBaccarat: lpAmount, lpAmountRace: lpAmount }
+  const lpConfig = { enabled: lpEnabled, lpAmountBaccarat: lpAmount, lpAmountRace: lpAmount }
 
   let mode: "lp-dominant" | "hybrid" | "pari" = "lp-dominant"
   let effectiveLP = 0

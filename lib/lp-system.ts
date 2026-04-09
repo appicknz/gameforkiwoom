@@ -102,10 +102,12 @@ export function branchToLpConfig(branch: {
   lp_multiplier_baccarat?:  number  | null
   lp_multiplier_race?:      number  | null
 }): LpConfig {
+  const enabled = branch.lp_enabled ?? true
+  // LP 비활성이면 amount를 강제로 0 — 배당 계산에서 seed=0 보장
   return {
-    enabled:              branch.lp_enabled             ?? true,
-    lpAmountBaccarat:     branch.lp_amount_baccarat     ?? DEFAULT_LP_CONFIG.lpAmountBaccarat,
-    lpAmountRace:         branch.lp_amount_race         ?? DEFAULT_LP_CONFIG.lpAmountRace,
+    enabled,
+    lpAmountBaccarat:     enabled ? (branch.lp_amount_baccarat     ?? DEFAULT_LP_CONFIG.lpAmountBaccarat) : 0,
+    lpAmountRace:         enabled ? (branch.lp_amount_race         ?? DEFAULT_LP_CONFIG.lpAmountRace)     : 0,
     lpMultiplierBaccarat: branch.lp_multiplier_baccarat ?? 1.0,
     lpMultiplierRace:     branch.lp_multiplier_race     ?? 1.0,
   }
