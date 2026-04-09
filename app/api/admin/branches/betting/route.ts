@@ -2,7 +2,12 @@ import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
-import { redis } from "@/lib/upstash"
+import { Redis } from "@upstash/redis"
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+})
 
 async function getUserFromToken(token: string) {
   const anonClient = createClient(
