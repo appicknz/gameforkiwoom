@@ -262,6 +262,76 @@ export async function POST(request: Request) {
         }
       }
 
+      // ── bet_history INSERT (바카라 게임) ─────────────────────
+      {
+        const profileCacheKey = `profile:branch:${userId}`
+        let userBranchId: string | null = await redis.get<string>(profileCacheKey)
+        if (!userBranchId) {
+          const { data: p } = await admin.from("profiles").select("branch_id").eq("id", userId).single()
+          userBranchId = p?.branch_id ?? null
+          if (userBranchId) await redis.set(profileCacheKey, userBranchId, { ex: 3600 })
+        }
+
+        // round DB id 조회 (round_number → uuid)
+        const { data: roundRow } = await admin
+          .from("rounds")
+          .select("id")
+          .eq("round_number", roundNumber)
+          .single()
+        const roundDbId: string | null = roundRow?.id ?? null
+
+        const historyRows: Record<string, unknown>[] = []
+
+        if (bets.directionAmount > 0) {
+          const won = bets.direction === wonDirection
+          historyRows.push({
+            user_id: userId, branch_id: userBranchId, round_id: roundDbId,
+            bet_direction: bets.direction, bet_digit: null, bet_parity: null,
+            bet_amount: bets.directionAmount,
+            payout: won ? Math.floor(bets.directionAmount * FIXED_ODDS) : 0,
+            result: won ? "win" : "lose",
+          })
+        }
+        if (bets.digitAmount > 0) {
+          const won = bets.digit === wonDigit
+          historyRows.push({
+            user_id: userId, branch_id: userBranchId, round_id: roundDbId,
+            bet_direction: null, bet_digit: bets.digit, bet_parity: null,
+            bet_amount: bets.digitAmount,
+            payout: won ? Math.floor(bets.digitAmount * FIXED_ODDS) : 0,
+            result: won ? "win" : "lose",
+          })
+        }
+        if (bets.parityAmount > 0) {
+          const won = bets.parity === wonParity
+          historyRows.push({
+            user_id: userId, branch_id: userBranchId, round_id: roundDbId,
+            bet_direction: null, bet_digit: null, bet_parity: bets.parity,
+            bet_amount: bets.parityAmount,
+            payout: won ? Math.floor(bets.parityAmount * FIXED_ODDS) : 0,
+            result: won ? "win" : "lose",
+          })
+        }
+        if (bets.baccaratSide && bets.baccaratAmount > 0) {
+          const side = bets.baccaratSide as "player" | "banker" | "tie"
+          const won = side === baccaratResult
+          const isTie = baccaratResult === "tie"
+          const refund = isTie && (side === "player" || side === "banker")
+          const appliedOdds = (typeof oddsSnap[side] === "number" && oddsSnap[side] > 0) ? oddsSnap[side] : 1.95
+          historyRows.push({
+            user_id: userId, branch_id: userBranchId, round_id: roundDbId,
+            bet_direction: `baccarat_${side}`, bet_digit: null, bet_parity: null,
+            bet_amount: bets.baccaratAmount,
+            payout: won ? Math.floor(bets.baccaratAmount * appliedOdds) : refund ? bets.baccaratAmount : 0,
+            result: won ? "win" : refund ? "tie" : "lose",
+          })
+        }
+
+        if (historyRows.length > 0) {
+          await admin.from("bet_history").insert(historyRows).then(() => {}).catch(() => {})
+        }
+      }
+
       // 당첨금 지급 (atomic RPC)
       if (totalPayout > 0) {
         const { data: newBalance, error } = await admin
@@ -339,27 +409,6 @@ export async function POST(request: Request) {
             userPayout += bets.baccaratAmount
           }
         }
-        if (bets.digitAmount > 0) {
-          userBet += bets.digitAmount
-          if (bets.digit === wonDigit) userPayout += Math.floor(bets.digitAmount * FIXED_ODDS)
-        }
-        if (bets.parityAmount > 0) {
-          userBet += bets.parityAmount
-          if (bets.parity === wonParity) userPayout += Math.floor(bets.parityAmount * FIXED_ODDS)
-        }
-        if (bets.baccaratAmount > 0) {
-          userBet += bets.baccaratAmount
-          const side = bets.baccaratSide as "player" | "banker" | "tie"
-          if (side === baccaratResult) {
-            const odds = side === "player" ? baccaratOddsSnap.playerOdds
-              : side === "banker" ? baccaratOddsSnap.bankerOdds
-              : baccaratOddsSnap.tieOdds
-            userPayout += Math.floor(bets.baccaratAmount * odds)
-          } else if (baccaratResult === "tie" && (side === "player" || side === "banker")) {
-            userPayout += bets.baccaratAmount  // 타이 원금 반환
-          }
-        }
-
         if (!branchAccum[branchId]) branchAccum[branchId] = { totalBet: 0, totalPayout: 0 }
         branchAccum[branchId].totalBet     += userBet
         branchAccum[branchId].totalPayout  += userPayout
@@ -452,6 +501,69 @@ export async function POST(request: Request) {
             totalPayout += Math.floor(bets.raceAmount * odds)
           } else if (raceWinner === "tie" && (side === "bit" || side === "coin")) {
             totalPayout += bets.raceAmount
+          }
+        }
+
+        // ── bet_history INSERT (레이스 게임) ─────────────────────
+        {
+          const profileCacheKey = `profile:branch:${userId}`
+          let userBranchId: string | null = await redis.get<string>(profileCacheKey)
+          if (!userBranchId) {
+            const { data: p } = await admin.from("profiles").select("branch_id").eq("id", userId).single()
+            userBranchId = p?.branch_id ?? null
+            if (userBranchId) await redis.set(profileCacheKey, userBranchId, { ex: 3600 })
+          }
+
+          const raceHistoryRows: Record<string, unknown>[] = []
+
+          if (bets.directionAmount > 0) {
+            const won = bets.direction === wonDirection
+            raceHistoryRows.push({
+              user_id: userId, branch_id: userBranchId, round_id: null,
+              bet_direction: bets.direction, bet_digit: null, bet_parity: null,
+              bet_amount: bets.directionAmount,
+              payout: won ? Math.floor(bets.directionAmount * FIXED_ODDS) : 0,
+              result: won ? "win" : "lose",
+            })
+          }
+          if (bets.digitAmount > 0) {
+            const won = bets.digit === wonDigit
+            raceHistoryRows.push({
+              user_id: userId, branch_id: userBranchId, round_id: null,
+              bet_direction: null, bet_digit: bets.digit, bet_parity: null,
+              bet_amount: bets.digitAmount,
+              payout: won ? Math.floor(bets.digitAmount * FIXED_ODDS) : 0,
+              result: won ? "win" : "lose",
+            })
+          }
+          if (bets.parityAmount > 0) {
+            const won = bets.parity === wonParity
+            raceHistoryRows.push({
+              user_id: userId, branch_id: userBranchId, round_id: null,
+              bet_direction: null, bet_digit: null, bet_parity: bets.parity,
+              bet_amount: bets.parityAmount,
+              payout: won ? Math.floor(bets.parityAmount * FIXED_ODDS) : 0,
+              result: won ? "win" : "lose",
+            })
+          }
+          if (bets.raceSide && bets.raceAmount > 0) {
+            const side = bets.raceSide as "bit" | "coin" | "tie"
+            const won = side === raceWinner
+            const isTie = raceWinner === "tie"
+            const refund = isTie && (side === "bit" || side === "coin")
+            const appliedOdds = (typeof raceOddsSnap[side] === "number" && raceOddsSnap[side] > 0)
+              ? raceOddsSnap[side] : 1.95
+            raceHistoryRows.push({
+              user_id: userId, branch_id: userBranchId, round_id: null,
+              bet_direction: `race_${side}`, bet_digit: null, bet_parity: null,
+              bet_amount: bets.raceAmount,
+              payout: won ? Math.floor(bets.raceAmount * appliedOdds) : refund ? bets.raceAmount : 0,
+              result: won ? "win" : refund ? "tie" : "lose",
+            })
+          }
+
+          if (raceHistoryRows.length > 0) {
+            await admin.from("bet_history").insert(raceHistoryRows).then(() => {}).catch(() => {})
           }
         }
 
