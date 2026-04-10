@@ -29,6 +29,7 @@ interface BetLog {
   ts: number
   results: BetResult[]
   totalFee: number
+  gameType?: string
 }
 
 const SIDE_LABEL: Record<string, string> = {
@@ -45,20 +46,21 @@ export function AutoBetMonitor() {
   const [users, setUsers] = useState<AutoBetUser[]>([])
   const [logs, setLogs] = useState<BetLog[]>([])
   const [accumulatedFee, setAccumulatedFee] = useState(0)
-  const [running, setRunning] = useState(false)
-  const [loading, setLoading] = useState(false)
+  // 바카라/레이스 각각 독립 실행 상태
+  const [baccaratRunning, setBaccaratRunning] = useState(false)
+  const [raceRunning, setRaceRunning] = useState(false)
+  const [baccaratLoading, setBaccaratLoading] = useState(false)
+  const [raceLoading, setRaceLoading] = useState(false)
   const [toppingUp, setToppingUp] = useState(false)
   const [lastBetResults, setLastBetResults] = useState<BetResult[] | null>(null)
   const [status, setStatus] = useState<string>("")
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const baccaratIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const raceIntervalRef     = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadUsers = useCallback(async () => {
     const token = getToken(); if (!token) return
     const res = await fetch("/api/admin/auto-bet", { headers: { Authorization: `Bearer ${token}` } })
-    if (res.ok) {
-      const d = await res.json()
-      setUsers(d.users ?? [])
-    }
+    if (res.ok) { const d = await res.json(); setUsers(d.users ?? []) }
   }, [])
 
   const loadLogs = useCallback(async () => {
@@ -78,29 +80,73 @@ export function AutoBetMonitor() {
     }
   }, [])
 
-  const runBet = useCallback(async () => {
+  // 바카라 배팅 1회 실행
+  const runBaccaratBet = useCallback(async () => {
     const token = getToken(); if (!token) return
-    setLoading(true)
-    setStatus("배팅 실행 중...")
+    setBaccaratLoading(true)
     try {
       const res = await fetch("/api/admin/auto-bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: "bet" }),
+        body: JSON.stringify({ action: "bet_baccarat" }),
       })
       if (res.ok) {
         const d = await res.json()
         setLastBetResults(d.results ?? [])
         setAccumulatedFee(d.accumulatedFee ?? 0)
-        setStatus(`배팅 완료 — 이번 라운드 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
-        await loadUsers()
-        await loadLogs()
+        setStatus(`바카라 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
+        loadUsers()
       }
-    } catch (e) {
-      setStatus("배팅 실패")
-    }
-    setLoading(false)
-  }, [loadUsers, loadLogs])
+    } catch { setStatus("바카라 배팅 실패") }
+    setBaccaratLoading(false)
+  }, [loadUsers])
+
+  // 레이스 배팅 1회 실행
+  const runRaceBet = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setRaceLoading(true)
+    try {
+      const res = await fetch("/api/admin/auto-bet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "bet_race" }),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        setLastBetResults(d.results ?? [])
+        setAccumulatedFee(d.accumulatedFee ?? 0)
+        setStatus(`레이스 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
+        loadUsers()
+      }
+    } catch { setStatus("레이스 배팅 실패") }
+    setRaceLoading(false)
+  }, [loadUsers])
+
+  const startBaccarat = () => {
+    if (baccaratIntervalRef.current) return
+    setBaccaratRunning(true)
+    runBaccaratBet()
+    // 바카라: 30초마다 자동 배팅
+    baccaratIntervalRef.current = setInterval(runBaccaratBet, 30_000)
+  }
+  const stopBaccarat = () => {
+    if (baccaratIntervalRef.current) { clearInterval(baccaratIntervalRef.current); baccaratIntervalRef.current = null }
+    setBaccaratRunning(false)
+    setStatus("바카라 자동배팅 중지됨")
+  }
+
+  const startRace = () => {
+    if (raceIntervalRef.current) return
+    setRaceRunning(true)
+    runRaceBet()
+    // 레이스: 5분(300초)마다 자동 배팅 — 라운드 시작 직후에 한 번
+    raceIntervalRef.current = setInterval(runRaceBet, 300_000)
+  }
+  const stopRace = () => {
+    if (raceIntervalRef.current) { clearInterval(raceIntervalRef.current); raceIntervalRef.current = null }
+    setRaceRunning(false)
+    setStatus("레이스 자동배팅 중지됨")
+  }
 
   const handleTopUp = async () => {
     const token = getToken(); if (!token) return
@@ -110,11 +156,7 @@ export function AutoBetMonitor() {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ action: "top_up" }),
     })
-    if (res.ok) {
-      const d = await res.json()
-      setStatus(`잔고 충전 완료 — ${d.topped}명 충전됨`)
-      await loadUsers()
-    }
+    if (res.ok) { const d = await res.json(); setStatus(`잔고 충전 완료 — ${d.topped}명 충전됨`); loadUsers() }
     setToppingUp(false)
   }
 
@@ -128,24 +170,12 @@ export function AutoBetMonitor() {
     setAccumulatedFee(0)
   }
 
-  const startAuto = () => {
-    if (intervalRef.current) return
-    setRunning(true)
-    runBet()
-    // 바카라 라운드(30초)마다 자동 배팅
-    intervalRef.current = setInterval(() => { runBet() }, 30000)
-  }
-
-  const stopAuto = () => {
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
-    setRunning(false)
-    setStatus("자동배팅 중지됨")
-  }
-
   useEffect(() => {
-    loadUsers()
-    loadLogs()
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+    loadUsers(); loadLogs()
+    return () => {
+      if (baccaratIntervalRef.current) clearInterval(baccaratIntervalRef.current)
+      if (raceIntervalRef.current) clearInterval(raceIntervalRef.current)
+    }
   }, [loadUsers, loadLogs])
 
   const lowBalanceCount = users.filter(u => u.balance < 1000000).length
@@ -155,14 +185,14 @@ export function AutoBetMonitor() {
   return (
     <div className="space-y-5">
 
-      {/* ── 상단: 수수료 누적 + 제어 ── */}
+      {/* ── 상단 헤더 + 공통 제어 ── */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <TrendingUp className="w-4 h-4 text-primary" />
             <div>
               <h3 className="text-sm font-semibold text-foreground">자동배팅 모니터</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">홀수=바카라, 짝수=레이스 &middot; 30초마다 자동 배팅</p>
+              <p className="text-xs text-muted-foreground mt-0.5">홀수=바카라(30초), 짝수=레이스(5분) &middot; 게임별 독립 제어</p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -176,22 +206,10 @@ export function AutoBetMonitor() {
               <Wallet className="w-3 h-3" />
               {toppingUp ? "충전 중..." : `잔고 충전${lowBalanceCount > 0 ? ` (${lowBalanceCount}명)` : ""}`}
             </Button>
-            {running ? (
-              <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopAuto}>
-                <Square className="w-3 h-3" /> 자동 중지
-              </Button>
-            ) : (
-              <Button size="sm" className="h-7 text-xs gap-1" onClick={startAuto} disabled={loading}>
-                <Play className="w-3 h-3" /> 자동 시작
-              </Button>
-            )}
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={runBet} disabled={loading || running}>
-              {loading ? <RefreshCw className="w-3 h-3 animate-spin" /> : "1회 실행"}
-            </Button>
           </div>
         </div>
 
-        {/* 누적 수수료 + 상태 */}
+        {/* 누적 수수료 + 유저 수 */}
         <div className="px-5 py-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-muted rounded-xl p-3 col-span-2 md:col-span-2">
             <p className="text-xs text-muted-foreground">자동배팅 누적 수수료 (20%)</p>
@@ -205,6 +223,52 @@ export function AutoBetMonitor() {
           <div className="bg-muted rounded-xl p-3">
             <p className="text-xs text-muted-foreground">레이스 유저</p>
             <p className="text-lg font-bold text-orange-500">{raceUsers.length}명</p>
+          </div>
+        </div>
+
+        {/* 바카라 / 레이스 독립 제어 패널 */}
+        <div className="px-5 pb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* 바카라 */}
+          <div className="border border-border rounded-xl p-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-blue-500">바카라 자동배팅</p>
+              <p className="text-xs text-muted-foreground mt-0.5">30초마다 · {baccaratUsers.length}명</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {baccaratRunning ? (
+                <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopBaccarat}>
+                  <Square className="w-3 h-3" /> 중지
+                </Button>
+              ) : (
+                <Button size="sm" className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={startBaccarat} disabled={baccaratLoading}>
+                  <Play className="w-3 h-3" /> 시작
+                </Button>
+              )}
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={runBaccaratBet} disabled={baccaratLoading || baccaratRunning}>
+                {baccaratLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : "1회"}
+              </Button>
+            </div>
+          </div>
+          {/* 레이스 */}
+          <div className="border border-border rounded-xl p-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-orange-500">레이스 자동배팅</p>
+              <p className="text-xs text-muted-foreground mt-0.5">5분(300초)마다 · {raceUsers.length}명</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {raceRunning ? (
+                <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopRace}>
+                  <Square className="w-3 h-3" /> 중지
+                </Button>
+              ) : (
+                <Button size="sm" className="h-7 text-xs gap-1 bg-orange-600 hover:bg-orange-700 text-white" onClick={startRace} disabled={raceLoading}>
+                  <Play className="w-3 h-3" /> 시작
+                </Button>
+              )}
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={runRaceBet} disabled={raceLoading || raceRunning}>
+                {raceLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : "1회"}
+              </Button>
+            </div>
           </div>
         </div>
 
