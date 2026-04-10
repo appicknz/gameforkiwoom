@@ -80,8 +80,14 @@ export function AutoBetMonitor() {
   const [toppingUp, setToppingUp] = useState(false)
   const [lastBetResults, setLastBetResults] = useState<BetResult[] | null>(null)
   const [status, setStatus] = useState<string>("")
-  const baccaratIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const raceIntervalRef     = useRef<ReturnType<typeof setInterval> | null>(null)
+  const baccaratIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null)
+  const raceIntervalRef       = useRef<ReturnType<typeof setInterval> | null>(null)
+  // 페이즈 추적: 마지막으로 배팅 가능 구간을 감지한 라운드
+  const baccaratLastBetRound  = useRef<number>(-1)
+  const raceLastBetRound      = useRef<number>(-1)
+  // 현재 페이즈 상태 (UI 표시용)
+  const [baccaratPhase, setBaccaratPhase] = useState<"정산중" | "배팅가능" | "게임중">("게임중")
+  const [racePhase, setRacePhase]         = useState<"배팅가능" | "게임중">("게임중")
 
   const loadUsers = useCallback(async () => {
     const token = getToken(); if (!token) return
@@ -152,12 +158,35 @@ export function AutoBetMonitor() {
     setRaceLoading(false)
   }, [loadUsers])
 
+  // ── 페이즈 감지 헬퍼 ──────────────────────────────────────────
+  const getBaccaratPhase = (): { phase: "정산중" | "배팅가능" | "게임중"; rem: number; round: number } => {
+    const nowSec = Math.floor(Date.now() / 1000)
+    const rem = 30 - (nowSec % 30)   // 30~1
+    const round = Math.floor(nowSec / 30)
+    const phase = rem > 25 ? "정산중" : rem > 13 ? "배팅가능" : "게임중"
+    return { phase, rem, round }
+  }
+  const getRacePhase = (): { phase: "배팅가능" | "게임중"; rem: number; round: number } => {
+    const nowSec = Math.floor(Date.now() / 1000)
+    const secInRound = nowSec % 300
+    const rem = 300 - secInRound
+    const round = Math.floor(nowSec / 300)
+    const phase = secInRound < 60 ? "배팅가능" : "게임중"
+    return { phase, rem, round }
+  }
+
   const startBaccarat = () => {
     if (baccaratIntervalRef.current) return
     setBaccaratRunning(true)
-    runBaccaratBet()
-    // 바카라: 30초마다 자동 배팅
-    baccaratIntervalRef.current = setInterval(runBaccaratBet, 30_000)
+    // 500ms 간격으로 페이즈 감지 — 배팅 가능 구간 진입 시 라운드당 1회만 배팅
+    baccaratIntervalRef.current = setInterval(() => {
+      const { phase, round } = getBaccaratPhase()
+      setBaccaratPhase(phase)
+      if (phase === "배팅가능" && baccaratLastBetRound.current !== round) {
+        baccaratLastBetRound.current = round
+        runBaccaratBet()
+      }
+    }, 500)
   }
   const stopBaccarat = () => {
     if (baccaratIntervalRef.current) { clearInterval(baccaratIntervalRef.current); baccaratIntervalRef.current = null }
@@ -168,9 +197,15 @@ export function AutoBetMonitor() {
   const startRace = () => {
     if (raceIntervalRef.current) return
     setRaceRunning(true)
-    runRaceBet()
-    // 레이스: 5분(300초)마다 자동 배팅 — 라운드 시작 직후에 한 번
-    raceIntervalRef.current = setInterval(runRaceBet, 300_000)
+    // 1초 간격으로 페이즈 감지 — 배팅 가능 구간(첫 60초) 진입 시 라운드당 1회만 배팅
+    raceIntervalRef.current = setInterval(() => {
+      const { phase, round } = getRacePhase()
+      setRacePhase(phase)
+      if (phase === "배팅가능" && raceLastBetRound.current !== round) {
+        raceLastBetRound.current = round
+        runRaceBet()
+      }
+    }, 1_000)
   }
   const stopRace = () => {
     if (raceIntervalRef.current) { clearInterval(raceIntervalRef.current); raceIntervalRef.current = null }
@@ -311,8 +346,17 @@ export function AutoBetMonitor() {
           {/* 바카라 */}
           <div className="border border-border rounded-xl p-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold text-blue-500">바카라 자동배팅</p>
-              <p className="text-xs text-muted-foreground mt-0.5">30초마다 · {baccaratUsers.length}명</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold text-blue-500">바카라 자동배팅</p>
+                {baccaratRunning && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                    baccaratPhase === "배팅가능" ? "bg-emerald-500/15 text-emerald-500"
+                    : baccaratPhase === "정산중"  ? "bg-amber-500/15 text-amber-500"
+                    : "bg-muted-foreground/15 text-muted-foreground"
+                  }`}>{baccaratPhase}</span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">배팅창 25~13초 · {baccaratUsers.length}명</p>
             </div>
             <div className="flex items-center gap-2">
               {baccaratRunning ? (
@@ -332,8 +376,17 @@ export function AutoBetMonitor() {
           {/* 레이스 */}
           <div className="border border-border rounded-xl p-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold text-orange-500">레이스 자동배팅</p>
-              <p className="text-xs text-muted-foreground mt-0.5">5분(300초)마다 · {raceUsers.length}명</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold text-orange-500">레이스 자동배팅</p>
+                {raceRunning && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                    racePhase === "배팅가능"
+                      ? "bg-emerald-500/15 text-emerald-500"
+                      : "bg-muted-foreground/15 text-muted-foreground"
+                  }`}>{racePhase}</span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">배팅창 0~60초 · {raceUsers.length}명</p>
             </div>
             <div className="flex items-center gap-2">
               {raceRunning ? (

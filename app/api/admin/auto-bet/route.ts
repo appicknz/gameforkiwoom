@@ -159,8 +159,32 @@ export async function GET(request: Request) {
   return NextResponse.json({ users, stats })
 }
 
+// 페이즈 체크: 현재 시각이 배팅 가능 구간인지 확인
+function isBettingPhase(gameType: "baccarat" | "race"): { allowed: boolean; reason?: string } {
+  const nowSec = Math.floor(Date.now() / 1000)
+  if (gameType === "baccarat") {
+    // 30초 라운드: rem = 30 - (nowSec % 30)
+    // 배팅 가능: rem <= 25 && rem > 13  (즉 timeLeft 25~14)
+    const rem = 30 - (nowSec % 30)
+    if (rem > 25) return { allowed: false, reason: `정산중 (rem=${rem}, 배팅은 rem≤25부터)` }
+    if (rem <= 13) return { allowed: false, reason: `게임중 (rem=${rem}, 배팅은 rem>13까지)` }
+    return { allowed: true }
+  } else {
+    // 300초 라운드: 배팅 가능 = secInRound < 60 (첫 60초)
+    const secInRound = nowSec % 300
+    if (secInRound >= 60) return { allowed: false, reason: `게임중 (secInRound=${secInRound}, 배팅은 0~59초)` }
+    return { allowed: true }
+  }
+}
+
 // 공통: 유저 배팅 1회 실행 (gameType 지정)
 async function runBetForGame(gameType: "baccarat" | "race") {
+  // ── 페이즈 체크: 배팅 가능 구간이 아니면 즉시 반환 ──
+  const phase = isBettingPhase(gameType)
+  if (!phase.allowed) {
+    return { results: [], totalFee: 0, round: 0, skipped: true, skipReason: phase.reason }
+  }
+
   const { data: profiles } = await adminSupabase
     .from("profiles")
     .select("id, username")
@@ -322,35 +346,38 @@ export async function POST(request: Request) {
 
   // action: "bet_baccarat" — 바카라 유저만 1라운드 배팅
   if (body.action === "bet_baccarat") {
-    const { results, totalFee, round } = await runBetForGame("baccarat")
+    const r = await runBetForGame("baccarat")
+    if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason, gameType: "baccarat" })
     const existingFee = await redis.get<number>("auto_bet:total_fee") ?? 0
-    await redis.set("auto_bet:total_fee", (existingFee as number) + totalFee)
-    const logEntry = JSON.stringify({ ts: Date.now(), results, totalFee, gameType: "baccarat" })
+    await redis.set("auto_bet:total_fee", (existingFee as number) + r.totalFee)
+    const logEntry = JSON.stringify({ ts: Date.now(), results: r.results, totalFee: r.totalFee, gameType: "baccarat" })
     await redis.lpush("auto_bet:logs", logEntry)
     await redis.ltrim("auto_bet:logs", 0, 99)
-    return NextResponse.json({ ok: true, gameType: "baccarat", round, results, totalFeeThisRound: totalFee, accumulatedFee: (existingFee as number) + totalFee })
+    return NextResponse.json({ ok: true, gameType: "baccarat", round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: (existingFee as number) + r.totalFee })
   }
 
   // action: "bet_race" — 레이스 유저만 1라운드 배팅
   if (body.action === "bet_race") {
-    const { results, totalFee, round } = await runBetForGame("race")
+    const r = await runBetForGame("race")
+    if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason, gameType: "race" })
     const existingFee = await redis.get<number>("auto_bet:total_fee") ?? 0
-    await redis.set("auto_bet:total_fee", (existingFee as number) + totalFee)
-    const logEntry = JSON.stringify({ ts: Date.now(), results, totalFee, gameType: "race" })
+    await redis.set("auto_bet:total_fee", (existingFee as number) + r.totalFee)
+    const logEntry = JSON.stringify({ ts: Date.now(), results: r.results, totalFee: r.totalFee, gameType: "race" })
     await redis.lpush("auto_bet:logs", logEntry)
     await redis.ltrim("auto_bet:logs", 0, 99)
-    return NextResponse.json({ ok: true, gameType: "race", round, results, totalFeeThisRound: totalFee, accumulatedFee: (existingFee as number) + totalFee })
+    return NextResponse.json({ ok: true, gameType: "race", round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: (existingFee as number) + r.totalFee })
   }
 
-  // action: "bet" — 하위 호환: 바카라만 실행 (이전 방식)
+  // action: "bet" — 하위 호환
   if (body.action === "bet") {
-    const { results, totalFee, round } = await runBetForGame("baccarat")
+    const r = await runBetForGame("baccarat")
+    if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason })
     const existingFee = await redis.get<number>("auto_bet:total_fee") ?? 0
-    await redis.set("auto_bet:total_fee", (existingFee as number) + totalFee)
-    const logEntry = JSON.stringify({ ts: Date.now(), results, totalFee })
+    await redis.set("auto_bet:total_fee", (existingFee as number) + r.totalFee)
+    const logEntry = JSON.stringify({ ts: Date.now(), results: r.results, totalFee: r.totalFee })
     await redis.lpush("auto_bet:logs", logEntry)
     await redis.ltrim("auto_bet:logs", 0, 99)
-    return NextResponse.json({ ok: true, round, results, totalFeeThisRound: totalFee, accumulatedFee: (existingFee as number) + totalFee })
+    return NextResponse.json({ ok: true, round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: (existingFee as number) + r.totalFee })
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 })
