@@ -163,11 +163,14 @@ export async function POST(request: Request) {
       // prevSnap 우선: 첫 배팅 시점 odds 고정 (새 odds로 덮어쓰지 않음)
       const mergedSnap = { ...oddsSnap, ...prevSnap }
 
+      // 유저의 현재 진행중 배팅 roundNumber를 별도 키로 저장 (settle-me가 이전/현재 라운드 모두 조회 가능하도록)
+      const userRoundKey = `bet:round:${gameType}:${userId}`
       redisOps.push(
         redis.hincrby(poolKey, side, betAmount),
         redis.sadd(userSetKey, userId),
         redis.set(betsKey, JSON.stringify(merged), { ex: ttl }),
         redis.set(oddsSnapKey, JSON.stringify(mergedSnap), { ex: ttl }),
+        redis.set(userRoundKey, roundNumber, { ex: ttl }),
         redis.expire(poolKey, ttl),
         redis.expire(userSetKey, ttl),
       )

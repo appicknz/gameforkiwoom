@@ -44,18 +44,33 @@ export async function POST(request: Request) {
       d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
 
     // ── 유저 배팅 내역 조회 ──────────────────────────────────
-    const betsKey     = `bet:bets:${gameType}:${roundNumber}:${userId}`
-    const oddsSnapKey = `odds:snap:${gameType}:${roundNumber}:${userId}`
-    const [betsRaw, oddsSnapRaw] = await Promise.all([
-      redis.get<string>(betsKey),
-      redis.get<string>(oddsSnapKey),
-    ])
+    // 저장된 roundNumber를 우선 사용 (프론트에서 넘긴 값이 라운드 경계에서 틀릴 수 있음)
+    const userRoundKey  = `bet:round:${gameType}:${userId}`
+    const storedRound   = await redis.get<number>(userRoundKey)
+    // storedRound가 있으면 그것을 사용, 없으면 프론트 roundNumber ± 1 까지 시도
+    const candidates    = storedRound
+      ? [storedRound]
+      : [roundNumber, roundNumber - 1, roundNumber + 1]
+
+    let betsRaw:     string | null = null
+    let oddsSnapRaw: string | null = null
+    let resolvedRound: number      = roundNumber
+
+    for (const rn of candidates) {
+      const bk = `bet:bets:${gameType}:${rn}:${userId}`
+      const ok = `odds:snap:${gameType}:${rn}:${userId}`
+      const [b, o] = await Promise.all([redis.get<string>(bk), redis.get<string>(ok)])
+      if (b) { betsRaw = b; oddsSnapRaw = o; resolvedRound = rn; break }
+    }
 
     if (!betsRaw) {
       // 배팅 없음 — 현재 잔고만 반환
       const { data: balData } = await admin.from("balances").select("amount").eq("user_id", userId).single()
       return NextResponse.json({ success: true, payout: 0, balance: balData?.amount ?? 0 })
     }
+
+    // 정산 완료 후 userRoundKey 삭제 (다음 라운드에 오래된 데이터 조회 방지)
+    await redis.del(userRoundKey).catch(() => {})
 
     const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
 

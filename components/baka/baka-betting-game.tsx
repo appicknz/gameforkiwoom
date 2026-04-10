@@ -537,7 +537,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const betDirectionAmountRef = useRef(0)
   const betDigitAmountRef = useRef(0)
   const betParityAmountRef = useRef(0)
-  const betBaccaratAmountRef = useRef(0)
+  const betBaccaratAmountRef  = useRef(0)
+  const betRoundNumberRef     = useRef(0)  // 배팅 시점 roundNumber 보존 (정산 시 라운드 경계 문제 방지)
   const basePriceRef = useRef<number | null>(null)
   const roundRef = useRef<number>(0)
   const currentPriceRef = useRef<number | null>(null)
@@ -677,7 +678,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           body: JSON.stringify({
             closePrice,
             basePrice: effectiveBase,
-            roundNumber: getRoundNumber(),
+            // 배팅 시점에 저장해둔 roundNumber 사용 (라운드 경계에서 불일치 방지)
+            roundNumber: betRoundNumberRef.current || getRoundNumber(),
             gameType: "baccarat",
           }),
         })
@@ -701,6 +703,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       betParityRef.current = null; betBaccaratRef.current = null
       betDirectionAmountRef.current = 0; betDigitAmountRef.current = 0
       betParityAmountRef.current = 0; betBaccaratAmountRef.current = 0
+      betRoundNumberRef.current = 0
       setBetDirection(null); setBetDigit(null); setBetParity(null); setBetBaccarat(null)
       setBetDirectionAmount(0); setBetDigitAmount(0); setBetParityAmount(0); setBetBaccaratAmount(0)
 
@@ -865,6 +868,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         setBetBaccarat(value as BetBaccarat); setBetBaccaratAmount(cfg.amount)
         onBetSideTrigger?.(value as "player" | "banker" | "tie")
       }
+      // 배팅 성공 시 현재 라운드 번호를 ref에 저장 (정산 시 경계 문제 방지)
+      betRoundNumberRef.current = getRoundNumber()
       if (!basePriceRef.current && currentPriceRef.current) {
         basePriceRef.current = currentPriceRef.current
         setBasePrice(currentPriceRef.current)
