@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const userId = user.id
 
   try {
-    const { closePrice, basePrice, roundNumber, gameType = "baccarat" } = await request.json()
+    const { closePrice, basePrice, roundNumber, gameType = "baccarat", bitScore: clientBitScore, coinScore: clientCoinScore } = await request.json()
     if (typeof closePrice !== "number" || typeof roundNumber !== "number") {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 })
     }
@@ -63,8 +63,6 @@ export async function POST(request: Request) {
       const [b, o] = await Promise.all([redis.get<string>(bk), redis.get<string>(ok)])
       if (b) { betsRaw = b; oddsSnapRaw = o; resolvedRound = rn; resolvedBetsKey = bk; break }
     }
-    console.log("[v0] settle-me candidates:", candidates, "resolvedRound:", resolvedRound, "hasBets:", !!betsRaw)
-
     if (!betsRaw) {
       // 배팅 없음 — 현재 잔고만 반환
       const { data: balData } = await admin.from("balances").select("amount").eq("user_id", userId).single()
@@ -143,13 +141,27 @@ export async function POST(request: Request) {
       }
     } else {
       // race 정산
-      const d1 = parseInt(closePrice.toFixed(2).split(".")[1]?.[0] ?? "0")
-      const raceRoundNumber = Math.floor(Date.now() / 1000 / 300)
-      const raceScoreKey = `race:score:${raceRoundNumber}`
-      const scoreData = await redis.hgetall(raceScoreKey).catch(() => null)
-      const bitScore  = parseInt((scoreData?.bit  as string) ?? "0") || 0
-      const coinScore = parseInt((scoreData?.coin as string) ?? "0") || 0
-      const raceWinner = bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
+      // 1순위: 클라이언트가 보낸 bitScore/coinScore (종료 시점 정확한 값)
+      // 2순위: Redis race:score:{roundNumber} (같은 라운드 번호로 조회)
+      // 3순위: race_results DB
+      let bitScore  = (typeof clientBitScore  === "number") ? clientBitScore  : 0
+      let coinScore = (typeof clientCoinScore === "number") ? clientCoinScore : 0
+
+      if (bitScore === 0 && coinScore === 0) {
+        const raceScoreKey = `race:score:${roundNumber}`
+        const scoreData = await redis.hgetall(raceScoreKey).catch(() => null)
+        bitScore  = parseInt((scoreData?.bit  as string) ?? "0") || 0
+        coinScore = parseInt((scoreData?.coin as string) ?? "0") || 0
+      }
+
+      if (bitScore === 0 && coinScore === 0) {
+        // DB fallback: 해당 라운드 종료 시각으로 조회
+        const raceTime = roundNumber * 300
+        const { data: raceRow } = await admin.from("race_results").select("bit_score,coin_score,winner").eq("time", raceTime).maybeSingle()
+        if (raceRow) { bitScore = raceRow.bit_score ?? 0; coinScore = raceRow.coin_score ?? 0 }
+      }
+
+      const raceWinner: "bit" | "coin" | "tie" = bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
 
       if (bets.raceSide && bets.raceAmount > 0) {
         const side = bets.raceSide as "bit" | "coin" | "tie"
@@ -205,6 +217,24 @@ export async function POST(request: Request) {
         }
       }
 
+      if (gameType === "race" && bets.raceSide && bets.raceAmount > 0) {
+        const side = bets.raceSide as "bit" | "coin" | "tie"
+        const raceWinner2: "bit" | "coin" | "tie" =
+          (typeof clientBitScore === "number" && typeof clientCoinScore === "number")
+            ? (clientBitScore > clientCoinScore ? "bit" : clientCoinScore > clientBitScore ? "coin" : "tie")
+            : "tie"
+        const won = side === raceWinner2
+        const refund = raceWinner2 === "tie" && (side === "bit" || side === "coin")
+        const odds = (typeof snap[side] === "number" && snap[side] > 0) ? snap[side] : 1.95
+        historyRows.push({
+          user_id: userId, branch_id: branchId, round_id: null,
+          bet_direction: `race_${side}`, bet_digit: null, bet_parity: null,
+          bet_amount: bets.raceAmount,
+          payout: won ? Math.floor(bets.raceAmount * odds) : refund ? bets.raceAmount : 0,
+          result: won ? "win" : refund ? "tie" : "lose",
+        })
+      }
+
       if (historyRows.length > 0) {
         await admin.from("bet_history").insert(historyRows).then(() => {}).catch(() => {})
       }
@@ -233,8 +263,6 @@ export async function POST(request: Request) {
       redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),
       redis.incr(`balance_version:${userId}`),
     ])
-
-    console.log("[v0] settle-me result | side:", bets.baccaratSide ?? bets.raceSide, "| betAmount:", bets.baccaratAmount ?? bets.raceAmount, "| oddsSnap:", JSON.stringify(oddsSnap), "| payout:", totalPayout, "| newBalance:", newBalance)
 
     // 배팅 키 삭제 (중복 정산 방지)
     await redis.del(resolvedBetsKey).catch(() => {})

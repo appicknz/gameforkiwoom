@@ -563,10 +563,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     const raceResult: "bit" | "coin" | "tie" =
       bit > coin ? "bit" : coin > bit ? "coin" : "tie"
 
-      // race:closing 이벤트 및 DB 저장은 race-game.tsx result 페이즈에서 처리
-    // (서버 스코어 기반으로 정확한 값을 저장)
-
-    const closePrice = currentPriceRef.current ?? 0
+      const closePrice = currentPriceRef.current ?? 0
     const effectiveBase = basePriceRef.current ?? closePrice
     const decStr = closePrice.toFixed(2).split(".")[1] ?? "00"
     const d2 = parseInt(decStr[1] ?? "0")
@@ -584,19 +581,37 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
 
     const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betRaceRef.current
 
-    // DB 저장 (빅로드용)
-    fetch("/api/rounds/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        basePrice: effectiveBase, closePrice,
-        baccaratResult: raceResult === "bit" ? "banker" : raceResult === "coin" ? "player" : "tie",
-        gameType: "race",
-      }),
-    }).catch(() => {})
+    // ── settle-me 호출: 배팅이 있으면 서버 정산 + 잔고 갱신 ──────────────
+    // roundNum(종료된 라운드)을 명시적으로 전달 — settle-me 내부에서 이 번호로 스코어/스냅샷 조회
+    if (hasBet) {
+      const token = getToken()
+      if (token) {
+        fetch("/api/game/settle-me", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            closePrice,
+            basePrice: effectiveBase,
+            roundNumber: roundNum,   // 종료된 라운드 번호 (현재 라운드 X)
+            gameType: "race",
+            bitScore: bit,
+            coinScore: coin,
+          }),
+        })
+          .then(r => r.json())
+          .then(d => {
+            if (typeof d.balance === "number") {
+              setBalance(d.balance)
+              window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
+            }
+            if (d.appliedOdds) {
+              setLastResult(prev => prev ? { ...prev, raceAppliedOdds: d.appliedOdds } : prev)
+            }
+          })
+          .catch(() => {})
+      }
+    }
 
-    // 정산은 price-server → game/settle이 주도 (클라이언트 fetch 제거)
-    // 잔고 업데이트는 balance/stream SSE가 자동으로 push
     if (hasBet) {
 
       const result: RoundResult = {
