@@ -290,11 +290,16 @@ export function AutoBetMonitor() {
     setResetLoading(false)
   }
 
+  const statsRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   useEffect(() => {
     loadUsers(); loadLogs()
+    // 30초마다 통계 자동 갱신 (정산 완료 후 승패·수익 반영)
+    statsRefreshRef.current = setInterval(() => { loadUsers() }, 30_000)
     return () => {
       if (baccaratIntervalRef.current) clearInterval(baccaratIntervalRef.current)
       if (raceIntervalRef.current) clearInterval(raceIntervalRef.current)
+      if (statsRefreshRef.current) clearInterval(statsRefreshRef.current)
     }
   }, [loadUsers, loadLogs])
 

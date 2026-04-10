@@ -66,15 +66,18 @@ export async function GET(request: Request) {
   const baccaratRound = Math.floor(nowSec / 30)
   const raceRound     = Math.floor(nowSec / 300)
 
-  // ── 전체 집계 통계 (bet_history 전수 조회) ─────────────────
+  // ── bet_history 전수 조회 (통계 집계 + 최근 정산 내역 동시 처리) ──
   const { data: allHistory } = await adminSupabase
     .from("bet_history")
-    .select("user_id, bet_amount, payout, result, created_at")
+    .select("user_id, bet_direction, bet_amount, payout, result, created_at")
     .in("user_id", userIds)
+    .order("created_at", { ascending: false })  // 최신순 정렬
 
-  // ── 유저별 개인 통계 집계 ──────────────────────────────────
+  // ── 유저별 개인 통계 집계 + 최신 1건 추출 ──────────────────
   type UserStat = { winProfit: number; loss: number; winCount: number; loseCount: number; tieCount: number; fee: number }
   const perUserStats: Record<string, UserStat> = {}
+  const lastHistoryMap: Record<string, { bet_direction: string; bet_amount: number; payout: number; result: string; created_at: string }> = {}
+
   for (const uid of userIds) {
     perUserStats[uid] = { winProfit: 0, loss: 0, winCount: 0, loseCount: 0, tieCount: 0, fee: 0 }
   }
@@ -88,7 +91,11 @@ export async function GET(request: Request) {
   for (const h of allHistory ?? []) {
     const s = perUserStats[h.user_id]
     if (!s) continue
-    s.fee += Math.floor(h.bet_amount * 0.2)   // 20% 수수료 누적
+    // 최신 1건 저장 (이미 desc 정렬되어 있으므로 첫 번째 만나는 것이 최신)
+    if (!lastHistoryMap[h.user_id]) {
+      lastHistoryMap[h.user_id] = h as any
+    }
+    s.fee += Math.floor(h.bet_amount * 0.2)
     if (h.result === "win") {
       s.winCount++; s.winProfit += (h.payout - h.bet_amount)
       winCount++; totalWinProfit += (h.payout - h.bet_amount)
@@ -103,26 +110,6 @@ export async function GET(request: Request) {
   const winRate   = totalBets > 0 ? Math.round((winCount / totalBets) * 1000) / 10 : 0
   const totalBalance = Object.values(balMap).reduce((s, v) => s + v, 0)
   const stats = { totalWinProfit, totalLoss, totalBalance, winRate, winCount, loseCount, tieCount, totalBets }
-
-  // ── 유저별 최근 정산 내역 (bet_history) — 최신 1건씩 ──────────
-  const lastHistoryMap: Record<string, { bet_direction: string; bet_amount: number; payout: number; result: string; created_at: string }> = {}
-  // allHistory는 created_at desc가 아니라 asc일 수 있으므로 정렬 후 추출
-  const sortedHistory = [...(allHistory ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))
-  for (const h of sortedHistory) {
-    if (!lastHistoryMap[h.user_id] && (h as any).bet_direction !== undefined) {
-      lastHistoryMap[h.user_id] = h as any
-    }
-  }
-  // bet_direction이 allHistory에 없으면 별도 조회
-  const { data: recentHistory } = await adminSupabase
-    .from("bet_history")
-    .select("user_id, bet_direction, bet_amount, payout, result, created_at")
-    .in("user_id", userIds)
-    .order("created_at", { ascending: false })
-    .limit(userIds.length * 3)
-  for (const h of recentHistory ?? []) {
-    if (!lastHistoryMap[h.user_id]) lastHistoryMap[h.user_id] = h
-  }
 
   // 각 유저의 현재 라운드 배팅 상태 조회 (Redis)
   const users = await Promise.all(profiles.map(async p => {
