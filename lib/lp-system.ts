@@ -120,10 +120,17 @@ const MAX_ODDS        = 50.0
 
 /**
  * V: 하우스 기준 가상 풀 크기
- * 유저가 아무도 없을 때 dynamic_lp = V×0.8/1.95 로 초기 배당 ~1.95x 유지
- * 유저 배팅이 쌓일수록 multiplier가 감소 → LP 비중 줄어듦
+ * 유저가 아무도 없을 때 초기 배당 정확히 INITIAL_ODDS로 유지
+ * 유저 배팅이 쌓일수록 multiplier 감소 → LP 비중 줄어들며 순수 파리뮤추얼로 전환
+ *
+ * [수식 설계]
+ *   netPool = (dynamic_lp × INITIAL_ODDS) + (totalUserBet × 0.8)
+ *   odds_side = netPool / (dynamic_lp + user_side)
+ *   → 유저 0명: odds = dynamic_lp × 1.95 / dynamic_lp = 1.95x (정확)
+ *   → 유저 늘어날수록 파리뮤추얼로 부드럽게 전환
  */
-const V = 300_000_000  // 3억 (배팅 단위와 무관하게 고정)
+const V             = 300_000_000  // 3억 (배팅 단위와 무관하게 고정)
+const INITIAL_ODDS  = 1.95         // 초기 배당 목표값
 
 // ── 내부 유틸 ────────────────────────────────────────────────────────────────
 
@@ -141,13 +148,13 @@ function calcLpMultiplier(totalUserBet: number, userCount: number): number {
 /**
  * dynamic_lp 계산 (사이드당)
  *
- *   dynamic_lp = (V × 0.8 / 1.95) × multiplier
+ *   dynamic_lp = (V / 3) × multiplier
  *
- * 유저 없을 때 multiplier=1 → dynamic_lp = V×0.8/1.95
- * → 배당 = net_pool / (dynamic_lp + 0) ≈ 1.95x
+ * 유저 없을 때 multiplier=1 → dynamic_lp = V/3
+ * netPool = dynamic_lp × 1.95 → odds = 1.95x (정확)
  */
 function calcDynamicLp(multiplier: number): number {
-  return (V * 0.8 / 1.95) * multiplier
+  return (V / 3) * multiplier
 }
 
 /** 배당률 클램핑 */
@@ -162,7 +169,7 @@ function getMode(multiplier: number): "seeded" | "decay" | "natural" {
   return "natural"
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────���─────────────────
 
 /**
  * 바카라 배당률 계산
@@ -183,13 +190,15 @@ export function calcBaccaratOdds(
     }
   }
 
-  const multiplier  = lpConfig.enabled ? calcLpMultiplier(totalUserBet, userCount) : 0
-  const dynamicLp   = lpConfig.enabled ? calcDynamicLp(multiplier) : 0
+  const multiplier = lpConfig.enabled ? calcLpMultiplier(totalUserBet, userCount) : 0
+  const dynamicLp  = lpConfig.enabled ? calcDynamicLp(multiplier) : 0
 
-  // net_pool = (dynamic_lp×3 + totalUserBet) × 0.8
+  // netPool = LP 가상 기여분(초기배당 보장) + 유저 배팅 순수익
+  // → 유저 0명: netPool = dynamicLp × 1.95, odds = 1.95x 정확히 유지
+  // → 유저 늘수록 파리뮤추얼로 부드럽게 전환
+  const netPool = dynamicLp * INITIAL_ODDS + totalUserBet * (1 - FEE_RATE)
+  const fee     = Math.floor(totalUserBet * FEE_RATE)
   const grossPool = dynamicLp * 3 + totalUserBet
-  const netPool   = grossPool * 0.8
-  const fee       = Math.floor(totalUserBet * FEE_RATE)
 
   // 사이드별 실효 풀 = 유저 배팅 + dynamic_lp
   const totalPlayer = userPools.player + dynamicLp
@@ -235,9 +244,10 @@ export function calcRaceOdds(
   const multiplier = lpConfig.enabled ? calcLpMultiplier(totalUserBet, userCount) : 0
   const dynamicLp  = lpConfig.enabled ? calcDynamicLp(multiplier) : 0
 
-  const grossPool = dynamicLp * 3 + totalUserBet
-  const netPool   = grossPool * 0.8
+  // netPool = LP 가상 기여분 + 유저 배팅 순수익 (바카라와 동일 공식)
+  const netPool   = dynamicLp * INITIAL_ODDS + totalUserBet * (1 - FEE_RATE)
   const fee       = Math.floor(totalUserBet * FEE_RATE)
+  const grossPool = dynamicLp * 3 + totalUserBet
 
   const totalBit  = userPools.bit  + dynamicLp
   const totalCoin = userPools.coin + dynamicLp
