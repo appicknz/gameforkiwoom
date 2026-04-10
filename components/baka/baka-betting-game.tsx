@@ -305,24 +305,27 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
     },
     result.baccarat && {
       key: result.baccarat, label: LABEL_MAP[result.baccarat], won: result.wonBaccarat, amount: result.baccaratAmount,
+      odds: (() => {
+        if (!result.baccaratOdds) return 1.95
+        const o = result.baccaratOdds
+        return result.baccarat === "player" ? (o.player ?? 1.95)
+          : result.baccarat === "banker" ? (o.banker ?? 1.95)
+          : (o.tie ?? 1.95)
+      })(),
       payout: result.wonBaccarat
         ? (() => {
-          // 실시간 LP 배당률 사용 (없으면 고정 배율 폴백)
-          if (result.baccaratOdds) {
-            const odds = result.baccarat === "player" ? result.baccaratOdds.player
-              : result.baccarat === "banker" ? result.baccaratOdds.banker
-                : result.baccaratOdds.tie
-            return Math.floor(result.baccaratAmount * odds)
-          }
-          // 폴백 (baccaratOdds가 null일 때만)
-          return result.baccarat === "player" ? Math.floor(result.baccaratAmount * 2)
-            : result.baccarat === "banker" ? Math.floor(result.baccaratAmount * 1.95)
-              : Math.floor(result.baccaratAmount * 9)
+          const o = result.baccaratOdds
+          const odds = o
+            ? (result.baccarat === "player" ? (o.player ?? 1.95)
+              : result.baccarat === "banker" ? (o.banker ?? 1.95)
+              : (o.tie ?? 1.95))
+            : 1.95
+          return Math.floor(result.baccaratAmount * odds)
         })()
         : result.baccaratRefund ? result.baccaratAmount : 0,
       isRefund: result.baccaratRefund && !result.wonBaccarat,
     },
-  ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number; payout: number; isRefund?: boolean }[]
+  ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number; payout: number; odds?: number; isRefund?: boolean }[]
 
   const totalBet    = bets.reduce((s, b) => s + b.amount, 0)
   const totalPayout = bets.reduce((s, b) => s + b.payout, 0)
@@ -385,6 +388,11 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
                   <p className="text-sm font-semibold tabular-nums" style={{ color: G.text }}>
                     ₩{bet.amount.toLocaleString()}
                   </p>
+                  {bet.odds && (
+                    <p className="text-[10px] mt-0.5 tabular-nums font-bold" style={{ color: G.gold }}>
+                      {bet.odds.toFixed(2)}x
+                    </p>
+                  )}
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-[10px] mb-0.5" style={{ color: G.textDim }}>
@@ -660,7 +668,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       setPhase("result")
 
       // 서버 정산 호출 — Railway 유무와 무관하게 클라이언트가 직접 실행
-      // 배팅이 있는 경우에만 호출 (잔고 반영)
+      // 배팅이 있는 경우���만 호출 (잔고 반영)
       const token = getToken()
       if (token) {
         fetch("/api/game/settle-me", {
@@ -679,6 +687,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
             if (typeof d.balance === "number") {
               setBalance(d.balance)
               window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
+            }
+            // 서버 확정 odds로 결과 모달 업데이트 (화면 표시 배율 정확히 반영)
+            if (d.appliedOdds) {
+              setLastResult(prev => prev ? { ...prev, baccaratOdds: d.appliedOdds } : prev)
             }
           })
           .catch(() => {})
@@ -1026,7 +1038,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
       }}>
 
-        {/* ── 헤더: 배팅 + 라운드 + 자동배팅 버튼 + 타이머 (한 줄) ── */}
+        {/* ── 헤더: ���팅 + 라운드 + 자동배팅 버튼 + 타이머 (한 줄) ── */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           {/* 좌: 타이틀 + 라운드 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -135,7 +135,11 @@ export async function POST(request: Request) {
         }
         const userCount = await redis.scard(`users:baccarat:${roundNumber}`).catch(() => 0)
         const r = calcBaccaratOdds(pool, lpConfig, userCount as number)
-        oddsSnap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+        oddsSnap = {
+          player: typeof r.playerOdds === "number" ? r.playerOdds : 1.95,
+          banker: typeof r.bankerOdds === "number" ? r.bankerOdds : 1.95,
+          tie:    typeof r.tieOdds    === "number" ? r.tieOdds    : 1.95,
+        }
       } else {
         const pool = {
           bit:  parseInt((poolData?.bit  as string) ?? "0") || 0,
@@ -144,15 +148,19 @@ export async function POST(request: Request) {
         }
         const userCount = await redis.scard(`users:race:${roundNumber}`).catch(() => 0)
         const r = calcRaceOdds(pool, lpConfig, userCount as number)
-        oddsSnap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+        oddsSnap = {
+          bit:  typeof r.bitOdds  === "number" ? r.bitOdds  : 1.95,
+          coin: typeof r.coinOdds === "number" ? r.coinOdds : 1.95,
+          tie:  typeof r.tieOdds  === "number" ? r.tieOdds  : 1.95,
+        }
       }
 
-      // 기존 스냅샷이 있으면 배팅 사이드별로 merge (사이드별 첫 배팅 시점 odds 보존)
+      // 기존 스냅샷이 있으면 이미 저장된 사이드 odds 보존, 없는 사이드만 새로 추가
       const existingSnap = await redis.get<string>(oddsSnapKey)
       const prevSnap = existingSnap
         ? (typeof existingSnap === "string" ? JSON.parse(existingSnap) : existingSnap)
         : {}
-      // 이미 저장된 사이드는 유지 (처음 배팅 시점 odds 고정), 새 사이드만 추가
+      // prevSnap 우선: 첫 배팅 시점 odds 고정 (새 odds로 덮어쓰지 않음)
       const mergedSnap = { ...oddsSnap, ...prevSnap }
 
       redisOps.push(

@@ -220,7 +220,13 @@ export async function POST(request: Request) {
     // 배팅 키 삭제 (중복 정산 방지)
     await redis.del(betsKey).catch(() => {})
 
-    return NextResponse.json({ success: true, payout: totalPayout, balance: newBalance })
+    return NextResponse.json({
+      success: true,
+      payout: totalPayout,
+      balance: newBalance,
+      // 정산에 사용된 실제 odds 반환 → 프론트 결과 모달에서 확정 배율 표시
+      appliedOdds: oddsSnap,
+    })
   } catch (err) {
     console.error("[v0] settle-me error:", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
