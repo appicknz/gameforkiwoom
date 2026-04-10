@@ -13,6 +13,8 @@ interface AutoBetUser {
   num: number
   gameType: "baccarat" | "race"
   balance: number
+  currentRound: number
+  currentBet: { side: string; amount: number; odds: number | null } | null
 }
 
 interface BetResult {
@@ -23,6 +25,8 @@ interface BetResult {
   success: boolean
   error?: string
   balance: number
+  round: number
+  odds: number | null
 }
 
 interface BetLog {
@@ -291,13 +295,14 @@ export function AutoBetMonitor() {
       {/* ── 최근 배팅 결과 (1줄=1유저) ── */}
       {lastBetResults && (
         <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-border">
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
             <h4 className="text-sm font-semibold text-foreground">최근 배팅 결과</h4>
+            <span className="text-xs text-muted-foreground">라운드 #{lastBetResults[0]?.round ?? "-"}</span>
           </div>
           <div className="divide-y divide-border">
             {lastBetResults.map((r, i) => (
               <div key={i} className="px-5 py-2.5 flex items-center justify-between text-sm">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <span className="font-medium text-foreground w-16 shrink-0">{r.username}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded-full ${r.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
                     {r.gameType === "baccarat" ? "바카라" : "레이스"}
@@ -305,12 +310,16 @@ export function AutoBetMonitor() {
                   <span className={`text-xs font-semibold ${SIDE_COLOR[r.side] ?? "text-foreground"}`}>
                     {SIDE_LABEL[r.side] ?? r.side}
                   </span>
-                  <span className="text-xs tabular-nums text-foreground font-medium">{fmt(r.amount)}</span>
+                  <span className="text-xs tabular-nums text-foreground">{fmt(r.amount)}</span>
+                  {/* 확정 배당 */}
+                  {r.success && r.odds != null && (
+                    <span className="text-xs font-bold tabular-nums text-amber-500">{r.odds.toFixed(2)}x</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   {r.success ? (
                     <>
-                      <span className="text-xs text-amber-500">수수료 {fmt(Math.floor(r.amount * 0.2))}</span>
+                      <span className="text-xs text-muted-foreground">수수료 {fmt(Math.floor(r.amount * 0.2))}</span>
                       <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                     </>
                   ) : (
@@ -332,25 +341,38 @@ export function AutoBetMonitor() {
         <div className="px-5 py-3 border-b border-border">
           <h4 className="text-sm font-semibold text-foreground">자동배팅 유저 목록</h4>
         </div>
+        {/* 헤더 */}
+        <div className="px-5 py-2 bg-muted/50 grid grid-cols-[5rem_5rem_1fr_6rem_5rem_6rem] gap-2 text-xs text-muted-foreground font-medium">
+          <span>유저</span>
+          <span>게임</span>
+          <span>현재 라운드</span>
+          <span>배팅 side</span>
+          <span className="text-right">배당</span>
+          <span className="text-right">잔고</span>
+        </div>
         <div className="divide-y divide-border">
           {users.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">유저 목록 로딩 중...</div>
           ) : users.map(u => (
-            <div key={u.id} className="px-5 py-2.5 flex items-center justify-between text-sm">
-              <div className="flex items-center gap-3">
-                <span className="font-medium text-foreground w-16 shrink-0">{u.username}</span>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${u.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
-                  {u.gameType === "baccarat" ? "바카라" : "레이스"}
+            <div key={u.id} className="px-5 py-2.5 grid grid-cols-[5rem_5rem_1fr_6rem_5rem_6rem] gap-2 items-center text-sm">
+              <span className="font-medium text-foreground truncate">{u.username}</span>
+              <span className={`text-xs px-1.5 py-0.5 rounded-full w-fit ${u.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
+                {u.gameType === "baccarat" ? "바카라" : "레이스"}
+              </span>
+              <span className="text-xs text-muted-foreground tabular-nums">#{u.currentRound}</span>
+              {u.currentBet ? (
+                <span className={`text-xs font-semibold ${SIDE_COLOR[u.currentBet.side] ?? "text-foreground"}`}>
+                  {SIDE_LABEL[u.currentBet.side] ?? u.currentBet.side}
                 </span>
-              </div>
-              <div className="flex items-center gap-3">
-                {u.balance < 1000000 && (
-                  <span className="text-xs text-orange-500 font-medium">잔고 부족</span>
-                )}
-                <span className={`text-sm font-bold tabular-nums ${u.balance < 1000000 ? "text-orange-500" : "text-foreground"}`}>
-                  {fmt(u.balance)}
-                </span>
-              </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">배팅 없음</span>
+              )}
+              <span className="text-xs font-bold tabular-nums text-amber-500 text-right">
+                {u.currentBet?.odds != null ? `${u.currentBet.odds.toFixed(2)}x` : "—"}
+              </span>
+              <span className={`text-sm font-bold tabular-nums text-right ${u.balance < 1000000 ? "text-orange-500" : "text-foreground"}`}>
+                {fmt(u.balance)}
+              </span>
             </div>
           ))}
         </div>

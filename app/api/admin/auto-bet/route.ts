@@ -2,6 +2,7 @@ import { adminSupabase } from "@/lib/supabase-admin"
 import { createClient } from "@supabase/supabase-js"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
+import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -61,16 +62,35 @@ export async function GET(request: Request) {
 
   const balMap = Object.fromEntries((balances ?? []).map(b => [b.user_id, b.amount]))
 
-  const users = profiles.map(p => {
+  const nowSec = Math.floor(Date.now() / 1000)
+  const baccaratRound = Math.floor(nowSec / 30)
+  const raceRound     = Math.floor(nowSec / 300)
+
+  // 각 유저의 현재 라운드 배팅 상태 조회 (Redis)
+  const users = await Promise.all(profiles.map(async p => {
     const num = parseInt(p.username.replace("사용자", ""))
+    const gameType = num % 2 !== 0 ? "baccarat" : "race"
+    const round = gameType === "baccarat" ? baccaratRound : raceRound
+    const betsKey    = `bet:bets:${gameType}:${round}:${p.id}`
+    const oddsKey    = `odds:snap:${gameType}:${round}:${p.id}`
+    const [betsRaw, oddsRaw] = await Promise.all([
+      redis.get<string>(betsKey),
+      redis.get<string>(oddsKey),
+    ])
+    const bets = betsRaw ? (typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw) : null
+    const odds = oddsRaw ? (typeof oddsRaw === "string" ? JSON.parse(oddsRaw) : oddsRaw) : null
+    const side = bets?.baccaratSide ?? bets?.raceSide ?? null
+    const appliedOdds = (odds && side && typeof odds[side] === "number") ? odds[side] : null
     return {
       id: p.id,
       username: p.username,
       num,
-      gameType: num % 2 !== 0 ? "baccarat" : "race",
+      gameType,
       balance: balMap[p.id] ?? 0,
+      currentRound: round,
+      currentBet: bets ? { side, amount: bets.baccaratAmount ?? bets.raceAmount ?? 0, odds: appliedOdds } : null,
     }
-  })
+  }))
 
   return NextResponse.json({ users })
 }
@@ -104,6 +124,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
   const results: {
     username: string; gameType: string; side: string
     amount: number; success: boolean; error?: string; balance: number
+    round: number; odds: number | null
   }[] = []
   let totalFee = 0
 
@@ -115,7 +136,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
     const currentBalance = balMap[p.id] ?? 0
 
     if (currentBalance < amount) {
-      results.push({ username: p.username, gameType, side, amount, success: false, error: "잔고 부족", balance: currentBalance })
+      results.push({ username: p.username, gameType, side, amount, success: false, error: "잔고 부족", balance: currentBalance, round: roundNumber, odds: null })
       continue
     }
 
@@ -124,7 +145,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
     if (gameType === "race") {
       const existing = await redis.get(userBetsKey)
       if (existing) {
-        results.push({ username: p.username, gameType, side, amount, success: false, error: "이미 배팅함", balance: currentBalance })
+        results.push({ username: p.username, gameType, side, amount, success: false, error: "이미 배팅함", balance: currentBalance, round: roundNumber, odds: null })
         continue
       }
     }
@@ -134,12 +155,12 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       const { data: newBal, error: deductErr } = await adminSupabase
         .rpc("deduct_balance_for_bet", { p_user_id: p.id, p_amount: amount })
       if (deductErr) {
-        results.push({ username: p.username, gameType, side, amount, success: false, error: deductErr.message, balance: currentBalance })
+        results.push({ username: p.username, gameType, side, amount, success: false, error: deductErr.message, balance: currentBalance, round: roundNumber, odds: null })
         continue
       }
 
       // Redis 풀 반영 (settle-me/bet route.ts와 동일한 키 구조)
-      const poolKey  = `pool:${gameType}:${roundNumber}`
+      const poolKey    = `pool:${gameType}:${roundNumber}`
       const userSetKey = `users:${gameType}:${roundNumber}`
       await Promise.all([
         redis.hincrby(poolKey, side, amount),
@@ -148,27 +169,50 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         redis.expire(userSetKey, ttl),
       ])
 
-      // 유저별 배팅 내역 저장 (settle-me가 정산에 사용)
+      // 배팅 반영 후 풀로 실제 LP odds 계산
+      const poolDataAfter = await redis.hgetall(poolKey).catch(() => null)
+      const userCount = await redis.scard(userSetKey).catch(() => 1)
+      let snap: Record<string, number>
+      let appliedOdds: number | null = null
+
+      if (gameType === "baccarat") {
+        const pool = {
+          player: parseInt((poolDataAfter?.player as string) ?? "0") || 0,
+          banker: parseInt((poolDataAfter?.banker as string) ?? "0") || 0,
+          tie:    parseInt((poolDataAfter?.tie    as string) ?? "0") || 0,
+        }
+        const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, userCount as number)
+        snap = {
+          player: typeof r.playerOdds === "number" ? r.playerOdds : 1.95,
+          banker: typeof r.bankerOdds === "number" ? r.bankerOdds : 1.95,
+          tie:    typeof r.tieOdds    === "number" ? r.tieOdds    : 1.95,
+        }
+        appliedOdds = snap[side] ?? 1.95
+      } else {
+        const pool = {
+          bit:  parseInt((poolDataAfter?.bit  as string) ?? "0") || 0,
+          coin: parseInt((poolDataAfter?.coin as string) ?? "0") || 0,
+          tie:  parseInt((poolDataAfter?.tie  as string) ?? "0") || 0,
+        }
+        const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, userCount as number)
+        snap = {
+          bit:  typeof r.bitOdds  === "number" ? r.bitOdds  : 1.95,
+          coin: typeof r.coinOdds === "number" ? r.coinOdds : 1.95,
+          tie:  typeof r.tieOdds  === "number" ? r.tieOdds  : 1.95,
+        }
+        appliedOdds = snap[side] ?? 1.95
+      }
+
+      // 유저별 배팅 내역 + odds 스냅샷 저장 (settle-me가 정산에 사용)
       const betPayload = gameType === "baccarat"
         ? { baccaratSide: side, baccaratAmount: amount }
         : { raceSide: side, raceAmount: amount }
-      await redis.set(userBetsKey, JSON.stringify(betPayload), { ex: ttl })
-
-      // odds 스냅샷 저장 (배팅 후 풀 기준 — 간단히 현재 풀로 계산)
-      // 실제 odds는 settle-me에서 oddsSnap을 재사용하므로 풀만 저장해도 됨
       const oddsSnapKey = `odds:snap:${gameType}:${roundNumber}:${p.id}`
-      const poolData = await redis.hgetall(poolKey).catch(() => null)
-      if (poolData) {
-        // 간단한 1.95 기본값 스냅 (실제 LP 계산은 서버사이드 odds stream에서)
-        // 정산 시 settle-me가 oddsSnap을 우선 사용
-        const snap = gameType === "baccarat"
-          ? { player: 1.95, banker: 1.95, tie: 1.95 }
-          : { bit: 1.95, coin: 1.95, tie: 1.95 }
-        await redis.set(oddsSnapKey, JSON.stringify(snap), { ex: ttl })
-      }
-
-      // 유저 라운드 키 (settle-me roundNumber 매핑용)
-      await redis.set(`bet:round:${gameType}:${p.id}`, roundNumber, { ex: ttl })
+      await Promise.all([
+        redis.set(userBetsKey, JSON.stringify(betPayload), { ex: ttl }),
+        redis.set(oddsSnapKey, JSON.stringify(snap), { ex: ttl }),
+        redis.set(`bet:round:${gameType}:${p.id}`, roundNumber, { ex: ttl }),
+      ])
 
       // Redis 잔고 캐시 갱신
       await redis.set(`balance:${p.id}`, newBal as number, { ex: 3600 })
@@ -176,10 +220,10 @@ async function runBetForGame(gameType: "baccarat" | "race") {
 
       totalFee += Math.floor(amount * 0.2)
       balMap[p.id] = newBal as number
-      results.push({ username: p.username, gameType, side, amount, success: true, balance: newBal as number })
+      results.push({ username: p.username, gameType, side, amount, success: true, balance: newBal as number, round: roundNumber, odds: appliedOdds })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error"
-      results.push({ username: p.username, gameType, side, amount, success: false, error: msg, balance: currentBalance })
+      results.push({ username: p.username, gameType, side, amount, success: false, error: msg, balance: currentBalance, round: roundNumber, odds: null })
     }
   }
 
