@@ -1236,34 +1236,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
             })}
           </div>
 
-          {/* LP 유동성 모드 인디케이터 */}
-          {liveOdds?.mode && (
-            <div className="mt-1.5 flex items-center justify-center gap-1.5">
-              {liveOdds.mode === "pending" ? (
-                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
-                  배팅 후 배당 자동 확정
-                </span>
-              ) : (
-                <>
-                  <span style={{
-                    fontSize: 10,
-                    color: liveOdds.mode === "natural" ? "#22c55e"
-                      : liveOdds.mode === "decay" ? "#f97316"
-                      : "rgba(255,255,255,0.4)",
-                  }}>
-                    {liveOdds.mode === "seeded" && "유동성 안정 구간"}
-                    {liveOdds.mode === "decay"  && "유동성 감쇠 중"}
-                    {liveOdds.mode === "natural" && "자연 배당 구간"}
-                  </span>
-                  {liveOdds.lpWeight !== undefined && (
-                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
-                      LP {(liveOdds.lpWeight * 100).toFixed(0)}%
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+
         </div>
 
       </div>

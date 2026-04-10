@@ -231,6 +231,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         redis.sadd(userSetKey, p.id),
         redis.expire(poolKey, ttl),
         redis.expire(userSetKey, ttl),
+        redis.incr(`odds_version:${gameType}`),  // SSE 스트림 실시간 갱신 트리거
       ])
 
       // 배팅 반영 후 풀로 실제 LP odds 계산
