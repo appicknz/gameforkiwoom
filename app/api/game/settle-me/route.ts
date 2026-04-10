@@ -63,8 +63,6 @@ export async function POST(request: Request) {
       const [b, o] = await Promise.all([redis.get<string>(bk), redis.get<string>(ok)])
       if (b) { betsRaw = b; oddsSnapRaw = o; resolvedRound = rn; resolvedBetsKey = bk; break }
     }
-    console.log("[v0] settle-me candidates:", candidates, "resolvedRound:", resolvedRound, "hasBets:", !!betsRaw)
-
     if (!betsRaw) {
       // 배팅 없음 — 현재 잔고만 반환
       const { data: balData } = await admin.from("balances").select("amount").eq("user_id", userId).single()
@@ -233,8 +231,6 @@ export async function POST(request: Request) {
       redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),
       redis.incr(`balance_version:${userId}`),
     ])
-
-    console.log("[v0] settle-me result | side:", bets.baccaratSide ?? bets.raceSide, "| betAmount:", bets.baccaratAmount ?? bets.raceAmount, "| oddsSnap:", JSON.stringify(oddsSnap), "| payout:", totalPayout, "| newBalance:", newBalance)
 
     // 배팅 키 삭제 (중복 정산 방지)
     await redis.del(resolvedBetsKey).catch(() => {})
