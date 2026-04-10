@@ -66,13 +66,27 @@ export async function GET(request: Request) {
   const baccaratRound = Math.floor(nowSec / 30)
   const raceRound     = Math.floor(nowSec / 300)
 
+  // 유저별 최근 정산 내역 (bet_history) — 최신 1건씩 일괄 조회
+  const { data: recentHistory } = await adminSupabase
+    .from("bet_history")
+    .select("user_id, bet_direction, bet_amount, payout, result, created_at")
+    .in("user_id", userIds)
+    .order("created_at", { ascending: false })
+    .limit(userIds.length * 3)  // 유저당 최근 3건 여유
+
+  // 유저별 최신 1건만 추출
+  const lastHistoryMap: Record<string, { bet_direction: string; bet_amount: number; payout: number; result: string; created_at: string }> = {}
+  for (const h of recentHistory ?? []) {
+    if (!lastHistoryMap[h.user_id]) lastHistoryMap[h.user_id] = h
+  }
+
   // 각 유저의 현재 라운드 배팅 상태 조회 (Redis)
   const users = await Promise.all(profiles.map(async p => {
     const num = parseInt(p.username.replace("사용자", ""))
     const gameType = num % 2 !== 0 ? "baccarat" : "race"
     const round = gameType === "baccarat" ? baccaratRound : raceRound
-    const betsKey    = `bet:bets:${gameType}:${round}:${p.id}`
-    const oddsKey    = `odds:snap:${gameType}:${round}:${p.id}`
+    const betsKey = `bet:bets:${gameType}:${round}:${p.id}`
+    const oddsKey = `odds:snap:${gameType}:${round}:${p.id}`
     const [betsRaw, oddsRaw] = await Promise.all([
       redis.get<string>(betsKey),
       redis.get<string>(oddsKey),
@@ -81,6 +95,17 @@ export async function GET(request: Request) {
     const odds = oddsRaw ? (typeof oddsRaw === "string" ? JSON.parse(oddsRaw) : oddsRaw) : null
     const side = bets?.baccaratSide ?? bets?.raceSide ?? null
     const appliedOdds = (odds && side && typeof odds[side] === "number") ? odds[side] : null
+
+    const last = lastHistoryMap[p.id] ?? null
+    const lastSettled = last ? {
+      direction: last.bet_direction,
+      betAmount: last.bet_amount,
+      payout: last.payout,
+      profit: last.payout - last.bet_amount,   // 순수익 (환급포함 payout - 배팅액)
+      result: last.result as "win" | "lose" | "tie",
+      createdAt: last.created_at,
+    } : null
+
     return {
       id: p.id,
       username: p.username,
@@ -89,6 +114,7 @@ export async function GET(request: Request) {
       balance: balMap[p.id] ?? 0,
       currentRound: round,
       currentBet: bets ? { side, amount: bets.baccaratAmount ?? bets.raceAmount ?? 0, odds: appliedOdds } : null,
+      lastSettled,
     }
   }))
 

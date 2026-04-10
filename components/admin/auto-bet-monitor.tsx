@@ -7,6 +7,15 @@ import { RefreshCw, Play, Square, Wallet, TrendingUp, AlertCircle } from "lucide
 const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
 const fmt = (n: number) => `₩${n.toLocaleString("ko-KR")}`
 
+interface LastSettled {
+  direction: string
+  betAmount: number
+  payout: number
+  profit: number
+  result: "win" | "lose" | "tie"
+  createdAt: string
+}
+
 interface AutoBetUser {
   id: string
   username: string
@@ -15,6 +24,7 @@ interface AutoBetUser {
   balance: number
   currentRound: number
   currentBet: { side: string; amount: number; odds: number | null } | null
+  lastSettled: LastSettled | null
 }
 
 interface BetResult {
@@ -292,44 +302,41 @@ export function AutoBetMonitor() {
         )}
       </div>
 
-      {/* ── 최근 배팅 결과 (1줄=1유저) ── */}
+      {/* ── 최근 배팅 결과 (1줄=1유저, 배팅 완료 시점 — 승패는 라운드 종료 후 확정) ── */}
       {lastBetResults && (
         <div className="bg-card border border-border rounded-2xl overflow-hidden">
           <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-foreground">최근 배팅 결과</h4>
+            <div>
+              <h4 className="text-sm font-semibold text-foreground">최근 배팅 접수</h4>
+              <p className="text-xs text-muted-foreground mt-0.5">승패는 라운드 종료 후 유저 목록에서 확인</p>
+            </div>
             <span className="text-xs text-muted-foreground">라운드 #{lastBetResults[0]?.round ?? "-"}</span>
+          </div>
+          {/* 헤더 */}
+          <div className="px-5 py-1.5 bg-muted/40 grid grid-cols-[5rem_4.5rem_5rem_5rem_4rem_4rem_5.5rem] gap-2 text-xs text-muted-foreground font-medium">
+            <span>유저</span><span>게임</span><span>side</span><span>배팅금액</span>
+            <span className="text-right">배당</span><span>상태</span><span className="text-right">잔고</span>
           </div>
           <div className="divide-y divide-border">
             {lastBetResults.map((r, i) => (
-              <div key={i} className="px-5 py-2.5 flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2.5">
-                  <span className="font-medium text-foreground w-16 shrink-0">{r.username}</span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${r.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
-                    {r.gameType === "baccarat" ? "바카라" : "레이스"}
-                  </span>
-                  <span className={`text-xs font-semibold ${SIDE_COLOR[r.side] ?? "text-foreground"}`}>
-                    {SIDE_LABEL[r.side] ?? r.side}
-                  </span>
-                  <span className="text-xs tabular-nums text-foreground">{fmt(r.amount)}</span>
-                  {/* 확정 배당 */}
-                  {r.success && r.odds != null && (
-                    <span className="text-xs font-bold tabular-nums text-amber-500">{r.odds.toFixed(2)}x</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  {r.success ? (
-                    <>
-                      <span className="text-xs text-muted-foreground">수수료 {fmt(Math.floor(r.amount * 0.2))}</span>
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-xs text-red-500">{r.error}</span>
-                      <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                    </>
-                  )}
-                  <span className="text-xs tabular-nums text-muted-foreground w-24 text-right">{fmt(r.balance)}</span>
-                </div>
+              <div key={i} className="px-5 py-2 grid grid-cols-[5rem_4.5rem_5rem_5rem_4rem_4rem_5.5rem] gap-2 items-center">
+                <span className="text-xs font-medium text-foreground truncate">{r.username}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full w-fit ${r.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
+                  {r.gameType === "baccarat" ? "바카라" : "레이스"}
+                </span>
+                <span className={`text-xs font-semibold ${SIDE_COLOR[r.side] ?? "text-foreground"}`}>
+                  {SIDE_LABEL[r.side] ?? r.side}
+                </span>
+                <span className="text-xs tabular-nums text-foreground">{fmt(r.amount)}</span>
+                <span className="text-xs font-bold tabular-nums text-amber-500 text-right">
+                  {r.success && r.odds != null ? `${r.odds.toFixed(2)}x` : "—"}
+                </span>
+                {r.success ? (
+                  <span className="text-xs text-emerald-500 font-medium">접수</span>
+                ) : (
+                  <span className="text-xs text-red-500 truncate">{r.error}</span>
+                )}
+                <span className="text-xs tabular-nums text-muted-foreground text-right">{fmt(r.balance)}</span>
               </div>
             ))}
           </div>
@@ -342,39 +349,59 @@ export function AutoBetMonitor() {
           <h4 className="text-sm font-semibold text-foreground">자동배팅 유저 목록</h4>
         </div>
         {/* 헤더 */}
-        <div className="px-5 py-2 bg-muted/50 grid grid-cols-[5rem_5rem_1fr_6rem_5rem_6rem] gap-2 text-xs text-muted-foreground font-medium">
+        <div className="px-4 py-2 bg-muted/50 grid grid-cols-[4.5rem_4.5rem_5rem_5rem_4rem_4.5rem_4rem_5.5rem] gap-2 text-xs text-muted-foreground font-medium">
           <span>유저</span>
           <span>게임</span>
-          <span>현재 라운드</span>
+          <span>라운드</span>
           <span>배팅 side</span>
           <span className="text-right">배당</span>
+          <span className="text-center">최근결과</span>
+          <span className="text-right">순수익</span>
           <span className="text-right">잔고</span>
         </div>
         <div className="divide-y divide-border">
           {users.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">유저 목록 로딩 중...</div>
-          ) : users.map(u => (
-            <div key={u.id} className="px-5 py-2.5 grid grid-cols-[5rem_5rem_1fr_6rem_5rem_6rem] gap-2 items-center text-sm">
-              <span className="font-medium text-foreground truncate">{u.username}</span>
-              <span className={`text-xs px-1.5 py-0.5 rounded-full w-fit ${u.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
-                {u.gameType === "baccarat" ? "바카라" : "레이스"}
-              </span>
-              <span className="text-xs text-muted-foreground tabular-nums">#{u.currentRound}</span>
-              {u.currentBet ? (
-                <span className={`text-xs font-semibold ${SIDE_COLOR[u.currentBet.side] ?? "text-foreground"}`}>
-                  {SIDE_LABEL[u.currentBet.side] ?? u.currentBet.side}
+          ) : users.map(u => {
+            const ls = u.lastSettled
+            const resultLabel = ls?.result === "win" ? "승" : ls?.result === "lose" ? "패" : ls?.result === "tie" ? "타이" : null
+            const resultColor = ls?.result === "win" ? "text-emerald-500 bg-emerald-500/10" : ls?.result === "lose" ? "text-red-500 bg-red-500/10" : "text-amber-500 bg-amber-500/10"
+            const profitColor = (ls?.profit ?? 0) > 0 ? "text-emerald-500" : (ls?.profit ?? 0) < 0 ? "text-red-500" : "text-muted-foreground"
+            return (
+              <div key={u.id} className="px-4 py-2.5 grid grid-cols-[4.5rem_4.5rem_5rem_5rem_4rem_4.5rem_4rem_5.5rem] gap-2 items-center text-sm">
+                <span className="font-medium text-foreground truncate text-xs">{u.username}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full w-fit ${u.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
+                  {u.gameType === "baccarat" ? "바카라" : "레이스"}
                 </span>
-              ) : (
-                <span className="text-xs text-muted-foreground">배팅 없음</span>
-              )}
-              <span className="text-xs font-bold tabular-nums text-amber-500 text-right">
-                {u.currentBet?.odds != null ? `${u.currentBet.odds.toFixed(2)}x` : "—"}
-              </span>
-              <span className={`text-sm font-bold tabular-nums text-right ${u.balance < 1000000 ? "text-orange-500" : "text-foreground"}`}>
-                {fmt(u.balance)}
-              </span>
-            </div>
-          ))}
+                <span className="text-xs text-muted-foreground tabular-nums">#{u.currentRound}</span>
+                {u.currentBet ? (
+                  <span className={`text-xs font-semibold ${SIDE_COLOR[u.currentBet.side] ?? "text-foreground"}`}>
+                    {SIDE_LABEL[u.currentBet.side] ?? u.currentBet.side}
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">없음</span>
+                )}
+                <span className="text-xs font-bold tabular-nums text-amber-500 text-right">
+                  {u.currentBet?.odds != null ? `${u.currentBet.odds.toFixed(2)}x` : "—"}
+                </span>
+                {/* 최근 정산 결과 */}
+                {resultLabel ? (
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded text-center ${resultColor}`}>
+                    {resultLabel}
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground text-center">—</span>
+                )}
+                {/* 순수익 */}
+                <span className={`text-xs font-bold tabular-nums text-right ${profitColor}`}>
+                  {ls ? (ls.profit >= 0 ? "+" : "") + fmt(ls.profit) : "—"}
+                </span>
+                <span className={`text-xs font-bold tabular-nums text-right ${u.balance < 1000000 ? "text-orange-500" : "text-foreground"}`}>
+                  {fmt(u.balance)}
+                </span>
+              </div>
+            )
+          })}
         </div>
       </div>
 
