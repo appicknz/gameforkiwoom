@@ -129,7 +129,11 @@ const MAX_ODDS        = 50.0
  *   → 유저 0명: odds = dynamic_lp × 1.95 / dynamic_lp = 1.95x (정확)
  *   → 유저 늘어날수록 파리뮤추얼로 부드럽게 전환
  */
-const V             = 300_000_000  // 3억 (배팅 단위와 무관하게 고정)
+// V: 배팅이 V만큼 쌓이면 multiplier = 0.5 → 배당이 1.95x에서 절반 감쇠 시작
+// 실사용 배팅 단위(10만~100만원)에서 배당 변동이 체감되도록 현실적인 값 사용
+// 예: V=5백만, 유저 1명 × 10만원 → multiplier≈0.981 → 배당 약 1.92x (체감 변화)
+//     V=5백만, 유저 5명 × 100만원 → multiplier≈0.5 → 배당 약 1.6x
+const V             = 5_000_000    // 500만
 const INITIAL_ODDS  = 1.95         // 초기 배당 목표값
 
 // ── 내부 유틸 ────────────────────────────────────────────────────────────────
@@ -142,7 +146,8 @@ const INITIAL_ODDS  = 1.95         // 초기 배당 목표값
  * userCount가 많을수록, 배팅이 쌓일수록 multiplier 감소 → dynamic_lp 감소
  */
 function calcLpMultiplier(totalUserBet: number, userCount: number): number {
-  return V / (V + totalUserBet + userCount * 300_000)
+  // userCount 가중치: 유저 1명당 V의 5% 추가 압력
+  return V / (V + totalUserBet + userCount * (V * 0.05))
 }
 
 /**

@@ -93,6 +93,16 @@ export async function POST(request: Request) {
       const prev = existing ? (typeof existing === "string" ? JSON.parse(existing) : existing) : {}
       const merged = betsPayload ? { ...prev, ...betsPayload } : prev
 
+      // baccaratSide / raceSide 누락 방어: side 파라미터로 강제 보정
+      if (gameType === "baccarat" && side && !merged.baccaratSide) {
+        merged.baccaratSide = side
+        if (!merged.baccaratAmount) merged.baccaratAmount = betAmount
+      }
+      if (gameType === "race" && side && !merged.raceSide) {
+        merged.raceSide = side
+        if (!merged.raceAmount) merged.raceAmount = betAmount
+      }
+
       // ── 배팅 시점 odds 스냅샷 계산 후 저장 ──────────────────
       // 현재 풀 상태 + hincrby 반영 전 풀로 odds 계산 (배팅이 반영되기 전 시점)
       const poolData = await redis.hgetall(poolKey).catch(() => null)
