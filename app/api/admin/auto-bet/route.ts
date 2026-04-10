@@ -72,30 +72,36 @@ export async function GET(request: Request) {
     .select("user_id, bet_amount, payout, result, created_at")
     .in("user_id", userIds)
 
-  let totalWinProfit  = 0   // 순이익 누적 (win 라운드의 payout - bet_amount 합)
-  let totalLoss       = 0   // 손실 누적 (lose 라운드의 bet_amount 합)
-  let totalTopUpAmount = 0  // 총 충전액 (초기잔고 대신: 현재잔고 + 손실 - 이익으로 추산)
-  let winCount = 0
-  let loseCount = 0
-  let tieCount  = 0
+  // ── 유저별 개인 통계 집계 ──────────────────────────────────
+  type UserStat = { winProfit: number; loss: number; winCount: number; loseCount: number; tieCount: number; fee: number }
+  const perUserStats: Record<string, UserStat> = {}
+  for (const uid of userIds) {
+    perUserStats[uid] = { winProfit: 0, loss: 0, winCount: 0, loseCount: 0, tieCount: 0, fee: 0 }
+  }
+
+  let totalWinProfit = 0
+  let totalLoss      = 0
+  let winCount       = 0
+  let loseCount      = 0
+  let tieCount       = 0
 
   for (const h of allHistory ?? []) {
+    const s = perUserStats[h.user_id]
+    if (!s) continue
+    s.fee += Math.floor(h.bet_amount * 0.2)   // 20% 수수료 누적
     if (h.result === "win") {
-      winCount++
-      totalWinProfit += (h.payout - h.bet_amount)
+      s.winCount++; s.winProfit += (h.payout - h.bet_amount)
+      winCount++; totalWinProfit += (h.payout - h.bet_amount)
     } else if (h.result === "lose") {
-      loseCount++
-      totalLoss += h.bet_amount
+      s.loseCount++; s.loss += h.bet_amount
+      loseCount++; totalLoss += h.bet_amount
     } else {
-      tieCount++
+      s.tieCount++; tieCount++
     }
   }
   const totalBets = winCount + loseCount + tieCount
-  const winRate = totalBets > 0 ? Math.round((winCount / totalBets) * 1000) / 10 : 0
-
-  // 총 충전액: top_up 이력이 없으므로 현재잔고 합계 기준으로 표시
+  const winRate   = totalBets > 0 ? Math.round((winCount / totalBets) * 1000) / 10 : 0
   const totalBalance = Object.values(balMap).reduce((s, v) => s + v, 0)
-
   const stats = { totalWinProfit, totalLoss, totalBalance, winRate, winCount, loseCount, tieCount, totalBets }
 
   // ── 유저별 최근 정산 내역 (bet_history) — 최신 1건씩 ──────────
@@ -144,6 +150,8 @@ export async function GET(request: Request) {
       createdAt: last.created_at,
     } : null
 
+    const us = perUserStats[p.id] ?? { winProfit: 0, loss: 0, winCount: 0, loseCount: 0, tieCount: 0, fee: 0 }
+    const uTotalBets = us.winCount + us.loseCount + us.tieCount
     return {
       id: p.id,
       username: p.username,
@@ -153,6 +161,16 @@ export async function GET(request: Request) {
       currentRound: round,
       currentBet: bets ? { side, amount: bets.baccaratAmount ?? bets.raceAmount ?? 0, odds: appliedOdds } : null,
       lastSettled,
+      userStats: {
+        winProfit:  us.winProfit,
+        loss:       us.loss,
+        winRate:    uTotalBets > 0 ? Math.round((us.winCount / uTotalBets) * 1000) / 10 : 0,
+        winCount:   us.winCount,
+        loseCount:  us.loseCount,
+        tieCount:   us.tieCount,
+        totalBets:  uTotalBets,
+        fee:        us.fee,
+      },
     }
   }))
 
@@ -179,7 +197,7 @@ function isBettingPhase(gameType: "baccarat" | "race"): { allowed: boolean; reas
 
 // 공통: 유저 배팅 1회 실행 (gameType 지정)
 async function runBetForGame(gameType: "baccarat" | "race") {
-  // ── 페이즈 체크: 배팅 가능 구간이 아니면 즉시 반환 ──
+  // ── 페이즈 체크: ��팅 가능 구간이 아니면 즉시 반환 ──
   const phase = isBettingPhase(gameType)
   if (!phase.allowed) {
     return { results: [], totalFee: 0, round: 0, skipped: true, skipReason: phase.reason }
@@ -400,6 +418,35 @@ export async function PATCH(request: Request) {
     const logs = await redis.lrange<string>("auto_bet:logs", 0, 19)
     const accumulatedFee = await redis.get<number>("auto_bet:total_fee") ?? 0
     return NextResponse.json({ logs, accumulatedFee })
+  }
+
+  // action: "full_reset" — 잔고 1천만원 초기화 + bet_history 삭제 + Redis 초기화
+  // 역삼1 비밀번호 검증은 클라이언트에서 /api/admin/verify-password로 먼저 처리
+  if (body.action === "full_reset") {
+    const { data: profiles } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .in("username", AUTO_BET_USERNAMES)
+
+    if (!profiles || profiles.length === 0) return NextResponse.json({ ok: true, reset: 0 })
+
+    const ids = profiles.map(p => p.id)
+
+    // 1. 잔고 1천만원으로 초기화
+    for (const id of ids) {
+      await adminSupabase.from("balances").update({ amount: 10000000 }).eq("user_id", id)
+      await redis.set(`balance:${id}`, 10000000, { ex: 3600 })
+      await redis.incr(`balance_version:${id}`)
+    }
+
+    // 2. bet_history 삭제
+    await adminSupabase.from("bet_history").delete().in("user_id", ids)
+
+    // 3. Redis 초기화 (누적 수수료, 로그)
+    await redis.set("auto_bet:total_fee", 0)
+    await redis.del("auto_bet:logs")
+
+    return NextResponse.json({ ok: true, reset: ids.length })
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 })

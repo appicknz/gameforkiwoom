@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Play, Square, Wallet, TrendingUp, AlertCircle, TrendingDown, BarChart3 } from "lucide-react"
+import { RefreshCw, Play, Square, Wallet, TrendingUp, AlertCircle, TrendingDown, BarChart3, RotateCcw, Lock } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
 const fmt = (n: number) => `₩${n.toLocaleString("ko-KR")}`
@@ -16,6 +17,17 @@ interface LastSettled {
   createdAt: string
 }
 
+interface UserStats {
+  winProfit: number
+  loss: number
+  winRate: number
+  winCount: number
+  loseCount: number
+  tieCount: number
+  totalBets: number
+  fee: number
+}
+
 interface AutoBetUser {
   id: string
   username: string
@@ -25,6 +37,7 @@ interface AutoBetUser {
   currentRound: number
   currentBet: { side: string; amount: number; odds: number | null } | null
   lastSettled: LastSettled | null
+  userStats: UserStats | null
 }
 
 interface BetResult {
@@ -80,6 +93,11 @@ export function AutoBetMonitor() {
   const [toppingUp, setToppingUp] = useState(false)
   const [lastBetResults, setLastBetResults] = useState<BetResult[] | null>(null)
   const [status, setStatus] = useState<string>("")
+  // 전체 초기화 다이얼로그
+  const [showResetDialog, setShowResetDialog] = useState(false)
+  const [resetPassword, setResetPassword] = useState("")
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetError, setResetError] = useState("")
   const baccaratIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null)
   const raceIntervalRef       = useRef<ReturnType<typeof setInterval> | null>(null)
   // 페이즈 추적: 마지막으로 배팅 가능 구간을 감지한 라운드
@@ -235,6 +253,43 @@ export function AutoBetMonitor() {
     setAccumulatedFee(0)
   }
 
+  const handleFullReset = async () => {
+    const token = getToken(); if (!token) return
+    setResetLoading(true)
+    setResetError("")
+    // 1. 역삼1 비밀번호 검증
+    const verifyRes = await fetch("/api/admin/verify-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "역삼1", password: resetPassword }),
+    })
+    if (!verifyRes.ok) {
+      setResetError("비밀번호가 올바르지 않습니다.")
+      setResetLoading(false)
+      return
+    }
+    // 2. 전체 초기화
+    const resetRes = await fetch("/api/admin/auto-bet", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "full_reset" }),
+    })
+    if (resetRes.ok) {
+      const d = await resetRes.json()
+      setShowResetDialog(false)
+      setResetPassword("")
+      setAccumulatedFee(0)
+      setStats(null)
+      setLogs([])
+      setLastBetResults(null)
+      setStatus(`전체 초기화 완료 — ${d.reset}명 잔고 1천만원 리셋, 배팅 이력 삭제`)
+      loadUsers()
+    } else {
+      setResetError("초기화 중 오류가 발생했습니다.")
+    }
+    setResetLoading(false)
+  }
+
   useEffect(() => {
     loadUsers(); loadLogs()
     return () => {
@@ -270,6 +325,12 @@ export function AutoBetMonitor() {
             >
               <Wallet className="w-3 h-3" />
               {toppingUp ? "충전 중..." : `잔고 충전${lowBalanceCount > 0 ? ` (${lowBalanceCount}명)` : ""}`}
+            </Button>
+            <Button
+              variant="outline" size="sm" className="h-7 text-xs gap-1 text-red-500 border-red-500/30 hover:bg-red-500/10"
+              onClick={() => { setShowResetDialog(true); setResetError(""); setResetPassword("") }}
+            >
+              <RotateCcw className="w-3 h-3" /> 전체 초기화
             </Button>
           </div>
         </div>
@@ -468,14 +529,14 @@ export function AutoBetMonitor() {
           <h4 className="text-sm font-semibold text-foreground">자동배팅 유저 목록</h4>
         </div>
         {/* 헤더 */}
-        <div className="px-4 py-2 bg-muted/50 grid grid-cols-[4.5rem_4.5rem_5rem_5rem_4rem_4.5rem_4rem_5.5rem] gap-2 text-xs text-muted-foreground font-medium">
+        <div className="px-4 py-2 bg-muted/50 grid grid-cols-[4.5rem_4rem_4rem_3.5rem_5.5rem_5.5rem_4rem_5.5rem] gap-2 text-xs text-muted-foreground font-medium">
           <span>유저</span>
           <span>게임</span>
-          <span>라운드</span>
-          <span>배팅 side</span>
-          <span className="text-right">배당</span>
-          <span className="text-center">최근결과</span>
-          <span className="text-right">순수익</span>
+          <span>최근결과</span>
+          <span className="text-right">승률</span>
+          <span className="text-right">수익누적</span>
+          <span className="text-right">손실누적</span>
+          <span className="text-right">수수료</span>
           <span className="text-right">잔고</span>
         </div>
         <div className="divide-y divide-border">
@@ -483,38 +544,50 @@ export function AutoBetMonitor() {
             <div className="py-8 text-center text-sm text-muted-foreground">유저 목록 로딩 중...</div>
           ) : users.map(u => {
             const ls = u.lastSettled
+            const us = u.userStats
             const resultLabel = ls?.result === "win" ? "승" : ls?.result === "lose" ? "패" : ls?.result === "tie" ? "타이" : null
             const resultColor = ls?.result === "win" ? "text-emerald-500 bg-emerald-500/10" : ls?.result === "lose" ? "text-red-500 bg-red-500/10" : "text-amber-500 bg-amber-500/10"
-            const profitColor = (ls?.profit ?? 0) > 0 ? "text-emerald-500" : (ls?.profit ?? 0) < 0 ? "text-red-500" : "text-muted-foreground"
             return (
-              <div key={u.id} className="px-4 py-2.5 grid grid-cols-[4.5rem_4.5rem_5rem_5rem_4rem_4.5rem_4rem_5.5rem] gap-2 items-center text-sm">
-                <span className="font-medium text-foreground truncate text-xs">{u.username}</span>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full w-fit ${u.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
-                  {u.gameType === "baccarat" ? "바카라" : "레이스"}
-                </span>
-                <span className="text-xs text-muted-foreground tabular-nums">#{u.currentRound}</span>
-                {u.currentBet ? (
-                  <span className={`text-xs font-semibold ${SIDE_COLOR[u.currentBet.side] ?? "text-foreground"}`}>
-                    {SIDE_LABEL[u.currentBet.side] ?? u.currentBet.side}
+              <div key={u.id} className="px-4 py-2 grid grid-cols-[4.5rem_4rem_4rem_3.5rem_5.5rem_5.5rem_4rem_5.5rem] gap-2 items-center">
+                <div>
+                  <span className="text-xs font-medium text-foreground truncate block">{u.username}</span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                    #{u.currentRound}
+                    {u.currentBet && (
+                      <span className={`ml-1 ${SIDE_COLOR[u.currentBet.side] ?? ""}`}>
+                        {SIDE_LABEL[u.currentBet.side] ?? u.currentBet.side} {u.currentBet.odds != null ? `${u.currentBet.odds.toFixed(2)}x` : ""}
+                      </span>
+                    )}
                   </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">없음</span>
-                )}
-                <span className="text-xs font-bold tabular-nums text-amber-500 text-right">
-                  {u.currentBet?.odds != null ? `${u.currentBet.odds.toFixed(2)}x` : "—"}
+                </div>
+                <span className={`text-[10px] px-1 py-0.5 rounded-full w-fit ${u.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
+                  {u.gameType === "baccarat" ? "바카라" : "레이스"}
                 </span>
                 {/* 최근 정산 결과 */}
                 {resultLabel ? (
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded text-center ${resultColor}`}>
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded text-center w-fit ${resultColor}`}>
                     {resultLabel}
                   </span>
                 ) : (
-                  <span className="text-xs text-muted-foreground text-center">—</span>
+                  <span className="text-xs text-muted-foreground">—</span>
                 )}
-                {/* 순수익 */}
-                <span className={`text-xs font-bold tabular-nums text-right ${profitColor}`}>
-                  {ls ? (ls.profit >= 0 ? "+" : "") + fmt(ls.profit) : "—"}
+                {/* 개인 승률 */}
+                <span className="text-xs font-bold tabular-nums text-right text-foreground">
+                  {us && us.totalBets > 0 ? `${us.winRate}%` : "—"}
                 </span>
+                {/* 수익 누적 */}
+                <span className="text-xs font-bold tabular-nums text-right text-emerald-500">
+                  {us && us.winProfit > 0 ? `+${fmt(us.winProfit)}` : us ? fmt(0) : "—"}
+                </span>
+                {/* 손실 누적 */}
+                <span className="text-xs font-bold tabular-nums text-right text-red-500">
+                  {us && us.loss > 0 ? `-${fmt(us.loss)}` : us ? fmt(0) : "—"}
+                </span>
+                {/* 수수료 누적 */}
+                <span className="text-xs tabular-nums text-right text-amber-500">
+                  {us ? fmt(us.fee) : "—"}
+                </span>
+                {/* 잔고 */}
                 <span className={`text-xs font-bold tabular-nums text-right ${u.balance < 1000000 ? "text-orange-500" : "text-foreground"}`}>
                   {fmt(u.balance)}
                 </span>
@@ -523,6 +596,55 @@ export function AutoBetMonitor() {
           })}
         </div>
       </div>
+
+      {/* ── 전체 초기화 비밀번호 확인 다이얼로그 ── */}
+      {showResetDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-xl mx-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Lock className="w-4 h-4 text-red-500" />
+              <h3 className="text-sm font-bold text-foreground">전체 초기화 확인</h3>
+            </div>
+            <p className="text-xs text-muted-foreground mb-1">다음 항목이 모두 초기화됩니다:</p>
+            <ul className="text-xs text-muted-foreground mb-4 space-y-0.5 list-disc list-inside">
+              <li>자동배팅 유저 잔고 → 1천만원</li>
+              <li>전체 배팅 이력(bet_history) 삭제</li>
+              <li>누적 수수료, 승률, 수익/손실 통계 초기화</li>
+            </ul>
+            <p className="text-xs text-muted-foreground mb-2">
+              <span className="font-semibold text-foreground">역삼1</span> 계정 비밀번호를 입력하세요.
+            </p>
+            <Input
+              type="password"
+              placeholder="비밀번호"
+              value={resetPassword}
+              onChange={e => setResetPassword(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleFullReset()}
+              className="h-9 text-sm mb-2"
+              autoFocus
+            />
+            {resetError && (
+              <p className="text-xs text-red-500 mb-2">{resetError}</p>
+            )}
+            <div className="flex gap-2">
+              <Button
+                variant="outline" size="sm" className="flex-1 h-8 text-xs"
+                onClick={() => { setShowResetDialog(false); setResetPassword(""); setResetError("") }}
+                disabled={resetLoading}
+              >
+                취소
+              </Button>
+              <Button
+                size="sm" className="flex-1 h-8 text-xs bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleFullReset}
+                disabled={resetLoading || !resetPassword}
+              >
+                {resetLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : "초기화 실행"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 배팅 로그 히스토리 ── */}
       {logs.length > 0 && (
