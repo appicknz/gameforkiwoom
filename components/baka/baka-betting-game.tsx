@@ -538,7 +538,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const betDigitAmountRef = useRef(0)
   const betParityAmountRef = useRef(0)
   const betBaccaratAmountRef  = useRef(0)
-  const betRoundNumberRef     = useRef(0)  // 배팅 시점 roundNumber 보존 (정산 시 라운드 경계 문제 방지)
+  const betRoundNumberRef     = useRef(0)   // 배팅 시점 roundNumber 보존 (정산 시 라운드 경계 문제 방지)
+  const liveOddsSnapshotRef   = useRef<typeof liveOdds>(null)  // 배팅 시점 odds 스냅샷 (라운드 종료 후 초기화되기 전 값)
   const basePriceRef = useRef<number | null>(null)
   const roundRef = useRef<number>(0)
   const currentPriceRef = useRef<number | null>(null)
@@ -653,8 +654,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         digitAmount: betDigitAmountRef.current,
         parityAmount: betParityAmountRef.current,
         baccaratAmount: betBaccaratAmountRef.current,
-        // 정산 시점 배당률 스냅샷 — 팝업에서 실제 수익 계산에 사용
-        baccaratOdds: liveOdds,
+        // 배팅 시점에 저장해둔 스냅샷 사용 — 라운드 종료 후 liveOdds가 1.95로 초기화되어도 정확한 배율 유지
+        baccaratOdds: liveOddsSnapshotRef.current,
       }
       setLastResult(result)
       setShowResultSheet(true)
@@ -703,7 +704,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       betParityRef.current = null; betBaccaratRef.current = null
       betDirectionAmountRef.current = 0; betDigitAmountRef.current = 0
       betParityAmountRef.current = 0; betBaccaratAmountRef.current = 0
-      betRoundNumberRef.current = 0
+      betRoundNumberRef.current   = 0
+      liveOddsSnapshotRef.current = null
       setBetDirection(null); setBetDigit(null); setBetParity(null); setBetBaccarat(null)
       setBetDirectionAmount(0); setBetDigitAmount(0); setBetParityAmount(0); setBetBaccaratAmount(0)
 
@@ -868,8 +870,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         setBetBaccarat(value as BetBaccarat); setBetBaccaratAmount(cfg.amount)
         onBetSideTrigger?.(value as "player" | "banker" | "tie")
       }
-      // 배팅 성공 시 현재 라운드 번호를 ref에 저장 (정산 시 경계 문제 방지)
-      betRoundNumberRef.current = getRoundNumber()
+      // 배팅 성공 시 현재 라운드 번호 + 배당률 스냅샷 저장 (라운드 종료 후 liveOdds가 리셋되기 전 값 보존)
+      betRoundNumberRef.current   = getRoundNumber()
+      liveOddsSnapshotRef.current = liveOdds
       if (!basePriceRef.current && currentPriceRef.current) {
         basePriceRef.current = currentPriceRef.current
         setBasePrice(currentPriceRef.current)
@@ -1027,7 +1030,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const timerColor = timeLeft > 25 ? "#60a5fa"    // 초기 대기 — 파랑
     : timeLeft > 13 ? "#10b981"                  // 배팅 가능 — 초록
     : timeLeft > 3  ? "#f97316"                  // 게임 중   — 주황
-    : "#ef4444"                                  // 정산 임박 — 빨강
+    : "#ef4444"                                  // 정산 임�� — 빨강
   const timerLabel = timeLeft > 25 ? "정산 중"
     : timeLeft > 13 ? "배팅 가능"
     : timeLeft > 0  ? "게임 중"
