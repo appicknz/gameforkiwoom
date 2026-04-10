@@ -474,8 +474,43 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const [isPlacingBet, setIsPlacingBet] = useState(false)
   const [locked, setLocked] = useState(false)
   const [lockedAmount, setLockedAmount] = useState<number | null>(null)
-  // 고정 배당 3.0x (LP/파리뮤추얼 제거)
-  const FIXED_ODDS = 3.0
+  // 실시간 배당률 (SSE - 배팅 즉시 반영, 폴링 없음)
+  const [liveOdds, setLiveOdds] = useState<{
+    player: number | null; banker: number | null; tie: number | null
+    available?: boolean
+    lpWeight?: number; mode?: "seeded" | "decay" | "natural" | "pending"
+  } | null>(null)
+
+  useEffect(() => {
+    let es: EventSource | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let destroyed = false
+
+    const connect = () => {
+      if (destroyed) return
+      const token = getToken()
+      const url = `/api/game/odds/stream?type=baccarat${token ? `&token=${token}` : ""}`
+      es = new EventSource(url)
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          // odds가 있을 때만 갱신 — ping 등 다른 메시지로 null 초기화 방지
+          if (data.odds) setLiveOdds(data.odds)
+        } catch { }
+      }
+      es.onerror = () => {
+        es?.close()
+        if (!destroyed) retryTimer = setTimeout(connect, 2000)
+      }
+    }
+
+    connect()
+    return () => {
+      destroyed = true
+      if (retryTimer) clearTimeout(retryTimer)
+      es?.close()
+    }
+  }, [])
 
   // 자동 배팅
   const [autoBet, setAutoBet] = useState<AutoBetConfig>(DEFAULT_AUTO_BET)
@@ -610,7 +645,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         parityAmount: betParityAmountRef.current,
         baccaratAmount: betBaccaratAmountRef.current,
         // 정산 시점 배당률 스냅샷 — 팝업에서 실제 수익 계산에 사용
-        baccaratOdds: { player: FIXED_ODDS, banker: FIXED_ODDS, tie: FIXED_ODDS },
+        baccaratOdds: liveOdds,
       }
       setLastResult(result)
       setShowResultSheet(true)
@@ -1130,8 +1165,12 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           <div className="grid grid-cols-3 gap-1.5">
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
-              // 고정 배당 3.0x (LP/파리뮤추얼 제거)
-              const payout = `${FIXED_ODDS.toFixed(2)}x`
+              // available=false(LP 비활성+배팅 없음): 배당 미확정 → "-" 표시
+              const oddsAvailable = liveOdds?.available !== false
+              const oddsVal = (liveOdds && oddsAvailable)
+                ? (side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie)
+                : null
+              const payout = oddsVal != null ? `${(oddsVal as number).toFixed(2)}x` : "-"
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"
               const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"
@@ -1160,7 +1199,34 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
             })}
           </div>
 
-
+          {/* LP 유동성 모드 인디케이터 */}
+          {liveOdds?.mode && (
+            <div className="mt-1.5 flex items-center justify-center gap-1.5">
+              {liveOdds.mode === "pending" ? (
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+                  배팅 후 배당 자동 확정
+                </span>
+              ) : (
+                <>
+                  <span style={{
+                    fontSize: 10,
+                    color: liveOdds.mode === "natural" ? "#22c55e"
+                      : liveOdds.mode === "decay" ? "#f97316"
+                      : "rgba(255,255,255,0.4)",
+                  }}>
+                    {liveOdds.mode === "seeded" && "유동성 안정 구간"}
+                    {liveOdds.mode === "decay"  && "유동성 감쇠 중"}
+                    {liveOdds.mode === "natural" && "자연 배당 구간"}
+                  </span>
+                  {liveOdds.lpWeight !== undefined && (
+                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+                      LP {(liveOdds.lpWeight * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
       </div>

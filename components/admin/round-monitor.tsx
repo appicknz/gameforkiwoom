@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Download, TrendingDown, Activity, Info } from "lucide-react"
+import { RefreshCw, Download, TrendingUp, TrendingDown, Activity, Info } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
 interface RoundStats {
@@ -12,7 +13,11 @@ interface RoundStats {
   pools: Record<string, number>
   userCount: number
   totalBet: number
+  lpAmount: number
+  fee: number
   feeRate: number
+  mode: string
+  prediction: Record<string, number>
   odds: Record<string, number> | null
 }
 interface CombinedStats {
@@ -45,9 +50,59 @@ interface MasterSummary {
   totalBet: number; totalPayout: number; totalLpUsed: number
   totalFee: number; totalCollected: number; pendingFee: number; houseProfit: number
 }
+interface LpTx {
+  id: number; pool_type: string; side: string; lp_amount: number
+  user_amount: number; settled_odds: number | null; round_time: number; created_at: string
+}
+interface Branch {
+  id: string; name: string; lp_enabled: boolean
+  lp_amount_baccarat?: number; lp_amount_race?: number
+}
 
 const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
 const fmt = (n: number) => `₩${n.toLocaleString("ko-KR")}`
+
+// ── LP 설정 행 ────────────────────────────────────────────────────────────
+function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void }) {
+  const [baccaratLp, setBaccaratLp] = useState(String(branch.lp_amount_baccarat ?? 50000))
+  const [raceLp, setRaceLp] = useState(String(branch.lp_amount_race ?? 50000))
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+  const handleSave = async () => {
+    setSaving(true); setMsg(null)
+    const token = getToken(); if (!token) return
+    const res = await fetch("/api/admin/branches/betting", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ branchId: branch.id, lpAmountBaccarat: parseInt(baccaratLp) || 0, lpAmountRace: parseInt(raceLp) || 0 }),
+    })
+    if (res.ok) { setMsg({ text: "저장됨", ok: true }); onSaved() }
+    else setMsg({ text: "저장 실패", ok: false })
+    setSaving(false)
+    setTimeout(() => setMsg(null), 2000)
+  }
+
+  return (
+    <div className="px-5 py-4">
+      <p className="text-sm font-semibold text-foreground mb-3">{branch.name}</p>
+      <div className="flex gap-3 flex-wrap items-end">
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">바카라 LP</p>
+          <Input type="number" value={baccaratLp} onChange={e => setBaccaratLp(e.target.value)} className="h-8 w-32 text-sm" />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">레이스 LP</p>
+          <Input type="number" value={raceLp} onChange={e => setRaceLp(e.target.value)} className="h-8 w-32 text-sm" />
+        </div>
+        <Button size="sm" className="h-8 text-xs" onClick={handleSave} disabled={saving}>
+          {saving ? "저장 중..." : "저장"}
+        </Button>
+        {msg && <span className={`text-xs font-medium ${msg.ok ? "text-emerald-500" : "text-red-500"}`}>{msg.text}</span>}
+      </div>
+    </div>
+  )
+}
 
 // ── 게임 카드 (바카라 or 레이스) ──────────────────────────────────────────
 function GameRoundCard({ stats, title }: { stats: RoundStats; title: string }) {
@@ -64,8 +119,20 @@ function GameRoundCard({ stats, title }: { stats: RoundStats; title: string }) {
         { key: "tie",  label: "TIE",    color: "bg-amber-500", textColor: "text-amber-500" },
       ]
 
+  const modeLabel =
+    stats.mode === "pari"   ? "파리뮤추얼" :
+    stats.mode === "hybrid" ? "하이브리드"  : "LP 주도"
+  const modeBg =
+    stats.mode === "pari"   ? "bg-emerald-500/10 text-emerald-600" :
+    stats.mode === "hybrid" ? "bg-amber-500/10 text-amber-600"    :
+                              "bg-blue-500/10 text-blue-600"
+
+  // 수수료 = 총 배팅 × 20% (배팅 있을 때만)
+  const feeAmount = stats.fee > 0 ? stats.fee : Math.floor(stats.totalBet * 0.20)
+
   return (
     <div className="flex-1 min-w-0 bg-muted/40 rounded-xl p-4 space-y-3 border border-border">
+      {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold text-foreground">{title}</p>
@@ -73,20 +140,22 @@ function GameRoundCard({ stats, title }: { stats: RoundStats; title: string }) {
             라운드 #{stats.round} &middot; {stats.userCount}명 참여
           </p>
         </div>
-        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600">
-          고정 3.0x
-        </span>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${modeBg}`}>{modeLabel}</span>
       </div>
 
-      {/* 총 배팅 / 수수료 */}
-      <div className="grid grid-cols-2 gap-2 text-xs">
+      {/* 총 배팅 / 수수료(20%) / LP */}
+      <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="bg-card rounded-lg p-2">
           <p className="text-muted-foreground">총 배팅</p>
           <p className="font-bold tabular-nums text-foreground">{fmt(stats.totalBet)}</p>
         </div>
         <div className="bg-card rounded-lg p-2">
           <p className="text-muted-foreground">수수료 20%</p>
-          <p className="font-bold tabular-nums text-amber-500">{fmt(Math.floor(stats.totalBet * 0.20))}</p>
+          <p className="font-bold tabular-nums text-amber-500">{fmt(feeAmount)}</p>
+        </div>
+        <div className="bg-card rounded-lg p-2">
+          <p className="text-muted-foreground">LP 투입</p>
+          <p className="font-bold tabular-nums text-blue-500">{fmt(stats.lpAmount)}</p>
         </div>
       </div>
 
@@ -119,18 +188,65 @@ function GameRoundCard({ stats, title }: { stats: RoundStats; title: string }) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────
-export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean; branches?: unknown[] }) {
+export function RoundMonitor({ isSuperAdmin = false, branches = [] }: { isSuperAdmin?: boolean; branches?: Branch[] }) {
 
-  const [combined, setCombined]         = useState<CombinedStats | null>(null)
+  // 라운드 현황 (바카라 + 레이스 동시)
+  const [combined, setCombined] = useState<CombinedStats | null>(null)
   const [roundLoading, setRoundLoading] = useState(false)
-  const [houseStats, setHouseStats]     = useState<HouseStat[]>([])
+
+  // 하우스 손익
+  const [houseStats, setHouseStats] = useState<HouseStat[]>([])
   const [feeCollections, setFeeCollections] = useState<FeeCollection[]>([])
-  const [masterSummary, setMasterSummary]   = useState<MasterSummary | null>(null)
-  const [houseLoading, setHouseLoading]     = useState(false)
-  const [collectingId, setCollectingId]     = useState<string | null>(null)
-  const [feeLogs, setFeeLogs]               = useState<FeeLog[]>([])
-  const [feeByBranch, setFeeByBranch]       = useState<FeeBranchSummary[]>([])
-  const [houseTab, setHouseTab]             = useState<"house" | "fee">("house")
+  const [masterSummary, setMasterSummary] = useState<MasterSummary | null>(null)
+  const [houseLoading, setHouseLoading] = useState(false)
+  const [collectingId, setCollectingId] = useState<string | null>(null)
+
+  // 수수료 상세
+  const [feeLogs, setFeeLogs] = useState<FeeLog[]>([])
+  const [feeByBranch, setFeeByBranch] = useState<FeeBranchSummary[]>([])
+
+  // 섹션 2 탭 (하우스 손익 / 지점별 수수료)
+  const [houseTab, setHouseTab] = useState<"house" | "fee">("house")
+
+  // LP 히스토리
+  const [lpHistory, setLpHistory] = useState<LpTx[]>([])
+  const [lpTotal, setLpTotal] = useState(0)
+  const [lpLoading, setLpLoading] = useState(false)
+
+  // LP 전역 ON/OFF
+  const [lpGlobal, setLpGlobal] = useState<boolean>(true)
+  const [lpToggling, setLpToggling] = useState(false)
+  const [lpBranches, setLpBranches] = useState<{ id: string; lp_enabled: boolean }[]>([])
+
+  const loadLpState = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    try {
+      const res = await fetch("/api/admin/branches", { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) return
+      const data = await res.json()
+      const list: { id: string; lp_enabled: boolean }[] = data.branches ?? []
+      setLpBranches(list)
+      setLpGlobal(list.length === 0 || list.some((b) => b.lp_enabled !== false))
+    } catch {}
+  }, [])
+
+  const handleLpToggle = async () => {
+    const token = getToken(); if (!token) return
+    const next = !lpGlobal
+    setLpToggling(true)
+    try {
+      const targets = lpBranches.length > 0 ? lpBranches : branches
+      await Promise.all(targets.map(b =>
+        fetch("/api/admin/branches/betting", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ branchId: b.id, lpEnabled: next }),
+        })
+      ))
+      setLpGlobal(next)
+    } catch {}
+    setLpToggling(false)
+  }
 
   const loadRoundStats = useCallback(async () => {
     const token = getToken(); if (!token) return
@@ -159,6 +275,16 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
     setHouseLoading(false)
   }, [])
 
+  const loadLpHistory = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setLpLoading(true)
+    try {
+      const res = await fetch("/api/admin/lp-history", { headers: { Authorization: `Bearer ${token}` } })
+      if (res.ok) { const d = await res.json(); setLpHistory(d.history ?? []); setLpTotal(d.totalLpUsed ?? 0) }
+    } catch {}
+    setLpLoading(false)
+  }, [])
+
   const handleCollect = async (branchId: string, gt: string) => {
     const key = `${branchId}-${gt}`; setCollectingId(key)
     const token = getToken(); if (!token) return
@@ -172,8 +298,8 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
   }
 
   useEffect(() => {
-    loadRoundStats(); loadHouseStats()
-  }, [loadRoundStats, loadHouseStats])
+    loadRoundStats(); loadHouseStats(); loadLpHistory(); loadLpState()
+  }, [loadRoundStats, loadHouseStats, loadLpHistory, loadLpState])
 
   useEffect(() => {
     const iv = setInterval(loadRoundStats, 2000)
@@ -185,19 +311,23 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
   const emptyBaccarat: RoundStats = {
     round: String(Math.floor(nowSec / 30)), gameType: "baccarat",
     timestamp: new Date().toISOString(), pools: { player: 0, banker: 0, tie: 0 },
-    userCount: 0, totalBet: 0, feeRate: 0.20, odds: null,
+    userCount: 0, totalBet: 0, lpAmount: 0, fee: 0, feeRate: 0.20,
+    mode: "lp-dominant", prediction: {}, odds: null,
   }
   const emptyRace: RoundStats = {
     round: String(Math.floor(nowSec / 300)), gameType: "race",
     timestamp: new Date().toISOString(), pools: { bit: 0, coin: 0, tie: 0 },
-    userCount: 0, totalBet: 0, feeRate: 0.20, odds: null,
+    userCount: 0, totalBet: 0, lpAmount: 0, fee: 0, feeRate: 0.20,
+    mode: "lp-dominant", prediction: {}, odds: null,
   }
   const baccaratStats = combined?.baccarat ?? emptyBaccarat
   const raceStats     = combined?.race     ?? emptyRace
 
-  const totalUsers  = baccaratStats.userCount + raceStats.userCount
+  // 두 게임 합산 현황
+  const totalUsers = baccaratStats.userCount + raceStats.userCount
   const totalBetAll = baccaratStats.totalBet + raceStats.totalBet
   const totalFeeAll = Math.floor(totalBetAll * 0.20)
+  const totalLpAll  = baccaratStats.lpAmount + raceStats.lpAmount
 
   return (
     <div className="space-y-6">
@@ -212,18 +342,36 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
               <p className="text-xs text-muted-foreground mt-0.5">바카라(30초) + 레이스(5분) 동시 표시 &middot; 2초 갱신</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={loadRoundStats} disabled={roundLoading} className="h-7 gap-1 text-xs">
-            <RefreshCw className={`w-3 h-3 ${roundLoading ? "animate-spin" : ""}`} />
-          </Button>
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <Button
+                variant={lpGlobal ? "outline" : "destructive"}
+                size="sm"
+                onClick={handleLpToggle}
+                disabled={lpToggling}
+                className="h-7 text-xs gap-1.5"
+              >
+                {lpToggling
+                  ? <RefreshCw className="w-3 h-3 animate-spin" />
+                  : <span className={`w-2 h-2 rounded-full inline-block ${lpGlobal ? "bg-emerald-500" : "bg-red-400"}`} />
+                }
+                LP {lpGlobal ? "활성" : "비활성"}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={loadRoundStats} disabled={roundLoading} className="h-7 gap-1 text-xs">
+              <RefreshCw className={`w-3 h-3 ${roundLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
         </div>
 
-        {/* 전체 합산 3칸 */}
+        {/* 전체 합산 4칸 */}
         <div className="px-5 pt-4 pb-3">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: "전체 참여 유저",    value: `${totalUsers}명`,   mono: false },
-              { label: "전체 배팅액",       value: fmt(totalBetAll),    mono: true  },
-              { label: "수수료 20% (누적)", value: fmt(totalFeeAll),    mono: true  },
+              { label: "전체 참여 유저",  value: `${totalUsers}명`,          mono: false },
+              { label: "전체 배팅액",     value: fmt(totalBetAll),            mono: true  },
+              { label: "수수료 20% (누적)", value: fmt(totalFeeAll),          mono: true  },
+              { label: "총 LP 투입",      value: fmt(totalLpAll),             mono: true  },
             ].map(item => (
               <div key={item.label} className="bg-muted rounded-xl p-3">
                 <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -239,7 +387,8 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <span>
               배팅 발생 시 <strong>총 배팅액의 20%</strong>가 수수료로 차감됩니다.
-              고정 배당 <strong>3.0x</strong>로 정산됩니다.
+              남은 80% + LP 투입액이 배당 풀을 구성합니다.
+              1명이 배팅할 경우 LP가 반대편을 채워 배당이 성립됩니다.
             </span>
           </div>
         </div>
@@ -251,12 +400,13 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
         </div>
       </div>
 
-      {/* ── 섹션 2: 하우스 손익 누적 ── */}
+      {/* ── ���션 2: 하우스 손익 누적 ── */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <TrendingDown className="w-4 h-4 text-primary" />
             <div className="flex items-center gap-2">
+              {/* 탭 */}
               <button
                 onClick={() => setHouseTab("house")}
                 className={`text-sm font-semibold px-3 py-1 rounded-lg transition-colors ${houseTab === "house" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
@@ -287,6 +437,7 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
                     { label: "총 배팅액",   value: masterSummary.totalBet,      color: "text-foreground"  },
                     { label: "총 지급액",   value: masterSummary.totalPayout,   color: "text-red-500"     },
                     { label: "하우스 손익", value: masterSummary.houseProfit,   color: masterSummary.houseProfit >= 0 ? "text-emerald-500" : "text-red-500" },
+                    { label: "총 LP 사용",  value: masterSummary.totalLpUsed,   color: "text-blue-500"    },
                     { label: "누적 수수료", value: masterSummary.totalFee,      color: "text-amber-500"   },
                     { label: "미수금",      value: masterSummary.pendingFee,    color: masterSummary.pendingFee > 0 ? "text-orange-500" : "text-muted-foreground" },
                   ].map(item => (
@@ -336,7 +487,7 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
                           </Button>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
                         <div><p className="text-muted-foreground">총 배팅</p><p className="font-semibold tabular-nums">{fmt(stat.total_bet)}</p></div>
                         <div><p className="text-muted-foreground">총 지급</p><p className="font-semibold text-red-500 tabular-nums">{fmt(stat.total_payout)}</p></div>
                         <div>
@@ -345,6 +496,7 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
                             {housePnl >= 0 ? "+" : "-"}{fmt(Math.abs(housePnl))}
                           </p>
                         </div>
+                        <div><p className="text-muted-foreground">LP 투입</p><p className="font-semibold text-blue-500 tabular-nums">{fmt(stat.total_lp_used)}</p></div>
                         <div>
                           <p className="text-muted-foreground">미수금</p>
                           <p className={`font-bold tabular-nums ${pending > 0 ? "text-orange-500" : "text-muted-foreground"}`}>{fmt(pending)}</p>
@@ -384,6 +536,7 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
         {/* ── 탭: 지점별 수수료 현황 ── */}
         {houseTab === "fee" && (
           <>
+            {/* 지점별 요약 카드 */}
             {feeByBranch.length > 0 && (
               <div className="px-5 pt-4 pb-3">
                 <p className="text-xs font-semibold text-muted-foreground mb-3">지점별 수수료 합산</p>
@@ -412,6 +565,7 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
               </div>
             )}
 
+            {/* 유저별 수수료 상세 로그 */}
             <div className="border-t border-border">
               <div className="px-5 py-3">
                 <p className="text-xs font-semibold text-muted-foreground mb-2">
@@ -461,6 +615,68 @@ export function RoundMonitor({ isSuperAdmin = false }: { isSuperAdmin?: boolean;
           </>
         )}
       </div>
+
+      {/* ── 섹션 3: LP 히스토리 ── */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <TrendingUp className="w-4 h-4 text-primary" />
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">LP 유동성 히스토리</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">라운드별 LP 투입 기록</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground">총 LP 사용액</p>
+            <p className="text-sm font-bold text-foreground tabular-nums">{fmt(lpTotal)}</p>
+          </div>
+        </div>
+        {lpLoading ? (
+          <div className="py-8 flex justify-center"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+        ) : lpHistory.length === 0 ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">LP 사용 내역이 없습니다.</div>
+        ) : (
+          <div className="divide-y divide-border">
+            {lpHistory.map(tx => {
+              const poolLabel: Record<string, string> = { long_short: "롱/숏", under_over: "언더/오버", odd_even: "홀/짝", baccarat: "바카라", race: "레이스" }
+              const sideLabel = tx.side === "a" ? "A" : tx.side === "b" ? "B" : tx.side
+              return (
+                <div key={tx.id} className="px-5 py-3 flex items-center justify-between text-sm">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground">{poolLabel[tx.pool_type] ?? tx.pool_type}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{sideLabel}</span>
+                      {tx.settled_odds != null && <span className="text-xs text-muted-foreground">x{tx.settled_odds.toFixed(2)}</span>}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {new Date(tx.round_time * 1000).toLocaleString("ko-KR")} &middot; 유저배팅 {fmt(tx.user_amount)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold tabular-nums">{fmt(tx.lp_amount)}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleTimeString("ko-KR")}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── 섹션 4: 지점별 LP 금액 설정 (마스터 전용) ── */}
+      {isSuperAdmin && branches.length > 0 && (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-border">
+            <h3 className="text-sm font-semibold text-foreground">지점별 LP 금액 설정</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">바카라 / 레이스 게임별 LP 유동성 금액 (마스터 전용)</p>
+          </div>
+          <div className="divide-y divide-border">
+            {branches.map(branch => (
+              <LpBranchRow key={branch.id} branch={branch} onSaved={loadHouseStats} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

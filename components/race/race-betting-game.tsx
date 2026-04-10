@@ -404,8 +404,42 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   const [autoBetRounds, setAutoBetRounds] = useState(0)
   const [autoBetPnl, setAutoBetPnl] = useState(0)
 
-  // 고정 배당 3.0x (LP/파리뮤추얼 제거)
-  const FIXED_ODDS = 3.0
+  // 실시간 배당률 (SSE - 배팅 즉시 반영, 폴링 없음)
+  const [liveOdds, setLiveOdds] = useState<{
+    bit: number | null; coin: number | null; tie: number | null
+    available?: boolean; mode?: "seeded" | "decay" | "natural" | "pending"
+  } | null>(null)
+
+  useEffect(() => {
+    let es: EventSource | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let destroyed = false
+
+    const connect = () => {
+      if (destroyed) return
+      const token = getToken()
+      const url = `/api/game/odds/stream?type=race${token ? `&token=${token}` : ""}`
+      es = new EventSource(url)
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          // odds가 있을 때만 갱신 — ping 등 다른 메시지로 null 초기화 방지
+          if (data.odds) setLiveOdds(data.odds)
+        } catch {}
+      }
+      es.onerror = () => {
+        es?.close()
+        if (!destroyed) retryTimer = setTimeout(connect, 2000)
+      }
+    }
+
+    connect()
+    return () => {
+      destroyed = true
+      if (retryTimer) clearTimeout(retryTimer)
+      es?.close()
+    }
+  }, [])
 
   const betRef = useRef<BetDirection>(null)
   const betDigitRef = useRef<BetDigit>(null)
@@ -761,8 +795,12 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       <div className="grid grid-cols-3 gap-1.5">
         {(["bit", "tie", "coin"] as const).map((side) => {
           const isSelected = betRace === side
-          // 고정 배당 3.0x (LP/파리뮤추얼 제거)
-          const payout = `${FIXED_ODDS.toFixed(2)}x`
+          // available=false(LP 비활성+배팅 없음): 배당 미확정 → "-"
+          const oddsAvailable = liveOdds?.available !== false
+          const oddsVal = (liveOdds && oddsAvailable)
+            ? (side === "bit" ? liveOdds.bit : side === "coin" ? liveOdds.coin : liveOdds.tie)
+            : null
+          const payout = oddsVal != null ? `${(oddsVal as number).toFixed(2)}x` : "-"
           const label = side === "bit" ? "BIT팀" : side === "tie" ? "TIE" : "COIN팀"
           const solidBg = side === "bit" ? BIT_BG : side === "coin" ? COIN_BG : "rgba(34,197,94,0.85)"
           const dimBg = side === "bit" ? "rgba(59,130,246,0.35)" : side === "coin" ? "rgba(249,115,22,0.35)" : "rgba(34,197,94,0.35)"
@@ -792,7 +830,34 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
             </button>
           )
         })}
-
+      {/* LP 유동성 모드 인디케이터 */}
+      {liveOdds?.mode && (
+        <div style={{ marginTop: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          {liveOdds.mode === "pending" ? (
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+              배팅 후 배당 자동 확정
+            </span>
+          ) : (
+            <>
+              <span style={{
+                fontSize: 10,
+                color: liveOdds.mode === "natural" ? "#22c55e"
+                  : liveOdds.mode === "decay" ? "#f97316"
+                  : "rgba(255,255,255,0.4)",
+              }}>
+                {liveOdds.mode === "seeded" && "유동성 안정 구간"}
+                {liveOdds.mode === "decay"  && "유동성 감쇠 중"}
+                {liveOdds.mode === "natural" && "자연 배당 구간"}
+              </span>
+              {liveOdds.lpWeight !== undefined && (
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+                  LP {((liveOdds as any).lpWeight * 100).toFixed(0)}%
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      )}
       </div>
     </div>
   )

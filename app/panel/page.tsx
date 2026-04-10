@@ -32,6 +32,113 @@ interface Branch {
   owner_email: string | null
   created_at: string
   betting_mode: "fixed" | "pari"
+  lp_enabled: boolean
+  lp_amount: number
+  lp_amount_baccarat?: number
+  lp_amount_race?: number
+  lp_multiplier_baccarat?: number
+  lp_multiplier_race?: number
+}
+
+// LP 설정 행 컴포넌트
+// 시드는 역대 실시간 배팅 데이터로 자동 계산됨.
+// 여기서는 "초기 기본 시드(데이터 없을 때 사용)" 와 "감쇠 속도"만 설정.
+function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void }) {
+  const [fallbackSeed, setFallbackSeed] = useState(
+    String(branch.lp_amount_baccarat ?? 100_000)
+  )
+  const [multiplier, setMultiplier] = useState(branch.lp_multiplier_baccarat ?? 1.0)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+  const handleSave = async () => {
+    setSaving(true); setMsg(null)
+    const token = getToken(); if (!token) return
+    const seed = parseInt(fallbackSeed) || 100_000
+    const res = await fetch("/api/admin/branches/betting", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        branchId:             branch.id,
+        lpAmountBaccarat:     seed,
+        lpAmountRace:         seed,
+        lpMultiplierBaccarat: multiplier,
+        lpMultiplierRace:     multiplier,
+      }),
+    })
+    if (res.ok) { setMsg({ text: "저장됨", ok: true }); onSaved() }
+    else { setMsg({ text: "저장 실패", ok: false }) }
+    setSaving(false)
+    setTimeout(() => setMsg(null), 2000)
+  }
+
+  const DECAY_OPTIONS = [
+    { label: "빠름", val: 0.5, desc: "유저 배팅이 시드×1.5 되면 LP 50% 감쇠" },
+    { label: "기본", val: 1.0, desc: "유저 배팅이 시드×3 되면 LP 50% 감쇠"   },
+    { label: "느림", val: 2.0, desc: "유저 배팅이 시드×6 되면 LP 50% 감쇠"   },
+  ]
+
+  return (
+    <div className="px-5 py-4 space-y-4">
+      <p className="text-sm font-semibold text-foreground">{branch.name}</p>
+
+      {/* 자동 계산 안내 */}
+      <div className="rounded-lg bg-muted/60 border border-border p-3 text-xs space-y-1">
+        <p className="font-medium text-foreground">LP 시드 자동 계산 활성</p>
+        <p className="text-muted-foreground">
+          3라운드 이상 데이터가 쌓이면 역대 라운드 평균 배팅액으로 시드를 자동 결정합니다.
+          초기에만 아래 기본값을 사용합니다.
+        </p>
+      </div>
+
+      <div className="flex gap-4 flex-wrap items-end">
+        {/* 초기 기본 시드 */}
+        <div>
+          <p className="text-xs font-medium text-foreground mb-1">초기 기본 시드 (사이드당)</p>
+          <p className="text-[11px] text-muted-foreground mb-1.5">데이터 부족 시 사용, 3라운드 후 자동 대체</p>
+          <Input
+            type="number" step="10000" min="0"
+            value={fallbackSeed}
+            onChange={e => setFallbackSeed(e.target.value)}
+            className="h-8 w-36 text-sm"
+          />
+        </div>
+
+        {/* 감쇠 속도 */}
+        <div>
+          <p className="text-xs font-medium text-foreground mb-1">감쇠 속도</p>
+          <p className="text-[11px] text-muted-foreground mb-1.5">유저 배팅이 얼마나 쌓이면 LP가 줄어드는지</p>
+          <div className="flex gap-1.5">
+            {DECAY_OPTIONS.map(({ label, val, desc }) => (
+              <button
+                key={val}
+                onClick={() => setMultiplier(val)}
+                title={desc}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                  multiplier === val
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Button size="sm" className="h-8 text-xs" onClick={handleSave} disabled={saving}>
+          {saving ? "저장 중..." : "저장"}
+        </Button>
+        {msg && (
+          <span className={`text-xs font-medium ${msg.ok ? "text-emerald-500" : "text-red-500"}`}>
+            {msg.text}
+          </span>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function PanelPage() {
@@ -389,8 +496,8 @@ export default function PanelPage() {
     setBranchLoading(false)
   }
 
-  // 지점 배팅 모드 변경
-  const handleBettingUpdate = async (branchId: string, updates: { bettingMode?: string }) => {
+  // 지점 배팅 모드 / LP 설정 변경
+  const handleBettingUpdate = async (branchId: string, updates: { bettingMode?: string; lpEnabled?: boolean; lpAmount?: number }) => {
     const token = getToken()
     if (!token) return
     setBettingMsg(null)
@@ -405,6 +512,7 @@ export default function PanelPage() {
     } else {
       setBettingMsg({ text: "설정이 저장됐습니다.", ok: true })
       setBranches(prev => prev.map(b => b.id === branchId ? { ...b, ...data.branch } : b))
+      setLpInput("")
     }
   }
 
@@ -778,15 +886,68 @@ export default function PanelPage() {
                           </div>
                         </div>
 
-                        {/* 배팅 설정 패널 */}
+                        {/* 배팅 모드 설정 패널 */}
                         {isSettingOpen && (
-                          <div className="mt-3 p-4 bg-muted/50 rounded-xl border border-border">
-                            <p className="text-xs text-muted-foreground">고정 배당 3.0x 적용 중</p>
-                            {bettingMsg && (
-                              <p className={`text-xs mt-2 font-medium ${bettingMsg.ok ? "text-emerald-500" : "text-red-500"}`}>{bettingMsg.text}</p>
-                            )}
-                          </div>
-                        )}
+                          <div className="mt-3 p-4 bg-muted/50 rounded-xl border border-border space-y-4">
+                            <p className="text-xs font-semibold text-foreground">배팅 모드 설정</p>
+
+                            {/* 모드 토글 */}
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-medium text-foreground">
+                                  {isPari ? "파리뮤추얼 (동적 배당)" : "고정 배당 (x1.95)"}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {isPari ? "참가자 풀에 따라 배당이 실시간 변동됩니다." : "모든 배팅에 고정 1.95배가 적용됩니다."}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleBettingUpdate(branch.id, { bettingMode: isPari ? "fixed" : "pari" })}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                style={{ background: isPari ? "#7c3aed20" : "#f3f4f6", color: isPari ? "#7c3aed" : "#6b7280" }}
+                              >
+                                {isPari ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                                {isPari ? "파리뮤추얼 ON" : "고정배당 ON"}
+                              </button>
+                            </div>
+
+                            {/* LP 설정 (파리뮤추얼 모드에서만 표시) */}
+                            {isPari && (
+                              <div className="space-y-3 pt-3 border-t border-border">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm font-medium text-foreground">초기 유동성 (LP)</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      현재: {branch.lp_enabled ? `₩${branch.lp_amount.toLocaleString()} 활성` : "비활성"}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => handleBettingUpdate(branch.id, { lpEnabled: !branch.lp_enabled })}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                    style={{ background: branch.lp_enabled ? "#10b98120" : "#f3f4f6", color: branch.lp_enabled ? "#10b981" : "#6b7280" }}
+                                  >
+                                    {branch.lp_enabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                                    {branch.lp_enabled ? "LP 활성" : "LP 비활성"}
+                                  </button>
+                                </div>
+                                {branch.lp_enabled && (
+                                  <div className="flex gap-2">
+                                    <Input
+                                      type="number"
+                                      placeholder={`LP 금액 (현재: ₩${branch.lp_amount.toLocaleString()})`}
+                                      value={lpInput}
+                                      onChange={e => setLpInput(e.target.value)}
+                                      className="h-8 text-sm"
+                                    />
+                                    <Button
+                                      size="sm" className="h-8 text-xs shrink-0"
+                                      disabled={!lpInput}
+                                      onClick={() => handleBettingUpdate(branch.id, { lpAmount: parseFloat(lpInput) })}
+                                    >
+                                      저장
+                                    </Button>
+                                  </div>
+                                )}
                                 <p className="text-[11px] text-muted-foreground">
                                   LP는 라��드 시작 시 6개 풀에 균등 배분됩니다. 최소 참가자 전에도 자연스러운 배당이 표시됩니다.
                                 </p>
@@ -802,10 +963,217 @@ export default function PanelPage() {
             </div>
           </>
         )}
-        {/* 라운드 모니터 탭 */}
+        {/* LP 히스토리 탭 - 라운드 모니터로 통합됨 (이 블록은 도달 안됨) */}
+        {false && (
+          <div className="space-y-4">
+            <div className="bg-card border border-border rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">LP 유동성 히스토리</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">파리뮤추얼 라운드별 LP 투입 기록</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">총 LP 사용액</p>
+                  <p className="text-sm font-bold text-foreground">₩{lpTotal.toLocaleString()}</p>
+                </div>
+              </div>
+
+              {lpLoading ? (
+                <div className="flex justify-center py-10"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+              ) : lpHistory.length === 0 ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">LP 사용 내역이 없습니다.</div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {lpHistory.map(tx => {
+                    const poolLabel: Record<string, string> = { long_short: "롱/숏", under_over: "언더/오버", odd_even: "홀/짝" }
+                    const sideLabel = tx.side === "a" ? "A (롱·언더·홀)" : "B (숏·오버·짝)"
+                    return (
+                      <div key={tx.id} className="px-5 py-3 flex items-center justify-between text-sm">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-foreground">{poolLabel[tx.pool_type] ?? tx.pool_type}</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">{sideLabel}</span>
+                            {tx.settled_odds != null && (
+                              <span className="text-xs text-muted-foreground">확정 x{tx.settled_odds.toFixed(2)}</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            라운드 {new Date(tx.round_time * 1000).toLocaleString("ko-KR")} · 사용자 배팅 ₩{tx.user_amount.toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-foreground">₩{tx.lp_amount.toLocaleString()}</p>
+                          <p className="text-[11px] text-muted-foreground">{new Date(tx.created_at).toLocaleTimeString("ko-KR")}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 하우스 손익 탭 - 라운드 모니터로 통합됨 */}
+        {false && (
+          <div className="space-y-5">
+
+            {/* 마스터 전체 집계 요약 */}
+            {masterSummary && (
+              <div className="bg-card border border-border rounded-2xl p-5">
+                <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <TrendingDown className="w-4 h-4 text-primary" /> 전체 지점 합산
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: "총 배팅액", value: masterSummary.totalBet, color: "text-foreground" },
+                    { label: "총 지급액", value: masterSummary.totalPayout, color: "text-red-500" },
+                    { label: "하우스 손익", value: masterSummary.houseProfit, color: masterSummary.houseProfit >= 0 ? "text-emerald-500" : "text-red-500" },
+                    { label: "총 LP 사용", value: masterSummary.totalLpUsed, color: "text-blue-500" },
+                    { label: "누적 수수료", value: masterSummary.totalFee, color: "text-amber-500" },
+                    { label: "수금 완료", value: masterSummary.totalCollected, color: "text-muted-foreground" },
+                    { label: "미수금", value: masterSummary.pendingFee, color: masterSummary.pendingFee > 0 ? "text-orange-500" : "text-muted-foreground" },
+                  ].map(item => (
+                    <div key={item.label} className="bg-background rounded-xl p-3">
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className={`text-base font-bold tabular-nums mt-0.5 ${item.color}`}>
+                        {item.value >= 0 ? "" : "-"}₩{Math.abs(item.value).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 지점별 상세 */}
+            <div className="bg-card border border-border rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">지점별 하우스 손익</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">게임 유형별 배팅·지급·LP·수수료 집계</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={loadHouseStats} disabled={houseLoading} className="gap-1.5 text-xs">
+                  <RefreshCw className={`w-3.5 h-3.5 ${houseLoading ? "animate-spin" : ""}`} /> 새로고침
+                </Button>
+              </div>
+
+              {houseLoading ? (
+                <div className="py-10 flex justify-center">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : houseStats.length === 0 ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">아직 집계 데이터가 없습니다.</div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {houseStats.map(stat => {
+                    const pending = Math.max(0, stat.total_fee - stat.total_collected)
+                    const housePnl = stat.total_bet - stat.total_payout
+                    const key = `${stat.branch_id}-${stat.game_type}`
+                    return (
+                      <div key={stat.id} className="px-5 py-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-foreground">
+                              {stat.branches?.name ?? stat.branch_id}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                              {stat.game_type === "baccarat" ? "바카라" : "레이스"}
+                            </span>
+                          </div>
+                          {isSuperAdmin && pending > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs gap-1.5"
+                              disabled={collectingId === key}
+                              onClick={() => handleCollect(stat.branch_id, stat.game_type)}
+                            >
+                              <Download className="w-3 h-3" />
+                              {collectingId === key ? "처리 중..." : `₩${pending.toLocaleString()} 수금`}
+                            </Button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                          <div>
+                            <p className="text-muted-foreground">총 배팅</p>
+                            <p className="font-semibold text-foreground tabular-nums">₩{stat.total_bet.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">총 지급</p>
+                            <p className="font-semibold text-red-500 tabular-nums">₩{stat.total_payout.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">하우스 손익</p>
+                            <p className={`font-bold tabular-nums ${housePnl >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                              {housePnl >= 0 ? "+" : "-"}₩{Math.abs(housePnl).toLocaleString()}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">LP 사용</p>
+                            <p className="font-semibold text-blue-500 tabular-nums">₩{stat.total_lp_used.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">미수금 수수료</p>
+                            <p className={`font-bold tabular-nums ${pending > 0 ? "text-orange-500" : "text-muted-foreground"}`}>
+                              ₩{pending.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 수금 이력 */}
+            {feeCollections.length > 0 && (
+              <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h3 className="text-sm font-semibold text-foreground">수금 이력</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">최근 20건</p>
+                </div>
+                <div className="divide-y divide-border">
+                  {feeCollections.map(fc => (
+                    <div key={fc.id} className="px-5 py-3 flex items-center justify-between text-sm">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">{fc.branches?.name ?? fc.branch_id}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                            {fc.game_type === "baccarat" ? "바카라" : "레이스"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{fc.note} · {new Date(fc.created_at).toLocaleString("ko-KR")}</p>
+                      </div>
+                      <p className="font-bold text-emerald-500 tabular-nums">₩{fc.collected_amount.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 지점별 LP 설정 (마스터 전용) */}
+            {isSuperAdmin && (
+              <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h3 className="text-sm font-semibold text-foreground">지점별 LP 금액 설정</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">바카라 / 레이스 게임별 LP 유동성 금액 (마스터 전용)</p>
+                </div>
+                <div className="divide-y divide-border">
+                  {branches.map(branch => (
+                    <LpBranchRow key={branch.id} branch={branch} onSaved={loadHouseStats} />
+                  ))}
+                  {branches.length === 0 && <p className="py-6 text-center text-xs text-muted-foreground">지점이 없습니다.</p>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 라운드 모니터 탭 (LP 히스토리 + 하우스 손익 통합) */}
         {activeTab === "monitor" && (
           <div>
-            <RoundMonitor isSuperAdmin={isSuperAdmin} />
+            <RoundMonitor isSuperAdmin={isSuperAdmin} branches={branches} />
           </div>
         )}
 

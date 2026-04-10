@@ -4,18 +4,18 @@
  * price-server (Railway)가 30초 closing 직후 호출:
  *   POST /api/game/settle  { closePrice, closeTime, source: "price-server" }
  *
- * 1. Redis에서 해당 라운드의 모든 배팅자(users:{gameType}:{round}) 조회
- * 2. 각 유저 배팅 내역(bet:bets:{gameType}:{round}:{userId}) 읽기
- * 3. 고정 배당(3.0x) 계산 후 add_balance_for_payout atomic RPC 호출
- * 4. balance_version incr → SSE가 클라이언트에 잔고 push
- * 5. Redis에 결과(game:result:{round}) 저장 → 클라이언트 폴링 수신
+ * 1. Redis에서 해당 라운드의 모든 배팅자(bet:user:{round}) 조회
+ * 2. 각 유저 배팅 내역(bet:bets:{round}:{userId}) 읽기
+ * 3. LP 배당 계산 후 add_balance_for_payout atomic RPC 호출
+ * 4. upsert_house_stats로 하우스 손익 기록
+ * 5. balance_version incr → SSE가 클라이언트에 잔고 push
+ * 6. Redis에 결과(game:result:{round}) 저장 → 클라이언트 폴링 수신
  */
 
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
-
-const FIXED_ODDS = 3.0  // 고정 배당 (LP/파리뮤추얼 제거)
+import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
 export const runtime = "nodejs"
 
@@ -209,11 +209,42 @@ export async function POST(request: Request) {
     const settlementResults: Array<{ userId: string; payout: number }> = []
 
     for (const userId of userIds as string[]) {
-      const betsKey = `bet:bets:baccarat:${roundNumber}:${userId}`
-      const betsRaw = await redis.get<string>(betsKey)
+      const betsKey     = `bet:bets:baccarat:${roundNumber}:${userId}`
+      const oddsSnapKey = `odds:snap:baccarat:${roundNumber}:${userId}`
+      const [betsRaw, oddsSnapRaw] = await Promise.all([
+        redis.get<string>(betsKey),
+        redis.get<string>(oddsSnapKey),
+      ])
       if (!betsRaw) continue
 
-      const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
+      const bets     = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
+      // 배팅 시점에 저장된 odds 스냅샷 사용 → 없으면 현재 풀로 fallback 계산
+      let oddsSnap: { player: number; banker: number; tie: number } | null = null
+      if (oddsSnapRaw) {
+        try { oddsSnap = typeof oddsSnapRaw === "string" ? JSON.parse(oddsSnapRaw) : oddsSnapRaw } catch {}
+      }
+      if (!oddsSnap) {
+        // fallback: settle 시점 LP 설정으로 계산
+        const lpCacheKey = `lp:config:user:${userId}`
+        let lpConfig = { ...DEFAULT_LP_CONFIG }
+        const cachedLp = await redis.get<string>(lpCacheKey)
+        if (cachedLp) {
+          try { lpConfig = typeof cachedLp === "string" ? JSON.parse(cachedLp) : cachedLp } catch {}
+        } else {
+          const { data: profileData } = await admin
+            .from("profiles").select("branch_id").eq("id", userId).single()
+          if (profileData?.branch_id) {
+            const { data: branch } = await admin
+              .from("branches")
+              .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+              .eq("id", profileData.branch_id).single()
+            if (branch) lpConfig = branchToLpConfig(branch)
+            await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 30 })
+          }
+        }
+        const r = calcBaccaratOdds(baccaratPool, lpConfig, userCount)
+        oddsSnap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+      }
 
       let totalPayout = 0
       let totalUserBet = 0
@@ -288,6 +319,13 @@ export async function POST(request: Request) {
         }
         if (!branchId) continue
 
+        const lpCacheKey = `lp:config:user:${userId}`
+        let lpConfig = { ...DEFAULT_LP_CONFIG }
+        const cachedLp = await redis.get<string>(lpCacheKey)
+        if (cachedLp) { try { lpConfig = typeof cachedLp === "string" ? JSON.parse(cachedLp) : cachedLp } catch {} }
+
+        const baccaratOddsSnap = calcBaccaratOdds(baccaratPool, lpConfig, userCount)
+
         let userBet = 0
         let userPayout = 0
 
@@ -307,7 +345,10 @@ export async function POST(request: Request) {
           userBet += bets.baccaratAmount
           const side = bets.baccaratSide as "player" | "banker" | "tie"
           if (side === baccaratResult) {
-            userPayout += Math.floor(bets.baccaratAmount * FIXED_ODDS)
+            const odds = side === "player" ? baccaratOddsSnap.playerOdds
+              : side === "banker" ? baccaratOddsSnap.bankerOdds
+              : baccaratOddsSnap.tieOdds
+            userPayout += Math.floor(bets.baccaratAmount * odds)
           } else if (baccaratResult === "tie" && (side === "player" || side === "banker")) {
             userPayout += bets.baccaratAmount  // 타이 원금 반환
           }
@@ -364,10 +405,43 @@ export async function POST(request: Request) {
       const settleTargetIds = prevRaceUserIds.length > 0 ? prevRaceUserIds : (raceUserIds as string[])
 
       for (const userId of settleTargetIds) {
-        const betsKey = `bet:bets:race:${prevRaceRoundNumber}:${userId}`
-        const betsRaw = await redis.get<string>(betsKey)
+        const betsKey     = `bet:bets:race:${prevRaceRoundNumber}:${userId}`
+        const oddsSnapKey = `odds:snap:race:${prevRaceRoundNumber}:${userId}`
+        const [betsRaw, oddsSnapRaw] = await Promise.all([
+          redis.get<string>(betsKey),
+          redis.get<string>(oddsSnapKey),
+        ])
         if (!betsRaw) continue
         const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
+
+        // 배팅 시점 odds 스냅샷 사용 → 없으면 settle 시점 풀로 fallback
+        let raceOddsSnap: { bit: number; coin: number; tie: number } | null = null
+        if (oddsSnapRaw) {
+          try { raceOddsSnap = typeof oddsSnapRaw === "string" ? JSON.parse(oddsSnapRaw) : oddsSnapRaw } catch {}
+        }
+        if (!raceOddsSnap) {
+          const lpCacheKey = `lp:config:user:${userId}`
+          let lpConfig = { ...DEFAULT_LP_CONFIG }
+          const cachedLp = await redis.get<string>(lpCacheKey)
+          if (cachedLp) {
+            try { lpConfig = typeof cachedLp === "string" ? JSON.parse(cachedLp) : cachedLp } catch {}
+          } else {
+            const { data: profileData } = await admin
+              .from("profiles").select("branch_id").eq("id", userId).single()
+            if (profileData?.branch_id) {
+              const { data: branch } = await admin
+                .from("branches")
+                .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+                .eq("id", profileData.branch_id).single()
+              if (branch) {
+                lpConfig = branchToLpConfig(branch)
+                await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 30 })
+              }
+            }
+          }
+          const r = calcRaceOdds(racePool, lpConfig, raceUserCount)
+          raceOddsSnap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+        }
 
         let totalPayout = 0
 
@@ -381,7 +455,9 @@ export async function POST(request: Request) {
         if (bets.raceSide && bets.raceAmount > 0) {
           const side = bets.raceSide as "bit" | "coin" | "tie"
           if (side === raceWinner) {
-            totalPayout += Math.floor(bets.raceAmount * FIXED_ODDS)
+            // 배팅 시점 스냅샷 odds 사용
+            const odds = raceOddsSnap[side]
+            totalPayout += Math.floor(bets.raceAmount * odds)
           } else if (raceWinner === "tie" && (side === "bit" || side === "coin")) {
             totalPayout += bets.raceAmount
           }
@@ -426,6 +502,13 @@ export async function POST(request: Request) {
         }
         if (!branchId) continue
 
+        const lpCacheKey = `lp:config:user:${userId}`
+        let lpConfig = { ...DEFAULT_LP_CONFIG }
+        const cachedLp = await redis.get<string>(lpCacheKey)
+        if (cachedLp) { try { lpConfig = typeof cachedLp === "string" ? JSON.parse(cachedLp) : cachedLp } catch {} }
+
+        const raceOddsSnap = calcRaceOdds(racePool, lpConfig, raceUserCount)
+
         let userBet = 0
         let userPayout = 0
 
@@ -445,7 +528,10 @@ export async function POST(request: Request) {
           userBet += bets.raceAmount
           const side = bets.raceSide as "bit" | "coin" | "tie"
           if (side === raceWinner) {
-            userPayout += Math.floor(bets.raceAmount * FIXED_ODDS)
+            const odds = side === "bit" ? raceOddsSnap.bitOdds
+              : side === "coin" ? raceOddsSnap.coinOdds
+              : raceOddsSnap.tieOdds
+            userPayout += Math.floor(bets.raceAmount * odds)
           } else if (raceWinner === "tie" && (side === "bit" || side === "coin")) {
             userPayout += bets.raceAmount
           }
