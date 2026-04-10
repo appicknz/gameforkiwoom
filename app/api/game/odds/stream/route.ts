@@ -1,7 +1,6 @@
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
-import { calcAutoLpSeed } from "@/lib/lp-auto-seed"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -31,21 +30,12 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
   // 실시간 풀 + 역대 평균 기반 자동 시드를 병렬로 조회
   const poolKey    = `pool:${gameType}:${roundNumber}`
   const userSetKey = `users:${gameType}:${roundNumber}`
-  const fallbackSeed = gameType === "baccarat"
-    ? lpConfig.lpAmountBaccarat
-    : lpConfig.lpAmountRace
-
-  const [poolData, userCount, autoSeed] = await Promise.all([
+  const [poolData, userCount] = await Promise.all([
     redis.hgetall(poolKey).catch(() => null),
     redis.scard(userSetKey).catch(() => 0),
-    calcAutoLpSeed(gameType, branchId, fallbackSeed),
   ])
 
-  // 자동 계산된 시드로 lpConfig 갱신
-  if (gameType === "baccarat") lpConfig.lpAmountBaccarat = autoSeed
-  else                         lpConfig.lpAmountRace     = autoSeed
-
-  const safeCount = userCount ?? 0
+  const safeCount = (userCount as number) ?? 0
 
   if (gameType === "baccarat") {
     const userPools = {

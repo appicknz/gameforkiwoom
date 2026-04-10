@@ -2,7 +2,6 @@ import { adminSupabase } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
-import { calcAutoLpSeed } from "@/lib/lp-auto-seed"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -115,12 +114,6 @@ export async function POST(request: Request) {
           await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 30 })
         }
       }
-
-      // 자동 시드 계산 (odds/stream 과 동일한 로직)
-      const fallbackSeed = gameType === "baccarat" ? lpConfig.lpAmountBaccarat : lpConfig.lpAmountRace
-      const autoSeed = await calcAutoLpSeed(gameType, branchId, fallbackSeed)
-      if (gameType === "baccarat") lpConfig.lpAmountBaccarat = autoSeed
-      else                         lpConfig.lpAmountRace     = autoSeed
 
       // 현재 풀 데이터로 odds 계산
       let oddsSnap: Record<string, number> = {}

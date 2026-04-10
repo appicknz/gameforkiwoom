@@ -118,27 +118,36 @@ export const FEE_RATE = 0.20
 const MIN_ODDS        = 1.01
 const MAX_ODDS        = 50.0
 
+/**
+ * V: 하우스 기준 가상 풀 크기
+ * 유저가 아무도 없을 때 dynamic_lp = V×0.8/1.95 로 초기 배당 ~1.95x 유지
+ * 유저 배팅이 쌓일수록 multiplier가 감소 → LP 비중 줄어듦
+ */
+const V = 300_000_000  // 3억 (배팅 단위와 무관하게 고정)
+
 // ── 내부 유틸 ────────────────────────────────────────────────────────────────
 
 /**
- * LP 감쇠 가중치 계산
+ * LP multiplier 계산 (스펙 기반)
  *
- * halfPoint = lpSeedTotal × multiplier
- *   → userTotalBet 이 halfPoint 에 도달하면 lpWeight = 0.50
+ *   multiplier = V / (V + totalBet + userCount × 300_000)
  *
- * multiplier(lp_multiplier) 로 감쇠 속도 조절:
- *   0.5 → 빠른 감쇠 (유저 적어도 LP 비중 빨리 줄어듦)
- *   1.0 → 기본
- *   2.0 → 느린 감쇠 (유저 많아도 LP 비중 천천히 줄어듦)
+ * userCount가 많을수록, 배팅이 쌓일수록 multiplier 감소 → dynamic_lp 감소
  */
-function calcLpWeight(
-  totalUserBet: number,
-  lpSeedTotal:  number,
-  multiplier:   number,
-): number {
-  if (lpSeedTotal <= 0) return 0
-  const halfPoint = lpSeedTotal * Math.max(0.1, multiplier)
-  return 1 / (1 + totalUserBet / halfPoint)
+function calcLpMultiplier(totalUserBet: number, userCount: number): number {
+  return V / (V + totalUserBet + userCount * 300_000)
+}
+
+/**
+ * dynamic_lp 계산 (사이드당)
+ *
+ *   dynamic_lp = (V × 0.8 / 1.95) × multiplier
+ *
+ * 유저 없을 때 multiplier=1 → dynamic_lp = V×0.8/1.95
+ * → 배당 = net_pool / (dynamic_lp + 0) ≈ 1.95x
+ */
+function calcDynamicLp(multiplier: number): number {
+  return (V * 0.8 / 1.95) * multiplier
 }
 
 /** 배당률 클램핑 */
@@ -147,10 +156,10 @@ function clamp(odds: number): number {
 }
 
 /** 현재 모드 레이블 */
-function getMode(lpWeight: number): "seeded" | "decay" | "natural" {
-  if (lpWeight >= 0.80) return "seeded"   // LP 80% 이상 → 시딩 단계
-  if (lpWeight >= 0.10) return "decay"    // LP 10~80%   → 감쇠 단계
-  return "natural"                         // LP 10% 미만 → 자연 파리뮤추얼
+function getMode(multiplier: number): "seeded" | "decay" | "natural" {
+  if (multiplier >= 0.80) return "seeded"
+  if (multiplier >= 0.10) return "decay"
+  return "natural"
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -161,11 +170,8 @@ function getMode(lpWeight: number): "seeded" | "decay" | "natural" {
 export function calcBaccaratOdds(
   userPools: BaccaratPools,
   lpConfig: LpConfig,
-  _userCount?: number
+  userCount: number = 0
 ): OddsResult {
-  const seed       = lpConfig.enabled ? lpConfig.lpAmountBaccarat : 0
-  const multiplier = lpConfig.lpMultiplierBaccarat ?? 1.0
-
   const totalUserBet = userPools.player + userPools.banker + userPools.tie
 
   // LP 비활성 + 유저 배팅 없음 → 배당 미확정 (pending)
@@ -177,21 +183,22 @@ export function calcBaccaratOdds(
     }
   }
 
-  const lpSeedTotal  = seed * 3
-  const lpWeight = calcLpWeight(totalUserBet, lpSeedTotal, multiplier)
-  const effectiveSeed = seed * lpWeight
+  const multiplier  = lpConfig.enabled ? calcLpMultiplier(totalUserBet, userCount) : 0
+  const dynamicLp   = lpConfig.enabled ? calcDynamicLp(multiplier) : 0
 
-  const totalPlayer = userPools.player + effectiveSeed
-  const totalBanker = userPools.banker + effectiveSeed
-  const totalTie    = userPools.tie    + effectiveSeed
+  // net_pool = (dynamic_lp×3 + totalUserBet) × 0.8
+  const grossPool = dynamicLp * 3 + totalUserBet
+  const netPool   = grossPool * 0.8
+  const fee       = Math.floor(totalUserBet * FEE_RATE)
 
-  const fee     = Math.floor(totalUserBet * FEE_RATE)
-  const giveout = (totalUserBet - fee) + (effectiveSeed * 3)
-  const totalPool = totalUserBet + lpSeedTotal
+  // 사이드별 실효 풀 = 유저 배팅 + dynamic_lp
+  const totalPlayer = userPools.player + dynamicLp
+  const totalBanker = userPools.banker + dynamicLp
+  const totalTie    = userPools.tie    + dynamicLp
 
-  const playerOdds = parseFloat((giveout / totalPlayer).toFixed(4))
-  const bankerOdds = parseFloat((giveout / totalBanker).toFixed(4))
-  const tieOdds    = parseFloat((giveout / totalTie).toFixed(4))
+  const playerOdds = parseFloat((netPool / totalPlayer).toFixed(4))
+  const bankerOdds = parseFloat((netPool / totalBanker).toFixed(4))
+  const tieOdds    = parseFloat((netPool / totalTie).toFixed(4))
 
   return {
     playerOdds: clamp(playerOdds),
@@ -199,10 +206,10 @@ export function calcBaccaratOdds(
     tieOdds:    clamp(tieOdds),
     available:  true,
     fee,
-    totalPool,
-    lpSeed:   lpSeedTotal,
-    lpWeight: parseFloat(lpWeight.toFixed(4)),
-    mode:     getMode(lpWeight),
+    totalPool:  grossPool,
+    lpSeed:     dynamicLp * 3,
+    lpWeight:   parseFloat(multiplier.toFixed(4)),
+    mode:       getMode(multiplier),
   }
 }
 
@@ -212,11 +219,8 @@ export function calcBaccaratOdds(
 export function calcRaceOdds(
   userPools: RacePools,
   lpConfig: LpConfig,
-  _userCount?: number
+  userCount: number = 0
 ): RaceOddsResult {
-  const seed       = lpConfig.enabled ? lpConfig.lpAmountRace : 0
-  const multiplier = lpConfig.lpMultiplierRace ?? 1.0
-
   const totalUserBet = userPools.bit + userPools.coin + userPools.tie
 
   // LP 비활성 + 유저 배팅 없음 → 배당 미확정 (pending)
@@ -228,21 +232,20 @@ export function calcRaceOdds(
     }
   }
 
-  const lpSeedTotal  = seed * 3
-  const lpWeight = calcLpWeight(totalUserBet, lpSeedTotal, multiplier)
-  const effectiveSeed = seed * lpWeight
+  const multiplier = lpConfig.enabled ? calcLpMultiplier(totalUserBet, userCount) : 0
+  const dynamicLp  = lpConfig.enabled ? calcDynamicLp(multiplier) : 0
 
-  const totalBit  = userPools.bit  + effectiveSeed
-  const totalCoin = userPools.coin + effectiveSeed
-  const totalTie  = userPools.tie  + effectiveSeed
+  const grossPool = dynamicLp * 3 + totalUserBet
+  const netPool   = grossPool * 0.8
+  const fee       = Math.floor(totalUserBet * FEE_RATE)
 
-  const fee     = Math.floor(totalUserBet * FEE_RATE)
-  const giveout = (totalUserBet - fee) + (effectiveSeed * 3)
-  const totalPool = userPools.bit + userPools.coin + userPools.tie + lpSeedTotal
+  const totalBit  = userPools.bit  + dynamicLp
+  const totalCoin = userPools.coin + dynamicLp
+  const totalTie  = userPools.tie  + dynamicLp
 
-  const bitOdds  = parseFloat((giveout / totalBit).toFixed(4))
-  const coinOdds = parseFloat((giveout / totalCoin).toFixed(4))
-  const tieOdds  = parseFloat((giveout / totalTie).toFixed(4))
+  const bitOdds  = parseFloat((netPool / totalBit).toFixed(4))
+  const coinOdds = parseFloat((netPool / totalCoin).toFixed(4))
+  const tieOdds  = parseFloat((netPool / totalTie).toFixed(4))
 
   return {
     bitOdds:  clamp(bitOdds),
@@ -250,10 +253,10 @@ export function calcRaceOdds(
     tieOdds:  clamp(tieOdds),
     available: true,
     fee,
-    totalPool,
-    lpSeed:   lpSeedTotal,
-    lpWeight: parseFloat(lpWeight.toFixed(4)),
-    mode:     getMode(lpWeight),
+    totalPool:  grossPool,
+    lpSeed:     dynamicLp * 3,
+    lpWeight:   parseFloat(multiplier.toFixed(4)),
+    mode:       getMode(multiplier),
   }
 }
 
