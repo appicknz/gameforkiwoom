@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 import { RoundMonitor } from "@/components/admin/round-monitor"
-import { AutoBetMonitor } from "@/components/admin/auto-bet-monitor"
 
 const SUPER_ROLES = ["master", "super_admin"]
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
@@ -146,13 +145,14 @@ export default function PanelPage() {
   const [myRole, setMyRole] = useState<string>("")
   const [myUserId, setMyUserId] = useState<string>("")
   const [myBranchCode, setMyBranchCode] = useState<string | null>(null)
+  const [myBranchId, setMyBranchId] = useState<string | undefined>(undefined)
   const [profile, setProfile] = useState<{ username: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [adminPw, setAdminPw] = useState("")
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "auto-bet" | "cards" | "videos">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "cards" | "videos">("users")
 
   // 카드 이미지 관리
   interface CardImage { url: string; pathname: string; uploadedAt: string }
@@ -423,9 +423,24 @@ export default function PanelPage() {
   useEffect(() => {
     if (adminPw && myUserId) {
       loadUsers(adminPw)
-      if (SUPER_ROLES.includes(myRole)) loadBranches(adminPw)
+      // superadmin: 전체 지점 로드
+      // branch_admin: 자기 지점 id 파악을 위해 branches 로드 후 myBranchId 설정
+      loadBranches(adminPw).then(() => {
+        // branches 상태는 비동기로 업데이트되므로 직접 fetch
+        if (myRole === "branch_admin" && myBranchCode) {
+          const token = getToken()
+          if (!token) return
+          fetch("/api/admin/branches", { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.json())
+            .then(d => {
+              const found = (d.branches ?? []).find((b: { code: string; id: string }) => b.code === myBranchCode)
+              if (found) setMyBranchId(found.id)
+            })
+            .catch(() => {})
+        }
+      })
     }
-  }, [adminPw, myRole, myUserId])
+  }, [adminPw, myRole, myUserId, myBranchCode])
 
   // 잔고 충전/차감
   const handleCharge = async (userId: string, delta: number) => {
@@ -621,14 +636,7 @@ export default function PanelPage() {
           >
             <Activity className="w-4 h-4" /> 라운드 모니터
           </button>
-          {isSuperAdmin && (
-            <button
-              onClick={() => setActiveTab("auto-bet")}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "auto-bet" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-            >
-              <TrendingDown className="w-4 h-4" /> 자동배팅
-            </button>
-          )}
+
           {isSuperAdmin && (
             <button
               onClick={() => { setActiveTab("cards"); loadCardImages() }}
@@ -1170,17 +1178,14 @@ export default function PanelPage() {
           </div>
         )}
 
-        {/* 라운드 모니터 탭 (LP 히스토리 + 하우스 손익 통합) */}
+        {/* 라운드 모니터 + 자동배팅 통합 탭 */}
         {activeTab === "monitor" && (
           <div>
-            <RoundMonitor isSuperAdmin={isSuperAdmin} branches={branches} />
-          </div>
-        )}
-
-        {/* 자동배팅 탭 */}
-        {activeTab === "auto-bet" && isSuperAdmin && (
-          <div>
-            <AutoBetMonitor />
+            <RoundMonitor
+              isSuperAdmin={isSuperAdmin}
+              branchId={isSuperAdmin ? undefined : myBranchId}
+              branches={branches}
+            />
           </div>
         )}
 
