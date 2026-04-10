@@ -672,6 +672,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       // 서버 정산 호출 — Railway 유무와 무관하게 클라이언트가 직접 실행
       // 배팅이 있는 경우���만 호출 (잔고 반영)
       const token = getToken()
+      const resolvedRoundNumber = betRoundNumberRef.current || getRoundNumber()
+      console.log("[v0] 게임 종료 | baccaratResult:", bacResult, "| wonBaccarat:", wonBaccarat, "| side:", betBaccaratRef.current, "| betAmount:", betBaccaratAmountRef.current, "| snapshotOdds:", JSON.stringify(liveOddsSnapshotRef.current), "| roundNumber:", resolvedRoundNumber)
+
       if (token) {
         fetch("/api/game/settle-me", {
           method: "POST",
@@ -679,12 +682,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           body: JSON.stringify({
             closePrice,
             basePrice: effectiveBase,
-            // 배팅 시점에 저장해둔 roundNumber 사용 (라운드 경계에서 불일치 방지)
-            roundNumber: betRoundNumberRef.current || getRoundNumber(),
+            roundNumber: resolvedRoundNumber,
             gameType: "baccarat",
           }),
         })
-          .then(r => r.json())
+          .then(async r => {
+            const text = await r.text()
+            console.log("[v0] settle-me 응답 status:", r.status, "| body:", text)
+            return JSON.parse(text)
+          })
           .then(d => {
             // 정산 완료 후 잔고 갱신
             if (typeof d.balance === "number") {
@@ -693,10 +699,11 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
             }
             // 서버 확정 odds로 결과 모달 업데이트 (화면 표시 배율 정확히 반영)
             if (d.appliedOdds) {
+              console.log("[v0] 서버 확정 배율:", JSON.stringify(d.appliedOdds), "| payout:", d.payout, "| newBalance:", d.balance)
               setLastResult(prev => prev ? { ...prev, baccaratOdds: d.appliedOdds } : prev)
             }
           })
-          .catch(() => {})
+          .catch(err => console.error("[v0] settle-me fetch error:", err))
       }
 
       // 베팅 상태 초기화 (다음 라운드 준비)
@@ -873,6 +880,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       // 배팅 성공 시 현재 라운드 번호 + 배당률 스냅샷 저장 (라운드 종료 후 liveOdds가 리셋되기 전 값 보존)
       betRoundNumberRef.current   = getRoundNumber()
       liveOddsSnapshotRef.current = liveOdds
+      console.log("[v0] 배팅 확정 | round:", betRoundNumberRef.current, "| side:", value, "| amount:", cfg.amount, "| liveOdds at bet time:", JSON.stringify(liveOdds))
       if (!basePriceRef.current && currentPriceRef.current) {
         basePriceRef.current = currentPriceRef.current
         setBasePrice(currentPriceRef.current)

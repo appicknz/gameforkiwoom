@@ -52,16 +52,18 @@ export async function POST(request: Request) {
       ? [storedRound]
       : [roundNumber, roundNumber - 1, roundNumber + 1]
 
-    let betsRaw:     string | null = null
-    let oddsSnapRaw: string | null = null
-    let resolvedRound: number      = roundNumber
+    let betsRaw:      string | null = null
+    let oddsSnapRaw:  string | null = null
+    let resolvedRound: number       = roundNumber
+    let resolvedBetsKey: string     = `bet:bets:${gameType}:${roundNumber}:${userId}`
 
     for (const rn of candidates) {
       const bk = `bet:bets:${gameType}:${rn}:${userId}`
       const ok = `odds:snap:${gameType}:${rn}:${userId}`
       const [b, o] = await Promise.all([redis.get<string>(bk), redis.get<string>(ok)])
-      if (b) { betsRaw = b; oddsSnapRaw = o; resolvedRound = rn; break }
+      if (b) { betsRaw = b; oddsSnapRaw = o; resolvedRound = rn; resolvedBetsKey = bk; break }
     }
+    console.log("[v0] settle-me candidates:", candidates, "resolvedRound:", resolvedRound, "hasBets:", !!betsRaw)
 
     if (!betsRaw) {
       // 배팅 없음 — 현재 잔고만 반환
@@ -232,8 +234,10 @@ export async function POST(request: Request) {
       redis.incr(`balance_version:${userId}`),
     ])
 
+    console.log("[v0] settle-me result | side:", bets.baccaratSide ?? bets.raceSide, "| betAmount:", bets.baccaratAmount ?? bets.raceAmount, "| oddsSnap:", JSON.stringify(oddsSnap), "| payout:", totalPayout, "| newBalance:", newBalance)
+
     // 배팅 키 삭제 (중복 정산 방지)
-    await redis.del(betsKey).catch(() => {})
+    await redis.del(resolvedBetsKey).catch(() => {})
 
     return NextResponse.json({
       success: true,
