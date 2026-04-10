@@ -103,9 +103,6 @@ export async function POST(request: Request) {
         if (!merged.raceAmount) merged.raceAmount = betAmount
       }
 
-      // ── 배팅 시점 odds 스냅샷 계산 후 저장 ──────────────────
-      // 현재 풀 상태 + hincrby 반영 전 풀로 odds 계산 (배팅이 반영되기 전 시점)
-      const poolData = await redis.hgetall(poolKey).catch(() => null)
       const branchId: string | null = profileData?.branch_id ?? null
 
       // LP 설정 조회
@@ -125,13 +122,28 @@ export async function POST(request: Request) {
         }
       }
 
-      // 현재 풀 데이터로 odds 계산
+      // 유저의 현재 진행중 배팅 roundNumber를 별도 키로 저장
+      const userRoundKey = `bet:round:${gameType}:${userId}`
+
+      // ── 배팅을 먼저 풀에 반영 ─────────────────────────────────
+      await Promise.all([
+        redis.hincrby(poolKey, side, betAmount),
+        redis.sadd(userSetKey, userId),
+        redis.set(betsKey, JSON.stringify(merged), { ex: ttl }),
+        redis.set(userRoundKey, roundNumber, { ex: ttl }),
+        redis.expire(poolKey, ttl),
+        redis.expire(userSetKey, ttl),
+      ])
+
+      // ── 배팅 반영 후 풀로 odds 재계산 → 스냅샷 저장 ─────────────
+      // 화면에 표시되는 odds와 동일한 값(배팅 반영 후 풀 기준)
+      const poolDataAfter = await redis.hgetall(poolKey).catch(() => null)
       let oddsSnap: Record<string, number> = {}
       if (gameType === "baccarat") {
         const pool = {
-          player: parseInt((poolData?.player as string) ?? "0") || 0,
-          banker: parseInt((poolData?.banker as string) ?? "0") || 0,
-          tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
+          player: parseInt((poolDataAfter?.player as string) ?? "0") || 0,
+          banker: parseInt((poolDataAfter?.banker as string) ?? "0") || 0,
+          tie:    parseInt((poolDataAfter?.tie    as string) ?? "0") || 0,
         }
         const userCount = await redis.scard(`users:baccarat:${roundNumber}`).catch(() => 0)
         const r = calcBaccaratOdds(pool, lpConfig, userCount as number)
@@ -142,9 +154,9 @@ export async function POST(request: Request) {
         }
       } else {
         const pool = {
-          bit:  parseInt((poolData?.bit  as string) ?? "0") || 0,
-          coin: parseInt((poolData?.coin as string) ?? "0") || 0,
-          tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
+          bit:  parseInt((poolDataAfter?.bit  as string) ?? "0") || 0,
+          coin: parseInt((poolDataAfter?.coin as string) ?? "0") || 0,
+          tie:  parseInt((poolDataAfter?.tie  as string) ?? "0") || 0,
         }
         const userCount = await redis.scard(`users:race:${roundNumber}`).catch(() => 0)
         const r = calcRaceOdds(pool, lpConfig, userCount as number)
@@ -155,25 +167,16 @@ export async function POST(request: Request) {
         }
       }
 
-      // 기존 스냅샷이 있으면 이미 저장된 사이드 odds 보존, 없는 사이드만 새로 추가
+      // 기존 스냅샷이 있으면 이미 저장된 사이드 odds 보존 (첫 배팅 시점 odds 고정)
       const existingSnap = await redis.get<string>(oddsSnapKey)
       const prevSnap = existingSnap
         ? (typeof existingSnap === "string" ? JSON.parse(existingSnap) : existingSnap)
         : {}
-      // prevSnap 우선: 첫 배팅 시점 odds 고정 (새 odds로 덮어쓰지 않음)
       const mergedSnap = { ...oddsSnap, ...prevSnap }
+      await redis.set(oddsSnapKey, JSON.stringify(mergedSnap), { ex: ttl })
 
-      // 유저의 현재 진행중 배팅 roundNumber를 별도 키로 저장 (settle-me가 이전/현재 라운드 모두 조회 가능하도록)
-      const userRoundKey = `bet:round:${gameType}:${userId}`
-      redisOps.push(
-        redis.hincrby(poolKey, side, betAmount),
-        redis.sadd(userSetKey, userId),
-        redis.set(betsKey, JSON.stringify(merged), { ex: ttl }),
-        redis.set(oddsSnapKey, JSON.stringify(mergedSnap), { ex: ttl }),
-        redis.set(userRoundKey, roundNumber, { ex: ttl }),
-        redis.expire(poolKey, ttl),
-        redis.expire(userSetKey, ttl),
-      )
+      // redisOps에는 SSE 트리거만 남김 (pool 저장은 위에서 완료)
+      redisOps.push()
     }
 
     // pool 저장 완료 후 SSE 트리거 (버전 카운터 increment)
