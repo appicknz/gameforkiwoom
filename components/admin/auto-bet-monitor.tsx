@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Play, Square, Wallet, TrendingUp, AlertCircle } from "lucide-react"
+import { RefreshCw, Play, Square, Wallet, TrendingUp, AlertCircle, TrendingDown, BarChart3 } from "lucide-react"
 
 const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
 const fmt = (n: number) => `₩${n.toLocaleString("ko-KR")}`
@@ -46,6 +46,17 @@ interface BetLog {
   gameType?: string
 }
 
+interface BetStats {
+  totalWinProfit: number
+  totalLoss: number
+  totalBalance: number
+  winRate: number
+  winCount: number
+  loseCount: number
+  tieCount: number
+  totalBets: number
+}
+
 const SIDE_LABEL: Record<string, string> = {
   player: "플레이어", banker: "뱅커", tie: "타이",
   bit: "BIT팀", coin: "COIN팀",
@@ -60,6 +71,7 @@ export function AutoBetMonitor() {
   const [users, setUsers] = useState<AutoBetUser[]>([])
   const [logs, setLogs] = useState<BetLog[]>([])
   const [accumulatedFee, setAccumulatedFee] = useState(0)
+  const [stats, setStats] = useState<BetStats | null>(null)
   // 바카라/레이스 각각 독립 실행 상태
   const [baccaratRunning, setBaccaratRunning] = useState(false)
   const [raceRunning, setRaceRunning] = useState(false)
@@ -74,7 +86,11 @@ export function AutoBetMonitor() {
   const loadUsers = useCallback(async () => {
     const token = getToken(); if (!token) return
     const res = await fetch("/api/admin/auto-bet", { headers: { Authorization: `Bearer ${token}` } })
-    if (res.ok) { const d = await res.json(); setUsers(d.users ?? []) }
+    if (res.ok) {
+      const d = await res.json()
+      setUsers(d.users ?? [])
+      if (d.stats) setStats(d.stats)
+    }
   }, [])
 
   const loadLogs = useCallback(async () => {
@@ -223,8 +239,8 @@ export function AutoBetMonitor() {
           </div>
         </div>
 
-        {/* 누적 수수료 + 유저 수 */}
-        <div className="px-5 py-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* ── 1행: 수수료 + 유저 수 ── */}
+        <div className="px-5 pt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-muted rounded-xl p-3 col-span-2 md:col-span-2">
             <p className="text-xs text-muted-foreground">자동배팅 누적 수수료 (20%)</p>
             <p className="text-2xl font-black tabular-nums text-amber-500 mt-0.5">{fmt(accumulatedFee)}</p>
@@ -237,6 +253,56 @@ export function AutoBetMonitor() {
           <div className="bg-muted rounded-xl p-3">
             <p className="text-xs text-muted-foreground">레이스 유저</p>
             <p className="text-lg font-bold text-orange-500">{raceUsers.length}명</p>
+          </div>
+        </div>
+
+        {/* ── 2행: 수익/손실/충전/승률 통계 ── */}
+        <div className="px-5 py-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* 수익 누적 */}
+          <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-xl p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <TrendingUp className="w-3 h-3 text-emerald-500" />
+              <p className="text-xs text-muted-foreground">수익 누적</p>
+            </div>
+            <p className="text-lg font-black tabular-nums text-emerald-500">
+              {stats ? `+${fmt(stats.totalWinProfit)}` : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{stats ? `${stats.winCount}회 승` : ""}</p>
+          </div>
+          {/* 손실 누적 */}
+          <div className="bg-red-500/8 border border-red-500/20 rounded-xl p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <TrendingDown className="w-3 h-3 text-red-500" />
+              <p className="text-xs text-muted-foreground">손실 누적</p>
+            </div>
+            <p className="text-lg font-black tabular-nums text-red-500">
+              {stats ? `-${fmt(stats.totalLoss)}` : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{stats ? `${stats.loseCount}회 패` : ""}</p>
+          </div>
+          {/* 총 보유 잔고 */}
+          <div className="bg-muted rounded-xl p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Wallet className="w-3 h-3 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">총 보유 잔고</p>
+            </div>
+            <p className="text-lg font-black tabular-nums text-foreground">
+              {stats ? fmt(stats.totalBalance) : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{users.length}명 합산</p>
+          </div>
+          {/* 승률 */}
+          <div className="bg-muted rounded-xl p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <BarChart3 className="w-3 h-3 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">승률</p>
+            </div>
+            <p className="text-lg font-black tabular-nums text-foreground">
+              {stats ? `${stats.winRate}%` : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {stats ? `${stats.winCount}승 ${stats.loseCount}패 ${stats.tieCount}타이 / 총 ${stats.totalBets}판` : ""}
+            </p>
           </div>
         </div>
 

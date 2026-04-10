@@ -66,16 +66,54 @@ export async function GET(request: Request) {
   const baccaratRound = Math.floor(nowSec / 30)
   const raceRound     = Math.floor(nowSec / 300)
 
-  // 유저별 최근 정산 내역 (bet_history) — 최신 1건씩 일괄 조회
+  // ── 전체 집계 통계 (bet_history 전수 조회) ─────────────────
+  const { data: allHistory } = await adminSupabase
+    .from("bet_history")
+    .select("user_id, bet_amount, payout, result, created_at")
+    .in("user_id", userIds)
+
+  let totalWinProfit  = 0   // 순이익 누적 (win 라운드의 payout - bet_amount 합)
+  let totalLoss       = 0   // 손실 누적 (lose 라운드의 bet_amount 합)
+  let totalTopUpAmount = 0  // 총 충전액 (초기잔고 대신: 현재잔고 + 손실 - 이익으로 추산)
+  let winCount = 0
+  let loseCount = 0
+  let tieCount  = 0
+
+  for (const h of allHistory ?? []) {
+    if (h.result === "win") {
+      winCount++
+      totalWinProfit += (h.payout - h.bet_amount)
+    } else if (h.result === "lose") {
+      loseCount++
+      totalLoss += h.bet_amount
+    } else {
+      tieCount++
+    }
+  }
+  const totalBets = winCount + loseCount + tieCount
+  const winRate = totalBets > 0 ? Math.round((winCount / totalBets) * 1000) / 10 : 0
+
+  // 총 충전액: top_up 이력이 없으므로 현재잔고 합계 기준으로 표시
+  const totalBalance = Object.values(balMap).reduce((s, v) => s + v, 0)
+
+  const stats = { totalWinProfit, totalLoss, totalBalance, winRate, winCount, loseCount, tieCount, totalBets }
+
+  // ── 유저별 최근 정산 내역 (bet_history) — 최신 1건씩 ──────────
+  const lastHistoryMap: Record<string, { bet_direction: string; bet_amount: number; payout: number; result: string; created_at: string }> = {}
+  // allHistory는 created_at desc가 아니라 asc일 수 있으므로 정렬 후 추출
+  const sortedHistory = [...(allHistory ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))
+  for (const h of sortedHistory) {
+    if (!lastHistoryMap[h.user_id] && (h as any).bet_direction !== undefined) {
+      lastHistoryMap[h.user_id] = h as any
+    }
+  }
+  // bet_direction이 allHistory에 없으면 별도 조회
   const { data: recentHistory } = await adminSupabase
     .from("bet_history")
     .select("user_id, bet_direction, bet_amount, payout, result, created_at")
     .in("user_id", userIds)
     .order("created_at", { ascending: false })
-    .limit(userIds.length * 3)  // 유저당 최근 3건 여유
-
-  // 유저별 최신 1건만 추출
-  const lastHistoryMap: Record<string, { bet_direction: string; bet_amount: number; payout: number; result: string; created_at: string }> = {}
+    .limit(userIds.length * 3)
   for (const h of recentHistory ?? []) {
     if (!lastHistoryMap[h.user_id]) lastHistoryMap[h.user_id] = h
   }
@@ -118,7 +156,7 @@ export async function GET(request: Request) {
     }
   }))
 
-  return NextResponse.json({ users })
+  return NextResponse.json({ users, stats })
 }
 
 // 공통: 유저 배팅 1회 실행 (gameType 지정)
