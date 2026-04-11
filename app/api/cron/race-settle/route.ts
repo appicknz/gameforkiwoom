@@ -40,16 +40,8 @@ export async function GET(request: Request) {
   const prevRaceTime     = prevRaceRound * 300  // 라운드 종료 시각 (:00초 경계)
 
   try {
-    // 1. 이미 저장됐는지 확인
-    const { data: existing } = await admin
-      .from("race_results")
-      .select("time")
-      .eq("time", prevRaceTime)
-      .maybeSingle()
-
-    if (existing) {
-      return NextResponse.json({ skipped: true, reason: "already exists", time: prevRaceTime })
-    }
+    // 1. 이미 저장됐더라도 cron 스코어(Redis 기반)가 더 정확하므로 덮어씌움
+    // 클라이언트 저장값이 먼저 들어갔더라도 cron이 최종값을 확정
 
     // 2. Redis 누적 스코어 확인
     const raceScoreKey = `race:score:${prevRaceRound}`
@@ -106,13 +98,14 @@ export async function GET(request: Request) {
       : "tie"
 
     // 5. DB upsert
+    // ignoreDuplicates: false (기본값) → 기존 행이 있어도 cron 값으로 덮어씌움
     const { error } = await admin.from("race_results").upsert({
       time:       prevRaceTime,
       price:      closePrice,
       bit_score:  bitScore,
       coin_score: coinScore,
       winner,
-    }, { onConflict: "time" })
+    }, { onConflict: "time", ignoreDuplicates: false })
 
     if (error) {
       console.error("[race-cron] upsert error:", error.message)
