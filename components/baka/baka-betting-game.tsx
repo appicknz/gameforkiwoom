@@ -537,6 +537,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const autoBetRoundsRef = useRef(0)
   const autoBetPnlRef = useRef(0)
   const autoBetFiredRef = useRef(false)
+  const balanceRef = useRef<number | null>(null)   // balance를 ref로도 관리 — 자동배팅 deps에서 balance 제거용
 
   const betRef = useRef<BetDirection>(null)
   const betDigitRef = useRef<BetDigit>(null)
@@ -821,13 +822,25 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // autoBet state → ref 초기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
+  // balance → ref 동기화 (자동배팅 useEffect deps에서 balance 제거를 위해)
+  useEffect(() => { balanceRef.current = balance }, [balance])
 
-  // 자동 배팅: canBet false→true 전환 시 새 라운드 플래그 초기화
+  // canBetRef 동기화 — SSE 핸들러가 stale 클로저 없이 최신 canBet을 읽게 함
+  // 배팅 불가 전환 시 liveOdds를 현재 값으로 고정(freeze)
   const prevCanBetRef = useRef(false)
   useEffect(() => {
+    canBetRef.current = canBet
     const was = prevCanBetRef.current
     prevCanBetRef.current = canBet
+
+    if (!canBet && was) {
+      // 배팅 가능 → 게임중 전환: 현재 liveOdds를 마지막으로 세팅하여 화면 고정
+      // (이후 SSE 이벤트는 canBetRef.current=false 이므로 차단됨)
+      setLiveOdds(liveOddsRef.current)
+    }
+
     if (!canBet || was) return
+    // false→true 전환: 자동배팅 플래그 초기화
     autoBetFiredRef.current = false
   }, [canBet])
 
@@ -838,7 +851,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     const cfg = autoBetRef.current
     if (!cfg.enabled) return
     if (cfg.amount <= 0) return
-    if (balance !== null && balance < cfg.amount) return
+    if (balanceRef.current !== null && balanceRef.current < cfg.amount) return
     if (cfg.maxRounds !== null && autoBetRoundsRef.current >= cfg.maxRounds) {
       setAutoBet(prev => ({ ...prev, enabled: false }))
       return
@@ -890,27 +903,24 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         setBetBaccarat(value as BetBaccarat); setBetBaccaratAmount(cfg.amount)
         onBetSideTrigger?.(value as "player" | "banker" | "tie")
       }
-      // 배팅 성공 시 현재 라운드 번호 + 배당률 스냅샷 저장
-      // liveOddsRef.current 사용 (state는 클로저에서 stale할 수 있음)
       betRoundNumberRef.current   = getRoundNumber()
       liveOddsSnapshotRef.current = liveOddsRef.current
-      console.log("[v0] 배팅 확정 | round:", betRoundNumberRef.current, "| side:", value, "| amount:", cfg.amount, "| liveOddsRef at bet time:", JSON.stringify(liveOddsRef.current))
       if (!basePriceRef.current && currentPriceRef.current) {
         basePriceRef.current = currentPriceRef.current
         setBasePrice(currentPriceRef.current)
       }
     }
 
-      ; (async () => {
-        try {
-          if (dir) await placeSingle("direction", dir)
-          if (dig) await placeSingle("digit", dig)
-          if (par) await placeSingle("parity", par)
-          if (bac) await placeSingle("baccarat", bac)
-          setPhase("waiting")
-        } catch (e) { console.error("[v0 autoBet]", e) }
-      })()
-  }, [canBet, balance, onBetSideTrigger])
+    ;(async () => {
+      try {
+        if (dir) await placeSingle("direction", dir)
+        if (dig) await placeSingle("digit", dig)
+        if (par) await placeSingle("parity", par)
+        if (bac) await placeSingle("baccarat", bac)
+        setPhase("waiting")
+      } catch (e) { console.error("[v0 autoBet]", e) }
+    })()
+  }, [canBet, onBetSideTrigger])
 
   // 자동 배팅 결과 트래킹
   useEffect(() => {
