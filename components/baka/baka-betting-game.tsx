@@ -488,6 +488,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     available?: boolean
     lpWeight?: number; mode?: "seeded" | "decay" | "natural" | "pending"
   } | null>(null)
+  // 게임중(배팅 마감) 여부를 SSE 핸들러에서 읽을 수 있도록 ref로 관리
+  const canBetRef = useRef(false)
 
   useEffect(() => {
     let es: EventSource | null = null
@@ -502,10 +504,13 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       es.onmessage = (e) => {
         try {
           const data = JSON.parse(e.data)
-          // odds가 있을 때만 갱신 — ping 등 다른 메시지로 null 초기화 방지
           if (data.odds) {
-            setLiveOdds(data.odds)
-            liveOddsRef.current = data.odds  // 클로저 stale 방지용 ref 동기화
+            // 게임중(canBet=false)에는 배당 고정 — 표시용 state 업데이트 차단
+            // liveOddsRef는 항상 최신으로 유지 (배팅 시점 스냅샷을 위해)
+            liveOddsRef.current = data.odds
+            if (canBetRef.current) {
+              setLiveOdds(data.odds)
+            }
           }
         } catch { }
       }
