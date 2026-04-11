@@ -106,6 +106,20 @@ export function TopBar() {
     return () => window.removeEventListener("balance:update", handler)
   }, [])
 
+  // ── open:auth 이벤트 수신 (랜딩 버튼 → 드롭다운 자동 오픈) ──
+  useEffect(() => {
+    const handler = (e: Event) => {
+      if (isLoggedIn) return
+      const tab = (e as CustomEvent<"login" | "register">).detail ?? "login"
+      setAuthTab(tab)
+      setLoginMsg(null)
+      setRegMsg(null)
+      setDropdownOpen(true)
+    }
+    window.addEventListener("open:auth", handler)
+    return () => window.removeEventListener("open:auth", handler)
+  }, [isLoggedIn])
+
   // ── SSE 잔고 스트림: 서버에서 push (다기기 실시간 동기화, 폴링 없음) ──
   useEffect(() => {
     const token = getToken()
@@ -462,7 +476,7 @@ export function TopBar() {
                           <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                           <input type="text" placeholder="아이디" value={loginUsername}
                             onChange={e => setLoginUsername(e.target.value)}
-                            className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full h-9 pl-8 pr-3 text-sm bg-background text-foreground placeholder:text-muted-foreground border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </div>
                         <div className="relative">
@@ -470,7 +484,7 @@ export function TopBar() {
                           <input type={showLoginPw ? "text" : "password"} placeholder="비밀번호"
                             value={loginPw} onChange={e => setLoginPw(e.target.value)}
                             onKeyDown={e => e.key === "Enter" && handleLogin()}
-                            className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full h-9 pl-8 pr-9 text-sm bg-background text-foreground placeholder:text-muted-foreground border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                           <button type="button" onClick={() => setShowLoginPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
                             {showLoginPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -489,14 +503,14 @@ export function TopBar() {
                           <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                           <input type="text" placeholder="아이디" value={regUsername}
                             onChange={e => setRegUsername(e.target.value)}
-                            className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full h-9 pl-8 pr-3 text-sm bg-background text-foreground placeholder:text-muted-foreground border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </div>
                         <div className="relative">
                           <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                           <input type={showRegPw ? "text" : "password"} placeholder="비밀번호"
                             value={regPw} onChange={e => setRegPw(e.target.value)}
-                            className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full h-9 pl-8 pr-9 text-sm bg-background text-foreground placeholder:text-muted-foreground border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                           <button type="button" onClick={() => setShowRegPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
                             {showRegPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -507,7 +521,7 @@ export function TopBar() {
                           <input type={showRegConfirm ? "text" : "password"} placeholder="비밀번호 확인"
                             value={regConfirmPw} onChange={e => setRegConfirmPw(e.target.value)}
                             onKeyDown={e => e.key === "Enter" && handleRegister()}
-                            className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full h-9 pl-8 pr-9 text-sm bg-background text-foreground placeholder:text-muted-foreground border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                           <button type="button" onClick={() => setShowRegConfirm(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
                             {showRegConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
