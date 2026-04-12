@@ -113,7 +113,8 @@ function RaceTrack({ secondsInRound, phase }: { secondsInRound: number; phase: s
   )
 }
 
-export default function RacePage() {
+// 빌드 캐시 무효화 (2026-04-12)
+export const revalidate = 0
   const { state, flashes } = useRaceGame()
   // 현재가 (baka:price 이벤트로 매 틱 업데이트)
   const [liveCurrentPrice, setLiveCurrentPrice] = useState<number | null>(null)
