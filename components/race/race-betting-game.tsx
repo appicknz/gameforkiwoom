@@ -409,9 +409,6 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     bit: number | null; coin: number | null; tie: number | null
     available?: boolean; mode?: "seeded" | "decay" | "natural" | "pending"
   } | null>(null)
-  const liveOddsRef = useRef<typeof liveOdds>(null)
-  // 게임중 여부를 SSE 핸들러가 stale 없이 읽도록 ref로 관리
-  const canBetRef = useRef(false)
 
   useEffect(() => {
     let es: EventSource | null = null
@@ -426,11 +423,8 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       es.onmessage = (e) => {
         try {
           const data = JSON.parse(e.data)
-          if (data.odds) {
-            liveOddsRef.current = data.odds
-            // 배팅 가능 구간에서만 화면 배당 업데이트 — 게임중엔 고정
-            if (canBetRef.current) setLiveOdds(data.odds)
-          }
+          // odds가 있을 때만 갱신 — ping 등 다른 메시지로 null 초기화 방지
+          if (data.odds) setLiveOdds(data.odds)
         } catch {}
       }
       es.onerror = () => {
@@ -462,7 +456,6 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   const autoBetRoundsRef = useRef(0)
   const autoBetPnlRef = useRef(0)
   const autoBetFiredRef = useRef(false)
-  const balanceRef = useRef<number | null>(null)   // balance ref — 자동배팅 deps에서 balance 제거용
   const settledRoundRef = useRef<number>(-1)
   const prevCanBetRef = useRef(false)
 
@@ -484,20 +477,54 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   }, [])
 
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
-  // balance → ref 동기화
-  useEffect(() => { balanceRef.current = balance }, [balance])
 
-  // 배팅 가능 구간 전환 감지: canBetRef 동기화 + 자동배팅 플래그 초기화
+  // 5분(300초) 타이머. 라운드: Math.floor(now/300)
+  // canBet/isDealing을 state가 아닌 UTC 직접 계산으로 모든 클라이언트 동기화
+  const prevRoundRef = useRef<number>(-1)
+
   useEffect(() => {
-    canBetRef.current = canBet
+    const tick = setInterval(() => {
+      const now = Math.floor(Date.now() / 1000)
+      const secInRound = now % 300          // 0~299
+      const rem = 300 - secInRound          // 300~1
+      const roundNum = Math.floor(now / 300)
+      setTimeLeft(rem)
+      roundRef.current = roundNum
+      setRoundNumber(roundNum)
+
+      // 라운드 전환 감지 → 스코어 초기화 (rem===300 놓침 방지)
+      if (prevRoundRef.current !== roundNum) {
+        prevRoundRef.current = roundNum
+        bitScoreRef.current = 0
+        coinScoreRef.current = 0
+        setBitScore(0)
+        setCoinScore(0)
+      }
+
+      // 정산 트리거: secInRound === 299 (라운드 마지막 1초)
+      // settledRoundRef로 중복 방지
+      if (secInRound === 299 && settledRoundRef.current !== roundNum) {
+        settledRoundRef.current = roundNum
+        // 정산 이벤트 발행 (아래 useEffect에서 처리)
+        window.dispatchEvent(new CustomEvent("race:settle", { detail: { roundNum } }))
+      }
+    }, 200)
+    return () => clearInterval(tick)
+  }, [])
+
+  // 배팅 가능: 라운드 시작 후 첫 60초 (secInRound < 60 → rem > 240)
+  // UTC 직접 계산으로 모든 클라이언트 동일 기준
+  const canBet = (() => {
+    const now = Math.floor(Date.now() / 1000)
+    return (now % 300) < 60
+  })()
+  // 딜링 중: 60초 이후 ~ 라운드 끝
+  const isDealing = !canBet && timeLeft > 0
+
+  // 배팅 가능 구간 전환 시 자동배팅 플래그 초기화
+  useEffect(() => {
     const was = prevCanBetRef.current
     prevCanBetRef.current = canBet
-
-    if (!canBet && was) {
-      // 배팅 가능 → 게임중 전환: liveOdds 고정
-      setLiveOdds(liveOddsRef.current)
-    }
-
     if (!canBet || was) return
     autoBetFiredRef.current = false
   }, [canBet])
@@ -632,7 +659,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     const cfg = autoBetRef.current
     if (!cfg.enabled) return
     if (cfg.amount <= 0) return
-    if (balanceRef.current !== null && balanceRef.current < cfg.amount) return
+    if (balance !== null && balance < cfg.amount) return
     if (cfg.maxRounds !== null && autoBetRoundsRef.current >= cfg.maxRounds) {
       setAutoBet(prev => ({ ...prev, enabled: false })); return
     }
@@ -696,7 +723,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
         setPhase("waiting")
       } catch (e) { console.error("[v0 autoBet race]", e) }
     })()
-  }, [canBet])
+  }, [canBet, balance])
 
   usePriceWorker({
     onPrice: useCallback((price: number) => {
