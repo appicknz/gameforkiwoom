@@ -7,10 +7,10 @@ import { RaceScoreboard } from "@/components/race/race-scoreboard"
 import { RaceBettingGame } from "@/components/race/race-betting-game"
 import { RaceClosingPrices } from "@/components/race/race-closing-prices"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import type { RoadResult } from "@/components/baka/baccarat-game"
-
 // baccarat-game은 useSWR("/api/card-images")를 컴포넌트 최상위에서 호출 → SSR 빌드 시 fetch 실패
-// dynamic + ssr:false 로 서버 렌더링 완전 차단
+// type import도 모듈 전체를 평가하므로 type도 인라인 정의
+type RoadResult = "player" | "banker" | "tie"
+
 const BigRoad = dynamic(
   () => import("@/components/baka/baccarat-game").then(m => m.BigRoad),
   { ssr: false }
