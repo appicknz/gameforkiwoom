@@ -383,7 +383,7 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
       startKlineWS()
       // race 모드에서는 수평선 복원 안 함
       if (mode !== "race") {
-        // ���트 재생성 후 기존 배팅 기준가 수평선 복원
+        // 차트 재생성 후 기존 배팅 기준가 수평선 복원
         if (latestClosingPriceRef.current !== null) {
           drawPriceLine(latestClosingPriceRef.current)
         } else {
