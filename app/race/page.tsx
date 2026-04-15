@@ -1,7 +1,10 @@
 "use client"
 
+// Next.js 16 App Router: static export 시도 방지 — 항상 dynamic 렌더링
+export const dynamic = "force-dynamic"
+
 import { useEffect, useRef, useState, useCallback } from "react"
-import dynamic from "next/dynamic"
+import dynImport from "next/dynamic"
 import { useRaceGame } from "@/components/race/race-game"
 import { RaceScoreboard } from "@/components/race/race-scoreboard"
 import { RaceBettingGame } from "@/components/race/race-betting-game"
@@ -11,13 +14,13 @@ import { usePriceWorker } from "@/hooks/use-price-worker"
 // type import도 모듈 전체를 평가하므로 type도 인라인 정의
 type RoadResult = "player" | "banker" | "tie"
 
-const BigRoad = dynamic(
+const BigRoad = dynImport(
   () => import("@/components/baka/baccarat-game").then(m => m.BigRoad),
   { ssr: false }
 )
 
 // lightweight-charts는 브라우저 전용 — SSR 비활성화 필수
-const BitcoinChart = dynamic(
+const BitcoinChart = dynImport(
   () => import("@/components/dashboard/bitcoin-chart").then(m => m.BitcoinChart),
   { ssr: false }
 )
