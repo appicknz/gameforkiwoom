@@ -7,7 +7,14 @@ import { RaceScoreboard } from "@/components/race/race-scoreboard"
 import { RaceBettingGame } from "@/components/race/race-betting-game"
 import { RaceClosingPrices } from "@/components/race/race-closing-prices"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { BigRoad, type RoadResult } from "@/components/baka/baccarat-game"
+import type { RoadResult } from "@/components/baka/baccarat-game"
+
+// baccarat-game은 useSWR("/api/card-images")를 컴포넌트 최상위에서 호출 → SSR 빌드 시 fetch 실패
+// dynamic + ssr:false 로 서버 렌더링 완전 차단
+const BigRoad = dynamic(
+  () => import("@/components/baka/baccarat-game").then(m => m.BigRoad),
+  { ssr: false }
+)
 
 // lightweight-charts는 브라우저 전용 — SSR 비활성화 필수
 const BitcoinChart = dynamic(
