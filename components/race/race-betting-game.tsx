@@ -289,7 +289,7 @@ function RaceResultSheet({ result, open, onClose }: { result: RoundResult | null
             <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라운드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight"
               style={{ color: allWon ? G.gold : allLost ? "#ef4444" : "#f97316" }}>
-              {allWon ? "승리!" : allLost ? "패배" : "일부 승리"}
+              {allWon ? "승리!" : allLost ? "패배" : "����분 승리"}
             </p>
             <p className="text-[11px] mt-0.5" style={{ color: G.textDim }}>
               {isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}

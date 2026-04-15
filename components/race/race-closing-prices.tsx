@@ -53,8 +53,10 @@ export function RaceClosingPrices() {
         })
         .catch(() => {})
 
-    // 결과 직접 로드 (backfill은 Vercel Cron이 처리)
-    loadResults()
+    // 백필 후 결과 로드 (백필 실패해도 results는 로드)
+    fetch("/api/cron/race-backfill")
+      .catch(() => {})
+      .finally(loadResults)
   }, [])
 
   // race:closing 이벤트 구독 — 라운드 종료 시 실시간 추가
