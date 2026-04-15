@@ -1,15 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import dynamic from "next/dynamic"
 import useSWR from "swr"
+import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import { ClosingPrices } from "@/components/dashboard/closing-prices"
-
-// lightweight-charts는 브라우저 전용 — SSR 비활성화 필수
-const BitcoinChart = dynamic(
-  () => import("@/components/dashboard/bitcoin-chart").then(m => m.BitcoinChart),
-  { ssr: false }
-)
 
 const swrFetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -188,11 +182,6 @@ export function BigRoad({
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    // ResizeObserver는 브라우저 전용 — SSR 빌드 환경에서는 undefined
-    if (typeof ResizeObserver === "undefined") {
-      setContainerW(el.getBoundingClientRect().width)
-      return
-    }
     const ro = new ResizeObserver(entries => {
       setContainerW(entries[0].contentRect.width)
     })
@@ -668,7 +657,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     // 소수점 2자리 추출: toFixed(2) 문자열 파싱 → 부동소수점 오차 없음
     const decStr = closingPrice.toFixed(2).split(".")[1] ?? "00"
     const bankerDigit = parseInt(decStr[0] ?? "0")   // 소수점 첫째 자리 → 뱅커
-    const playerDigit = parseInt(decStr[1] ?? "0")   // ���수점 둘째 자리 → 플레이어
+    const playerDigit = parseInt(decStr[1] ?? "0")   // 소수점 둘째 자리 → 플레이어
 
     // 무늬 seed: 라운드 기반 고정값 → 모든 기기 동일
     const finalSeeded = makeSeededRand(getRoundSeed() + 9999)

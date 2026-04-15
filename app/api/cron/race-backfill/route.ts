@@ -13,26 +13,14 @@ export async function GET() {
   const now = Math.floor(Date.now() / 1000)
   const currentRound = Math.floor(now / 300)
 
-  // 최근 12라운드(1시간)에서 누락된 것만 채움
-  const roundsToCheck = Array.from({ length: 12 }, (_, i) => currentRound - 1 - i)
+  // 최근 144라운드(12시간)에서 누락된 것만 채움
+  const roundsToCheck = Array.from({ length: 144 }, (_, i) => currentRound - 1 - i)
 
-  // DB에 이미 있는 time 목록 조회
-  const timesToCheck = roundsToCheck.map(r => r * 300)
-  const { data: existing } = await admin
-    .from("race_results")
-    .select("time")
-    .in("time", timesToCheck)
-
-  const existingTimes = new Set((existing ?? []).map(r => r.time))
-  const missing = roundsToCheck.filter(r => !existingTimes.has(r * 300))
-
-  if (missing.length === 0) {
-    return NextResponse.json({ ok: true, backfilled: 0 })
-  }
-
+  // 누락 여부와 관계없이 모든 라운드를 재계산해 upsert (cron 값이 항상 우선)
+  // 단, btc_closing_prices에 데이터 없는 구간은 건너뜀
   const saved: number[] = []
 
-  for (const round of missing) {
+  for (const round of roundsToCheck) {
     const roundEnd   = round * 300                 // 라운드 종료 경계
     const roundStart = (round - 1) * 300 + 1      // 직전 라운드 종료 +1초 ~ 이 라운드 종료
 
@@ -65,7 +53,7 @@ export async function GET() {
       bit_score:  bit,
       coin_score: coin,
       winner,
-    }, { onConflict: "time" })
+    }, { onConflict: "time", ignoreDuplicates: false })
 
     if (!error) saved.push(roundEnd)
   }
