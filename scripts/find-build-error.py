@@ -3,7 +3,7 @@ import sys
 
 result = subprocess.run(
     ["pnpm", "next", "build"],
-    cwd="/app",
+    cwd="/vercel/share/v0-project",
     capture_output=True,
     text=True,
     timeout=300

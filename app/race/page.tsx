@@ -398,10 +398,10 @@ export default function RacePage() {
               />
             </div>
 
-            {/* 스코어��드 */}
+            {/* 스코어보드 */}
             <RaceScoreboard state={state} />
 
-            {/* 배팅 — baka와 동일 구조, BIT/COIN팀으로 레이��� 변경 */}
+            {/* 배팅 — baka와 동일 구조, BIT/COIN팀으로 레이싱 변경 */}
             <RaceBettingGame />
 
 
