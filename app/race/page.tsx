@@ -1,13 +1,19 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
+import dynamic from "next/dynamic"
 import { useRaceGame } from "@/components/race/race-game"
 import { RaceScoreboard } from "@/components/race/race-scoreboard"
 import { RaceBettingGame } from "@/components/race/race-betting-game"
 import { RaceClosingPrices } from "@/components/race/race-closing-prices"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import { BigRoad, type RoadResult } from "@/components/baka/baccarat-game"
+
+// lightweight-charts는 브라우저 전용 — SSR 비활성화 필수
+const BitcoinChart = dynamic(
+  () => import("@/components/dashboard/bitcoin-chart").then(m => m.BitcoinChart),
+  { ssr: false }
+)
 
 const BIT_COLOR = "#3b82f6"
 const COIN_COLOR = "#f97316"

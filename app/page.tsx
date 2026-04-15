@@ -2,8 +2,13 @@
 
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { TopBar } from "@/components/dashboard/top-bar"
-import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
+import dynamic from "next/dynamic"
 import Link from "next/link"
+
+const BitcoinChart = dynamic(
+  () => import("@/components/dashboard/bitcoin-chart").then(m => m.BitcoinChart),
+  { ssr: false }
+)
 import { UserPlus, LogIn, Zap, TrendingUp, Dice6 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
