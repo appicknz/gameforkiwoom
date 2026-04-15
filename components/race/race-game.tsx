@@ -174,13 +174,24 @@ export function useRaceGame() {
       // 현재가는 baka:price 마지막 수신값 사용
       const lastPrice = state.lastPrice
 
-      // race:closing 이벤트 발행 — UI(차트 기준가선, 결과 목록) 업데이트용
-      // DB 저장은 /api/cron/race-settle (Vercel Cron) 이 단독으로 처리
-      // 클라이언트 저장 방식은 "접속한 기기/시점"에 따라 스코어가 달라지는 문제를 유발하므로 제거
+      // race:closing 이벤트 발행 (차트 기준가선 업데이트)
       if (lastPrice !== null) {
         window.dispatchEvent(new CustomEvent("race:closing", {
           detail: { price: lastPrice, time: resultTime, bit: state.bitScore, coin: state.coinScore, winner }
         }))
+
+        // DB 영구 저장 (ignoreDuplicates: true → 첫 저장값 보존)
+        fetch("/api/race-results", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            time: resultTime,
+            price: lastPrice,
+            bit_score: state.bitScore,
+            coin_score: state.coinScore,
+            winner,
+          }),
+        }).catch(() => {})
       }
     }
   }, [state.phase, state.winner, state.bitScore, state.coinScore, state.roundId, state.lastPrice])
