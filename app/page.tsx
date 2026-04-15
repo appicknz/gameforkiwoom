@@ -4,13 +4,14 @@ import { Sidebar } from "@/components/dashboard/sidebar"
 import { TopBar } from "@/components/dashboard/top-bar"
 import dynamic from "next/dynamic"
 import Link from "next/link"
+import { UserPlus, LogIn, Zap, TrendingUp, Dice6 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
+// lightweight-charts는 브라우저 전용 — SSR 비활성화 필수
 const BitcoinChart = dynamic(
   () => import("@/components/dashboard/bitcoin-chart").then(m => m.BitcoinChart),
   { ssr: false }
 )
-import { UserPlus, LogIn, Zap, TrendingUp, Dice6 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 
 // 게임 목록 — 최대 8개, 준비중인 게임은 href: null
 const GAMES = [
