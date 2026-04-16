@@ -308,24 +308,35 @@ export default function BakaPage() {
             }}>
               {/* 게임 상태 박스 — 중앙, /race VerticalTimer 스타일 */}
               {(() => {
-                const { timeLeft, phase } = gameStatus
-                // 구간별 상대 pct 계산
-                // 30~25: 정산 중 (파랑) → pct = timeLeft가 30→25 구간 비율
-                // 25~13: 배팅 가능 (초록) → pct = (timeLeft-13) / 12
-                // 13~0:  게임 중 (주황) → pct = timeLeft / 13
-                const pct = timeLeft > 25
-                  ? (timeLeft - 25) / 5          // 30→25 정산중: 1→0
-                  : timeLeft > 13
-                  ? (timeLeft - 13) / 12         // 25→13 배팅가능: 1→0
-                  : timeLeft / 13                // 13→0  게임중: 1→0
-                const statusColor = timeLeft > 25 ? "#60a5fa"   // 정산 중 — 파랑
-                  : timeLeft > 13 ? "#10b981"                   // 배팅 가능 — 초록
-                  : timeLeft > 3  ? "#f97316"                   // 게임 중 — 주황
-                  : "#ef4444"                                    // 마감 임박 — 빨강
-                const statusLabel = timeLeft > 25 ? "정산 중"
-                  : timeLeft > 13 ? "배팅 가능"
-                  : timeLeft > 0  ? "게임 중"
-                  : "정산 중"
+                const { timeLeft } = gameStatus
+                // 페이즈 구조: 정산(5s) rem 30→25 / 배팅(10s) rem 25→15 / 게임중(15s) rem 15→0
+                const phases = [
+                  {
+                    label: "정산",
+                    duration: 5,
+                    active: timeLeft > 25,
+                    countdown: timeLeft > 25 ? timeLeft - 25 : 5,
+                    color: "#60a5fa",
+                    pct: timeLeft > 25 ? (timeLeft - 25) / 5 : 0,
+                  },
+                  {
+                    label: "배팅",
+                    duration: 10,
+                    active: timeLeft <= 25 && timeLeft > 15,
+                    countdown: timeLeft <= 25 && timeLeft > 15 ? timeLeft - 15 : 10,
+                    color: "#10b981",
+                    pct: timeLeft <= 25 && timeLeft > 15 ? (timeLeft - 15) / 10 : 0,
+                  },
+                  {
+                    label: "게임중",
+                    duration: 15,
+                    active: timeLeft <= 15 && timeLeft > 0,
+                    countdown: timeLeft <= 15 && timeLeft > 0 ? timeLeft : 15,
+                    color: timeLeft <= 3 ? "#ef4444" : "#f97316",
+                    pct: timeLeft <= 15 && timeLeft > 0 ? timeLeft / 15 : 0,
+                  },
+                ]
+                const activePhase = phases.find(p => p.active) ?? phases[0]
                 return (
                   <div style={{
                     width: Math.round(52 * S),
@@ -335,47 +346,59 @@ export default function BakaPage() {
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: Math.round(6 * S),
+                    gap: Math.round(4 * S),
                   }}>
-                    {/* 세로 막대 — 위에서부터 비워짐 (/race 스타일) */}
-                    <div style={{
-                      width: Math.round(6 * S),
-                      height: Math.round(80 * S),
-                      borderRadius: 3,
-                      background: "rgba(255,255,255,0.06)",
-                      overflow: "hidden",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "flex-end",
-                    }}>
-                      <div style={{
-                        width: "100%",
-                        height: `${pct * 100}%`,
-                        background: statusColor,
-                        borderRadius: 3,
-                        transition: "height 0.8s linear",
-                      }} />
-                    </div>
-                    {/* 상태 텍스트 */}
-                    <span style={{
-                      fontSize: Math.round(9 * S),
-                      fontWeight: 700,
-                      color: statusColor,
-                      letterSpacing: "0.08em",
-                      writingMode: "vertical-rl",
-                      textOrientation: "mixed",
-                      lineHeight: 1,
-                    }}>{statusLabel}</span>
-                    {/* 숫자 */}
-                    {phase !== "result" && (
-                      <span style={{
-                        fontSize: Math.round(14 * S),
-                        fontWeight: 800,
-                        color: statusColor,
-                        fontVariantNumeric: "tabular-nums",
-                        lineHeight: 1,
-                      }}>{timeLeft}</span>
-                    )}
+                    {/* 3단계 세로 블록 */}
+                    {phases.map((p) => (
+                      <div
+                        key={p.label}
+                        style={{
+                          width: Math.round(44 * S),
+                          borderRadius: Math.round(6 * S),
+                          padding: `${Math.round(4 * S)}px ${Math.round(4 * S)}px`,
+                          background: p.active ? `${p.color}18` : "rgba(255,255,255,0.03)",
+                          border: `1px solid ${p.active ? p.color + "55" : "rgba(255,255,255,0.07)"}`,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: Math.round(2 * S),
+                          transition: "background 0.3s, border-color 0.3s",
+                        }}
+                      >
+                        {/* 라벨 */}
+                        <span style={{
+                          fontSize: Math.round(8 * S),
+                          fontWeight: 600,
+                          color: p.active ? p.color : "rgba(255,255,255,0.22)",
+                          letterSpacing: "0.04em",
+                          lineHeight: 1,
+                        }}>{p.label}</span>
+                        {/* 숫자 카운트다운 */}
+                        <span style={{
+                          fontSize: Math.round(15 * S),
+                          fontWeight: 800,
+                          color: p.active ? p.color : "rgba(255,255,255,0.15)",
+                          fontVariantNumeric: "tabular-nums",
+                          lineHeight: 1,
+                        }}>{p.active ? p.countdown : p.duration}</span>
+                        {/* 세로 진행 바 */}
+                        <div style={{
+                          width: Math.round(28 * S),
+                          height: Math.round(3 * S),
+                          borderRadius: 99,
+                          background: "rgba(255,255,255,0.06)",
+                          overflow: "hidden",
+                        }}>
+                          <div style={{
+                            height: "100%",
+                            width: p.active ? `${p.pct * 100}%` : "100%",
+                            background: p.active ? p.color : "rgba(255,255,255,0.08)",
+                            borderRadius: 99,
+                            transition: "width 0.8s linear",
+                          }} />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )
               })()}
