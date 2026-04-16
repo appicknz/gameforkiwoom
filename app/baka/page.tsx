@@ -63,28 +63,19 @@ const BANKER_COLOR = "#ef4444"
 const PLAYER_COLOR = "#3b82f6"
 const GOLD = "#d4af37"
 
-// /race 스타일 헤더: 실시간 현재가 왼쪽, BANKER+N / PLAYER+N 오른쪽
+// 헤더: 현재가 왼쪽, BANKER/PLAYER 끝자리 카드 오른쪽
 function BakaHeader() {
-  const priceRef = useRef<HTMLSpanElement>(null)
-  const bankerDigitRef = useRef<HTMLSpanElement>(null)
-  const playerDigitRef = useRef<HTMLSpanElement>(null)
+  const [price, setPrice] = useState<string>("—")
+  const [bankerDigit, setBankerDigit] = useState<string>("—")
+  const [playerDigit, setPlayerDigit] = useState<string>("—")
 
   useEffect(() => {
-    function applyPrice(price: number) {
-      if (priceRef.current)
-        priceRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      const dec = price.toFixed(2).split(".")[1] ?? "00"
-      const d1 = dec[0] ?? "0"
-      const d2 = dec[1] ?? "0"
-      if (bankerDigitRef.current) bankerDigitRef.current.textContent = `BANKER+${d1}`
-      if (playerDigitRef.current) playerDigitRef.current.textContent = `PLAYER+${d2}`
-    }
-
-    // baka:price = 실시간 현재가 (매 틱), baka:closing = 종가 (라운드 마감시)
-    // 헤더는 실시간 현재가를 표시해야 하므로 baka:price 사용
     const onPrice = (e: Event) => {
-      const { price } = (e as CustomEvent<{ price: number }>).detail
-      applyPrice(price)
+      const { price: p } = (e as CustomEvent<{ price: number }>).detail
+      setPrice(`$${p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+      const dec = p.toFixed(2).split(".")[1] ?? "00"
+      setBankerDigit(dec[0] ?? "0")
+      setPlayerDigit(dec[1] ?? "0")
     }
     window.addEventListener("baka:price", onPrice)
     return () => window.removeEventListener("baka:price", onPrice)
@@ -100,31 +91,52 @@ function BakaHeader() {
       alignItems: "center",
       justifyContent: "space-between",
     }}>
-      {/* 왼쪽: 현재가 라벨 + 실시간 가격 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>현재가</span>
-        <span ref={priceRef} style={{ fontSize: 15, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>—</span>
+      {/* 왼쪽: 현재가 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <span style={{ fontSize: 9, color: "rgba(212,175,55,0.45)", letterSpacing: "0.06em" }}>현재가</span>
+        <span style={{ fontSize: 16, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>{price}</span>
       </div>
-      {/* 오른쪽: 뱅커/플레이어 끝자리 원 배지 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 10, color: `${BANKER_COLOR}99`, fontWeight: 600 }}>BANKER</span>
-          <span ref={bankerDigitRef} style={{
-            width: 26, height: 26, borderRadius: "50%",
-            background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.45)",
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            fontSize: 12, fontWeight: 800, color: BANKER_COLOR,
-          }}>—</span>
+
+      {/* 오른쪽: BANKER / PLAYER 끝자리 카드 */}
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
+        {/* BANKER 카드 */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+          <span style={{ fontSize: 9, fontWeight: 600, color: `${BANKER_COLOR}99`, letterSpacing: "0.06em" }}>BANKER</span>
+          <div style={{
+            width: 42, height: 58,
+            borderRadius: 7,
+            background: "linear-gradient(145deg,#1c1408,#12100a)",
+            border: `1.5px solid ${BANKER_COLOR}88`,
+            boxShadow: `0 0 10px ${BANKER_COLOR}33, 0 3px 10px rgba(0,0,0,0.6)`,
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "space-between",
+            padding: "4px 4px",
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: BANKER_COLOR, lineHeight: 1, alignSelf: "flex-start" }}>{bankerDigit}</span>
+            <span style={{ fontSize: 24, fontWeight: 900, color: BANKER_COLOR, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{bankerDigit}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, color: BANKER_COLOR, lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>{bankerDigit}</span>
+          </div>
         </div>
-        <span style={{ color: "rgba(212,175,55,0.3)", fontSize: 12 }}>/</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 10, color: `${PLAYER_COLOR}99`, fontWeight: 600 }}>PLAYER</span>
-          <span ref={playerDigitRef} style={{
-            width: 26, height: 26, borderRadius: "50%",
-            background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.45)",
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            fontSize: 12, fontWeight: 800, color: PLAYER_COLOR,
-          }}>—</span>
+
+        <span style={{ color: "rgba(212,175,55,0.3)", fontSize: 18, fontWeight: 300, paddingBottom: 10 }}>/</span>
+
+        {/* PLAYER 카드 */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+          <span style={{ fontSize: 9, fontWeight: 600, color: `${PLAYER_COLOR}99`, letterSpacing: "0.06em" }}>PLAYER</span>
+          <div style={{
+            width: 42, height: 58,
+            borderRadius: 7,
+            background: "linear-gradient(145deg,#1c1408,#12100a)",
+            border: `1.5px solid ${PLAYER_COLOR}88`,
+            boxShadow: `0 0 10px ${PLAYER_COLOR}33, 0 3px 10px rgba(0,0,0,0.6)`,
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "space-between",
+            padding: "4px 4px",
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: PLAYER_COLOR, lineHeight: 1, alignSelf: "flex-start" }}>{playerDigit}</span>
+            <span style={{ fontSize: 24, fontWeight: 900, color: PLAYER_COLOR, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{playerDigit}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, color: PLAYER_COLOR, lineHeight: 1, alignSelf: "flex-end", transform: "rotate(180deg)" }}>{playerDigit}</span>
+          </div>
         </div>
       </div>
     </div>
