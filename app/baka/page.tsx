@@ -63,7 +63,7 @@ const BANKER_COLOR = "#ef4444"
 const PLAYER_COLOR = "#3b82f6"
 const GOLD = "#d4af37"
 
-// /race 스타일 헤더: 기준가 왼쪽, BANKER+N / PLAYER+N 오른쪽
+// /race 스타일 헤더: 실시간 현재가 왼쪽, BANKER+N / PLAYER+N 오른쪽
 function BakaHeader() {
   const priceRef = useRef<HTMLSpanElement>(null)
   const bankerDigitRef = useRef<HTMLSpanElement>(null)
@@ -74,21 +74,20 @@ function BakaHeader() {
       if (priceRef.current)
         priceRef.current.textContent = `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       const dec = price.toFixed(2).split(".")[1] ?? "00"
-      const d1 = parseInt(dec[0] ?? "0")
-      const d2 = parseInt(dec[1] ?? "0")
+      const d1 = dec[0] ?? "0"
+      const d2 = dec[1] ?? "0"
       if (bankerDigitRef.current) bankerDigitRef.current.textContent = `BANKER+${d1}`
       if (playerDigitRef.current) playerDigitRef.current.textContent = `PLAYER+${d2}`
     }
 
-    const init: { price: number }[] = (window as any).__bitcoinClosingPrices ?? []
-    if (init.length > 0) applyPrice(init[init.length - 1].price)
-
-    const onClosing = (e: Event) => {
+    // baka:price = 실시간 현재가 (매 틱), baka:closing = 종가 (라운드 마감시)
+    // 헤더는 실시간 현재가를 표시해야 하므로 baka:price 사용
+    const onPrice = (e: Event) => {
       const { price } = (e as CustomEvent<{ price: number }>).detail
       applyPrice(price)
     }
-    window.addEventListener("baka:closing", onClosing)
-    return () => window.removeEventListener("baka:closing", onClosing)
+    window.addEventListener("baka:price", onPrice)
+    return () => window.removeEventListener("baka:price", onPrice)
   }, [])
 
   return (
@@ -101,16 +100,32 @@ function BakaHeader() {
       alignItems: "center",
       justifyContent: "space-between",
     }}>
-      {/* 왼쪽: 기준가 라벨 + 가격 한 줄 */}
+      {/* 왼쪽: 현재가 라벨 + 실시간 가격 */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>기준가</span>
+        <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>현재가</span>
         <span ref={priceRef} style={{ fontSize: 15, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>—</span>
       </div>
-      {/* 오른쪽: 뱅커/플레이어 끝자리 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}>
-        <span ref={bankerDigitRef} style={{ color: BANKER_COLOR }}>BANKER+—</span>
-        <span style={{ color: "rgba(212,175,55,0.35)" }}>/</span>
-        <span ref={playerDigitRef} style={{ color: PLAYER_COLOR }}>PLAYER+—</span>
+      {/* 오른쪽: 뱅커/플레이어 끝자리 원 배지 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: 10, color: `${BANKER_COLOR}99`, fontWeight: 600 }}>BANKER</span>
+          <span ref={bankerDigitRef} style={{
+            width: 26, height: 26, borderRadius: "50%",
+            background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.45)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            fontSize: 12, fontWeight: 800, color: BANKER_COLOR,
+          }}>—</span>
+        </div>
+        <span style={{ color: "rgba(212,175,55,0.3)", fontSize: 12 }}>/</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: 10, color: `${PLAYER_COLOR}99`, fontWeight: 600 }}>PLAYER</span>
+          <span ref={playerDigitRef} style={{
+            width: 26, height: 26, borderRadius: "50%",
+            background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.45)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            fontSize: 12, fontWeight: 800, color: PLAYER_COLOR,
+          }}>—</span>
+        </div>
       </div>
     </div>
   )
