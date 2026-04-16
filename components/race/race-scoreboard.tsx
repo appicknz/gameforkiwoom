@@ -237,7 +237,7 @@ function DigitFlash({ digit, color, label }: { digit: number | null; color: stri
 
   useEffect(() => {
     if (digit === null) return
-    // digit 값이 같아도 새 tick이면 항상 재애니메이션
+    // digit 값이 같아도 새 tick이면 항상 ���애니메이션
     tickRef.current += 1
     setTick(tickRef.current)
     prevDigit.current = digit
@@ -247,71 +247,88 @@ function DigitFlash({ digit, color, label }: { digit: number | null; color: stri
   return <DigitFlashInner key={tick} digit={digit} color={color} label={label} />
 }
 
-// 세로 타이머: /baka의 딜링중 스타일 — 가운데 배치, 위에서 아래로 채워진 바가 줄어드는 방식
-function VerticalTimer({
-  timeLeft,
-  phase,
-}: {
-  timeLeft: number
-  phase: string
-}) {
-  const maxSec = phase === "betting" ? 60 : 240
-  const pct = Math.min(timeLeft / maxSec, 1) // 남은 시간 비율 (1→0으로 줄어듦)
-  const phaseColor = phase === "betting" ? "#10b981" : COIN_COLOR
-  const phaseLabel = phase === "betting" ? "배팅" : phase === "racing" ? "레이싱" : "결과"
+// 3단계 카운트다운: 정산(10s) / 배팅(50s) / 게임중(120s) — baka/page와 동일 디자인
+// secondsInRound: 0~9 정산, 10~59 배팅, 60~177 게임중
+function PhaseCountdown({ secondsInRound }: { secondsInRound: number }) {
+  const phases = [
+    {
+      label: "정산",
+      duration: 10,
+      active: secondsInRound < 10,
+      countdown: secondsInRound < 10 ? 10 - secondsInRound : 10,
+      color: "#60a5fa",
+      pct: secondsInRound < 10 ? (10 - secondsInRound) / 10 : 0,
+    },
+    {
+      label: "배팅",
+      duration: 50,
+      active: secondsInRound >= 10 && secondsInRound < 60,
+      countdown: secondsInRound >= 10 && secondsInRound < 60 ? 60 - secondsInRound : 50,
+      color: "#10b981",
+      pct: secondsInRound >= 10 && secondsInRound < 60 ? (60 - secondsInRound) / 50 : 0,
+    },
+    {
+      label: "게임중",
+      duration: 120,
+      active: secondsInRound >= 60 && secondsInRound < 178,
+      countdown: secondsInRound >= 60 && secondsInRound < 178 ? 178 - secondsInRound : 120,
+      color: secondsInRound >= 172 ? "#ef4444" : "#f97316",
+      pct: secondsInRound >= 60 && secondsInRound < 178 ? (178 - secondsInRound) / 120 : 0,
+    },
+  ]
 
   return (
     <div style={{
       display: "flex",
       flexDirection: "column",
-      alignItems: "center",
-      gap: 6,
+      gap: 4,
       flexShrink: 0,
     }}>
-      {/* 세로 막대 — 위에서부터 사라짐: 시간이 줄어들수록 위부터 빈칸 생김 (모래시계) */}
-      <div style={{
-        width: 6,
-        height: 80,
-        borderRadius: 3,
-        background: "rgba(255,255,255,0.06)",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-end",
-      }}>
-        {/* 위에서부터 사라짐: 시간이 줄어들수록 위쪽 빈칸이 커짐 */}
-        <div style={{
-          width: "100%",
-          height: `${pct * 100}%`,
-          background: phaseColor,
-          borderRadius: 3,
-          transition: "height 0.8s linear",
-        }} />
-      </div>
-
-      {/* 레이블 */}
-      <div style={{
-        fontSize: 9,
-        fontWeight: 700,
-        color: phaseColor,
-        letterSpacing: "0.08em",
-        writingMode: "vertical-rl",
-        textOrientation: "mixed",
-        lineHeight: 1,
-      }}>
-        {phaseLabel}
-      </div>
-
-      {/* 숫자 */}
-      <div style={{
-        fontSize: "clamp(14px, 4vw, 20px)",
-        fontWeight: 800,
-        color: phaseColor,
-        fontVariantNumeric: "tabular-nums",
-        lineHeight: 1,
-      }}>
-        {timeLeft}
-      </div>
+      {phases.map(p => (
+        <div
+          key={p.label}
+          style={{
+            padding: "4px 8px",
+            borderRadius: 8,
+            background: p.active ? `${p.color}18` : "rgba(255,255,255,0.03)",
+            border: `1px solid ${p.active ? p.color + "55" : "rgba(255,255,255,0.07)"}`,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 2,
+            minWidth: 44,
+            transition: "background 0.3s, border-color 0.3s",
+          }}
+        >
+          <span style={{
+            fontSize: 8,
+            fontWeight: 600,
+            color: p.active ? p.color : "rgba(255,255,255,0.22)",
+            letterSpacing: "0.04em",
+            lineHeight: 1,
+          }}>
+            {p.label}
+          </span>
+          <span style={{
+            fontSize: "clamp(13px, 3.5vw, 17px)",
+            fontWeight: 800,
+            color: p.active ? p.color : "rgba(255,255,255,0.15)",
+            fontVariantNumeric: "tabular-nums",
+            lineHeight: 1,
+          }}>
+            {p.active ? p.countdown : p.duration}
+          </span>
+          <div style={{ width: "100%", height: 3, borderRadius: 99, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+            <div style={{
+              height: "100%",
+              width: `${p.pct * 100}%`,
+              background: p.active ? p.color : "rgba(255,255,255,0.08)",
+              borderRadius: 99,
+              transition: "width 0.8s linear",
+            }} />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -381,8 +398,8 @@ export function RaceScoreboard({ state }: Props) {
           <DigitFlash digit={lastBitDigit} color={BIT_COLOR} label="+BIT" />
         </div>
 
-        {/* 가운데: 타이머 */}
-        <VerticalTimer timeLeft={timeLeft} phase={phase} />
+        {/* 가운데: 3단계 카운트다운 */}
+        <PhaseCountdown secondsInRound={secondsInRound} />
 
         {/* COIN팀 */}
         <div ref={coinBoxRef} style={{
