@@ -212,7 +212,7 @@ export default function RacePage() {
 
           {/* 왼쪽: 메인 게임 영역 */}
           <div className="lg:col-span-2 space-y-4">
-            {/* 헤더: 기준가+현재가 왼쪽 한 줄, 스코어 오른쪽 */}
+            {/* 헤더: 현재가 */}
             <div style={{
               background: "rgba(5,13,10,0.92)",
               border: "1px solid rgba(212,175,55,0.2)",
@@ -220,164 +220,34 @@ export default function RacePage() {
               padding: "10px 16px",
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              gap: 8,
             }}>
-              {/* 왼쪽: 현재가 + 소수점 뱃지 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>현재가</span>
-                {liveCurrentPrice !== null ? (() => {
-                  const fixed = liveCurrentPrice.toFixed(2)
-                  const [intPart, decPart] = fixed.split(".")
-                  const formatted = `$${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.`
-                  const d1 = decPart?.[0] ?? "0"
-                  const d2 = decPart?.[1] ?? "0"
-                  return (
-                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontVariantNumeric: "tabular-nums" }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: GOLD }}>{formatted}</span>
-                      <span style={{
-                        width: 22, height: 22, borderRadius: "50%",
-                        background: "rgba(212,175,55,0.18)", border: "1px solid rgba(212,175,55,0.45)",
-                        display: "inline-flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 11, fontWeight: 800, color: GOLD,
-                      }}>{d1}</span>
-                      <span style={{
-                        width: 22, height: 22, borderRadius: "50%",
-                        background: "rgba(212,175,55,0.18)", border: "1px solid rgba(212,175,55,0.45)",
-                        display: "inline-flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 11, fontWeight: 800, color: GOLD,
-                      }}>{d2}</span>
-                    </span>
-                  )
-                })() : <span style={{ fontSize: 15, fontWeight: 700, color: GOLD }}>—</span>}
-              </div>
-              {/* 오른쪽: 현재 라운드 누적 스코어 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}>
-                <span style={{ color: BIT_COLOR }}>BIT {state.bitScore.toLocaleString()}</span>
-                <span style={{ color: "rgba(212,175,55,0.35)" }}>/</span>
-                <span style={{ color: COIN_COLOR }}>COIN {state.coinScore.toLocaleString()}</span>
-              </div>
-              </div>
-
-            {/* 득점 프로그레스바 */}
-            {(() => {
-              const total = state.bitScore + state.coinScore
-              const bitPct  = total === 0 ? 50 : Math.round((state.bitScore  / total) * 100)
-              const coinPct = 100 - bitPct
-              const isTie   = state.bitScore === state.coinScore && total > 0
-              // 최근 득점 히스토리: bit/coin 각각 최근 5개
-              const recentBit  = flashes.slice(0, 5).map(f => f.bit)
-              const recentCoin = flashes.slice(0, 5).map(f => f.coin)
-              return (
-                <div style={{
-                  background: "rgba(5,13,10,0.9)",
-                  border: `1px solid ${isTie ? "rgba(212,175,55,0.6)" : "rgba(212,175,55,0.15)"}`,
-                  borderRadius: 12,
-                  padding: "10px 14px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 7,
-                  transition: "border-color 0.3s",
-                }}>
-                  {/* 상��: BIT 최근득점 / 잭팟 / COIN 최근득점 */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    {/* BIT 최근 득점 히스토리 */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-                      <span style={{ fontSize: 10, color: BIT_COLOR, fontWeight: 700, marginRight: 2 }}>BIT</span>
-                      {recentBit.length === 0
-                        ? <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)" }}>—</span>
-                        : recentBit.map((v, i) => (
-                          <span key={i} style={{
-                            fontSize: i === 0 ? 13 : 10,
-                            fontWeight: i === 0 ? 800 : 500,
-                            color: i === 0 ? BIT_COLOR : `${BIT_COLOR}88`,
-                            background: i === 0 ? "rgba(59,130,246,0.12)" : "transparent",
-                            border: i === 0 ? `1px solid ${BIT_COLOR}55` : "none",
-                            borderRadius: 5,
-                            padding: i === 0 ? "1px 6px" : "0",
-                            fontVariantNumeric: "tabular-nums",
-                          }}>+{v}</span>
-                        ))
-                      }
-                    </div>
-                    {/* 가운데: 잭팟 */}
-                    <div style={{
-                      flex: "0 0 auto",
-                      padding: "3px 14px",
-                      borderRadius: 20,
-                      background: isTie ? "rgba(212,175,55,0.2)" : "rgba(255,255,255,0.04)",
-                      border: `1px solid ${isTie ? GOLD : "rgba(255,255,255,0.08)"}`,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: isTie ? GOLD : "rgba(255,255,255,0.3)",
-                      letterSpacing: "0.08em",
-                      transition: "all 0.3s",
-                      textShadow: isTie ? `0 0 12px ${GOLD}` : "none",
-                    }}>잭팟</div>
-                    {/* COIN 최근 득점 히스토리 */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, justifyContent: "flex-end" }}>
-                      {recentCoin.length === 0
-                        ? <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)" }}>—</span>
-                        : [...recentCoin].reverse().map((v, i) => {
-                          const ri = recentCoin.length - 1 - i
-                          return (
-                            <span key={i} style={{
-                              fontSize: ri === 0 ? 13 : 10,
-                              fontWeight: ri === 0 ? 800 : 500,
-                              color: ri === 0 ? COIN_COLOR : `${COIN_COLOR}88`,
-                              background: ri === 0 ? "rgba(249,115,22,0.12)" : "transparent",
-                              border: ri === 0 ? `1px solid ${COIN_COLOR}55` : "none",
-                              borderRadius: 5,
-                              padding: ri === 0 ? "1px 6px" : "0",
-                              fontVariantNumeric: "tabular-nums",
-                            }}>+{v}</span>
-                          )
-                        })
-                      }
-                      <span style={{ fontSize: 10, color: COIN_COLOR, fontWeight: 700, marginLeft: 2 }}>COIN</span>
-                    </div>
-                  </div>
-                  {/* 프로그레스바 */}
-                  <div style={{ position: "relative", height: 10, borderRadius: 6, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
-                    {/* BIT 바 (왼쪽) */}
-                    <div style={{
-                      position: "absolute", left: 0, top: 0, bottom: 0,
-                      width: `${bitPct}%`,
-                      background: isTie
-                        ? `linear-gradient(90deg, ${BIT_COLOR}, ${GOLD})`
-                        : BIT_COLOR,
-                      borderRadius: "6px 0 0 6px",
-                      transition: "width 0.5s ease",
-                    }} />
-                    {/* COIN 바 (오른쪽) */}
-                    <div style={{
-                      position: "absolute", right: 0, top: 0, bottom: 0,
-                      width: `${coinPct}%`,
-                      background: isTie
-                        ? `linear-gradient(90deg, ${GOLD}, ${COIN_COLOR})`
-                        : COIN_COLOR,
-                      borderRadius: "0 6px 6px 0",
-                      transition: "width 0.5s ease",
-                    }} />
-                    {/* 가운데 구분선 */}
-                    <div style={{
-                      position: "absolute", left: "50%", top: 0, bottom: 0,
-                      width: 2, background: "rgba(0,0,0,0.6)",
-                      transform: "translateX(-50%)",
-                    }} />
-                  </div>
-                  {/* 비율 표시 */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: BIT_COLOR, fontVariantNumeric: "tabular-nums" }}>
-                      {state.bitScore.toLocaleString()} ({bitPct}%)
-                    </span>
-                    <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)" }}>누적 점수</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: COIN_COLOR, fontVariantNumeric: "tabular-nums" }}>
-                      ({coinPct}%) {state.coinScore.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              )
-            })()}
+              <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>현재가</span>
+              {liveCurrentPrice !== null ? (() => {
+                const fixed = liveCurrentPrice.toFixed(2)
+                const [intPart, decPart] = fixed.split(".")
+                const formatted = `$${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.`
+                const d1 = decPart?.[0] ?? "0"
+                const d2 = decPart?.[1] ?? "0"
+                return (
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: GOLD }}>{formatted}</span>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: "50%",
+                      background: "rgba(212,175,55,0.18)", border: "1px solid rgba(212,175,55,0.45)",
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 800, color: GOLD,
+                    }}>{d1}</span>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: "50%",
+                      background: "rgba(212,175,55,0.18)", border: "1px solid rgba(212,175,55,0.45)",
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 800, color: GOLD,
+                    }}>{d2}</span>
+                  </span>
+                )
+              })() : <span style={{ fontSize: 15, fontWeight: 700, color: GOLD }}>—</span>}
+            </div>
 
             {/* BigRoad */}
             <div style={{
@@ -398,7 +268,7 @@ export default function RacePage() {
             </div>
 
             {/* 스코어��드 */}
-            <RaceScoreboard state={state} />
+            <RaceScoreboard state={state} flashes={flashes} />
 
             {/* 배팅 — baka와 동일 구조, BIT/COIN팀으로 레이��� 변경 */}
             <RaceBettingGame />

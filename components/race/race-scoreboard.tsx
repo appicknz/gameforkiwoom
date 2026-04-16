@@ -335,9 +335,10 @@ function PhaseCountdown({ secondsInRound }: { secondsInRound: number }) {
 
 interface Props {
   state: RaceState
+  flashes?: { bit: number; coin: number }[]
 }
 
-export function RaceScoreboard({ state }: Props) {
+export function RaceScoreboard({ state, flashes = [] }: Props) {
   const { phase, bitScore, coinScore, winner, lastBitDigit, lastCoinDigit, timeLeft, secondsInRound } = state
 
   const leading: "bit" | "coin" | "tie" =
@@ -422,6 +423,96 @@ export function RaceScoreboard({ state }: Props) {
           <DigitFlash digit={lastCoinDigit} color={COIN_COLOR} label="+COIN" />
         </div>
       </div>
+
+      {/* 득점 히스토리 + 프로그레스바 */}
+      {(() => {
+        const total = bitScore + coinScore
+        const bitPct  = total === 0 ? 50 : Math.round((bitScore / total) * 100)
+        const coinPct = 100 - bitPct
+        const isTie   = bitScore === coinScore && total > 0
+        const recentBit  = flashes.slice(0, 5).map(f => f.bit)
+        const recentCoin = flashes.slice(0, 5).map(f => f.coin)
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {/* BIT 히스토리 / 잭팟 / COIN 히스토리 */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+                <span style={{ fontSize: 10, color: BIT_COLOR, fontWeight: 700, marginRight: 2 }}>BIT</span>
+                {recentBit.length === 0
+                  ? <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)" }}>—</span>
+                  : recentBit.map((v, i) => (
+                    <span key={i} style={{
+                      fontSize: i === 0 ? 13 : 10, fontWeight: i === 0 ? 800 : 500,
+                      color: i === 0 ? BIT_COLOR : `${BIT_COLOR}88`,
+                      background: i === 0 ? "rgba(59,130,246,0.12)" : "transparent",
+                      border: i === 0 ? `1px solid ${BIT_COLOR}55` : "none",
+                      borderRadius: 5, padding: i === 0 ? "1px 6px" : "0",
+                      fontVariantNumeric: "tabular-nums",
+                    }}>+{v}</span>
+                  ))
+                }
+              </div>
+              <div style={{
+                flex: "0 0 auto", padding: "3px 14px", borderRadius: 20,
+                background: isTie ? "rgba(212,175,55,0.2)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${isTie ? GOLD : "rgba(255,255,255,0.08)"}`,
+                fontSize: 11, fontWeight: 800,
+                color: isTie ? GOLD : "rgba(255,255,255,0.3)",
+                letterSpacing: "0.08em", transition: "all 0.3s",
+                textShadow: isTie ? `0 0 12px ${GOLD}` : "none",
+              }}>잭팟</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, justifyContent: "flex-end" }}>
+                {recentCoin.length === 0
+                  ? <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)" }}>—</span>
+                  : [...recentCoin].reverse().map((v, i) => {
+                    const ri = recentCoin.length - 1 - i
+                    return (
+                      <span key={i} style={{
+                        fontSize: ri === 0 ? 13 : 10, fontWeight: ri === 0 ? 800 : 500,
+                        color: ri === 0 ? COIN_COLOR : `${COIN_COLOR}88`,
+                        background: ri === 0 ? "rgba(249,115,22,0.12)" : "transparent",
+                        border: ri === 0 ? `1px solid ${COIN_COLOR}55` : "none",
+                        borderRadius: 5, padding: ri === 0 ? "1px 6px" : "0",
+                        fontVariantNumeric: "tabular-nums",
+                      }}>+{v}</span>
+                    )
+                  })
+                }
+                <span style={{ fontSize: 10, color: COIN_COLOR, fontWeight: 700, marginLeft: 2 }}>COIN</span>
+              </div>
+            </div>
+            {/* 프로그레스바 */}
+            <div style={{ position: "relative", height: 10, borderRadius: 6, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+              <div style={{
+                position: "absolute", left: 0, top: 0, bottom: 0,
+                width: `${bitPct}%`,
+                background: isTie ? `linear-gradient(90deg, ${BIT_COLOR}, ${GOLD})` : BIT_COLOR,
+                borderRadius: "6px 0 0 6px", transition: "width 0.5s ease",
+              }} />
+              <div style={{
+                position: "absolute", right: 0, top: 0, bottom: 0,
+                width: `${coinPct}%`,
+                background: isTie ? `linear-gradient(90deg, ${GOLD}, ${COIN_COLOR})` : COIN_COLOR,
+                borderRadius: "0 6px 6px 0", transition: "width 0.5s ease",
+              }} />
+              <div style={{
+                position: "absolute", left: "50%", top: 0, bottom: 0,
+                width: 2, background: "rgba(0,0,0,0.6)", transform: "translateX(-50%)",
+              }} />
+            </div>
+            {/* 비율 */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: BIT_COLOR, fontVariantNumeric: "tabular-nums" }}>
+                {bitScore.toLocaleString()} ({bitPct}%)
+              </span>
+              <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)" }}>누적 점수</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: COIN_COLOR, fontVariantNumeric: "tabular-nums" }}>
+                ({coinPct}%) {coinScore.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* 결과 배너 */}
       {phase === "result" && winner && (
