@@ -808,11 +808,11 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     return () => clearInterval(tick)
   }, [onResetCards, onStartDealTrigger])
 
-  // 새 페이즈 구조 (30초 라운드 기준):
-  //   30 → 25초: 초기 대기 (딜링 준비, 배팅 불가)
-  //   25 → 13초: 배팅 가능 (카드 공개 후 12초)
-  //   13 → 0초:  게임 중 (배팅 마감, 결과 대기 13초)
-  const canBet = timeLeft <= 25 && timeLeft > 13
+  // 페이즈 구조 (30초 라운드 기준):
+  //   30 → 25초: 정산/결과 (5초)
+  //   25 → 15초: 배팅 가능 (10초)
+  //   15 →  0초: 게임 중   (15초)
+  const canBet = timeLeft <= 25 && timeLeft > 15
 
   // autoBet state → ref 초기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
@@ -1034,7 +1034,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // timeLeft/phase 변경 시 page로 전달
   useEffect(() => {
     const phaseStatus = timeLeft > 25 ? "dealing"
-      : timeLeft > 13 ? "betting"
+      : timeLeft > 15 ? "betting"
       : timeLeft > 0  ? "dealing"
       : phase
     onStatusChange?.(timeLeft, phaseStatus as "betting" | "waiting" | "result" | "dealing")
@@ -1043,15 +1043,22 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   const priceDiff = currentPrice !== null && basePrice !== null ? currentPrice - basePrice : null
   const isUp = priceDiff !== null && priceDiff >= 0
-  const timerPercent = (timeLeft / 30) * 100
-  const timerColor = timeLeft > 25 ? "#60a5fa"    // 초기 대기 — 파랑
-    : timeLeft > 13 ? "#10b981"                  // 배팅 가능 — 초록
-    : timeLeft > 3  ? "#f97316"                  // 게임 중   — 주황
-    : "#ef4444"                                  // 정산 임�� — 빨강
-  const timerLabel = timeLeft > 25 ? "정산 중"
-    : timeLeft > 13 ? "배팅 가능"
-    : timeLeft > 0  ? "게임 중"
-    : "정산 중"
+
+  // 페이즈별 타이머 계산
+  // 정산(5s): rem 30→25, 배팅(10s): rem 25→15, 게임중(15s): rem 15→0
+  const currentPhaseLabel = timeLeft > 25 ? "정산 중"
+    : timeLeft > 15 ? "배팅 가능"
+    : "게임 중"
+  const currentPhaseDuration = timeLeft > 25 ? 5 : timeLeft > 15 ? 10 : 15
+  const currentPhaseLeft = timeLeft > 25 ? timeLeft - 25
+    : timeLeft > 15 ? timeLeft - 15
+    : timeLeft
+  const timerPercent = (currentPhaseLeft / currentPhaseDuration) * 100
+  const timerColor = timeLeft > 25 ? "#60a5fa"   // 정산 — 파랑
+    : timeLeft > 15 ? "#10b981"                  // 배팅 가능 — 초록
+    : timeLeft > 3  ? "#f97316"                  // 게임 중 — 주황
+    : "#ef4444"                                  // 막판 — 빨강
+  const timerLabel = currentPhaseLabel
 
   return (
     <>
@@ -1063,8 +1070,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
       }}>
 
-        {/* ── 헤더: ���팅 + 라운드 + 자동배팅 버튼 + 타이머 (한 줄) ── */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        {/* ── 헤더: 배팅 + 라운드 + 자동배팅 버튼 (한 줄) ── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           {/* 좌: 타이틀 + 라운드 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>배팅</h3>
@@ -1072,7 +1079,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
               #{roundNumber}
             </span>
           </div>
-          {/* 우: 자동배팅 버튼 + 타이머 */}
+          {/* 우: 자동배팅 버튼 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
               onClick={() => setAutoBetOpen(o => !o)}
@@ -1093,7 +1100,58 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
                 ? <ChevronUp style={{ width: 10, height: 10, color: G.textDim }} />
                 : <ChevronDown style={{ width: 10, height: 10, color: G.textDim }} />}
             </button>
+          </div>
+        </div>
 
+        {/* ── 페이즈 카운트다운 바 ── */}
+        <div style={{ marginBottom: 10 }}>
+          {/* 3단계 라벨 + 카운트다운 */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 5 }}>
+            {/* 정산 (5초) */}
+            <div style={{
+              flex: 5, padding: "5px 6px", borderRadius: 8,
+              background: timeLeft > 25 ? "rgba(96,165,250,0.15)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${timeLeft > 25 ? "rgba(96,165,250,0.5)" : "rgba(255,255,255,0.07)"}`,
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize: 9, color: timeLeft > 25 ? "#60a5fa" : "rgba(255,255,255,0.25)", fontWeight: 600, marginBottom: 1 }}>정산</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: timeLeft > 25 ? "#60a5fa" : "rgba(255,255,255,0.2)", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+                {timeLeft > 25 ? `${timeLeft - 25}s` : "5s"}
+              </div>
+            </div>
+            {/* 배팅 (10초) */}
+            <div style={{
+              flex: 10, padding: "5px 6px", borderRadius: 8,
+              background: timeLeft <= 25 && timeLeft > 15 ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${timeLeft <= 25 && timeLeft > 15 ? "rgba(16,185,129,0.5)" : "rgba(255,255,255,0.07)"}`,
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize: 9, color: timeLeft <= 25 && timeLeft > 15 ? "#10b981" : "rgba(255,255,255,0.25)", fontWeight: 600, marginBottom: 1 }}>배팅가능</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: timeLeft <= 25 && timeLeft > 15 ? "#10b981" : "rgba(255,255,255,0.2)", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+                {timeLeft <= 25 && timeLeft > 15 ? `${timeLeft - 15}s` : "10s"}
+              </div>
+            </div>
+            {/* 게임중 (15초) */}
+            <div style={{
+              flex: 15, padding: "5px 6px", borderRadius: 8,
+              background: timeLeft <= 15 && timeLeft > 0 ? "rgba(249,115,22,0.15)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${timeLeft <= 15 && timeLeft > 0 ? "rgba(249,115,22,0.5)" : "rgba(255,255,255,0.07)"}`,
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize: 9, color: timeLeft <= 15 && timeLeft > 0 ? "#f97316" : "rgba(255,255,255,0.25)", fontWeight: 600, marginBottom: 1 }}>게임중</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: timeLeft <= 15 && timeLeft > 0 ? "#f97316" : "rgba(255,255,255,0.2)", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+                {timeLeft <= 15 && timeLeft > 0 ? `${timeLeft}s` : "15s"}
+              </div>
+            </div>
+          </div>
+          {/* 진행 바 */}
+          <div style={{ height: 3, borderRadius: 99, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+            <div style={{
+              height: "100%", borderRadius: 99,
+              background: timerColor,
+              width: `${timerPercent}%`,
+              transition: "width 0.2s linear, background 0.3s",
+            }} />
           </div>
         </div>
 
