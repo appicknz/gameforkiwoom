@@ -26,9 +26,11 @@ interface ScoreFlashEntry {
   ts: number
 }
 
-// 5분(300초) 라운드: 0~59초 배팅, 60~299초 레이싱
-const ROUND_SEC = 300
-const BETTING_SEC = 60
+// 180초 라운드: 0~9초 정산(result), 10~59초 배팅, 60~179초 레이싱
+// 정산 10s / 배팅 50s / 게임중 120s
+const ROUND_SEC  = 180
+const SETTLE_SEC = 10   // 정산 구간: 0~9초
+const BETTING_SEC = 60  // 배팅 구간 끝: 10~59초 (50초)
 
 function getRoundId(nowSec: number) { return Math.floor(nowSec / ROUND_SEC) }
 function getSecondsInRound(nowSec: number) { return nowSec % ROUND_SEC }
@@ -59,14 +61,17 @@ export function useRaceGame() {
       const sec    = getSecondsInRound(nowSec)
       const roundId = getRoundId(nowSec)
 
+      // 0~9s: result(정산), 10~59s: betting(배팅), 60~177s: racing(게임중), 178~179s: result(결과처리)
       const phase: RacePhase =
-        sec < BETTING_SEC      ? "betting"
+        sec < SETTLE_SEC       ? "result"
+        : sec < BETTING_SEC    ? "betting"
         : sec < ROUND_SEC - 2  ? "racing"
         : "result"
 
       const timeLeft =
-        phase === "betting" ? BETTING_SEC - sec
-        : phase === "racing" ? ROUND_SEC - sec
+        phase === "result"  && sec < SETTLE_SEC ? SETTLE_SEC - sec
+        : phase === "betting" ? BETTING_SEC - sec
+        : phase === "racing"  ? ROUND_SEC - sec
         : 0
 
       setState(prev => {

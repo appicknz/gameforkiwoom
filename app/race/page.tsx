@@ -256,7 +256,68 @@ export default function RacePage() {
                 <span style={{ color: "rgba(212,175,55,0.35)" }}>/</span>
                 <span style={{ color: COIN_COLOR }}>COIN {state.coinScore.toLocaleString()}</span>
               </div>
-              {/* 라운드 카운트다운 */}
+                {/* 3단계 카운트다운 — baka/page와 동일 디자인 */}
+              {(() => {
+                const { secondsInRound } = state
+                // 페이즈 구조: 정산(10s) 0~9 / 배팅(50s) 10~59 / 게임중(120s) 60~177
+                const phases = [
+                  {
+                    label: "정산",
+                    duration: 10,
+                    active: secondsInRound < 10,
+                    countdown: secondsInRound < 10 ? 10 - secondsInRound : 10,
+                    color: "#60a5fa",
+                    pct: secondsInRound < 10 ? (10 - secondsInRound) / 10 : 0,
+                  },
+                  {
+                    label: "배팅",
+                    duration: 50,
+                    active: secondsInRound >= 10 && secondsInRound < 60,
+                    countdown: secondsInRound >= 10 && secondsInRound < 60 ? 60 - secondsInRound : 50,
+                    color: "#10b981",
+                    pct: secondsInRound >= 10 && secondsInRound < 60 ? (60 - secondsInRound) / 50 : 0,
+                  },
+                  {
+                    label: "게임중",
+                    duration: 120,
+                    active: secondsInRound >= 60 && secondsInRound < 178,
+                    countdown: secondsInRound >= 60 && secondsInRound < 178 ? 178 - secondsInRound : 120,
+                    color: secondsInRound >= 172 ? "#ef4444" : "#f97316",
+                    pct: secondsInRound >= 60 && secondsInRound < 178 ? (178 - secondsInRound) / 120 : 0,
+                  },
+                ]
+                return (
+                  <div style={{ display: "flex", gap: 4, alignItems: "stretch" }}>
+                    {phases.map(p => (
+                      <div
+                        key={p.label}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 8,
+                          background: p.active ? `${p.color}18` : "rgba(255,255,255,0.03)",
+                          border: `1px solid ${p.active ? p.color + "55" : "rgba(255,255,255,0.07)"}`,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: 2,
+                          minWidth: 44,
+                          transition: "background 0.3s, border-color 0.3s",
+                        }}
+                      >
+                        <span style={{ fontSize: 8, fontWeight: 600, color: p.active ? p.color : "rgba(255,255,255,0.22)", letterSpacing: "0.04em", lineHeight: 1 }}>
+                          {p.label}
+                        </span>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: p.active ? p.color : "rgba(255,255,255,0.15)", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+                          {p.active ? p.countdown : p.duration}
+                        </span>
+                        <div style={{ width: "100%", height: 3, borderRadius: 99, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${p.pct * 100}%`, background: p.active ? p.color : "rgba(255,255,255,0.08)", borderRadius: 99, transition: "width 0.8s linear" }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
 
             {/* 득점 프로그레스바 */}
@@ -432,7 +493,7 @@ export default function RacePage() {
               <div style={{ marginBottom: 16, padding: "12px", background: "rgba(212,175,55,0.04)", borderRadius: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, marginBottom: 8 }}>게임 규칙</div>
                 <div style={{ fontSize: 11, color: "rgba(212,175,55,0.6)", lineHeight: 1.6 }}>
-                  · 1분 배팅 → 4분 레이싱<br />
+                  · 10초 정산 → 50초 배팅 → 2분 레이싱<br />
                   · 매 초 BTC 현재가 수신<br />
                   · <span style={{ color: BIT_COLOR }}>BIT팀</span>: 소수점 첫째 자리 누적<br />
                   · <span style={{ color: COIN_COLOR }}>COIN팀</span>: 소수점 둘째 자리 누적<br />
