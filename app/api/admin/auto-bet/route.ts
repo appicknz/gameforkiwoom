@@ -177,7 +177,7 @@ function isBettingPhase(gameType: "baccarat" | "race"): { allowed: boolean; reas
   } else {
     // 300초 라운드: 배팅 가능 = secInRound < 60 (첫 60초)
     const secInRound = nowSec % 300
-    if (secInRound >= 60) return { allowed: false, reason: `게임중 (secInRound=${secInRound}, 배팅은 0~59���)` }
+    if (secInRound >= 60) return { allowed: false, reason: `게임중 (secInRound=${secInRound}, 배팅은 0~59��)` }
     return { allowed: true }
   }
 }
@@ -301,29 +301,14 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       const betPayload = gameType === "baccarat"
         ? { baccaratSide: side, baccaratAmount: amount }
         : { raceSide: side, raceAmount: amount }
-      const oddsSnapKey     = `odds:snap:${gameType}:${roundNumber}:${p.id}`
+      const oddsSnapKey  = `odds:snap:${gameType}:${roundNumber}:${p.id}`
       const autoBranchScope = p.branch_id ?? "default"
-      const finalOddsKey    = `odds:final:${gameType}:${roundNumber}:${autoBranchScope}`
-      const currentOddsKey  = `odds:current:${gameType}:${roundNumber}:${autoBranchScope}`
-      // 배팅 반영 후 최신 풀 조회해서 currentPayload 생성
-      const poolAfter = await redis.hgetall(`pool:${gameType}:${roundNumber}`).catch(() => null)
-      const currentPayload = {
-        gameType, roundNumber,
-        pools: gameType === "baccarat"
-          ? { player: parseInt((poolAfter?.player as string) ?? "0") || 0,
-              banker: parseInt((poolAfter?.banker as string) ?? "0") || 0,
-              tie:    parseInt((poolAfter?.tie    as string) ?? "0") || 0 }
-          : { bit:  parseInt((poolAfter?.bit  as string) ?? "0") || 0,
-              coin: parseInt((poolAfter?.coin as string) ?? "0") || 0,
-              tie:  parseInt((poolAfter?.tie  as string) ?? "0") || 0 },
-        odds: snap,
-      }
+      const finalOddsKey = `odds:final:${gameType}:${roundNumber}:${autoBranchScope}`
       await Promise.all([
-        redis.set(userBetsKey,   JSON.stringify(betPayload),     { ex: ttl }),
-        redis.set(oddsSnapKey,   JSON.stringify(snap),           { ex: ttl }),
-        redis.set(finalOddsKey,  JSON.stringify(snap),           { ex: ttl }),
-        redis.set(currentOddsKey, JSON.stringify(currentPayload), { ex: ttl }),
-        redis.set(`bet:round:${gameType}:${p.id}`, roundNumber,  { ex: ttl }),
+        redis.set(userBetsKey, JSON.stringify(betPayload), { ex: ttl }),
+        redis.set(oddsSnapKey, JSON.stringify(snap), { ex: ttl }),
+        redis.set(finalOddsKey, JSON.stringify(snap), { ex: ttl }),  // 라운드 단위 확정 배당
+        redis.set(`bet:round:${gameType}:${p.id}`, roundNumber, { ex: ttl }),
       ])
 
       // Redis 잔고 캐시 갱신

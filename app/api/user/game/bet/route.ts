@@ -81,14 +81,14 @@ export async function POST(request: Request) {
       redis.incr(`balance_version:${userId}`),
     ]
 
-      // 배팅 풀 집계 + 유저별 bets 저장 (settle API 사용)
-      // baccarat: 30초 라운드, race: 180초(3분) 라운드
-      if (gameType && side) {
-        const nowSec = Math.floor(Date.now() / 1000)
-        const roundNumber = gameType === "race"
-          ? Math.floor(nowSec / 180)
-          : Math.floor(nowSec / 30)
-        const ttl = gameType === "race" ? 400 : 120
+    // 배팅 풀 집계 + 유저별 bets 저장 (settle API 사용)
+    // baccarat: 30초 라운드, race: 5분(300초) 라운드
+    if (gameType && side) {
+      const nowSec = Math.floor(Date.now() / 1000)
+      const roundNumber = gameType === "race"
+        ? Math.floor(nowSec / 300)
+        : Math.floor(nowSec / 30)
+      const ttl = gameType === "race" ? 600 : 120
 
       const poolKey       = `pool:${gameType}:${roundNumber}`
       const userSetKey    = `users:${gameType}:${roundNumber}`
@@ -174,29 +174,22 @@ export async function POST(request: Request) {
         }
       }
 
-      // odds:snap 저장 (개인별 정산용)
-      await redis.set(oddsSnapKey, JSON.stringify(oddsSnap), { ex: ttl })
+      // 항상 최신 풀 기준 odds로 갱신 (파리뮤추얼: 배팅이 들어올수록 배당 변동)
+      // 기존 스냅샷보다 새 oddsSnap을 우선 적용
+      const existingSnap = await redis.get<string>(oddsSnapKey)
+      const prevSnap = existingSnap
+        ? (typeof existingSnap === "string" ? JSON.parse(existingSnap) : existingSnap)
+        : {}
+      const mergedSnap = { ...prevSnap, ...oddsSnap }  // oddsSnap이 prevSnap을 덮어씀
+      await redis.set(oddsSnapKey, JSON.stringify(mergedSnap), { ex: ttl })
 
-      // ── 단일 소스 갱신 ────────────────────────────────────────
-      // odds:current  → round-stats(관리자 모니터)가 읽는 값
-      // odds:final    → settle이 정산에 사용하는 확정 배당
-      // 둘 다 동일한 oddsSnap으로 저장 → /baka SSE · 모니터 · 정산이 동일한 값 사용
+      // 라운드 단위 최종 배당도 저장 — 브랜치별 스코프 (settle이 동일 키로 읽음)
       const betBranchScope = branchId ?? "default"
-      const currentPayload = {
-        gameType, roundNumber, userCount: await redis.scard(userSetKey).catch(() => 0),
-        pools: gameType === "baccarat"
-          ? { player: parseInt((poolDataAfter?.player as string) ?? "0") || 0,
-              banker: parseInt((poolDataAfter?.banker as string) ?? "0") || 0,
-              tie:    parseInt((poolDataAfter?.tie    as string) ?? "0") || 0 }
-          : { bit:  parseInt((poolDataAfter?.bit  as string) ?? "0") || 0,
-              coin: parseInt((poolDataAfter?.coin as string) ?? "0") || 0,
-              tie:  parseInt((poolDataAfter?.tie  as string) ?? "0") || 0 },
-        odds: oddsSnap,
-      }
-      await Promise.all([
-        redis.set(`odds:current:${gameType}:${roundNumber}:${betBranchScope}`, JSON.stringify(currentPayload), { ex: ttl }),
-        redis.set(`odds:final:${gameType}:${roundNumber}:${betBranchScope}`,   JSON.stringify(oddsSnap),       { ex: ttl }),
-      ])
+      const finalOddsKey = `odds:final:${gameType}:${roundNumber}:${betBranchScope}`
+      await redis.set(finalOddsKey, JSON.stringify(oddsSnap), { ex: ttl })
+
+      // redisOps에는 SSE 트리거만 남김 (pool 저장은 위에서 완료)
+      redisOps.push()
     }
 
     // pool 저장 완료 후 SSE 트리거 (버전 카운터 increment)
