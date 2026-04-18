@@ -424,7 +424,10 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
         try {
           const data = JSON.parse(e.data)
           // odds가 있을 때만 갱신 — ping 등 다른 메시지로 null 초기화 방지
-          if (data.odds) setLiveOdds(data.odds)
+          if (data.odds) {
+            setLiveOdds(data.odds)
+            liveOddsRef.current = data.odds
+          }
         } catch {}
       }
       es.onerror = () => {
@@ -449,6 +452,8 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   const betDigitAmountRef = useRef(0)
   const betParityAmountRef = useRef(0)
   const betRaceAmountRef = useRef(0)
+  const frozenOddsRef = useRef<typeof liveOdds>(null)  // 배팅 마감 순간 확정 배당 스냅샷
+  const liveOddsRef = useRef<typeof liveOdds>(null)    // 항상 최신 liveOdds (클로저 stale 방지)
   const basePriceRef = useRef<number | null>(null)
   const roundRef = useRef<number>(0)
   const currentPriceRef = useRef<number | null>(null)
@@ -520,6 +525,18 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   })()
   // 딜링 중: 60초 이후 ~ 라운드 끝
   const isDealing = !canBet && timeLeft > 0
+
+  // 배팅 마감 순간(canBet false 전환) 배당 동결
+  const prevCanBetRef = useRef(canBet)
+  useEffect(() => {
+    if (prevCanBetRef.current === true && canBet === false) {
+      frozenOddsRef.current = liveOddsRef.current
+    }
+    if (canBet === true) {
+      frozenOddsRef.current = null
+    }
+    prevCanBetRef.current = canBet
+  }, [canBet])
 
   // 배팅 가능 구간 전환 시 자동배팅 플래그 초기화
   useEffect(() => {
@@ -810,10 +827,11 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       <div className="grid grid-cols-3 gap-1.5">
         {(["bit", "tie", "coin"] as const).map((side) => {
           const isSelected = betRace === side
-          // available=false(LP 비활성+배팅 없음): 배당 미확정 → "-"
-          const oddsAvailable = liveOdds?.available !== false
-          const oddsVal = (liveOdds && oddsAvailable)
-            ? (side === "bit" ? liveOdds.bit : side === "coin" ? liveOdds.coin : liveOdds.tie)
+          // 배팅 마감 후엔 frozenOdds(확정 배당) 사용, 배팅 중엔 실시간 liveOdds 사용
+          const displayOdds = !canBet && frozenOddsRef.current ? frozenOddsRef.current : liveOdds
+          const oddsAvailable = displayOdds?.available !== false
+          const oddsVal = (displayOdds && oddsAvailable)
+            ? (side === "bit" ? displayOdds.bit : side === "coin" ? displayOdds.coin : displayOdds.tie)
             : null
           const payout = oddsVal != null ? `${(oddsVal as number).toFixed(2)}x` : "-"
           const label = side === "bit" ? "BIT팀" : side === "tie" ? "TIE" : "COIN팀"

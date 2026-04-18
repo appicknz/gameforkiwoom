@@ -544,6 +544,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const betRoundNumberRef     = useRef(0)   // 배팅 시점 roundNumber 보존 (정산 시 라운드 경계 문제 방지)
   const liveOddsSnapshotRef   = useRef<typeof liveOdds>(null)  // 배팅 시점 odds 스냅샷 (라운드 종료 후 초기화되기 전 값)
   const liveOddsRef           = useRef<typeof liveOdds>(null)  // 항상 최신 liveOdds를 가리키는 ref (클로저 stale 방지)
+  const frozenOddsRef         = useRef<typeof liveOdds>(null)  // 배팅 마감 순간 확정 배당 스냅샷
   const basePriceRef = useRef<number | null>(null)
   const roundRef = useRef<number>(0)
   const currentPriceRef = useRef<number | null>(null)
@@ -813,6 +814,20 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   //   25 → 15초: 배팅 가능 (10초)
   //   15 →  0초: 게임 중   (15초)
   const canBet = timeLeft <= 25 && timeLeft > 15
+
+  // 배팅 마감 순간(canBet false 전환) 배당 동결 — 이후 버튼에 확정 배당 표시
+  const prevCanBetRef = useRef(canBet)
+  useEffect(() => {
+    if (prevCanBetRef.current === true && canBet === false) {
+      // 배팅 → 게임중 전환: 현재 liveOdds를 확정 배당으로 스냅샷
+      frozenOddsRef.current = liveOddsRef.current
+    }
+    if (canBet === true) {
+      // 새 라운드 배팅 시작: 동결 해제
+      frozenOddsRef.current = null
+    }
+    prevCanBetRef.current = canBet
+  }, [canBet])
 
   // autoBet state → ref 초기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
@@ -1208,10 +1223,11 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           <div className="grid grid-cols-3 gap-1.5">
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
-              // available=false(LP 비활성+배팅 없음): 배당 미확정 → "-" 표시
-              const oddsAvailable = liveOdds?.available !== false
-              const oddsVal = (liveOdds && oddsAvailable)
-                ? (side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie)
+              // 배팅 마감 후엔 frozenOdds(확정 배당) 사용, 배팅 중엔 실시간 liveOdds 사용
+              const displayOdds = !canBet && frozenOddsRef.current ? frozenOddsRef.current : liveOdds
+              const oddsAvailable = displayOdds?.available !== false
+              const oddsVal = (displayOdds && oddsAvailable)
+                ? (side === "player" ? displayOdds.player : side === "banker" ? displayOdds.banker : displayOdds.tie)
                 : null
               const payout = oddsVal != null ? `${(oddsVal as number).toFixed(2)}x` : "-"
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
