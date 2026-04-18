@@ -24,7 +24,6 @@ interface RoundResult {
   wonDigit: boolean
   wonParity: boolean
   wonBaccarat: boolean
-  baccaratRefund: boolean
   directionAmount: number
   digitAmount: number
   parityAmount: number
@@ -321,8 +320,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
             : o.tie
           return Math.floor(result.baccaratAmount * (odds ?? 0))
         })()
-        : result.baccaratRefund ? result.baccaratAmount : 0,
-      isRefund: result.baccaratRefund && !result.wonBaccarat,
+        : 0,  // 타이 결과여도 player/banker 배팅은 반환 없이 LOSS
     },
   ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number; payout: number; odds?: number | null; isRefund?: boolean }[]
 
@@ -330,17 +328,12 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
   const totalPayout = bets.reduce((s, b) => s + b.payout, 0)
   const netProfit   = totalPayout - totalBet
 
-  // 헤더 상태 결정
-  // allRefund: 모든 배팅이 타이 반환
-  // allWon: 모든 배팅이 승리 (반환 없음)
-  // allLost: 모든 배팅이 패배 (반환 없음)
-  // mixed: 일부 승/일부 패/반환 혼합
-  const allRefund = bets.length > 0 && bets.every(b => b.isRefund)
-  const allWon    = bets.length > 0 && bets.every(b => b.won)
-  const allLost   = bets.length > 0 && bets.every(b => !b.won && !b.isRefund)
-  const headerLabel = allRefund ? "PUSH" : allWon ? "WIN" : allLost ? "LOSS" : netProfit > 0 ? "WIN" : netProfit < 0 ? "LOSS" : "PUSH"
-  const headerColor = allRefund ? "#60a5fa" : allWon ? G.gold : allLost ? "#ef4444" : netProfit > 0 ? G.gold : netProfit < 0 ? "#ef4444" : "#60a5fa"
-  const headerBg    = allRefund ? "rgba(96,165,250,0.06)" : allWon ? "rgba(212,175,55,0.08)" : allLost ? "rgba(239,68,68,0.08)" : "rgba(212,175,55,0.04)"
+  // 헤더 상태 결정 — 반환(PUSH) 없음, 승/패만 존재
+  const allWon  = bets.length > 0 && bets.every(b => b.won)
+  const allLost = bets.length > 0 && bets.every(b => !b.won)
+  const headerLabel = allWon ? "WIN" : allLost ? "LOSS" : netProfit > 0 ? "WIN" : "LOSS"
+  const headerColor = allWon ? G.gold : allLost ? "#ef4444" : netProfit > 0 ? G.gold : "#ef4444"
+  const headerBg    = allWon ? "rgba(212,175,55,0.08)" : "rgba(239,68,68,0.08)"
 
   return (
     <>
@@ -375,8 +368,8 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
             return (
               <div key={bet.key} className="flex items-center gap-3 p-3 rounded-xl"
                 style={{
-                  background: bet.won ? "rgba(212,175,55,0.06)" : bet.isRefund ? "rgba(96,165,250,0.06)" : "rgba(239,68,68,0.06)",
-                  border: `1px solid ${bet.won ? "rgba(212,175,55,0.2)" : bet.isRefund ? "rgba(96,165,250,0.2)" : "rgba(239,68,68,0.2)"}`,
+                  background: bet.won ? "rgba(212,175,55,0.06)" : "rgba(239,68,68,0.06)",
+                  border: `1px solid ${bet.won ? "rgba(212,175,55,0.2)" : "rgba(239,68,68,0.2)"}`,
                 }}>
                 <span className="text-sm font-bold px-2.5 py-1 rounded-lg shrink-0"
                   style={{ background: bet.label.bg, color: bet.label.color }}>
@@ -395,15 +388,13 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-[10px] mb-0.5" style={{ color: G.textDim }}>
-                    {bet.won ? "순수익" : bet.isRefund ? "반환" : "손실"}
+                    {bet.won ? "순수익" : "손실"}
                   </p>
                   <p className="text-sm font-bold tabular-nums"
-                    style={{ color: bet.won ? G.gold : bet.isRefund ? "#60a5fa" : "#ef4444" }}>
+                    style={{ color: bet.won ? G.gold : "#ef4444" }}>
                     {bet.won
                       ? `+₩${(bet.payout - bet.amount).toLocaleString()}`
-                      : bet.isRefund
-                        ? `₩${bet.payout.toLocaleString()}`
-                        : `-₩${bet.amount.toLocaleString()}`}
+                      : `-₩${bet.amount.toLocaleString()}`}
                   </p>
                   {bet.won && (
                     <p className="text-[9px]" style={{ color: G.goldDim }}>
@@ -412,8 +403,8 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
                   )}
                 </div>
                 <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black"
-                  style={{ background: bet.won ? G.gold : bet.isRefund ? "#60a5fa" : "#ef4444", color: "#000" }}>
-                  {bet.won ? "승" : bet.isRefund ? "반" : "패"}
+                  style={{ background: bet.won ? G.gold : "#ef4444", color: "#000" }}>
+                  {bet.won ? "승" : "패"}
                 </div>
               </div>
             )
@@ -646,8 +637,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     // 클라이언트에서 직접 /api/game/settle 호출 → Railway 유무와 무관하게 항상 정산
     const settle = (bacResult: "player" | "banker" | "tie" | null) => {
       const wonBaccarat = betBaccaratRef.current ? betBaccaratRef.current === bacResult : false
-      const baccaratRefund = !wonBaccarat && bacResult === "tie"
-        && (betBaccaratRef.current === "player" || betBaccaratRef.current === "banker")
+      const baccaratRefund = false  // /baka: 타이 결과 시 player/banker는 LOSS, 반환 없음
 
       const result: RoundResult = {
         round: roundRef.current,
@@ -675,7 +665,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         || (betParityRef.current && wonParity) || (betBaccaratRef.current && wonBaccarat)
       const anyLost = (betRef.current && !wonDirection) || (betDigitRef.current && !wonDigit)
         || (betParityRef.current && !wonParity)
-        || (betBaccaratRef.current && !wonBaccarat && !baccaratRefund)
+        || (betBaccaratRef.current && !wonBaccarat)
       if (anyWon) setWins(w => w + 1)
       if (anyLost) setLosses(l => l + 1)
       setPhase("result")
@@ -829,7 +819,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   useEffect(() => {
     canBetRef.current = canBet
     if (canBet && liveOddsRef.current) {
-      // 배팅 구간 진입: 최신 liveOdds를 state에 즉시 반영
+      // 배팅 구간 진입: 최신 liveOdds를 state에 즉��� 반영
       setLiveOdds(liveOddsRef.current)
     }
   }, [canBet])
@@ -942,8 +932,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       if (lastResult.wonBaccarat) {
         const mult = lastResult.baccarat === "player" ? 1 : lastResult.baccarat === "banker" ? 0.95 : 8
         pnl += Math.floor(lastResult.baccaratAmount * mult)
-      } else if (!lastResult.baccaratRefund) {
-        pnl -= lastResult.baccaratAmount
+      } else {
+        pnl -= lastResult.baccaratAmount  // 타이 결과 포함 LOSS
       }
     }
     autoBetRoundsRef.current += 1

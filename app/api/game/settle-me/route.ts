@@ -143,12 +143,10 @@ export async function POST(request: Request) {
       }
       if (bets.baccaratSide && bets.baccaratAmount > 0) {
         const side = bets.baccaratSide as "player" | "banker" | "tie"
+        // 정확히 맞춰야만 지급 — 타이 결과 시 player/banker는 LOSS (반환 없음)
         if (side === baccaratResult) {
-          // odds:final에서 읽은 실제 배당만 사용 — 하드코딩 없음
           const odds = snap[side] as number
           totalPayout += Math.floor(bets.baccaratAmount * odds)
-        } else if (baccaratResult === "tie" && (side === "player" || side === "banker")) {
-          totalPayout += bets.baccaratAmount  // 타이 시 원금 반환
         }
       }
     } else {
@@ -177,11 +175,10 @@ export async function POST(request: Request) {
 
       if (bets.raceSide && bets.raceAmount > 0) {
         const side = bets.raceSide as "bit" | "coin" | "tie"
+        // 정확히 맞춰야만 지급 — 타이 결과 시 bit/coin은 LOSS (반환 없음)
         if (side === raceWinner) {
-          const odds = (typeof snap[side] === "number" && snap[side] > 0) ? snap[side] : 1.95
+          const odds = snap[side] as number
           totalPayout += Math.floor(bets.raceAmount * odds)
-        } else if (raceWinner === "tie" && (side === "bit" || side === "coin")) {
-          totalPayout += bets.raceAmount
         }
       }
     }
@@ -190,9 +187,8 @@ export async function POST(request: Request) {
     if (gameType === "baccarat" && bets.baccaratSide && bets.baccaratAmount > 0) {
       const side = bets.baccaratSide as "player" | "banker" | "tie"
       const won = side === baccaratResult
-      const refund = baccaratResult === "tie" && (side === "player" || side === "banker")
-      const odds = (typeof oddsSnap[side] === "number" && (oddsSnap[side] as number) > 0) ? (oddsSnap[side] as number) : 1.8
-      const betPayout = won ? Math.floor(bets.baccaratAmount * odds) : refund ? bets.baccaratAmount : 0
+      const odds = oddsSnap[side] as number
+      const betPayout = won ? Math.floor(bets.baccaratAmount * odds) : 0
       const profit = betPayout - bets.baccaratAmount
 
       // game_round_history upsert (존재하면 participant_count만 증가)
@@ -223,7 +219,7 @@ export async function POST(request: Request) {
         applied_odds: odds,
         payout:       betPayout,
         profit,
-        result:       won ? "win" : refund ? "tie" : "lose",
+        result:       won ? "win" : "lose",
       }).then(() => {}).catch(() => {})
     }
 
@@ -258,14 +254,13 @@ export async function POST(request: Request) {
         if (bets.baccaratSide && bets.baccaratAmount > 0) {
           const side = bets.baccaratSide as "player" | "banker" | "tie"
           const won = side === baccaratResult
-          const refund = baccaratResult === "tie" && (side === "player" || side === "banker")
-          const odds = (typeof snap[side] === "number" && snap[side] > 0) ? snap[side] : 1.95
+          const odds = snap[side] as number
           historyRows.push({
             user_id: userId, branch_id: branchId, round_id: null,
             bet_direction: `baccarat_${side}`, bet_digit: null, bet_parity: null,
             bet_amount: bets.baccaratAmount,
-            payout: won ? Math.floor(bets.baccaratAmount * odds) : refund ? bets.baccaratAmount : 0,
-            result: won ? "win" : refund ? "tie" : "lose",
+            payout: won ? Math.floor(bets.baccaratAmount * odds) : 0,
+            result: won ? "win" : "lose",
           })
         }
       }
@@ -277,14 +272,13 @@ export async function POST(request: Request) {
             ? (clientBitScore > clientCoinScore ? "bit" : clientCoinScore > clientBitScore ? "coin" : "tie")
             : "tie"
         const won = side === raceWinner2
-        const refund = raceWinner2 === "tie" && (side === "bit" || side === "coin")
-        const odds = (typeof snap[side] === "number" && snap[side] > 0) ? snap[side] : 1.95
+        const odds = snap[side] as number
         historyRows.push({
           user_id: userId, branch_id: branchId, round_id: null,
           bet_direction: `race_${side}`, bet_digit: null, bet_parity: null,
           bet_amount: bets.raceAmount,
-          payout: won ? Math.floor(bets.raceAmount * odds) : refund ? bets.raceAmount : 0,
-          result: won ? "win" : refund ? "tie" : "lose",
+          payout: won ? Math.floor(bets.raceAmount * odds) : 0,
+          result: won ? "win" : "lose",
         })
       }
 

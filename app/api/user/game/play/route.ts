@@ -134,10 +134,8 @@ export async function POST(request: Request) {
           : side === "banker" ? baccaratOdds.bankerOdds
           : baccaratOdds.tieOdds
         baccaratPayout = Math.floor(bets.baccaratAmount * odds)
-      } else if (baccaratResult === "tie" && (side === "player" || side === "banker")) {
-        // 타이 결과 시 원금 반환
-        baccaratPayout = bets.baccaratAmount
       }
+      // 타이 결과 시 player/banker는 LOSS — 반환 없음
       // 패배: baccaratPayout = 0 (배팅금은 bet API에서 이미 차감됨)
 
       totalPayout += baccaratPayout
@@ -244,14 +242,12 @@ export async function POST(request: Request) {
     }
     if (bets.baccaratSide && bets.baccaratAmount > 0) {
       const won = bets.baccaratSide === baccaratResult
-      const isTie = baccaratResult === "tie"
-      const refund = isTie && (bets.baccaratSide === "player" || bets.baccaratSide === "banker")
       betHistoryRows.push({
         user_id: user.id, branch_id: branchId, round_id: roundId,
         bet_direction: `baccarat_${bets.baccaratSide}`, bet_digit: null, bet_parity: null,
         bet_amount: bets.baccaratAmount,
         payout: baccaratPayout,
-        result: won ? "win" : refund ? "tie" : "lose",
+        result: won ? "win" : "lose",
       })
     }
 

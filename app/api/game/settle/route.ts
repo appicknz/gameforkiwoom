@@ -269,13 +269,10 @@ export async function POST(request: Request) {
       if (bets.baccaratSide && bets.baccaratAmount > 0) {
         totalUserBet += bets.baccaratAmount
         const side = bets.baccaratSide as "player" | "banker" | "tie"
+        // 정확히 맞춰야만 지급 — 타이 결과 시 player/banker는 LOSS (반환 없음)
         if (side === baccaratResult) {
-          // 배팅 시점 스냅샷 odds 사용 → 화면 표시 배당과 일치, null 방어
-          const odds = (typeof oddsSnap[side] === "number" && oddsSnap[side] > 0)
-            ? oddsSnap[side] : 1.95
+          const odds = oddsSnap[side] as number
           totalPayout += Math.floor(bets.baccaratAmount * odds)
-        } else if (baccaratResult === "tie" && (side === "player" || side === "banker")) {
-          totalPayout += bets.baccaratAmount  // 타이 시 원금 반환
         }
       }
 
@@ -332,15 +329,13 @@ export async function POST(request: Request) {
         if (bets.baccaratSide && bets.baccaratAmount > 0) {
           const side = bets.baccaratSide as "player" | "banker" | "tie"
           const won = side === baccaratResult
-          const isTie = baccaratResult === "tie"
-          const refund = isTie && (side === "player" || side === "banker")
-          const appliedOdds = (typeof oddsSnap[side] === "number" && oddsSnap[side] > 0) ? oddsSnap[side] : 1.95
+          const appliedOdds = oddsSnap[side] as number
           historyRows.push({
             user_id: userId, branch_id: userBranchId, round_id: roundDbId,
             bet_direction: `baccarat_${side}`, bet_digit: null, bet_parity: null,
             bet_amount: bets.baccaratAmount,
-            payout: won ? Math.floor(bets.baccaratAmount * appliedOdds) : refund ? bets.baccaratAmount : 0,
-            result: won ? "win" : refund ? "tie" : "lose",
+            payout: won ? Math.floor(bets.baccaratAmount * appliedOdds) : 0,
+            result: won ? "win" : "lose",
           })
         }
 
@@ -582,16 +577,14 @@ export async function POST(request: Request) {
           if (bets.raceSide && bets.raceAmount > 0) {
             const side = bets.raceSide as "bit" | "coin" | "tie"
             const won = side === raceWinner
-            const isTie = raceWinner === "tie"
-            const refund = isTie && (side === "bit" || side === "coin")
-            const appliedOdds = (typeof raceOddsSnap[side] === "number" && raceOddsSnap[side] > 0)
-              ? raceOddsSnap[side] : 1.95
+            // 타이 결과 시 bit/coin은 LOSS (반환 없음)
+            const appliedOdds = raceOddsSnap[side] as number
             raceHistoryRows.push({
               user_id: userId, branch_id: userBranchId, round_id: null,
               bet_direction: `race_${side}`, bet_digit: null, bet_parity: null,
               bet_amount: bets.raceAmount,
-              payout: won ? Math.floor(bets.raceAmount * appliedOdds) : refund ? bets.raceAmount : 0,
-              result: won ? "win" : refund ? "tie" : "lose",
+              payout: won ? Math.floor(bets.raceAmount * appliedOdds) : 0,
+              result: won ? "win" : "lose",
             })
           }
 
