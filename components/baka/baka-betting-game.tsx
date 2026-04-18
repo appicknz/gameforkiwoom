@@ -489,6 +489,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     lpWeight?: number; mode?: "seeded" | "decay" | "natural" | "pending"
   } | null>(null)
 
+  // canBet 상태를 ref로 추적 — SSE 클로저 안에서 최신 값 참조용
+  const canBetRef = useRef(false)
+
   useEffect(() => {
     let es: EventSource | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
@@ -502,10 +505,12 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       es.onmessage = (e) => {
         try {
           const data = JSON.parse(e.data)
-          // odds가 있을 때만 갱신 — ping 등 다른 메시지로 null 초기화 방지
+          // odds가 있을 때만 갱신 — 배팅 구간이 아니면(게임중) 갱신 차단해 확정 배당 유지
           if (data.odds) {
-            setLiveOdds(data.odds)
-            liveOddsRef.current = data.odds  // 클로저 stale 방지용 ref 동기화
+            liveOddsRef.current = data.odds
+            if (canBetRef.current) {
+              setLiveOdds(data.odds)
+            }
           }
         } catch { }
       }
@@ -815,16 +820,12 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   //   15 →  0초: 게임 중   (15초)
   const canBet = timeLeft <= 25 && timeLeft > 15
 
-  // 배팅 마감 순간(canBet false 전환) 배당 동결 — 이후 버튼에 확정 배당 표시
-  // prevCanBetRef는 아래 자동배팅 블록에서 이미 선언되므로 재사용
+  // canBetRef 동기화 + 배팅 시작 시 최신 odds 즉시 반영
   useEffect(() => {
-    if (prevCanBetRef.current === true && canBet === false) {
-      // 배팅 → 게임중 전환: 현재 liveOdds를 확정 배당으로 스냅샷
-      frozenOddsRef.current = liveOddsRef.current
-    }
-    if (canBet === true) {
-      // 새 라운드 배팅 시작: 동결 해제
-      frozenOddsRef.current = null
+    canBetRef.current = canBet
+    if (canBet && liveOddsRef.current) {
+      // 배팅 구간 진입: 최신 liveOdds를 state에 즉시 반영
+      setLiveOdds(liveOddsRef.current)
     }
   }, [canBet])
 
@@ -1222,11 +1223,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           <div className="grid grid-cols-3 gap-1.5">
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
-              // 배팅 마감 후엔 frozenOdds(확정 배당) 사용, 배팅 중엔 실시간 liveOdds 사용
-              const displayOdds = !canBet && frozenOddsRef.current ? frozenOddsRef.current : liveOdds
-              const oddsAvailable = displayOdds?.available !== false
-              const oddsVal = (displayOdds && oddsAvailable)
-                ? (side === "player" ? displayOdds.player : side === "banker" ? displayOdds.banker : displayOdds.tie)
+              // liveOdds는 배팅 구간에만 갱신되므로 그대로 사용하면 게임중 동결됨
+              const oddsAvailable = liveOdds?.available !== false
+              const oddsVal = (liveOdds && oddsAvailable)
+                ? (side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie)
                 : null
               const payout = oddsVal != null ? `${(oddsVal as number).toFixed(2)}x` : "-"
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
