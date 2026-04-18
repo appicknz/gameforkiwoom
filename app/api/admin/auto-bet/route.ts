@@ -177,7 +177,7 @@ function isBettingPhase(gameType: "baccarat" | "race"): { allowed: boolean; reas
   } else {
     // 300초 라운드: 배팅 가능 = secInRound < 60 (첫 60초)
     const secInRound = nowSec % 300
-    if (secInRound >= 60) return { allowed: false, reason: `게임중 (secInRound=${secInRound}, 배팅은 0~59초)` }
+    if (secInRound >= 60) return { allowed: false, reason: `게임중 (secInRound=${secInRound}, 배팅은 0~59��)` }
     return { allowed: true }
   }
 }
@@ -301,10 +301,12 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       const betPayload = gameType === "baccarat"
         ? { baccaratSide: side, baccaratAmount: amount }
         : { raceSide: side, raceAmount: amount }
-      const oddsSnapKey = `odds:snap:${gameType}:${roundNumber}:${p.id}`
+      const oddsSnapKey   = `odds:snap:${gameType}:${roundNumber}:${p.id}`
+      const finalOddsKey  = `odds:final:${gameType}:${roundNumber}`
       await Promise.all([
         redis.set(userBetsKey, JSON.stringify(betPayload), { ex: ttl }),
         redis.set(oddsSnapKey, JSON.stringify(snap), { ex: ttl }),
+        redis.set(finalOddsKey, JSON.stringify(snap), { ex: ttl }),  // 라운드 단위 최종 배당
         redis.set(`bet:round:${gameType}:${p.id}`, roundNumber, { ex: ttl }),
       ])
 

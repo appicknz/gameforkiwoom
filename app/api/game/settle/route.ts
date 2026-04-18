@@ -204,35 +204,52 @@ export async function POST(request: Request) {
     // 정산 완료 플래그 (중복 방지, 5분 TTL)
     await redis.set(`settled:${roundNumber}`, 1, { ex: 300 })
 
-    // ── 유저별 정산 ──────────────────────────────��──���───────
-    // bet:bets:{round}:{userId} 키에 배팅 내역이 저장되어 있음
+    // ── 유저별 정산 ───────────────────────────────────────────
+    // 라운드 단위 확정 배당(odds:final) 우선 사용 — 모든 유저에게 동일한 배당 적용
+    // 없으면 settle 시점 풀로 지점 LP 설정을 사용해 재계산
     const settlementResults: Array<{ userId: string; payout: number }> = []
 
+    // 라운드 확정 배당 조회 (배팅 발생 시 마지막으로 저장된 값)
+    const finalOddsRaw = await redis.get<string>(`odds:final:baccarat:${roundNumber}`)
+    let roundFinalOdds: { player: number; banker: number; tie: number } | null = null
+    if (finalOddsRaw) {
+      try { roundFinalOdds = typeof finalOddsRaw === "string" ? JSON.parse(finalOddsRaw) : finalOddsRaw } catch {}
+    }
+    if (!roundFinalOdds) {
+      // fallback: 지점 LP 설정으로 settle 시점 풀 재계산
+      // 첫 번째 유저의 branch_id로 LP 설정 조회
+      const firstUserId = (userIds as string[])[0]
+      let lpCfg = DEFAULT_LP_CONFIG
+      if (firstUserId) {
+        const { data: p } = await admin.from("profiles").select("branch_id").eq("id", firstUserId).single()
+        if (p?.branch_id) {
+          const { data: br } = await admin
+            .from("branches")
+            .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+            .eq("id", p.branch_id).single()
+          if (br) {
+            const { branchToLpConfig } = await import("@/lib/lp-system")
+            lpCfg = branchToLpConfig(br)
+          }
+        }
+      }
+      const r = calcBaccaratOdds(baccaratPool, lpCfg, userCount)
+      roundFinalOdds = {
+        player: typeof r.playerOdds === "number" ? r.playerOdds : 1.95,
+        banker: typeof r.bankerOdds === "number" ? r.bankerOdds : 1.95,
+        tie:    typeof r.tieOdds    === "number" ? r.tieOdds    : 1.95,
+      }
+    }
+
     for (const userId of userIds as string[]) {
-      const betsKey     = `bet:bets:baccarat:${roundNumber}:${userId}`
-      const oddsSnapKey = `odds:snap:baccarat:${roundNumber}:${userId}`
-      const [betsRaw, oddsSnapRaw] = await Promise.all([
-        redis.get<string>(betsKey),
-        redis.get<string>(oddsSnapKey),
-      ])
+      const betsKey = `bet:bets:baccarat:${roundNumber}:${userId}`
+      const betsRaw = await redis.get<string>(betsKey)
       if (!betsRaw) continue
 
       const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
 
-      // 배팅 시점 odds 스냅샷 파싱 → 없으면 settle 시점 풀로 fallback 계산
-      let oddsSnap: { player: number; banker: number; tie: number } | null = null
-      if (oddsSnapRaw) {
-        try { oddsSnap = typeof oddsSnapRaw === "string" ? JSON.parse(oddsSnapRaw) : oddsSnapRaw } catch {}
-      }
-      if (!oddsSnap) {
-        // fallback: settle 시점 풀로 calcBaccaratOdds 재계산
-        const r = calcBaccaratOdds(baccaratPool, DEFAULT_LP_CONFIG, userCount)
-        oddsSnap = {
-          player: typeof r.playerOdds === "number" ? r.playerOdds : 1.95,
-          banker: typeof r.bankerOdds === "number" ? r.bankerOdds : 1.95,
-          tie:    typeof r.tieOdds    === "number" ? r.tieOdds    : 1.95,
-        }
-      }
+      // 모든 유저에게 동일한 라운드 확정 배당 적용
+      const oddsSnap = roundFinalOdds
 
       let totalPayout = 0
       let totalUserBet = 0
@@ -459,29 +476,45 @@ export async function POST(request: Request) {
       const prevRaceUserIds: string[] = await redis.smembers(prevRaceUserSetKey).catch(() => [])
       const settleTargetIds = prevRaceUserIds.length > 0 ? prevRaceUserIds : (raceUserIds as string[])
 
+      // race 라운드 확정 배당 조회 (직전 라운드 기준)
+      const raceFinalRaw = await redis.get<string>(`odds:final:race:${prevRaceRoundNumber}`)
+      let raceFinalOdds: { bit: number; coin: number; tie: number } | null = null
+      if (raceFinalRaw) {
+        try { raceFinalOdds = typeof raceFinalRaw === "string" ? JSON.parse(raceFinalRaw) : raceFinalRaw } catch {}
+      }
+      if (!raceFinalOdds) {
+        // fallback: settle 시점 풀 재계산
+        const rFirstId = settleTargetIds[0]
+        let lpCfgR = DEFAULT_LP_CONFIG
+        if (rFirstId) {
+          const { data: pR } = await admin.from("profiles").select("branch_id").eq("id", rFirstId).single()
+          if (pR?.branch_id) {
+            const { data: brR } = await admin
+              .from("branches")
+              .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+              .eq("id", pR.branch_id).single()
+            if (brR) {
+              const { branchToLpConfig } = await import("@/lib/lp-system")
+              lpCfgR = branchToLpConfig(brR)
+            }
+          }
+        }
+        const r = calcRaceOdds(racePool, lpCfgR, raceUserCount)
+        raceFinalOdds = {
+          bit:  typeof r.bitOdds  === "number" ? r.bitOdds  : 1.95,
+          coin: typeof r.coinOdds === "number" ? r.coinOdds : 1.95,
+          tie:  typeof r.tieOdds  === "number" ? r.tieOdds  : 1.95,
+        }
+      }
+
       for (const userId of settleTargetIds) {
-        const betsKey     = `bet:bets:race:${prevRaceRoundNumber}:${userId}`
-        const oddsSnapKey = `odds:snap:race:${prevRaceRoundNumber}:${userId}`
-        const [betsRaw, oddsSnapRaw] = await Promise.all([
-          redis.get<string>(betsKey),
-          redis.get<string>(oddsSnapKey),
-        ])
+        const betsKey = `bet:bets:race:${prevRaceRoundNumber}:${userId}`
+        const betsRaw = await redis.get<string>(betsKey)
         if (!betsRaw) continue
         const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
 
-        // 배팅 시점 odds 스냅샷 파싱 → 없으면 settle 시점 풀로 fallback
-        let raceOddsSnap: { bit: number; coin: number; tie: number } | null = null
-        if (oddsSnapRaw) {
-          try { raceOddsSnap = typeof oddsSnapRaw === "string" ? JSON.parse(oddsSnapRaw) : oddsSnapRaw } catch {}
-        }
-        if (!raceOddsSnap) {
-          const r = calcRaceOdds(racePool, DEFAULT_LP_CONFIG, raceUserCount)
-          raceOddsSnap = {
-            bit:  typeof r.bitOdds  === "number" ? r.bitOdds  : 1.95,
-            coin: typeof r.coinOdds === "number" ? r.coinOdds : 1.95,
-            tie:  typeof r.tieOdds  === "number" ? r.tieOdds  : 1.95,
-          }
-        }
+        // 모든 유저에게 동일한 라운드 확정 배당 적용
+        const raceOddsSnap = raceFinalOdds
 
         let totalPayout = 0
 
@@ -677,7 +710,7 @@ export async function POST(request: Request) {
       baccarat_result: baccaratResult,
       started_at: new Date((roundNumber - 1) * 30 * 1000).toISOString(),
       ended_at: new Date(roundNumber * 30 * 1000).toISOString(),
-    }).then(() => {}).catch(() => {})  // 중복 삽�� 무시
+    }).then(() => {}).catch(() => {})  // 중�� 삽�� 무시
 
     console.log(`[settle] round=${roundNumber} baccarat=${baccaratResult} settled=${settlementResults.length} users`)
 

@@ -110,21 +110,48 @@ export async function GET(request: Request) {
 
       // 2) 버전 카운터 폴링 — 배팅 발생(incr) 또는 라운드 전환 시 갱신
       const roundInterval = gameType === "race" ? 180 : 30
+      // baccarat: 배팅 구간 = secInRound 5~14 (timeLeft 25~15), 정산 0~4, 게임중 15~29
+      // race:     배팅 구간 = secInRound 10~59, 정산 0~9, 게임중 60~179
+      const isBettingPhase = () => {
+        const s = Math.floor(Date.now() / 1000) % roundInterval
+        if (gameType === "baccarat") return s >= 5 && s < 15
+        return s >= 10 && s < 60
+      }
       let lastVersion = (await redis.get<number>(versionKey)) ?? 0
       let lastRound = Math.floor(Math.floor(Date.now() / 1000) / roundInterval)
+      let wasInBetting = isBettingPhase()
 
       const interval = setInterval(async () => {
         if (closed) { clearInterval(interval); return }
         try {
           const version = (await redis.get<number>(versionKey)) ?? 0
           const currentRound = Math.floor(Math.floor(Date.now() / 1000) / roundInterval)
+          const inBetting = isBettingPhase()
 
-          if (version !== lastVersion || currentRound !== lastRound) {
+          // 배팅 마감 순간 감지: 배팅 → 게임중 전환
+          if (wasInBetting && !inBetting) {
+            // 확정 배당을 odds:final에 저장 (settle이 이 값을 정산에 사용)
+            const payload = await getOddsPayload(gameType, branchId)
+            const finalKey = `odds:final:${gameType}:${currentRound}`
+            const oddsToSave = payload.odds
+            await redis.set(finalKey, JSON.stringify(oddsToSave), { ex: roundInterval + 60 }).catch(() => {})
+            // 마감 배당을 클라이언트에도 1회 전송
+            send(payload)
+          }
+
+          // 배팅 구간에서만 배당 갱신 전송 — 게임중에는 배당 변동 차단
+          if (inBetting && (version !== lastVersion || currentRound !== lastRound)) {
             lastVersion = version
             lastRound = currentRound
             const payload = await getOddsPayload(gameType, branchId)
             send(payload)
+          } else if (currentRound !== lastRound) {
+            // 라운드 전환 시 새 라운드 초기 배당 전송
+            lastRound = currentRound
+            const payload = await getOddsPayload(gameType, branchId)
+            send(payload)
           }
+          wasInBetting = inBetting
           controller.enqueue(encoder.encode(": ping\n\n"))
         } catch {
           clearInterval(interval)

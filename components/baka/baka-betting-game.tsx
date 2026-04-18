@@ -814,11 +814,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     return () => clearInterval(tick)
   }, [onResetCards, onStartDealTrigger])
 
-  // 페이즈 구조 (30초 라운드 기준):
-  //   30 → 25초: 정산/결과 (5초)
-  //   25 → 15초: 배팅 가능 (10초)
-  //   15 →  0초: 게임 중   (15초)
-  const canBet = timeLeft <= 25 && timeLeft > 15
+  // 페이즈 구조 (30초 라운드 기준, UTC secInRound 기준):
+  //    0~ 4초: 정산   (5초)
+  //    5~14초: 배팅   (10초)
+  //   15~29초: 게임 중 (15초)
+  // SSE 서버와 동일한 UTC 기준으로 계산 — timeLeft 기반 오차 제거
+  const canBet = (() => {
+    const s = Math.floor(Date.now() / 1000) % 30
+    return s >= 5 && s < 15
+  })()
 
   // canBetRef 동기화 + 배팅 시작 시 최신 odds 즉시 반영
   useEffect(() => {

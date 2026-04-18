@@ -52,17 +52,34 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConf
   let oddsResult: Record<string, number> = {}
   let fee = 0
 
+  // 배팅 구간 여부 판단 (서버 UTC 기준)
+  const nowSec2 = Math.floor(Date.now() / 1000)
+  const roundInterval2 = gameType === "baccarat" ? 30 : 180
+  const secInRound2 = nowSec2 % roundInterval2
+  const inBetting = gameType === "baccarat"
+    ? secInRound2 >= 5 && secInRound2 < 15
+    : secInRound2 >= 10 && secInRound2 < 60
+
+  // 배팅 마감 이후엔 odds:final(확정 배당)을 우선 반환 → 모니터와 /baka 배당 일치
+  const finalOddsRaw = inBetting ? null : await redis.get<string>(`odds:final:${gameType}:${roundId}`).catch(() => null)
+  let finalOdds: Record<string, number> | null = null
+  if (finalOddsRaw) {
+    try { finalOdds = typeof finalOddsRaw === "string" ? JSON.parse(finalOddsRaw) : finalOddsRaw } catch {}
+  }
+
   if (gameType === "baccarat") {
     const p = poolData as { player: number; banker: number; tie: number }
     const r = calcBaccaratOdds(p, lpConfig, userCount)
     mode       = r.mode
     fee        = r.fee
     effectiveLP = Math.max(0, r.totalPool - totalBet)
-    oddsResult = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+    // 배팅 마감 후엔 확정 배당 사용, 배팅 중엔 실시간 계산
+    oddsResult = finalOdds ?? { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+    const o = oddsResult as { player: number; banker: number; tie: number }
     prediction = {
-      playerProfit: Math.floor(r.fee + totalBet - p.player * r.playerOdds),
-      bankerProfit: Math.floor(r.fee + totalBet - p.banker * r.bankerOdds),
-      tieProfit:    Math.floor(r.fee + totalBet - p.tie    * r.tieOdds),
+      playerProfit: Math.floor(r.fee + totalBet - p.player * o.player),
+      bankerProfit: Math.floor(r.fee + totalBet - p.banker * o.banker),
+      tieProfit:    Math.floor(r.fee + totalBet - p.tie    * o.tie),
     }
   } else {
     const p = poolData as { bit: number; coin: number; tie: number }
@@ -70,11 +87,12 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConf
     mode       = r.mode
     fee        = r.fee
     effectiveLP = Math.max(0, r.totalPool - totalBet)
-    oddsResult = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+    oddsResult = finalOdds ?? { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+    const o = oddsResult as { bit: number; coin: number; tie: number }
     prediction = {
-      bitProfit:  Math.floor(r.fee + totalBet - p.bit  * r.bitOdds),
-      coinProfit: Math.floor(r.fee + totalBet - p.coin * r.coinOdds),
-      tieProfit:  Math.floor(r.fee + totalBet - p.tie  * r.tieOdds),
+      bitProfit:  Math.floor(r.fee + totalBet - p.bit  * o.bit),
+      coinProfit: Math.floor(r.fee + totalBet - p.coin * o.coin),
+      tieProfit:  Math.floor(r.fee + totalBet - p.tie  * o.tie),
     }
   }
 
