@@ -846,13 +846,8 @@ export default function PanelPage() {
                   {branches.length === 0 && (
                     <p className="py-10 text-center text-sm text-muted-foreground">생성된 지점이 없습니다.</p>
                   )}
-                  {bettingMsg && (
-                    <p className={`px-5 py-2 text-xs font-medium ${bettingMsg.ok ? "text-primary bg-primary/5" : "text-destructive bg-destructive/5"}`}>
-                      {bettingMsg.text}
-                    </p>
-                  )}
+
                   {branches.map(branch => {
-                    const isSettingOpen = bettingSettingId === branch.id
                     return (
                       <div key={branch.id} className="px-5 py-4">
                         <div className="flex items-center justify-between">
@@ -873,13 +868,6 @@ export default function PanelPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Button
-                              size="sm" variant="ghost"
-                              className="gap-1 text-xs text-muted-foreground hover:text-foreground"
-                              onClick={() => { setBettingSettingId(isSettingOpen ? null : branch.id); setBettingMsg(null); setLpInput("") }}
-                            >
-                              <Settings className="w-3.5 h-3.5" /> 설정
-                            </Button>
                             <Button
                               size="sm" variant="ghost"
                               className="text-destructive hover:bg-destructive/10 gap-1 text-xs"
