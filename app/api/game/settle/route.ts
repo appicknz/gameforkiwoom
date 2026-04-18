@@ -209,15 +209,8 @@ export async function POST(request: Request) {
     // 없으면 settle 시점 풀로 지점 LP 설정을 사용해 재계산
     const settlementResults: Array<{ userId: string; payout: number }> = []
 
-    // 라운드 확정 배당 조회 — 브랜치 스코프 키 우선, 없으면 "default" 시도
-    const firstUIdForBranch = (userIds as string[])[0]
-    let settleBranchScope = "default"
-    if (firstUIdForBranch) {
-      const { data: bpRow } = await admin.from("profiles").select("branch_id").eq("id", firstUIdForBranch).single()
-      if (bpRow?.branch_id) settleBranchScope = bpRow.branch_id
-    }
-    const finalOddsRaw = await redis.get<string>(`odds:final:baccarat:${roundNumber}:${settleBranchScope}`)
-      ?? await redis.get<string>(`odds:final:baccarat:${roundNumber}:default`)
+    // 라운드 확정 배당 조회 — SSE가 배팅 마감 시 저장한 단일 키
+    const finalOddsRaw = await redis.get<string>(`odds:final:baccarat:${roundNumber}`)
     let roundFinalOdds: { player: number; banker: number; tie: number } | null = null
     if (finalOddsRaw) {
       try { roundFinalOdds = typeof finalOddsRaw === "string" ? JSON.parse(finalOddsRaw) : finalOddsRaw } catch {}
@@ -483,16 +476,8 @@ export async function POST(request: Request) {
       const prevRaceUserIds: string[] = await redis.smembers(prevRaceUserSetKey).catch(() => [])
       const settleTargetIds = prevRaceUserIds.length > 0 ? prevRaceUserIds : (raceUserIds as string[])
 
-      // race 라운드 확정 배당 조회 (직전 라운드 기준)
-      // 브랜치 스코프 키 우선
-      const rFirstForScope = settleTargetIds[0]
-      let rBranchScope = "default"
-      if (rFirstForScope) {
-        const { data: rBpRow } = await admin.from("profiles").select("branch_id").eq("id", rFirstForScope).single()
-        if (rBpRow?.branch_id) rBranchScope = rBpRow.branch_id
-      }
-      const raceFinalRaw = await redis.get<string>(`odds:final:race:${prevRaceRoundNumber}:${rBranchScope}`)
-        ?? await redis.get<string>(`odds:final:race:${prevRaceRoundNumber}:default`)
+      // race 라운드 확정 배당 조회 — SSE가 배팅 마감 시 저장한 단일 키
+      const raceFinalRaw = await redis.get<string>(`odds:final:race:${prevRaceRoundNumber}`)
       let raceFinalOdds: { bit: number; coin: number; tie: number } | null = null
       if (raceFinalRaw) {
         try { raceFinalOdds = typeof raceFinalRaw === "string" ? JSON.parse(raceFinalRaw) : raceFinalRaw } catch {}

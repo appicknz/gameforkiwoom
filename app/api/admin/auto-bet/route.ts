@@ -304,8 +304,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         ? { baccaratSide: side, baccaratAmount: amount }
         : { raceSide: side, raceAmount: amount }
       const oddsSnapKey  = `odds:snap:${gameType}:${roundNumber}:${p.id}`
-      const autoBranchScope = p.branch_id ?? "default"
-      const finalOddsKey = `odds:final:${gameType}:${roundNumber}:${autoBranchScope}`
+      const finalOddsKey = `odds:final:${gameType}:${roundNumber}`
       await Promise.all([
         redis.set(userBetsKey, JSON.stringify(betPayload), { ex: ttl }),
         redis.set(oddsSnapKey, JSON.stringify(snap), { ex: ttl }),
