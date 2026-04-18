@@ -8,7 +8,7 @@
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
-import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
+import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG, branchToLpConfig } from "@/lib/lp-system"
 
 export const runtime = "nodejs"
 
@@ -80,9 +80,21 @@ export async function POST(request: Request) {
       try { oddsSnap = typeof finalOddsRaw === "string" ? JSON.parse(finalOddsRaw) : finalOddsRaw } catch {}
     }
 
-    // odds:final 없으면 현재 풀로 재계산 (fallback)
+    // odds:final 없으면 — 풀 + 유저의 실제 LP 설정으로 재계산 (TTL 3600s 내에서는 발생하면 안 됨)
     if (Object.keys(oddsSnap).length === 0) {
-      const poolKey  = `pool:${gameType}:${resolvedRound}`
+      // 유저 브랜치 LP 설정 조회
+      const { data: profileRow } = await admin
+        .from("profiles").select("branch_id").eq("id", userId).single()
+      let lpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
+      if (profileRow?.branch_id) {
+        const { data: branchRow } = await admin
+          .from("branches")
+          .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+          .eq("id", profileRow.branch_id).single()
+        if (branchRow) lpConfig = branchToLpConfig(branchRow)
+      }
+
+      const poolKey = `pool:${gameType}:${resolvedRound}`
       const [poolData, userCount] = await Promise.all([
         redis.hgetall(poolKey).catch(() => null),
         redis.scard(`users:${gameType}:${resolvedRound}`).catch(() => 0),
@@ -95,35 +107,23 @@ export async function POST(request: Request) {
           banker: parseInt((poolData?.banker as string) ?? "0") || 0,
           tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
         }
-        const totalPool = pool.player + pool.banker + pool.tie
-        if (totalPool > 0) {
-          const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, safeCount)
-          oddsSnap = {
-            player: (typeof r.playerOdds === "number" && r.playerOdds > 0) ? r.playerOdds : 1.8,
-            banker: (typeof r.bankerOdds === "number" && r.bankerOdds > 0) ? r.bankerOdds : 1.8,
-            tie:    (typeof r.tieOdds    === "number" && r.tieOdds    > 0) ? r.tieOdds    : 1.8,
-          }
-        } else {
-          // 풀도 만료 → 안전한 최솟값 (배팅액 그대로 반환에 가까운 값)
-          oddsSnap = { player: 1.8, banker: 1.8, tie: 1.8 }
+        if (pool.player + pool.banker + pool.tie === 0) {
+          // 풀도 만료 — 배당 데이터 없음, 정산 불가
+          return NextResponse.json({ error: "배당 데이터가 만료되었습니다. 관리자에게 문의하세요." }, { status: 422 })
         }
+        const r = calcBaccaratOdds(pool, lpConfig, safeCount)
+        oddsSnap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
       } else {
         const pool = {
           bit:  parseInt((poolData?.bit  as string) ?? "0") || 0,
           coin: parseInt((poolData?.coin as string) ?? "0") || 0,
           tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
         }
-        const totalPool = pool.bit + pool.coin + pool.tie
-        if (totalPool > 0) {
-          const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, safeCount)
-          oddsSnap = {
-            bit:  (typeof r.bitOdds  === "number" && r.bitOdds  > 0) ? r.bitOdds  : 1.8,
-            coin: (typeof r.coinOdds === "number" && r.coinOdds > 0) ? r.coinOdds : 1.8,
-            tie:  (typeof r.tieOdds  === "number" && r.tieOdds  > 0) ? r.tieOdds  : 1.8,
-          }
-        } else {
-          oddsSnap = { bit: 1.8, coin: 1.8, tie: 1.8 }
+        if (pool.bit + pool.coin + pool.tie === 0) {
+          return NextResponse.json({ error: "배당 데이터가 만료되었습니다. 관리자에게 문의하세요." }, { status: 422 })
         }
+        const r = calcRaceOdds(pool, lpConfig, safeCount)
+        oddsSnap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
       }
     }
 
@@ -144,7 +144,8 @@ export async function POST(request: Request) {
       if (bets.baccaratSide && bets.baccaratAmount > 0) {
         const side = bets.baccaratSide as "player" | "banker" | "tie"
         if (side === baccaratResult) {
-          const odds = (typeof snap[side] === "number" && snap[side] > 0) ? snap[side] : 1.95
+          // odds:final에서 읽은 실제 배당만 사용 — 하드코딩 없음
+          const odds = snap[side] as number
           totalPayout += Math.floor(bets.baccaratAmount * odds)
         } else if (baccaratResult === "tie" && (side === "player" || side === "banker")) {
           totalPayout += bets.baccaratAmount  // 타이 시 원금 반환
