@@ -21,6 +21,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid bet amount" }, { status: 400 })
     }
 
+    // ── 배팅 구간 서버 검증 (UTC 기준) ───────────────────────────
+    // baccarat: secInRound 5~14초, race: secInRound 10~59초
+    const nowSec = Math.floor(Date.now() / 1000)
+    const type = (gameType ?? "baccarat") as "baccarat" | "race"
+    const roundSec = type === "race" ? 180 : 30
+    const secInRound = nowSec % roundSec
+    const inBettingPhase = type === "race"
+      ? secInRound >= 10 && secInRound < 60
+      : secInRound >= 5  && secInRound < 15
+    if (!inBettingPhase) {
+      return NextResponse.json({ error: "Betting is closed for this round" }, { status: 400 })
+    }
+
     // 토큰 검증 + 중복 세션 확인
     const authResult = await verifySession(request)
     if (!authResult.ok) {

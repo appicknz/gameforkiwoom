@@ -147,7 +147,14 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
 }
 
 // ── 게임 카드 (바카라 or 레이스) ──────────────────────────────────────────
-function GameRoundCard({ stats, title }: { stats: RoundStats; title: string }) {
+function GameRoundCard({
+  stats, title, phase, timeLeft,
+}: {
+  stats: RoundStats
+  title: string
+  phase: "정산중" | "배팅가능" | "게임중"
+  timeLeft: number
+}) {
   const isBaccarat = stats.gameType === "baccarat"
   const sides = isBaccarat
     ? [
@@ -171,8 +178,26 @@ function GameRoundCard({ stats, title }: { stats: RoundStats; title: string }) {
 
   const feeAmount = stats.fee > 0 ? stats.fee : Math.floor(stats.totalBet * 0.20)
 
+  const phaseBg =
+    phase === "배팅가능" ? "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30" :
+    phase === "정산중"   ? "bg-amber-500/15 text-amber-600 border border-amber-500/30" :
+                          "bg-muted text-muted-foreground border border-border"
+  const totalSec = isBaccarat ? 30 : 180
+  const pct = (timeLeft / totalSec) * 100
+  const progressColor =
+    phase === "배팅가능" ? "bg-emerald-500" :
+    phase === "정산중"   ? "bg-amber-500" : "bg-muted-foreground/40"
+
   return (
     <div className="flex-1 min-w-0 bg-muted/40 rounded-xl p-4 space-y-3 border border-border">
+      {/* 타이머 프로그레스 바 */}
+      <div className="h-1 w-full bg-border rounded-full overflow-hidden -mt-1">
+        <div
+          className={`h-full transition-all duration-200 ${progressColor}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold text-foreground">{title}</p>
@@ -180,7 +205,20 @@ function GameRoundCard({ stats, title }: { stats: RoundStats; title: string }) {
             라운드 #{stats.round} &middot; {stats.userCount}명 참여
           </p>
         </div>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${modeBg}`}>{modeLabel}</span>
+        <div className="flex items-center gap-1.5">
+          {/* 페이즈 배지 */}
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${phaseBg}`}>
+            {phase}
+          </span>
+          {/* 카운트다운 */}
+          <span className={`text-sm font-black tabular-nums w-10 text-right ${
+            phase === "배팅가능" ? "text-emerald-500" :
+            phase === "정산중"   ? "text-amber-500" : "text-muted-foreground"
+          }`}>
+            {timeLeft}s
+          </span>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${modeBg}`}>{modeLabel}</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2 text-xs">
@@ -277,8 +315,10 @@ export function RoundMonitor({
   const [resetPassword,    setResetPassword]    = useState("")
   const [resetLoading,     setResetLoading]     = useState(false)
   const [resetError,       setResetError]       = useState("")
-  const [baccaratPhase, setBaccaratPhase] = useState<"정산중" | "배팅가능" | "게임중">("게임중")
-  const [racePhase,     setRacePhase]     = useState<"배팅가능" | "게임중">("게임중")
+  const [baccaratPhase,   setBaccaratPhase]   = useState<"정산중" | "배팅가능" | "게임중">("게임중")
+  const [racePhase,       setRacePhase]       = useState<"정산중" | "배팅가능" | "게임중">("게임중")
+  const [baccaratTimeLeft, setBaccaratTimeLeft] = useState(30)
+  const [raceTimeLeft,     setRaceTimeLeft]     = useState(180)
   const baccaratIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const raceIntervalRef      = useRef<ReturnType<typeof setInterval> | null>(null)
   const baccaratLastBetRound = useRef<number>(-1)
@@ -439,9 +479,12 @@ export function RoundMonitor({
   // ── 페이즈 감지 ───────────────────────────────────────────────
   const getBaccaratPhase = () => {
     const nowSec = Math.floor(Date.now() / 1000)
-    const rem = 30 - (nowSec % 30)
+    const secInRound = nowSec % 30   // 0~29
+    const rem = 30 - secInRound      // 30~1
     const round = Math.floor(nowSec / 30)
-    const phase: "정산중" | "배팅가능" | "게임중" = rem > 25 ? "정산중" : rem > 13 ? "배팅가능" : "게임중"
+    // 0~4초: 정산, 5~14초: 배팅가능, 15~29초: 게임중 (SSE 서버 동일 기준)
+    const phase: "정산중" | "배팅가능" | "게임중" =
+      secInRound < 5 ? "정산중" : secInRound < 15 ? "배팅가능" : "게임중"
     return { phase, rem, round }
   }
   const getRacePhase = () => {
@@ -555,6 +598,21 @@ export function RoundMonitor({
     return () => clearInterval(iv)
   }, [loadRoundStats])
 
+  // 카운트다운 ticker (200ms) — 페이즈 및 남은 시간 실시간 업데이트
+  useEffect(() => {
+    const tick = () => {
+      const b = getBaccaratPhase()
+      setBaccaratPhase(b.phase)
+      setBaccaratTimeLeft(b.rem)
+      const r = getRacePhase()
+      setRacePhase(r.phase)
+      setRaceTimeLeft(r.rem)
+    }
+    tick()
+    const iv = setInterval(tick, 200)
+    return () => clearInterval(iv)
+  }, [])
+
   // ── 플레이스홀더 ──────────────────────────────────────────────
   const nowSec = Math.floor(Date.now() / 1000)
   const emptyBaccarat: RoundStats = {
@@ -648,8 +706,8 @@ export function RoundMonitor({
 
         {/* 바카라 + 레이스 */}
         <div className="px-5 pb-5 flex flex-col md:flex-row gap-4">
-          <GameRoundCard stats={baccaratStats} title="바카라" />
-          <GameRoundCard stats={raceStats}     title="레이스 (5분 라운드)" />
+          <GameRoundCard stats={baccaratStats} title="바카라"           phase={baccaratPhase} timeLeft={baccaratTimeLeft} />
+          <GameRoundCard stats={raceStats}     title="레이스 (3분 라운드)" phase={racePhase}     timeLeft={raceTimeLeft}     />
         </div>
       </div>
 
@@ -1229,7 +1287,7 @@ export function RoundMonitor({
 
       {/* ════════════════════════════════════════════════════════
           섹션 5 — 지점별 LP 설정 (superadmin 전용)
-      ════════════════════════════��═══════════════════════════ */}
+      ══════════��═════════════════��═══════════════════════════ */}
       {isSuperAdmin && branches.length > 0 && (
         <div className="bg-card border border-border rounded-2xl overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
