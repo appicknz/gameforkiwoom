@@ -74,8 +74,9 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
   }
 
   // 계산된 배당을 Redis에 캐시 — 브랜치별로 분리해 다른 지점이 덮어쓰지 않도록
+  // TTL = 라운드 2배 + 여유 → 캐시 miss 방지
   const currentKey = `odds:current:${gameType}:${roundNumber}:${cacheScope}`
-  await redis.set(currentKey, JSON.stringify(payload), { ex: roundSec + 10 }).catch(() => {})
+  await redis.set(currentKey, JSON.stringify(payload), { ex: roundSec * 2 + 30 }).catch(() => {})
 
   return payload
 }
