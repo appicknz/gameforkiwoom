@@ -52,16 +52,14 @@ export async function POST(request: Request) {
       ? [storedRound]
       : [roundNumber, roundNumber - 1, roundNumber + 1]
 
-    let betsRaw:      string | null = null
-    let oddsSnapRaw:  string | null = null
-    let resolvedRound: number       = roundNumber
-    let resolvedBetsKey: string     = `bet:bets:${gameType}:${roundNumber}:${userId}`
+    let betsRaw:       string | null = null
+    let resolvedRound: number        = roundNumber
+    let resolvedBetsKey: string      = `bet:bets:${gameType}:${roundNumber}:${userId}`
 
     for (const rn of candidates) {
       const bk = `bet:bets:${gameType}:${rn}:${userId}`
-      const ok = `odds:snap:${gameType}:${rn}:${userId}`
-      const [b, o] = await Promise.all([redis.get<string>(bk), redis.get<string>(ok)])
-      if (b) { betsRaw = b; oddsSnapRaw = o; resolvedRound = rn; resolvedBetsKey = bk; break }
+      const b  = await redis.get<string>(bk)
+      if (b) { betsRaw = b; resolvedRound = rn; resolvedBetsKey = bk; break }
     }
     if (!betsRaw) {
       // 배팅 없음 — 현재 잔고만 반환
@@ -74,18 +72,20 @@ export async function POST(request: Request) {
 
     const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
 
-    // ── odds 스냅샷 (배팅 시점 저장 값 우선) ────────────────
+    // ── odds 확정 배당 (단일 소스: odds:final — SSE가 배팅 마감 시 저장) ─────
+    // 관리자 모니터·클라이언트·정산 모두 동일한 키를 사용해 배당 일치 보장
     let oddsSnap: { player?: number; banker?: number; tie?: number; bit?: number; coin?: number } = {}
-    if (oddsSnapRaw) {
-      try { oddsSnap = typeof oddsSnapRaw === "string" ? JSON.parse(oddsSnapRaw) : oddsSnapRaw } catch {}
+    const finalOddsRaw = await redis.get<string>(`odds:final:${gameType}:${resolvedRound}`)
+    if (finalOddsRaw) {
+      try { oddsSnap = typeof finalOddsRaw === "string" ? JSON.parse(finalOddsRaw) : finalOddsRaw } catch {}
     }
 
-    // 스냅샷 없으면 현재 풀 + DEFAULT_LP_CONFIG로 재계산 (calcAutoLpSeed 불필요)
+    // odds:final 없으면 현재 풀로 재계산 (fallback)
     if (Object.keys(oddsSnap).length === 0) {
-      const poolKey  = `pool:${gameType}:${roundNumber}`
+      const poolKey  = `pool:${gameType}:${resolvedRound}`
       const [poolData, userCount] = await Promise.all([
         redis.hgetall(poolKey).catch(() => null),
-        redis.scard(`users:${gameType}:${roundNumber}`).catch(() => 0),
+        redis.scard(`users:${gameType}:${resolvedRound}`).catch(() => 0),
       ])
       const safeCount = (userCount as number) ?? 0
 
@@ -155,8 +155,8 @@ export async function POST(request: Request) {
       }
 
       if (bitScore === 0 && coinScore === 0) {
-        // DB fallback: 해당 라운드 종료 시각으로 조회
-        const raceTime = roundNumber * 300
+        // DB fallback: 해당 라운드 종료 시각으로 조회 (180초 기준)
+        const raceTime = resolvedRound * 180
         const { data: raceRow } = await admin.from("race_results").select("bit_score,coin_score,winner").eq("time", raceTime).maybeSingle()
         if (raceRow) { bitScore = raceRow.bit_score ?? 0; coinScore = raceRow.coin_score ?? 0 }
       }
