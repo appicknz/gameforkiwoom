@@ -1,4 +1,5 @@
 import { adminSupabase as supabase } from "@/lib/supabase-admin"
+import { verifySessionFromUrl } from "@/lib/auth"
 import { Redis } from "@upstash/redis"
 
 const redis = new Redis({
@@ -11,19 +12,29 @@ export const runtime = "nodejs"
 export const maxDuration = 60
 
 export async function GET(request: Request) {
-  const url = new URL(request.url)
-  const token =
-    request.headers.get("Authorization")?.replace("Bearer ", "") ??
-    url.searchParams.get("token")
-
-  if (!token) return new Response("Unauthorized", { status: 401 })
-
-  const { data: userData, error } = await supabase.auth.getUser(token)
-  if (error || !userData?.user?.id) {
-    return new Response("Invalid token", { status: 401 })
+  const auth = await verifySessionFromUrl(request)
+  if (!auth.ok) {
+    // 중복 로그인: SSE로 kick 이벤트를 보내고 연결 종료
+    if (auth.status === 409) {
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(`event: kick\ndata: {"reason":"DUPLICATE_LOGIN"}\n\n`))
+          controller.close()
+        },
+      })
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        },
+      })
+    }
+    return new Response(auth.error, { status: auth.status })
   }
 
-  const userId = userData.user.id
+  const { userId, token } = auth
   const balanceKey = `balance:${userId}`
   const versionKey = `balance_version:${userId}`
 
@@ -58,9 +69,24 @@ export async function GET(request: Request) {
       // 2) 버전 카운터 폴링 — incr 발생 시 즉시 잔고 push
       let lastVersion = (await redis.get<number>(versionKey)) ?? 0
 
+      let checkCount = 0
       const interval = setInterval(async () => {
         if (closed) { clearInterval(interval); return }
         try {
+          // 10회(20초)마다 세션 유효성 재확인 → 중복 로그인 감지
+          checkCount++
+          if (checkCount % 10 === 0) {
+            const { sessionKey } = await import("@/lib/auth")
+            const stored = await redis.get<string>(sessionKey(userId))
+            if (stored !== null && stored !== token) {
+              send({ kick: true, reason: "DUPLICATE_LOGIN" })
+              closed = true
+              clearInterval(interval)
+              try { controller.close() } catch {}
+              return
+            }
+          }
+
           const version = (await redis.get<number>(versionKey)) ?? 0
           if (version !== lastVersion) {
             lastVersion = version

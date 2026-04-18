@@ -40,6 +40,7 @@ export function TopBar() {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const [authTab, setAuthTab] = useState<"login" | "register">("login")
+  const [kickMsg, setKickMsg] = useState<string | null>(null)
 
   // 로그인 폼
   const [loginUsername, setLoginUsername] = useState("")
@@ -124,8 +125,28 @@ export function TopBar() {
             setBalance(d.balance)
             window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
           }
+          // 중복 로그인 감지: 서버가 kick 신호 전송
+          if (d.kick || d.reason === "DUPLICATE_LOGIN") {
+            es?.close()
+            if (retry) clearTimeout(retry)
+            clearToken()
+            setIsLoggedIn(false)
+            setProfile(null)
+            setBalance(0)
+            setKickMsg("다른 기기에서 로그인되어 자동으로 로그아웃되었습니다.")
+          }
         } catch {}
       }
+      // kick SSE event (named event)
+      es.addEventListener("kick", () => {
+        es?.close()
+        if (retry) clearTimeout(retry)
+        clearToken()
+        setIsLoggedIn(false)
+        setProfile(null)
+        setBalance(0)
+        setKickMsg("다른 기기에서 로그인되어 자동으로 로그아웃되었습니다.")
+      })
       es.onerror = () => {
         es?.close()
         // 연결 끊기면 5초 후 재연결
@@ -291,6 +312,16 @@ export function TopBar() {
   const initials = profile?.username?.slice(0, 2).toUpperCase() ?? "?"
 
   return (
+    <>
+    {/* 중복 로그인 알림 배너 */}
+    {kickMsg && (
+      <div className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between gap-3 bg-red-600 text-white px-4 py-2 text-sm font-medium shadow-lg">
+        <span>{kickMsg}</span>
+        <button onClick={() => setKickMsg(null)} className="ml-auto shrink-0 rounded p-1 hover:bg-red-700 transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    )}
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
       <div className="flex h-14 items-center justify-between px-4">
         {/* 좌측 홈 버튼 */}
@@ -527,5 +558,6 @@ export function TopBar() {
         </div>
       </div>
     </header>
+    </>
   )
 }

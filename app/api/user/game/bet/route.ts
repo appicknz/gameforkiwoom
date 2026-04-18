@@ -1,4 +1,5 @@
 import { adminSupabase } from "@/lib/supabase-admin"
+import { verifySession } from "@/lib/auth"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
@@ -20,19 +21,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid bet amount" }, { status: 400 })
     }
 
-    // Authorization 헤더에서 토큰 추출
-    const token = request.headers.get("Authorization")?.replace("Bearer ", "")
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // 토큰 검증 + 중복 세션 확인
+    const authResult = await verifySession(request)
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
-
-    // 토큰에서 사용자 ID 추출
-    const { data: userData, error: userError } = await supabase.auth.getUser(token)
-    if (userError || !userData?.user?.id) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    }
-
-    const userId = userData.user.id
+    const userId = authResult.userId
 
     // atomic RPC로 잔고 차감 — SELECT→UPDATE 레이스 컨디션 완전 제거
     const { data: newBalance, error: deductError } = await supabase
