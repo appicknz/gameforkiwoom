@@ -306,26 +306,25 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
     result.baccarat && {
       key: result.baccarat, label: LABEL_MAP[result.baccarat], won: result.wonBaccarat, amount: result.baccaratAmount,
       odds: (() => {
-        if (!result.baccaratOdds) return 1.95
+        if (!result.baccaratOdds) return null
         const o = result.baccaratOdds
-        return result.baccarat === "player" ? (o.player ?? 1.95)
-          : result.baccarat === "banker" ? (o.banker ?? 1.95)
-          : (o.tie ?? 1.95)
+        return result.baccarat === "player" ? (o.player ?? null)
+          : result.baccarat === "banker" ? (o.banker ?? null)
+          : (o.tie ?? null)
       })(),
       payout: result.wonBaccarat
         ? (() => {
           const o = result.baccaratOdds
-          const odds = o
-            ? (result.baccarat === "player" ? (o.player ?? 1.95)
-              : result.baccarat === "banker" ? (o.banker ?? 1.95)
-              : (o.tie ?? 1.95))
-            : 1.95
-          return Math.floor(result.baccaratAmount * odds)
+          if (!o) return 0
+          const odds = result.baccarat === "player" ? o.player
+            : result.baccarat === "banker" ? o.banker
+            : o.tie
+          return Math.floor(result.baccaratAmount * (odds ?? 0))
         })()
         : result.baccaratRefund ? result.baccaratAmount : 0,
       isRefund: result.baccaratRefund && !result.wonBaccarat,
     },
-  ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number; payout: number; odds?: number; isRefund?: boolean }[]
+  ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number; payout: number; odds?: number | null; isRefund?: boolean }[]
 
   const totalBet    = bets.reduce((s, b) => s + b.amount, 0)
   const totalPayout = bets.reduce((s, b) => s + b.payout, 0)
@@ -664,11 +663,13 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         digitAmount: betDigitAmountRef.current,
         parityAmount: betParityAmountRef.current,
         baccaratAmount: betBaccaratAmountRef.current,
-        // 배팅 시점에 저장해둔 스냅샷 사용 — 라운드 종료 후 liveOdds가 1.95로 초기화되어도 정확한 배율 유지
-        baccaratOdds: liveOddsSnapshotRef.current,
+        // 서버 확정 배당을 받은 후 채워짐 — null로 초기화해 깜빡임 방지
+        baccaratOdds: null,
       }
       setLastResult(result)
-      setShowResultSheet(true)
+      // 바카라 배팅이 없으면 즉시 표시, 있으면 settle-me 응답 후 표시해 배당 깜빡임 방지
+      const hasBaccaratBet = !!betBaccaratRef.current
+      if (!hasBaccaratBet) setShowResultSheet(true)
 
       const anyWon = (betRef.current && wonDirection) || (betDigitRef.current && wonDigit)
         || (betParityRef.current && wonParity) || (betBaccaratRef.current && wonBaccarat)
@@ -711,11 +712,11 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
               setBalance(d.balance)
               window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
             }
-            // 서버 확정 odds로 결과 모달 업데이트 (화면 표시 배율 정확히 반영)
+            // 서버 확정 배당으로 업데이트 후 모달 오픈 — 처음부터 정확한 배율 표시
             if (d.appliedOdds) {
-              console.log("[v0] 서버 확정 배율:", JSON.stringify(d.appliedOdds), "| payout:", d.payout, "| newBalance:", d.balance)
               setLastResult(prev => prev ? { ...prev, baccaratOdds: d.appliedOdds } : prev)
             }
+            if (hasBaccaratBet) setShowResultSheet(true)
           })
           .catch(err => console.error("[v0] settle-me fetch error:", err))
       }
