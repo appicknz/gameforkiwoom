@@ -95,11 +95,17 @@ export async function POST(request: Request) {
           banker: parseInt((poolData?.banker as string) ?? "0") || 0,
           tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
         }
-        const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, safeCount)
-        oddsSnap = {
-          player: typeof r.playerOdds === "number" ? r.playerOdds : 1.95,
-          banker: typeof r.bankerOdds === "number" ? r.bankerOdds : 1.95,
-          tie:    typeof r.tieOdds    === "number" ? r.tieOdds    : 1.95,
+        const totalPool = pool.player + pool.banker + pool.tie
+        if (totalPool > 0) {
+          const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, safeCount)
+          oddsSnap = {
+            player: (typeof r.playerOdds === "number" && r.playerOdds > 0) ? r.playerOdds : 1.8,
+            banker: (typeof r.bankerOdds === "number" && r.bankerOdds > 0) ? r.bankerOdds : 1.8,
+            tie:    (typeof r.tieOdds    === "number" && r.tieOdds    > 0) ? r.tieOdds    : 1.8,
+          }
+        } else {
+          // 풀도 만료 → 안전한 최솟값 (배팅액 그대로 반환에 가까운 값)
+          oddsSnap = { player: 1.8, banker: 1.8, tie: 1.8 }
         }
       } else {
         const pool = {
@@ -107,11 +113,16 @@ export async function POST(request: Request) {
           coin: parseInt((poolData?.coin as string) ?? "0") || 0,
           tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
         }
-        const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, safeCount)
-        oddsSnap = {
-          bit:  typeof r.bitOdds  === "number" ? r.bitOdds  : 1.95,
-          coin: typeof r.coinOdds === "number" ? r.coinOdds : 1.95,
-          tie:  typeof r.tieOdds  === "number" ? r.tieOdds  : 1.95,
+        const totalPool = pool.bit + pool.coin + pool.tie
+        if (totalPool > 0) {
+          const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, safeCount)
+          oddsSnap = {
+            bit:  (typeof r.bitOdds  === "number" && r.bitOdds  > 0) ? r.bitOdds  : 1.8,
+            coin: (typeof r.coinOdds === "number" && r.coinOdds > 0) ? r.coinOdds : 1.8,
+            tie:  (typeof r.tieOdds  === "number" && r.tieOdds  > 0) ? r.tieOdds  : 1.8,
+          }
+        } else {
+          oddsSnap = { bit: 1.8, coin: 1.8, tie: 1.8 }
         }
       }
     }
@@ -172,6 +183,47 @@ export async function POST(request: Request) {
           totalPayout += bets.raceAmount
         }
       }
+    }
+
+    // ── game_round_history + game_round_participants 기록 ────────
+    if (gameType === "baccarat" && bets.baccaratSide && bets.baccaratAmount > 0) {
+      const side = bets.baccaratSide as "player" | "banker" | "tie"
+      const won = side === baccaratResult
+      const refund = baccaratResult === "tie" && (side === "player" || side === "banker")
+      const odds = (typeof oddsSnap[side] === "number" && (oddsSnap[side] as number) > 0) ? (oddsSnap[side] as number) : 1.8
+      const betPayout = won ? Math.floor(bets.baccaratAmount * odds) : refund ? bets.baccaratAmount : 0
+      const profit = betPayout - bets.baccaratAmount
+
+      // game_round_history upsert (존재하면 participant_count만 증가)
+      await admin.from("game_round_history").upsert({
+        game_type: "baccarat",
+        round_number: resolvedRound,
+        result: baccaratResult,
+        odds_player: oddsSnap.player ?? null,
+        odds_banker: oddsSnap.banker ?? null,
+        odds_tie:    oddsSnap.tie    ?? null,
+        total_bet:    bets.baccaratAmount,
+        total_payout: betPayout,
+        participant_count: 1,
+      }, {
+        onConflict: "game_type,round_number",
+        ignoreDuplicates: false,
+      }).then(() => {}).catch(() => {})
+
+      // game_round_participants INSERT
+      const { data: prof } = await admin.from("profiles").select("username").eq("id", userId).maybeSingle()
+      await admin.from("game_round_participants").insert({
+        game_type:    "baccarat",
+        round_number: resolvedRound,
+        user_id:      userId,
+        username:     prof?.username ?? null,
+        bet_side:     side,
+        bet_amount:   bets.baccaratAmount,
+        applied_odds: odds,
+        payout:       betPayout,
+        profit,
+        result:       won ? "win" : refund ? "tie" : "lose",
+      }).then(() => {}).catch(() => {})
     }
 
     // ── bet_history INSERT ────────────────────────────────────

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 import { RoundMonitor } from "@/components/admin/round-monitor"
+import { RoundHistory } from "@/components/admin/round-history"
 
 const SUPER_ROLES = ["master", "super_admin"]
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
@@ -152,7 +153,7 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "cards" | "videos">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "cards" | "videos" | "history">("users")
 
   // 카드 이미지 관리
   interface CardImage { url: string; pathname: string; uploadedAt: string }
@@ -636,6 +637,13 @@ export default function PanelPage() {
           >
             <Activity className="w-4 h-4" /> 라운드 모니터
           </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "history" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+          >
+            <TrendingDown className="w-4 h-4" /> 라운드 기록
+          </button>
 
           {isSuperAdmin && (
             <button
@@ -1102,6 +1110,19 @@ export default function PanelPage() {
               branchId={isSuperAdmin ? undefined : myBranchId}
               branches={branches}
             />
+          </div>
+        )}
+
+        {/* 라운드 기록 탭 */}
+        {activeTab === "history" && (
+          <div className="bg-card border border-border rounded-xl p-5">
+            <div className="mb-4">
+              <h2 className="text-base font-semibold">라운드 기록</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                바카라·레이스 라운드별 결과, 배당, 참여 회원 및 수익을 확인합니다.
+              </p>
+            </div>
+            <RoundHistory />
           </div>
         )}
 
