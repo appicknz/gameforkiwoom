@@ -170,7 +170,7 @@ function GameRoundCard({
 
   const modeLabel =
     stats.mode === "pari"   ? "파리뮤추얼" :
-    stats.mode === "hybrid" ? "��이브리드"  : "LP 주도"
+    stats.mode === "hybrid" ? "���이브리드"  : "LP 주도"
   const modeBg =
     stats.mode === "pari"   ? "bg-emerald-500/10 text-emerald-600" :
     stats.mode === "hybrid" ? "bg-amber-500/10 text-amber-600"    :
@@ -598,10 +598,77 @@ export function RoundMonitor({
     }
   }, [loadRoundStats, loadHouseStats, loadLpHistory, loadLpState, loadAbUsers, loadAbLogs, isSuperAdmin])
 
+  // SSE 구독 — /baka, /race와 동일한 스트림을 받아 배당을 실시간 동기화
+  // 폴링(2초) 대신 이벤트 기반으로 즉시 반영
   useEffect(() => {
-    const iv = setInterval(loadRoundStats, 2000)
-    return () => clearInterval(iv)
-  }, [loadRoundStats])
+    const token = getToken()
+    if (!token) return
+
+    // SSE payload(odds/stream) → RoundStats 형식으로 변환해 combined에 병합
+    const applyOddsPayload = (
+      gameType: "baccarat" | "race",
+      data: {
+        roundNumber: number
+        userCount: number
+        pools: Record<string, number>
+        odds: Record<string, number>
+      }
+    ) => {
+      // 게임중 페이즈엔 배당 고정 — SSE 이벤트가 와도 state 갱신 안 함
+      if (gameType === "baccarat" && baccaratPhaseRef.current === "게임중") return
+      if (gameType === "race"     && racePhaseRef.current     === "게임중") return
+
+      const totalBet = Object.values(data.pools).reduce((a, b) => a + b, 0)
+      const fee = Math.floor(totalBet * 0.2)
+      const stat: RoundStats = {
+        round: String(data.roundNumber),
+        gameType,
+        timestamp: new Date().toISOString(),
+        pools: data.pools,
+        userCount: data.userCount,
+        totalBet,
+        lpAmount: 0,
+        fee,
+        feeRate: 0.2,
+        mode: (data.odds?.mode as string) ?? "pari",
+        odds: data.odds ?? null,
+        prediction: {},
+      }
+      setCombined(prev => prev
+        ? { ...prev, [gameType]: stat }
+        : { baccarat: stat, race: stat }
+      )
+    }
+
+    let bakaEs: EventSource | null = null
+    let raceEs: EventSource | null = null
+    let closed = false
+
+    const connect = (type: "baccarat" | "race") => {
+      const es = new EventSource(`/api/game/odds/stream?type=${type}&token=${token}`)
+      es.onmessage = (e) => {
+        if (closed) return
+        try { applyOddsPayload(type, JSON.parse(e.data)) } catch {}
+      }
+      es.onerror = () => {
+        es.close()
+        if (!closed) setTimeout(() => {
+          if (type === "baccarat") bakaEs = connect("baccarat")
+          else raceEs = connect("race")
+        }, 3000)
+      }
+      return es
+    }
+
+    bakaEs = connect("baccarat")
+    raceEs = connect("race")
+
+    return () => {
+      closed = true
+      bakaEs?.close()
+      raceEs?.close()
+    }
+  }, [])
 
   // 카운트다운 ticker (200ms) — 페이즈 및 남은 시간 실시간 업데이트
   useEffect(() => {
@@ -1010,7 +1077,7 @@ export function RoundMonitor({
                       <div className="flex items-center justify-between text-xs mb-1">
                         <span className="text-muted-foreground">{new Date(log.ts).toLocaleString("ko-KR")}</span>
                         <div className="flex items-center gap-3">
-                          <span className="text-foreground">{successCount}/{log.results.length}명 성공</span>
+                          <span className="text-foreground">{successCount}/{log.results.length}�� 성공</span>
                           <span className="text-amber-500 font-semibold">+{fmt(log.totalFee)}</span>
                         </div>
                       </div>
@@ -1326,7 +1393,7 @@ export function RoundMonitor({
               <li>누적 수수료, 승률, 수익/손실 통계 초기화</li>
             </ul>
             <p className="text-xs text-muted-foreground mb-2">
-              <span className="font-semibold text-foreground">역삼1</span> 계정 비밀번호를 입력하세요.
+              <span className="font-semibold text-foreground">역삼1</span> 계정 비밀번���를 입력하세요.
             </p>
             <Input
               type="password" placeholder="비밀번호"

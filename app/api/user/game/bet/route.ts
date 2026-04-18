@@ -82,13 +82,11 @@ export async function POST(request: Request) {
     ]
 
     // 배팅 풀 집계 + 유저별 bets 저장 (settle API 사용)
-    // baccarat: 30초 라운드, race: 5분(300초) 라운드
-    if (gameType && side) {
-      const nowSec = Math.floor(Date.now() / 1000)
+      // baccarat: 30초 라운드, race: 180초(3분) 라운드 — SSE/settle과 동일 기준
       const roundNumber = gameType === "race"
-        ? Math.floor(nowSec / 300)
+        ? Math.floor(nowSec / 180)
         : Math.floor(nowSec / 30)
-      const ttl = gameType === "race" ? 600 : 120
+      const ttl = gameType === "race" ? 400 : 120
 
       const poolKey       = `pool:${gameType}:${roundNumber}`
       const userSetKey    = `users:${gameType}:${roundNumber}`

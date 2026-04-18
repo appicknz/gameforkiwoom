@@ -64,7 +64,7 @@ export async function GET(request: Request) {
 
   const nowSec = Math.floor(Date.now() / 1000)
   const baccaratRound = Math.floor(nowSec / 30)
-  const raceRound     = Math.floor(nowSec / 300)
+  const raceRound     = Math.floor(nowSec / 180)
 
   // ── bet_history 전수 조회 (통계 집계 + 최근 정산 내역 동시 처리) ──
   const { data: allHistory } = await adminSupabase
@@ -164,22 +164,23 @@ export async function GET(request: Request) {
   return NextResponse.json({ users, stats })
 }
 
-// 페이즈 체크: 현재 시각이 배팅 가능 구간인지 확인
+// 페이즈 체크: UTC secInRound 기준 — SSE/bet/round-monitor 모두 동일 기준
+// baccarat: secInRound 5~14 = 배팅 (정산 0~4, 게임중 15~29)
+// race:     secInRound 10~59 = 배팅 (정산 0~9, 게임중 60~179)
 function isBettingPhase(gameType: "baccarat" | "race"): { allowed: boolean; reason?: string } {
   const nowSec = Math.floor(Date.now() / 1000)
   if (gameType === "baccarat") {
-    // 30초 라운드: rem = 30 - (nowSec % 30)
-    // 배팅 가능: rem <= 25 && rem > 13  (즉 timeLeft 25~14)
-    const rem = 30 - (nowSec % 30)
-    if (rem > 25) return { allowed: false, reason: `정산중 (rem=${rem}, 배팅은 rem≤25부터)` }
-    if (rem <= 13) return { allowed: false, reason: `게임중 (rem=${rem}, 배팅은 rem>13까지)` }
+    const s = nowSec % 30
+    if (s < 5)  return { allowed: false, reason: `정산중 (secInRound=${s})` }
+    if (s >= 15) return { allowed: false, reason: `게임중 (secInRound=${s})` }
     return { allowed: true }
   } else {
-    // 300초 라운드: 배팅 가능 = secInRound < 60 (첫 60초)
-    const secInRound = nowSec % 300
-    if (secInRound >= 60) return { allowed: false, reason: `게임중 (secInRound=${secInRound}, 배팅은 0~59��)` }
+    const s = nowSec % 180
+    if (s < 10)  return { allowed: false, reason: `정산중 (secInRound=${s})` }
+    if (s >= 60) return { allowed: false, reason: `게임중 (secInRound=${s})` }
     return { allowed: true }
   }
+}
 }
 
 // 공통: 유저 배팅 1회 실행 (gameType 지정)
@@ -209,10 +210,11 @@ async function runBetForGame(gameType: "baccarat" | "race") {
   const balMap = Object.fromEntries((balances ?? []).map(b => [b.user_id, b.amount]))
 
   const nowSec = Math.floor(Date.now() / 1000)
+  // race: 180초(3분) 라운드 — bet/SSE/settle/round-stats 모두 동일 기준
   const roundNumber = gameType === "baccarat"
     ? Math.floor(nowSec / 30)
-    : Math.floor(nowSec / 300)
-  const ttl = gameType === "baccarat" ? 120 : 700
+    : Math.floor(nowSec / 180)
+  const ttl = gameType === "baccarat" ? 120 : 400
 
   const results: {
     username: string; gameType: string; side: string
