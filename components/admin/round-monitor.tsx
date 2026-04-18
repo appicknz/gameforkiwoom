@@ -170,7 +170,7 @@ function GameRoundCard({
 
   const modeLabel =
     stats.mode === "pari"   ? "파리뮤추얼" :
-    stats.mode === "hybrid" ? "하이브리드"  : "LP 주도"
+    stats.mode === "hybrid" ? "��이브리드"  : "LP 주도"
   const modeBg =
     stats.mode === "pari"   ? "bg-emerald-500/10 text-emerald-600" :
     stats.mode === "hybrid" ? "bg-amber-500/10 text-amber-600"    :
@@ -319,13 +319,16 @@ export function RoundMonitor({
   const [racePhase,       setRacePhase]       = useState<"정산중" | "배팅가능" | "게임중">("게임중")
   const [baccaratTimeLeft, setBaccaratTimeLeft] = useState(30)
   const [raceTimeLeft,     setRaceTimeLeft]     = useState(180)
+  // ref로 최신 페이즈를 추적 — loadRoundStats 콜백 클로저에서 접근용
+  const baccaratPhaseRef = useRef<"정산중" | "배팅가능" | "게임중">("게임중")
+  const racePhaseRef     = useRef<"정산중" | "배팅가능" | "게임중">("게임중")
   const baccaratIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const raceIntervalRef      = useRef<ReturnType<typeof setInterval> | null>(null)
   const baccaratLastBetRound = useRef<number>(-1)
   const raceLastBetRound     = useRef<number>(-1)
   const statsRefreshRef      = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // ── 데이터 로드 ───────────────────────────────────────────────
+  // ── 데이터 로드 ──────────────��────────────────────────────────
   const loadLpState = useCallback(async () => {
     const token = getToken(); if (!token) return
     try {
@@ -340,6 +343,8 @@ export function RoundMonitor({
 
   const loadRoundStats = useCallback(async () => {
     const token = getToken(); if (!token) return
+    // 게임중 페이즈에는 배당/풀이 변하지 않으므로 폴링 스킵 — 화면 freeze 유지
+    if (baccaratPhaseRef.current === "게임중" && racePhaseRef.current === "게임중") return
     setRoundLoading(true)
     try {
       const res = await fetch("/api/admin/round-stats", { headers: { Authorization: `Bearer ${token}` } })
@@ -604,9 +609,11 @@ export function RoundMonitor({
       const b = getBaccaratPhase()
       setBaccaratPhase(b.phase)
       setBaccaratTimeLeft(b.rem)
+      baccaratPhaseRef.current = b.phase
       const r = getRacePhase()
       setRacePhase(r.phase)
       setRaceTimeLeft(r.rem)
+      racePhaseRef.current = r.phase
     }
     tick()
     const iv = setInterval(tick, 200)
