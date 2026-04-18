@@ -446,10 +446,11 @@ export function RoundMonitor({
   }
   const getRacePhase = () => {
     const nowSec = Math.floor(Date.now() / 1000)
-    const secInRound = nowSec % 300
-    const rem = 300 - secInRound
-    const round = Math.floor(nowSec / 300)
-    const phase: "배팅가능" | "게임중" = secInRound < 60 ? "배팅가능" : "게임중"
+    const secInRound = nowSec % 180
+    const rem = 180 - secInRound
+    const round = Math.floor(nowSec / 180)
+    const phase: "정산중" | "배팅가능" | "게임중" =
+      secInRound < 10 ? "정산중" : secInRound < 60 ? "배팅가능" : "게임중"
     return { phase, rem, round }
   }
 
@@ -563,7 +564,7 @@ export function RoundMonitor({
     mode: "lp-dominant", prediction: {}, odds: null,
   }
   const emptyRace: RoundStats = {
-    round: String(Math.floor(nowSec / 300)), gameType: "race",
+      round: String(Math.floor(nowSec / 180)), gameType: "race",
     timestamp: new Date().toISOString(), pools: { bit: 0, coin: 0, tie: 0 },
     userCount: 0, totalBet: 0, lpAmount: 0, fee: 0, feeRate: 0.20,
     mode: "lp-dominant", prediction: {}, odds: null,
@@ -1228,7 +1229,7 @@ export function RoundMonitor({
 
       {/* ════════════════════════════════════════════════════════
           섹션 5 — 지점별 LP 설정 (superadmin 전용)
-      ════════════════════════════════════════════════════════ */}
+      ════════════════════════════��═══════════════════════════ */}
       {isSuperAdmin && branches.length > 0 && (
         <div className="bg-card border border-border rounded-2xl overflow-hidden">
           <div className="px-5 py-4 border-b border-border">

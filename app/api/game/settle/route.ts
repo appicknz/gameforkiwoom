@@ -73,8 +73,8 @@ export async function POST(request: Request) {
       lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
     // ── race 결과 계산 (5분 라운드 기준) ────────────────────
-    // race는 5분(300초) 라운드: raceRoundNumber = Math.floor(closeTime / 300)
-    const raceRoundNumber = Math.floor(closeTime / 300)
+    // race는 3분(180초) 라운드: raceRoundNumber = Math.floor(closeTime / 180)
+    const raceRoundNumber = Math.floor(closeTime / 180)
     const racePoolKey     = `pool:race:${raceRoundNumber}`
     const raceUserSetKey  = `users:race:${raceRoundNumber}`
     // 서버측 race 스코어 누적 키 (30초 tick마다 합산)
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     const d2  = parseInt(dec[1] ?? "0")  // 소수점 둘째 → COIN
     await redis.hincrby(raceScoreKey, "bit",  d1).catch(() => {})
     await redis.hincrby(raceScoreKey, "coin", d2).catch(() => {})
-    await redis.expire(raceScoreKey, 700).catch(() => {})  // 5분+여유
+    await redis.expire(raceScoreKey, 400).catch(() => {})  // 3분+여유
 
     const [racePoolData, raceUserIds, raceScoreData] = await Promise.all([
       redis.hgetall(racePoolKey).catch(() => null),
@@ -145,8 +145,8 @@ export async function POST(request: Request) {
 
       // Redis 없으면 btc_closing_prices에서 직접 집계
       if (bitScore === 0 && coinScore === 0) {
-        const rangeEnd   = prevRaceRound * 300        // 직전 라운드 종료 시각
-        const rangeStart = rangeEnd - 270             // 30초 × 9 = 직전 5분 구간
+        const rangeEnd   = prevRaceRound * 180        // 직전 라운드 종료 시각
+        const rangeStart = rangeEnd - 150             // 30초 × 5 = 직전 3분 게임 구간
         const { data: rows } = await admin
           .from("btc_closing_prices")
           .select("price")
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
       }
 
       // 직전 라운드 마감 기준가: btc_closing_prices에서 조회
-      const prevRaceEndTime = prevRaceRound * 300
+      const prevRaceEndTime = prevRaceRound * 180
       const { data: priceRow } = await admin
         .from("btc_closing_prices")
         .select("price")
@@ -677,7 +677,7 @@ export async function POST(request: Request) {
       baccarat_result: baccaratResult,
       started_at: new Date((roundNumber - 1) * 30 * 1000).toISOString(),
       ended_at: new Date(roundNumber * 30 * 1000).toISOString(),
-    }).then(() => {}).catch(() => {})  // 중복 삽입 무시
+    }).then(() => {}).catch(() => {})  // 중복 삽�� 무시
 
     console.log(`[settle] round=${roundNumber} baccarat=${baccaratResult} settled=${settlementResults.length} users`)
 

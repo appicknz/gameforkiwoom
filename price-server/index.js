@@ -64,11 +64,11 @@ let prevBucketLastPrice = null;
 let lastPriceBroadcastSec = 0;
 
 // ─── Race 스코어 서버 계산 ──────────────────────────────────────────
-// 5분(300초) 라운드, 0~59초 배팅, 60~299초 레이싱
+// 3분(180초) 라운드: 0~9초=정산, 10~59초=배팅, 60~179초=레이싱
 // 1초 price tick마다 레이싱 구간이면 bit(소수점 첫째)·coin(소수점 둘째) 누적
 // 모든 클라이언트에 동일한 값을 브로드캐스트 → 기기/접속 시점 무관
-const RACE_ROUND_SEC = 300;
-const RACE_BETTING_SEC = 60;
+const RACE_ROUND_SEC = 180;
+const RACE_BETTING_SEC = 60;   // 배팅 시작 offset (0~9초=정산, 10초부터 배팅)
 
 // roundId → { bit, coin } 현재 라운드 스코어 (이전 라운드는 폐기)
 let raceCurrentRoundId = -1;

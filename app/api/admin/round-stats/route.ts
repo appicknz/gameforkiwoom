@@ -129,12 +129,12 @@ export async function GET(request: Request) {
       if (firstBranch) lpConfig = branchToLpConfig(firstBranch)
     }
 
-    // 바카라: 30초 라운드 / 레이스: 300초(5분) 라운드
+    // 바카라: 30초 라운드 / 레이스: 180초(3분) 라운드
     // 라운드 경계 직후 타이밍 문제 방지:
     // 현재 라운드에 배팅이 없고 이전 라운드에 배팅이 있으면 이전 라운드를 표시
     const nowSec = Math.floor(Date.now() / 1000)
     const curBaccaratId  = Math.floor(nowSec / 30)
-    const curRaceId      = Math.floor(nowSec / 300)
+    const curRaceId      = Math.floor(nowSec / 180)
 
     const qRoundId = url.searchParams.get("roundId")
 

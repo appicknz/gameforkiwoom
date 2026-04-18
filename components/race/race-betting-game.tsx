@@ -367,8 +367,8 @@ interface RaceBettingGameProps {
 }
 
 export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }: RaceBettingGameProps = {}) {
-  // 5분(300초) 타이머
-  const [timeLeft, setTimeLeft] = useState(300)
+  // 3분(180초) 타이머: 정산10 + 배팅50 + 게임중120
+  const [timeLeft, setTimeLeft] = useState(180)
   const [roundNumber, setRoundNumber] = useState(0)
 
   // 배팅 상태
@@ -485,21 +485,21 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
 
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
-  // 5분(300초) 타이머. ���운드: Math.floor(now/300)
-  // canBet/isDealing을 state가 아닌 UTC 직접 계산으로 모든 클라이언트 동기화
+  // 3분(180초) 타이머. 라운드: Math.floor(now/180)
+  // 페이즈: 0~9초=정산, 10~59초=배팅, 60~179초=게임중
   const prevRoundRef = useRef<number>(-1)
 
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Math.floor(Date.now() / 1000)
-      const secInRound = now % 300          // 0~299
-      const rem = 300 - secInRound          // 300~1
-      const roundNum = Math.floor(now / 300)
+      const secInRound = now % 180          // 0~179
+      const rem = 180 - secInRound          // 180~1
+      const roundNum = Math.floor(now / 180)
       setTimeLeft(rem)
       roundRef.current = roundNum
       setRoundNumber(roundNum)
 
-      // 라운드 전환 감지 → 스코어 초기화 (rem===300 놓침 방지)
+      // 라운드 전환 감지 → 스코어 초기화
       if (prevRoundRef.current !== roundNum) {
         prevRoundRef.current = roundNum
         bitScoreRef.current = 0
@@ -508,22 +508,21 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
         setCoinScore(0)
       }
 
-      // 정산 트리거: secInRound === 299 (라운드 마지막 1초)
-      // settledRoundRef로 중복 방지
-      if (secInRound === 299 && settledRoundRef.current !== roundNum) {
+      // 정산 트리거: secInRound === 179 (라운드 마지막 1초)
+      if (secInRound === 179 && settledRoundRef.current !== roundNum) {
         settledRoundRef.current = roundNum
-        // 정산 이벤트 발행 (아래 useEffect에서 처리)
         window.dispatchEvent(new CustomEvent("race:settle", { detail: { roundNum } }))
       }
     }, 200)
     return () => clearInterval(tick)
   }, [])
 
-  // 배팅 가능: 라운드 시작 후 첫 60초 (secInRound < 60 → rem > 240)
+  // 배팅 가능: 10~59초 구간 (정산 10초 이후 ~ 게임시작 전)
   // UTC 직접 계산으로 모든 클라이언트 동일 기준
   const canBet = (() => {
     const now = Math.floor(Date.now() / 1000)
-    return (now % 300) < 60
+    const s = now % 180
+    return s >= 10 && s < 60
   })()
   // 딜링 중: 60초 이후 ~ 라운드 끝
   const isDealing = !canBet && timeLeft > 0
@@ -815,7 +814,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   }
 
   const priceDiff = currentPrice !== null && basePrice !== null ? currentPrice - basePrice : null
-  const timerPercent = (timeLeft / 300) * 100
+  const timerPercent = (timeLeft / 180) * 100
   const timerColor = canBet ? "#10b981" : timeLeft <= 10 ? "#ef4444" : "#f97316"
   const timerLabel = canBet ? "배팅 가능" : timeLeft > 0 ? "딜링 중" : "정산 중"
 
