@@ -21,14 +21,18 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 })
 
-// 한 게임 타입의 라운드 현황 계산 — lpConfig는 DB에서 미리 조회해 전달
+// 한 게임 타입의 라운드 현황 계산
+// odds:current 캐시(odds/stream이 계산한 값)를 우선 사용 → 단일 소스
+// 캐시 없을 때만 직접 계산 (fallback)
 async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConfig: LpConfig) {
   const poolKey    = `pool:${gameType}:${roundId}`
   const userSetKey = `users:${gameType}:${roundId}`
+  const currentKey = `odds:current:${gameType}:${roundId}`
 
-  const [pools, userIds] = await Promise.all([
+  const [pools, userIds, cachedRaw] = await Promise.all([
     redis.hgetall(poolKey).catch(() => null),
     redis.smembers(userSetKey).catch(() => []),
+    redis.get<string>(currentKey).catch(() => null),
   ])
 
   const poolData = gameType === "baccarat"
@@ -46,35 +50,55 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConf
   const userCount = Array.isArray(userIds) ? userIds.length : 0
   const totalBet  = Object.values(poolData).reduce((a, b) => a + b, 0)
 
+  // odds:current 캐시가 있으면 그대로 사용 — /baka, /race와 완전히 동일한 값
+  if (cachedRaw) {
+    try {
+      const cached = typeof cachedRaw === "string" ? JSON.parse(cachedRaw) : cachedRaw
+      const oddsResult = cached.odds ?? {}
+      const fee = Math.floor(totalBet * 0.2)
+      let prediction: Record<string, number> = {}
+      if (gameType === "baccarat") {
+        const o = oddsResult as { player: number; banker: number; tie: number }
+        const p = poolData as { player: number; banker: number; tie: number }
+        prediction = {
+          playerProfit: Math.floor(fee + totalBet - p.player * (o.player ?? 1)),
+          bankerProfit: Math.floor(fee + totalBet - p.banker * (o.banker ?? 1)),
+          tieProfit:    Math.floor(fee + totalBet - p.tie    * (o.tie    ?? 1)),
+        }
+      } else {
+        const o = oddsResult as { bit: number; coin: number; tie: number }
+        const p = poolData as { bit: number; coin: number; tie: number }
+        prediction = {
+          bitProfit:  Math.floor(fee + totalBet - p.bit  * (o.bit  ?? 1)),
+          coinProfit: Math.floor(fee + totalBet - p.coin * (o.coin ?? 1)),
+          tieProfit:  Math.floor(fee + totalBet - p.tie  * (o.tie  ?? 1)),
+        }
+      }
+      return {
+        round: roundId, gameType,
+        timestamp: new Date().toISOString(),
+        pools: poolData, userCount, totalBet,
+        lpAmount: 0, fee, feeRate: 0.20,
+        mode: (oddsResult.mode ?? "pari") as "lp-dominant" | "hybrid" | "pari",
+        odds: oddsResult,
+        prediction,
+      }
+    } catch {}
+  }
+
+  // fallback: 캐시 없을 때 직접 계산 (첫 SSE 연결 전 등)
   let mode: "lp-dominant" | "hybrid" | "pari" = "lp-dominant"
   let effectiveLP = 0
   let prediction: Record<string, number> = {}
   let oddsResult: Record<string, number> = {}
   let fee = 0
 
-  // 배팅 구간 여부 판단 (서버 UTC 기준)
-  const nowSec2 = Math.floor(Date.now() / 1000)
-  const roundInterval2 = gameType === "baccarat" ? 30 : 180
-  const secInRound2 = nowSec2 % roundInterval2
-  const inBetting = gameType === "baccarat"
-    ? secInRound2 >= 5 && secInRound2 < 15
-    : secInRound2 >= 10 && secInRound2 < 60
-
-  // 배팅 마감 이후엔 odds:final(확정 배당)을 우선 반환 → 모니터와 /baka 배당 일치
-  const finalOddsRaw = inBetting ? null : await redis.get<string>(`odds:final:${gameType}:${roundId}`).catch(() => null)
-  let finalOdds: Record<string, number> | null = null
-  if (finalOddsRaw) {
-    try { finalOdds = typeof finalOddsRaw === "string" ? JSON.parse(finalOddsRaw) : finalOddsRaw } catch {}
-  }
-
   if (gameType === "baccarat") {
     const p = poolData as { player: number; banker: number; tie: number }
     const r = calcBaccaratOdds(p, lpConfig, userCount)
-    mode       = r.mode
-    fee        = r.fee
+    mode = r.mode; fee = r.fee
     effectiveLP = Math.max(0, r.totalPool - totalBet)
-    // 배팅 마감 후엔 확정 배당 사용, 배팅 중엔 실시간 계산
-    oddsResult = finalOdds ?? { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+    oddsResult = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
     const o = oddsResult as { player: number; banker: number; tie: number }
     prediction = {
       playerProfit: Math.floor(r.fee + totalBet - p.player * o.player),
@@ -84,10 +108,9 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConf
   } else {
     const p = poolData as { bit: number; coin: number; tie: number }
     const r = calcRaceOdds(p, lpConfig, userCount)
-    mode       = r.mode
-    fee        = r.fee
+    mode = r.mode; fee = r.fee
     effectiveLP = Math.max(0, r.totalPool - totalBet)
-    oddsResult = finalOdds ?? { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+    oddsResult = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
     const o = oddsResult as { bit: number; coin: number; tie: number }
     prediction = {
       bitProfit:  Math.floor(r.fee + totalBet - p.bit  * o.bit),
@@ -97,18 +120,11 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConf
   }
 
   return {
-    round: roundId,
-    gameType,
+    round: roundId, gameType,
     timestamp: new Date().toISOString(),
-    pools: poolData,
-    userCount,
-    totalBet,
-    lpAmount: effectiveLP,
-    fee,          // 20% 수수료 금액
-    feeRate: 0.20,
-    mode,
-    odds: oddsResult,
-    prediction,
+    pools: poolData, userCount, totalBet,
+    lpAmount: effectiveLP, fee, feeRate: 0.20,
+    mode, odds: oddsResult, prediction,
   }
 }
 

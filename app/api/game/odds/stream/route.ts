@@ -39,6 +39,8 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
 
   const safeCount = (userCount as number) ?? 0
 
+  let payload: object
+
   if (gameType === "baccarat") {
     const userPools = {
       player: parseInt((poolData?.player as string) ?? "0") || 0,
@@ -46,9 +48,8 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
       tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
     }
     const result = calcBaccaratOdds(userPools, lpConfig, safeCount)
-    return {
+    payload = {
       gameType, roundNumber, userCount: safeCount, pools: userPools,
-      // lpWeight, mode를 odds 안에 포함 → 클라이언트 liveOdds에서 바로 접근
       odds: {
         player: result.playerOdds, banker: result.bankerOdds, tie: result.tieOdds,
         lpWeight: result.lpWeight, mode: result.mode, available: result.available,
@@ -61,7 +62,7 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
       tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
     }
     const result = calcRaceOdds(userPools, lpConfig, safeCount)
-    return {
+    payload = {
       gameType, roundNumber, userCount: safeCount, pools: userPools,
       odds: {
         bit: result.bitOdds, coin: result.coinOdds, tie: result.tieOdds,
@@ -69,6 +70,12 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
       },
     }
   }
+
+  // 계산된 배당을 Redis에 캐시 — round-stats가 동일한 값을 읽을 수 있게 단일 소스화
+  const currentKey = `odds:current:${gameType}:${roundNumber}`
+  await redis.set(currentKey, JSON.stringify(payload), { ex: roundSec + 10 }).catch(() => {})
+
+  return payload
 }
 
 export async function GET(request: Request) {
