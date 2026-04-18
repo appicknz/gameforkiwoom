@@ -50,13 +50,15 @@ export async function GET(request: Request) {
       if (branch) lpConfig = branchToLpConfig(branch)
     }
 
-    // 역대 실시간 배팅 기반 LP 시드 자동 계산
-    const fallbackSeed = gameType === "baccarat"
-      ? lpConfig.lpAmountBaccarat
-      : lpConfig.lpAmountRace
-    const autoSeed = await calcAutoLpSeed(gameType, branchId, fallbackSeed)
-    if (gameType === "baccarat") lpConfig.lpAmountBaccarat = autoSeed
-    else                         lpConfig.lpAmountRace     = autoSeed
+    // 역대 실시간 배팅 기반 LP 시드 자동 계산 — LP 활성 시에만 적용
+    if (lpConfig.enabled) {
+      const fallbackSeed = gameType === "baccarat"
+        ? lpConfig.lpAmountBaccarat
+        : lpConfig.lpAmountRace
+      const autoSeed = await calcAutoLpSeed(gameType, branchId, fallbackSeed)
+      if (gameType === "baccarat") lpConfig.lpAmountBaccarat = autoSeed
+      else                         lpConfig.lpAmountRace     = autoSeed
+    }
 
     // Redis에서 현재 라운드 배팅 풀 조회
     const poolKey = `pool:${gameType}:${roundNumber}`
