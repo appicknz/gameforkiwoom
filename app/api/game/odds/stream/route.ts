@@ -16,8 +16,9 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
   const roundSec = gameType === "race" ? 300 : 30
   const roundNumber = Math.floor(Math.floor(Date.now() / 1000) / roundSec)
 
-  // 브랜치 LP 설정 조회 (기본값 + 어드민 오버라이드)
-  let lpConfig = { ...DEFAULT_LP_CONFIG }
+  // 브랜치 LP 설정 조회
+  // branchId가 없으면 LP 비활성으로 처리 — 지점 미배정 유저에게 가짜 1.95x 방지
+  let lpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
   if (branchId) {
     const { data: branch } = await admin
       .from("branches")
@@ -25,6 +26,7 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
       .eq("id", branchId)
       .single()
     if (branch) lpConfig = branchToLpConfig(branch)
+    else lpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
   }
 
   // 실시간 풀 + 역대 평균 기반 자동 시드를 병렬로 조회

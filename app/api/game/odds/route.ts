@@ -40,7 +40,8 @@ export async function GET(request: Request) {
     }
 
     // 지점 LP 설정 조회
-    let lpConfig = { ...DEFAULT_LP_CONFIG }
+    // branchId 없으면 LP 비활성 — 지점 미배정 유저에게 가짜 1.95x 표시 방지
+    let lpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
     if (branchId) {
       const { data: branch } = await admin
         .from("branches")
@@ -48,6 +49,7 @@ export async function GET(request: Request) {
         .eq("id", branchId)
         .single()
       if (branch) lpConfig = branchToLpConfig(branch)
+      else lpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
     }
 
     // 역대 실시간 배팅 기반 LP 시드 자동 계산 — LP 활성 시에만 적용

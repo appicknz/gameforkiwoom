@@ -2,7 +2,7 @@ import { adminSupabase } from "@/lib/supabase-admin"
 import { createClient } from "@supabase/supabase-js"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
-import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
+import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, LpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
 // anon 클라이언트로 사용자 토큰 검증 (service role 클라이언트는 토큰 검증 불가)
 async function getUserFromToken(token: string) {
@@ -21,16 +21,14 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 })
 
-// 한 게임 타입의 라운드 현황 계산
-async function buildStats(gameType: "baccarat" | "race", roundId: string) {
+// 한 게임 타입의 라운드 현황 계산 — lpConfig는 DB에서 미리 조회해 전달
+async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConfig: LpConfig) {
   const poolKey    = `pool:${gameType}:${roundId}`
   const userSetKey = `users:${gameType}:${roundId}`
-  const lpCacheKey = `lp_config:${gameType}:${roundId}`
 
-  const [pools, userIds, lpConfigRaw] = await Promise.all([
+  const [pools, userIds] = await Promise.all([
     redis.hgetall(poolKey).catch(() => null),
     redis.smembers(userSetKey).catch(() => []),
-    redis.get(lpCacheKey).catch(() => null),
   ])
 
   const poolData = gameType === "baccarat"
@@ -47,20 +45,6 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string) {
 
   const userCount = Array.isArray(userIds) ? userIds.length : 0
   const totalBet  = Object.values(poolData).reduce((a, b) => a + b, 0)
-
-  let lpEnabled = true
-  let lpAmount = 50000
-  try {
-    if (lpConfigRaw) {
-      const parsed = typeof lpConfigRaw === "string" ? JSON.parse(lpConfigRaw) : lpConfigRaw
-      lpEnabled = parsed.enabled ?? true
-      lpAmount = gameType === "baccarat"
-        ? (parsed.baccarat ?? parsed.lpAmountBaccarat ?? 50000)
-        : (parsed.race    ?? parsed.lpAmountRace     ?? 50000)
-    }
-  } catch {}
-
-  const lpConfig = { enabled: lpEnabled, lpAmountBaccarat: lpAmount, lpAmountRace: lpAmount }
 
   let mode: "lp-dominant" | "hybrid" | "pari" = "lp-dominant"
   let effectiveLP = 0
@@ -121,9 +105,29 @@ export async function GET(request: Request) {
     if (!authUser) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
     const { data: profile } = await adminSupabase
-      .from("profiles").select("role").eq("id", authUser.id).single()
+      .from("profiles").select("role, branch_id").eq("id", authUser.id).single()
     if (!profile || !["master", "super_admin", "branch_admin"].includes(profile.role))
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+
+    // 지점 LP 설정을 DB에서 직접 조회 — Redis 캐시 없이 항상 최신값 사용
+    let lpConfig: LpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
+    const branchId = profile.branch_id ?? url.searchParams.get("branchId")
+    if (branchId) {
+      const { data: branch } = await adminSupabase
+        .from("branches")
+        .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+        .eq("id", branchId)
+        .single()
+      if (branch) lpConfig = branchToLpConfig(branch)
+    } else {
+      // super_admin: 첫 번째 지점 LP 설정 사용
+      const { data: firstBranch } = await adminSupabase
+        .from("branches")
+        .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+        .limit(1)
+        .single()
+      if (firstBranch) lpConfig = branchToLpConfig(firstBranch)
+    }
 
     // 바카라: 30초 라운드 / 레이스: 300초(5분) 라운드
     const nowSec = Math.floor(Date.now() / 1000)
@@ -131,8 +135,8 @@ export async function GET(request: Request) {
     const raceRound     = String(Math.floor(nowSec / 300))
 
     const [baccarat, race] = await Promise.all([
-      buildStats("baccarat", baccaratRound),
-      buildStats("race",     raceRound),
+      buildStats("baccarat", baccaratRound, lpConfig),
+      buildStats("race",     raceRound,     lpConfig),
     ])
 
     return NextResponse.json({ baccarat, race })
