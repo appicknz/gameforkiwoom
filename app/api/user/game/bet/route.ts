@@ -186,8 +186,6 @@ export async function POST(request: Request) {
       const finalOddsKey = `odds:final:${gameType}:${roundNumber}:${betBranchScope}`
       await redis.set(finalOddsKey, JSON.stringify(oddsSnap), { ex: ttl })
 
-      // redisOps에는 SSE 트리거만 남김 (pool 저장은 위에서 완료)
-      redisOps.push()
     }
 
     // pool 저장 완료 후 SSE 트리거 (버전 카운터 increment)
