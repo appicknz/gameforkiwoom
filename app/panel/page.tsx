@@ -853,7 +853,6 @@ export default function PanelPage() {
                   )}
                   {branches.map(branch => {
                     const isSettingOpen = bettingSettingId === branch.id
-                    const isPari = branch.betting_mode === "pari"
                     return (
                       <div key={branch.id} className="px-5 py-4">
                         <div className="flex items-center justify-between">
@@ -866,9 +865,6 @@ export default function PanelPage() {
                                 <span className="text-sm font-medium text-foreground">{branch.name}</span>
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-medium">
                                   {branch.code}
-                                </span>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isPari ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600"}`}>
-                                  {isPari ? "파리뮤추얼" : "고정배당"}
                                 </span>
                               </div>
                               <p className="text-xs text-muted-foreground">
@@ -894,75 +890,7 @@ export default function PanelPage() {
                           </div>
                         </div>
 
-                        {/* 배팅 모드 설정 패널 */}
-                        {isSettingOpen && (
-                          <div className="mt-3 p-4 bg-muted/50 rounded-xl border border-border space-y-4">
-                            <p className="text-xs font-semibold text-foreground">배팅 모드 설정</p>
 
-                            {/* 모드 토글 */}
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-foreground">
-                                  {isPari ? "파리뮤추얼 (동적 배당)" : "고정 배당 (x1.95)"}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {isPari ? "참가자 풀에 따라 배당이 실시간 변동됩니다." : "모든 배팅에 고정 1.95배가 적용됩니다."}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => handleBettingUpdate(branch.id, { bettingMode: isPari ? "fixed" : "pari" })}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                                style={{ background: isPari ? "#7c3aed20" : "#f3f4f6", color: isPari ? "#7c3aed" : "#6b7280" }}
-                              >
-                                {isPari ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-                                {isPari ? "파리뮤추얼 ON" : "고정배당 ON"}
-                              </button>
-                            </div>
-
-                            {/* LP 설정 (파리뮤추얼 모드에서만 표시) */}
-                            {isPari && (
-                              <div className="space-y-3 pt-3 border-t border-border">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="text-sm font-medium text-foreground">초기 유동성 (LP)</p>
-                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                      현재: {branch.lp_enabled ? `₩${branch.lp_amount.toLocaleString()} 활성` : "비활성"}
-                                    </p>
-                                  </div>
-                                  <button
-                                    onClick={() => handleBettingUpdate(branch.id, { lpEnabled: !branch.lp_enabled })}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                                    style={{ background: branch.lp_enabled ? "#10b98120" : "#f3f4f6", color: branch.lp_enabled ? "#10b981" : "#6b7280" }}
-                                  >
-                                    {branch.lp_enabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-                                    {branch.lp_enabled ? "LP 활성" : "LP 비활성"}
-                                  </button>
-                                </div>
-                                {branch.lp_enabled && (
-                                  <div className="flex gap-2">
-                                    <Input
-                                      type="number"
-                                      placeholder={`LP 금액 (현재: ₩${branch.lp_amount.toLocaleString()})`}
-                                      value={lpInput}
-                                      onChange={e => setLpInput(e.target.value)}
-                                      className="h-8 text-sm"
-                                    />
-                                    <Button
-                                      size="sm" className="h-8 text-xs shrink-0"
-                                      disabled={!lpInput}
-                                      onClick={() => handleBettingUpdate(branch.id, { lpAmount: parseFloat(lpInput) })}
-                                    >
-                                      저장
-                                    </Button>
-                                  </div>
-                                )}
-                                <p className="text-[11px] text-muted-foreground">
-                                  LP는 라��드 시작 시 6개 풀에 균등 배분됩니다. 최소 참가자 전에도 자연스러운 배당이 표시됩니다.
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     )
                   })}
