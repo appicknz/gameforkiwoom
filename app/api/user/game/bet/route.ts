@@ -88,7 +88,8 @@ export async function POST(request: Request) {
         const roundNumber = gameType === "race"
           ? Math.floor(nowSec / 180)
           : Math.floor(nowSec / 30)
-        const ttl = gameType === "race" ? 400 : 120
+        // TTL을 충분히 길게 유지 — settle-me가 라운드 종료 후 호출될 때도 배당 조회 가능
+        const ttl = gameType === "race" ? 3600 : 3600
 
       const poolKey       = `pool:${gameType}:${roundNumber}`
       const userSetKey    = `users:${gameType}:${roundNumber}`

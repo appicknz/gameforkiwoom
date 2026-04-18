@@ -214,7 +214,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
   const roundNumber = gameType === "baccarat"
     ? Math.floor(nowSec / 30)
     : Math.floor(nowSec / 180)
-  const ttl = gameType === "baccarat" ? 120 : 400
+  const ttl = 3600  // settle-me가 라운드 종료 후에도 배당 조회 가능하도록
 
   const poolKey    = `pool:${gameType}:${roundNumber}`
   const userSetKey = `users:${gameType}:${roundNumber}`
