@@ -620,7 +620,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       body: JSON.stringify({ basePrice: effectiveBase, closePrice, baccaratResult: serverBacResult }),
     }).catch(() => { })
 
-    // 4) 배팅 없으면 기준가 업데이트 후 종료
+    // 4) 배팅 없으면 기준가 업���이트 후 종료
     const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
     if (!hasBet) {
       setBasePrice(price)
@@ -816,7 +816,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const canBet = timeLeft <= 25 && timeLeft > 15
 
   // 배팅 마감 순간(canBet false 전환) 배당 동결 — 이후 버튼에 확정 배당 표시
-  const prevCanBetRef = useRef(canBet)
+  // prevCanBetRef는 아래 자동배팅 블록에서 이미 선언되므로 재사용
   useEffect(() => {
     if (prevCanBetRef.current === true && canBet === false) {
       // 배팅 → 게임중 전환: 현재 liveOdds를 확정 배당으로 스냅샷
@@ -826,7 +826,6 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       // 새 라운드 배팅 시작: 동결 해제
       frozenOddsRef.current = null
     }
-    prevCanBetRef.current = canBet
   }, [canBet])
 
   // autoBet state → ref 초기화

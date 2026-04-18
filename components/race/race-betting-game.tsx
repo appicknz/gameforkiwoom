@@ -483,7 +483,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
 
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
-  // 5분(300초) 타이머. 라운드: Math.floor(now/300)
+  // 5분(300초) 타이머. ���운드: Math.floor(now/300)
   // canBet/isDealing을 state가 아닌 UTC 직접 계산으로 모든 클라이언트 동기화
   const prevRoundRef = useRef<number>(-1)
 
@@ -527,7 +527,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   const isDealing = !canBet && timeLeft > 0
 
   // 배팅 마감 순간(canBet false 전환) 배당 동결
-  const prevCanBetRef = useRef(canBet)
+  // prevCanBetRef는 아래 자동배팅 블록에서 이미 선언되므로 재사용
   useEffect(() => {
     if (prevCanBetRef.current === true && canBet === false) {
       frozenOddsRef.current = liveOddsRef.current
@@ -535,7 +535,6 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     if (canBet === true) {
       frozenOddsRef.current = null
     }
-    prevCanBetRef.current = canBet
   }, [canBet])
 
   // 배팅 가능 구간 전환 시 자동배팅 플래그 초기화
