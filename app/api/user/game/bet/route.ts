@@ -81,14 +81,14 @@ export async function POST(request: Request) {
       redis.incr(`balance_version:${userId}`),
     ]
 
-    // 배팅 풀 집계 + 유저별 bets 저장 (settle API 사용)
-    // baccarat: 30초 라운드, race: 5분(300초) 라운드
-    if (gameType && side) {
-      const nowSec = Math.floor(Date.now() / 1000)
-      const roundNumber = gameType === "race"
-        ? Math.floor(nowSec / 300)
-        : Math.floor(nowSec / 30)
-      const ttl = gameType === "race" ? 600 : 120
+      // 배팅 풀 집계 + 유저별 bets 저장 (settle API 사용)
+      // baccarat: 30초 라운드, race: 180초(3분) 라운드 — SSE/settle/round-stats 동일 기준
+      if (gameType && side) {
+        const nowSec = Math.floor(Date.now() / 1000)
+        const roundNumber = gameType === "race"
+          ? Math.floor(nowSec / 180)
+          : Math.floor(nowSec / 30)
+        const ttl = gameType === "race" ? 400 : 120
 
       const poolKey       = `pool:${gameType}:${roundNumber}`
       const userSetKey    = `users:${gameType}:${roundNumber}`
@@ -188,8 +188,6 @@ export async function POST(request: Request) {
       const finalOddsKey = `odds:final:${gameType}:${roundNumber}:${betBranchScope}`
       await redis.set(finalOddsKey, JSON.stringify(oddsSnap), { ex: ttl })
 
-      // redisOps에는 SSE 트리거만 남김 (pool 저장은 위에서 완료)
-      redisOps.push()
     }
 
     // pool 저장 완료 후 SSE 트리거 (버전 카운터 increment)

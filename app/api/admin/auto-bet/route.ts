@@ -64,7 +64,7 @@ export async function GET(request: Request) {
 
   const nowSec = Math.floor(Date.now() / 1000)
   const baccaratRound = Math.floor(nowSec / 30)
-  const raceRound     = Math.floor(nowSec / 300)
+  const raceRound     = Math.floor(nowSec / 180)
 
   // ── bet_history 전수 조회 (통계 집계 + 최근 정산 내역 동시 처리) ──
   const { data: allHistory } = await adminSupabase
@@ -168,16 +168,17 @@ export async function GET(request: Request) {
 function isBettingPhase(gameType: "baccarat" | "race"): { allowed: boolean; reason?: string } {
   const nowSec = Math.floor(Date.now() / 1000)
   if (gameType === "baccarat") {
-    // 30초 라운드: rem = 30 - (nowSec % 30)
-    // 배팅 가능: rem <= 25 && rem > 13  (즉 timeLeft 25~14)
-    const rem = 30 - (nowSec % 30)
-    if (rem > 25) return { allowed: false, reason: `정산중 (rem=${rem}, 배팅은 rem≤25부터)` }
-    if (rem <= 13) return { allowed: false, reason: `게임중 (rem=${rem}, 배팅은 rem>13까지)` }
+    // 30초 라운드: secInRound 기준 — SSE/bet/round-stats 동일
+    // 0~4초: 정산, 5~14초: 배팅, 15~29초: 게임중
+    const s = nowSec % 30
+    if (s < 5)  return { allowed: false, reason: `정산중 (secInRound=${s})` }
+    if (s >= 15) return { allowed: false, reason: `게임중 (secInRound=${s})` }
     return { allowed: true }
   } else {
-    // 300초 라운드: 배팅 가능 = secInRound < 60 (첫 60초)
-    const secInRound = nowSec % 300
-    if (secInRound >= 60) return { allowed: false, reason: `게임중 (secInRound=${secInRound}, 배팅은 0~59��)` }
+    // 180초 라운드: 0~9초: 정산, 10~59초: 배팅, 60~179초: 게임중
+    const s = nowSec % 180
+    if (s < 10)  return { allowed: false, reason: `정산중 (secInRound=${s})` }
+    if (s >= 60) return { allowed: false, reason: `게임중 (secInRound=${s})` }
     return { allowed: true }
   }
 }
@@ -209,10 +210,11 @@ async function runBetForGame(gameType: "baccarat" | "race") {
   const balMap = Object.fromEntries((balances ?? []).map(b => [b.user_id, b.amount]))
 
   const nowSec = Math.floor(Date.now() / 1000)
+  // race: 180초(3분) 라운드 — bet/SSE/settle/round-stats 모두 동일 기준
   const roundNumber = gameType === "baccarat"
     ? Math.floor(nowSec / 30)
-    : Math.floor(nowSec / 300)
-  const ttl = gameType === "baccarat" ? 120 : 700
+    : Math.floor(nowSec / 180)
+  const ttl = gameType === "baccarat" ? 120 : 400
 
   const results: {
     username: string; gameType: string; side: string

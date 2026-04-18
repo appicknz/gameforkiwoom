@@ -170,7 +170,7 @@ function GameRoundCard({
 
   const modeLabel =
     stats.mode === "pari"   ? "파리뮤추얼" :
-    stats.mode === "hybrid" ? "��이브리드"  : "LP 주도"
+    stats.mode === "hybrid" ? "���이브리드"  : "LP 주도"
   const modeBg =
     stats.mode === "pari"   ? "bg-emerald-500/10 text-emerald-600" :
     stats.mode === "hybrid" ? "bg-amber-500/10 text-amber-600"    :
@@ -319,7 +319,7 @@ export function RoundMonitor({
   const [racePhase,       setRacePhase]       = useState<"정산중" | "배팅가능" | "게임중">("게임중")
   const [baccaratTimeLeft, setBaccaratTimeLeft] = useState(30)
   const [raceTimeLeft,     setRaceTimeLeft]     = useState(180)
-  // ref로 최신 페이즈를 추적 — loadRoundStats 콜백 클로저에서 접근용
+  // ref로 ��신 페이즈를 추적 — loadRoundStats 콜백 클로저에서 접근용
   const baccaratPhaseRef = useRef<"정산중" | "배팅가능" | "게임중">("게임중")
   const racePhaseRef     = useRef<"정산중" | "배팅가능" | "게임중">("게임중")
   const baccaratIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -598,10 +598,64 @@ export function RoundMonitor({
     }
   }, [loadRoundStats, loadHouseStats, loadLpHistory, loadLpState, loadAbUsers, loadAbLogs, isSuperAdmin])
 
+  // SSE 구독 — /baka·/race와 동일한 odds/stream을 받아 배당 실시간 동기화
+  // 2초 폴링 대신 이벤트 기반으로 즉시 반영 (단일 소스)
   useEffect(() => {
-    const iv = setInterval(loadRoundStats, 2000)
-    return () => clearInterval(iv)
-  }, [loadRoundStats])
+    const token = getToken()
+    if (!token) return
+    let closed = false
+
+    const applyOddsPayload = (
+      gameType: "baccarat" | "race",
+      data: { roundNumber: number; userCount: number; pools: Record<string, number>; odds: Record<string, number> }
+    ) => {
+      // 게임중 페이즈엔 배당 고정 — 이벤트가 와도 state 갱신 안 함
+      if (gameType === "baccarat" && baccaratPhaseRef.current === "게임중") return
+      if (gameType === "race"     && racePhaseRef.current     === "게임중") return
+
+      const totalBet = Object.values(data.pools ?? {}).reduce((a, b) => a + b, 0)
+      const stat: RoundStats = {
+        round:     String(data.roundNumber),
+        gameType,
+        timestamp: new Date().toISOString(),
+        pools:     data.pools ?? {},
+        userCount: data.userCount ?? 0,
+        totalBet,
+        lpAmount:  0,
+        fee:       Math.floor(totalBet * 0.2),
+        feeRate:   0.2,
+        mode:      (data.odds?.mode as string) ?? "pari",
+        odds:      data.odds ?? null,
+        prediction: {},
+      }
+      setCombined(prev => prev
+        ? { ...prev, [gameType]: stat }
+        : { baccarat: stat, race: stat }
+      )
+    }
+
+    const connectSSE = (type: "baccarat" | "race") => {
+      const es = new EventSource(`/api/game/odds/stream?type=${type}&token=${token}`)
+      es.onmessage = (e) => {
+        if (closed) return
+        try { applyOddsPayload(type, JSON.parse(e.data)) } catch {}
+      }
+      es.onerror = () => {
+        es.close()
+        if (!closed) setTimeout(() => connectSSE(type), 3000)
+      }
+      return es
+    }
+
+    const bakaEs = connectSSE("baccarat")
+    const raceEs = connectSSE("race")
+
+    return () => {
+      closed = true
+      bakaEs.close()
+      raceEs.close()
+    }
+  }, [])
 
   // 카운트다운 ticker (200ms) — 페이즈 및 남은 시간 실시간 업데이트
   useEffect(() => {
@@ -658,7 +712,7 @@ export function RoundMonitor({
             <div>
               <h3 className="text-sm font-semibold text-foreground">현재 라운드 실시간 현황</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                바카라(30초) + 레이스(5분) &middot; 2초 갱신
+                바카라(30초) + 레이스(3분) &middot; 실시간
                 {isBranchAdmin && <span className="ml-1 text-blue-500">· 내 지점</span>}
               </p>
             </div>
@@ -1326,7 +1380,7 @@ export function RoundMonitor({
               <li>누적 수수료, 승률, 수익/손실 통계 초기화</li>
             </ul>
             <p className="text-xs text-muted-foreground mb-2">
-              <span className="font-semibold text-foreground">역삼1</span> 계정 비밀번호를 입력하세요.
+              <span className="font-semibold text-foreground">역삼1</span> 계정 비밀번���를 입력하세요.
             </p>
             <Input
               type="password" placeholder="비밀번호"
