@@ -130,14 +130,29 @@ export async function GET(request: Request) {
     }
 
     // 바카라: 30초 라운드 / 레이스: 300초(5분) 라운드
+    // 라운드 경계 직후 타이밍 문제 방지:
+    // 현재 라운드에 배팅이 없고 이전 라운드에 배팅이 있으면 이전 라운드를 표시
     const nowSec = Math.floor(Date.now() / 1000)
-    const baccaratRound = url.searchParams.get("roundId") || String(Math.floor(nowSec / 30))
-    const raceRound     = String(Math.floor(nowSec / 300))
+    const curBaccaratId  = Math.floor(nowSec / 30)
+    const curRaceId      = Math.floor(nowSec / 300)
 
-    const [baccarat, race] = await Promise.all([
-      buildStats("baccarat", baccaratRound, lpConfig),
-      buildStats("race",     raceRound,     lpConfig),
+    const qRoundId = url.searchParams.get("roundId")
+
+    // 현재 + 이전 라운드를 동시에 조회
+    const [curBaccarat, prevBaccarat, curRace, prevRace] = await Promise.all([
+      buildStats("baccarat", String(curBaccaratId),     lpConfig),
+      buildStats("baccarat", String(curBaccaratId - 1), lpConfig),
+      buildStats("race",     String(curRaceId),         lpConfig),
+      buildStats("race",     String(curRaceId - 1),     lpConfig),
     ])
+
+    // 명시적 roundId 지정이 없으면 배팅이 있는 라운드 우선
+    const baccarat = qRoundId
+      ? curBaccarat
+      : (curBaccarat.totalBet === 0 && prevBaccarat.totalBet > 0 ? prevBaccarat : curBaccarat)
+    const race = qRoundId
+      ? curRace
+      : (curRace.totalBet === 0 && prevRace.totalBet > 0 ? prevRace : curRace)
 
     return NextResponse.json({ baccarat, race })
   } catch (error) {
