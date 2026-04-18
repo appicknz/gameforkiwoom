@@ -13,8 +13,10 @@ const redis = new Redis({
 
 async function getOddsPayload(gameType: string, branchId: string | null) {
   // race는 180초(3분) 라운드, baccarat은 30초 라운드
-  const roundSec = gameType === "race" ? 180 : 30
+  const roundSec    = gameType === "race" ? 180 : 30
   const roundNumber = Math.floor(Math.floor(Date.now() / 1000) / roundSec)
+  // 브랜치별로 캐시 키 분리 — 다른 지점 LP 설정이 덮어쓰는 것 방지
+  const cacheScope  = branchId ?? "default"
 
   // 브랜치 LP 설정 조회
   // branchId가 없으면 LP 비활성으로 처리 — 지점 미배정 유저에게 가짜 1.95x 방지
@@ -71,8 +73,8 @@ async function getOddsPayload(gameType: string, branchId: string | null) {
     }
   }
 
-  // 계산된 배당을 Redis에 캐시 — round-stats가 동일한 값을 읽을 수 있게 단일 소스화
-  const currentKey = `odds:current:${gameType}:${roundNumber}`
+  // 계산된 배당을 Redis에 캐시 — 브랜치별로 분리해 다른 지점이 덮어쓰지 않도록
+  const currentKey = `odds:current:${gameType}:${roundNumber}:${cacheScope}`
   await redis.set(currentKey, JSON.stringify(payload), { ex: roundSec + 10 }).catch(() => {})
 
   return payload
@@ -139,7 +141,7 @@ export async function GET(request: Request) {
           if (wasInBetting && !inBetting) {
             // 확정 배당을 odds:final에 저장 (settle이 이 값을 정산에 사용)
             const payload = await getOddsPayload(gameType, branchId)
-            const finalKey = `odds:final:${gameType}:${currentRound}`
+            const finalKey = `odds:final:${gameType}:${currentRound}:${cacheScope}`
             const oddsToSave = payload.odds
             await redis.set(finalKey, JSON.stringify(oddsToSave), { ex: roundInterval + 60 }).catch(() => {})
             // 마감 배당을 클라이언트에도 1회 전송

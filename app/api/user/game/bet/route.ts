@@ -183,8 +183,9 @@ export async function POST(request: Request) {
       const mergedSnap = { ...prevSnap, ...oddsSnap }  // oddsSnap이 prevSnap을 덮어씀
       await redis.set(oddsSnapKey, JSON.stringify(mergedSnap), { ex: ttl })
 
-      // 라운드 단위 최종 배당도 저장 (settle이 공통으로 사용)
-      const finalOddsKey = `odds:final:${gameType}:${roundNumber}`
+      // 라운드 단위 최종 배당도 저장 — 브랜치별 스코프 (settle이 동일 키로 읽음)
+      const betBranchScope = branchId ?? "default"
+      const finalOddsKey = `odds:final:${gameType}:${roundNumber}:${betBranchScope}`
       await redis.set(finalOddsKey, JSON.stringify(oddsSnap), { ex: ttl })
 
       // redisOps에는 SSE 트리거만 남김 (pool 저장은 위에서 완료)

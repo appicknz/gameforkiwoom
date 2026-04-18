@@ -260,7 +260,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         redis.sadd(userSetKey, p.id),
         redis.expire(poolKey, ttl),
         redis.expire(userSetKey, ttl),
-        redis.incr(`odds_version:${gameType}`),  // SSE 스트림 실시간 갱신 트리거
+        redis.incr(`odds_version:${gameType}`),  // SSE 스��림 실시간 갱신 트리거
       ])
 
       // 배팅 반영 후 풀로 실제 LP odds 계산
@@ -301,12 +301,13 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       const betPayload = gameType === "baccarat"
         ? { baccaratSide: side, baccaratAmount: amount }
         : { raceSide: side, raceAmount: amount }
-      const oddsSnapKey   = `odds:snap:${gameType}:${roundNumber}:${p.id}`
-      const finalOddsKey  = `odds:final:${gameType}:${roundNumber}`
+      const oddsSnapKey  = `odds:snap:${gameType}:${roundNumber}:${p.id}`
+      const autoBranchScope = p.branch_id ?? "default"
+      const finalOddsKey = `odds:final:${gameType}:${roundNumber}:${autoBranchScope}`
       await Promise.all([
         redis.set(userBetsKey, JSON.stringify(betPayload), { ex: ttl }),
         redis.set(oddsSnapKey, JSON.stringify(snap), { ex: ttl }),
-        redis.set(finalOddsKey, JSON.stringify(snap), { ex: ttl }),  // 라운드 단위 최종 배당
+        redis.set(finalOddsKey, JSON.stringify(snap), { ex: ttl }),  // 라운드 단위 확정 배당
         redis.set(`bet:round:${gameType}:${p.id}`, roundNumber, { ex: ttl }),
       ])
 
@@ -363,7 +364,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, gameType: "baccarat", round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: (existingFee as number) + r.totalFee })
   }
 
-  // action: "bet_race" — 레이스 유저만 1라운드 배팅
+  // action: "bet_race" — 레���스 유저만 1라운드 배팅
   if (body.action === "bet_race") {
     const r = await runBetForGame("race")
     if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason, gameType: "race" })

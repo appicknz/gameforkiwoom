@@ -24,10 +24,12 @@ const redis = new Redis({
 // 한 게임 타입의 라운드 현황 계산
 // odds:current 캐시(odds/stream이 계산한 값)를 우선 사용 → 단일 소스
 // 캐시 없을 때만 직접 계산 (fallback)
-async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConfig: LpConfig) {
+async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConfig: LpConfig, branchId?: string | null) {
   const poolKey    = `pool:${gameType}:${roundId}`
   const userSetKey = `users:${gameType}:${roundId}`
-  const currentKey = `odds:current:${gameType}:${roundId}`
+  // 브랜치별 캐시 키 — odds/stream과 동일한 키를 읽음
+  const cacheScope = branchId ?? "default"
+  const currentKey = `odds:current:${gameType}:${roundId}:${cacheScope}`
 
   const [pools, userIds, cachedRaw] = await Promise.all([
     redis.hgetall(poolKey).catch(() => null),
@@ -172,12 +174,12 @@ export async function GET(request: Request) {
 
     const qRoundId = url.searchParams.get("roundId")
 
-    // 현재 + 이전 라운드를 동시에 조회
+    // 현재 + 이전 라운드를 동시에 조회 (branchId 전달 → 같은 캐시 키 사용)
     const [curBaccarat, prevBaccarat, curRace, prevRace] = await Promise.all([
-      buildStats("baccarat", String(curBaccaratId),     lpConfig),
-      buildStats("baccarat", String(curBaccaratId - 1), lpConfig),
-      buildStats("race",     String(curRaceId),         lpConfig),
-      buildStats("race",     String(curRaceId - 1),     lpConfig),
+      buildStats("baccarat", String(curBaccaratId),     lpConfig, branchId),
+      buildStats("baccarat", String(curBaccaratId - 1), lpConfig, branchId),
+      buildStats("race",     String(curRaceId),         lpConfig, branchId),
+      buildStats("race",     String(curRaceId - 1),     lpConfig, branchId),
     ])
 
     // 명시적 roundId 지정이 없으면 배팅이 있는 라운드 우선
