@@ -249,7 +249,7 @@ export function Sidebar() {
           )}
 
           {/* ② 게임 카드 */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">게임</p>
             <Link href="/baka" onClick={() => setMobileOpen(false)}>
               <div className={cn(
@@ -280,7 +280,7 @@ export function Sidebar() {
           </div>
 
           {/* ③ 왜 우리를 선택할까요 */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">서비스 특징</p>
             {features.map((f) => (
               <div key={f.title} className="rounded-xl border border-border p-3 flex items-start gap-3">
