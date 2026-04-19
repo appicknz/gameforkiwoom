@@ -219,8 +219,8 @@ async function runBetForGame(gameType: "baccarat" | "race") {
   const poolKey    = `pool:${gameType}:${roundNumber}`
   const userSetKey = `users:${gameType}:${roundNumber}`
 
-  // 모든 유저를 병렬 처리 — 순차 for 루프 제거로 전체 실행 시간 단축
-  const settled = await Promise.all(targetProfiles.map(async (p) => {
+  // ── 단일 유저 배팅 실행 함수 ─────────────────────────────────
+  const betOne = async (p: { id: string; username: string }) => {
     const side = gameType === "baccarat"
       ? randomPick(BACCARAT_SIDES)
       : randomPick(RACE_SIDES)
@@ -231,7 +231,6 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       return { username: p.username, gameType, side, amount, success: false, error: "잔고 부족", balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
     }
 
-    // 레이스: 이미 배팅한 라운드면 스킵
     const userBetsKey = `bet:bets:${gameType}:${roundNumber}:${p.id}`
     if (gameType === "race") {
       const existing = await redis.get(userBetsKey)
@@ -241,14 +240,12 @@ async function runBetForGame(gameType: "baccarat" | "race") {
     }
 
     try {
-      // 잔고 차감 (DB RPC — 유저별 독립적이므로 병렬 안전)
       const { data: newBal, error: deductErr } = await adminSupabase
         .rpc("deduct_balance_for_bet", { p_user_id: p.id, p_amount: amount })
       if (deductErr) {
         return { username: p.username, gameType, side, amount, success: false, error: deductErr.message, balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
       }
 
-      // Redis 풀 반영 + SSE 트리거 (atomic HINCRBY — 병렬 safe)
       await Promise.all([
         redis.hincrby(poolKey, side, amount),
         redis.sadd(userSetKey, p.id),
@@ -257,7 +254,6 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         redis.incr(`odds_version:${gameType}`),
       ])
 
-      // 유저별 배팅 내역 저장 (odds snap은 배팅 마감 후 SSE가 최종값을 odds:final에 저장)
       const betPayload = gameType === "baccarat"
         ? { baccaratSide: side, baccaratAmount: amount }
         : { raceSide: side, raceAmount: amount }
@@ -273,7 +269,59 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       const msg = e instanceof Error ? e.message : "Unknown error"
       return { username: p.username, gameType, side, amount, success: false, error: msg, balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
     }
-  }))
+  }
+
+  // ── 14명을 9초 안에 무작위 간격으로 분산 배팅 ──────────────────
+  // 셔플 후 2~4명씩 랜덤 그룹으로 나눠 그룹 간 딜레이 부여
+  // 총 예산: 9000ms (배팅 구간 10초 - 여유 1초)
+  const SPREAD_BUDGET_MS = 9000
+
+  // Fisher-Yates 셔플
+  const shuffled = [...targetProfiles]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+
+  // 2~4명씩 랜덤 그룹 분할
+  const groups: (typeof shuffled)[] = []
+  let idx = 0
+  while (idx < shuffled.length) {
+    const groupSize = Math.min(
+      2 + Math.floor(Math.random() * 3),  // 2, 3, 4 중 랜덤
+      shuffled.length - idx
+    )
+    groups.push(shuffled.slice(idx, idx + groupSize))
+    idx += groupSize
+  }
+
+  // 그룹 간 딜레이 균등 분배 (마지막 그룹은 딜레이 없음)
+  const delayPerGap = groups.length > 1
+    ? Math.floor(SPREAD_BUDGET_MS / (groups.length - 1))
+    : 0
+  // ±30% 지터 추가로 더 자연스럽게
+  const jitter = () => Math.floor((Math.random() - 0.5) * 2 * delayPerGap * 0.3)
+
+  const settled: Awaited<ReturnType<typeof betOne>>[] = []
+
+  for (let g = 0; g < groups.length; g++) {
+    // 첫 그룹도 0~1500ms 랜덤 딜레이로 시작 타이밍 분산
+    if (g === 0) {
+      const initialDelay = Math.floor(Math.random() * 1500)
+      await new Promise(res => setTimeout(res, initialDelay))
+    } else {
+      const wait = Math.max(300, delayPerGap + jitter())
+      await new Promise(res => setTimeout(res, wait))
+    }
+
+    // 배팅 구간이 아직 유효한지 재확인
+    const stillOk = isBettingPhase(gameType)
+    if (!stillOk.allowed) break
+
+    // 그룹 내는 병렬 처리
+    const groupResults = await Promise.all(groups[g].map(betOne))
+    settled.push(...groupResults)
+  }
 
   // 전체 배팅이 끝난 후 최종 풀로 odds 한 번만 계산 → odds:final 저장 (단일 소스)
   try {
