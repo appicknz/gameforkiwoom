@@ -97,6 +97,45 @@ export function TopBar() {
     }).catch(() => {})
   }, [])
 
+  // ── 토큰 자동 갱신: 45분마다 /api/auth/refresh 호출 ────────────────────
+  // Supabase access_token은 1시간 만료 — 만료 전에 갱신해 세션 유지
+  useEffect(() => {
+    const REFRESH_INTERVAL = 45 * 60 * 1000  // 45분
+
+    const refresh = async () => {
+      const token = getToken()
+      if (!token) return
+      try {
+        const res = await fetch("/api/auth/refresh", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.ok) {
+          const d = await res.json()
+          if (d.token) {
+            saveToken(d.token)
+          }
+        } else if (res.status === 401) {
+          // 진짜 세션 만료 — 로그아웃 처리
+          clearToken()
+          setIsLoggedIn(false)
+          setProfile(null)
+          setBalance(0)
+          setKickMsg("세션이 만료되었습니다. 다시 로그인해주세요.")
+        }
+      } catch {}
+    }
+
+    const timer = setInterval(refresh, REFRESH_INTERVAL)
+    // 페이지 로드 후 1분 뒤 첫 갱신 시도 (초기 로드 직후 불필요한 호출 방지)
+    const initial = setTimeout(refresh, 60_000)
+
+    return () => {
+      clearInterval(timer)
+      clearTimeout(initial)
+    }
+  }, [isLoggedIn])
+
   // ── balance:update 이벤트 수신 (같은 기기 내 betting-game → top-bar) ──
   useEffect(() => {
     const handler = (e: Event) => {

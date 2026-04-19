@@ -8,12 +8,17 @@ const redis = new Redis({
 })
 
 // Redis 세션 키
-export const sessionKey = (userId: string) => `session:${userId}`
+export const sessionKey  = (userId: string) => `session:${userId}`
+export const tokenMapKey = (token: string)  => `token_uid:${token.slice(-32)}`  // 토큰 → userId 역매핑
+
+const SESSION_TTL = 86400  // 24시간 — access_token 1시간 만료와 무관하게 세션 유지
 
 // 새 로그인 시 Redis에 토큰 저장 (기존 토큰 덮어쓰기 → 중복 세션 무효화)
-// Supabase access_token 만료(1시간)보다 조금 길게 설정
 export async function saveSession(userId: string, token: string) {
-  await redis.set(sessionKey(userId), token, { ex: 3700 })
+  await Promise.all([
+    redis.set(sessionKey(userId), token,  { ex: SESSION_TTL }),
+    redis.set(tokenMapKey(token), userId, { ex: SESSION_TTL }),  // 역매핑 저장
+  ])
 }
 
 export type AuthResult =
@@ -21,8 +26,22 @@ export type AuthResult =
   | { ok: false; status: 401 | 409; error: string }
 
 /**
+ * 토큰 → userId 해석 (Supabase getUser 우선, 만료 시 Redis 역매핑 fallback)
+ * - Supabase access_token 만료(1시간) 이후에도 Redis 역매핑이 살아있으면 세션 유효
+ * - 역매핑도 없으면 진짜 401
+ */
+async function resolveUserId(token: string): Promise<string | null> {
+  const { data: { user }, error } = await adminSupabase.auth.getUser(token)
+  if (!error && user) return user.id
+
+  // Supabase 토큰 만료 → Redis 역매핑으로 userId 복원
+  const mapped = await redis.get<string>(tokenMapKey(token))
+  return mapped ?? null
+}
+
+/**
  * Bearer 토큰 검증 + Redis 세션 일치 확인
- * - 401: 토큰 없음 / Supabase 검증 실패
+ * - 401: 토큰 없음 / 세션 없음
  * - 409: Redis에 저장된 토큰과 불일치 → 다른 기기에서 새로 로그인한 상태
  */
 export async function verifySession(req: Request): Promise<AuthResult> {
@@ -30,16 +49,23 @@ export async function verifySession(req: Request): Promise<AuthResult> {
   const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null
   if (!token) return { ok: false, status: 401, error: "Unauthorized" }
 
-  const { data: { user }, error } = await adminSupabase.auth.getUser(token)
-  if (error || !user) return { ok: false, status: 401, error: "Invalid token" }
+  const userId = await resolveUserId(token)
+  if (!userId) return { ok: false, status: 401, error: "Invalid token" }
 
-  const stored = await redis.get<string>(sessionKey(user.id))
-  // stored가 null이면 (Redis 만료 or 미등록) 일단 통과 — 레거시 토큰 호환
+  const stored = await redis.get<string>(sessionKey(userId))
   if (stored !== null && stored !== token) {
     return { ok: false, status: 409, error: "DUPLICATE_LOGIN" }
   }
 
-  return { ok: true, userId: user.id, token }
+  // 세션 TTL 슬라이딩 갱신 — 사용 중인 동안 만료되지 않게
+  if (stored === token) {
+    await Promise.all([
+      redis.expire(sessionKey(userId), SESSION_TTL),
+      redis.expire(tokenMapKey(token), SESSION_TTL),
+    ])
+  }
+
+  return { ok: true, userId, token }
 }
 
 /**
@@ -54,13 +80,20 @@ export async function verifySessionFromUrl(req: Request): Promise<AuthResult> {
 
   if (!token) return { ok: false, status: 401, error: "Unauthorized" }
 
-  const { data: { user }, error } = await adminSupabase.auth.getUser(token)
-  if (error || !user) return { ok: false, status: 401, error: "Invalid token" }
+  const userId = await resolveUserId(token)
+  if (!userId) return { ok: false, status: 401, error: "Invalid token" }
 
-  const stored = await redis.get<string>(sessionKey(user.id))
+  const stored = await redis.get<string>(sessionKey(userId))
   if (stored !== null && stored !== token) {
     return { ok: false, status: 409, error: "DUPLICATE_LOGIN" }
   }
 
-  return { ok: true, userId: user.id, token }
+  if (stored === token) {
+    await Promise.all([
+      redis.expire(sessionKey(userId), SESSION_TTL),
+      redis.expire(tokenMapKey(token), SESSION_TTL),
+    ])
+  }
+
+  return { ok: true, userId, token }
 }
