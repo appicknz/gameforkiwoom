@@ -50,21 +50,13 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="space-y-3 pt-2">
-                  <Link href="/baka">
+                  <Link href="https://naver.com">
                     <Button size="lg" className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
-                      지금 시작하기
+                      추천코드 입력하기
                       <ArrowRight className="w-4 h-4" />
                     </Button>
                   </Link>
-                  <p className="text-sm text-muted-foreground">지점 코드를 확인하세요.</p>
-                  <div className="flex gap-3">
-                    <Button variant="outline" className="flex-1 sm:flex-none">
-                      <span className="mr-2">🔍</span> 회원가입
-                    </Button>
-                    <Button variant="outline" className="flex-1 sm:flex-none">
-                      <span className="mr-2">📘</span> 로그인
-                    </Button>
-                  </div>
+                  <p className="text-sm text-muted-foreground">포인트가 지급됩니다.</p>
                 </div>
               </div>
 
