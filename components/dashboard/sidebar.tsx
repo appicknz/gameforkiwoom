@@ -1,31 +1,24 @@
 "use client"
 
 import {
-  LayoutDashboard,
-  TrendingUp,
-  Hash,
-  BookOpen,
   ExternalLink,
   LogOut,
   LogIn,
   X,
   Mail,
   Bell,
+  ArrowRight,
+  BarChart2,
+  Zap,
   MessageCircle,
-  Layers,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { ChatPanel } from "@/components/dashboard/chat-panel"
+// import { ChatPanel } from "@/components/dashboard/chat-panel"
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "비트벳 공식", href: "/" },
-  { icon: TrendingUp,      label: "마감가 분석", href: "/tasks" },
-  { icon: Hash,            label: "끝자리 분석", href: "/calendar" },
-  { icon: Layers,          label: "바카라 통계", href: "/baccarat-stats" },
-  { icon: BookOpen,        label: "게임방법",    href: "/analytics" },
   {
     icon: ExternalLink,
     label: "바이낸스",
@@ -34,13 +27,20 @@ const menuItems = [
   },
 ]
 
+interface GameStats {
+  rounds: number
+  totalBet: number
+  participants: number
+}
+
 export function Sidebar() {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [chatOpen] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
   const [initials, setInitials] = useState("?")
+  const [bakaStats, setBakaStats] = useState<GameStats | null>(null)
+  const [raceStats, setRaceStats] = useState<GameStats | null>(null)
   const pathname = usePathname()
   const router = useRouter()
 
@@ -48,6 +48,23 @@ export function Sidebar() {
     setToast(msg)
     setTimeout(() => setToast(null), 4000)
   }
+
+  // 게임 통계 fetch (30초마다 갱신)
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch("/api/game/stats")
+        if (res.ok) {
+          const d = await res.json()
+          if (d.baka) setBakaStats(d.baka)
+          if (d.race) setRaceStats(d.race)
+        }
+      } catch {}
+    }
+    fetchStats()
+    const t = setInterval(fetchStats, 30_000)
+    return () => clearInterval(t)
+  }, [])
 
   useEffect(() => {
     const check = () => {
@@ -94,7 +111,6 @@ export function Sidebar() {
       sessionStorage.removeItem("guest_balance")
     } catch {}
     setIsLoggedIn(false)
-    setChatOpen(false)
     router.push("/")
   }
 
@@ -151,9 +167,9 @@ export function Sidebar() {
 
         {/* 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 flex flex-col">
-          {/* 메뉴 - 고정 크기, 스크롤 안 됨 */}
+          {/* 외부 링크 */}
           <div className="shrink-0">
-            <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">메뉴</p>
+            <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">외부링크</p>
             <nav className="space-y-0.5">
               {menuItems.map((item) => {
                 const isActive = !item.external && pathname === item.href
@@ -187,7 +203,85 @@ export function Sidebar() {
             </nav>
           </div>
 
-          {/* 채팅 섹션 - 고정 높이, 내부 스크롤만 */}
+          {/* 게임 카드 */}
+          <div className="shrink-0 space-y-2">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">게임</p>
+
+            {/* 바카라 */}
+            <Link href="/baka" onClick={() => setMobileOpen(false)}>
+              <div className={cn(
+                "relative rounded-xl overflow-hidden p-4 flex flex-col gap-2 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg",
+                "bg-gradient-to-br from-blue-600 to-cyan-500",
+                pathname === "/baka" && "ring-2 ring-white/40"
+              )}>
+                <div className="absolute inset-0 bg-black/10 hover:bg-black/20 transition-colors duration-300" />
+                <div className="relative z-10 flex items-start justify-between">
+                  <div>
+                    <div className="text-2xl mb-1">🃏</div>
+                    <p className="text-sm font-bold text-white">바카라</p>
+                    <p className="text-[10px] text-white/75">비트코인 30초 바카라</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-white/70 mt-1 shrink-0" />
+                </div>
+                <div className="relative z-10 pt-2 border-t border-white/20 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1 text-[10px] text-white/80">
+                      <BarChart2 className="w-3 h-3" />
+                      <span>{bakaStats ? `${bakaStats.rounds}라운드` : "--"}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-white/80">
+                      <Zap className="w-3 h-3" />
+                      <span>{bakaStats ? `${bakaStats.participants.toLocaleString()}배팅` : "--"}</span>
+                    </div>
+                  </div>
+                </div>
+                {bakaStats && (
+                  <div className="relative z-10 text-[10px] text-white/70">
+                    오늘 총 ₩{bakaStats.totalBet.toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </Link>
+
+            {/* 레이스 */}
+            <Link href="/race" onClick={() => setMobileOpen(false)}>
+              <div className={cn(
+                "relative rounded-xl overflow-hidden p-4 flex flex-col gap-2 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg",
+                "bg-gradient-to-br from-green-600 to-emerald-500",
+                pathname === "/race" && "ring-2 ring-white/40"
+              )}>
+                <div className="absolute inset-0 bg-black/10 hover:bg-black/20 transition-colors duration-300" />
+                <div className="relative z-10 flex items-start justify-between">
+                  <div>
+                    <div className="text-2xl mb-1">⚽</div>
+                    <p className="text-sm font-bold text-white">차트차트</p>
+                    <p className="text-[10px] text-white/75">비트코인 레이스 배팅</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-white/70 mt-1 shrink-0" />
+                </div>
+                <div className="relative z-10 pt-2 border-t border-white/20 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1 text-[10px] text-white/80">
+                      <BarChart2 className="w-3 h-3" />
+                      <span>{raceStats ? `${raceStats.rounds}라운드` : "--"}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-white/80">
+                      <Zap className="w-3 h-3" />
+                      <span>{raceStats ? `${raceStats.participants.toLocaleString()}배팅` : "--"}</span>
+                    </div>
+                  </div>
+                </div>
+                {raceStats && (
+                  <div className="relative z-10 text-[10px] text-white/70">
+                    오늘 총 ₩{raceStats.totalBet.toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </Link>
+          </div>
+
+          {/* 채팅 섹션 (비활성화) */}
+          {/*
           <div className="flex flex-col shrink-0 max-h-[640px]">
             <div className="flex items-center gap-2 mb-2">
               <MessageCircle className="w-3.5 h-3.5 text-primary" />
@@ -197,6 +291,7 @@ export function Sidebar() {
               <ChatPanel />
             </div>
           </div>
+          */}
         </div>
       </aside>
 
