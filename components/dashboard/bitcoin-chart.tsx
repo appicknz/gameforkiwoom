@@ -61,7 +61,7 @@ function formatQuoteVolume(usd: number): string {
   return krw.toLocaleString() + "원"
 }
 
-export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka" }: { headerOnly?: boolean; compact?: boolean; mode?: "baka" | "race" } = {}) {
+export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka", chartHeight }: { headerOnly?: boolean; compact?: boolean; mode?: "baka" | "race"; chartHeight?: number } = {}) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -518,7 +518,7 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
 
       {/* 차트 */}
       {!headerOnly && (
-        <div className="relative w-full overflow-hidden" style={{ height: 180 }}>
+        <div className="relative w-full overflow-hidden" style={{ height: chartHeight ?? 180 }}>
           <div ref={chartContainerRef} className="w-full h-full" />
 
           {/* 바이낸스 워터마크 */}

@@ -118,7 +118,7 @@ export default function DashboardPage() {
                 <h2 className="text-2xl md:text-3xl font-bold">비트코인 실시간 차트</h2>
                 <p className="text-muted-foreground mt-2">30초마다 게임이 진행되는 비트코인 가격 차트</p>
               </div>
-              <BitcoinChart />
+              <BitcoinChart chartHeight={380} />
             </div>
           </section>
 
