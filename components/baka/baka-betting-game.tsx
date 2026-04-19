@@ -343,7 +343,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
         {/* 헤더 */}
         <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ background: headerBg }}>
           <div>
-            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라운드 #{result.round} 결과</p>
+            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라��드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight" style={{ color: headerColor }}>
               {headerLabel}
             </p>
@@ -870,10 +870,22 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     if (!token) return
 
     const placeSingle = async (type: BetType, value: string) => {
+      // baccarat 배팅은 gameType + side + bets를 반드시 포함 — pool 적립 및 odds:final 저장에 필요
+      const betsPayload = type === "baccarat"
+        ? { baccaratSide: value, baccaratAmount: cfg.amount }
+        : type === "direction"
+          ? { direction: value, directionAmount: cfg.amount }
+          : type === "digit"
+            ? { digit: value, digitAmount: cfg.amount }
+            : { parity: value, parityAmount: cfg.amount }
+
+      const body: Record<string, unknown> = { betAmount: cfg.amount, bets: betsPayload }
+      if (type === "baccarat") { body.gameType = "baccarat"; body.side = value }
+
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ betAmount: cfg.amount }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -895,11 +907,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         setBetBaccarat(value as BetBaccarat); setBetBaccaratAmount(cfg.amount)
         onBetSideTrigger?.(value as "player" | "banker" | "tie")
       }
-      // 배팅 성공 시 현재 라운드 번호 + 배당률 스냅샷 저장
-      // liveOddsRef.current 사용 (state는 클로저에서 stale할 수 있음)
       betRoundNumberRef.current   = getRoundNumber()
       liveOddsSnapshotRef.current = liveOddsRef.current
-      console.log("[v0] 배팅 확정 | round:", betRoundNumberRef.current, "| side:", value, "| amount:", cfg.amount, "| liveOddsRef at bet time:", JSON.stringify(liveOddsRef.current))
       if (!basePriceRef.current && currentPriceRef.current) {
         basePriceRef.current = currentPriceRef.current
         setBasePrice(currentPriceRef.current)
@@ -929,11 +938,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     if (lastResult.parity && lastResult.parityAmount > 0)
       pnl += lastResult.wonParity ? Math.floor(lastResult.parityAmount * (PAYOUT_RATIO - 1)) : -lastResult.parityAmount
     if (lastResult.baccarat && lastResult.baccaratAmount > 0) {
-      if (lastResult.wonBaccarat) {
-        const mult = lastResult.baccarat === "player" ? 1 : lastResult.baccarat === "banker" ? 0.95 : 8
-        pnl += Math.floor(lastResult.baccaratAmount * mult)
+      if (lastResult.wonBaccarat && lastResult.baccaratOdds) {
+        // 실제 서버 확정 배당(oddsSnap) 기반 — 고정 승수 사용 금지
+        const o = lastResult.baccaratOdds
+        const odds = lastResult.baccarat === "player" ? (o.player ?? 0)
+          : lastResult.baccarat === "banker" ? (o.banker ?? 0)
+          : (o.tie ?? 0)
+        pnl += Math.floor(lastResult.baccaratAmount * odds) - lastResult.baccaratAmount
       } else {
-        pnl -= lastResult.baccaratAmount  // 타이 결과 포함 LOSS
+        pnl -= lastResult.baccaratAmount
       }
     }
     autoBetRoundsRef.current += 1

@@ -24,7 +24,7 @@ interface RoundResult {
   wonDigit: boolean
   wonParity: boolean
   wonRace: boolean
-  raceRefund: boolean
+  raceOdds: number | null  // 서버 확정 배당 (settle-me 응답 appliedOdds)
   directionAmount: number
   digitAmount: number
   parityAmount: number
@@ -263,20 +263,18 @@ function RaceResultSheet({ result, open, onClose }: { result: RoundResult | null
     result.race && {
       key: result.race, label: LABEL_MAP[result.race], won: result.wonRace,
       amount: result.raceAmount,
-      payout: result.wonRace
-        ? result.race === "coin" ? Math.floor(result.raceAmount * 2)
-          : result.race === "bit" ? Math.floor(result.raceAmount * 1.95)
-            : Math.floor(result.raceAmount * 9)
-        : result.raceRefund ? result.raceAmount : 0,
-      isRefund: result.raceRefund && !result.wonRace,
+      // 서버 확정 배당만 사용 — 하드코딩 없음. 타이 결과 시 bit/coin은 LOSS
+      payout: result.wonRace && result.raceOdds
+        ? Math.floor(result.raceAmount * result.raceOdds)
+        : 0,
     },
-  ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number; payout: number; isRefund?: boolean }[]
+  ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number; payout: number }[]
 
   const totalBet = bets.reduce((s, b) => s + b.amount, 0)
   const totalPayout = bets.reduce((s, b) => s + b.payout, 0)
   const netProfit = totalPayout - totalBet
   const allWon = bets.every(b => b.won)
-  const allLost = bets.every(b => !b.won && !b.isRefund)
+  const allLost = bets.every(b => !b.won)
 
   return (
     <>
@@ -310,8 +308,8 @@ function RaceResultSheet({ result, open, onClose }: { result: RoundResult | null
             return (
               <div key={bet.key} className="flex items-center gap-3 p-3 rounded-xl"
                 style={{
-                  background: bet.won ? "rgba(212,175,55,0.06)" : bet.isRefund ? "rgba(96,165,250,0.06)" : "rgba(239,68,68,0.06)",
-                  border: `1px solid ${bet.won ? "rgba(212,175,55,0.2)" : bet.isRefund ? "rgba(96,165,250,0.2)" : "rgba(239,68,68,0.2)"}`,
+                  background: bet.won ? "rgba(212,175,55,0.06)" : "rgba(239,68,68,0.06)",
+                  border: `1px solid ${bet.won ? "rgba(212,175,55,0.2)" : "rgba(239,68,68,0.2)"}`,
                 }}>
                 <span className="text-sm font-bold px-2.5 py-1 rounded-lg shrink-0"
                   style={{ background: bet.label.bg, color: bet.label.color }}>{bet.label.text}</span>
@@ -321,17 +319,17 @@ function RaceResultSheet({ result, open, onClose }: { result: RoundResult | null
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-[10px] mb-0.5" style={{ color: G.textDim }}>
-                    {bet.won ? "수익" : bet.isRefund ? "반환" : "손실"}
+                    {bet.won ? "수익" : "손실"}
                   </p>
                   <p className="text-sm font-bold tabular-nums"
-                    style={{ color: bet.won ? G.gold : bet.isRefund ? "#60a5fa" : "#ef4444" }}>
-                    {bet.won ? `+₩${bet.payout.toLocaleString()}` : bet.isRefund ? `₩${bet.payout.toLocaleString()}` : `-₩${bet.amount.toLocaleString()}`}
+                    style={{ color: bet.won ? G.gold : "#ef4444" }}>
+                    {bet.won ? `+₩${bet.payout.toLocaleString()}` : `-₩${bet.amount.toLocaleString()}`}
                   </p>
                   {bet.won && net > 0 && <p className="text-[9px]" style={{ color: G.goldDim }}>순수익 +₩{net.toLocaleString()}</p>}
                 </div>
                 <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black"
-                  style={{ background: bet.won ? G.gold : bet.isRefund ? "#60a5fa" : "#ef4444", color: "#000" }}>
-                  {bet.won ? "승" : bet.isRefund ? "반" : "패"}
+                  style={{ background: bet.won ? G.gold : "#ef4444", color: "#000" }}>
+                  {bet.won ? "승" : "패"}
                 </div>
               </div>
             )
@@ -590,13 +588,41 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     const wonParity = betParityRef.current
       ? (betParityRef.current === "odd" ? d2 % 2 !== 0 : d2 % 2 === 0) : false
     const wonRace = betRaceRef.current ? betRaceRef.current === raceResult : false
-    const raceRefund = !wonRace && raceResult === "tie"
-      && (betRaceRef.current === "bit" || betRaceRef.current === "coin")
+    // 타이 결과 시 bit/coin은 LOSS — 반환 없음
+    const hasRaceBet = !!betRaceRef.current
 
     const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betRaceRef.current
 
+    if (hasBet) {
+      const result: RoundResult = {
+        round: roundNum,
+        direction: betRef.current, digit: betDigitRef.current,
+        parity: betParityRef.current, race: betRaceRef.current,
+        raceResult, basePrice: effectiveBase, closePrice,
+        wonDirection, wonDigit, wonParity, wonRace,
+        raceOdds: null,  // settle-me 응답 후 채워짐
+        directionAmount: betDirectionAmountRef.current,
+        digitAmount: betDigitAmountRef.current,
+        parityAmount: betParityAmountRef.current,
+        raceAmount: betRaceAmountRef.current,
+        bitScore: bit, coinScore: coin,
+      }
+      setLastResult(result)
+      // race 배팅 없으면 즉시 모달 열기, 있으면 settle-me 응답 후 열기
+      if (!hasRaceBet) setShowResultSheet(true)
+
+      const anyWon = (betRef.current && wonDirection) || (betDigitRef.current && wonDigit)
+        || (betParityRef.current && wonParity) || (betRaceRef.current && wonRace)
+      const anyLost = (betRef.current && !wonDirection) || (betDigitRef.current && !wonDigit)
+        || (betParityRef.current && !wonParity) || (betRaceRef.current && !wonRace)
+      if (anyWon) setWins(w => w + 1)
+      if (anyLost) setLosses(l => l + 1)
+      setPhase("result")
+    }
+
     // ── settle-me 호출: 배팅이 있으면 서버 정산 + 잔고 갱신 ──────────────
-    // roundNum(종료된 라운드)을 명시적으로 전달 — settle-me 내부에서 이 번호로 스코어/스냅샷 조회
+    // raceSide는 bet refs 초기화 전에 캡처 (클로저에서 사용)
+    const capturedRaceSide = betRaceRef.current
     if (hasBet) {
       const token = getToken()
       if (token) {
@@ -606,7 +632,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
           body: JSON.stringify({
             closePrice,
             basePrice: effectiveBase,
-            roundNumber: roundNum,   // 종료된 라운드 번호 (현재 라운드 X)
+            roundNumber: roundNum,
             gameType: "race",
             bitScore: bit,
             coinScore: coin,
@@ -619,37 +645,14 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
               window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
             }
             if (d.appliedOdds) {
-              setLastResult(prev => prev ? { ...prev, raceAppliedOdds: d.appliedOdds } : prev)
+              // appliedOdds = { bit, coin, tie } — 배팅 전 캡처한 사이드의 배당값 추출
+              const sideOdds = capturedRaceSide ? (d.appliedOdds[capturedRaceSide] ?? null) : null
+              setLastResult(prev => prev ? { ...prev, raceOdds: sideOdds } : prev)
             }
+            if (hasRaceBet) setShowResultSheet(true)
           })
-          .catch(() => {})
+          .catch(() => { if (hasRaceBet) setShowResultSheet(true) })
       }
-    }
-
-    if (hasBet) {
-
-      const result: RoundResult = {
-        round: roundNum,
-        direction: betRef.current, digit: betDigitRef.current,
-        parity: betParityRef.current, race: betRaceRef.current,
-        raceResult, basePrice: effectiveBase, closePrice,
-        wonDirection, wonDigit, wonParity, wonRace, raceRefund,
-        directionAmount: betDirectionAmountRef.current,
-        digitAmount: betDigitAmountRef.current,
-        parityAmount: betParityAmountRef.current,
-        raceAmount: betRaceAmountRef.current,
-        bitScore: bit, coinScore: coin,
-      }
-      setLastResult(result)
-      setShowResultSheet(true)
-
-      const anyWon = (betRef.current && wonDirection) || (betDigitRef.current && wonDigit)
-        || (betParityRef.current && wonParity) || (betRaceRef.current && wonRace)
-      const anyLost = (betRef.current && !wonDirection) || (betDigitRef.current && !wonDigit)
-        || (betParityRef.current && !wonParity) || (betRaceRef.current && !wonRace && !raceRefund)
-      if (anyWon) setWins(w => w + 1)
-      if (anyLost) setLosses(l => l + 1)
-      setPhase("result")
     }
 
     // 베팅 상태 초기화
