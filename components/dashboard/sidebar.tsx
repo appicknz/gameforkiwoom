@@ -152,38 +152,7 @@ export function Sidebar() {
         {/* 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
 
-          {/* ① 게임 카드 */}
-          <div className="space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">게임</p>
-            <Link href="/baka" onClick={() => setMobileOpen(false)}>
-              <div className={cn(
-                "rounded-xl border border-border p-3.5 flex items-center justify-between cursor-pointer transition-all duration-200 hover:bg-secondary/60",
-                pathname === "/baka" && "border-primary/50 bg-secondary/40"
-              )}>
-                <div className="flex flex-col gap-0.5">
-                  <p className="text-sm font-semibold text-foreground">바카라</p>
-                  <p className="text-[11px] text-muted-foreground">비트코인 30초 바카라</p>
-                  <p className="text-[10px] text-muted-foreground/60 tabular-nums mt-0.5">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} 라운드</p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-              </div>
-            </Link>
-            <Link href="/race" onClick={() => setMobileOpen(false)}>
-              <div className={cn(
-                "rounded-xl border border-border p-3.5 flex items-center justify-between cursor-pointer transition-all duration-200 hover:bg-secondary/60",
-                pathname === "/race" && "border-primary/50 bg-secondary/40"
-              )}>
-                <div className="flex flex-col gap-0.5">
-                  <p className="text-sm font-semibold text-foreground">차트차트</p>
-                  <p className="text-[11px] text-muted-foreground">비트코인 5분 레이스</p>
-                  <p className="text-[10px] text-muted-foreground/60 tabular-nums mt-0.5">#{Math.floor(Date.now() / 1000 / 300).toLocaleString()} 라운드</p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-              </div>
-            </Link>
-          </div>
-
-          {/* ② 로그인 폼 / 로그인된 경우 사용자 정보 */}
+          {/* ① 로그인 폼 / 로그인된 경우 사용자 정보 */}
           {isLoggedIn ? (
             <div className="rounded-xl border border-border p-4 space-y-3">
               <div className="flex items-center gap-2">
@@ -278,6 +247,37 @@ export function Sidebar() {
               </div>
             </div>
           )}
+
+          {/* ② 게임 카드 */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">게임</p>
+            <Link href="/baka" onClick={() => setMobileOpen(false)}>
+              <div className={cn(
+                "rounded-xl border border-border p-3.5 flex items-center justify-between cursor-pointer transition-all duration-200 hover:bg-secondary/60",
+                pathname === "/baka" && "border-primary/50 bg-secondary/40"
+              )}>
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-sm font-semibold text-foreground">바카라</p>
+                  <p className="text-[11px] text-muted-foreground">비트코인 30초 바카라</p>
+                  <p className="text-[10px] text-muted-foreground/60 tabular-nums mt-0.5">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} 라운드</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              </div>
+            </Link>
+            <Link href="/race" onClick={() => setMobileOpen(false)}>
+              <div className={cn(
+                "rounded-xl border border-border p-3.5 flex items-center justify-between cursor-pointer transition-all duration-200 hover:bg-secondary/60",
+                pathname === "/race" && "border-primary/50 bg-secondary/40"
+              )}>
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-sm font-semibold text-foreground">차트차트</p>
+                  <p className="text-[11px] text-muted-foreground">비트코인 5분 레이스</p>
+                  <p className="text-[10px] text-muted-foreground/60 tabular-nums mt-0.5">#{Math.floor(Date.now() / 1000 / 300).toLocaleString()} 라운드</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              </div>
+            </Link>
+          </div>
 
           {/* ③ 왜 우리를 선택할까요 */}
           <div className="space-y-2">
