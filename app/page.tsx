@@ -4,7 +4,7 @@ import { Sidebar } from "@/components/dashboard/sidebar"
 import { TopBar } from "@/components/dashboard/top-bar"
 import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import Link from "next/link"
-import { ArrowRight, Zap, TrendingUp, Dice6 } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function DashboardPage() {
@@ -26,24 +26,6 @@ export default function DashboardPage() {
       icon: "⚽",
       gradient: "from-green-600 to-emerald-500",
       users: "19,025",
-    },
-  ]
-
-  const features = [
-    {
-      icon: <Zap className="w-5 h-5" />,
-      title: "즉시 거래",
-      description: "하루 평균 20조원 규모 거래소의 101% 실시간 가격",
-    },
-    {
-      icon: <TrendingUp className="w-5 h-5" />,
-      title: "투명한 결과",
-      description: "블록체인 기반 공정한 결과 판정",
-    },
-    {
-      icon: <Dice6 className="w-5 h-5" />,
-      title: "낮은 하우스 엣지",
-      description: "업계 최고의 배팅 배당률 제공",
     },
   ]
 
@@ -111,7 +93,7 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* BitcoinChart 섹션 - 히어로와 피처 사이 */}
+          {/* BitcoinChart 섹션 */}
           <section className="border-b border-border px-4 md:px-6 lg:px-8 py-12 md:py-16">
             <div className="max-w-7xl mx-auto">
               <div className="mb-6">
@@ -119,26 +101,6 @@ export default function DashboardPage() {
                 <p className="text-muted-foreground mt-2">30초마다 게임이 진행되는 비트코인 가격 차트</p>
               </div>
               <BitcoinChart chartHeight={380} />
-            </div>
-          </section>
-
-          {/* 피처 카드 섹션 */}
-          <section className="border-b border-border px-4 md:px-6 lg:px-8 py-12 md:py-16">
-            <div className="max-w-7xl mx-auto">
-              <div className="text-center mb-12">
-                <h2 className="text-3xl md:text-4xl font-bold mb-3">왜 우리를 선택할까요?</h2>
-                <p className="text-lg text-muted-foreground">가장 투명하고 공정한 게임 환경</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {features.map((feature, idx) => (
-                  <div key={idx} className="border border-border rounded-xl p-6 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300">
-                    <div className="text-primary mb-3">{feature.icon}</div>
-                    <h3 className="text-xl font-bold mb-2">{feature.title}</h3>
-                    <p className="text-muted-foreground text-sm">{feature.description}</p>
-                  </div>
-                ))}
-              </div>
             </div>
           </section>
         </main>
