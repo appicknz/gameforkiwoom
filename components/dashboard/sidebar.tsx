@@ -8,9 +8,6 @@ import {
   Mail,
   Bell,
   ArrowRight,
-  BarChart2,
-  Zap,
-  MessageCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
@@ -27,11 +24,7 @@ const menuItems = [
   },
 ]
 
-interface GameStats {
-  rounds: number
-  totalBet: number
-  participants: number
-}
+
 
 export function Sidebar() {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
@@ -39,8 +32,7 @@ export function Sidebar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [initials, setInitials] = useState("?")
-  const [bakaStats, setBakaStats] = useState<GameStats | null>(null)
-  const [raceStats, setRaceStats] = useState<GameStats | null>(null)
+
   const pathname = usePathname()
   const router = useRouter()
 
@@ -49,22 +41,7 @@ export function Sidebar() {
     setTimeout(() => setToast(null), 4000)
   }
 
-  // 게임 통계 fetch (30초마다 갱신)
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await fetch("/api/game/stats")
-        if (res.ok) {
-          const d = await res.json()
-          if (d.baka) setBakaStats(d.baka)
-          if (d.race) setRaceStats(d.race)
-        }
-      } catch {}
-    }
-    fetchStats()
-    const t = setInterval(fetchStats, 30_000)
-    return () => clearInterval(t)
-  }, [])
+
 
   useEffect(() => {
     const check = () => {
@@ -204,78 +181,40 @@ export function Sidebar() {
           </div>
 
           {/* 게임 카드 */}
-          <div className="shrink-0 space-y-2">
+          <div className="shrink-0 space-y-3">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">게임</p>
 
             {/* 바카라 */}
             <Link href="/baka" onClick={() => setMobileOpen(false)}>
               <div className={cn(
-                "relative rounded-xl overflow-hidden p-4 flex flex-col gap-2 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg",
-                "bg-gradient-to-br from-blue-600 to-cyan-500",
-                pathname === "/baka" && "ring-2 ring-white/40"
+                "rounded-xl border border-border p-4 flex items-center justify-between cursor-pointer transition-all duration-200 hover:bg-secondary/60",
+                pathname === "/baka" && "border-primary/50 bg-secondary/40"
               )}>
-                <div className="absolute inset-0 bg-black/10 hover:bg-black/20 transition-colors duration-300" />
-                <div className="relative z-10 flex items-start justify-between">
-                  <div>
-                    <div className="text-2xl mb-1">🃏</div>
-                    <p className="text-sm font-bold text-white">바카라</p>
-                    <p className="text-[10px] text-white/75">비트코인 30초 바카라</p>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-white/70 mt-1 shrink-0" />
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-semibold text-foreground">바카라</p>
+                  <p className="text-[11px] text-muted-foreground">비트코인 30초 바카라</p>
+                  <p className="text-[10px] text-muted-foreground/70 tabular-nums">
+                    #{Math.floor(Date.now() / 1000 / 30).toLocaleString()} 라운드
+                  </p>
                 </div>
-                <div className="relative z-10 pt-2 border-t border-white/20 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 text-[10px] text-white/80">
-                      <BarChart2 className="w-3 h-3" />
-                      <span>{bakaStats ? `${bakaStats.rounds}라운드` : "--"}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-[10px] text-white/80">
-                      <Zap className="w-3 h-3" />
-                      <span>{bakaStats ? `${bakaStats.participants.toLocaleString()}배팅` : "--"}</span>
-                    </div>
-                  </div>
-                </div>
-                {bakaStats && (
-                  <div className="relative z-10 text-[10px] text-white/70">
-                    오늘 총 ₩{bakaStats.totalBet.toLocaleString()}
-                  </div>
-                )}
+                <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
               </div>
             </Link>
 
             {/* 레이스 */}
             <Link href="/race" onClick={() => setMobileOpen(false)}>
               <div className={cn(
-                "relative rounded-xl overflow-hidden p-4 flex flex-col gap-2 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg",
-                "bg-gradient-to-br from-green-600 to-emerald-500",
-                pathname === "/race" && "ring-2 ring-white/40"
+                "rounded-xl border border-border p-4 flex items-center justify-between cursor-pointer transition-all duration-200 hover:bg-secondary/60",
+                pathname === "/race" && "border-primary/50 bg-secondary/40"
               )}>
-                <div className="absolute inset-0 bg-black/10 hover:bg-black/20 transition-colors duration-300" />
-                <div className="relative z-10 flex items-start justify-between">
-                  <div>
-                    <div className="text-2xl mb-1">⚽</div>
-                    <p className="text-sm font-bold text-white">차트차트</p>
-                    <p className="text-[10px] text-white/75">비트코인 레이스 배팅</p>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-white/70 mt-1 shrink-0" />
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-semibold text-foreground">차트차트</p>
+                  <p className="text-[11px] text-muted-foreground">비트코인 5분 레이스</p>
+                  <p className="text-[10px] text-muted-foreground/70 tabular-nums">
+                    #{Math.floor(Date.now() / 1000 / 300).toLocaleString()} 라운드
+                  </p>
                 </div>
-                <div className="relative z-10 pt-2 border-t border-white/20 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 text-[10px] text-white/80">
-                      <BarChart2 className="w-3 h-3" />
-                      <span>{raceStats ? `${raceStats.rounds}라운드` : "--"}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-[10px] text-white/80">
-                      <Zap className="w-3 h-3" />
-                      <span>{raceStats ? `${raceStats.participants.toLocaleString()}배팅` : "--"}</span>
-                    </div>
-                  </div>
-                </div>
-                {raceStats && (
-                  <div className="relative z-10 text-[10px] text-white/70">
-                    오늘 총 ₩{raceStats.totalBet.toLocaleString()}
-                  </div>
-                )}
+                <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
               </div>
             </Link>
           </div>
