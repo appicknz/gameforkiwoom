@@ -94,6 +94,13 @@ export function useRaceGame() {
           }
         }
 
+        // 배팅/정산 구간에서 이전 라운드 스코어가 남아있으면 0으로 리셋
+        const shouldClearScore = phase !== "racing" && (prev.bitScore > 0 || prev.coinScore > 0)
+        if (shouldClearScore) {
+          setFlashes([])
+          return { ...prev, phase, timeLeft, secondsInRound: sec, bitScore: 0, coinScore: 0, lastBitDigit: null, lastCoinDigit: null }
+        }
+
         return { ...prev, phase, timeLeft, secondsInRound: sec }
       })
     }
@@ -115,16 +122,19 @@ export function useRaceGame() {
   }, [])
 
   // ── baka:init — 접속 직후 서버의 현재 race 스코어 즉시 반영 ─────────────
-  // roundId도 서버 값으로 덮어쓴다 — 접속 시점과 무관하게 정확한 동기화
+  // racing 구간이 아니면 스코어 0으로 초기화 (배팅/정산 중 직전 라운드 스코어 표시 방지)
   useEffect(() => {
     const onInit = (e: Event) => {
       const { raceScore } = (e as CustomEvent<{ raceScore?: { roundId: number; bit: number; coin: number } }>).detail
       if (!raceScore) return
+      const nowSec = Math.floor(Date.now() / 1000)
+      const sec = nowSec % ROUND_SEC
+      const isRacing = sec >= BETTING_SEC  // 60~179초
       setState(prev => ({
         ...prev,
         roundId:   raceScore.roundId,
-        bitScore:  raceScore.bit,
-        coinScore: raceScore.coin,
+        bitScore:  isRacing ? raceScore.bit  : 0,
+        coinScore: isRacing ? raceScore.coin : 0,
       }))
     }
     window.addEventListener("baka:init", onInit)

@@ -286,7 +286,7 @@ export default function RacePage() {
             <RaceScoreboard state={state} flashes={flashes} />
 
             {/* 배팅 — baka와 동일 구조, BIT/COIN팀으로 레이��� 변경 */}
-            <RaceBettingGame />
+            <RaceBettingGame bitScore={state.bitScore} coinScore={state.coinScore} />
 
 
           </div>

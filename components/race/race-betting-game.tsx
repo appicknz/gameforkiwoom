@@ -164,7 +164,7 @@ function RaceBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
                 {meta.text}
               </span>
             )}
-            <span className="text-sm font-semibold" style={{ color: G.text }}>배팅 금액 선택</span>
+            <span className="text-sm font-semibold" style={{ color: G.text }}>배팅 금�� 선택</span>
           </div>
           <button onClick={onClose} style={{ color: G.textDim }}><X className="w-5 h-5" /></button>
         </div>
@@ -362,9 +362,11 @@ interface RaceBettingGameProps {
   onStatusChange?: (timeLeft: number, phase: "betting" | "waiting" | "result" | "dealing") => void
   onPriceChange?: (basePrice: number | null, currentPrice: number | null) => void
   onScoreChange?: (bit: number, coin: number) => void
+  bitScore?: number   // 부모(race-page)에서 useRaceGame()으로 계산한 스코어
+  coinScore?: number
 }
 
-export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }: RaceBettingGameProps = {}) {
+export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange, bitScore: bitScoreProp = 0, coinScore: coinScoreProp = 0 }: RaceBettingGameProps = {}) {
   // 3분(180초) 타이머: 정산10 + 배팅50 + 게임중120
   const [timeLeft, setTimeLeft] = useState(180)
   const [roundNumber, setRoundNumber] = useState(0)
@@ -379,11 +381,15 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   const [betParityAmount, setBetParityAmount] = useState(0)
   const [betRaceAmount, setBetRaceAmount] = useState(0)
 
-  // 스코어 (누적)
-  const [bitScore, setBitScore] = useState(0)
-  const [coinScore, setCoinScore] = useState(0)
-  const bitScoreRef = useRef(0)
-  const coinScoreRef = useRef(0)
+  // 스코어: props에서 받음 (자체 계산 제거 — race-page의 useRaceGame()이 단일 소스)
+  const bitScore = bitScoreProp
+  const coinScore = coinScoreProp
+  const bitScoreRef = useRef(bitScoreProp)
+  const coinScoreRef = useRef(coinScoreProp)
+
+  // ref 동기화 (settle 핸들러에서 사용)
+  useEffect(() => { bitScoreRef.current = bitScoreProp }, [bitScoreProp])
+  useEffect(() => { coinScoreRef.current = coinScoreProp }, [coinScoreProp])
 
   const [basePrice, setBasePrice] = useState<number | null>(null)
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
@@ -543,29 +549,11 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   useEffect(() => { isDealingRef.current = isDealing }, [isDealing])
   useEffect(() => { onScoreChangeRef.current = onScoreChange }, [onScoreChange])
 
-  // baka:race-score 구독 → 서버 계산 스코어를 그대로 사용 (자체 누적 제거)
+  // 스코어는 props(bitScoreProp/coinScoreProp)로 받음 — 자체 baka:race-score 구독 없음
+  // onScoreChange 콜백은 props 변경 시 호출
   useEffect(() => {
-    const handler = (e: Event) => {
-      const { roundId, bit, coin } = (e as CustomEvent<{ roundId: number; bit: number; coin: number }>).detail
-      // 라운드 전환 시 초기화
-      if (roundId !== roundRef.current) {
-        bitScoreRef.current = 0
-        coinScoreRef.current = 0
-        setBitScore(0)
-        setCoinScore(0)
-        return
-      }
-      // 스코어 동일하면 무시 (레이싱 구간 밖 tick)
-      if (bit === bitScoreRef.current && coin === coinScoreRef.current) return
-      bitScoreRef.current = bit
-      coinScoreRef.current = coin
-      setBitScore(bit)
-      setCoinScore(coin)
-      onScoreChangeRef.current?.(bit, coin)
-    }
-    window.addEventListener("baka:race-score", handler)
-    return () => window.removeEventListener("baka:race-score", handler)
-  }, [])
+    onScoreChangeRef.current?.(bitScoreProp, coinScoreProp)
+  }, [bitScoreProp, coinScoreProp])
 
   // 라운드 마감 정산 — race:settle 이벤트로 트리거 (타이머 tick에서 secInRound===179에 발행)
   useEffect(() => {
