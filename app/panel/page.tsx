@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon, Film, Activity, TrendingDown, Download } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, ImageIcon, Film, Activity, TrendingDown, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -9,7 +9,7 @@ import { RoundMonitor } from "@/components/admin/round-monitor"
 import { RoundHistory } from "@/components/admin/round-history"
 
 const SUPER_ROLES = ["master", "super_admin"]
-const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
+const ADMIN_ROLES = ["master", "super_admin", "branch_admin", "admin"]
 
 function getToken(): string | null {
   try { return localStorage.getItem("app_token") } catch { return null }
@@ -153,7 +153,7 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "cards" | "videos" | "history">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "cards" | "videos" | "history" | "points" | "cash" | "calendar">("users")
 
   // 카드 이미지 관리
   interface CardImage { url: string; pathname: string; uploadedAt: string }
@@ -550,11 +550,145 @@ export default function PanelPage() {
   const formatDate = (s: string) => new Date(s).toLocaleDateString("ko-KR")
 
   const roleLabel: Record<string, { label: string; color: string }> = {
-    super_admin: { label: "슈퍼관리자", color: "bg-red-100 text-red-700" },
-    master: { label: "마스터", color: "bg-purple-100 text-purple-700" },
+    master:       { label: "마스터",     color: "bg-purple-100 text-purple-700" },
+    super_admin:  { label: "수퍼관리자", color: "bg-red-100 text-red-700" },
     branch_admin: { label: "지점관리자", color: "bg-blue-100 text-blue-700" },
-    user: { label: "일반회원", color: "bg-gray-100 text-gray-600" },
+    admin:        { label: "관리자",     color: "bg-orange-100 text-orange-700" },
+    user:         { label: "일반회원",   color: "bg-gray-100 text-gray-600" },
   }
+
+  // ── 포인트 구매 요청 (현금 내고 포인트 사기) ──
+  const [ppRequests, setPpRequests]         = useState<any[]>([])
+  const [ppLoading, setPpLoading]           = useState(false)
+  const [ppCashAmt, setPpCashAmt]           = useState("")
+  const [ppMemo, setPpMemo]                 = useState("")
+  const [ppSubmitting, setPpSubmitting]     = useState(false)
+  const [ppMsg, setPpMsg]                   = useState<{ text: string; ok: boolean } | null>(null)
+  // 승인 모달
+  const [ppApproveId, setPpApproveId]       = useState<string | null>(null)
+  const [ppApprovePw, setPpApprovePw]       = useState("")
+  const [ppApprovePoints, setPpApprovePoints] = useState("")
+  const [ppApproveMsg, setPpApproveMsg]     = useState<{ text: string; ok: boolean } | null>(null)
+  const [ppApproving, setPpApproving]       = useState(false)
+
+  // ── 포인트 충전 요청 (임시계정 생성) ──
+  const [pcRequests, setPcRequests]         = useState<any[]>([])
+  const [pcLoading, setPcLoading]           = useState(false)
+  const [pcPointAmt, setPcPointAmt]         = useState("")
+  const [pcMemo, setPcMemo]                 = useState("")
+  const [pcSubmitting, setPcSubmitting]     = useState(false)
+  const [pcMsg, setPcMsg]                   = useState<{ text: string; ok: boolean } | null>(null)
+  const [pcApproveId, setPcApproveId]       = useState<string | null>(null)
+  const [pcApproving, setPcApproving]       = useState(false)
+  const [pcApproveMsg, setPcApproveMsg]     = useState<{ text: string; ok: boolean } | null>(null)
+  // 계정 활성화
+  const [pcActivateId, setPcActivateId]     = useState<string | null>(null)
+  const [pcActivatePw1, setPcActivatePw1]   = useState("")
+  const [pcActivatePw2, setPcActivatePw2]   = useState("")
+  const [pcActivating, setPcActivating]     = useState(false)
+  const [pcActivateMsg, setPcActivateMsg]   = useState<{ text: string; ok: boolean } | null>(null)
+
+  // ── 환전 요청 ──
+  const [exRequests, setExRequests]         = useState<any[]>([])
+  const [exLoading, setExLoading]           = useState(false)
+  const [exTargetId, setExTargetId]         = useState("")
+  const [exPointAmt, setExPointAmt]         = useState("")
+  const [exMemo, setExMemo]                 = useState("")
+  const [exSubmitting, setExSubmitting]     = useState(false)
+  const [exMsg, setExMsg]                   = useState<{ text: string; ok: boolean } | null>(null)
+  const [exApproveId, setExApproveId]       = useState<string | null>(null)
+  const [exApproving, setExApproving]       = useState(false)
+  const [exApproveMsg, setExApproveMsg]     = useState<{ text: string; ok: boolean } | null>(null)
+
+  // ── 비밀번호 초기화 요청 ──
+  const [prRequests, setPrRequests]         = useState<any[]>([])
+  const [prLoading, setPrLoading]           = useState(false)
+  const [prTargetId, setPrTargetId]         = useState("")
+  const [prSubmitting, setPrSubmitting]     = useState(false)
+  const [prMsg, setPrMsg]                   = useState<{ text: string; ok: boolean } | null>(null)
+  const [prApproveId, setPrApproveId]       = useState<string | null>(null)
+  const [prNewPw, setPrNewPw]               = useState("")
+  const [prApproving, setPrApproving]       = useState(false)
+  const [prApproveMsg, setPrApproveMsg]     = useState<{ text: string; ok: boolean } | null>(null)
+
+  // ── 현금 잔고 & 거래이력 ──
+  const [cashBalance, setCashBalance]       = useState(0)
+  const [pointBalance, setPointBalance]     = useState(0)
+  const [cashTxns, setCashTxns]             = useState<any[]>([])
+  const [subBalances, setSubBalances]       = useState<any[]>([])
+  const [cashLoading, setCashLoading]       = useState(false)
+
+  // ── 달력 매출 ──
+  const [calYear, setCalYear]               = useState(new Date().getFullYear())
+  const [calMonth, setCalMonth]             = useState(new Date().getMonth() + 1)
+  const [calData, setCalData]               = useState<any[]>([])
+  const [calLoading, setCalLoading]         = useState(false)
+  const [calSelectedDate, setCalSelectedDate] = useState<string | null>(null)
+  const [calBranchFilter, setCalBranchFilter] = useState("")
+  const [memberDetail, setMemberDetail]     = useState<any | null>(null)
+  const [expandedUser, setExpandedUser]     = useState<string | null>(null)
+
+  // ── loaders ──
+  const loadPpRequests = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setPpLoading(true)
+    const res = await fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setPpRequests(d.requests ?? []) }
+    setPpLoading(false)
+  }, [])
+
+  const loadPcRequests = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setPcLoading(true)
+    const res = await fetch("/api/admin/point-charge", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setPcRequests(d.requests ?? []) }
+    setPcLoading(false)
+  }, [])
+
+  const loadExRequests = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setExLoading(true)
+    const res = await fetch("/api/admin/exchange-request", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setExRequests(d.requests ?? []) }
+    setExLoading(false)
+  }, [])
+
+  const loadPrRequests = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setPrLoading(true)
+    const res = await fetch("/api/admin/password-reset", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setPrRequests(d.requests ?? []) }
+    setPrLoading(false)
+  }, [])
+
+  const loadCash = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setCashLoading(true)
+    const res = await fetch("/api/admin/cash", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) {
+      const d = await res.json()
+      setCashBalance(d.cashBalance ?? 0)
+      setPointBalance(d.pointBalance ?? 0)
+      setCashTxns(d.transactions ?? [])
+      setSubBalances(d.subBalances ?? [])
+    }
+    setCashLoading(false)
+  }, [])
+
+  const loadCalendar = useCallback(async (year: number, month: number, branch?: string, date?: string) => {
+    const token = getToken(); if (!token) return
+    setCalLoading(true)
+    const params = new URLSearchParams({ year: String(year), month: String(month) })
+    if (branch) params.set("branch_code", branch)
+    if (date) params.set("date", date)
+    const res = await fetch(`/api/admin/daily-sales?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) {
+      const d = await res.json()
+      setCalData(d.calendar ?? [])
+      if (date) setMemberDetail(d.memberDetail ?? null)
+    }
+    setCalLoading(false)
+  }, [])
 
   if (loading) {
     return (
@@ -645,6 +779,24 @@ export default function PanelPage() {
             <TrendingDown className="w-4 h-4" /> 라운드 기록
           </button>
 
+          <button
+            onClick={() => { setActiveTab("points"); loadPpRequests(); loadPcRequests() }}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "points" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            <Wallet className="w-4 h-4" /> 포인트
+          </button>
+          <button
+            onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests() }}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "cash" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            <Banknote className="w-4 h-4" /> 현금/환전
+          </button>
+          <button
+            onClick={() => { setActiveTab("calendar"); loadCalendar(calYear, calMonth, calBranchFilter || undefined) }}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "calendar" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            <CalendarDays className="w-4 h-4" /> 매출달력
+          </button>
           {isSuperAdmin && (
             <button
               onClick={() => { setActiveTab("cards"); loadCardImages() }}
@@ -1314,12 +1466,641 @@ export default function PanelPage() {
                   </div>
                   <div className="mt-4 pt-4 border-t border-border">
                     <p className="text-xs text-muted-foreground">
-                      총 {cardVideos.length}개 영상 • 호버 시 미리보기 • 라운드마다 순번 기반 랜덤 재생
+                      ��� {cardVideos.length}개 영상 • 호버 시 미리보기 • 라운드마다 순번 기반 랜덤 재생
                     </p>
                   </div>
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ───────────── 포인트 탭 ───────────── */}
+        {activeTab === "points" && (
+          <div className="space-y-6">
+
+            {/* 포인트 구매 요청 (현금 내고 포인트 사기) — super_admin/branch_admin/admin */}
+            {!isSuperAdmin && (
+              <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Wallet className="w-4 h-4 text-primary" /> 포인트 구매 요청</h2>
+                <p className="text-xs text-muted-foreground">현금 금액을 입력하고 요청하면 마스터/수퍼관리자가 포인트를 지급합니다.</p>
+                <div className="flex gap-2">
+                  <Input placeholder="현금 금액" type="number" value={ppCashAmt} onChange={e => setPpCashAmt(e.target.value)} className="h-9 text-sm w-40" />
+                  <Input placeholder="메모 (선택)" value={ppMemo} onChange={e => setPpMemo(e.target.value)} className="h-9 text-sm flex-1" />
+                  <Button size="sm" className="h-9 shrink-0" disabled={ppSubmitting} onClick={async () => {
+                    setPpSubmitting(true); setPpMsg(null)
+                    const token = getToken()
+                    const res = await fetch("/api/admin/point-purchase", {
+                      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ cashAmount: Number(ppCashAmt), memo: ppMemo }),
+                    })
+                    const d = await res.json()
+                    setPpMsg(res.ok ? { text: "요청됐습니다.", ok: true } : { text: d.error ?? "오류", ok: false })
+                    if (res.ok) { setPpCashAmt(""); setPpMemo(""); loadPpRequests() }
+                    setPpSubmitting(false)
+                  }}>요청</Button>
+                </div>
+                {ppMsg && <p className={`text-xs ${ppMsg.ok ? "text-primary" : "text-destructive"}`}>{ppMsg.text}</p>}
+              </div>
+            )}
+
+            {/* 포인트 구매 요청 목록 */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                <h2 className="text-sm font-semibold text-foreground">포인트 구매 요청 목록</h2>
+                <Button variant="ghost" size="sm" onClick={loadPpRequests} disabled={ppLoading} className="gap-1.5 text-xs">
+                  <RefreshCw className={`w-3.5 h-3.5 ${ppLoading ? "animate-spin" : ""}`} /> 새로고침
+                </Button>
+              </div>
+              <div className="divide-y divide-border">
+                {ppRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
+                {ppRequests.map((r: any) => (
+                  <div key={r.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-foreground">{r.requester?.username}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{r.requester_role}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>{r.status === "pending" ? "대기" : r.status === "approved" ? "승인" : "거절"}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">현금 ₩{r.cash_amount?.toLocaleString()} {r.point_amount ? `→ 포인트 ${r.point_amount?.toLocaleString()}` : ""} {r.memo ? `· ${r.memo}` : ""}</p>
+                      <p className="text-[10px] text-muted-foreground/60">{new Date(r.created_at).toLocaleString("ko-KR")}</p>
+                    </div>
+                    {isSuperAdmin && r.status === "pending" && (
+                      <div className="flex gap-1.5 shrink-0">
+                        <Button size="sm" variant="outline" className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={async () => {
+                          const token = getToken()
+                          await fetch("/api/admin/point-purchase", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "reject" }) })
+                          loadPpRequests()
+                        }}>거절</Button>
+                        <Button size="sm" className="h-8 text-xs" onClick={() => { setPpApproveId(r.id); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }}>승인</Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 승인 모달 (포인트 구매) */}
+            {ppApproveId && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+                  <h3 className="text-sm font-semibold text-foreground">포인트 구매 승인</h3>
+                  <div className="space-y-2">
+                    <Input type="password" placeholder="내 비밀번호 입력" value={ppApprovePw} onChange={e => setPpApprovePw(e.target.value)} className="h-9 text-sm" />
+                    <Input type="number" placeholder="지급할 포인트 금액" value={ppApprovePoints} onChange={e => setPpApprovePoints(e.target.value)} className="h-9 text-sm" />
+                  </div>
+                  {ppApproveMsg && <p className={`text-xs ${ppApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{ppApproveMsg.text}</p>}
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setPpApproveId(null)}>취소</Button>
+                    <Button size="sm" className="flex-1" disabled={ppApproving} onClick={async () => {
+                      setPpApproving(true); setPpApproveMsg(null)
+                      const token = getToken()
+                      const res = await fetch("/api/admin/point-purchase", {
+                        method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ requestId: ppApproveId, pointAmount: Number(ppApprovePoints), password: ppApprovePw }),
+                      })
+                      const d = await res.json()
+                      setPpApproveMsg(res.ok ? { text: `승인 완료. ${d.pointAmount?.toLocaleString()} 포인트 지급됨`, ok: true } : { text: d.error ?? "오류", ok: false })
+                      if (res.ok) { loadPpRequests(); setTimeout(() => setPpApproveId(null), 1500) }
+                      setPpApproving(false)
+                    }}>승인 확인</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 포인트 충전 요청 (임시계정 생성) — 모든 admin 역할 */}
+            <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Plus className="w-4 h-4 text-primary" /> 포인트 충전 요청 (유저 계정 생성)</h2>
+              <p className="text-xs text-muted-foreground">승인되면 포인트가 충전된 임시 계정이 자동 생성됩니다.</p>
+              <div className="flex gap-2">
+                <Input placeholder="충전 포인트" type="number" value={pcPointAmt} onChange={e => setPcPointAmt(e.target.value)} className="h-9 text-sm w-40" />
+                <Input placeholder="메모 (선택)" value={pcMemo} onChange={e => setPcMemo(e.target.value)} className="h-9 text-sm flex-1" />
+                <Button size="sm" className="h-9 shrink-0" disabled={pcSubmitting} onClick={async () => {
+                  setPcSubmitting(true); setPcMsg(null)
+                  const token = getToken()
+                  const res = await fetch("/api/admin/point-charge", {
+                    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ pointAmount: Number(pcPointAmt), memo: pcMemo }),
+                  })
+                  const d = await res.json()
+                  setPcMsg(res.ok ? { text: "충전 요청됐습니다.", ok: true } : { text: d.error ?? "오류", ok: false })
+                  if (res.ok) { setPcPointAmt(""); setPcMemo(""); loadPcRequests() }
+                  setPcSubmitting(false)
+                }}>요청</Button>
+              </div>
+              {pcMsg && <p className={`text-xs ${pcMsg.ok ? "text-primary" : "text-destructive"}`}>{pcMsg.text}</p>}
+            </div>
+
+            {/* 충전 요청 목록 */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                <h2 className="text-sm font-semibold text-foreground">충전 요청 목록</h2>
+                <Button variant="ghost" size="sm" onClick={loadPcRequests} disabled={pcLoading} className="gap-1.5 text-xs">
+                  <RefreshCw className={`w-3.5 h-3.5 ${pcLoading ? "animate-spin" : ""}`} /> 새로고침
+                </Button>
+              </div>
+              <div className="divide-y divide-border">
+                {pcRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
+                {pcRequests.map((r: any) => (
+                  <div key={r.id} className="px-5 py-4 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-foreground">{r.requester?.username}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{r.branch_code ?? "지점없음"}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" || r.status === "activated" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                            {r.status === "pending" ? "대기" : r.status === "approved" ? "승인(미활성)" : r.status === "activated" ? "활성화" : "거절"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">포인트 {r.point_amount?.toLocaleString()} {r.memo ? `· ${r.memo}` : ""}</p>
+                        {(r.status === "approved" || r.status === "activated") && r.temp_username && (
+                          <p className="text-xs font-mono bg-muted rounded px-2 py-1 mt-1 text-foreground">
+                            ID: {r.temp_username} {r.status === "approved" ? `/ PW: ${r.temp_password}` : "(활성화됨)"}
+                          </p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground/60 mt-0.5">{new Date(r.created_at).toLocaleString("ko-KR")}</p>
+                      </div>
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        {isSuperAdmin && r.status === "pending" && (
+                          <div className="flex gap-1.5">
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-destructive border-destructive/30" onClick={async () => {
+                              const token = getToken()
+                              await fetch("/api/admin/point-charge", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "reject" }) })
+                              loadPcRequests()
+                            }}>거절</Button>
+                            <Button size="sm" className="h-7 text-xs" disabled={pcApproving && pcApproveId === r.id} onClick={async () => {
+                              setPcApproveId(r.id); setPcApproving(true); setPcApproveMsg(null)
+                              const token = getToken()
+                              const res = await fetch("/api/admin/point-charge", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "approve" }) })
+                              const d = await res.json()
+                              setPcApproveMsg(res.ok ? { text: `승인됨: ${d.tempUsername} / ${d.tempPassword}`, ok: true } : { text: d.error ?? "오류", ok: false })
+                              if (res.ok) loadPcRequests()
+                              setPcApproving(false); setPcApproveId(null)
+                            }}>승인</Button>
+                          </div>
+                        )}
+                        {r.status === "approved" && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setPcActivateId(r.id); setPcActivatePw1(""); setPcActivatePw2(""); setPcActivateMsg(null) }}>
+                            비밀번호 설정
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 계정 활성화 모달 */}
+            {pcActivateId && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+                  <h3 className="text-sm font-semibold text-foreground">계정 비밀번호 설정</h3>
+                  <p className="text-xs text-muted-foreground">사용자에게 전달할 비밀번호를 두 번 입력해 검증합니다.</p>
+                  <div className="space-y-2">
+                    <Input type="password" placeholder="새 비밀번호" value={pcActivatePw1} onChange={e => setPcActivatePw1(e.target.value)} className="h-9 text-sm" />
+                    <Input type="password" placeholder="새 비밀번호 확인" value={pcActivatePw2} onChange={e => setPcActivatePw2(e.target.value)} className="h-9 text-sm" />
+                  </div>
+                  {pcActivateMsg && <p className={`text-xs ${pcActivateMsg.ok ? "text-primary" : "text-destructive"}`}>{pcActivateMsg.text}</p>}
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setPcActivateId(null)}>취소</Button>
+                    <Button size="sm" className="flex-1" disabled={pcActivating} onClick={async () => {
+                      setPcActivating(true); setPcActivateMsg(null)
+                      if (pcActivatePw1 !== pcActivatePw2) { setPcActivateMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false }); setPcActivating(false); return }
+                      const token = getToken()
+                      const res = await fetch("/api/admin/point-charge", {
+                        method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ requestId: pcActivateId, action: "activate", password1: pcActivatePw1, password2: pcActivatePw2 }),
+                      })
+                      const d = await res.json()
+                      setPcActivateMsg(res.ok ? { text: `활성화됨: ${d.username}`, ok: true } : { text: d.error ?? "오류", ok: false })
+                      if (res.ok) { loadPcRequests(); setTimeout(() => setPcActivateId(null), 1500) }
+                      setPcActivating(false)
+                    }}>확인</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ───────────── 현금/환전 탭 ───────────── */}
+        {activeTab === "cash" && (
+          <div className="space-y-6">
+
+            {/* 내 잔고 요약 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-card border border-border rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">내 현금 잔고</p>
+                <p className="text-2xl font-bold text-foreground">₩{cashBalance.toLocaleString()}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">내 포인트 잔고</p>
+                <p className="text-2xl font-bold text-foreground">{pointBalance.toLocaleString()} P</p>
+              </div>
+            </div>
+
+            {/* 하위 역할 잔고 현황 (master/super_admin만) */}
+            {isSuperAdmin && subBalances.length > 0 && (
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-foreground">하위 계정 잔고 현황</h2>
+                  <Button variant="ghost" size="sm" onClick={loadCash} disabled={cashLoading} className="text-xs gap-1.5">
+                    <RefreshCw className={`w-3.5 h-3.5 ${cashLoading ? "animate-spin" : ""}`} /> 새로고침
+                  </Button>
+                </div>
+                <div className="divide-y divide-border">
+                  {subBalances.map((s: any) => (
+                    <div key={s.userId} className="px-5 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">{s.username}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${roleLabel[s.role]?.color ?? "bg-gray-100 text-gray-600"}`}>{roleLabel[s.role]?.label ?? s.role}</span>
+                      </div>
+                      <div className="flex gap-4 text-right text-xs">
+                        <div><p className="text-muted-foreground">현금</p><p className="font-semibold text-foreground">₩{s.cashAmount.toLocaleString()}</p></div>
+                        <div><p className="text-muted-foreground">포인트</p><p className="font-semibold text-foreground">{s.pointAmount.toLocaleString()} P</p></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 환전 요청 생성 */}
+            <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-primary" /> 환전 요청</h2>
+              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인트를 입력하면 수퍼관리자/마스터가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
+              <div className="flex gap-2 flex-wrap">
+                <Input placeholder="유저 아이디" value={exTargetId} onChange={e => setExTargetId(e.target.value)} className="h-9 text-sm w-40" />
+                <Input placeholder="포인트 금액" type="number" value={exPointAmt} onChange={e => setExPointAmt(e.target.value)} className="h-9 text-sm w-36" />
+                <Input placeholder="메모 (선택)" value={exMemo} onChange={e => setExMemo(e.target.value)} className="h-9 text-sm flex-1" />
+                <Button size="sm" className="h-9 shrink-0" disabled={exSubmitting} onClick={async () => {
+                  setExSubmitting(true); setExMsg(null)
+                  const token = getToken()
+                  const res = await fetch("/api/admin/exchange-request", {
+                    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ targetUsername: exTargetId, pointAmount: Number(exPointAmt), memo: exMemo }),
+                  })
+                  const d = await res.json()
+                  setExMsg(res.ok ? { text: "환전 요청됐습니다.", ok: true } : { text: d.error ?? "오류", ok: false })
+                  if (res.ok) { setExTargetId(""); setExPointAmt(""); setExMemo(""); loadExRequests() }
+                  setExSubmitting(false)
+                }}>요청</Button>
+              </div>
+              {exMsg && <p className={`text-xs ${exMsg.ok ? "text-primary" : "text-destructive"}`}>{exMsg.text}</p>}
+            </div>
+
+            {/* 환전 요청 목록 */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                <h2 className="text-sm font-semibold text-foreground">환전 요청 목록</h2>
+                <Button variant="ghost" size="sm" onClick={loadExRequests} disabled={exLoading} className="text-xs gap-1.5">
+                  <RefreshCw className={`w-3.5 h-3.5 ${exLoading ? "animate-spin" : ""}`} /> 새로고침
+                </Button>
+              </div>
+              <div className="divide-y divide-border">
+                {exRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
+                {exRequests.map((r: any) => (
+                  <div key={r.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-foreground">{r.target_user?.username}</span>
+                        <span className="text-xs font-semibold text-foreground">{r.point_amount?.toLocaleString()} P</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                          {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거절"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">요청자: {r.requester?.username} {r.memo ? `· ${r.memo}` : ""}</p>
+                      <p className="text-[10px] text-muted-foreground/60">{new Date(r.created_at).toLocaleString("ko-KR")}</p>
+                    </div>
+                    {isSuperAdmin && r.status === "pending" && (
+                      <div className="flex gap-1.5 shrink-0">
+                        <Button size="sm" variant="outline" className="h-8 text-xs text-destructive border-destructive/30" onClick={async () => {
+                          const token = getToken()
+                          await fetch("/api/admin/exchange-request", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "reject" }) })
+                          loadExRequests()
+                        }}>거절</Button>
+                        <Button size="sm" className="h-8 text-xs" disabled={exApproving && exApproveId === r.id} onClick={async () => {
+                          setExApproveId(r.id); setExApproving(true)
+                          const token = getToken()
+                          const res = await fetch("/api/admin/exchange-request", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "approve" }) })
+                          const d = await res.json()
+                          setExApproveMsg(res.ok ? { text: "승인됨", ok: true } : { text: d.error ?? "오류", ok: false })
+                          if (res.ok) loadExRequests()
+                          setExApproving(false); setExApproveId(null)
+                        }}>승인</Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {exApproveMsg && <p className={`text-xs text-center ${exApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{exApproveMsg.text}</p>}
+
+            {/* 비밀번호 초기화 요청 */}
+            {["branch_admin", "admin"].includes(myRole) && (
+              <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><KeyRound className="w-4 h-4 text-primary" /> 비밀번호 초기화 요청</h2>
+                <div className="flex gap-2">
+                  <Input placeholder="유저 아이디" value={prTargetId} onChange={e => setPrTargetId(e.target.value)} className="h-9 text-sm flex-1" />
+                  <Button size="sm" className="h-9 shrink-0" disabled={prSubmitting} onClick={async () => {
+                    setPrSubmitting(true); setPrMsg(null)
+                    const token = getToken()
+                    const res = await fetch("/api/admin/password-reset", {
+                      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ targetUsername: prTargetId }),
+                    })
+                    const d = await res.json()
+                    setPrMsg(res.ok ? { text: "초기화 요청됐습니다.", ok: true } : { text: d.error ?? "오류", ok: false })
+                    if (res.ok) { setPrTargetId(""); loadPrRequests() }
+                    setPrSubmitting(false)
+                  }}>요청</Button>
+                </div>
+                {prMsg && <p className={`text-xs ${prMsg.ok ? "text-primary" : "text-destructive"}`}>{prMsg.text}</p>}
+              </div>
+            )}
+
+            {/* 비밀번호 초기화 목록 (super/master만) */}
+            {isSuperAdmin && (
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                  <h2 className="text-sm font-semibold text-foreground">비밀번호 초기화 요청 목록</h2>
+                  <Button variant="ghost" size="sm" onClick={loadPrRequests} disabled={prLoading} className="text-xs gap-1.5">
+                    <RefreshCw className={`w-3.5 h-3.5 ${prLoading ? "animate-spin" : ""}`} /> 새로고침
+                  </Button>
+                </div>
+                <div className="divide-y divide-border">
+                  {prRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
+                  {prRequests.map((r: any) => (
+                    <div key={r.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-foreground">{r.target_user?.username}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                            {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거절"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">요청자: {r.requester?.username}</p>
+                      </div>
+                      {r.status === "pending" && (
+                        <div className="flex gap-1.5 shrink-0">
+                          <Button size="sm" variant="outline" className="h-8 text-xs text-destructive border-destructive/30" onClick={async () => {
+                            const token = getToken()
+                            await fetch("/api/admin/password-reset", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "reject" }) })
+                            loadPrRequests()
+                          }}>거절</Button>
+                          <Button size="sm" className="h-8 text-xs" onClick={() => { setPrApproveId(r.id); setPrNewPw(""); setPrApproveMsg(null) }}>승인</Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 비밀번호 초기화 승인 모달 */}
+            {prApproveId && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+                  <h3 className="text-sm font-semibold text-foreground">비밀번호 초기화 승인</h3>
+                  <Input type="password" placeholder="새 비밀번호 (4자 이상)" value={prNewPw} onChange={e => setPrNewPw(e.target.value)} className="h-9 text-sm" />
+                  {prApproveMsg && <p className={`text-xs ${prApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{prApproveMsg.text}</p>}
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setPrApproveId(null)}>취소</Button>
+                    <Button size="sm" className="flex-1" disabled={prApproving} onClick={async () => {
+                      setPrApproving(true); setPrApproveMsg(null)
+                      const token = getToken()
+                      const res = await fetch("/api/admin/password-reset", {
+                        method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ requestId: prApproveId, newPassword: prNewPw }),
+                      })
+                      const d = await res.json()
+                      setPrApproveMsg(res.ok ? { text: "초기화 완료", ok: true } : { text: d.error ?? "오류", ok: false })
+                      if (res.ok) { loadPrRequests(); setTimeout(() => setPrApproveId(null), 1200) }
+                      setPrApproving(false)
+                    }}>확인</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 현금 거래 이력 */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                <h2 className="text-sm font-semibold text-foreground">현금 거래 이력</h2>
+                <Button variant="ghost" size="sm" onClick={loadCash} disabled={cashLoading} className="text-xs gap-1.5">
+                  <RefreshCw className={`w-3.5 h-3.5 ${cashLoading ? "animate-spin" : ""}`} /> 새로고침
+                </Button>
+              </div>
+              <div className="divide-y divide-border">
+                {cashTxns.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">거래 이력이 없습니다.</p>}
+                {cashTxns.map((t: any) => (
+                  <div key={t.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-foreground">
+                          {t.from_user?.username} → {t.to_user?.username}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{t.tx_type}</span>
+                      </div>
+                      {t.memo && <p className="text-xs text-muted-foreground mt-0.5">{t.memo}</p>}
+                      <p className="text-[10px] text-muted-foreground/60">{new Date(t.created_at).toLocaleString("ko-KR")}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-semibold text-foreground">₩{t.cash_amount?.toLocaleString()}</p>
+                      {t.point_amount > 0 && <p className="text-xs text-muted-foreground">{t.point_amount?.toLocaleString()} P</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ───────────── 매출 달력 탭 ───────────── */}
+        {activeTab === "calendar" && (
+          <div className="space-y-6">
+
+            {/* 연월 + 지점 필터 */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => {
+                  const d = new Date(calYear, calMonth - 2); setCalYear(d.getFullYear()); setCalMonth(d.getMonth() + 1)
+                  loadCalendar(d.getFullYear(), d.getMonth() + 1, calBranchFilter || undefined)
+                }}>{'<'}</Button>
+                <span className="text-sm font-semibold text-foreground w-24 text-center">{calYear}년 {calMonth}월</span>
+                <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => {
+                  const d = new Date(calYear, calMonth); setCalYear(d.getFullYear()); setCalMonth(d.getMonth() + 1)
+                  loadCalendar(d.getFullYear(), d.getMonth() + 1, calBranchFilter || undefined)
+                }}>{'>'}</Button>
+              </div>
+              {isSuperAdmin && (
+                <Input placeholder="지점코드 필터" value={calBranchFilter} onChange={e => setCalBranchFilter(e.target.value)} className="h-8 text-sm w-36" />
+              )}
+              <Button size="sm" className="h-8 text-xs" onClick={() => { setCalSelectedDate(null); setMemberDetail(null); loadCalendar(calYear, calMonth, calBranchFilter || undefined) }}>
+                {calLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "조회"}
+              </Button>
+            </div>
+
+            {/* 달력 그리드 */}
+            {(() => {
+              const daysInMonth = new Date(calYear, calMonth, 0).getDate()
+              const firstDay = new Date(calYear, calMonth - 1, 1).getDay()
+              const dataMap: Record<string, any> = {}
+              for (const row of calData) {
+                const day = String(new Date(row.log_date).getDate())
+                if (!dataMap[day]) dataMap[day] = { charge: 0, exchange: 0, net: 0 }
+                dataMap[day].charge += row.charge_total
+                dataMap[day].exchange += row.exchange_total
+                dataMap[day].net += row.net_total
+              }
+              const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
+              return (
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-7 border-b border-border">
+                    {["일", "월", "화", "수", "목", "금", "토"].map(d => (
+                      <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7">
+                    {cells.map((day, i) => {
+                      if (!day) return <div key={`empty-${i}`} className="h-20 border-b border-r border-border last:border-r-0" />
+                      const dateStr = `${calYear}-${String(calMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+                      const d = dataMap[String(day)]
+                      const isSelected = calSelectedDate === dateStr
+                      const isToday = new Date().toISOString().slice(0, 10) === dateStr
+                      return (
+                        <button key={day} onClick={() => {
+                          setCalSelectedDate(dateStr); setMemberDetail(null); setExpandedUser(null)
+                          loadCalendar(calYear, calMonth, calBranchFilter || undefined, dateStr)
+                        }}
+                          className={`h-20 p-1.5 border-b border-r border-border last:border-r-0 text-left transition-colors hover:bg-secondary/50 ${isSelected ? "bg-primary/10 border-primary/30" : ""}`}
+                        >
+                          <span className={`text-xs font-medium ${isToday ? "w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center" : "text-foreground"}`}>{day}</span>
+                          {d && (
+                            <div className="mt-1 space-y-0.5">
+                              <p className="text-[9px] text-emerald-600 font-medium">+{(d.charge / 10000).toFixed(0)}만</p>
+                              {d.exchange > 0 && <p className="text-[9px] text-red-500">-{(d.exchange / 10000).toFixed(0)}만</p>}
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {/* 월 합계 */}
+                  <div className="px-5 py-3 border-t border-border bg-muted/30 flex gap-6 text-sm">
+                    <span className="text-muted-foreground">월 합계</span>
+                    <span className="text-emerald-600 font-semibold">충전 +{calData.reduce((s, r) => s + r.charge_total, 0).toLocaleString()}</span>
+                    <span className="text-red-500 font-semibold">환전 -{calData.reduce((s, r) => s + r.exchange_total, 0).toLocaleString()}</span>
+                    <span className="font-bold text-foreground">순이익 {calData.reduce((s, r) => s + r.net_total, 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* 날짜 클릭 시 회원 상세 */}
+            {calSelectedDate && memberDetail && (
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h2 className="text-sm font-semibold text-foreground">{calSelectedDate} 지점별 회원 상세</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">{memberDetail.branch} · {memberDetail.members?.length ?? 0}명</p>
+                </div>
+
+                {/* 랭킹 */}
+                {memberDetail.members?.length > 0 && (
+                  <div className="px-5 py-3 border-b border-border bg-muted/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Trophy className="w-3.5 h-3.5 text-yellow-500" />
+                      <span className="text-xs font-semibold text-foreground">배팅 랭킹</span>
+                    </div>
+                    <div className="space-y-1">
+                      {memberDetail.members.slice(0, 5).map((m: any, idx: number) => (
+                        <div key={m.userId} className="flex items-center gap-3 text-xs">
+                          <span className={`w-4 text-center font-bold ${idx === 0 ? "text-yellow-500" : idx === 1 ? "text-gray-400" : idx === 2 ? "text-amber-600" : "text-muted-foreground"}`}>{idx + 1}</span>
+                          <span className="flex-1 font-medium text-foreground">{m.username}</span>
+                          <span className="text-muted-foreground">{m.totalBets}게임</span>
+                          <span className="font-semibold text-foreground">{m.totalWagered.toLocaleString()} P</span>
+                          <span className={`font-medium ${m.totalProfit >= 0 ? "text-emerald-600" : "text-red-500"}`}>{m.totalProfit >= 0 ? "+" : ""}{m.totalProfit.toLocaleString()}</span>
+                          <span className="text-muted-foreground">{m.winRate}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 회원별 상세 */}
+                <div className="divide-y divide-border">
+                  {(memberDetail.members ?? []).length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">게임 기록이 없습니다.</p>}
+                  {(memberDetail.members ?? []).map((m: any) => (
+                    <div key={m.userId}>
+                      <button className="w-full px-5 py-4 flex items-center justify-between hover:bg-secondary/40 transition-colors" onClick={() => setExpandedUser(expandedUser === m.userId ? null : m.userId)}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span className="text-xs font-semibold text-primary">{m.username.charAt(0)}</span>
+                          </div>
+                          <div className="text-left">
+                            <p className="text-sm font-medium text-foreground">{m.username}</p>
+                            <p className="text-xs text-muted-foreground">충전 {m.chargeAmount.toLocaleString()} P · {m.totalBets}게임 · 승률 {m.winRate}%</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-xs text-muted-foreground">총배팅</p>
+                            <p className="text-sm font-semibold text-foreground">{m.totalWagered.toLocaleString()} P</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-muted-foreground">수익</p>
+                            <p className={`text-sm font-semibold ${m.totalProfit >= 0 ? "text-emerald-600" : "text-red-500"}`}>{m.totalProfit >= 0 ? "+" : ""}{m.totalProfit.toLocaleString()}</p>
+                          </div>
+                          {expandedUser === m.userId ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                        </div>
+                      </button>
+
+                      {/* 베팅 상세 */}
+                      {expandedUser === m.userId && (
+                        <div className="px-5 pb-4 bg-muted/20">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-border text-muted-foreground">
+                                  <th className="py-2 text-left font-medium">라운드</th>
+                                  <th className="py-2 text-left font-medium">게임</th>
+                                  <th className="py-2 text-left font-medium">배팅</th>
+                                  <th className="py-2 text-right font-medium">배팅액</th>
+                                  <th className="py-2 text-right font-medium">배당</th>
+                                  <th className="py-2 text-right font-medium">결과</th>
+                                  <th className="py-2 text-right font-medium">수익</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {m.bets.map((b: any, bi: number) => (
+                                  <tr key={bi} className="text-foreground">
+                                    <td className="py-1.5 font-mono text-[10px] text-muted-foreground">{b.round_id}</td>
+                                    <td className="py-1.5">{b.game === "baka" ? "바카라" : "레이스"}</td>
+                                    <td className="py-1.5">{b.bet_side ?? b.bet_position}</td>
+                                    <td className="py-1.5 text-right">{b.amount?.toLocaleString()}</td>
+                                    <td className="py-1.5 text-right">{b.payout_multiplier?.toFixed(2)}x</td>
+                                    <td className="py-1.5 text-right">
+                                      <span className={`px-1.5 py-0.5 rounded-full font-medium ${b.result === "win" ? "bg-emerald-100 text-emerald-700" : b.result === "lose" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600"}`}>
+                                        {b.result === "win" ? "승" : b.result === "lose" ? "패" : b.result ?? "-"}
+                                      </span>
+                                    </td>
+                                    <td className={`py-1.5 text-right font-semibold ${(b.profit ?? 0) >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                                      {(b.profit ?? 0) >= 0 ? "+" : ""}{b.profit?.toLocaleString() ?? 0}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
