@@ -6,13 +6,6 @@ import { NextResponse } from "next/server"
  * race_results 테이블 사용
  */
 export async function POST(request: Request) {
-  // Railway price-server 전용 인증
-  const secret = request.headers.get("x-internal-secret")
-  const expected = process.env.INTERNAL_SECRET || "tasko-internal"
-  if (secret !== expected) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   try {
     const { time, price, bit_score, coin_score, winner } = await request.json()
 

@@ -11,20 +11,20 @@ export const runtime = "nodejs"
 
 export async function GET() {
   const now = Math.floor(Date.now() / 1000)
-  const currentRound = Math.floor(now / 180)
+  const currentRound = Math.floor(now / 300)
 
-  // 최근 20라운드(1시간)에서 누락된 것만 채움
-  const roundsToCheck = Array.from({ length: 20 }, (_, i) => currentRound - 1 - i)
+  // 최근 12라운드(1시간)에서 누락된 것만 채움
+  const roundsToCheck = Array.from({ length: 12 }, (_, i) => currentRound - 1 - i)
 
   // DB에 이미 있는 time 목록 조회
-  const timesToCheck = roundsToCheck.map(r => r * 180)
+  const timesToCheck = roundsToCheck.map(r => r * 300)
   const { data: existing } = await admin
     .from("race_results")
     .select("time")
     .in("time", timesToCheck)
 
   const existingTimes = new Set((existing ?? []).map(r => r.time))
-  const missing = roundsToCheck.filter(r => !existingTimes.has(r * 180))
+  const missing = roundsToCheck.filter(r => !existingTimes.has(r * 300))
 
   if (missing.length === 0) {
     return NextResponse.json({ ok: true, backfilled: 0 })
@@ -33,8 +33,8 @@ export async function GET() {
   const saved: number[] = []
 
   for (const round of missing) {
-    const roundEnd   = round * 180                 // 라운드 종료 경계
-    const roundStart = (round - 1) * 180 + 1      // 직전 라운드 종료 +1초 ~ 이 라운드 종료
+    const roundEnd   = round * 300                 // 라운드 종료 경계
+    const roundStart = (round - 1) * 300 + 1      // 직전 라운드 종료 +1초 ~ 이 라운드 종료
 
     const { data: rows } = await admin
       .from("btc_closing_prices")

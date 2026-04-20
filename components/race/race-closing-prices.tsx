@@ -95,7 +95,7 @@ export function RaceClosingPrices() {
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, letterSpacing: "0.04em" }}>
-          3분 레이스 결과 (최근 {expanded ? "20" : "10"}라운드)
+          5분 레이스 결과 (최근 {expanded ? "20" : "10"}라운드)
         </h3>
         <button
           onClick={() => setExpanded(v => !v)}

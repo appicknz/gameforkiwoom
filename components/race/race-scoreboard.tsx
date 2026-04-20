@@ -237,7 +237,7 @@ function DigitFlash({ digit, color, label }: { digit: number | null; color: stri
 
   useEffect(() => {
     if (digit === null) return
-    // digit 값이 같아도 새 tick이면 항상 �����������애니메이션
+    // digit 값이 같아도 새 tick이면 항상 �����애니메이션
     tickRef.current += 1
     setTick(tickRef.current)
     prevDigit.current = digit
@@ -247,8 +247,8 @@ function DigitFlash({ digit, color, label }: { digit: number | null; color: stri
   return <DigitFlashInner key={tick} digit={digit} color={color} label={label} />
 }
 
-// 3단계 카운트다운: 정산(10s) / 배팅(50s) / 게임중(120s) — 180초(3분) 라운드 기준
-// secondsInRound: 0~9 정산, 10~59 배팅, 60~179 게임중
+// 3단계 카운트다운: 정산(10s) / 배팅(50s) / 게임중(238s) — 300초 라운드 기준
+// secondsInRound: 0~9 정산, 10~59 배팅, 60~297 게임중
 function PhaseCountdown({ secondsInRound }: { secondsInRound: number }) {
   const phases = [
     {
@@ -269,11 +269,11 @@ function PhaseCountdown({ secondsInRound }: { secondsInRound: number }) {
     },
     {
       label: "게임중",
-      duration: 120,
-      active: secondsInRound >= 60,
-      countdown: secondsInRound >= 60 ? 180 - secondsInRound : 120,
-      color: secondsInRound >= 170 ? "#ef4444" : "#f97316",
-      pct: secondsInRound >= 60 ? (180 - secondsInRound) / 120 : 0,
+      duration: 238,
+      active: secondsInRound >= 60 && secondsInRound < 298,
+      countdown: secondsInRound >= 60 && secondsInRound < 298 ? 298 - secondsInRound : 238,
+      color: secondsInRound >= 293 ? "#ef4444" : "#f97316",
+      pct: secondsInRound >= 60 && secondsInRound < 298 ? (298 - secondsInRound) / 238 : 0,
     },
   ]
 
@@ -430,9 +430,8 @@ export function RaceScoreboard({ state, flashes = [] }: Props) {
         const bitPct  = total === 0 ? 50 : Math.round((bitScore / total) * 100)
         const coinPct = 100 - bitPct
         const isTie   = bitScore === coinScore && total > 0
-        // 각 팀 flash 히스토리: 해당 팀 점수가 0인 항목은 표시하지 않음
-        const recentBit  = flashes.filter(f => f.bit  > 0).slice(0, 5).map(f => f.bit)
-        const recentCoin = flashes.filter(f => f.coin > 0).slice(0, 5).map(f => f.coin)
+        const recentBit  = flashes.slice(0, 5).map(f => f.bit)
+        const recentCoin = flashes.slice(0, 5).map(f => f.coin)
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
             {/* BIT 히스토리 / 잭팟 / COIN 히스토리 */}

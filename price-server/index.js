@@ -64,19 +64,16 @@ let prevBucketLastPrice = null;
 let lastPriceBroadcastSec = 0;
 
 // ─── Race 스코어 서버 계산 ──────────────────────────────────────────
-// 3분(180초) 라운드: 0~9초=정산, 10~59초=배팅, 60~179초=레이싱(120초)
+// 3분(180초) 라운드: 0~9초=정산, 10~59초=배팅, 60~179초=레이싱
 // 1초 price tick마다 레이싱 구간이면 bit(소수점 첫째)·coin(소수점 둘째) 누적
 // 모든 클라이언트에 동일한 값을 브로드캐스트 → 기기/접속 시점 무관
 const RACE_ROUND_SEC = 180;
-const RACE_BETTING_SEC = 60;   // 레이싱 시작 offset (0~59초=정산+배팅, 60초부터 레이싱)
-const RACE_RACING_END = 180;   // 레이싱 종료 offset (60~179초 = 120초)
+const RACE_BETTING_SEC = 60;   // 배팅 시작 offset (0~9초=정산, 10초부터 배팅)
 
 // roundId → { bit, coin } 현재 라운드 스코어 (이전 라운드는 폐기)
 let raceCurrentRoundId = -1;
-let raceBitScore  = 0;
+let raceBitScore = 0;
 let raceCoinScore = 0;
-let raceLastD1 = 0;   // 이번 tick 소수점 첫째 (BIT, 0~9)
-let raceLastD2 = 0;   // 이번 tick 소수점 둘째 (COIN, 0~9)
 
 function getRaceRoundId(nowSec) {
   return Math.floor(nowSec / RACE_ROUND_SEC);
@@ -85,70 +82,23 @@ function getRaceSecInRound(nowSec) {
   return nowSec % RACE_ROUND_SEC;
 }
 
-// ─── 레이스 결과 저장 — Vercel /api/race-results에 POST ────────────
-function saveRaceResult(roundId, bit, coin, closePrice) {
-  if (!VERCEL_URL) {
-    console.log("[race] No VERCEL_URL, skipping race result save");
-    return;
-  }
-  const roundTime = roundId * RACE_ROUND_SEC; // 라운드 종료 시각(초)
-  const winner = bit > coin ? "bit" : coin > bit ? "coin" : "tie";
-  const url = `${VERCEL_URL}/api/race-results`;
-  const body = JSON.stringify({
-    time: roundTime,
-    price: closePrice,
-    bit_score: bit,
-    coin_score: coin,
-    winner,
-  });
-  const options = {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-internal-secret": process.env.INTERNAL_SECRET || "tasko-internal",
-    },
-  };
-  const req = url.startsWith("https")
-    ? require("https").request(url, options, (res) => {
-        console.log(`[race] result saved: round=${roundId} time=${roundTime} bit=${bit} coin=${coin} winner=${winner} status=${res.statusCode}`);
-      })
-    : require("http").request(url, options, (res) => {
-        console.log(`[race] result saved: round=${roundId} time=${roundTime} bit=${bit} coin=${coin} winner=${winner} status=${res.statusCode}`);
-      });
-  req.on("error", (e) => console.error("[race] save error:", e.message));
-  req.write(body);
-  req.end();
-}
-
 function updateRaceScore(price, nowSec) {
   const roundId = getRaceRoundId(nowSec);
   const secInRound = getRaceSecInRound(nowSec);
 
-  // 새 라운드 진입 → 직전 라운드 결과 저장 후 스코어 초기화
-  if (roundId !== raceCurrentRoundId && raceCurrentRoundId !== -1) {
-    // closePrice: 방금 전환 직전 마지막 가격
-    const closePrice = lastTradePrice ?? 0;
-    console.log(`[race] round ${raceCurrentRoundId} ended → bit=${raceBitScore} coin=${raceCoinScore} price=${closePrice}`);
-    saveRaceResult(raceCurrentRoundId, raceBitScore, raceCoinScore, closePrice);
+  // 새 라운드 진입 → 스코어 초기화
+  if (roundId !== raceCurrentRoundId) {
+    raceCurrentRoundId = roundId;
     raceBitScore = 0;
     raceCoinScore = 0;
   }
-  if (roundId !== raceCurrentRoundId) {
-    raceCurrentRoundId = roundId;
-  }
 
-  // 레이싱 구간(60~179초 = 120초)에서만 득점
-  if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_RACING_END) {
-    raceLastD1 = 0;
-    raceLastD2 = 0;
-    return;
-  }
+  // 레이싱 구간(60~298초)에서만 득점
+  if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_ROUND_SEC - 2) return;
 
   const dec = price.toFixed(2).split(".")[1] ?? "00";
-  raceLastD1 = parseInt(dec[0] ?? "0");
-  raceLastD2 = parseInt(dec[1] ?? "0");
-  raceBitScore  += raceLastD1;
-  raceCoinScore += raceLastD2;
+  raceBitScore  += parseInt(dec[0] ?? "0");
+  raceCoinScore += parseInt(dec[1] ?? "0");
 }
 
 // ─── 서버 WS ───────────────────────────────────────────────────────
@@ -178,7 +128,7 @@ wss.on("connection", (ws) => {
       type: "price",
       price: latestPrice.price,
       time: latestPrice.time,
-      raceScore: { roundId: raceCurrentRoundId, bit: raceBitScore, coin: raceCoinScore, d1: raceLastD1, d2: raceLastD2 },
+      raceScore: { roundId: raceCurrentRoundId, bit: raceBitScore, coin: raceCoinScore },
     }));
   }
 
@@ -303,7 +253,7 @@ function connectTrade() {
           type: "price",
           price,
           time,
-          raceScore: { roundId: raceCurrentRoundId, bit: raceBitScore, coin: raceCoinScore, d1: raceLastD1, d2: raceLastD2 },
+          raceScore: { roundId: raceCurrentRoundId, bit: raceBitScore, coin: raceCoinScore },
         });
         // 로그 5초마다
         if (!tradeWs.lastLog || Date.now() - tradeWs.lastLog > 5000) {
