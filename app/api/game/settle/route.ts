@@ -73,12 +73,12 @@ export async function POST(request: Request) {
       lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
     // ── race 결과 계산 (3분(180초) 라운드 기준) ─────────────
-    const raceRoundNumber    = Math.floor(closeTime / 180)
+    const raceRoundNumber     = Math.floor(closeTime / 180)
     const prevRaceRoundNumber = raceRoundNumber - 1
-    // 라운드가 이번 tick에서 처음 넘어갔으면 직전 라운드 정산
-    // closeTime이 180의 배수이면 = 방금 라운드 전환 (예: 180, 360, ...)
-    // 또는 closeTime % 180 이 0 또는 30이면 첫 번째/두 번째 tick
-    const isLastRaceTick = (closeTime % 180 === 0)   // 라운드 전환 직후 첫 tick
+    // 라운드 전환 직후 첫 번째 또는 두 번째 tick (0초 or 30초 지점)
+    // closeTime % 180이 0 또는 30이면 해당 라운드의 첫/두 번째 tick
+    const secInRace = closeTime % 180
+    const isLastRaceTick = (secInRace === 0 || secInRace === 30)  // 전환 직후 2 tick 여유
     const racePoolKey     = `pool:race:${raceRoundNumber}`
     const raceUserSetKey  = `users:race:${raceRoundNumber}`
     // 서버측 race 스코어 누적 키 (30초 tick마다 합산)
@@ -221,7 +221,7 @@ export async function POST(request: Request) {
     }
     if (!roundFinalOdds) {
       // fallback: 지점 LP 설정으로 settle 시점 풀 재계산
-      // 첫 번째 유저의 branch_id로 LP 설정 조회
+      // 첫 번째 유저의 branch_id��� LP 설정 조회
       const firstUserId = (userIds as string[])[0]
       let lpCfg = DEFAULT_LP_CONFIG
       if (firstUserId) {
