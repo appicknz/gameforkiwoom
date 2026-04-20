@@ -24,7 +24,7 @@ export async function GET() {
     .in("time", timesToCheck)
 
   const existingTimes = new Set((existing ?? []).map(r => r.time))
-  const missing = roundsToCheck.filter(r => !existingTimes.has(r * 300))
+  const missing = roundsToCheck.filter(r => !existingTimes.has(r * 180))
 
   if (missing.length === 0) {
     return NextResponse.json({ ok: true, backfilled: 0 })

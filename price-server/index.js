@@ -82,18 +82,59 @@ function getRaceSecInRound(nowSec) {
   return nowSec % RACE_ROUND_SEC;
 }
 
+// ─── 레이스 결과 저장 — Vercel /api/race-results에 POST ────────────
+function saveRaceResult(roundId, bit, coin, closePrice) {
+  if (!VERCEL_URL) {
+    console.log("[race] No VERCEL_URL, skipping race result save");
+    return;
+  }
+  const roundTime = roundId * RACE_ROUND_SEC; // 라운드 종료 시각(초)
+  const winner = bit > coin ? "bit" : coin > bit ? "coin" : "tie";
+  const url = `${VERCEL_URL}/api/race-results`;
+  const body = JSON.stringify({
+    time: roundTime,
+    price: closePrice,
+    bit_score: bit,
+    coin_score: coin,
+    winner,
+  });
+  const options = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-internal-secret": process.env.INTERNAL_SECRET || "tasko-internal",
+    },
+  };
+  const req = url.startsWith("https")
+    ? require("https").request(url, options, (res) => {
+        console.log(`[race] result saved: round=${roundId} time=${roundTime} bit=${bit} coin=${coin} winner=${winner} status=${res.statusCode}`);
+      })
+    : require("http").request(url, options, (res) => {
+        console.log(`[race] result saved: round=${roundId} time=${roundTime} bit=${bit} coin=${coin} winner=${winner} status=${res.statusCode}`);
+      });
+  req.on("error", (e) => console.error("[race] save error:", e.message));
+  req.write(body);
+  req.end();
+}
+
 function updateRaceScore(price, nowSec) {
   const roundId = getRaceRoundId(nowSec);
   const secInRound = getRaceSecInRound(nowSec);
 
-  // 새 라운드 진입 → 스코어 초기화
-  if (roundId !== raceCurrentRoundId) {
-    raceCurrentRoundId = roundId;
+  // 새 라운드 진입 → 직전 라운드 결과 저장 후 스코어 초기화
+  if (roundId !== raceCurrentRoundId && raceCurrentRoundId !== -1) {
+    // closePrice: 방금 전환 직전 마지막 가격
+    const closePrice = lastTradePrice ?? 0;
+    console.log(`[race] round ${raceCurrentRoundId} ended → bit=${raceBitScore} coin=${raceCoinScore} price=${closePrice}`);
+    saveRaceResult(raceCurrentRoundId, raceBitScore, raceCoinScore, closePrice);
     raceBitScore = 0;
     raceCoinScore = 0;
   }
+  if (roundId !== raceCurrentRoundId) {
+    raceCurrentRoundId = roundId;
+  }
 
-  // 레이싱 구간(60~298초)에서만 득점
+  // 레이싱 구간(60~177초)에서만 득점
   if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_ROUND_SEC - 2) return;
 
   const dec = price.toFixed(2).split(".")[1] ?? "00";
