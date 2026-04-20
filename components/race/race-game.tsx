@@ -137,20 +137,25 @@ export function useRaceGame() {
   // phase 필터 제거: 타이머(500ms poll)와 score(1s push) 타이밍 오차로 racing 진입 전에 차단될 수 있음
   useEffect(() => {
     const onRaceScore = (e: Event) => {
-      const { roundId, bit, coin } = (e as CustomEvent<{ roundId: number; bit: number; coin: number }>).detail
+      const { roundId, bit, coin, d1, d2 } = (e as CustomEvent<{ roundId: number; bit: number; coin: number; d1?: number; d2?: number }>).detail
 
       setState(prev => {
-        // 새 라운드 전환 감지: roundId가 바뀌면 스코어 초기화
+        // 새 라운드 전환 감지: roundId가 바뀌면 스코어 초기화 (flash 없음)
         if (roundId !== prev.roundId) {
           return { ...prev, roundId, bitScore: 0, coinScore: 0, lastBitDigit: null, lastCoinDigit: null }
         }
 
-        // 플래시: 이전 스코어와 diff로 이번 tick 득점 계산
-        const bitDiff  = bit  - prev.bitScore
-        const coinDiff = coin - prev.coinScore
-        if (bitDiff > 0 || coinDiff > 0) {
+        // 스코어가 이전과 동일하면 (레이싱 구간 밖 tick) flash 없이 그대로 유지
+        if (bit === prev.bitScore && coin === prev.coinScore) return prev
+
+        // d1/d2: 서버가 이번 tick에 누적한 소수점 끝자리 (0~9)
+        // 레이싱 구간에서만 d1/d2 > 0으로 옴
+        const tickD1 = d1 ?? 0
+        const tickD2 = d2 ?? 0
+
+        if (tickD1 > 0 || tickD2 > 0) {
           setFlashes(f => [
-            { id: flashId.current++, bit: bitDiff, coin: coinDiff, price: 0, ts: Date.now() },
+            { id: flashId.current++, bit: tickD1, coin: tickD2, price: 0, ts: Date.now() },
             ...f.slice(0, 49),
           ])
         }
@@ -159,8 +164,9 @@ export function useRaceGame() {
           ...prev,
           bitScore:  bit,
           coinScore: coin,
-          lastBitDigit:  bitDiff  > 0 ? bitDiff  : prev.lastBitDigit,
-          lastCoinDigit: coinDiff > 0 ? coinDiff : prev.lastCoinDigit,
+          // flash 숫자: 이번 tick 소수점 끝자리(0~9). 0이면 이전 값 유지 (flash 안 뜸)
+          lastBitDigit:  tickD1 > 0 ? tickD1 : prev.lastBitDigit,
+          lastCoinDigit: tickD2 > 0 ? tickD2 : prev.lastCoinDigit,
         }
       })
     }

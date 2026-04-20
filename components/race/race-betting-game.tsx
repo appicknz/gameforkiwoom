@@ -497,13 +497,9 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       roundRef.current = roundNum
       setRoundNumber(roundNum)
 
-      // 라운드 전환 감지 → 스코어 초기화
+      // 라운드 전환 감지 (스코어 초기화는 baka:race-score 핸들러에서 처리)
       if (prevRoundRef.current !== roundNum) {
         prevRoundRef.current = roundNum
-        bitScoreRef.current = 0
-        coinScoreRef.current = 0
-        setBitScore(0)
-        setCoinScore(0)
       }
 
       // 정산 트리거: secInRound === 179 (라운드 마지막 1초)
@@ -547,23 +543,29 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   useEffect(() => { isDealingRef.current = isDealing }, [isDealing])
   useEffect(() => { onScoreChangeRef.current = onScoreChange }, [onScoreChange])
 
-  // 매 초 baka:price 구독 → 딜링 중에만 스코어 누적
+  // baka:race-score 구독 → 서버 계산 스코어를 그대로 사용 (자체 누적 제거)
   useEffect(() => {
     const handler = (e: Event) => {
-      if (!isDealingRef.current) return
-      const { price } = (e as CustomEvent<{ price: number; time: number }>).detail
-      const dec = price.toFixed(2).split(".")[1] ?? "00"
-      const d1 = parseInt(dec[0] ?? "0")   // BIT팀: 소수점 첫째
-      const d2 = parseInt(dec[1] ?? "0")   // COIN팀: 소수점 둘째
-      bitScoreRef.current += d1
-      coinScoreRef.current += d2
-      setBitScore(bitScoreRef.current)
-      setCoinScore(coinScoreRef.current)
-      onScoreChangeRef.current?.(bitScoreRef.current, coinScoreRef.current)
+      const { roundId, bit, coin } = (e as CustomEvent<{ roundId: number; bit: number; coin: number }>).detail
+      // 라운드 전환 시 초기화
+      if (roundId !== roundRef.current) {
+        bitScoreRef.current = 0
+        coinScoreRef.current = 0
+        setBitScore(0)
+        setCoinScore(0)
+        return
+      }
+      // 스코어 동일하면 무시 (레이싱 구간 밖 tick)
+      if (bit === bitScoreRef.current && coin === coinScoreRef.current) return
+      bitScoreRef.current = bit
+      coinScoreRef.current = coin
+      setBitScore(bit)
+      setCoinScore(coin)
+      onScoreChangeRef.current?.(bit, coin)
     }
-    window.addEventListener("baka:price", handler)
-    return () => window.removeEventListener("baka:price", handler)
-  }, [])  // 빈 배열 → 마운트/언마운트 시 1회만 등록/해제
+    window.addEventListener("baka:race-score", handler)
+    return () => window.removeEventListener("baka:race-score", handler)
+  }, [])
 
   // 라운드 마감 정산 — race:settle 이벤트로 트리거 (타이머 tick에서 secInRound===179에 발행)
   useEffect(() => {

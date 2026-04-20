@@ -65,10 +65,10 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
             window.dispatchEvent(new CustomEvent("baka:price", {
               detail: { price: data.price, time: data.time }
             }))
-            // race 스코어가 포함된 경우 race-game에 전달
+            // race 스코어가 포함된 경우 race-game에 전달 (d1/d2: 이번 tick 소수점 끝자리)
             if (data.raceScore) {
               window.dispatchEvent(new CustomEvent("baka:race-score", {
-                detail: data.raceScore  // { roundId, bit, coin }
+                detail: data.raceScore  // { roundId, bit, coin, d1, d2 }
               }))
             }
             return

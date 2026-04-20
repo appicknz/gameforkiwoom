@@ -73,8 +73,10 @@ const RACE_RACING_END = 180;   // 레이싱 종료 offset (60~179초 = 120초)
 
 // roundId → { bit, coin } 현재 라운드 스코어 (이전 라운드는 폐기)
 let raceCurrentRoundId = -1;
-let raceBitScore = 0;
+let raceBitScore  = 0;
 let raceCoinScore = 0;
+let raceLastD1 = 0;   // 이번 tick 소수점 첫째 (BIT, 0~9)
+let raceLastD2 = 0;   // 이번 tick 소수점 둘째 (COIN, 0~9)
 
 function getRaceRoundId(nowSec) {
   return Math.floor(nowSec / RACE_ROUND_SEC);
@@ -136,11 +138,17 @@ function updateRaceScore(price, nowSec) {
   }
 
   // 레이싱 구간(60~179초 = 120초)에서만 득점
-  if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_RACING_END) return;
+  if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_RACING_END) {
+    raceLastD1 = 0;
+    raceLastD2 = 0;
+    return;
+  }
 
   const dec = price.toFixed(2).split(".")[1] ?? "00";
-  raceBitScore  += parseInt(dec[0] ?? "0");
-  raceCoinScore += parseInt(dec[1] ?? "0");
+  raceLastD1 = parseInt(dec[0] ?? "0");
+  raceLastD2 = parseInt(dec[1] ?? "0");
+  raceBitScore  += raceLastD1;
+  raceCoinScore += raceLastD2;
 }
 
 // ─── 서버 WS ───────────────────────────────────────────────────────
@@ -170,7 +178,7 @@ wss.on("connection", (ws) => {
       type: "price",
       price: latestPrice.price,
       time: latestPrice.time,
-      raceScore: { roundId: raceCurrentRoundId, bit: raceBitScore, coin: raceCoinScore },
+      raceScore: { roundId: raceCurrentRoundId, bit: raceBitScore, coin: raceCoinScore, d1: raceLastD1, d2: raceLastD2 },
     }));
   }
 
@@ -295,7 +303,7 @@ function connectTrade() {
           type: "price",
           price,
           time,
-          raceScore: { roundId: raceCurrentRoundId, bit: raceBitScore, coin: raceCoinScore },
+          raceScore: { roundId: raceCurrentRoundId, bit: raceBitScore, coin: raceCoinScore, d1: raceLastD1, d2: raceLastD2 },
         });
         // 로그 5초마다
         if (!tradeWs.lastLog || Date.now() - tradeWs.lastLog > 5000) {
