@@ -304,7 +304,7 @@ export default function RacePage() {
                 <BitcoinChart mode="race" />
             </div>
 
-            {/* 5분 마감 기준가 + 게임 규칙 */}
+            {/* 3분 마감 기준가 + 게임 규칙 */}
             <div style={{
               background: "rgba(5,13,10,0.95)",
               border: "1px solid rgba(212,175,55,0.2)",
@@ -316,11 +316,11 @@ export default function RacePage() {
               <div style={{ marginBottom: 16, padding: "12px", background: "rgba(212,175,55,0.04)", borderRadius: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, marginBottom: 8 }}>게임 규칙</div>
                 <div style={{ fontSize: 11, color: "rgba(212,175,55,0.6)", lineHeight: 1.6 }}>
-                  · 10초 정산 → 50초 배팅 → 2분 레이싱<br />
+                  · 10초 정산 → 50초 배팅 → 2분(120초) 레이싱<br />
                   · 매 초 BTC 현재가 수신<br />
                   · <span style={{ color: BIT_COLOR }}>BIT팀</span>: 소수점 첫째 자리 누적<br />
                   · <span style={{ color: COIN_COLOR }}>COIN팀</span>: 소수점 둘째 자리 누적<br />
-                  · 4분 후 더 높은 팀 승리
+                  · 3분 후 더 높은 팀 승리
                 </div>
               </div>
 

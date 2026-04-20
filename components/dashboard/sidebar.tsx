@@ -271,8 +271,8 @@ export function Sidebar() {
               )}>
                 <div className="flex flex-col gap-0.5">
                   <p className="text-sm font-semibold text-foreground">차트차트</p>
-                  <p className="text-[11px] text-muted-foreground">비트코인 5분 레이스</p>
-                  <p className="text-[10px] text-muted-foreground/60 tabular-nums mt-0.5">#{Math.floor(Date.now() / 1000 / 300).toLocaleString()} 라운드</p>
+                  <p className="text-[11px] text-muted-foreground">비트코인 3분 레이스</p>
+                  <p className="text-[10px] text-muted-foreground/60 tabular-nums mt-0.5">#{Math.floor(Date.now() / 1000 / 180).toLocaleString()} 라운드</p>
                 </div>
                 <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
               </div>
