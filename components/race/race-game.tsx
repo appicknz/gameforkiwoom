@@ -8,14 +8,14 @@ export type RacePhase = "betting" | "racing" | "result"
 export interface RaceState {
   phase: RacePhase
   timeLeft: number       // 남은 초
-  roundId: number        // Math.floor(now / 300)
+  roundId: number        // Math.floor(now / 180)
   bitScore: number       // BIT팀 누적 (소수점 첫째)
   coinScore: number      // COIN팀 누적 (소수점 둘째)
   winner: "bit" | "coin" | "tie" | null
   lastPrice: number | null
   lastBitDigit: number | null
   lastCoinDigit: number | null
-  secondsInRound: number // 라운드 내 경과 초 (0~299)
+  secondsInRound: number // 라운드 내 경과 초 (0~179)
 }
 
 interface ScoreFlashEntry {
@@ -26,9 +26,9 @@ interface ScoreFlashEntry {
   ts: number
 }
 
-// 300초(5분) 라운드 — 서버/Redis와 동일하게 유지 필수
-// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~297초 게임중(238s), 298~299초 결과
-const ROUND_SEC   = 300
+// 180초(3분) 라운드 — 서버/Redis와 동일하게 유지 필수
+// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~177초 게임중(118s), 178~179초 결과
+const ROUND_SEC   = 180
 const SETTLE_SEC  = 10  // 0~9초: 정산
 const BETTING_SEC = 60  // 10~59초: 배팅 (50초)
 
@@ -61,17 +61,18 @@ export function useRaceGame() {
       const sec    = getSecondsInRound(nowSec)
       const roundId = getRoundId(nowSec)
 
-      // 0~9s: result(정산 10s), 10~59s: betting(배팅 50s), 60~297s: racing(게임중 238s), 298~299s: result
+      // 0~9s: result(정산 10s), 10~59s: betting(배팅 50s), 60~177s: racing(게임중 118s), 178~179s: result
+      const RACING_END = ROUND_SEC - 2  // 178초
       const phase: RacePhase =
-        sec < SETTLE_SEC       ? "result"
-        : sec < BETTING_SEC    ? "betting"
-        : sec < ROUND_SEC - 2  ? "racing"
+        sec < SETTLE_SEC    ? "result"
+        : sec < BETTING_SEC ? "betting"
+        : sec < RACING_END  ? "racing"
         : "result"
 
       const timeLeft =
         phase === "result" && sec < SETTLE_SEC ? SETTLE_SEC - sec
         : phase === "betting" ? BETTING_SEC - sec
-        : phase === "racing"  ? ROUND_SEC - 2 - sec
+        : phase === "racing"  ? RACING_END - sec
         : 0
 
       setState(prev => {
