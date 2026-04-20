@@ -27,9 +27,9 @@ interface ScoreFlashEntry {
 }
 
 // 180초(3분) 라운드 — race-betting-game.tsx / price-server와 동일하게 유지 필수
-// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~177초 게임중(118s), 178~179초 결과
+// 페이즈: 0~9초 정산+결과표시(10s), 10~59초 배팅(50s), 60~179초 게임중(120s)
 const ROUND_SEC   = 180
-const SETTLE_SEC  = 10  // 0~9초: 정산
+const SETTLE_SEC  = 10  // 0~9초: 정산 (직전 라운드 결과 표시)
 const BETTING_SEC = 60  // 10~59초: 배팅 (50초)
 
 function getRoundId(nowSec: number) { return Math.floor(nowSec / ROUND_SEC) }
@@ -61,18 +61,16 @@ export function useRaceGame() {
       const sec    = getSecondsInRound(nowSec)
       const roundId = getRoundId(nowSec)
 
-      // 0~9s: result(정산 10s), 10~59s: betting(배팅 50s), 60~177s: racing(게임중 118s), 178~179s: result
+      // 0~9s: result(정산+결과표시 10s), 10~59s: betting(배팅 50s), 60~179s: racing(게임중 120s)
       const phase: RacePhase =
-        sec < SETTLE_SEC       ? "result"
-        : sec < BETTING_SEC    ? "betting"
-        : sec < ROUND_SEC - 2  ? "racing"
-        : "result"
+        sec < SETTLE_SEC    ? "result"
+        : sec < BETTING_SEC ? "betting"
+        : "racing"
 
       const timeLeft =
-        phase === "result" && sec < SETTLE_SEC ? SETTLE_SEC - sec
+        phase === "result"  ? SETTLE_SEC - sec
         : phase === "betting" ? BETTING_SEC - sec
-        : phase === "racing"  ? (ROUND_SEC - 2) - sec
-        : 0
+        : ROUND_SEC - sec
 
       setState(prev => {
         if (prev.roundId !== roundId) {
