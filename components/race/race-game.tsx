@@ -39,17 +39,32 @@ function getSecondsInRound(nowSec: number) { return nowSec % ROUND_SEC }
 // 기기/접속 시점에 관계없이 모든 클라이언트가 항상 동일한 스코어를 가짐
 
 export function useRaceGame() {
-  const [state, setState] = useState<RaceState>({
-    phase: "betting",
-    timeLeft: BETTING_SEC,
-    roundId: 0,
-    bitScore: 0,
-    coinScore: 0,
-    winner: null,
-    lastPrice: null,
-    lastBitDigit: null,
-    lastCoinDigit: null,
-    secondsInRound: 0,
+  const [state, setState] = useState<RaceState>(() => {
+    // 초기값을 실제 현재 시각 기준으로 계산
+    // roundId: 0으로 시작하면 타이머 tick에서 매번 "새 라운드"로 판정해 스코어가 0으로 리셋됨
+    const nowSec = Math.floor(Date.now() / 1000)
+    const sec    = getSecondsInRound(nowSec)
+    const roundId = getRoundId(nowSec)
+    const phase: RacePhase =
+      sec < SETTLE_SEC    ? "result"
+      : sec < BETTING_SEC ? "betting"
+      : "racing"
+    const timeLeft =
+      phase === "result"    ? SETTLE_SEC - sec
+      : phase === "betting" ? BETTING_SEC - sec
+      : ROUND_SEC - sec
+    return {
+      phase,
+      timeLeft,
+      roundId,
+      bitScore: 0,
+      coinScore: 0,
+      winner: null,
+      lastPrice: null,
+      lastBitDigit: null,
+      lastCoinDigit: null,
+      secondsInRound: sec,
+    }
   })
   const [flashes, setFlashes] = useState<ScoreFlashEntry[]>([])
   const flashId = useRef(0)
