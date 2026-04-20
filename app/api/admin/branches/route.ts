@@ -1,68 +1,53 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { createClient } from "@supabase/supabase-js"
+import { verifySession } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
-// 토큰으로 user 검증하는 헬퍼
-async function getUserFromToken(token: string) {
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-  const { data, error } = await anonClient.auth.getUser(token)
-  if (error || !data.user) return null
-  return data.user
-}
+const SUPER_ROLES = ['master', 'super_admin']
+const ALLOWED_ROLES = ['master', 'super_admin', 'branch_admin', 'admin']
 
-// 지점 목록 조회 (master/super_admin만)
+// 지점 목록 조회
 export async function GET(req: Request) {
-  const authHeader = req.headers.get('authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'JWT token required' }, { status: 401 })
-  }
-
-  const token = authHeader.slice(7)
-  const authUser = await getUserFromToken(token)
-  if (!authUser) return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
+  const auth = await verifySession(req)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: requester } = await adminSupabase
     .from('profiles')
-    .select('id, role')
-    .eq('id', authUser.id)
+    .select('id, role, branch_code')
+    .eq('id', auth.userId)
     .single()
 
-  if (!requester || !['master', 'super_admin'].includes(requester.role)) {
+  if (!requester || !ALLOWED_ROLES.includes(requester.role)) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
-  const { data, error } = await adminSupabase
+  let query = adminSupabase
     .from("branches")
     .select("id, code, name, status, owner_email, created_at, betting_mode, lp_enabled, lp_amount")
     .order("created_at", { ascending: false })
 
+  // branch_admin/admin은 자기 지점만
+  if (!SUPER_ROLES.includes(requester.role) && requester.branch_code) {
+    query = query.eq("code", requester.branch_code)
+  }
+
+  const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ branches: data ?? [] })
 }
 
 // 지점 생성 (master/super_admin만)
 export async function POST(req: Request) {
-  const authHeader = req.headers.get('authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'JWT token required' }, { status: 401 })
-  }
-
-  const token = authHeader.slice(7)
-  const authUser = await getUserFromToken(token)
-  if (!authUser) return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
+  const auth = await verifySession(req)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: requester } = await adminSupabase
     .from('profiles')
     .select('id, role')
-    .eq('id', authUser.id)
+    .eq('id', auth.userId)
     .single()
 
-  if (!requester || !['master', 'super_admin'].includes(requester.role)) {
+  if (!requester || !SUPER_ROLES.includes(requester.role)) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
@@ -73,7 +58,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "지점명, 코드, 관리자 아이디를 모두 입력하세요." }, { status: 400 })
   }
 
-  // 코드 중복 확인
   const { data: existing } = await adminSupabase
     .from("branches")
     .select("id")
@@ -84,7 +68,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "이미 사용 중인 지점코드입니다." }, { status: 409 })
   }
 
-  // ownerUsername으로 유저 조회 후 branch_admin 승격
   const { data: ownerProfile } = await adminSupabase
     .from("profiles")
     .select("id, username")
@@ -112,22 +95,16 @@ export async function POST(req: Request) {
 
 // 지점 삭제 (master/super_admin만)
 export async function DELETE(req: Request) {
-  const authHeader = req.headers.get('authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'JWT token required' }, { status: 401 })
-  }
-
-  const token = authHeader.slice(7)
-  const authUser = await getUserFromToken(token)
-  if (!authUser) return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
+  const auth = await verifySession(req)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: requester } = await adminSupabase
     .from('profiles')
     .select('id, role')
-    .eq('id', authUser.id)
+    .eq('id', auth.userId)
     .single()
 
-  if (!requester || !['master', 'super_admin'].includes(requester.role)) {
+  if (!requester || !SUPER_ROLES.includes(requester.role)) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 

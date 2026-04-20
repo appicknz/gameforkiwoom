@@ -323,29 +323,36 @@ export default function PanelPage() {
       .catch(() => router.replace("/"))
   }, [router])
 
-  const handlePwSubmit = async () => {
-    setPwError("")
-    setLoading(true)
+  const [pwChecking, setPwChecking] = useState(false)
 
-    // 입력한 비밀번호 검증 (실제 로그인 시도)
+  const handlePwSubmit = async () => {
+    if (!pwInput.trim()) return
+    setPwError("")
+    setPwChecking(true)
+
+    const token = getToken()
     const res = await fetch("/api/admin/verify-password", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({
         username: profile?.username,
         password: pwInput,
       }),
     })
 
+    setPwChecking(false)
+
     if (!res.ok) {
-      setPwError("비밀번호가 올바르지 않습니다.")
-      setLoading(false)
+      const d = await res.json().catch(() => ({}))
+      setPwError(d.error ?? "비밀번호가 올바르지 않습니다.")
       return
     }
 
     setAdminPw(pwInput)
     setPwInput("")
-    setLoading(false)
   }
 
   // 회원 목록 로드 (branch_admin은 자기 지점만)
@@ -720,7 +727,9 @@ export default function PanelPage() {
               onKeyDown={e => e.key === "Enter" && handlePwSubmit()}
             />
             {pwError && <p className="text-xs text-destructive">{pwError}</p>}
-            <Button className="w-full" onClick={handlePwSubmit}>확인</Button>
+            <Button className="w-full" onClick={handlePwSubmit} disabled={pwChecking}>
+              {pwChecking ? "확인 중..." : "확인"}
+            </Button>
           </div>
         </div>
       </div>
