@@ -15,7 +15,7 @@ export interface RaceState {
   lastPrice: number | null
   lastBitDigit: number | null
   lastCoinDigit: number | null
-  secondsInRound: number // 라운드 내 경과 초 (0~299)
+  secondsInRound: number // 라운드 내 경과 초 (0~179)
 }
 
 interface ScoreFlashEntry {
@@ -26,9 +26,9 @@ interface ScoreFlashEntry {
   ts: number
 }
 
-// 300초(5분) 라운드 — 서버/Redis와 동일하게 유지 필수
-// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~297초 게임중(238s), 298~299초 결과
-const ROUND_SEC   = 300
+// 180초(3분) 라운드 — race-betting-game.tsx / price-server와 동일하게 유지 필수
+// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~177초 게임중(118s), 178~179초 결과
+const ROUND_SEC   = 180
 const SETTLE_SEC  = 10  // 0~9초: 정산
 const BETTING_SEC = 60  // 10~59초: 배팅 (50초)
 
@@ -61,7 +61,7 @@ export function useRaceGame() {
       const sec    = getSecondsInRound(nowSec)
       const roundId = getRoundId(nowSec)
 
-      // 0~9s: result(정산 10s), 10~59s: betting(배팅 50s), 60~297s: racing(게임중 238s), 298~299s: result
+      // 0~9s: result(정산 10s), 10~59s: betting(배팅 50s), 60~177s: racing(게임중 118s), 178~179s: result
       const phase: RacePhase =
         sec < SETTLE_SEC       ? "result"
         : sec < BETTING_SEC    ? "betting"
@@ -71,7 +71,7 @@ export function useRaceGame() {
       const timeLeft =
         phase === "result" && sec < SETTLE_SEC ? SETTLE_SEC - sec
         : phase === "betting" ? BETTING_SEC - sec
-        : phase === "racing"  ? ROUND_SEC - 2 - sec
+        : phase === "racing"  ? (ROUND_SEC - 2) - sec
         : 0
 
       setState(prev => {
@@ -172,9 +172,8 @@ export function useRaceGame() {
       if (resultSavedRef.current === state.roundId) return
       resultSavedRef.current = state.roundId
 
-      // 결과 시각: 이 roundId(raceRoundNumber)의 종료 경계 = roundId * 300
-      // state.roundId 가 raceRoundNumber이므로 종료 시각은 (roundId + 1) * 300
-      const resultTime = (state.roundId + 1) * 300
+      // 결과 시각: 이 라운드의 종료 경계 = (roundId + 1) * 180
+      const resultTime = (state.roundId + 1) * ROUND_SEC
 
       // 현재가는 baka:price 마지막 수신값 사용
       const lastPrice = state.lastPrice
