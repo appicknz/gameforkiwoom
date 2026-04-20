@@ -356,7 +356,7 @@ function RaceResultSheet({ result, open, onClose }: { result: RoundResult | null
 }
 
 // ─── 메인 게임 컴포넌트 ─────────────────────────────────────────────────────
-// 5분 라운드: 0~60초=배팅, 60~300초=딜링(스코어 누적), 0초=정산
+  // 3분(180초) 라운드: 0~9초=정산, 10~59초=배팅, 60~177초=게임중(스코어 누적), 178~179초=결과
 // BIT팀(소수점 첫째자리) vs COIN팀(소수점 둘째자리) 매 초 누적
 interface RaceBettingGameProps {
   onStatusChange?: (timeLeft: number, phase: "betting" | "waiting" | "result" | "dealing") => void
@@ -565,7 +565,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     return () => window.removeEventListener("baka:price", handler)
   }, [])  // 빈 배열 → 마운트/언마운트 시 1회만 등록/해제
 
-  // 라운드 마감 정산 — race:settle 이벤트로 트리거 (타이머 tick에서 secInRound===299에 발행)
+  // 라운드 마감 정산 — race:settle 이벤트로 트리거 (타이머 tick에서 secInRound===179에 발행)
   useEffect(() => {
     const onSettle = (e: Event) => {
     const { roundNum } = (e as CustomEvent<{ roundNum: number }>).detail
