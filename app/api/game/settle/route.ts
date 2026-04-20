@@ -146,7 +146,7 @@ export async function POST(request: Request) {
       // Redis 없으면 btc_closing_prices에서 직접 집계
       if (bitScore === 0 && coinScore === 0) {
         const rangeEnd   = prevRaceRound * 180        // 직전 라운드 종료 시각
-        const rangeStart = rangeEnd - 150             // 30초 × 5 = 직전 3분 게임 구간
+        const rangeStart = prevRaceRound * 180 - 179  // 3분(180초) 전체 구간
         const { data: rows } = await admin
           .from("btc_closing_prices")
           .select("price")
