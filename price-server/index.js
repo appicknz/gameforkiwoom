@@ -64,16 +64,18 @@ let prevBucketLastPrice = null;
 let lastPriceBroadcastSec = 0;
 
 // ─── Race 스코어 서버 계산 ──────────────────────────────────────────
-// 3분(180초) 라운드: 0~9초=정산, 10~59초=배팅, 60~179초=레이싱
+// 3분(180초) 라운드: 0~9초=정산, 10~59초=배팅, 60~177초=레이싱(118초)
 // 1초 price tick마다 레이싱 구간이면 bit(소수점 첫째)·coin(소수점 둘째) 누적
 // 모든 클라이언트에 동일한 값을 브로드캐스트 → 기기/접속 시점 무관
-const RACE_ROUND_SEC = 180;
-const RACE_BETTING_SEC = 60;   // 배팅 시작 offset (0~9초=정산, 10초부터 배팅)
+const RACE_ROUND_SEC  = 180;
+const RACE_RACING_SEC = 60;   // 레이싱 시작 offset (60초~)
+const RACE_RESULT_SEC = 178;  // 레이싱 종료 offset (~177초), 178~179초=결과
 
 // roundId → { bit, coin } 현재 라운드 스코어 (이전 라운드는 폐기)
 let raceCurrentRoundId = -1;
-let raceBitScore = 0;
+let raceBitScore  = 0;
 let raceCoinScore = 0;
+let raceLastPrice = null; // 라운드 내 마지막 가격 (DB 저장용)
 
 function getRaceRoundId(nowSec) {
   return Math.floor(nowSec / RACE_ROUND_SEC);
@@ -82,19 +84,52 @@ function getRaceSecInRound(nowSec) {
   return nowSec % RACE_ROUND_SEC;
 }
 
+// ─── 레이스 결과 DB 저장 (Railway → Vercel API POST) ─────────────────
+function saveRaceResult(roundId, bit, coin, price) {
+  if (!VERCEL_URL) return;
+  const winner  = bit > coin ? "bit" : coin > bit ? "coin" : "tie";
+  const time    = roundId * RACE_ROUND_SEC; // 라운드 종료 경계 시각
+  const url     = `${VERCEL_URL}/api/race-results`;
+  const body    = JSON.stringify({ time, price, bit_score: bit, coin_score: coin, winner });
+  const options = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-cron-secret": process.env.CRON_SECRET || "",
+    },
+  };
+  const req = url.startsWith("https")
+    ? require("https").request(url, options, (res) => {
+        console.log(`[race] saved result: round=${roundId} time=${time} bit=${bit} coin=${coin} winner=${winner} status=${res.statusCode}`);
+      })
+    : require("http").request(url, options, (res) => {
+        console.log(`[race] saved result: round=${roundId} time=${time} bit=${bit} coin=${coin} winner=${winner} status=${res.statusCode}`);
+      });
+  req.on("error", (e) => console.error("[race] save error:", e.message));
+  req.write(body);
+  req.end();
+}
+
 function updateRaceScore(price, nowSec) {
-  const roundId = getRaceRoundId(nowSec);
+  const roundId    = getRaceRoundId(nowSec);
   const secInRound = getRaceSecInRound(nowSec);
 
-  // 새 라운드 진입 → 스코어 초기화
+  // 새 라운드 진입 → 직전 라운드 결과 저장 후 초기화
   if (roundId !== raceCurrentRoundId) {
+    if (raceCurrentRoundId !== -1 && (raceBitScore > 0 || raceCoinScore > 0)) {
+      // 직전 라운드 결과를 DB에 저장 (클라이언트 접속 여부 무관)
+      saveRaceResult(raceCurrentRoundId, raceBitScore, raceCoinScore, raceLastPrice ?? price);
+    }
     raceCurrentRoundId = roundId;
-    raceBitScore = 0;
+    raceBitScore  = 0;
     raceCoinScore = 0;
+    raceLastPrice = null;
   }
 
-  // 레이싱 구간(60~298초)에서만 득점
-  if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_ROUND_SEC - 2) return;
+  raceLastPrice = price;
+
+  // 레이싱 구간(60~177초)에서만 득점
+  if (secInRound < RACE_RACING_SEC || secInRound >= RACE_RESULT_SEC) return;
 
   const dec = price.toFixed(2).split(".")[1] ?? "00";
   raceBitScore  += parseInt(dec[0] ?? "0");
