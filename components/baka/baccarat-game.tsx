@@ -190,19 +190,12 @@ export function BigRoad({
     return () => ro.disconnect()
   }, [])
 
-  // 카드 이미지 너비 = height * 0.68 (카드 비율)
-  // 그리드 + gap + 카드 = containerW
-  // cell = floor((containerW - cardW - gap(6) - padding(8)) / (DISPLAY_LIMIT * (1 + GAP/CELL)))
-  const CARD_RATIO = 0.68
-  const FLEX_GAP = 6
+  // 그리드가 컨테이너 전체 너비를 채우도록 계산 (카드 공간 제거됨)
   const GRID_PAD = 8  // 그리드 div padding 4px × 2
-  // cell 크기: (avail) / (DISPLAY_LIMIT * (1 + GAP/cell)) → 근사: avail / (DISPLAY_LIMIT * 24/22)
-  const avail = containerW > 0 ? containerW - FLEX_GAP - GRID_PAD : DISPLAY_LIMIT * (CELL + GAP)
-  // cardW = cellSize * MAX_ROWS * CARD_RATIO, gridW = DISPLAY_LIMIT * (cellSize + GAP)
-  // avail = DISPLAY_LIMIT*(c+GAP) + MAX_ROWS*c*CARD_RATIO
-  // avail = c*(DISPLAY_LIMIT + MAX_ROWS*CARD_RATIO) + DISPLAY_LIMIT*GAP
+  const avail = containerW > 0 ? containerW - GRID_PAD : DISPLAY_LIMIT * (CELL + GAP)
+  // avail = DISPLAY_LIMIT * (cellSize + GAP)  →  cellSize = (avail - DISPLAY_LIMIT*GAP) / DISPLAY_LIMIT
   const cellSize = containerW > 0
-    ? Math.max(8, Math.floor((avail - DISPLAY_LIMIT * GAP) / (DISPLAY_LIMIT + MAX_ROWS * CARD_RATIO)))
+    ? Math.max(8, Math.floor((avail - DISPLAY_LIMIT * GAP) / DISPLAY_LIMIT))
     : CELL
 
   const totalCols = DISPLAY_LIMIT
@@ -287,18 +280,14 @@ export function BigRoad({
         </a>
       </div>
 
-      {/* 그리드 + 카드 이미지 flex row */}
-      <div style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
-
-        {/* 빅로드 그리드 */}
-        <div style={{
-          borderRadius: 8,
-          border: "1px solid rgba(212,175,55,0.12)",
-          background: "rgba(0,0,0,0.25)",
-          padding: 4,
-          overflow: "hidden",
-          flexShrink: 0,
-        }}>
+      {/* 빅로드 그리드 */}
+      <div style={{
+        borderRadius: 8,
+        border: "1px solid rgba(212,175,55,0.12)",
+        background: "rgba(0,0,0,0.25)",
+        padding: 4,
+        overflow: "hidden",
+      }}>
           <div style={{ position: "relative", width, height, flexShrink: 0 }}>
 
             {/* 차트 — 그리드 내부 배경 */}
@@ -382,9 +371,7 @@ export function BigRoad({
               )
             })}
           </div>
-        </div>
-
-      </div>{/* flex row 끝 */}
+      </div>
     </div>
   )
 }
