@@ -1,7 +1,7 @@
 /**
  * /api/cron/race-settle
  *
- * Vercel Cron이 5분마다 호출 (vercel.json 설정).
+ * Vercel Cron이 3분마다 호출 (vercel.json 설정).
  * Railway price-server가 다운됐을 때도 race_results를 빠짐없이 저장.
  *
  * 동작:
@@ -34,10 +34,10 @@ export async function GET(request: Request) {
   }
 
   const now = Math.floor(Date.now() / 1000)
-  // 직전 완료된 5분 라운드 번호 (현재 진행 중인 라운드 -1)
-  const currentRaceRound = Math.floor(now / 300)
+  // 직전 완료된 3분(180초) 라운드 번호 (현재 진행 중인 라운드 -1)
+  const currentRaceRound = Math.floor(now / 180)
   const prevRaceRound    = currentRaceRound - 1
-  const prevRaceTime     = prevRaceRound * 300  // 라운드 종료 시각 (:00초 경계)
+  const prevRaceTime     = prevRaceRound * 180  // 라운드 종료 시각 경계
 
   try {
     // 1. 이미 저장됐는지 확인
@@ -59,9 +59,9 @@ export async function GET(request: Request) {
 
     // 3. Redis가 비어있으면 btc_closing_prices에서 직접 계산
     if (bitScore === 0 && coinScore === 0) {
-      // 5분 라운드 구간: prevRaceRound * 300 이 이 라운드 종료 시각
-      // 해당 라운드 시작 = (prevRaceRound - 1) * 300 + 1
-      const rangeStart = (prevRaceRound - 1) * 300 + 1
+      // 3분(180초) 라운드 구간: prevRaceRound * 180 이 이 라운드 종료 시각
+      // 해당 라운드 시작 = prevRaceRound * 180 - 179
+      const rangeStart = prevRaceRound * 180 - 179
       const rangeEnd   = prevRaceTime
 
       const { data: closingRows } = await admin

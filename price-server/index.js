@@ -93,8 +93,8 @@ function updateRaceScore(price, nowSec) {
     raceCoinScore = 0;
   }
 
-  // 레이싱 구간(60~298초)에서만 득점
-  if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_ROUND_SEC - 2) return;
+  // 레이싱 구간(60~179초 = 120초)에서만 득점
+  if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_ROUND_SEC) return;
 
   const dec = price.toFixed(2).split(".")[1] ?? "00";
   raceBitScore  += parseInt(dec[0] ?? "0");
