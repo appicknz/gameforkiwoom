@@ -237,7 +237,7 @@ function DigitFlash({ digit, color, label }: { digit: number | null; color: stri
 
   useEffect(() => {
     if (digit === null) return
-    // digit 값이 같아도 새 tick이면 항상 ���������애니메이션
+    // digit 값이 같아도 새 tick이면 항상 �����������애니메이션
     tickRef.current += 1
     setTick(tickRef.current)
     prevDigit.current = digit
@@ -430,8 +430,9 @@ export function RaceScoreboard({ state, flashes = [] }: Props) {
         const bitPct  = total === 0 ? 50 : Math.round((bitScore / total) * 100)
         const coinPct = 100 - bitPct
         const isTie   = bitScore === coinScore && total > 0
-        const recentBit  = flashes.slice(0, 5).map(f => f.bit)
-        const recentCoin = flashes.slice(0, 5).map(f => f.coin)
+        // 각 팀 flash 히스토리: 해당 팀 점수가 0인 항목은 표시하지 않음
+        const recentBit  = flashes.filter(f => f.bit  > 0).slice(0, 5).map(f => f.bit)
+        const recentCoin = flashes.filter(f => f.coin > 0).slice(0, 5).map(f => f.coin)
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
             {/* BIT 히스토리 / 잭팟 / COIN 히스토리 */}

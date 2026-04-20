@@ -94,13 +94,6 @@ export function useRaceGame() {
           }
         }
 
-        // 배팅/정산 구간에서 이전 라운드 스코어가 남아있으면 0으로 리셋
-        const shouldClearScore = phase !== "racing" && (prev.bitScore > 0 || prev.coinScore > 0)
-        if (shouldClearScore) {
-          setFlashes([])
-          return { ...prev, phase, timeLeft, secondsInRound: sec, bitScore: 0, coinScore: 0, lastBitDigit: null, lastCoinDigit: null }
-        }
-
         return { ...prev, phase, timeLeft, secondsInRound: sec }
       })
     }
@@ -150,19 +143,34 @@ export function useRaceGame() {
       const { roundId, bit, coin, d1, d2 } = (e as CustomEvent<{ roundId: number; bit: number; coin: number; d1?: number; d2?: number }>).detail
 
       setState(prev => {
-        // 새 라운드 전환 감지: roundId가 바뀌면 스코어 초기화 (flash 없음)
+        // 새 라운드 전환 감지: roundId가 바뀌면 스코어/flash 초기화
         if (roundId !== prev.roundId) {
+          setFlashes([])
           return { ...prev, roundId, bitScore: 0, coinScore: 0, lastBitDigit: null, lastCoinDigit: null }
         }
 
-        // 스코어가 이전과 동일하면 (레이싱 구간 밖 tick) flash 없이 그대로 유지
+        // 레이싱 구간(60~179초)이 아니면 스코어를 올리지 않음 — 타이머 대신 여기서 방어
+        const nowSec = Math.floor(Date.now() / 1000)
+        const secInRound = nowSec % ROUND_SEC
+        const isRacing = secInRound >= BETTING_SEC  // 60~179초
+
+        if (!isRacing) {
+          // 배팅/정산 구간: 스코어가 남아있으면 초기화
+          if (prev.bitScore > 0 || prev.coinScore > 0) {
+            setFlashes([])
+            return { ...prev, bitScore: 0, coinScore: 0, lastBitDigit: null, lastCoinDigit: null }
+          }
+          return prev
+        }
+
+        // 스코어가 이전과 동일하면 flash 없이 유지
         if (bit === prev.bitScore && coin === prev.coinScore) return prev
 
-        // d1/d2: 서버가 이번 tick에 누적한 소수점 끝자리 (0~9)
-        // 레이싱 구간에서만 d1/d2 > 0으로 옴
+        // d1/d2: 서버가 이번 tick에 누적한 소수점 끝자리 (각각 0~9)
         const tickD1 = d1 ?? 0
         const tickD2 = d2 ?? 0
 
+        // 각 팀 독립적으로 flash 생성 — d=0이면 해당 팀 flash 없음
         if (tickD1 > 0 || tickD2 > 0) {
           setFlashes(f => [
             { id: flashId.current++, bit: tickD1, coin: tickD2, price: 0, ts: Date.now() },
@@ -174,7 +182,6 @@ export function useRaceGame() {
           ...prev,
           bitScore:  bit,
           coinScore: coin,
-          // flash 숫자: 이번 tick 소수점 끝자리(0~9). 0이면 이전 값 유지 (flash 안 뜸)
           lastBitDigit:  tickD1 > 0 ? tickD1 : prev.lastBitDigit,
           lastCoinDigit: tickD2 > 0 ? tickD2 : prev.lastCoinDigit,
         }
