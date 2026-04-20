@@ -27,10 +27,11 @@ interface ScoreFlashEntry {
 }
 
 // 180초(3분) 라운드 — 서버/Redis와 동일하게 유지 필수
-// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~177초 게임중(118s), 178~179초 결과
-const ROUND_SEC   = 180
-const SETTLE_SEC  = 10  // 0~9초: 정산
-const BETTING_SEC = 60  // 10~59초: 배팅 (50초)
+// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~179초 게임중(120s)
+const ROUND_SEC    = 180
+const SETTLE_SEC   = 10   // 0~9초: 정산
+const BETTING_SEC  = 60   // 10~59초: 배팅 (50초)
+const RACING_END   = 180  // 60~179초: 게임중 (120초) = ROUND_SEC 전체
 
 function getRoundId(nowSec: number) { return Math.floor(nowSec / ROUND_SEC) }
 function getSecondsInRound(nowSec: number) { return nowSec % ROUND_SEC }
@@ -39,17 +40,25 @@ function getSecondsInRound(nowSec: number) { return nowSec % ROUND_SEC }
 // 기기/접속 시점에 관계없이 모든 클라이언트가 항상 동일한 스코어를 가짐
 
 export function useRaceGame() {
-  const [state, setState] = useState<RaceState>({
-    phase: "betting",
-    timeLeft: BETTING_SEC,
-    roundId: 0,
-    bitScore: 0,
-    coinScore: 0,
-    winner: null,
-    lastPrice: null,
-    lastBitDigit: null,
-    lastCoinDigit: null,
-    secondsInRound: 0,
+  const [state, setState] = useState<RaceState>(() => {
+    // 초기값을 실제 현재 시각 기준으로 계산 → roundId가 0이면 baka:race-score 필터링에서 차단됨
+    const nowSec = Math.floor(Date.now() / 1000)
+    const roundId = getRoundId(nowSec)
+    const sec = getSecondsInRound(nowSec)
+    const phase: RacePhase = sec < SETTLE_SEC ? "result" : sec < BETTING_SEC ? "betting" : "racing"
+    const timeLeft = phase === "result" ? SETTLE_SEC - sec : phase === "betting" ? BETTING_SEC - sec : RACING_END - sec
+    return {
+      phase,
+      timeLeft: Math.max(0, timeLeft),
+      roundId,
+      bitScore: 0,
+      coinScore: 0,
+      winner: null,
+      lastPrice: null,
+      lastBitDigit: null,
+      lastCoinDigit: null,
+      secondsInRound: sec,
+    }
   })
   const [flashes, setFlashes] = useState<ScoreFlashEntry[]>([])
   const flashId = useRef(0)
@@ -61,19 +70,16 @@ export function useRaceGame() {
       const sec    = getSecondsInRound(nowSec)
       const roundId = getRoundId(nowSec)
 
-      // 0~9s: result(정산 10s), 10~59s: betting(배팅 50s), 60~177s: racing(게임중 118s), 178~179s: result
-      const RACING_END = ROUND_SEC - 2  // 178초
+      // 0~9s: result(정산 10s), 10~59s: betting(배팅 50s), 60~179s: racing(게임중 120s)
       const phase: RacePhase =
         sec < SETTLE_SEC    ? "result"
         : sec < BETTING_SEC ? "betting"
-        : sec < RACING_END  ? "racing"
-        : "result"
+        : "racing"
 
       const timeLeft =
-        phase === "result" && sec < SETTLE_SEC ? SETTLE_SEC - sec
+        phase === "result"  ? SETTLE_SEC - sec
         : phase === "betting" ? BETTING_SEC - sec
-        : phase === "racing"  ? RACING_END - sec
-        : 0
+        : RACING_END - sec
 
       setState(prev => {
         if (prev.roundId !== roundId) {
@@ -173,9 +179,8 @@ export function useRaceGame() {
       if (resultSavedRef.current === state.roundId) return
       resultSavedRef.current = state.roundId
 
-      // 결과 시각: 이 roundId(raceRoundNumber)의 종료 경계 = roundId * 300
-      // state.roundId 가 raceRoundNumber이므로 종료 시각은 (roundId + 1) * 300
-      const resultTime = (state.roundId + 1) * 300
+      // 결과 시각: 이 roundId의 종료 경계 = (roundId + 1) * 180
+      const resultTime = (state.roundId + 1) * ROUND_SEC
 
       // 현재가는 baka:price 마지막 수신값 사용
       const lastPrice = state.lastPrice
