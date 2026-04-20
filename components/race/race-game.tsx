@@ -88,8 +88,8 @@ export function useRaceGame() {
         : ROUND_SEC - sec
 
       setState(prev => {
+        // 새 라운드 진입 → 스코어 + 플래시 초기화
         if (prev.roundId !== roundId) {
-          // 새 라운드 진입 → 스코어 + 플래시 초기화
           setFlashes([])
           return {
             ...prev, phase, timeLeft, roundId,
@@ -97,6 +97,17 @@ export function useRaceGame() {
             winner: null, lastPrice: null,
             lastBitDigit: null, lastCoinDigit: null,
             secondsInRound: sec,
+          }
+        }
+
+        // 게임중 → 배팅/정산으로 페이즈 전환 시 스코어 초기화
+        // (baka:race-score 핸들러와 이중 방어)
+        if (prev.phase === "racing" && phase !== "racing") {
+          setFlashes([])
+          return {
+            ...prev, phase, timeLeft, secondsInRound: sec,
+            bitScore: 0, coinScore: 0,
+            lastBitDigit: null, lastCoinDigit: null,
           }
         }
 
@@ -121,16 +132,19 @@ export function useRaceGame() {
   }, [])
 
   // ── baka:init — 접속 직후 서버의 현재 race 스코어 즉시 반영 ─────────────
-  // roundId를 서버 값으로 동기화 — 초기값 0과의 불일치 문제 해결
   useEffect(() => {
     const onInit = (e: Event) => {
       const { raceScore } = (e as CustomEvent<{ raceScore?: { roundId: number; bit: number; coin: number } }>).detail
       if (!raceScore) return
+      // 현재 시각 기준 phase 계산 — 배팅/정산 구간이면 스코어 0으로 표시
+      const nowSec     = Math.floor(Date.now() / 1000)
+      const secInRound = nowSec % ROUND_SEC
+      const isRacing   = secInRound >= BETTING_SEC  // 60~179초만 게임중
       setState(prev => ({
         ...prev,
         roundId:   raceScore.roundId,
-        bitScore:  raceScore.bit,
-        coinScore: raceScore.coin,
+        bitScore:  isRacing ? raceScore.bit  : 0,
+        coinScore: isRacing ? raceScore.coin : 0,
       }))
     }
     window.addEventListener("baka:init", onInit)
@@ -144,17 +158,16 @@ export function useRaceGame() {
       const { roundId, bit, coin } = (e as CustomEvent<{ roundId: number; bit: number; coin: number }>).detail
 
       setState(prev => {
-        // roundId가 실제로 증가(새 라운드 전환)한 경우만 스코어 초기화
-        // roundId !== prev.roundId 라도 단순 동기화 불일치일 수 있으므로
-        // roundId > prev.roundId 일 때만 리셋, 나머지는 서버 값을 그대로 사용
-        if (roundId > prev.roundId) {
-          setFlashes([])
-          return { ...prev, roundId, bitScore: bit, coinScore: coin, lastBitDigit: null, lastCoinDigit: null }
-        }
+        // 현재 시각 기준 phase — 배팅/정산 구간이면 스코어 표시하지 않음
+        const nowSec     = Math.floor(Date.now() / 1000)
+        const secInRound = nowSec % ROUND_SEC
+        const isRacing   = secInRound >= BETTING_SEC  // 60~179초만 게임중
 
-        // 첫 동기화: prev.roundId보다 작은 경우(초기값과 불일치) roundId만 맞추고 스코어 적용
-        if (roundId !== prev.roundId) {
-          return { ...prev, roundId, bitScore: bit, coinScore: coin }
+        // 새 라운드 전환 or 비게임중: 스코어 초기화
+        if (roundId !== prev.roundId || !isRacing) {
+          if (prev.bitScore === 0 && prev.coinScore === 0 && roundId === prev.roundId) return prev
+          setFlashes([])
+          return { ...prev, roundId, bitScore: 0, coinScore: 0, lastBitDigit: null, lastCoinDigit: null }
         }
 
         // 스코어 변화 없으면 무시
