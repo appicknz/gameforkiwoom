@@ -209,15 +209,6 @@ export function BigRoad({
   const width = totalCols * (cellSize + GAP)
   const height = MAX_ROWS * (cellSize + GAP)
 
-  // 랜덤 카드 이미지 (API 응답: { images: [{url, pathname}] })
-  const { data: cardData } = useSWR<{ images: { url: string; pathname: string }[] }>(
-    "/api/card-images", swrFetcher, { revalidateOnFocus: false }
-  )
-  // 라운드 번호를 시드로 사용 → 모든 클라이언트가 동일한 이미지 선택
-  const cardImageUrl = cardData?.images && cardData.images.length > 0
-    ? cardData.images[round % cardData.images.length].url
-    : null
-
   // 카운트 집계: 최근 STAT_LIMIT(50)개 기준
   const statHistory = history.length > STAT_LIMIT ? history.slice(-STAT_LIMIT) : history
   const pCount = statHistory.filter(r => r === "player").length
@@ -246,8 +237,6 @@ export function BigRoad({
       </div>
     )
   }
-
-  const cardW = Math.round(height * CARD_RATIO)
 
   return (
     <div ref={containerRef} style={{ marginBottom: 14 }}>
@@ -393,26 +382,6 @@ export function BigRoad({
               )
             })}
           </div>
-        </div>
-
-        {/* 캐릭터 카드 이미지 — 그리드 테두리 바깥 오른쪽 flex sibling */}
-        <div style={{
-          width: cardW,
-          flexShrink: 0,
-          borderRadius: 8,
-          border: "1px solid rgba(212,175,55,0.25)",
-          overflow: "hidden",
-          background: "rgba(0,0,0,0.4)",
-        }}>
-          {cardImageUrl ? (
-            <img
-              src={cardImageUrl}
-              alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
-            />
-          ) : (
-            <div style={{ width: "100%", height: "100%", background: "rgba(212,175,55,0.04)" }} />
-          )}
         </div>
 
       </div>{/* flex row 끝 */}

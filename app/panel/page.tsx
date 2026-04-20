@@ -806,24 +806,7 @@ export default function PanelPage() {
           >
             <CalendarDays className="w-4 h-4" /> 매출달력
           </button>
-          {isSuperAdmin && (
-            <button
-              onClick={() => { setActiveTab("cards"); loadCardImages() }}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              <ImageIcon className="w-4 h-4" /> 카드이미지
-            </button>
-          )}
-          {isSuperAdmin && (
-            <button
-              onClick={() => { setActiveTab("videos"); loadCardVideos() }}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "videos" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              <Film className="w-4 h-4" /> 영상관리
-            </button>
-          )}
+
         </div>
       </div>
 
@@ -1288,48 +1271,7 @@ export default function PanelPage() {
         )}
 
         {/* 카드관리 탭 */}
-        {activeTab === "cards" && (
-          <div className="space-y-4">
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">카드 이미지 관리</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">바카라 게임에 표시될 카드 이미지를 업로드하세요</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleCardUpload}
-                    className="hidden"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className="gap-1.5 text-xs"
-                  >
-                    {uploading ? "업로드 중..." : "이미지 추가"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={loadCardImages}
-                    disabled={cardLoading}
-                    className="gap-1.5 text-xs"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${cardLoading ? "animate-spin" : ""}`} /> 새로고침
-                  </Button>
-                </div>
-              </div>
 
-              {uploadError && (
-                <div className="px-5 py-2 bg-destructive/10 border-b border-border">
-                  <p className="text-xs text-destructive">{uploadError}</p>
-                </div>
-              )}
 
               {cardLoading ? (
                 <div className="flex justify-center py-10">

@@ -257,9 +257,10 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
         autoScale: true,
         scaleMargins: { top: 0.15, bottom: 0.15 },
         textColor: compact ? "rgba(212,175,55,0.55)" : "rgba(160,160,160,0.7)",
-        // compact: Y축을 우측에 두되 너비를 고정해 overflow hidden에 잘리지 않도록
-        // visible 유지하되 width를 명시해 잘림 방지
-        visible: !compact,   // compact(빅로드 내)에서는 Y축 라벨 숨김 — 잘림 방지
+        // compact(빅로드 내): Y축 눈금 숫자는 숨기지 않고 유지 → lastValueVisible 라벨 표시 가능
+        visible: true,
+        // compact 모드에서는 Y축 너비를 최소화해 차트 영역을 최대한 활용
+        minimumWidth: compact ? 55 : undefined,
       },
       leftPriceScale: { visible: false },
       timeScale: {
