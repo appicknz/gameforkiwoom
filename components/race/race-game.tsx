@@ -106,14 +106,17 @@ export function useRaceGame() {
   }, [])
 
   // ── baka:init — 접속 직후 서버의 현재 race 스코어 즉시 반영 ─────────────
+  // roundId를 서버 값으로 동기화 — 초기값 0과의 불일치 문제 해결
   useEffect(() => {
     const onInit = (e: Event) => {
       const { raceScore } = (e as CustomEvent<{ raceScore?: { roundId: number; bit: number; coin: number } }>).detail
       if (!raceScore) return
-      setState(prev => {
-        if (raceScore.roundId !== prev.roundId) return prev
-        return { ...prev, bitScore: raceScore.bit, coinScore: raceScore.coin }
-      })
+      setState(prev => ({
+        ...prev,
+        roundId:   raceScore.roundId,
+        bitScore:  raceScore.bit,
+        coinScore: raceScore.coin,
+      }))
     }
     window.addEventListener("baka:init", onInit)
     return () => window.removeEventListener("baka:init", onInit)
@@ -126,17 +129,22 @@ export function useRaceGame() {
       const { roundId, bit, coin } = (e as CustomEvent<{ roundId: number; bit: number; coin: number }>).detail
 
       setState(prev => {
-        // 라운드가 다르면 무시 (stale 메시지 방어)
-        if (roundId !== prev.roundId) return prev
-        if (prev.phase !== "racing") return prev
+        // roundId가 바뀌면 새 라운드 — 스코어/flash 초기화 후 서버 roundId로 동기화
+        if (roundId !== prev.roundId) {
+          setFlashes([])
+          return { ...prev, roundId, bitScore: 0, coinScore: 0, lastBitDigit: null, lastCoinDigit: null }
+        }
 
-        // 플래시: 이전 스코어와 diff로 이번 tick 득점 계산 (영구 기록 — 라운드 초기화 전까지 유지)
+        // 스코어 변화 없으면 (배팅/정산 구간 tick) 무시
+        if (bit === prev.bitScore && coin === prev.coinScore) return prev
+
+        // diff로 이번 tick 득점 계산 → flash
         const bitDiff  = bit  - prev.bitScore
         const coinDiff = coin - prev.coinScore
         if (bitDiff > 0 || coinDiff > 0) {
           setFlashes(f => [
             { id: flashId.current++, bit: bitDiff, coin: coinDiff, price: 0, ts: Date.now() },
-            ...f.slice(0, 49),  // 최신이 앞, 최대 50개 보관
+            ...f.slice(0, 49),
           ])
         }
 
@@ -144,7 +152,6 @@ export function useRaceGame() {
           ...prev,
           bitScore:  bit,
           coinScore: coin,
-          // 득점이 있을 때만 DigitFlash 트리거 (없으면 이전 값 유지해 불필요한 리플래시 방지)
           lastBitDigit:  bitDiff  > 0 ? bitDiff  : prev.lastBitDigit,
           lastCoinDigit: coinDiff > 0 ? coinDiff : prev.lastCoinDigit,
         }
