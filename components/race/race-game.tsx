@@ -140,25 +140,34 @@ export function useRaceGame() {
       const { roundId, bit, coin } = (e as CustomEvent<{ roundId: number; bit: number; coin: number }>).detail
 
       setState(prev => {
-        // 라운드가 다르면 무시 (stale 메시지 방어)
-        if (roundId !== prev.roundId) return prev
-        if (prev.phase !== "racing") return prev
+        // roundId가 뒤로 가는 경우(stale 메시지)만 무시
+        if (roundId < prev.roundId) return prev
 
-        // 플래시: 이전 스코어와 diff로 이번 tick 득점 계산 (영구 기록 — 라운드 초기화 전까지 유지)
-        const bitDiff  = bit  - prev.bitScore
-        const coinDiff = coin - prev.coinScore
+        // 게임중 구간이 아니면 스코어 적용 안 함
+        if (prev.phase !== "racing") {
+          // roundId만 동기화 (baka:init 전에 도착한 경우 대비)
+          if (roundId !== prev.roundId) return { ...prev, roundId }
+          return prev
+        }
+
+        // roundId가 바뀌었다면 (서버/클라이언트 동기화) roundId만 맞추고 스코어 적용
+        const nextRoundId = roundId !== prev.roundId ? roundId : prev.roundId
+
+        // 플래시: 이전 스코어와 diff로 이번 tick 득점 계산
+        const bitDiff  = bit  - (roundId !== prev.roundId ? 0 : prev.bitScore)
+        const coinDiff = coin - (roundId !== prev.roundId ? 0 : prev.coinScore)
         if (bitDiff > 0 || coinDiff > 0) {
           setFlashes(f => [
             { id: flashId.current++, bit: bitDiff, coin: coinDiff, price: 0, ts: Date.now() },
-            ...f.slice(0, 49),  // 최신이 앞, 최대 50개 보관
+            ...f.slice(0, 49),
           ])
         }
 
         return {
           ...prev,
+          roundId:  nextRoundId,
           bitScore:  bit,
           coinScore: coin,
-          // 득점이 있을 때만 DigitFlash 트리거 (없으면 이전 값 유지해 불필요한 리플래시 방지)
           lastBitDigit:  bitDiff  > 0 ? bitDiff  : prev.lastBitDigit,
           lastCoinDigit: coinDiff > 0 ? coinDiff : prev.lastCoinDigit,
         }
