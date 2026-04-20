@@ -72,9 +72,13 @@ export async function POST(request: Request) {
     const baccaratResult: "player" | "banker" | "tie" =
       lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-    // ── race 결과 계산 (5분 라운드 기준) ────────────────────
-    // race는 3분(180초) 라운드: raceRoundNumber = Math.floor(closeTime / 180)
-    const raceRoundNumber = Math.floor(closeTime / 180)
+    // ── race 결과 계산 (3분(180초) 라운드 기준) ─────────────
+    const raceRoundNumber    = Math.floor(closeTime / 180)
+    const prevRaceRoundNumber = raceRoundNumber - 1
+    // 라운드가 이번 tick에서 처음 넘어갔으면 직전 라운드 정산
+    // closeTime이 180의 배수이면 = 방금 라운드 전환 (예: 180, 360, ...)
+    // 또는 closeTime % 180 이 0 또는 30이면 첫 번째/두 번째 tick
+    const isLastRaceTick = (closeTime % 180 === 0)   // 라운드 전환 직후 첫 tick
     const racePoolKey     = `pool:race:${raceRoundNumber}`
     const raceUserSetKey  = `users:race:${raceRoundNumber}`
     // 서버측 race 스코어 누적 키 (30초 tick마다 합산)
@@ -131,12 +135,12 @@ export async function POST(request: Request) {
     await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 120 })
 
     // ── race 결과 저장 ─────────────────────────────────────────
-    // raceRoundNumber가 이전 tick보다 올라갔을 때 = 직전 라운드가 방금 종료됨
-    // 직전 라운드(prevRaceRound) 스코어를 읽어 DB에 저장
-    const prevRaceRound    = raceRoundNumber - 1
+    // 라운드 전환 직후 tick(isLastRaceTick)에서만 직전 라운드 결과를 DB에 저장
+    // price-server의 saveRaceResult()가 이미 저장하므로 이쪽은 백업 역할
+    const prevRaceRound    = prevRaceRoundNumber
     const prevRaceSettled  = await redis.get(`settled:race:${prevRaceRound}`).catch(() => null)
 
-    if (!prevRaceSettled) {
+    if (isLastRaceTick && !prevRaceSettled) {
       // 직전 라운드 스코어: Redis 누적값 우선
       const prevScoreKey = `race:score:${prevRaceRound}`
       const prevScore    = await redis.hgetall(prevScoreKey).catch(() => null)
