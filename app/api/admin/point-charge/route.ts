@@ -173,23 +173,14 @@ export async function PATCH(req: Request) {
     // 요청자 포인트 차감은 별도 정책에 따라 결정 — 여기서는 승인자만 차감
   }
 
-  // daily_sales_log 업데이트
+  // daily_sales_log 업데이트 (RPC로 증분 처리)
   const today = new Date().toISOString().slice(0, 10)
   const branchCode = pcr.branch_code ?? "NONE"
-  await adminSupabase.from("daily_sales_log").upsert({
-    log_date: today, branch_code: branchCode,
-    charge_count: 1, charge_total: pcr.point_amount,
-    net_total: pcr.point_amount,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "log_date,branch_code", ignoreDuplicates: false })
-    .then(async () => {
-      // upsert가 증분이 아니므로 직접 UPDATE로 += 처리
-      await adminSupabase.rpc("increment_daily_sales", {
-        p_date: today, p_branch: branchCode,
-        p_charge_count: 1, p_charge_total: pcr.point_amount,
-        p_exchange_count: 0, p_exchange_total: 0,
-      }).maybeSingle()
-    })
+  await adminSupabase.rpc("increment_daily_sales", {
+    p_date: today, p_branch: branchCode,
+    p_charge_count: 1, p_charge_total: pcr.point_amount,
+    p_exchange_count: 0, p_exchange_total: 0,
+  })
 
   // 요청 업데이트
   await adminSupabase.from("point_charge_requests").update({
