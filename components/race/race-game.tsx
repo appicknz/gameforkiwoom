@@ -144,13 +144,20 @@ export function useRaceGame() {
       const { roundId, bit, coin } = (e as CustomEvent<{ roundId: number; bit: number; coin: number }>).detail
 
       setState(prev => {
-        // roundId가 바뀌면 새 라운드 — 스코어/flash 초기화 후 서버 roundId로 동기화
-        if (roundId !== prev.roundId) {
+        // roundId가 실제로 증가(새 라운드 전환)한 경우만 스코어 초기화
+        // roundId !== prev.roundId 라도 단순 동기화 불일치일 수 있으므로
+        // roundId > prev.roundId 일 때만 리셋, 나머지는 서버 값을 그대로 사용
+        if (roundId > prev.roundId) {
           setFlashes([])
-          return { ...prev, roundId, bitScore: 0, coinScore: 0, lastBitDigit: null, lastCoinDigit: null }
+          return { ...prev, roundId, bitScore: bit, coinScore: coin, lastBitDigit: null, lastCoinDigit: null }
         }
 
-        // 스코어 변화 없으면 (배팅/정산 구간 tick) 무시
+        // 첫 동기화: prev.roundId보다 작은 경우(초기값과 불일치) roundId만 맞추고 스코어 적용
+        if (roundId !== prev.roundId) {
+          return { ...prev, roundId, bitScore: bit, coinScore: coin }
+        }
+
+        // 스코어 변화 없으면 무시
         if (bit === prev.bitScore && coin === prev.coinScore) return prev
 
         // diff로 이번 tick 득점 계산 → flash
