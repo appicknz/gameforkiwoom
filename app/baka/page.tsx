@@ -431,10 +431,12 @@ export default function BakaPage() {
               })()}
               {(["banker", "player"] as const).map((side, idx) => {
                 const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
-                const score = side === "banker" ? cardData.bScore : cardData.pScore
+                const score = side === "banker" ? cardData.bScore : cardData.pScore  // 끝자리
+                const rawSum = cards.reduce((s, c) => s + c.value, 0)               // 합산 전체
                 const label = side === "banker" ? "BANKER" : "PLAYER"
                 const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
                 const isWinner = cardData.result === side
+                const hasCards = cards.length > 0
                 return (
                   <div
                     key={side}
@@ -454,7 +456,21 @@ export default function BakaPage() {
                       {isWinner && (
                         <span style={{ fontSize: Math.round(9 * S), background: accentColor, color: "#fff", padding: `1px ${Math.round(5 * S)}px`, borderRadius: 3, fontWeight: 700 }}>WIN</span>
                       )}
-                      <span style={{ fontSize: Math.round(16 * S), fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
+                      {/* 합산 전체 + 끝자리 동그라미 */}
+                      <div style={{ marginLeft: "auto", display: "flex", alignItems: "baseline", gap: Math.round(4 * S) }}>
+                        {hasCards && rawSum !== score && (
+                          <span style={{ fontSize: Math.round(11 * S), fontWeight: 600, color: "rgba(232,213,163,0.45)", lineHeight: 1 }}>{rawSum}</span>
+                        )}
+                        <div style={{
+                          width: Math.round(28 * S), height: Math.round(28 * S),
+                          borderRadius: "50%",
+                          border: `2px solid ${score >= 8 ? "#d4af37" : "rgba(232,213,163,0.35)"}`,
+                          background: score >= 8 ? "rgba(212,175,55,0.15)" : "transparent",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          <span style={{ fontSize: Math.round(15 * S), fontWeight: 900, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1 }}>{score}</span>
+                        </div>
+                      </div>
                     </div>
                     <div style={{ display: "flex", gap: Math.round(6 * S) }}>
                       {cards.map((card, ci) => <OverlayCard key={`${card.id}-${ci}`} card={card} s={S} />)}
