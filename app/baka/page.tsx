@@ -336,7 +336,7 @@ export default function BakaPage() {
               {/* 게임 상태 박스 — 중앙, /race VerticalTimer 스타일 */}
               {(() => {
                 const { timeLeft } = gameStatus
-                // 페이즈 구조: 정산(5s) rem 30→25 / 배팅(10s) rem 25→15 / 게임중(15s) rem 15→0
+                // 페이즈 구조: 정산(5s) rem 30→25 / 배팅(15s) rem 25→10 / 게임중(10s) rem 10→0
                 const phases = [
                   {
                     label: "정산",
@@ -348,19 +348,19 @@ export default function BakaPage() {
                   },
                   {
                     label: "배팅",
-                    duration: 10,
-                    active: timeLeft <= 25 && timeLeft > 15,
-                    countdown: timeLeft <= 25 && timeLeft > 15 ? timeLeft - 15 : 10,
+                    duration: 15,
+                    active: timeLeft <= 25 && timeLeft > 10,
+                    countdown: timeLeft <= 25 && timeLeft > 10 ? timeLeft - 10 : 15,
                     color: "#10b981",
-                    pct: timeLeft <= 25 && timeLeft > 15 ? (timeLeft - 15) / 10 : 0,
+                    pct: timeLeft <= 25 && timeLeft > 10 ? (timeLeft - 10) / 15 : 0,
                   },
                   {
                     label: "게임중",
-                    duration: 15,
-                    active: timeLeft <= 15 && timeLeft > 0,
-                    countdown: timeLeft <= 15 && timeLeft > 0 ? timeLeft : 15,
+                    duration: 10,
+                    active: timeLeft <= 10 && timeLeft > 0,
+                    countdown: timeLeft <= 10 && timeLeft > 0 ? timeLeft : 10,
                     color: timeLeft <= 3 ? "#ef4444" : "#f97316",
-                    pct: timeLeft <= 15 && timeLeft > 0 ? timeLeft / 15 : 0,
+                    pct: timeLeft <= 10 && timeLeft > 0 ? timeLeft / 10 : 0,
                   },
                 ]
                 const activePhase = phases.find(p => p.active) ?? phases[0]
