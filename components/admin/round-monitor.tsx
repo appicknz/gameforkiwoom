@@ -515,7 +515,7 @@ export function RoundMonitor({
     setRaceLoading(false)
   }, [loadAbUsers])
 
-  // ── 페이즈 감지 ───────────────────────────────────────────────
+  // ── 페��즈 감지 ───────────────────────────────────────────────
   const getBaccaratPhase = () => {
     const nowSec = Math.floor(Date.now() / 1000)
     const secInRound = nowSec % 30   // 0~29
@@ -1222,10 +1222,8 @@ export function RoundMonitor({
         </>
       )}
 
-      {/* ════════════════════════════════════════════════════════
-          섹션 3 — 하우스 손익 누적
-      ════════════════════════════════════════════════════════ */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      {/* 섹션 3·4 (하우스 손익·LP 히스토리) 제거 — 데이터 미기록으로 불필요 */}
+      {false && <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <TrendingDown className="w-4 h-4 text-primary" />
@@ -1482,7 +1480,7 @@ export function RoundMonitor({
             })}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ═════════════════════════════════════════���══════════════
           섹션 5 — 지점별 LP 설정 (superadmin 전용)
@@ -1501,7 +1499,7 @@ export function RoundMonitor({
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════
+      {/* ��═══════════════════════════════════════════════════════
           전체 초기화 다이얼로그
       ════════════════════════════════════════════════════════ */}
       {showResetDialog && (
