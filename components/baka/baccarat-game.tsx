@@ -556,7 +556,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     dealingRef.current = true
     midStateRef.current = null
 
-    const side = betSideRef.current  // null이면 배팅 없음 (관전 모드)
+    const side = betSideRef.current  // null이면 배팅 없음 (관전 모��)
 
     // seed = 순수 라운드슬롯 번호 → 같은 라운드의 모든 클라이언트 동일한 카드
     const seeded = makeSeededRand(getRoundSeed())
@@ -724,14 +724,14 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         </span>
       </div>
 
-      {/* 차트 */}
+      {/* 30초 마감 기준가 */}
       <div style={{ padding: "10px 12px 0" }}>
-        <BitcoinChart />
+        <ClosingPrices />
       </div>
 
-      {/* 30초 마감 기준가 */}
+      {/* 차트 */}
       <div style={{ padding: "0 12px 12px" }}>
-        <ClosingPrices />
+        <BitcoinChart />
       </div>
 
     </div>
