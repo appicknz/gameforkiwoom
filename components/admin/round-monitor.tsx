@@ -170,7 +170,7 @@ function GameRoundCard({
 
   const modeLabel =
     stats.mode === "pari"   ? "파리뮤추얼" :
-    stats.mode === "hybrid" ? "���이브리드"  : "LP 주도"
+    stats.mode === "hybrid" ? "����이브리드"  : "LP 주도"
   const modeBg =
     stats.mode === "pari"   ? "bg-emerald-500/10 text-emerald-600" :
     stats.mode === "hybrid" ? "bg-amber-500/10 text-amber-600"    :
@@ -465,19 +465,29 @@ export function RoundMonitor({
     const token = getToken(); if (!token) return
     setRaceLoading(true)
     try {
+      const nowSec = Math.floor(Date.now() / 1000)
+      const secInRound = nowSec % 180
+      console.log("[v0] runRaceBet called — secInRound:", secInRound, "round:", Math.floor(nowSec / 180))
       const res = await fetch("/api/admin/auto-bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "bet_race" }),
       })
+      const d = await res.json()
+      console.log("[v0] runRaceBet response:", JSON.stringify(d))
       if (res.ok) {
-        const d = await res.json()
-        setLastBetResults(d.results ?? [])
-        setAccumulatedFee(d.accumulatedFee ?? 0)
-        setAbStatus(`레이스 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
-        loadAbUsers()
+        if (d.skipped) {
+          setAbStatus(`레이스 배팅 스킵 — ${d.skipReason}`)
+        } else {
+          setLastBetResults(d.results ?? [])
+          setAccumulatedFee(d.accumulatedFee ?? 0)
+          setAbStatus(`레이스 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
+          loadAbUsers()
+        }
+      } else {
+        setAbStatus(`레이스 배팅 오류 — ${d.error ?? res.status}`)
       }
-    } catch { setAbStatus("레이스 배팅 실패") }
+    } catch (e) { console.log("[v0] runRaceBet error:", e); setAbStatus("레이스 배팅 실패") }
     setRaceLoading(false)
   }, [loadAbUsers])
 
@@ -704,7 +714,7 @@ export function RoundMonitor({
 
       {/* ════════════════════════════════════════════════════════
           섹션 1 — 현재 라운드 실시간 현황
-      ════════════════════════════════════════════════════════ */}
+      ═════════════════════════���══════════════════════════════ */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
