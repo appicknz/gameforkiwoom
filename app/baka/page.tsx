@@ -432,10 +432,12 @@ export default function BakaPage() {
               {(["banker", "player"] as const).map((side, idx) => {
                 const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
                 const score = side === "banker" ? cardData.bScore : cardData.pScore  // 끝자리
+                const oppScore = side === "banker" ? cardData.pScore : cardData.bScore
                 const rawSum = cards.reduce((s, c) => s + c.value, 0)               // 합산 전체
                 const label = side === "banker" ? "BANKER" : "PLAYER"
                 const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
                 const isWinner = cardData.result === side
+                const isHigher = score > oppScore
                 const hasCards = cards.length > 0
                 return (
                   <div
@@ -457,18 +459,23 @@ export default function BakaPage() {
                         <span style={{ fontSize: Math.round(9 * S), background: accentColor, color: "#fff", padding: `1px ${Math.round(5 * S)}px`, borderRadius: 3, fontWeight: 700 }}>WIN</span>
                       )}
                       {/* 합산 전체 + 끝자리 동그라미 */}
-                      <div style={{ marginLeft: "auto", display: "flex", alignItems: "baseline", gap: Math.round(4 * S) }}>
+                      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: Math.round(4 * S) }}>
                         {hasCards && rawSum !== score && (
-                          <span style={{ fontSize: Math.round(11 * S), fontWeight: 600, color: "rgba(232,213,163,0.45)", lineHeight: 1 }}>{rawSum}</span>
+                          <span style={{ fontSize: Math.round(11 * S), fontWeight: 600, color: "rgba(232,213,163,0.4)", lineHeight: 1 }}>{rawSum}</span>
                         )}
                         <div style={{
-                          width: Math.round(28 * S), height: Math.round(28 * S),
+                          width: Math.round(30 * S), height: Math.round(30 * S),
                           borderRadius: "50%",
-                          border: `2px solid ${score >= 8 ? "#d4af37" : "rgba(232,213,163,0.35)"}`,
-                          background: score >= 8 ? "rgba(212,175,55,0.15)" : "transparent",
+                          border: `2px solid ${isHigher ? "#d4af37" : isWinner && cardData.result === "tie" ? "rgba(232,213,163,0.5)" : "rgba(232,213,163,0.25)"}`,
+                          background: isHigher ? "rgba(212,175,55,0.18)" : "rgba(0,0,0,0.2)",
                           display: "flex", alignItems: "center", justifyContent: "center",
+                          boxShadow: isHigher ? `0 0 ${Math.round(8*S)}px rgba(212,175,55,0.4)` : "none",
                         }}>
-                          <span style={{ fontSize: Math.round(15 * S), fontWeight: 900, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1 }}>{score}</span>
+                          <span style={{
+                            fontSize: Math.round(15 * S), fontWeight: 900,
+                            color: isHigher ? "#d4af37" : "rgba(232,213,163,0.7)",
+                            lineHeight: 1,
+                          }}>{score}</span>
                         </div>
                       </div>
                     </div>

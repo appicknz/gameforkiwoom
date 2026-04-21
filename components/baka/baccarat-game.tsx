@@ -640,16 +640,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     setState(prev => ({ ...prev, playerCards: finalP, finalCard: null }))
     await sleep(350)
 
-    // 5. 승부 결정: BTC 끝자리 기반 (카드 연출은 시각적 표현일 뿐, 승패는 규칙 우선)
-    // 소수점 둘째 자리(playerDigit) 기준: 0~4=player, 5~8=banker, 9=tie
-    const decStr2 = closingPrice.toFixed(2).split(".")[1] ?? "00"
-    const finalPlayerDigit = parseInt(decStr2[1] ?? "0")
-    const btcResult: "player" | "banker" | "tie" =
-      finalPlayerDigit <= 4 ? "player" : finalPlayerDigit <= 8 ? "banker" : "tie"
-
-    // 카드 점수는 표시용으로만 사용
+    // 5. 승부 결정: 카드 끝자리 점수 기반 — 9에 가까운 쪽이 승리
     const pScore = handScore(finalP)
     const bScore = handScore(finalB)
+    const btcResult: "player" | "banker" | "tie" =
+      pScore > bScore ? "player" : bScore > pScore ? "banker" : "tie"
 
     setState(prev => ({
       ...prev,
