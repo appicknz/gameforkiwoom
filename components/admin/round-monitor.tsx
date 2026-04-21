@@ -488,25 +488,20 @@ export function RoundMonitor({
   }, [loadAbUsers])
 
   const runRaceBet = useCallback(async () => {
+    const token = getToken(); if (!token) return
     setRaceLoading(true)
     try {
-      const res = await fetchWithRefresh("/api/admin/auto-bet", {
+      const res = await fetch("/api/admin/auto-bet", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "bet_race" }),
       })
-      const d = await res.json()
       if (res.ok) {
-        if (d.skipped) {
-          setAbStatus(`레이스 배팅 스킵 — ${d.skipReason ?? "배팅 불가 구간"}`)
-        } else {
-          setLastBetResults(d.results ?? [])
-          setAccumulatedFee(d.accumulatedFee ?? 0)
-          setAbStatus(`레이스 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
-          loadAbUsers()
-        }
-      } else {
-        setAbStatus(`레이스 배팅 오류 — ${d.error ?? res.status}`)
+        const d = await res.json()
+        setLastBetResults(d.results ?? [])
+        setAccumulatedFee(d.accumulatedFee ?? 0)
+        setAbStatus(`레이스 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
+        loadAbUsers()
       }
     } catch { setAbStatus("레이스 배팅 실패") }
     setRaceLoading(false)
@@ -1374,7 +1369,7 @@ export function RoundMonitor({
         )}
       </div>
 
-      {/* ════════════════════════════════════════════════════════
+      {/* ═════════════════════════════════════════���══════════════
           섹션 5 — 지점별 LP 설정 (superadmin 전용)
       ══════════��═════════════════��═══════════════════════════ */}
       {isSuperAdmin && branches.length > 0 && (

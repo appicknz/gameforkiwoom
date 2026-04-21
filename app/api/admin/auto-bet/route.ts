@@ -3,13 +3,19 @@ import { createClient } from "@supabase/supabase-js"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
+import { cookies } from "next/headers"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
   token: process.env.KV_REST_API_TOKEN!,
 })
 
-async function requireAdmin(token: string | null) {
+async function requireAdmin(token: string | null, req?: Request) {
+  // Authorization 헤더 없으면 HTTP-only 쿠키에서 토큰 읽기
+  if (!token && req) {
+    const cookieStore = await cookies()
+    token = cookieStore.get("app_token")?.value ?? null
+  }
   if (!token) return null
   const anonClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,7 +47,7 @@ function randomPick<T>(arr: readonly T[]): T {
 // GET: 자동배팅 유저 목록 + 잔고 조회
 export async function GET(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
-  const admin = await requireAdmin(token)
+  const admin = await requireAdmin(token, request)
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { data: profiles } = await adminSupabase
@@ -366,7 +372,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
 // POST: 자동배팅 1회 실행 (또는 잔고 일괄 충전)
 export async function POST(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
-  const admin = await requireAdmin(token)
+  const admin = await requireAdmin(token, request)
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await request.json()
@@ -430,7 +436,7 @@ export async function POST(request: Request) {
 // PATCH: 누적 수수료 초기화 또는 로그 조회
 export async function PATCH(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
-  const admin = await requireAdmin(token)
+  const admin = await requireAdmin(token, request)
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await request.json()

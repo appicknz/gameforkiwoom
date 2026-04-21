@@ -1,6 +1,7 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { Redis } from "@upstash/redis"
+import { cookies } from "next/headers"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -46,7 +47,11 @@ async function resolveUserId(token: string): Promise<string | null> {
  */
 export async function verifySession(req: Request): Promise<AuthResult> {
   const auth = req.headers.get("Authorization")
-  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null
+  // Authorization 헤더 없으면 HTTP-only 쿠키에서 읽음
+  const cookieStore = await cookies()
+  const token = (auth?.startsWith("Bearer ") ? auth.slice(7) : null)
+    ?? cookieStore.get("app_token")?.value
+    ?? null
   if (!token) return { ok: false, status: 401, error: "Unauthorized" }
 
   const userId = await resolveUserId(token)
@@ -74,9 +79,12 @@ export async function verifySession(req: Request): Promise<AuthResult> {
 export async function verifySessionFromUrl(req: Request): Promise<AuthResult> {
   const url = new URL(req.url)
   const auth = req.headers.get("Authorization")
+  const cookieStore = await cookies()
   const token =
     (auth?.startsWith("Bearer ") ? auth.slice(7) : null) ??
-    url.searchParams.get("token")
+    url.searchParams.get("token") ??
+    cookieStore.get("app_token")?.value ??
+    null
 
   if (!token) return { ok: false, status: 401, error: "Unauthorized" }
 

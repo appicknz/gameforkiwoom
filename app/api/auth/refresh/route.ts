@@ -35,6 +35,17 @@ export async function POST(req: Request) {
   // Redis 세션 갱신 (새 토큰으로 덮어쓰기, 중복 세션 무효화 포함)
   await saveSession(auth.userId, session.access_token)
 
-  return NextResponse.json({ token: session.access_token })
+  const response = NextResponse.json({ token: session.access_token })
+
+  // HTTP-only 쿠키 갱신
+  response.cookies.set("app_token", session.access_token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 86400,
+  })
+
+  return response
 }
 
