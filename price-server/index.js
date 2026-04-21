@@ -179,23 +179,100 @@ const VERCEL_URL = process.env.VERCEL_URL || process.env.NEXT_PUBLIC_APP_URL;
 
 // ─── closing 가격 서버에서 직접 DB 저장 (클라이언트 접속 여부 무관) ────
 function saveClosingPriceToDB(closePrice, closeTime) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return;
-  const url = `${SUPABASE_URL}/rest/v1/btc_closing_prices`;
-  const body = JSON.stringify({ time: closeTime, price: closePrice });
+  // Railway에 Supabase 환경변수가 없으면 Vercel API를 통해 저장
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.log("[db] No Supabase env vars, using Vercel API fallback");
+    if (!VERCEL_URL) {
+      console.log("[db] No VERCEL_URL either, cannot save closing price");
+      return;
+    }
+    // Vercel의 /api/closing-price POST 호출
+    const decStr = closePrice.toFixed(2).split(".")[1] || "00";
+    const d1 = parseInt(decStr[0] || "0");
+    const d2 = parseInt(decStr[1] || "0");
+    const baccaratResult = d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie";
+
+    const body = JSON.stringify({
+      price: closePrice,
+      time: closeTime,
+      baccarat_result: baccaratResult,
+      b_score: d1,
+      p_score: d2,
+      b_raw_sum: d1,
+      p_raw_sum: d2,
+    });
+
+    const parsedUrl = new URL(`${VERCEL_URL}/api/closing-price`);
+    const proto = parsedUrl.protocol === "https:" ? https : require("http");
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (parsedUrl.protocol === "https:" ? 443 : 80),
+      path: parsedUrl.pathname,
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
+    };
+    const req = proto.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => data += chunk);
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          console.log(`[db] saved via Vercel API: ${closePrice} @ ${closeTime}`);
+        } else {
+          console.error(`[db] Vercel API failed: ${res.statusCode} ${data}`);
+        }
+      });
+    });
+    req.on("error", (e) => console.error("[db] Vercel API error:", e.message));
+    req.write(body);
+    req.end();
+    return;
+  }
+  // BTC 가격 → 소수점 끝자리 점수 계산
+  const decStr = closePrice.toFixed(2).split(".")[1] || "00";
+  const d1 = parseInt(decStr[0] || "0");  // 소수점 첫째 → bScore
+  const d2 = parseInt(decStr[1] || "0");  // 소수점 둘째 → pScore
+  const baccaratResult = d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie";
+
+  const body = JSON.stringify({
+    time: closeTime,
+    price: closePrice,
+    baccarat_result: baccaratResult,
+    b_score: d1,
+    p_score: d2,
+    b_raw_sum: d1,
+    p_raw_sum: d2,
+  });
+
+  // URL 파싱 (https.request는 URL 문자열 지원 안 함)
+  const parsedUrl = new URL(`${SUPABASE_URL}/rest/v1/btc_closing_prices`);
   const options = {
+    hostname: parsedUrl.hostname,
+    port: 443,
+    path: parsedUrl.pathname,
     method: "POST",
     headers: {
       "apikey": SUPABASE_KEY,
       "Authorization": `Bearer ${SUPABASE_KEY}`,
       "Content-Type": "application/json",
-      "Prefer": "resolution=ignore-duplicates",
+      "Content-Length": Buffer.byteLength(body),
+      "Prefer": "resolution=merge-duplicates",  // upsert
     },
   };
-  const req = https.request(url, options);
+
+  const req = https.request(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => data += chunk);
+    res.on("end", () => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        console.log(`[db] saved closing price: ${closePrice} @ ${closeTime} (B${d1}/P${d2})`);
+      } else {
+        console.error(`[db] save failed: ${res.statusCode} ${data}`);
+      }
+    });
+  });
   req.on("error", (e) => console.error("[db] closing price save error:", e.message));
   req.write(body);
   req.end();
-  console.log(`[db] saved closing price: ${closePrice} @ ${closeTime}`);
 }
 
 function triggerSettlement(closePrice, closeTime) {
