@@ -6,8 +6,10 @@ interface PriceEntry {
   time: number
   price: number
   baccaratResult?: "player" | "banker" | "tie" | null
-  bScore?: number | null  // 뱅커 카드 합산 끝자리
-  pScore?: number | null  // 플레이어 카드 합산 끝자리
+  bScore?: number | null   // 뱅커 카드 합산 끝자리
+  pScore?: number | null   // 플레이어 카드 합산 끝자리
+  bRawSum?: number | null  // 뱅커 카드 합산 전체
+  pRawSum?: number | null  // 플레이어 카드 합산 전체
 }
 
 const GOLD = "#d4af37"
@@ -53,9 +55,15 @@ function BaccaratBadge({ result }: { result: "player" | "banker" | "tie" }) {
 function PriceRow({ entry }: { entry: PriceEntry }) {
   const bs = entry.bScore ?? null
   const ps = entry.pScore ?? null
+  const bRaw = entry.bRawSum ?? null
+  const pRaw = entry.pRawSum ?? null
   const hasScores = bs !== null && ps !== null
 
-  // 카드 점수 있으면 점수 기반, 없으면 DB 저장값, 둘 다 없으면 null (표시 보류)
+  // B/P 표시: rawSum 있으면 합산 전체(예: B14 P24), 없으면 끝자리(예: B4 P4)
+  const bDisplay = bRaw !== null ? bRaw : bs
+  const pDisplay = pRaw !== null ? pRaw : ps
+
+  // 승패: 끝자리 점수 기반, DB 저장값 순으로 fallback
   const baccaratResult: "player" | "banker" | "tie" | null =
     hasScores ? scoreToResult(bs!, ps!) : (entry.baccaratResult ?? null)
 
@@ -72,9 +80,9 @@ function PriceRow({ entry }: { entry: PriceEntry }) {
       <span style={{ color: GOLD, fontWeight: 700, minWidth: 90, textAlign: "right" }}>
         {fmtPrice(entry.price)}
       </span>
-      {/* B/P: 카드 합산 끝자리 점수 */}
-      <span style={{ fontSize: 10, color: GOLD_DIM, minWidth: 40, letterSpacing: "0.04em" }}>
-        {hasScores ? `B${bs} P${ps}` : "—"}
+      {/* B/P: 카드 합산 전체 숫자 */}
+      <span style={{ fontSize: 10, color: GOLD_DIM, minWidth: 44, letterSpacing: "0.04em" }}>
+        {bDisplay !== null ? `B${bDisplay} P${pDisplay}` : "—"}
       </span>
       {baccaratResult && <BaccaratBadge result={baccaratResult} />}
     </div>
@@ -114,12 +122,11 @@ export function ClosingPrices() {
   // 카드 연출 완료: baccarat:deal-complete 이벤트로 점수 반영
   useEffect(() => {
     const onDealComplete = (e: Event) => {
-      const { result, pScore, bScore } = (e as CustomEvent<{ result: "player" | "banker" | "tie"; pScore: number; bScore: number }>).detail
+      const { result, pScore, bScore, pRawSum, bRawSum } = (e as CustomEvent<{ result: "player" | "banker" | "tie"; pScore: number; bScore: number; pRawSum: number; bRawSum: number }>).detail
       setPrices(prev => {
         if (prev.length === 0) return prev
         const updated = [...prev]
-        // 가장 최근 엔트리에 점수 반영
-        updated[updated.length - 1] = { ...updated[updated.length - 1], baccaratResult: result, bScore, pScore }
+        updated[updated.length - 1] = { ...updated[updated.length - 1], baccaratResult: result, bScore, pScore, bRawSum, pRawSum }
         return updated
       })
     }

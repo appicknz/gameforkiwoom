@@ -12,6 +12,8 @@ interface ClosingPrice {
   baccaratResult?: "player" | "banker" | "tie" | null
   bScore?: number | null
   pScore?: number | null
+  bRawSum?: number | null
+  pRawSum?: number | null
 }
 
 /** 카드 끝자리 점수 기반 승패 계산 */
@@ -33,11 +35,11 @@ export function ClosingPricesList() {
     }
     // 카드 연출 완료: 가장 최근 엔트리에 점수 반영
     const onDealComplete = (e: Event) => {
-      const { result, pScore, bScore } = (e as CustomEvent<{ result: "player" | "banker" | "tie"; pScore: number; bScore: number }>).detail
+      const { result, pScore, bScore, pRawSum, bRawSum } = (e as CustomEvent<{ result: "player" | "banker" | "tie"; pScore: number; bScore: number; pRawSum: number; bRawSum: number }>).detail
       setPrices(prev => {
         if (prev.length === 0) return prev
         const updated = [...prev]
-        updated[0] = { ...updated[0], baccaratResult: result, bScore, pScore }
+        updated[0] = { ...updated[0], baccaratResult: result, bScore, pScore, bRawSum, pRawSum }
         return updated
       })
     }
@@ -66,6 +68,9 @@ export function ClosingPricesList() {
           prices.map((p, i) => {
             const time = new Date(p.time * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
             const hasScores = p.bScore !== null && p.bScore !== undefined && p.pScore !== null && p.pScore !== undefined
+            // B/P 표시: rawSum 있으면 합산 전체, 없으면 끝자리
+            const bDisplay = p.bRawSum ?? p.bScore ?? null
+            const pDisplay = p.pRawSum ?? p.pScore ?? null
             const result = hasScores ? scoreToResult(p.bScore!, p.pScore!) : p.baccaratResult ?? null
             const resultLabel = result === "player" ? "플레이어" : result === "banker" ? "뱅커" : result === "tie" ? "타이" : null
             const resultColor = result === "player" ? PLAYER_COLOR : result === "banker" ? BANKER_COLOR : TIE_COLOR
@@ -83,9 +88,9 @@ export function ClosingPricesList() {
                 <span style={{ color: "#d4af37", fontWeight: 600, fontVariantNumeric: "tabular-nums", flex: 1, textAlign: "right" }}>
                   ${p.price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
                 </span>
-                {/* B/P: 카드 합산 끝자리 점수 */}
-                <span style={{ color: "rgba(212,175,55,0.6)", fontSize: 11, minWidth: 40 }}>
-                  {hasScores ? `B${p.bScore} P${p.pScore}` : "—"}
+                {/* B/P: 카드 합산 전체 숫자 */}
+                <span style={{ color: "rgba(212,175,55,0.6)", fontSize: 11, minWidth: 44 }}>
+                  {bDisplay !== null ? `B${bDisplay} P${pDisplay}` : "—"}
                 </span>
                 {resultLabel ? (
                   <span style={{
