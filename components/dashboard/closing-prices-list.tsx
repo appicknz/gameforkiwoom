@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 
 const PLAYER_COLOR = "#60a5fa"
-const BANKER_COLOR = "#f97316"
+const BANKER_COLOR = "#ef4444"
 const TIE_COLOR    = "#22c55e"
 
 function ScoreCircles({ bDisplay, pDisplay, result }: {

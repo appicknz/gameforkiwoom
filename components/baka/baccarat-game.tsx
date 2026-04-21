@@ -729,11 +729,17 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         <ClosingPrices />
       </div>
 
-      {/* 차트 */}
-      <div style={{ padding: "0 12px 12px" }}>
-        <BitcoinChart />
-      </div>
+    </div>
 
+    {/* 차트 — 별도 카드로 분리 */}
+    <div style={{
+      margin: "8px 0",
+      borderRadius: 20,
+      overflow: "hidden",
+      border: "1px solid rgba(212,175,55,0.18)",
+      background: "rgba(5,13,10,0.95)",
+    }}>
+      <BitcoinChart />
     </div>
   )
 }

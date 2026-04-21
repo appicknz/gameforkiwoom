@@ -20,7 +20,7 @@ const CARD_BG = "rgba(5,13,10,0.85)"
 const GOLD_BORDER = "rgba(212,175,55,0.18)"
 
 const PLAYER_COLOR = "#60a5fa"   // blue
-const BANKER_COLOR = "#f97316"   // orange
+const BANKER_COLOR = "#ef4444"   // red
 const TIE_COLOR    = "#22c55e"   // green
 
 function fmtTime(ts: number) {
