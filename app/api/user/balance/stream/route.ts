@@ -69,25 +69,10 @@ export async function GET(request: Request) {
       // 2) 버전 카운터 폴링 — incr 발생 시 즉시 잔고 push
       let lastVersion = (await redis.get<number>(versionKey)) ?? 0
 
-      let checkCount = 0
-      const interval = setInterval(async () => {
-        if (closed) { clearInterval(interval); return }
-        try {
-          // 10회(20초)마다 세션 유효성 재확인 → 중복 로그인 감지
-          checkCount++
-          if (checkCount % 10 === 0) {
-            const { sessionKey } = await import("@/lib/auth")
-            const stored = await redis.get<string>(sessionKey(userId))
-            if (stored !== null && stored !== token) {
-              send({ kick: true, reason: "DUPLICATE_LOGIN" })
-              closed = true
-              clearInterval(interval)
-              try { controller.close() } catch {}
-              return
-            }
-          }
-
-          const version = (await redis.get<number>(versionKey)) ?? 0
+        const interval = setInterval(async () => {
+          if (closed) { clearInterval(interval); return }
+          try {
+            const version = (await redis.get<number>(versionKey)) ?? 0
           if (version !== lastVersion) {
             lastVersion = version
             const newBalance = await redis.get<number>(balanceKey)
