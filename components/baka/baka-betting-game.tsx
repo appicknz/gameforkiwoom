@@ -343,7 +343,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
         {/* 헤더 */}
         <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ background: headerBg }}>
           <div>
-            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라��드 #{result.round} 결과</p>
+            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라���드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight" style={{ color: headerColor }}>
               {headerLabel}
             </p>
@@ -609,6 +609,28 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     const effectiveBase = snapshotBase ?? closePrice
 
     // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
+    // btc_closing_prices: 가격/시간 먼저 저장
+    fetch("/api/closing-price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: closePrice, time }),
+    }).catch(() => { })
+
+    // 카드 연출 완료 후 점수 포함 upsert
+    const onDealForScore = (ev: Event) => {
+      window.removeEventListener("baccarat:deal-complete", onDealForScore)
+      const { result, pScore, bScore, pRawSum, bRawSum } = (ev as CustomEvent<{
+        result: "player" | "banker" | "tie"; pScore: number; bScore: number; pRawSum: number; bRawSum: number
+      }>).detail
+      fetch("/api/closing-price", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ price: closePrice, time, baccarat_result: result, b_score: bScore, p_score: pScore, b_raw_sum: bRawSum, p_raw_sum: pRawSum }),
+      }).catch(() => { })
+    }
+    window.addEventListener("baccarat:deal-complete", onDealForScore)
+    setTimeout(() => window.removeEventListener("baccarat:deal-complete", onDealForScore), 3000)
+
     fetch("/api/rounds/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

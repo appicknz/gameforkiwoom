@@ -57,6 +57,19 @@ function scoreToResult(b: number, p: number): "player" | "banker" | "tie" {
 export function ClosingPricesList() {
   const [prices, setPrices] = useState<ClosingPrice[]>([])
 
+  // 페이지 로드 시 DB에서 최근 10개 불러오기
+  useEffect(() => {
+    fetch("/api/closing-price?limit=10")
+      .then(r => r.json())
+      .then(({ prices: fetched }) => {
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          // DB는 오래된 순 반환 → 최신순으로 뒤집어 저장
+          setPrices([...fetched].reverse() as ClosingPrice[])
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     // baka:closing 이벤트로 30초마다 새 엔트리 추가 (점수는 deal-complete 이후 반영)
     const onClosing = (e: Event) => {
