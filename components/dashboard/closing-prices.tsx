@@ -6,6 +6,8 @@ interface PriceEntry {
   time: number
   price: number
   baccaratResult?: "player" | "banker" | "tie" | null
+  bScore?: number | null  // 뱅커 카드 합산 끝자리
+  pScore?: number | null  // 플레이어 카드 합산 끝자리
 }
 
 const GOLD = "#d4af37"
@@ -29,16 +31,9 @@ function fmtPrice(p: number) {
   return "$" + p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-/** 가격의 소수점 두 자리를 문자열에서 직접 파싱 — 부동소수점 오차 방지 */
-function getPriceDecimals(price: number): { d1: number; d2: number } {
-  const s = price.toFixed(2)           // "66967.43"
-  const dec = s.split(".")[1] ?? "00"  // "43"
-  return { d1: parseInt(dec[0] ?? "0"), d2: parseInt(dec[1] ?? "0") }
-}
-
-function getComputedResult(price: number): "player" | "banker" | "tie" {
-  const { d2 } = getPriceDecimals(price)  // 소수점 둘째 자리 기준
-  return d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
+/** 카드 끝자리 점수로 결과 계산 — 9에 가까운 쪽 승리 */
+function scoreToResult(bScore: number, pScore: number): "player" | "banker" | "tie" {
+  return pScore > bScore ? "player" : bScore > pScore ? "banker" : "tie"
 }
 
 function BaccaratBadge({ result }: { result: "player" | "banker" | "tie" }) {
@@ -56,10 +51,13 @@ function BaccaratBadge({ result }: { result: "player" | "banker" | "tie" }) {
 }
 
 function PriceRow({ entry }: { entry: PriceEntry }) {
-  const { d1, d2 } = getPriceDecimals(entry.price)  // 문자열 파싱으로 정확하게
+  const bs = entry.bScore ?? null
+  const ps = entry.pScore ?? null
+  const hasScores = bs !== null && ps !== null
 
-  // baccarat_result: DB 저장값 우선, 없으면 가격에서 계산
-  const baccaratResult = entry.baccaratResult ?? getComputedResult(entry.price)
+  // 카드 점수 있으면 점수 기반, 없으면 DB 저장값, 둘 다 없으면 null (표시 보류)
+  const baccaratResult: "player" | "banker" | "tie" | null =
+    hasScores ? scoreToResult(bs!, ps!) : (entry.baccaratResult ?? null)
 
   return (
     <div style={{
@@ -74,10 +72,11 @@ function PriceRow({ entry }: { entry: PriceEntry }) {
       <span style={{ color: GOLD, fontWeight: 700, minWidth: 90, textAlign: "right" }}>
         {fmtPrice(entry.price)}
       </span>
-      <span style={{ fontSize: 10, color: GOLD_DIM, minWidth: 36 }}>
-        B{d1} P{d2}
+      {/* B/P: 카드 합산 끝자리 점수 */}
+      <span style={{ fontSize: 10, color: GOLD_DIM, minWidth: 40, letterSpacing: "0.04em" }}>
+        {hasScores ? `B${bs} P${ps}` : "—"}
       </span>
-      <BaccaratBadge result={baccaratResult} />
+      {baccaratResult && <BaccaratBadge result={baccaratResult} />}
     </div>
   )
 }
@@ -98,18 +97,34 @@ export function ClosingPrices() {
       .catch(() => {})
   }, [])
 
-  // 30초 마감: baka:closing 이벤트 구독
+  // 30초 마감: baka:closing 이벤트 구독 (가격/시간 먼저 추가, 점수는 deal-complete 이후 반영)
   useEffect(() => {
     const onClosing = (e: Event) => {
-      const { price, time, baccaratResult } = (e as CustomEvent<{ price: number; time: number; baccaratResult?: "player" | "banker" | "tie" }>).detail
+      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
       setPrices(prev => {
         const last = prev[prev.length - 1]
         if (last?.time === time) return prev
-        return [...prev, { time, price, baccaratResult: baccaratResult ?? null }].slice(-50)
+        return [...prev, { time, price, baccaratResult: null, bScore: null, pScore: null }].slice(-50)
       })
     }
     window.addEventListener("baka:closing", onClosing)
     return () => window.removeEventListener("baka:closing", onClosing)
+  }, [])
+
+  // 카드 연출 완료: baccarat:deal-complete 이벤트로 점수 반영
+  useEffect(() => {
+    const onDealComplete = (e: Event) => {
+      const { result, pScore, bScore } = (e as CustomEvent<{ result: "player" | "banker" | "tie"; pScore: number; bScore: number }>).detail
+      setPrices(prev => {
+        if (prev.length === 0) return prev
+        const updated = [...prev]
+        // 가장 최근 엔트리에 점수 반영
+        updated[updated.length - 1] = { ...updated[updated.length - 1], baccaratResult: result, bScore, pScore }
+        return updated
+      })
+    }
+    window.addEventListener("baccarat:deal-complete", onDealComplete)
+    return () => window.removeEventListener("baccarat:deal-complete", onDealComplete)
   }, [])
 
   if (prices.length === 0) return null
