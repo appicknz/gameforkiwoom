@@ -6,6 +6,46 @@ const PLAYER_COLOR = "#60a5fa"
 const BANKER_COLOR = "#f97316"
 const TIE_COLOR    = "#22c55e"
 
+function ScoreCircles({ bDisplay, pDisplay, result }: {
+  bDisplay: number | null; pDisplay: number | null; result: "player" | "banker" | "tie" | null
+}) {
+  if (bDisplay === null || pDisplay === null) {
+    return <span style={{ color: "rgba(212,175,55,0.4)", fontSize: 10 }}>—</span>
+  }
+  const isTie = result === "tie"
+  const bWin  = result === "banker"
+  const pWin  = result === "player"
+  const bColor = bWin ? BANKER_COLOR : isTie ? TIE_COLOR : "rgba(212,175,55,0.25)"
+  const pColor = pWin ? PLAYER_COLOR : isTie ? TIE_COLOR : "rgba(212,175,55,0.25)"
+  const bFill  = bWin ? `${BANKER_COLOR}30` : isTie ? `${TIE_COLOR}18` : "transparent"
+  const pFill  = pWin ? `${PLAYER_COLOR}30` : isTie ? `${TIE_COLOR}18` : "transparent"
+  const bText  = bWin ? BANKER_COLOR : isTie ? TIE_COLOR : "rgba(232,213,163,0.55)"
+  const pText  = pWin ? PLAYER_COLOR : isTie ? TIE_COLOR : "rgba(232,213,163,0.55)"
+  const circle = (val: number, bc: string, bg: string, tc: string) => (
+    <div style={{
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      width: 26, height: 26, borderRadius: "50%",
+      border: `1.5px solid ${bc}`, background: bg,
+      fontSize: 10, fontWeight: 800, color: tc, lineHeight: 1, flexShrink: 0,
+    }}>{val}</div>
+  )
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: isTie ? 0 : 3,
+      padding: isTie ? "1px 2px" : 0,
+      borderRadius: isTie ? 20 : 0,
+      border: isTie ? `1.5px solid ${TIE_COLOR}` : "none",
+      background: isTie ? `${TIE_COLOR}0a` : "transparent",
+    }}>
+      <span style={{ fontSize: 8, fontWeight: 700, color: bColor, marginRight: 1, marginLeft: isTie ? 3 : 0 }}>B</span>
+      {circle(bDisplay, bColor, bFill, bText)}
+      <span style={{ fontSize: 8, fontWeight: 700, color: pColor, marginLeft: isTie ? 3 : 2, marginRight: 1 }}>P</span>
+      {circle(pDisplay, pColor, pFill, pText)}
+      {isTie && <span style={{ fontSize: 8, fontWeight: 700, color: TIE_COLOR, marginLeft: 3, marginRight: 2 }}>TIE</span>}
+    </div>
+  )
+}
+
 interface ClosingPrice {
   time: number
   price: number
@@ -68,18 +108,14 @@ export function ClosingPricesList() {
           prices.map((p, i) => {
             const time = new Date(p.time * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
             const hasScores = p.bScore !== null && p.bScore !== undefined && p.pScore !== null && p.pScore !== undefined
-            // B/P 표시: rawSum 있으면 합산 전체, 없으면 끝자리
             const bDisplay = p.bRawSum ?? p.bScore ?? null
             const pDisplay = p.pRawSum ?? p.pScore ?? null
             const result = hasScores ? scoreToResult(p.bScore!, p.pScore!) : p.baccaratResult ?? null
-            const resultLabel = result === "player" ? "플레이어" : result === "banker" ? "뱅커" : result === "tie" ? "타이" : null
-            const resultColor = result === "player" ? PLAYER_COLOR : result === "banker" ? BANKER_COLOR : TIE_COLOR
             return (
               <div key={p.time} style={{
                 padding: "8px 14px",
                 borderBottom: i < prices.length - 1 ? "1px solid rgba(212,175,55,0.08)" : "none",
                 display: "flex",
-                justifyContent: "space-between",
                 alignItems: "center",
                 fontSize: 12,
                 gap: 8,
@@ -88,19 +124,7 @@ export function ClosingPricesList() {
                 <span style={{ color: "#d4af37", fontWeight: 600, fontVariantNumeric: "tabular-nums", flex: 1, textAlign: "right" }}>
                   ${p.price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
                 </span>
-                {/* B/P: 카드 합산 전체 숫자 */}
-                <span style={{ color: "rgba(212,175,55,0.6)", fontSize: 11, minWidth: 44 }}>
-                  {bDisplay !== null ? `B${bDisplay} P${pDisplay}` : "—"}
-                </span>
-                {resultLabel ? (
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
-                    background: `${resultColor}22`, color: resultColor, border: `1px solid ${resultColor}55`,
-                    whiteSpace: "nowrap",
-                  }}>
-                    {resultLabel}
-                  </span>
-                ) : <span style={{ minWidth: 40 }} />}
+                <ScoreCircles bDisplay={bDisplay} pDisplay={pDisplay} result={result} />
               </div>
             )
           })

@@ -38,17 +38,56 @@ function scoreToResult(bScore: number, pScore: number): "player" | "banker" | "t
   return pScore > bScore ? "player" : bScore > pScore ? "banker" : "tie"
 }
 
-function BaccaratBadge({ result }: { result: "player" | "banker" | "tie" }) {
-  const label = result === "player" ? "플레이어" : result === "banker" ? "뱅커" : "타이"
-  const color = result === "player" ? PLAYER_COLOR : result === "banker" ? BANKER_COLOR : TIE_COLOR
-  return (
-    <span style={{
-      padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700,
-      background: `${color}22`, color, border: `1px solid ${color}55`,
-      whiteSpace: "nowrap",
+/** B/P 동그라미 점수 표시 — 이긴 쪽 채움, 타이는 초록 묶음 */
+function ScoreCircles({
+  bDisplay, pDisplay, result,
+}: {
+  bDisplay: number | null
+  pDisplay: number | null
+  result: "player" | "banker" | "tie" | null
+}) {
+  if (bDisplay === null || pDisplay === null) {
+    return <span style={{ color: GOLD_DIM, fontSize: 10 }}>—</span>
+  }
+
+  const isTie    = result === "tie"
+  const bWin     = result === "banker"
+  const pWin     = result === "player"
+
+  const bColor   = bWin ? BANKER_COLOR : isTie ? TIE_COLOR : "rgba(212,175,55,0.25)"
+  const pColor   = pWin ? PLAYER_COLOR : isTie ? TIE_COLOR : "rgba(212,175,55,0.25)"
+  const bFill    = bWin ? `${BANKER_COLOR}30` : isTie ? `${TIE_COLOR}18` : "transparent"
+  const pFill    = pWin ? `${PLAYER_COLOR}30` : isTie ? `${TIE_COLOR}18` : "transparent"
+  const bText    = bWin ? BANKER_COLOR : isTie ? TIE_COLOR : "rgba(232,213,163,0.55)"
+  const pText    = pWin ? PLAYER_COLOR : isTie ? TIE_COLOR : "rgba(232,213,163,0.55)"
+
+  const circle = (val: number, borderColor: string, bg: string, textColor: string) => (
+    <div style={{
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      width: 28, height: 28, borderRadius: "50%",
+      border: `1.5px solid ${borderColor}`,
+      background: bg,
+      fontSize: 11, fontWeight: 800, color: textColor,
+      lineHeight: 1, flexShrink: 0,
     }}>
-      {label}
-    </span>
+      {val}
+    </div>
+  )
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: isTie ? 0 : 4,
+      padding: isTie ? "1px" : 0,
+      borderRadius: isTie ? 20 : 0,
+      border: isTie ? `1.5px solid ${TIE_COLOR}` : "none",
+      background: isTie ? `${TIE_COLOR}0a` : "transparent",
+    }}>
+      <span style={{ fontSize: 9, fontWeight: 700, color: bColor, marginRight: 2, marginLeft: isTie ? 3 : 0 }}>B</span>
+      {circle(bDisplay, bColor, bFill, bText)}
+      <span style={{ fontSize: 9, fontWeight: 700, color: pColor, marginLeft: isTie ? 4 : 2, marginRight: 2 }}>P</span>
+      {circle(pDisplay, pColor, pFill, pText)}
+      {isTie && <span style={{ fontSize: 8, fontWeight: 700, color: TIE_COLOR, marginLeft: 3, marginRight: 3 }}>TIE</span>}
+    </div>
   )
 }
 
@@ -59,11 +98,9 @@ function PriceRow({ entry }: { entry: PriceEntry }) {
   const pRaw = entry.pRawSum ?? null
   const hasScores = bs !== null && ps !== null
 
-  // B/P 표시: rawSum 있으면 합산 전체(예: B14 P24), 없으면 끝자리(예: B4 P4)
   const bDisplay = bRaw !== null ? bRaw : bs
   const pDisplay = pRaw !== null ? pRaw : ps
 
-  // 승패: 끝자리 점수 기반, DB 저장값 순으로 fallback
   const baccaratResult: "player" | "banker" | "tie" | null =
     hasScores ? scoreToResult(bs!, ps!) : (entry.baccaratResult ?? null)
 
@@ -80,11 +117,9 @@ function PriceRow({ entry }: { entry: PriceEntry }) {
       <span style={{ color: GOLD, fontWeight: 700, minWidth: 90, textAlign: "right" }}>
         {fmtPrice(entry.price)}
       </span>
-      {/* B/P: 카드 합산 전체 숫자 */}
-      <span style={{ fontSize: 10, color: GOLD_DIM, minWidth: 44, letterSpacing: "0.04em" }}>
-        {bDisplay !== null ? `B${bDisplay} P${pDisplay}` : "—"}
-      </span>
-      {baccaratResult && <BaccaratBadge result={baccaratResult} />}
+      <div style={{ marginLeft: "auto" }}>
+        <ScoreCircles bDisplay={bDisplay} pDisplay={pDisplay} result={baccaratResult} />
+      </div>
     </div>
   )
 }
