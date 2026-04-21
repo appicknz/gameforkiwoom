@@ -10,7 +10,38 @@ import {
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────
 const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
+const setToken = (t: string) => { try { localStorage.setItem("app_token", t) } catch {} }
 const fmt = (n: number) => `₩${n.toLocaleString("ko-KR")}`
+
+// 401 응답 시 /api/auth/refresh 로 토큰 갱신 후 재시도
+// 갱신 실패 시 null 반환 → 호출부에서 재로그인 안내
+async function fetchWithRefresh(input: RequestInfo, init: RequestInit = {}): Promise<Response> {
+  const token = getToken()
+  const authInit: RequestInit = {
+    ...init,
+    headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
+  }
+  const res = await fetch(input, authInit)
+  if (res.status !== 401) return res
+
+  // 토큰 갱신 시도
+  const refreshRes = await fetch("/api/auth/refresh", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!refreshRes.ok) return res  // 갱신 실패 → 원래 401 반환
+
+  const { token: newToken } = await refreshRes.json()
+  if (!newToken) return res
+
+  setToken(newToken)
+
+  // 새 토큰으로 원래 요청 재시도
+  return fetch(input, {
+    ...init,
+    headers: { ...(init.headers ?? {}), Authorization: `Bearer ${newToken}` },
+  })
+}
 
 // ── 라운드 모니터 타입 ────────────────────────────────────────────────────
 interface RoundStats {
@@ -332,7 +363,7 @@ export function RoundMonitor({
   const loadLpState = useCallback(async () => {
     const token = getToken(); if (!token) return
     try {
-      const res = await fetch("/api/admin/branches", { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetchWithRefresh("/api/admin/branches")
       if (!res.ok) return
       const data = await res.json()
       const list: { id: string; lp_enabled: boolean }[] = data.branches ?? []
@@ -347,18 +378,17 @@ export function RoundMonitor({
     if (baccaratPhaseRef.current === "게임중" && racePhaseRef.current === "게임중") return
     setRoundLoading(true)
     try {
-      const res = await fetch("/api/admin/round-stats", { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetchWithRefresh("/api/admin/round-stats")
       if (res.ok) setCombined(await res.json())
     } catch {}
     setRoundLoading(false)
   }, [])
 
   const loadHouseStats = useCallback(async () => {
-    const token = getToken(); if (!token) return
     setHouseLoading(true)
     try {
       const url = branchId ? `/api/admin/house-stats?branchId=${branchId}` : "/api/admin/house-stats"
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetchWithRefresh(url)
       if (res.ok) {
         const d = await res.json()
         setHouseStats(d.stats ?? [])
@@ -372,19 +402,17 @@ export function RoundMonitor({
   }, [branchId])
 
   const loadLpHistory = useCallback(async () => {
-    const token = getToken(); if (!token) return
     setLpLoading(true)
     try {
       const url = branchId ? `/api/admin/lp-history?branchId=${branchId}` : "/api/admin/lp-history"
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetchWithRefresh(url)
       if (res.ok) { const d = await res.json(); setLpHistory(d.history ?? []); setLpTotal(d.totalLpUsed ?? 0) }
     } catch {}
     setLpLoading(false)
   }, [branchId])
 
   const loadAbUsers = useCallback(async () => {
-    const token = getToken(); if (!token) return
-    const res = await fetch("/api/admin/auto-bet", { headers: { Authorization: `Bearer ${token}` } })
+    const res = await fetchWithRefresh("/api/admin/auto-bet")
     if (res.ok) {
       const d = await res.json()
       setAbUsers(d.users ?? [])
@@ -417,9 +445,9 @@ export function RoundMonitor({
     try {
       const targets = lpBranches.length > 0 ? lpBranches : branches
       await Promise.all(targets.map(b =>
-        fetch("/api/admin/branches/betting", {
+        fetchWithRefresh("/api/admin/branches/betting", {
           method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ branchId: b.id, lpEnabled: next }),
         })
       ))
@@ -430,10 +458,9 @@ export function RoundMonitor({
 
   const handleCollect = async (bId: string, gt: string) => {
     const key = `${bId}-${gt}`; setCollectingId(key)
-    const token = getToken(); if (!token) return
-    const res = await fetch("/api/admin/house-stats", {
+    const res = await fetchWithRefresh("/api/admin/house-stats", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ branch_id: bId, game_type: gt, note: "수금 처리" }),
     })
     if (res.ok) await loadHouseStats()
@@ -442,12 +469,11 @@ export function RoundMonitor({
 
   // ── 자동배팅 배팅 실행 ────────────────────────────────────────
   const runBaccaratBet = useCallback(async () => {
-    const token = getToken(); if (!token) return
     setBaccaratLoading(true)
     try {
-      const res = await fetch("/api/admin/auto-bet", {
+      const res = await fetchWithRefresh("/api/admin/auto-bet", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "bet_baccarat" }),
       })
       if (res.ok) {
@@ -462,22 +488,17 @@ export function RoundMonitor({
   }, [loadAbUsers])
 
   const runRaceBet = useCallback(async () => {
-    const token = getToken(); if (!token) return
     setRaceLoading(true)
     try {
-      const nowSec = Math.floor(Date.now() / 1000)
-      const secInRound = nowSec % 180
-      console.log("[v0] runRaceBet called — secInRound:", secInRound, "round:", Math.floor(nowSec / 180))
-      const res = await fetch("/api/admin/auto-bet", {
+      const res = await fetchWithRefresh("/api/admin/auto-bet", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "bet_race" }),
       })
       const d = await res.json()
-      console.log("[v0] runRaceBet response:", JSON.stringify(d))
       if (res.ok) {
         if (d.skipped) {
-          setAbStatus(`레이스 배팅 스킵 — ${d.skipReason}`)
+          setAbStatus(`레이스 배팅 스킵 — ${d.skipReason ?? "배팅 불가 구간"}`)
         } else {
           setLastBetResults(d.results ?? [])
           setAccumulatedFee(d.accumulatedFee ?? 0)
@@ -487,7 +508,7 @@ export function RoundMonitor({
       } else {
         setAbStatus(`레이스 배팅 오류 — ${d.error ?? res.status}`)
       }
-    } catch (e) { console.log("[v0] runRaceBet error:", e); setAbStatus("레이스 배팅 실패") }
+    } catch { setAbStatus("레이스 배팅 실패") }
     setRaceLoading(false)
   }, [loadAbUsers])
 
@@ -548,11 +569,10 @@ export function RoundMonitor({
   }
 
   const handleTopUp = async () => {
-    const token = getToken(); if (!token) return
     setToppingUp(true)
-    const res = await fetch("/api/admin/auto-bet", {
+    const res = await fetchWithRefresh("/api/admin/auto-bet", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "top_up" }),
     })
     if (res.ok) { const d = await res.json(); setAbStatus(`잔고 충전 완료 — ${d.topped}명 충전됨`); loadAbUsers() }
@@ -560,17 +580,15 @@ export function RoundMonitor({
   }
 
   const handleResetFee = async () => {
-    const token = getToken(); if (!token) return
-    await fetch("/api/admin/auto-bet", {
+    await fetchWithRefresh("/api/admin/auto-bet", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "reset_fee" }),
     })
     setAccumulatedFee(0)
   }
 
   const handleFullReset = async () => {
-    const token = getToken(); if (!token) return
     setResetLoading(true); setResetError("")
     const verifyRes = await fetch("/api/admin/verify-password", {
       method: "POST",
@@ -578,9 +596,9 @@ export function RoundMonitor({
       body: JSON.stringify({ username: "역삼1", password: resetPassword }),
     })
     if (!verifyRes.ok) { setResetError("비밀번호가 올바르지 않습니다."); setResetLoading(false); return }
-    const resetRes = await fetch("/api/admin/auto-bet", {
+    const resetRes = await fetchWithRefresh("/api/admin/auto-bet", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "full_reset" }),
     })
     if (resetRes.ok) {
