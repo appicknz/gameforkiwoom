@@ -334,6 +334,8 @@ export function RoundMonitor({
   const [abUsers,          setAbUsers]          = useState<AutoBetUser[]>([])
   const [abLogs,           setAbLogs]           = useState<BetLog[]>([])
   const [accumulatedFee,   setAccumulatedFee]   = useState(0)
+  const [baccaratFee,      setBaccaratFee]      = useState(0)
+  const [raceFee,          setRaceFee]          = useState(0)
   const [abStats,          setAbStats]          = useState<BetStats | null>(null)
   const [baccaratRunning,  setBaccaratRunning]  = useState(false)
   const [raceRunning,      setRaceRunning]      = useState(false)
@@ -436,6 +438,8 @@ export function RoundMonitor({
       }).filter(Boolean)
       setAbLogs(parsed)
       setAccumulatedFee(d.accumulatedFee ?? 0)
+      setBaccaratFee(d.baccaratFee ?? 0)
+      setRaceFee(d.raceFee ?? 0)
     }
   }, [])
 
@@ -482,6 +486,7 @@ export function RoundMonitor({
         const d = await res.json()
         setLastBetResults(d.results ?? [])
         setAccumulatedFee(d.accumulatedFee ?? 0)
+        setBaccaratFee(d.baccaratFee ?? 0)
         setAbStatus(`바카라 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
         loadAbUsers()
       }
@@ -502,6 +507,7 @@ export function RoundMonitor({
         const d = await res.json()
         setLastBetResults(d.results ?? [])
         setAccumulatedFee(d.accumulatedFee ?? 0)
+        setRaceFee(d.raceFee ?? 0)
         setAbStatus(`레이스 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
         loadAbUsers()
       }
@@ -577,12 +583,18 @@ export function RoundMonitor({
   }
 
   const handleResetFee = async () => {
-    await fetchWithRefresh("/api/admin/auto-bet", {
+    const token = getToken(); if (!token) return
+    const res = await fetchWithRefresh("/api/admin/auto-bet", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "reset_fee" }),
     })
-    setAccumulatedFee(0)
+    if (res.ok) {
+      setAccumulatedFee(0)
+      setBaccaratFee(0)
+      setRaceFee(0)
+      setAbStatus("누적 수수료 초기화 완료")
+    }
   }
 
   const handleFullReset = async () => {
@@ -840,110 +852,148 @@ export function RoundMonitor({
               </div>
             </div>
 
-            {/* 누적 수수료 + 바카라/레이스 분리 통계 */}
-            <div className="px-5 pt-4 pb-3 space-y-3">
-              {/* 누적 수수료 */}
-              <div className="bg-muted rounded-xl p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">자동배팅 누적 수수료 (20%)</p>
-                  <p className="text-2xl font-black tabular-nums text-amber-500 mt-0.5">{fmt(accumulatedFee)}</p>
-                </div>
-                <button onClick={handleResetFee} className="text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">초기화</button>
-              </div>
-
-              {/* 바카라 / 레이스 각각 분리 */}
+            {/* 바카라 / 레이스 분리 통계 */}
+            <div className="px-5 pt-4 pb-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* 바카라 */}
-                <div className="border border-blue-500/20 bg-blue-500/5 rounded-xl p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-blue-500">바카라</p>
-                    <span className="text-xs text-muted-foreground">{baccaratUsers.length}명</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div>
-                      <p className="text-muted-foreground">수익 누적</p>
-                      <p className="font-bold tabular-nums text-emerald-500">
-                        {(() => { const u = baccaratUsers; const p = u.reduce((s,x) => s+(x.userStats?.winProfit??0),0); return u.length ? `+${fmt(p)}` : "—" })()}
-                      </p>
+                {/* 바카라 패널 */}
+                {(() => {
+                  const u = baccaratUsers
+                  const totalBalance = u.reduce((s,x) => s+x.balance, 0)
+                  const seed = u.length * 10_000_000
+                  const delta = totalBalance - seed
+                  const winProfit = u.reduce((s,x) => s+(x.userStats?.winProfit??0), 0)
+                  const loss = u.reduce((s,x) => s+(x.userStats?.loss??0), 0)
+                  const winCount = u.reduce((s,x) => s+(x.userStats?.winCount??0), 0)
+                  const loseCount = u.reduce((s,x) => s+(x.userStats?.loseCount??0), 0)
+                  const tieCount = u.reduce((s,x) => s+(x.userStats?.tieCount??0), 0)
+                  const totalBets = u.reduce((s,x) => s+(x.userStats?.totalBets??0), 0)
+                  const lowBalance = u.filter(x => x.balance < 1_000_000).length
+                  return (
+                    <div className="border border-blue-500/20 bg-blue-500/5 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-bold text-blue-500">바카라</p>
+                          <span className="text-xs text-muted-foreground">{u.length}명</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-muted-foreground">누적 수수료</p>
+                          <p className="text-sm font-black tabular-nums text-amber-500">{fmt(baccaratFee)}</p>
+                        </div>
+                      </div>
+                      {/* 시드 대비 손익 */}
+                      <div className="flex items-center justify-between bg-background/60 rounded-lg px-3 py-2">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">총 잔고</p>
+                          <p className="text-sm font-black tabular-nums text-foreground">{u.length ? fmt(totalBalance) : "—"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-muted-foreground">시드 대비</p>
+                          {u.length ? (
+                            <p className={`text-sm font-black tabular-nums ${delta >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                              {delta >= 0 ? `+${fmt(delta)}` : `-${fmt(Math.abs(delta))}`}
+                            </p>
+                          ) : <p className="text-sm text-muted-foreground">—</p>}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">수익 누적</p>
+                          <p className="font-bold tabular-nums text-emerald-500">{u.length ? `+${fmt(winProfit)}` : "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">손실 누적</p>
+                          <p className="font-bold tabular-nums text-red-500">{u.length ? `-${fmt(loss)}` : "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">잔고부족</p>
+                          <p className={`font-bold tabular-nums ${lowBalance > 0 ? "text-orange-500" : "text-muted-foreground"}`}>{lowBalance}명</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">승률</p>
+                          <p className="font-bold tabular-nums text-foreground">{totalBets > 0 ? `${Math.round(winCount/totalBets*100)}%` : "—"}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-muted-foreground">승/패/타이</p>
+                          <p className="font-bold tabular-nums text-foreground">{u.length ? `${winCount} / ${loseCount} / ${tieCount}` : "—"}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">손실 누적</p>
-                      <p className="font-bold tabular-nums text-red-500">
-                        {(() => { const u = baccaratUsers; const l = u.reduce((s,x) => s+(x.userStats?.loss??0),0); return u.length ? `-${fmt(l)}` : "—" })()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">총 잔고</p>
-                      <p className="font-bold tabular-nums text-foreground">
-                        {baccaratUsers.length ? fmt(baccaratUsers.reduce((s,x) => s+x.balance,0)) : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">승률</p>
-                      <p className="font-bold tabular-nums text-foreground">
-                        {(() => { const u = baccaratUsers; const w=u.reduce((s,x)=>s+(x.userStats?.winCount??0),0); const t=u.reduce((s,x)=>s+(x.userStats?.totalBets??0),0); return t>0?`${Math.round(w/t*100)}%`:"—" })()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">승/패/타이</p>
-                      <p className="font-bold tabular-nums text-foreground">
-                        {(() => { const u=baccaratUsers; const w=u.reduce((s,x)=>s+(x.userStats?.winCount??0),0); const l=u.reduce((s,x)=>s+(x.userStats?.loseCount??0),0); const ti=u.reduce((s,x)=>s+(x.userStats?.tieCount??0),0); return u.length?`${w}/${l}/${ti}`:"—" })()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">잔고부족</p>
-                      <p className={`font-bold tabular-nums ${baccaratUsers.filter(u=>u.balance<1_000_000).length>0?"text-orange-500":"text-muted-foreground"}`}>
-                        {baccaratUsers.filter(u=>u.balance<1_000_000).length}명
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  )
+                })()}
 
-                {/* 레이스 */}
-                <div className="border border-orange-500/20 bg-orange-500/5 rounded-xl p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-orange-500">레이스</p>
-                    <span className="text-xs text-muted-foreground">{raceUsers.length}명</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div>
-                      <p className="text-muted-foreground">수익 누적</p>
-                      <p className="font-bold tabular-nums text-emerald-500">
-                        {(() => { const u=raceUsers; const p=u.reduce((s,x)=>s+(x.userStats?.winProfit??0),0); return u.length?`+${fmt(p)}`:"—" })()}
-                      </p>
+                {/* 레이스 패널 */}
+                {(() => {
+                  const u = raceUsers
+                  const totalBalance = u.reduce((s,x) => s+x.balance, 0)
+                  const seed = u.length * 10_000_000
+                  const delta = totalBalance - seed
+                  const winProfit = u.reduce((s,x) => s+(x.userStats?.winProfit??0), 0)
+                  const loss = u.reduce((s,x) => s+(x.userStats?.loss??0), 0)
+                  const winCount = u.reduce((s,x) => s+(x.userStats?.winCount??0), 0)
+                  const loseCount = u.reduce((s,x) => s+(x.userStats?.loseCount??0), 0)
+                  const tieCount = u.reduce((s,x) => s+(x.userStats?.tieCount??0), 0)
+                  const totalBets = u.reduce((s,x) => s+(x.userStats?.totalBets??0), 0)
+                  const lowBalance = u.filter(x => x.balance < 1_000_000).length
+                  return (
+                    <div className="border border-orange-500/20 bg-orange-500/5 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-bold text-orange-500">레이스</p>
+                          <span className="text-xs text-muted-foreground">{u.length}명</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-muted-foreground">누적 수수료</p>
+                          <p className="text-sm font-black tabular-nums text-amber-500">{fmt(raceFee)}</p>
+                        </div>
+                      </div>
+                      {/* 시드 대비 손익 */}
+                      <div className="flex items-center justify-between bg-background/60 rounded-lg px-3 py-2">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">총 잔고</p>
+                          <p className="text-sm font-black tabular-nums text-foreground">{u.length ? fmt(totalBalance) : "—"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-muted-foreground">시드 대비</p>
+                          {u.length ? (
+                            <p className={`text-sm font-black tabular-nums ${delta >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                              {delta >= 0 ? `+${fmt(delta)}` : `-${fmt(Math.abs(delta))}`}
+                            </p>
+                          ) : <p className="text-sm text-muted-foreground">—</p>}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">수익 누적</p>
+                          <p className="font-bold tabular-nums text-emerald-500">{u.length ? `+${fmt(winProfit)}` : "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">손실 누적</p>
+                          <p className="font-bold tabular-nums text-red-500">{u.length ? `-${fmt(loss)}` : "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">잔고부족</p>
+                          <p className={`font-bold tabular-nums ${lowBalance > 0 ? "text-orange-500" : "text-muted-foreground"}`}>{lowBalance}명</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">승률</p>
+                          <p className="font-bold tabular-nums text-foreground">{totalBets > 0 ? `${Math.round(winCount/totalBets*100)}%` : "—"}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-muted-foreground">승/패/타이</p>
+                          <p className="font-bold tabular-nums text-foreground">{u.length ? `${winCount} / ${loseCount} / ${tieCount}` : "—"}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">손실 누적</p>
-                      <p className="font-bold tabular-nums text-red-500">
-                        {(() => { const u=raceUsers; const l=u.reduce((s,x)=>s+(x.userStats?.loss??0),0); return u.length?`-${fmt(l)}`:"—" })()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">총 잔고</p>
-                      <p className="font-bold tabular-nums text-foreground">
-                        {raceUsers.length ? fmt(raceUsers.reduce((s,x)=>s+x.balance,0)) : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">승률</p>
-                      <p className="font-bold tabular-nums text-foreground">
-                        {(() => { const u=raceUsers; const w=u.reduce((s,x)=>s+(x.userStats?.winCount??0),0); const t=u.reduce((s,x)=>s+(x.userStats?.totalBets??0),0); return t>0?`${Math.round(w/t*100)}%`:"—" })()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">승/패/타이</p>
-                      <p className="font-bold tabular-nums text-foreground">
-                        {(() => { const u=raceUsers; const w=u.reduce((s,x)=>s+(x.userStats?.winCount??0),0); const l=u.reduce((s,x)=>s+(x.userStats?.loseCount??0),0); const ti=u.reduce((s,x)=>s+(x.userStats?.tieCount??0),0); return u.length?`${w}/${l}/${ti}`:"—" })()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">잔고부족</p>
-                      <p className={`font-bold tabular-nums ${raceUsers.filter(u=>u.balance<1_000_000).length>0?"text-orange-500":"text-muted-foreground"}`}>
-                        {raceUsers.filter(u=>u.balance<1_000_000).length}명
-                      </p>
-                    </div>
-                  </div>
+                  )
+                })()}
+              </div>
+              {/* 전체 수수료 합산 + 초기화 */}
+              <div className="mt-3 bg-muted rounded-xl px-4 py-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-muted-foreground">전체 누적 수수료</p>
+                  <p className="text-base font-black tabular-nums text-amber-500">{fmt(accumulatedFee)}</p>
                 </div>
+                <button onClick={handleResetFee} className="text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">전체 초기화</button>
               </div>
             </div>
 
