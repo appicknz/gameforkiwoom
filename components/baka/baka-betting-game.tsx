@@ -343,7 +343,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
         {/* 헤더 */}
         <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ background: headerBg }}>
           <div>
-            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라����드 #{result.round} 결과</p>
+            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라�����드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight" style={{ color: headerColor }}>
               {headerLabel}
             </p>
@@ -811,9 +811,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         onResetCards?.()
       }
 
-      // 25초: 딜 시작 — 카드를 먼저 공개한 뒤 배팅 오픈 (라운드당 1회)
-      // rem===25: 라운드 시작 5초 후. 이후 배팅 가능(12초) → 게임중(13초)
-      if (rem === 25 && dealTriggeredRoundRef.current !== roundNum) {
+      // 20초: 딜 시작 — 카드를 먼저 공개한 뒤 배팅 오픈 (라운드당 1회)
+      // rem===20: 라운드 시작 5초 후 배팅(15초) → 게임중(10초)
+      if (rem === 20 && dealTriggeredRoundRef.current !== roundNum) {
         dealTriggeredRoundRef.current = roundNum
         onStartDealTrigger?.()
       }
@@ -823,12 +823,12 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // 페이즈 구조 (30초 라운드 기준, UTC secInRound 기준):
   //    0~ 4초: 정산   (5초)
-  //    5~14초: 배팅   (10초)
-  //   15~29초: 게임 중 (15초)
+  //    5~19초: 배팅   (15초)
+  //   20~29초: 게임 중 (10초)
   // SSE 서버와 동일한 UTC 기준으로 계산 — timeLeft 기반 오차 제거
   const canBet = (() => {
     const s = Math.floor(Date.now() / 1000) % 30
-    return s >= 5 && s < 15
+    return s >= 5 && s < 20
   })()
 
   // canBetRef 동기화 + 배팅 시작 시 최신 odds 즉시 반영
@@ -1073,7 +1073,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // timeLeft/phase 변경 시 page로 전달
   useEffect(() => {
     const phaseStatus = timeLeft > 25 ? "dealing"
-      : timeLeft > 15 ? "betting"
+      : timeLeft > 10 ? "betting"
       : timeLeft > 0  ? "dealing"
       : phase
     onStatusChange?.(timeLeft, phaseStatus as "betting" | "waiting" | "result" | "dealing")
@@ -1085,17 +1085,17 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // 페이즈별 타이머 계산
   // 정산(5s): rem 30→25, 배팅(10s): rem 25→15, 게임중(15s): rem 15→0
-  const currentPhaseLabel = timeLeft > 25 ? "정산 중"
-    : timeLeft > 15 ? "배팅 가능"
-    : "게임 중"
-  const currentPhaseDuration = timeLeft > 25 ? 5 : timeLeft > 15 ? 10 : 15
-  const currentPhaseLeft = timeLeft > 25 ? timeLeft - 25
-    : timeLeft > 15 ? timeLeft - 15
-    : timeLeft
+    const currentPhaseLabel = timeLeft > 25 ? "정산 중"
+      : timeLeft > 10 ? "배팅 가능"
+      : "게임 중"
+    const currentPhaseDuration = timeLeft > 25 ? 5 : timeLeft > 10 ? 15 : 10
+    const currentPhaseLeft = timeLeft > 25 ? timeLeft - 25
+      : timeLeft > 10 ? timeLeft - 10
+      : timeLeft
   const timerPercent = (currentPhaseLeft / currentPhaseDuration) * 100
-  const timerColor = timeLeft > 25 ? "#60a5fa"   // 정산 — 파랑
-    : timeLeft > 15 ? "#10b981"                  // 배팅 가능 — 초록
-    : timeLeft > 3  ? "#f97316"                  // 게임 중 — 주황
+    const timerColor = timeLeft > 25 ? "#60a5fa"   // 정산 — 파랑
+      : timeLeft > 10 ? "#10b981"                  // 배팅 가능 — 초록
+      : timeLeft > 3  ? "#f97316"                  // 게임 중 — 주황
     : "#ef4444"                                  // 막판 — 빨강
   const timerLabel = currentPhaseLabel
 
