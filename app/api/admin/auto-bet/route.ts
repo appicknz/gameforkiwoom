@@ -453,8 +453,11 @@ export async function PATCH(request: Request) {
   }
 
   // action: "full_reset" — 잔고 1천만원 초기화 + bet_history 삭제 + Redis 초기화
+  // gameType: "baccarat" | "race" | "all" (기본: "all")
   // 역삼1 비밀번호 검증은 클라이언트에서 /api/admin/verify-password로 먼저 처리
   if (body.action === "full_reset") {
+    const gameType: "baccarat" | "race" | "all" = body.gameType ?? "all"
+
     const { data: profiles } = await adminSupabase
       .from("profiles")
       .select("id")
@@ -462,7 +465,19 @@ export async function PATCH(request: Request) {
 
     if (!profiles || profiles.length === 0) return NextResponse.json({ ok: true, reset: 0 })
 
-    const ids = profiles.map(p => p.id)
+    const allIds = profiles.map(p => p.id)
+
+    // gameType 필터: baccarat/race면 해당 게임에 bet_history가 있는 유저만
+    let ids = allIds
+    if (gameType !== "all") {
+      const { data: bh } = await adminSupabase
+        .from("bet_history")
+        .select("user_id")
+        .in("user_id", allIds)
+        .eq("game_type", gameType)
+      const filtered = [...new Set((bh ?? []).map(r => r.user_id))]
+      ids = filtered.length > 0 ? filtered : allIds
+    }
 
     // 1. 잔고 1천만원으로 초기화
     for (const id of ids) {
@@ -471,12 +486,18 @@ export async function PATCH(request: Request) {
       await redis.incr(`balance_version:${id}`)
     }
 
-    // 2. bet_history 삭제
-    await adminSupabase.from("bet_history").delete().in("user_id", ids)
+    // 2. bet_history 삭제 (gameType 필터 적용)
+    if (gameType === "all") {
+      await adminSupabase.from("bet_history").delete().in("user_id", ids)
+    } else {
+      await adminSupabase.from("bet_history").delete().in("user_id", ids).eq("game_type", gameType)
+    }
 
     // 3. Redis 초기화 (누적 수수료, 로그)
-    await redis.set("auto_bet:total_fee", 0)
-    await redis.del("auto_bet:logs")
+    if (gameType === "all") {
+      await redis.set("auto_bet:total_fee", 0)
+      await redis.del("auto_bet:logs")
+    }
 
     return NextResponse.json({ ok: true, reset: ids.length })
   }
