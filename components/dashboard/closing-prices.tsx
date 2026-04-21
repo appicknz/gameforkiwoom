@@ -75,18 +75,11 @@ function ScoreCircles({
   )
 
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: isTie ? 0 : 4,
-      padding: isTie ? "1px" : 0,
-      borderRadius: isTie ? 20 : 0,
-      border: isTie ? `1.5px solid ${TIE_COLOR}` : "none",
-      background: isTie ? `${TIE_COLOR}0a` : "transparent",
-    }}>
-      <span style={{ fontSize: 9, fontWeight: 700, color: bColor, marginRight: 2, marginLeft: isTie ? 3 : 0 }}>B</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <span style={{ fontSize: 9, fontWeight: 700, color: bColor, marginRight: 2 }}>B</span>
       {circle(bDisplay, bColor, bFill, bText)}
-      <span style={{ fontSize: 9, fontWeight: 700, color: pColor, marginLeft: isTie ? 4 : 2, marginRight: 2 }}>P</span>
+      <span style={{ fontSize: 9, fontWeight: 700, color: pColor, marginLeft: 2, marginRight: 2 }}>P</span>
       {circle(pDisplay, pColor, pFill, pText)}
-      {isTie && <span style={{ fontSize: 8, fontWeight: 700, color: TIE_COLOR, marginLeft: 3, marginRight: 3 }}>TIE</span>}
     </div>
   )
 }
