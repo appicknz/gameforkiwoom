@@ -177,6 +177,27 @@ function createBinanceWS(url, name, onClose) {
 // Vercel game/play 대신 여기서 정산: 클라이언트 요청 없이 서버가 주도
 const VERCEL_URL = process.env.VERCEL_URL || process.env.NEXT_PUBLIC_APP_URL;
 
+// ─── closing 가격 서버에서 직접 DB 저장 (클라이언트 접속 여부 무관) ────
+function saveClosingPriceToDB(closePrice, closeTime) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  const url = `${SUPABASE_URL}/rest/v1/btc_closing_prices`;
+  const body = JSON.stringify({ time: closeTime, price: closePrice });
+  const options = {
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": "resolution=ignore-duplicates",
+    },
+  };
+  const req = https.request(url, options);
+  req.on("error", (e) => console.error("[db] closing price save error:", e.message));
+  req.write(body);
+  req.end();
+  console.log(`[db] saved closing price: ${closePrice} @ ${closeTime}`);
+}
+
 function triggerSettlement(closePrice, closeTime) {
   if (!VERCEL_URL) {
     console.log("[engine] No VERCEL_URL, skipping settlement trigger");
@@ -230,8 +251,10 @@ function connectTrade() {
         broadcast({ type: "closing", price: closePrice, time: closeTime });
         console.log(`[closing] bucket ${lastBucket}→${bucket}: ${closePrice} @ ${new Date(closeTime * 1000).toISOString()} → ${clients.size} clients`);
 
+        // 클라이언트 접속 여부와 무관하게 서버에서 직접 DB 저장
+        saveClosingPriceToDB(closePrice, closeTime);
+
         // 게임 엔진: 매 30초마다 Vercel game/settle 호출
-        // baccarat 정산 + race는 5분 라운드 마지막 30초 tick에서 game/settle 내부에서 자동 판단
         triggerSettlement(closePrice, closeTime);
 
         // 새 버킷으로 전환: 이전 버킷의 마지막 가격 초기화

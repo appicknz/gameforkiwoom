@@ -343,7 +343,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
         {/* 헤더 */}
         <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ background: headerBg }}>
           <div>
-            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라���드 #{result.round} 결과</p>
+            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라����드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight" style={{ color: headerColor }}>
               {headerLabel}
             </p>
@@ -609,14 +609,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     const effectiveBase = snapshotBase ?? closePrice
 
     // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
-    // btc_closing_prices: 가격/시간 먼저 저장
-    fetch("/api/closing-price", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ price: closePrice, time }),
-    }).catch(() => { })
-
-    // 카드 연출 완료 후 점수 포함 upsert
+    // 가격/시간 저장은 price-server(Railway)에서 직접 수행
+    // 카드 연출 완료 후 점수만 upsert (클라이언트만 카드 점수를 알 수 있음)
     const onDealForScore = (ev: Event) => {
       window.removeEventListener("baccarat:deal-complete", onDealForScore)
       const { result, pScore, bScore, pRawSum, bRawSum } = (ev as CustomEvent<{
@@ -675,7 +669,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         digitAmount: betDigitAmountRef.current,
         parityAmount: betParityAmountRef.current,
         baccaratAmount: betBaccaratAmountRef.current,
-        // 서버 확정 배당을 받은 후 채워짐 — null로 초기화해 깜빡임 방지
+        // 서버 확�� 배당을 받은 후 채워짐 — null로 초기화해 깜빡임 방지
         baccaratOdds: null,
       }
       setLastResult(result)
