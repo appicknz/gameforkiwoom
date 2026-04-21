@@ -92,9 +92,9 @@ function BakaHeader() {
       justifyContent: "space-between",
     }}>
       {/* 왼쪽: 현재가 */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <span style={{ fontSize: 9, color: "rgba(212,175,55,0.45)", letterSpacing: "0.06em" }}>현재가</span>
-        <span style={{ fontSize: 16, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>{price}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.06em" }}>현재가</span>
+        <span style={{ fontSize: 22, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{price}</span>
       </div>
 
       {/* 오른쪽: BANKER / PLAYER 끝자리 카드 */}
