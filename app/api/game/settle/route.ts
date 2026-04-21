@@ -72,11 +72,15 @@ export async function POST(request: Request) {
     const baccaratResult: "player" | "banker" | "tie" =
       lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-    // ── race 결과 계산 (5분 라운드 기준) ────────────────────
+    // ── race 결과 계산 (3분 라운드 기준) ────────────────────
     // race는 3분(180초) 라운드: raceRoundNumber = Math.floor(closeTime / 180)
-    const raceRoundNumber = Math.floor(closeTime / 180)
-    const racePoolKey     = `pool:race:${raceRoundNumber}`
-    const raceUserSetKey  = `users:race:${raceRoundNumber}`
+    const raceRoundNumber     = Math.floor(closeTime / 180)
+    const prevRaceRoundNumber = raceRoundNumber - 1
+    // 새 race 라운드의 첫 번째 tick (closeTime이 직전 라운드 경계를 막 넘었을 때)
+    // closeTime % 180 < 30 이면 이 tick이 새 라운드 진입 직후 → 직전 라운드 정산
+    const isLastRaceTick = (closeTime % 180) < 30
+    const racePoolKey    = `pool:race:${raceRoundNumber}`
+    const raceUserSetKey = `users:race:${raceRoundNumber}`
     // 서버측 race 스코어 누적 키 (30초 tick마다 합산)
     const raceScoreKey    = `race:score:${raceRoundNumber}`
 
@@ -116,6 +120,20 @@ export async function POST(request: Request) {
       coin: parseInt((racePoolData?.coin as string) ?? "0") || 0,
       tie:  parseInt((racePoolData?.tie  as string) ?? "0") || 0,
     }
+
+    // ── btc_closing_prices에 바카라 결과/점수 upsert (클라이언트 없어도 서버가 저장) ──
+    // lastDigit = 소수점 둘째(d2) → pScore, bankerDigit = 소수점 첫째(d1) → bScore
+    const bankerDigitForScore = parseInt(decStr[0] ?? "0")   // d1 → 뱅커 끝자리
+    const playerDigitForScore = parseInt(decStr[1] ?? "0")   // d2 → 플레이어 끝자리
+    await admin.from("btc_closing_prices").upsert({
+      time: closeTime,
+      price: resolvedClose,
+      baccarat_result: baccaratResult,
+      b_score: bankerDigitForScore,
+      p_score: playerDigitForScore,
+      b_raw_sum: bankerDigitForScore,  // 서버에서는 한 장 기준(끝자리)
+      p_raw_sum: playerDigitForScore,
+    }, { onConflict: "time" }).catch(() => {})
 
     // baccarat 결과를 Redis에 저장
     const resultPayload = {
