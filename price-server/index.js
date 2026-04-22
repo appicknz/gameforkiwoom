@@ -276,6 +276,80 @@ function saveClosingPriceToDB(closePrice, closeTime) {
   req.end();
 }
 
+// ─── race 라운드별 가격 누적 (180초 라운드, 30초 tick × 6) ──────────
+// Map<raceRoundNumber, { prices: number[], lastPrice: number }>
+const raceRoundPrices = new Map();
+
+function accumulateRacePrice(closePrice, closeTime) {
+  const raceRound = Math.floor(closeTime / 180);
+  if (!raceRoundPrices.has(raceRound)) {
+    raceRoundPrices.set(raceRound, { prices: [], lastPrice: closePrice });
+  }
+  const entry = raceRoundPrices.get(raceRound);
+  entry.prices.push(closePrice);
+  entry.lastPrice = closePrice;
+
+  // 이전 라운드가 방금 끝났는지 확인 — 새 라운드의 첫 tick
+  const prevRound = raceRound - 1;
+  if (raceRoundPrices.has(prevRound)) {
+    const prev = raceRoundPrices.get(prevRound);
+    // 이미 저장 시도한 라운드는 스킵
+    if (!prev.saved) {
+      prev.saved = true;
+      // bit(d1) + coin(d2) 집계
+      let bitScore = 0, coinScore = 0;
+      for (const p of prev.prices) {
+        const dec = p.toFixed(2).split(".")[1] || "00";
+        bitScore  += parseInt(dec[0] || "0");
+        coinScore += parseInt(dec[1] || "0");
+      }
+      const winner = bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie";
+      const endTime = prevRound * 180 + 180; // 라운드 종료 시각
+      saveRaceResultToDB(endTime, prev.lastPrice, bitScore, coinScore, winner);
+    }
+    // 오래된 라운드 메모리 정리 (2라운드 이상 전)
+    for (const [k] of raceRoundPrices) {
+      if (k < raceRound - 1) raceRoundPrices.delete(k);
+    }
+  }
+}
+
+function saveRaceResultToDB(time, price, bitScore, coinScore, winner) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.log("[race-db] No Supabase env vars, cannot save race result");
+    return;
+  }
+  const body = JSON.stringify({ time, price, bit_score: bitScore, coin_score: coinScore, winner });
+  const parsedUrl = new URL(`${SUPABASE_URL}/rest/v1/race_results?on_conflict=time`);
+  const options = {
+    hostname: parsedUrl.hostname,
+    port: 443,
+    path: `${parsedUrl.pathname}${parsedUrl.search}`,
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
+      "Prefer": "resolution=merge-duplicates",
+    },
+  };
+  const req = require("https").request(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => data += chunk);
+    res.on("end", () => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        console.log(`[race-db] saved: time=${time} B${bitScore}/C${coinScore} winner=${winner}`);
+      } else {
+        console.error(`[race-db] save failed: ${res.statusCode} ${data}`);
+      }
+    });
+  });
+  req.on("error", (e) => console.error("[race-db] save error:", e.message));
+  req.write(body);
+  req.end();
+}
+
 function triggerSettlement(closePrice, closeTime) {
   if (!VERCEL_URL) {
     console.log("[engine] No VERCEL_URL, skipping settlement trigger");
@@ -290,7 +364,7 @@ function triggerSettlement(closePrice, closeTime) {
       "x-internal-secret": process.env.INTERNAL_SECRET || "tasko-internal",
     },
   };
-  // fire-and-forget, 에러는 로그만
+  // fire-and-forget, 에러는 로���만
   const req = url.startsWith("https")
     ? require("https").request(url, options)
     : require("http").request(url, options);
@@ -331,6 +405,9 @@ function connectTrade() {
 
         // 클라이언트 접속 여부와 무관하게 서버에서 직접 DB 저장
         saveClosingPriceToDB(closePrice, closeTime);
+
+        // race 라운드 가격 누적 → 라운드 종료 시 자동 저장
+        accumulateRacePrice(closePrice, closeTime);
 
         // 게임 엔진: 매 30초마다 Vercel game/settle 호출
         triggerSettlement(closePrice, closeTime);
