@@ -8,14 +8,14 @@ export type RacePhase = "betting" | "racing" | "result"
 export interface RaceState {
   phase: RacePhase
   timeLeft: number       // 남은 초
-  roundId: number        // Math.floor(now / 300)
+  roundId: number        // Math.floor(now / 180)
   bitScore: number       // BIT팀 누적 (소수점 첫째)
   coinScore: number      // COIN팀 누적 (소수점 둘째)
   winner: "bit" | "coin" | "tie" | null
   lastPrice: number | null
   lastBitDigit: number | null
   lastCoinDigit: number | null
-  secondsInRound: number // 라운드 내 경과 초 (0~299)
+  secondsInRound: number // 라운드 내 경과 초 (0~179)
 }
 
 interface ScoreFlashEntry {
@@ -26,9 +26,9 @@ interface ScoreFlashEntry {
   ts: number
 }
 
-// 300초(5분) 라운드 — 서버/Redis와 동일하게 유지 필수
-// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~297초 게임중(238s), 298~299초 결과
-const ROUND_SEC   = 300
+// 180초(3분) 라운드 — price-server와 동일
+// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~177초 게임중(118s), 178~179초 결과
+const ROUND_SEC   = 180
 const SETTLE_SEC  = 10  // 0~9초: 정산
 const BETTING_SEC = 60  // 10~59초: 배팅 (50초)
 
@@ -172,9 +172,9 @@ export function useRaceGame() {
       if (resultSavedRef.current === state.roundId) return
       resultSavedRef.current = state.roundId
 
-      // 결과 시각: 이 roundId(raceRoundNumber)의 종료 경계 = roundId * 300
-      // state.roundId 가 raceRoundNumber이므로 종료 시각은 (roundId + 1) * 300
-      const resultTime = (state.roundId + 1) * 300
+      // 결과 시각: 이 roundId(raceRoundNumber)의 종료 경계
+      // state.roundId 가 raceRoundNumber이므로 종료 시각은 (roundId + 1) * 180
+      const resultTime = (state.roundId + 1) * 180
 
       // race:closing 이벤트 발행 (차트 기준가선 업데이트, UI 실시간 반영)
       // DB 저장은 game/settle API(서버)가 담당 — 클라이언트 접속 여부 무관
