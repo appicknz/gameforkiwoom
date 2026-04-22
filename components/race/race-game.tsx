@@ -176,27 +176,13 @@ export function useRaceGame() {
       // state.roundId 가 raceRoundNumber이므로 종료 시각은 (roundId + 1) * 300
       const resultTime = (state.roundId + 1) * 300
 
-      // 현재가는 baka:price 마지막 수신값 사용
+      // race:closing 이벤트 발행 (차트 기준가선 업데이트, UI 실시간 반영)
+      // DB 저장은 game/settle API(서버)가 담당 — 클라이언트 접속 여부 무관
       const lastPrice = state.lastPrice
-
-      // race:closing 이벤트 발행 (차트 기준가선 업데이트)
       if (lastPrice !== null) {
         window.dispatchEvent(new CustomEvent("race:closing", {
           detail: { price: lastPrice, time: resultTime, bit: state.bitScore, coin: state.coinScore, winner }
         }))
-
-        // DB 영구 저장 (ignoreDuplicates: true → 첫 저장값 보존)
-        fetch("/api/race-results", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            time: resultTime,
-            price: lastPrice,
-            bit_score: state.bitScore,
-            coin_score: state.coinScore,
-            winner,
-          }),
-        }).catch(() => {})
       }
     }
   }, [state.phase, state.winner, state.bitScore, state.coinScore, state.roundId, state.lastPrice])

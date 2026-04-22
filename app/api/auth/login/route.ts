@@ -1,6 +1,5 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { saveSession } from "@/lib/auth"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 
@@ -47,12 +46,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 })
   }
 
-  // Redis에 최신 토큰 저장 → 이전 기기/세션 토큰 무효화
-  await saveSession(profile.id, signIn.session.access_token)
-
-  return NextResponse.json({
+  const response = NextResponse.json({
     token: signIn.session.access_token,
     username: profile.username,
     role: (profile as any).role ?? "user",
   })
+
+  // HTTP-only 쿠키에도 저장 — 같은 도메인 모든 탭/창에서 자동 전송
+  response.cookies.set("app_token", signIn.session.access_token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 86400, // 24시간
+  })
+
+  return response
 }

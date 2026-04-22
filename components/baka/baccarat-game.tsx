@@ -556,7 +556,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     dealingRef.current = true
     midStateRef.current = null
 
-    const side = betSideRef.current  // null이면 배팅 없음 (관전 모드)
+    const side = betSideRef.current  // null이면 배팅 없음 (관전 모��)
 
     // seed = 순수 라운드슬롯 번호 → 같은 라운드의 모든 클라이언트 동일한 카드
     const seeded = makeSeededRand(getRoundSeed())
@@ -640,16 +640,11 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     setState(prev => ({ ...prev, playerCards: finalP, finalCard: null }))
     await sleep(350)
 
-    // 5. 승부 결정: BTC 끝자리 기반 (카드 연출은 시각적 표현일 뿐, 승패는 규칙 우선)
-    // 소수점 둘째 자리(playerDigit) 기준: 0~4=player, 5~8=banker, 9=tie
-    const decStr2 = closingPrice.toFixed(2).split(".")[1] ?? "00"
-    const finalPlayerDigit = parseInt(decStr2[1] ?? "0")
-    const btcResult: "player" | "banker" | "tie" =
-      finalPlayerDigit <= 4 ? "player" : finalPlayerDigit <= 8 ? "banker" : "tie"
-
-    // 카드 점수는 표시용으로만 사용
+    // 5. 승부 결정: 카드 끝자리 점수 기반 — 9에 가까운 쪽이 승리
     const pScore = handScore(finalP)
     const bScore = handScore(finalB)
+    const btcResult: "player" | "banker" | "tie" =
+      pScore > bScore ? "player" : bScore > pScore ? "banker" : "tie"
 
     setState(prev => ({
       ...prev,
@@ -664,7 +659,9 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
 
     dealingRef.current = false
     // btcResult를 dispatch — baka-betting-game의 settle()이 이 값을 승패 판정에 사용
-    window.dispatchEvent(new CustomEvent("baccarat:deal-complete", { detail: { result: btcResult, pScore, bScore } }))
+    const pRawSum = finalP.reduce((s, c) => s + c.value, 0)
+    const bRawSum = finalB.reduce((s, c) => s + c.value, 0)
+    window.dispatchEvent(new CustomEvent("baccarat:deal-complete", { detail: { result: btcResult, pScore, bScore, pRawSum, bRawSum } }))
   }, [])
 
   // 라운드 전환 시 카드 초기화 — dealing 중이 아닐 때만 리셋
@@ -727,14 +724,20 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
         </span>
       </div>
 
-      {/* 차트 */}
+      {/* 30초 마감 기준가 */}
       <div style={{ padding: "10px 12px 0" }}>
-        <BitcoinChart />
+        <ClosingPrices />
       </div>
 
-      {/* 30초 마감 기준가 */}
-      <div style={{ padding: "0 12px 12px" }}>
-        <ClosingPrices />
+      {/* 차트 — 별도 카드로 분리, 테두리+여백으로 명확히 구분 */}
+      <div style={{ padding: "12px 12px 12px" }}>
+        <div style={{
+          borderRadius: 16,
+          overflow: "hidden",
+          border: "1px solid rgba(212,175,55,0.25)",
+        }}>
+          <BitcoinChart />
+        </div>
       </div>
 
     </div>

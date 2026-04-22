@@ -7,16 +7,29 @@ import { NextResponse } from "next/server"
  */
 export async function POST(request: Request) {
   try {
-    const { price, time, baccarat_result } = await request.json()
+    const body = await request.json()
+    const { price, time, baccarat_result, b_score, p_score, b_raw_sum, p_raw_sum } = body
 
     if (typeof price !== "number" || typeof time !== "number") {
       return NextResponse.json({ error: "Invalid price or time" }, { status: 400 })
     }
 
-    // btc_closing_prices에 upsert — baccarat_result 포함
-    await adminSupabase
-      .from("btc_closing_prices")
-      .upsert({ time, price, baccarat_result: baccarat_result ?? null }, { onConflict: "time", ignoreDuplicates: true })
+    const hasScores = b_score !== undefined && p_score !== undefined
+
+    if (hasScores) {
+      // 점수 포함 upsert — 기존 행 있으면 점수만 업데이트
+      await adminSupabase
+        .from("btc_closing_prices")
+        .upsert(
+          { time, price, baccarat_result: baccarat_result ?? null, b_score, p_score, b_raw_sum: b_raw_sum ?? null, p_raw_sum: p_raw_sum ?? null },
+          { onConflict: "time" }
+        )
+    } else {
+      // 가격/시간만 먼저 저장 (점수는 나중에 upsert)
+      await adminSupabase
+        .from("btc_closing_prices")
+        .upsert({ time, price }, { onConflict: "time", ignoreDuplicates: true })
+    }
 
     return NextResponse.json({ success: true })
   } catch (err) {
@@ -36,14 +49,22 @@ export async function GET(request: Request) {
 
     const { data, error } = await adminSupabase
       .from("btc_closing_prices")
-      .select("time, price, baccarat_result")
+      .select("time, price, baccarat_result, b_score, p_score, b_raw_sum, p_raw_sum")
       .order("time", { ascending: false })
       .limit(limit)
 
     if (error) throw error
 
     const prices = (data ?? [])
-      .map((r) => ({ price: Number(r.price), time: Number(r.time), baccaratResult: r.baccarat_result ?? null }))
+      .map((r) => ({
+        price: Number(r.price),
+        time: Number(r.time),
+        baccaratResult: r.baccarat_result ?? null,
+        bScore: r.b_score ?? null,
+        pScore: r.p_score ?? null,
+        bRawSum: r.b_raw_sum ?? null,
+        pRawSum: r.p_raw_sum ?? null,
+      }))
       .reverse() // 오래된 순으로 반환
 
     return NextResponse.json({ prices })

@@ -3,13 +3,19 @@ import { createClient } from "@supabase/supabase-js"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
+import { cookies } from "next/headers"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
   token: process.env.KV_REST_API_TOKEN!,
 })
 
-async function requireAdmin(token: string | null) {
+async function requireAdmin(token: string | null, req?: Request) {
+  // Authorization 헤더 없으면 HTTP-only 쿠키에서 토큰 읽기
+  if (!token && req) {
+    const cookieStore = await cookies()
+    token = cookieStore.get("app_token")?.value ?? null
+  }
   if (!token) return null
   const anonClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,7 +47,7 @@ function randomPick<T>(arr: readonly T[]): T {
 // GET: 자동배팅 유저 목록 + 잔고 조회
 export async function GET(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
-  const admin = await requireAdmin(token)
+  const admin = await requireAdmin(token, request)
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { data: profiles } = await adminSupabase
@@ -366,7 +372,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
 // POST: 자동배팅 1회 실행 (또는 잔고 일괄 충전)
 export async function POST(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
-  const admin = await requireAdmin(token)
+  const admin = await requireAdmin(token, request)
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await request.json()
@@ -392,12 +398,60 @@ export async function POST(request: Request) {
   if (body.action === "bet_baccarat") {
     const r = await runBetForGame("baccarat")
     if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason, gameType: "baccarat" })
-    const existingFee = await redis.get<number>("auto_bet:total_fee") ?? 0
-    await redis.set("auto_bet:total_fee", (existingFee as number) + r.totalFee)
+    const [totalFee, baccaratFee] = await Promise.all([
+      redis.get<number>("auto_bet:total_fee") ?? 0,
+      redis.get<number>("auto_bet:baccarat_fee") ?? 0,
+    ])
+    const newTotal = (totalFee as number) + r.totalFee
+    const newBaccarat = (baccaratFee as number) + r.totalFee
+    await Promise.all([
+      redis.set("auto_bet:total_fee", newTotal),
+      redis.set("auto_bet:baccarat_fee", newBaccarat),
+    ])
     const logEntry = JSON.stringify({ ts: Date.now(), results: r.results, totalFee: r.totalFee, gameType: "baccarat" })
     await redis.lpush("auto_bet:logs", logEntry)
     await redis.ltrim("auto_bet:logs", 0, 99)
-    return NextResponse.json({ ok: true, gameType: "baccarat", round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: (existingFee as number) + r.totalFee })
+    return NextResponse.json({ ok: true, gameType: "baccarat", round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: newTotal, baccaratFee: newBaccarat })
+  }
+
+  // action: "bet_race" — 레이스 유저만 1라운드 배팅
+  if (body.action === "bet_race") {
+    const r = await runBetForGame("race")
+    if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason, gameType: "race" })
+    const [totalFee, raceFee] = await Promise.all([
+      redis.get<number>("auto_bet:total_fee") ?? 0,
+      redis.get<number>("auto_bet:race_fee") ?? 0,
+    ])
+    const newTotal = (totalFee as number) + r.totalFee
+    const newRace = (raceFee as number) + r.totalFee
+    await Promise.all([
+      redis.set("auto_bet:total_fee", newTotal),
+      redis.set("auto_bet:race_fee", newRace),
+    ])
+    const logEntry = JSON.stringify({ ts: Date.now(), results: r.results, totalFee: r.totalFee, gameType: "race" })
+    await redis.lpush("auto_bet:logs", logEntry)
+    await redis.ltrim("auto_bet:logs", 0, 99)
+    return NextResponse.json({ ok: true, gameType: "race", round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: newTotal, raceFee: newRace })
+  }
+
+  // action: "bet" — 하위 호환
+  if (body.action === "bet") {
+    const r = await runBetForGame("baccarat")
+    if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason })
+    const [totalFee, baccaratFee] = await Promise.all([
+      redis.get<number>("auto_bet:total_fee") ?? 0,
+      redis.get<number>("auto_bet:baccarat_fee") ?? 0,
+    ])
+    const newTotal = (totalFee as number) + r.totalFee
+    const newBaccarat = (baccaratFee as number) + r.totalFee
+    await Promise.all([
+      redis.set("auto_bet:total_fee", newTotal),
+      redis.set("auto_bet:baccarat_fee", newBaccarat),
+    ])
+    const logEntry = JSON.stringify({ ts: Date.now(), results: r.results, totalFee: r.totalFee })
+    await redis.lpush("auto_bet:logs", logEntry)
+    await redis.ltrim("auto_bet:logs", 0, 99)
+    return NextResponse.json({ ok: true, round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: newTotal })
   }
 
   // action: "bet_race" — 레���스 유저만 1라운드 배팅
@@ -430,25 +484,36 @@ export async function POST(request: Request) {
 // PATCH: 누적 수수료 초기화 또는 로그 조회
 export async function PATCH(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
-  const admin = await requireAdmin(token)
+  const admin = await requireAdmin(token, request)
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await request.json()
 
   if (body.action === "reset_fee") {
-    await redis.set("auto_bet:total_fee", 0)
+    await Promise.all([
+      redis.set("auto_bet:total_fee", 0),
+      redis.set("auto_bet:baccarat_fee", 0),
+      redis.set("auto_bet:race_fee", 0),
+    ])
     return NextResponse.json({ ok: true })
   }
 
   if (body.action === "get_logs") {
-    const logs = await redis.lrange<string>("auto_bet:logs", 0, 19)
-    const accumulatedFee = await redis.get<number>("auto_bet:total_fee") ?? 0
-    return NextResponse.json({ logs, accumulatedFee })
+    const [logs, accumulatedFee, baccaratFee, raceFee] = await Promise.all([
+      redis.lrange<string>("auto_bet:logs", 0, 19),
+      redis.get<number>("auto_bet:total_fee") ?? 0,
+      redis.get<number>("auto_bet:baccarat_fee") ?? 0,
+      redis.get<number>("auto_bet:race_fee") ?? 0,
+    ])
+    return NextResponse.json({ logs, accumulatedFee, baccaratFee, raceFee })
   }
 
   // action: "full_reset" — 잔고 1천만원 초기화 + bet_history 삭제 + Redis 초기화
+  // gameType: "baccarat" | "race" | "all" (기본: "all")
   // 역삼1 비밀번호 검증은 클라이언트에서 /api/admin/verify-password로 먼저 처리
   if (body.action === "full_reset") {
+    const gameType: "baccarat" | "race" | "all" = body.gameType ?? "all"
+
     const { data: profiles } = await adminSupabase
       .from("profiles")
       .select("id")
@@ -456,7 +521,19 @@ export async function PATCH(request: Request) {
 
     if (!profiles || profiles.length === 0) return NextResponse.json({ ok: true, reset: 0 })
 
-    const ids = profiles.map(p => p.id)
+    const allIds = profiles.map(p => p.id)
+
+    // gameType 필터: baccarat/race면 해당 게임에 bet_history가 있는 유저만
+    let ids = allIds
+    if (gameType !== "all") {
+      const { data: bh } = await adminSupabase
+        .from("bet_history")
+        .select("user_id")
+        .in("user_id", allIds)
+        .eq("game_type", gameType)
+      const filtered = [...new Set((bh ?? []).map(r => r.user_id))]
+      ids = filtered.length > 0 ? filtered : allIds
+    }
 
     // 1. 잔고 1천만원으로 초기화
     for (const id of ids) {
@@ -465,12 +542,34 @@ export async function PATCH(request: Request) {
       await redis.incr(`balance_version:${id}`)
     }
 
-    // 2. bet_history 삭제
-    await adminSupabase.from("bet_history").delete().in("user_id", ids)
+    // 2. bet_history 삭제 (gameType 필터 적용)
+    if (gameType === "all") {
+      await adminSupabase.from("bet_history").delete().in("user_id", ids)
+    } else {
+      await adminSupabase.from("bet_history").delete().in("user_id", ids).eq("game_type", gameType)
+    }
 
     // 3. Redis 초기화 (누적 수수료, 로그)
-    await redis.set("auto_bet:total_fee", 0)
-    await redis.del("auto_bet:logs")
+    if (gameType === "all") {
+      await Promise.all([
+        redis.set("auto_bet:total_fee", 0),
+        redis.set("auto_bet:baccarat_fee", 0),
+        redis.set("auto_bet:race_fee", 0),
+        redis.del("auto_bet:logs"),
+      ])
+    } else if (gameType === "baccarat") {
+      const raceFee = await redis.get<number>("auto_bet:race_fee") ?? 0
+      await Promise.all([
+        redis.set("auto_bet:baccarat_fee", 0),
+        redis.set("auto_bet:total_fee", raceFee),
+      ])
+    } else if (gameType === "race") {
+      const baccaratFee = await redis.get<number>("auto_bet:baccarat_fee") ?? 0
+      await Promise.all([
+        redis.set("auto_bet:race_fee", 0),
+        redis.set("auto_bet:total_fee", baccaratFee),
+      ])
+    }
 
     return NextResponse.json({ ok: true, reset: ids.length })
   }

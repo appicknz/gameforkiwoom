@@ -10,7 +10,38 @@ import {
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────
 const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
+const setToken = (t: string) => { try { localStorage.setItem("app_token", t) } catch {} }
 const fmt = (n: number) => `₩${n.toLocaleString("ko-KR")}`
+
+// 401 응답 시 /api/auth/refresh 로 토큰 갱신 후 재시도
+// 갱신 실패 시 null 반환 → 호출부에서 재로그인 안내
+async function fetchWithRefresh(input: RequestInfo, init: RequestInit = {}): Promise<Response> {
+  const token = getToken()
+  const authInit: RequestInit = {
+    ...init,
+    headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
+  }
+  const res = await fetch(input, authInit)
+  if (res.status !== 401) return res
+
+  // 토큰 갱신 시도
+  const refreshRes = await fetch("/api/auth/refresh", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!refreshRes.ok) return res  // 갱신 실패 → 원래 401 반환
+
+  const { token: newToken } = await refreshRes.json()
+  if (!newToken) return res
+
+  setToken(newToken)
+
+  // 새 토큰으로 원래 요청 재시도
+  return fetch(input, {
+    ...init,
+    headers: { ...(init.headers ?? {}), Authorization: `Bearer ${newToken}` },
+  })
+}
 
 // ── 라운드 모니터 타입 ────────────────────────────────────────────────────
 interface RoundStats {
@@ -170,7 +201,7 @@ function GameRoundCard({
 
   const modeLabel =
     stats.mode === "pari"   ? "파리뮤추얼" :
-    stats.mode === "hybrid" ? "���이브리드"  : "LP 주도"
+    stats.mode === "hybrid" ? "����이브리드"  : "LP 주도"
   const modeBg =
     stats.mode === "pari"   ? "bg-emerald-500/10 text-emerald-600" :
     stats.mode === "hybrid" ? "bg-amber-500/10 text-amber-600"    :
@@ -303,6 +334,8 @@ export function RoundMonitor({
   const [abUsers,          setAbUsers]          = useState<AutoBetUser[]>([])
   const [abLogs,           setAbLogs]           = useState<BetLog[]>([])
   const [accumulatedFee,   setAccumulatedFee]   = useState(0)
+  const [baccaratFee,      setBaccaratFee]      = useState(0)
+  const [raceFee,          setRaceFee]          = useState(0)
   const [abStats,          setAbStats]          = useState<BetStats | null>(null)
   const [baccaratRunning,  setBaccaratRunning]  = useState(false)
   const [raceRunning,      setRaceRunning]      = useState(false)
@@ -312,9 +345,11 @@ export function RoundMonitor({
   const [lastBetResults,   setLastBetResults]   = useState<BetResult[] | null>(null)
   const [abStatus,         setAbStatus]         = useState<string>("")
   const [showResetDialog,  setShowResetDialog]  = useState(false)
+  const [resetGameType,    setResetGameType]    = useState<"baccarat" | "race" | "all">("all")
   const [resetPassword,    setResetPassword]    = useState("")
   const [resetLoading,     setResetLoading]     = useState(false)
   const [resetError,       setResetError]       = useState("")
+  const [abUserTab,        setAbUserTab]        = useState<"baccarat" | "race">("baccarat")
   const [baccaratPhase,   setBaccaratPhase]   = useState<"정산중" | "배팅가능" | "게임중">("게임중")
   const [racePhase,       setRacePhase]       = useState<"정산중" | "배팅가능" | "게임중">("게임중")
   const [baccaratTimeLeft, setBaccaratTimeLeft] = useState(30)
@@ -332,7 +367,7 @@ export function RoundMonitor({
   const loadLpState = useCallback(async () => {
     const token = getToken(); if (!token) return
     try {
-      const res = await fetch("/api/admin/branches", { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetchWithRefresh("/api/admin/branches")
       if (!res.ok) return
       const data = await res.json()
       const list: { id: string; lp_enabled: boolean }[] = data.branches ?? []
@@ -347,18 +382,17 @@ export function RoundMonitor({
     if (baccaratPhaseRef.current === "게임중" && racePhaseRef.current === "게임중") return
     setRoundLoading(true)
     try {
-      const res = await fetch("/api/admin/round-stats", { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetchWithRefresh("/api/admin/round-stats")
       if (res.ok) setCombined(await res.json())
     } catch {}
     setRoundLoading(false)
   }, [])
 
   const loadHouseStats = useCallback(async () => {
-    const token = getToken(); if (!token) return
     setHouseLoading(true)
     try {
       const url = branchId ? `/api/admin/house-stats?branchId=${branchId}` : "/api/admin/house-stats"
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetchWithRefresh(url)
       if (res.ok) {
         const d = await res.json()
         setHouseStats(d.stats ?? [])
@@ -372,19 +406,17 @@ export function RoundMonitor({
   }, [branchId])
 
   const loadLpHistory = useCallback(async () => {
-    const token = getToken(); if (!token) return
     setLpLoading(true)
     try {
       const url = branchId ? `/api/admin/lp-history?branchId=${branchId}` : "/api/admin/lp-history"
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetchWithRefresh(url)
       if (res.ok) { const d = await res.json(); setLpHistory(d.history ?? []); setLpTotal(d.totalLpUsed ?? 0) }
     } catch {}
     setLpLoading(false)
   }, [branchId])
 
   const loadAbUsers = useCallback(async () => {
-    const token = getToken(); if (!token) return
-    const res = await fetch("/api/admin/auto-bet", { headers: { Authorization: `Bearer ${token}` } })
+    const res = await fetchWithRefresh("/api/admin/auto-bet")
     if (res.ok) {
       const d = await res.json()
       setAbUsers(d.users ?? [])
@@ -406,6 +438,8 @@ export function RoundMonitor({
       }).filter(Boolean)
       setAbLogs(parsed)
       setAccumulatedFee(d.accumulatedFee ?? 0)
+      setBaccaratFee(d.baccaratFee ?? 0)
+      setRaceFee(d.raceFee ?? 0)
     }
   }, [])
 
@@ -417,9 +451,9 @@ export function RoundMonitor({
     try {
       const targets = lpBranches.length > 0 ? lpBranches : branches
       await Promise.all(targets.map(b =>
-        fetch("/api/admin/branches/betting", {
+        fetchWithRefresh("/api/admin/branches/betting", {
           method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ branchId: b.id, lpEnabled: next }),
         })
       ))
@@ -430,10 +464,9 @@ export function RoundMonitor({
 
   const handleCollect = async (bId: string, gt: string) => {
     const key = `${bId}-${gt}`; setCollectingId(key)
-    const token = getToken(); if (!token) return
-    const res = await fetch("/api/admin/house-stats", {
+    const res = await fetchWithRefresh("/api/admin/house-stats", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ branch_id: bId, game_type: gt, note: "수금 처리" }),
     })
     if (res.ok) await loadHouseStats()
@@ -442,18 +475,18 @@ export function RoundMonitor({
 
   // ── 자동배팅 배팅 실행 ────────────────────────────────────────
   const runBaccaratBet = useCallback(async () => {
-    const token = getToken(); if (!token) return
     setBaccaratLoading(true)
     try {
-      const res = await fetch("/api/admin/auto-bet", {
+      const res = await fetchWithRefresh("/api/admin/auto-bet", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "bet_baccarat" }),
       })
       if (res.ok) {
         const d = await res.json()
         setLastBetResults(d.results ?? [])
         setAccumulatedFee(d.accumulatedFee ?? 0)
+        setBaccaratFee(d.baccaratFee ?? 0)
         setAbStatus(`바카라 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
         loadAbUsers()
       }
@@ -474,6 +507,7 @@ export function RoundMonitor({
         const d = await res.json()
         setLastBetResults(d.results ?? [])
         setAccumulatedFee(d.accumulatedFee ?? 0)
+        setRaceFee(d.raceFee ?? 0)
         setAbStatus(`레이스 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
         loadAbUsers()
       }
@@ -481,7 +515,7 @@ export function RoundMonitor({
     setRaceLoading(false)
   }, [loadAbUsers])
 
-  // ── 페이즈 감지 ───────────────────────────────────────────────
+  // ── 페��즈 감지 ───────────────────────────────────────────────
   const getBaccaratPhase = () => {
     const nowSec = Math.floor(Date.now() / 1000)
     const secInRound = nowSec % 30   // 0~29
@@ -538,11 +572,10 @@ export function RoundMonitor({
   }
 
   const handleTopUp = async () => {
-    const token = getToken(); if (!token) return
     setToppingUp(true)
-    const res = await fetch("/api/admin/auto-bet", {
+    const res = await fetchWithRefresh("/api/admin/auto-bet", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "top_up" }),
     })
     if (res.ok) { const d = await res.json(); setAbStatus(`잔고 충전 완료 — ${d.topped}명 충전됨`); loadAbUsers() }
@@ -551,16 +584,20 @@ export function RoundMonitor({
 
   const handleResetFee = async () => {
     const token = getToken(); if (!token) return
-    await fetch("/api/admin/auto-bet", {
+    const res = await fetchWithRefresh("/api/admin/auto-bet", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "reset_fee" }),
     })
-    setAccumulatedFee(0)
+    if (res.ok) {
+      setAccumulatedFee(0)
+      setBaccaratFee(0)
+      setRaceFee(0)
+      setAbStatus("누적 수수료 초기화 완료")
+    }
   }
 
   const handleFullReset = async () => {
-    const token = getToken(); if (!token) return
     setResetLoading(true); setResetError("")
     const verifyRes = await fetch("/api/admin/verify-password", {
       method: "POST",
@@ -568,16 +605,18 @@ export function RoundMonitor({
       body: JSON.stringify({ username: "역삼1", password: resetPassword }),
     })
     if (!verifyRes.ok) { setResetError("비밀번호가 올바르지 않습니다."); setResetLoading(false); return }
-    const resetRes = await fetch("/api/admin/auto-bet", {
+    const resetRes = await fetchWithRefresh("/api/admin/auto-bet", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action: "full_reset" }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "full_reset", gameType: resetGameType }),
     })
     if (resetRes.ok) {
       const d = await resetRes.json()
-      setShowResetDialog(false); setResetPassword(""); setAccumulatedFee(0)
-      setAbStats(null); setAbLogs([]); setLastBetResults(null)
-      setAbStatus(`전체 초기화 완료 — ${d.reset}명 잔고 1천만원 리셋, 배팅 이력 삭제`)
+      setShowResetDialog(false); setResetPassword("")
+      if (resetGameType === "all" || resetGameType === "baccarat") { setAccumulatedFee(0); setAbStats(null); setAbLogs([]) }
+      setLastBetResults(null)
+      const label = resetGameType === "all" ? "전체" : resetGameType === "baccarat" ? "바카라" : "레이스"
+      setAbStatus(`${label} 초기화 완료 — ${d.reset}명 잔고 1천만원 리셋, 배팅 이력 삭제`)
       loadAbUsers()
     } else { setResetError("초기화 중 오류가 발생했습니다.") }
     setResetLoading(false)
@@ -704,7 +743,7 @@ export function RoundMonitor({
 
       {/* ════════════════════════════════════════════════════════
           섹션 1 — 현재 라운드 실시간 현황
-      ════════════════════════════════════════════════════════ */}
+      ═════════════════════════���══════════════════════════════ */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -799,74 +838,162 @@ export function RoundMonitor({
                   {toppingUp ? "충전 중..." : `잔고 충전${lowBalanceCount > 0 ? ` (${lowBalanceCount}명)` : ""}`}
                 </Button>
                 <Button
-                  variant="outline" size="sm" className="h-7 text-xs gap-1 text-red-500 border-red-500/30 hover:bg-red-500/10"
-                  onClick={() => { setShowResetDialog(true); setResetError(""); setResetPassword("") }}
+                  variant="outline" size="sm" className="h-7 text-xs gap-1 text-blue-500 border-blue-500/30 hover:bg-blue-500/10"
+                  onClick={() => { setResetGameType("baccarat"); setShowResetDialog(true); setResetError(""); setResetPassword("") }}
                 >
-                  <RotateCcw className="w-3 h-3" /> 전체 초기화
+                  <RotateCcw className="w-3 h-3" /> 바카라 초기화
+                </Button>
+                <Button
+                  variant="outline" size="sm" className="h-7 text-xs gap-1 text-orange-500 border-orange-500/30 hover:bg-orange-500/10"
+                  onClick={() => { setResetGameType("race"); setShowResetDialog(true); setResetError(""); setResetPassword("") }}
+                >
+                  <RotateCcw className="w-3 h-3" /> 레이스 초기화
                 </Button>
               </div>
             </div>
 
-            {/* 통계 4칸 */}
-            <div className="px-5 pt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-muted rounded-xl p-3 col-span-2 md:col-span-2">
-                <p className="text-xs text-muted-foreground">자동배팅 누적 수수료 (20%)</p>
-                <p className="text-2xl font-black tabular-nums text-amber-500 mt-0.5">{fmt(accumulatedFee)}</p>
-                <button onClick={handleResetFee} className="text-xs text-muted-foreground hover:text-foreground mt-1">초기화</button>
-              </div>
-              <div className="bg-muted rounded-xl p-3">
-                <p className="text-xs text-muted-foreground">바카라 유저</p>
-                <p className="text-lg font-bold text-blue-500">{baccaratUsers.length}명</p>
-              </div>
-              <div className="bg-muted rounded-xl p-3">
-                <p className="text-xs text-muted-foreground">레이스 유저</p>
-                <p className="text-lg font-bold text-orange-500">{raceUsers.length}명</p>
-              </div>
-            </div>
+            {/* 바카라 / 레이스 분리 통계 */}
+            <div className="px-5 pt-4 pb-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* 바카라 패널 */}
+                {(() => {
+                  const u = baccaratUsers
+                  const totalBalance = u.reduce((s,x) => s+x.balance, 0)
+                  const seed = u.length * 10_000_000
+                  const delta = totalBalance - seed
+                  const winProfit = u.reduce((s,x) => s+(x.userStats?.winProfit??0), 0)
+                  const loss = u.reduce((s,x) => s+(x.userStats?.loss??0), 0)
+                  const winCount = u.reduce((s,x) => s+(x.userStats?.winCount??0), 0)
+                  const loseCount = u.reduce((s,x) => s+(x.userStats?.loseCount??0), 0)
+                  const tieCount = u.reduce((s,x) => s+(x.userStats?.tieCount??0), 0)
+                  const totalBets = u.reduce((s,x) => s+(x.userStats?.totalBets??0), 0)
+                  const lowBalance = u.filter(x => x.balance < 1_000_000).length
+                  return (
+                    <div className="border border-blue-500/20 bg-blue-500/5 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-bold text-blue-500">바카라</p>
+                          <span className="text-xs text-muted-foreground">{u.length}명</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-muted-foreground">누적 수수료</p>
+                          <p className="text-sm font-black tabular-nums text-amber-500">{fmt(baccaratFee)}</p>
+                        </div>
+                      </div>
+                      {/* 시드 대비 손익 */}
+                      <div className="flex items-center justify-between bg-background/60 rounded-lg px-3 py-2">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">총 잔고</p>
+                          <p className="text-sm font-black tabular-nums text-foreground">{u.length ? fmt(totalBalance) : "—"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-muted-foreground">시드 대비</p>
+                          {u.length ? (
+                            <p className={`text-sm font-black tabular-nums ${delta >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                              {delta >= 0 ? `+${fmt(delta)}` : `-${fmt(Math.abs(delta))}`}
+                            </p>
+                          ) : <p className="text-sm text-muted-foreground">—</p>}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">수익 누적</p>
+                          <p className="font-bold tabular-nums text-emerald-500">{u.length ? `+${fmt(winProfit)}` : "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">손실 누적</p>
+                          <p className="font-bold tabular-nums text-red-500">{u.length ? `-${fmt(loss)}` : "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">잔고부족</p>
+                          <p className={`font-bold tabular-nums ${lowBalance > 0 ? "text-orange-500" : "text-muted-foreground"}`}>{lowBalance}명</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">승률</p>
+                          <p className="font-bold tabular-nums text-foreground">{totalBets > 0 ? `${Math.round(winCount/totalBets*100)}%` : "—"}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-muted-foreground">승/패/타이</p>
+                          <p className="font-bold tabular-nums text-foreground">{u.length ? `${winCount} / ${loseCount} / ${tieCount}` : "—"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
 
-            {/* 수익/손실/잔고/승률 */}
-            <div className="px-5 py-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <TrendingUp className="w-3 h-3 text-emerald-500" />
-                  <p className="text-xs text-muted-foreground">수익 누적</p>
-                </div>
-                <p className="text-lg font-black tabular-nums text-emerald-500">
-                  {abStats ? `+${fmt(abStats.totalWinProfit)}` : "—"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{abStats ? `${abStats.winCount}회 승` : ""}</p>
+                {/* 레이스 패널 */}
+                {(() => {
+                  const u = raceUsers
+                  const totalBalance = u.reduce((s,x) => s+x.balance, 0)
+                  const seed = u.length * 10_000_000
+                  const delta = totalBalance - seed
+                  const winProfit = u.reduce((s,x) => s+(x.userStats?.winProfit??0), 0)
+                  const loss = u.reduce((s,x) => s+(x.userStats?.loss??0), 0)
+                  const winCount = u.reduce((s,x) => s+(x.userStats?.winCount??0), 0)
+                  const loseCount = u.reduce((s,x) => s+(x.userStats?.loseCount??0), 0)
+                  const tieCount = u.reduce((s,x) => s+(x.userStats?.tieCount??0), 0)
+                  const totalBets = u.reduce((s,x) => s+(x.userStats?.totalBets??0), 0)
+                  const lowBalance = u.filter(x => x.balance < 1_000_000).length
+                  return (
+                    <div className="border border-orange-500/20 bg-orange-500/5 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-bold text-orange-500">레이스</p>
+                          <span className="text-xs text-muted-foreground">{u.length}명</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-muted-foreground">누적 수수료</p>
+                          <p className="text-sm font-black tabular-nums text-amber-500">{fmt(raceFee)}</p>
+                        </div>
+                      </div>
+                      {/* 시드 대비 손익 */}
+                      <div className="flex items-center justify-between bg-background/60 rounded-lg px-3 py-2">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">총 잔고</p>
+                          <p className="text-sm font-black tabular-nums text-foreground">{u.length ? fmt(totalBalance) : "—"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-muted-foreground">시드 대비</p>
+                          {u.length ? (
+                            <p className={`text-sm font-black tabular-nums ${delta >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                              {delta >= 0 ? `+${fmt(delta)}` : `-${fmt(Math.abs(delta))}`}
+                            </p>
+                          ) : <p className="text-sm text-muted-foreground">—</p>}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">수익 누적</p>
+                          <p className="font-bold tabular-nums text-emerald-500">{u.length ? `+${fmt(winProfit)}` : "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">손실 누적</p>
+                          <p className="font-bold tabular-nums text-red-500">{u.length ? `-${fmt(loss)}` : "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">잔고부족</p>
+                          <p className={`font-bold tabular-nums ${lowBalance > 0 ? "text-orange-500" : "text-muted-foreground"}`}>{lowBalance}명</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">승률</p>
+                          <p className="font-bold tabular-nums text-foreground">{totalBets > 0 ? `${Math.round(winCount/totalBets*100)}%` : "—"}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-muted-foreground">승/패/타이</p>
+                          <p className="font-bold tabular-nums text-foreground">{u.length ? `${winCount} / ${loseCount} / ${tieCount}` : "—"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
-              <div className="bg-red-500/8 border border-red-500/20 rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <TrendingDown className="w-3 h-3 text-red-500" />
-                  <p className="text-xs text-muted-foreground">손실 누적</p>
+              {/* 전체 수수료 합산 + 초기화 */}
+              <div className="mt-3 bg-muted rounded-xl px-4 py-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-muted-foreground">전체 누적 수수료</p>
+                  <p className="text-base font-black tabular-nums text-amber-500">{fmt(accumulatedFee)}</p>
                 </div>
-                <p className="text-lg font-black tabular-nums text-red-500">
-                  {abStats ? `-${fmt(abStats.totalLoss)}` : "—"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{abStats ? `${abStats.loseCount}회 패` : ""}</p>
-              </div>
-              <div className="bg-muted rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Wallet className="w-3 h-3 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground">총 보유 잔고</p>
-                </div>
-                <p className="text-lg font-black tabular-nums text-foreground">
-                  {abStats ? fmt(abStats.totalBalance) : "—"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{abUsers.length}명 합산</p>
-              </div>
-              <div className="bg-muted rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <BarChart3 className="w-3 h-3 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground">승률</p>
-                </div>
-                <p className="text-lg font-black tabular-nums text-foreground">
-                  {abStats ? `${abStats.winRate}%` : "—"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {abStats ? `${abStats.winCount}승 ${abStats.loseCount}패 ${abStats.tieCount}타이 / ${abStats.totalBets}판` : ""}
-                </p>
+                <button onClick={handleResetFee} className="text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">전체 초기화</button>
               </div>
             </div>
 
@@ -990,18 +1117,32 @@ export function RoundMonitor({
 
           {/* 자동배팅 유저 목록 */}
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-border">
+            <div className="px-5 py-3 border-b border-border flex items-center justify-between">
               <h4 className="text-sm font-semibold text-foreground">자동배팅 유저 목록</h4>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setAbUserTab("baccarat")}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${abUserTab === "baccarat" ? "bg-blue-500 text-white" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  바카라 {baccaratUsers.length}명
+                </button>
+                <button
+                  onClick={() => setAbUserTab("race")}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${abUserTab === "race" ? "bg-orange-500 text-white" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  레이스 {raceUsers.length}명
+                </button>
+              </div>
             </div>
-            <div className="px-4 py-2 bg-muted/50 grid grid-cols-[4.5rem_4rem_4rem_3.5rem_5.5rem_5.5rem_4rem_5.5rem] gap-2 text-xs text-muted-foreground font-medium">
-              <span>유저</span><span>게임</span><span>최근결과</span>
+            <div className="px-4 py-2 bg-muted/50 grid grid-cols-[4.5rem_4rem_3.5rem_5.5rem_5.5rem_4rem_5.5rem] gap-2 text-xs text-muted-foreground font-medium">
+              <span>유저</span><span>최근결과</span>
               <span className="text-right">승률</span><span className="text-right">수익누적</span>
               <span className="text-right">손실누적</span><span className="text-right">수수료</span><span className="text-right">잔고</span>
             </div>
             <div className="divide-y divide-border">
               {abUsers.length === 0 ? (
                 <div className="py-8 text-center text-sm text-muted-foreground">유저 목록 로딩 중...</div>
-              ) : abUsers.map(u => {
+              ) : (abUserTab === "baccarat" ? baccaratUsers : raceUsers).map(u => {
                 const ls = u.lastSettled
                 const us = u.userStats
                 const resultLabel = ls?.result === "win" ? "승" : ls?.result === "lose" ? "패" : ls?.result === "tie" ? "타이" : null
@@ -1010,7 +1151,7 @@ export function RoundMonitor({
                   : ls?.result === "lose" ? "text-red-500 bg-red-500/10"
                   : "text-amber-500 bg-amber-500/10"
                 return (
-                  <div key={u.id} className="px-4 py-2 grid grid-cols-[4.5rem_4rem_4rem_3.5rem_5.5rem_5.5rem_4rem_5.5rem] gap-2 items-center">
+                  <div key={u.id} className="px-4 py-2 grid grid-cols-[4.5rem_4rem_3.5rem_5.5rem_5.5rem_4rem_5.5rem] gap-2 items-center">
                     <div>
                       <span className="text-xs font-medium text-foreground truncate block">{u.username}</span>
                       <span className="text-[10px] text-muted-foreground tabular-nums">
@@ -1022,9 +1163,6 @@ export function RoundMonitor({
                         )}
                       </span>
                     </div>
-                    <span className={`text-[10px] px-1 py-0.5 rounded-full w-fit ${u.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
-                      {u.gameType === "baccarat" ? "바카라" : "레이스"}
-                    </span>
                     {resultLabel
                       ? <span className={`text-xs font-bold px-1.5 py-0.5 rounded text-center w-fit ${resultColor}`}>{resultLabel}</span>
                       : <span className="text-xs text-muted-foreground">—</span>
@@ -1084,10 +1222,8 @@ export function RoundMonitor({
         </>
       )}
 
-      {/* ════════════════════════════════════════════════════════
-          섹션 3 — 하우스 손익 누적
-      ════════════════════════════════════════════════════════ */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      {/* 섹션 3·4 (하우스 손익·LP 히스토리) 제거 — 데이터 미기록으로 불필요 */}
+      {false && <><div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <TrendingDown className="w-4 h-4 text-primary" />
@@ -1344,9 +1480,9 @@ export function RoundMonitor({
             })}
           </div>
         )}
-      </div>
+      </div></>}
 
-      {/* ════════════════════════════════════════════════════════
+      {/* ═════════════════════════════════════════���══════════════
           섹션 5 — 지점별 LP 설정 (superadmin 전용)
       ══════════��═════════════════��═══════════════════════════ */}
       {isSuperAdmin && branches.length > 0 && (
@@ -1363,20 +1499,22 @@ export function RoundMonitor({
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════
+      {/* ��═══════════════════════════════════════════════════════
           전체 초기화 다이얼로그
       ════════════════════════════════════════════════════════ */}
       {showResetDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-xl mx-4">
             <div className="flex items-center gap-2 mb-4">
-              <Lock className="w-4 h-4 text-red-500" />
-              <h3 className="text-sm font-bold text-foreground">전체 초기화 확인</h3>
+              <Lock className={`w-4 h-4 ${resetGameType === "baccarat" ? "text-blue-500" : resetGameType === "race" ? "text-orange-500" : "text-red-500"}`} />
+              <h3 className="text-sm font-bold text-foreground">
+                {resetGameType === "baccarat" ? "바카라" : resetGameType === "race" ? "레이스" : "전체"} 초기화 확인
+              </h3>
             </div>
-            <p className="text-xs text-muted-foreground mb-1">다음 항목이 모두 초기화됩니다:</p>
+            <p className="text-xs text-muted-foreground mb-1">다음 항목이 초기화됩니다:</p>
             <ul className="text-xs text-muted-foreground mb-4 space-y-0.5 list-disc list-inside">
-              <li>자동배팅 유저 잔고 → 1천만원</li>
-              <li>전체 배팅 이력(bet_history) 삭제</li>
+              <li>{resetGameType === "all" ? "전체" : resetGameType === "baccarat" ? "바카라" : "레이스"} 자동배팅 유저 잔고 → 1천만원</li>
+              <li>해당 게임 배팅 이력(bet_history) 삭제</li>
               <li>누적 수수료, 승률, 수익/손실 통계 초기화</li>
             </ul>
             <p className="text-xs text-muted-foreground mb-2">
