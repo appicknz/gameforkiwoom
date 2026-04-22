@@ -158,10 +158,19 @@ export function useRaceGame() {
     return () => window.removeEventListener("baka:race-score", onRaceScore)
   }, [])
 
-  // ── result 페이즈 진입 시 승자 결정 + DB 저장 ────────────────────
+  // ── 게임중(racing) timeLeft === 0 → 즉시 승자 결정 + race:closing 발행 ────
+  // "result" 페이즈(새 라운드 정산구간)를 기다리면 이미 state가 초기화되므로
+  // racing에서 timeLeft가 0이 되는 순간 바로 처리해야 함
   const resultSavedRef = useRef<number>(-1)
   useEffect(() => {
-    if (state.phase === "result" && state.winner === null && (state.bitScore > 0 || state.coinScore > 0)) {
+    if (
+      state.phase === "racing" &&
+      state.timeLeft === 0 &&
+      state.winner === null &&
+      resultSavedRef.current !== state.roundId
+    ) {
+      resultSavedRef.current = state.roundId
+
       const winner: "bit" | "coin" | "tie" =
         state.bitScore > state.coinScore ? "bit"
         : state.coinScore > state.bitScore ? "coin"
@@ -169,24 +178,14 @@ export function useRaceGame() {
 
       setState(prev => ({ ...prev, winner }))
 
-      // 중복 저장 방지
-      if (resultSavedRef.current === state.roundId) return
-      resultSavedRef.current = state.roundId
-
-      // 결과 시각: 이 roundId(raceRoundNumber)의 종료 경계
-      // state.roundId 가 raceRoundNumber이므로 종료 시각은 (roundId + 1) * 180
+      // race:closing 이벤트 발행 → race-closing-prices에서 실시간으로 수신해 목록 업데이트
       const resultTime = (state.roundId + 1) * 180
-
-      // race:closing 이벤트 발행 (차트 기준가선 업데이트, UI 실시간 반영)
-      // DB 저장은 game/settle API(서버)가 담당 — 클라이언트 접속 여부 무관
-      const lastPrice = state.lastPrice
-      if (lastPrice !== null) {
-        window.dispatchEvent(new CustomEvent("race:closing", {
-          detail: { price: lastPrice, time: resultTime, bit: state.bitScore, coin: state.coinScore, winner }
-        }))
-      }
+      const lastPrice = state.lastPrice ?? 0
+      window.dispatchEvent(new CustomEvent("race:closing", {
+        detail: { price: lastPrice, time: resultTime, bit: state.bitScore, coin: state.coinScore, winner }
+      }))
     }
-  }, [state.phase, state.winner, state.bitScore, state.coinScore, state.roundId, state.lastPrice])
+  }, [state.phase, state.timeLeft, state.winner, state.bitScore, state.coinScore, state.roundId, state.lastPrice])
 
   return { state, flashes }
 }
