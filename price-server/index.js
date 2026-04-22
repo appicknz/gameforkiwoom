@@ -86,14 +86,23 @@ function updateRaceScore(price, nowSec) {
   const roundId = getRaceRoundId(nowSec);
   const secInRound = getRaceSecInRound(nowSec);
 
-  // 새 라운드 진입 → 스코어 초기화
+  // 새 라운드 진입 → 직전 라운드 스코어를 DB에 저장 후 초기화
   if (roundId !== raceCurrentRoundId) {
+    // 직전 라운드 스코어가 있으면 DB 저장
+    if (raceCurrentRoundId >= 0 && (raceBitScore > 0 || raceCoinScore > 0)) {
+      const winner = raceBitScore > raceCoinScore ? "bit"
+        : raceCoinScore > raceBitScore ? "coin" : "tie";
+      const endTime = (raceCurrentRoundId + 1) * RACE_ROUND_SEC;
+      const lastPriceVal = latestPrice ? latestPrice.price : 0;
+      saveRaceResultToDB(endTime, lastPriceVal, raceBitScore, raceCoinScore, winner);
+      console.log(`[race] round ${raceCurrentRoundId} ended: B${raceBitScore}/C${raceCoinScore} winner=${winner}`);
+    }
     raceCurrentRoundId = roundId;
     raceBitScore = 0;
     raceCoinScore = 0;
   }
 
-  // 레이싱 구간(60~298초)에서만 득점
+  // 레이싱 구간(60~178초)에서만 득점
   if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_ROUND_SEC - 2) return;
 
   const dec = price.toFixed(2).split(".")[1] ?? "00";
@@ -405,9 +414,6 @@ function connectTrade() {
 
         // 클라이언트 접속 여부와 무관하게 서버에서 직접 DB 저장
         saveClosingPriceToDB(closePrice, closeTime);
-
-        // race 라운드 가격 누적 → 라운드 종료 시 자동 저장
-        accumulateRacePrice(closePrice, closeTime);
 
         // 게임 엔진: 매 30초마다 Vercel game/settle 호출
         triggerSettlement(closePrice, closeTime);
