@@ -291,9 +291,9 @@ export default function RacePage() {
 
           </div>
 
-          {/* 오른쪽: 5분 마감 기준가 + 차트 */}
+          {/* 오른쪽: 3분 마감 기준가 + 차트 */}
           <div className="space-y-4">
-            {/* BITTOTO 헤더 + 5분 마감 기준가 */}
+            {/* BITTOTO 헤더 + 3분 마감 기준가 */}
             <div style={{
               background: "rgba(5,13,10,0.95)",
               border: "1px solid rgba(212,175,55,0.2)",
