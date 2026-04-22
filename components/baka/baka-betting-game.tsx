@@ -343,7 +343,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
         {/* 헤더 */}
         <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ background: headerBg }}>
           <div>
-            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라�����드 #{result.round} 결과</p>
+            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라������드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight" style={{ color: headerColor }}>
               {headerLabel}
             </p>
@@ -811,9 +811,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         onResetCards?.()
       }
 
-      // 20초: 딜 시작 — 카드를 먼저 공개한 뒤 배팅 오픈 (라운드당 1회)
-      // rem===20: 라운드 시작 5초 후 배팅(15초) → 게임중(10초)
-      if (rem === 20 && dealTriggeredRoundRef.current !== roundNum) {
+      // 25초: 딜 시작 — 배팅 시작(5초)과 동시에 카드 공개 (라운드당 1회)
+      // rem===25: 정산(0~4초) 종료 직후 = 배팅 시작 시점
+      if (rem === 25 && dealTriggeredRoundRef.current !== roundNum) {
         dealTriggeredRoundRef.current = roundNum
         onStartDealTrigger?.()
       }

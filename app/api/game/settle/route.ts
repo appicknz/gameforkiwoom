@@ -46,10 +46,11 @@ export async function POST(request: Request) {
     // ── closing price DB 저장 — alreadySettled 체크 전에 항상 실행 ──────
     // triggerSettlement(price-server) → 이 API → DB 저장 순서로 클라이언트 없이도 기록됨
     const decStrSave = closePrice.toFixed(2).split(".")[1] ?? "00"
-    const d1Save = parseInt(decStrSave[0] ?? "0")   // 소수점 첫째 → banker 끝자리
-    const d2Save = parseInt(decStrSave[1] ?? "0")   // 소수점 둘째 → player 끝자리
+    const d1Save = parseInt(decStrSave[0] ?? "0")   // 소수점 첫째 → banker 점수
+    const d2Save = parseInt(decStrSave[1] ?? "0")   // 소수점 둘째 → player 점수
+    // banker(d1) vs player(d2) 크기 비교로 승패 결정
     const baccaratResultSave: "player" | "banker" | "tie" =
-      d2Save <= 4 ? "player" : d2Save <= 8 ? "banker" : "tie"
+      d1Save > d2Save ? "banker" : d2Save > d1Save ? "player" : "tie"
     await admin
       .from("btc_closing_prices")
       .upsert(
@@ -81,11 +82,14 @@ export async function POST(request: Request) {
     const wonDirection: "long" | "short" = resolvedClose >= basePrice ? "long" : "short"
     // 소수점 둘째 자리(d2) 기준 — applyFinalDigit, ClosingPrices와 동일한 기준
     const decStr = resolvedClose.toFixed(2).split(".")[1] ?? "00"
-    const lastDigit = parseInt(decStr[1] ?? "0")   // d2: 소수점 둘째 자리
+    const d1 = parseInt(decStr[0] ?? "0")          // 소수점 첫째 → banker 점수
+    const d2 = parseInt(decStr[1] ?? "0")          // 소수점 둘째 → player 점수
+    const lastDigit = d2
     const wonDigit: "under" | "over" = lastDigit <= 4 ? "under" : "over"
     const wonParity: "odd" | "even" = lastDigit % 2 === 0 ? "even" : "odd"
+    // banker(d1) vs player(d2) 크기 비교로 승패 결정
     const baccaratResult: "player" | "banker" | "tie" =
-      lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
+      d1 > d2 ? "banker" : d2 > d1 ? "player" : "tie"
 
     // ── race 결과 계산 (3분 라운드 기준) ────────────────────
     // race는 3분(180초) 라운드: raceRoundNumber = Math.floor(closeTime / 180)
@@ -708,15 +712,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── rounds 테이블 기록 (라운드당 1회) ───────────────────
-    await admin.from("rounds").insert({
+    // ── rounds 테이블 기록 (라운드당 1회, ended_at 기준 upsert로 중복 방지) ───
+    await admin.from("rounds").upsert({
       base_price: basePrice,
       result_price: resolvedClose,
       result_digit: lastDigit,
       baccarat_result: baccaratResult,
       started_at: new Date((roundNumber - 1) * 30 * 1000).toISOString(),
       ended_at: new Date(roundNumber * 30 * 1000).toISOString(),
-    }).then(() => {}).catch(() => {})  // 중�� 삽�� 무시
+    }, { onConflict: "ended_at", ignoreDuplicates: true }).then(() => {}).catch(() => {})
 
     console.log(`[settle] round=${roundNumber} baccarat=${baccaratResult} settled=${settlementResults.length} users`)
 
