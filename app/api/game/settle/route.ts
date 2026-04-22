@@ -43,6 +43,21 @@ export async function POST(request: Request) {
     // 라운드 번호 = closeTime / 30 (price-server가 보내는 버킷 시작 초)
     const roundNumber = Math.floor(closeTime / 30)
 
+    // ── closing price DB 저장 — alreadySettled 체크 전에 항상 실행 ──────
+    // triggerSettlement(price-server) → 이 API → DB 저장 순서로 클라이언트 없이도 기록됨
+    const decStrSave = closePrice.toFixed(2).split(".")[1] ?? "00"
+    const d1Save = parseInt(decStrSave[0] ?? "0")   // 소수점 첫째 → banker 끝자리
+    const d2Save = parseInt(decStrSave[1] ?? "0")   // 소수점 둘째 → player 끝자리
+    const baccaratResultSave: "player" | "banker" | "tie" =
+      d2Save <= 4 ? "player" : d2Save <= 8 ? "banker" : "tie"
+    await admin
+      .from("btc_closing_prices")
+      .upsert(
+        { time: closeTime, price: closePrice, baccarat_result: baccaratResultSave, b_score: d1Save, p_score: d2Save },
+        { onConflict: "time", ignoreDuplicates: true }
+      )
+      .catch((e: Error) => console.error("[settle] btc_closing_prices upsert error:", e.message))
+
     // 이미 정산된 라운드인지 확인 (중복 방지)
     const alreadySettled = await redis.get(`settled:${roundNumber}`)
     if (alreadySettled) {
