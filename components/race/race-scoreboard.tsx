@@ -237,7 +237,7 @@ function DigitFlash({ digit, color, label }: { digit: number | null; color: stri
 
   useEffect(() => {
     if (digit === null) return
-    // digit 값이 같아도 새 tick이면 항상 �����애니메이션
+    // digit 값이 같아도 새 tick이면 항상 �������애니메이션
     tickRef.current += 1
     setTick(tickRef.current)
     prevDigit.current = digit
@@ -514,8 +514,8 @@ export function RaceScoreboard({ state, flashes = [] }: Props) {
         )
       })()}
 
-      {/* 결과 배너 */}
-      {phase === "result" && winner && (
+      {/* 결과 배너 — racing 마지막(secondsInRound=179)에 winner가 set되므로 phase 조건 없이 표시 */}
+      {winner && (
         <div style={{
           textAlign: "center",
           padding: "clamp(10px, 3vw, 16px)",

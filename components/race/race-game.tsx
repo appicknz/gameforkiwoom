@@ -158,14 +158,14 @@ export function useRaceGame() {
     return () => window.removeEventListener("baka:race-score", onRaceScore)
   }, [])
 
-  // ── 게임중(racing) timeLeft === 0 → 즉시 승자 결정 + race:closing 발행 ────
-  // "result" 페이즈(새 라운드 정산구간)를 기다리면 이미 state가 초기화되므로
-  // racing에서 timeLeft가 0이 되는 순간 바로 처리해야 함
+  // ── 게임중 마지막 초(secondsInRound === 179) → 승자 결정 + race:closing 발행 ────
+  // timeLeft는 절대 0이 되지 않음 (180-179=1 → 다음 tick에서 sec=0으로 초기화됨)
+  // 따라서 secondsInRound === GAME_END_SEC - 1 (=179) 시점에 처리
   const resultSavedRef = useRef<number>(-1)
   useEffect(() => {
     if (
       state.phase === "racing" &&
-      state.timeLeft === 0 &&
+      state.secondsInRound === GAME_END_SEC - 1 &&
       state.winner === null &&
       resultSavedRef.current !== state.roundId
     ) {
@@ -178,14 +178,14 @@ export function useRaceGame() {
 
       setState(prev => ({ ...prev, winner }))
 
-      // race:closing 이벤트 발행 → race-closing-prices에서 실시간으로 수신해 목록 업데이트
+      // race:closing 이벤트 발행 → race-closing-prices 실시간 업데이트
       const resultTime = (state.roundId + 1) * 180
       const lastPrice = state.lastPrice ?? 0
       window.dispatchEvent(new CustomEvent("race:closing", {
         detail: { price: lastPrice, time: resultTime, bit: state.bitScore, coin: state.coinScore, winner }
       }))
     }
-  }, [state.phase, state.timeLeft, state.winner, state.bitScore, state.coinScore, state.roundId, state.lastPrice])
+  }, [state.phase, state.secondsInRound, state.winner, state.bitScore, state.coinScore, state.roundId, state.lastPrice])
 
   return { state, flashes }
 }
