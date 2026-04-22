@@ -173,9 +173,46 @@ function createBinanceWS(url, name, onClose) {
   return ws;
 }
 
-// ─── 정산 엔진 — closing 시 Railway에서 직접 실행 ─────────────────────
-// Vercel game/play 대신 여기서 정산: 클라이언트 요청 없이 서버가 주도
+// ─── closing 가격 DB 저장 (클라이언트 없이 서버에서 직접) ───────────
 const VERCEL_URL = process.env.VERCEL_URL || process.env.NEXT_PUBLIC_APP_URL;
+
+function saveClosingPriceToDB(closePrice, closeTime) {
+  if (!VERCEL_URL) {
+    console.log("[db] No VERCEL_URL, cannot save closing price");
+    return;
+  }
+  // 바카라 결과 계산 (소수점 둘째 자리 기준)
+  const decStr = closePrice.toFixed(2).split(".")[1] || "00";
+  const dec2 = parseInt(decStr[1] || "0");
+  const baccaratResult = dec2 <= 4 ? "player" : dec2 <= 8 ? "banker" : "tie";
+
+  const body = JSON.stringify({ price: closePrice, time: closeTime, baccarat_result: baccaratResult });
+  const parsedUrl = new URL(`${VERCEL_URL}/api/closing-price`);
+  const proto = parsedUrl.protocol === "https:" ? require("https") : require("http");
+  const options = {
+    hostname: parsedUrl.hostname,
+    port: parsedUrl.port || (parsedUrl.protocol === "https:" ? 443 : 80),
+    path: parsedUrl.pathname,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
+    },
+  };
+  const req = proto.request(options, (res) => {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      console.log(`[db] saved closing price: ${closePrice} @ ${closeTime} (${baccaratResult})`);
+    } else {
+      res.resume(); // drain
+      console.error(`[db] save failed: HTTP ${res.statusCode}`);
+    }
+  });
+  req.on("error", (e) => console.error("[db] save error:", e.message));
+  req.write(body);
+  req.end();
+}
+
+// ─── 정산 엔진 — closing 시 Railway에서 직접 실행 ─────────────────────
 
 function triggerSettlement(closePrice, closeTime) {
   if (!VERCEL_URL) {
@@ -230,8 +267,10 @@ function connectTrade() {
         broadcast({ type: "closing", price: closePrice, time: closeTime });
         console.log(`[closing] bucket ${lastBucket}→${bucket}: ${closePrice} @ ${new Date(closeTime * 1000).toISOString()} → ${clients.size} clients`);
 
+        // ── DB 직접 저장 (클라이언트 접속 여부 무관) ──────────────
+        saveClosingPriceToDB(closePrice, closeTime);
+
         // 게임 엔진: 매 30초마다 Vercel game/settle 호출
-        // baccarat 정산 + race는 5분 라운드 마지막 30초 tick에서 game/settle 내부에서 자동 판단
         triggerSettlement(closePrice, closeTime);
 
         // 새 버킷으로 전환: 이전 버킷의 마지막 가격 초기화
