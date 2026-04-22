@@ -6,10 +6,6 @@ interface PriceEntry {
   time: number
   price: number
   baccaratResult?: "player" | "banker" | "tie" | null
-  bScore?: number | null   // 뱅커 카드 합산 끝자리
-  pScore?: number | null   // 플레이어 카드 합산 끝자리
-  bRawSum?: number | null  // 뱅커 카드 합산 전체
-  pRawSum?: number | null  // 플레이어 카드 합산 전체
 }
 
 const GOLD = "#d4af37"
@@ -20,7 +16,7 @@ const CARD_BG = "rgba(5,13,10,0.85)"
 const GOLD_BORDER = "rgba(212,175,55,0.18)"
 
 const PLAYER_COLOR = "#60a5fa"   // blue
-const BANKER_COLOR = "#ef4444"   // red
+const BANKER_COLOR = "#f97316"   // orange
 const TIE_COLOR    = "#22c55e"   // green
 
 function fmtTime(ts: number) {
@@ -33,69 +29,37 @@ function fmtPrice(p: number) {
   return "$" + p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-/** 카드 끝자리 점수로 결과 계산 — 9에 가까운 쪽 승리 */
-function scoreToResult(bScore: number, pScore: number): "player" | "banker" | "tie" {
-  return pScore > bScore ? "player" : bScore > pScore ? "banker" : "tie"
+/** 가격의 소수점 두 자리를 문자열에서 직접 파싱 — 부동소수점 오차 방지 */
+function getPriceDecimals(price: number): { d1: number; d2: number } {
+  const s = price.toFixed(2)           // "66967.43"
+  const dec = s.split(".")[1] ?? "00"  // "43"
+  return { d1: parseInt(dec[0] ?? "0"), d2: parseInt(dec[1] ?? "0") }
 }
 
-/** B/P 동그라미 점수 표시 — 이긴 쪽 채움, 타이는 초록 묶음 */
-function ScoreCircles({
-  bDisplay, pDisplay, result,
-}: {
-  bDisplay: number | null
-  pDisplay: number | null
-  result: "player" | "banker" | "tie" | null
-}) {
-  if (bDisplay === null || pDisplay === null) {
-    return <span style={{ color: GOLD_DIM, fontSize: 10 }}>—</span>
-  }
+function getComputedResult(price: number): "player" | "banker" | "tie" {
+  const { d2 } = getPriceDecimals(price)  // 소수점 둘째 자리 기준
+  return d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
+}
 
-  const isTie    = result === "tie"
-  const bWin     = result === "banker"
-  const pWin     = result === "player"
-
-  const bColor   = bWin ? BANKER_COLOR : isTie ? TIE_COLOR : "rgba(212,175,55,0.25)"
-  const pColor   = pWin ? PLAYER_COLOR : isTie ? TIE_COLOR : "rgba(212,175,55,0.25)"
-  const bFill    = bWin ? `${BANKER_COLOR}30` : isTie ? `${TIE_COLOR}18` : "transparent"
-  const pFill    = pWin ? `${PLAYER_COLOR}30` : isTie ? `${TIE_COLOR}18` : "transparent"
-  const bText    = bWin ? BANKER_COLOR : isTie ? TIE_COLOR : "rgba(232,213,163,0.55)"
-  const pText    = pWin ? PLAYER_COLOR : isTie ? TIE_COLOR : "rgba(232,213,163,0.55)"
-
-  const circle = (val: number, borderColor: string, bg: string, textColor: string) => (
-    <div style={{
-      display: "inline-flex", alignItems: "center", justifyContent: "center",
-      width: 28, height: 28, borderRadius: "50%",
-      border: `1.5px solid ${borderColor}`,
-      background: bg,
-      fontSize: 11, fontWeight: 800, color: textColor,
-      lineHeight: 1, flexShrink: 0,
-    }}>
-      {val}
-    </div>
-  )
-
+function BaccaratBadge({ result }: { result: "player" | "banker" | "tie" }) {
+  const label = result === "player" ? "플레이어" : result === "banker" ? "뱅커" : "타이"
+  const color = result === "player" ? PLAYER_COLOR : result === "banker" ? BANKER_COLOR : TIE_COLOR
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <span style={{ fontSize: 9, fontWeight: 700, color: bColor, marginRight: 2 }}>B</span>
-      {circle(bDisplay, bColor, bFill, bText)}
-      <span style={{ fontSize: 9, fontWeight: 700, color: pColor, marginLeft: 2, marginRight: 2 }}>P</span>
-      {circle(pDisplay, pColor, pFill, pText)}
-    </div>
+    <span style={{
+      padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700,
+      background: `${color}22`, color, border: `1px solid ${color}55`,
+      whiteSpace: "nowrap",
+    }}>
+      {label}
+    </span>
   )
 }
 
 function PriceRow({ entry }: { entry: PriceEntry }) {
-  const bs = entry.bScore ?? null
-  const ps = entry.pScore ?? null
-  const bRaw = entry.bRawSum ?? null
-  const pRaw = entry.pRawSum ?? null
-  const hasScores = bs !== null && ps !== null
+  const { d1, d2 } = getPriceDecimals(entry.price)  // 문자열 파싱으로 정확하게
 
-  const bDisplay = bRaw !== null ? bRaw : bs
-  const pDisplay = pRaw !== null ? pRaw : ps
-
-  const baccaratResult: "player" | "banker" | "tie" | null =
-    hasScores ? scoreToResult(bs!, ps!) : (entry.baccaratResult ?? null)
+  // baccarat_result: DB 저장값 우선, 없으면 가격에서 계산
+  const baccaratResult = entry.baccaratResult ?? getComputedResult(entry.price)
 
   return (
     <div style={{
@@ -110,9 +74,10 @@ function PriceRow({ entry }: { entry: PriceEntry }) {
       <span style={{ color: GOLD, fontWeight: 700, minWidth: 90, textAlign: "right" }}>
         {fmtPrice(entry.price)}
       </span>
-      <div style={{ marginLeft: "auto" }}>
-        <ScoreCircles bDisplay={bDisplay} pDisplay={pDisplay} result={baccaratResult} />
-      </div>
+      <span style={{ fontSize: 10, color: GOLD_DIM, minWidth: 36 }}>
+        B{d1} P{d2}
+      </span>
+      <BaccaratBadge result={baccaratResult} />
     </div>
   )
 }
@@ -133,33 +98,18 @@ export function ClosingPrices() {
       .catch(() => {})
   }, [])
 
-  // 30초 마감: baka:closing 이벤트 구독 (가격/시간 먼저 추가, 점수는 deal-complete 이후 반영)
+  // 30초 마감: baka:closing 이벤트 구독
   useEffect(() => {
     const onClosing = (e: Event) => {
-      const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
+      const { price, time, baccaratResult } = (e as CustomEvent<{ price: number; time: number; baccaratResult?: "player" | "banker" | "tie" }>).detail
       setPrices(prev => {
         const last = prev[prev.length - 1]
         if (last?.time === time) return prev
-        return [...prev, { time, price, baccaratResult: null, bScore: null, pScore: null }].slice(-50)
+        return [...prev, { time, price, baccaratResult: baccaratResult ?? null }].slice(-50)
       })
     }
     window.addEventListener("baka:closing", onClosing)
     return () => window.removeEventListener("baka:closing", onClosing)
-  }, [])
-
-  // 카드 연출 완료: baccarat:deal-complete 이벤트로 점수 반영
-  useEffect(() => {
-    const onDealComplete = (e: Event) => {
-      const { result, pScore, bScore, pRawSum, bRawSum } = (e as CustomEvent<{ result: "player" | "banker" | "tie"; pScore: number; bScore: number; pRawSum: number; bRawSum: number }>).detail
-      setPrices(prev => {
-        if (prev.length === 0) return prev
-        const updated = [...prev]
-        updated[updated.length - 1] = { ...updated[updated.length - 1], baccaratResult: result, bScore, pScore, bRawSum, pRawSum }
-        return updated
-      })
-    }
-    window.addEventListener("baccarat:deal-complete", onDealComplete)
-    return () => window.removeEventListener("baccarat:deal-complete", onDealComplete)
   }, [])
 
   if (prices.length === 0) return null

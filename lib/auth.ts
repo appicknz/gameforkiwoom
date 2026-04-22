@@ -1,36 +1,69 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { cookies } from "next/headers"
+import { Redis } from "@upstash/redis"
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+})
+
+// Redis 세션 키
+export const sessionKey  = (userId: string) => `session:${userId}`
+export const tokenMapKey = (token: string)  => `token_uid:${token.slice(-32)}`  // 토큰 → userId 역매핑
+
+const SESSION_TTL = 86400  // 24시간 — access_token 1시간 만료와 무관하게 세션 유지
+
+// 새 로그인 시 Redis에 토큰 저장 (기존 토큰 덮어쓰기 → 중복 세션 무효화)
+export async function saveSession(userId: string, token: string) {
+  await Promise.all([
+    redis.set(sessionKey(userId), token,  { ex: SESSION_TTL }),
+    redis.set(tokenMapKey(token), userId, { ex: SESSION_TTL }),  // 역매핑 저장
+  ])
+}
 
 export type AuthResult =
   | { ok: true; userId: string; token: string }
-  | { ok: false; status: 401; error: string }
+  | { ok: false; status: 401 | 409; error: string }
 
 /**
- * Supabase JWT 자체만 검증 — Redis 이중 검증 제거
- * access_token이 유효하면 통과, 만료되면 401 반환
- * 클라이언트가 refresh 요청으로 자동 갱신
+ * 토큰 → userId 해석 (Supabase getUser 우선, 만료 시 Redis 역매핑 fallback)
+ * - Supabase access_token 만료(1시간) 이후에도 Redis 역매핑이 살아있으면 세션 유효
+ * - 역매핑도 없으면 진짜 401
  */
 async function resolveUserId(token: string): Promise<string | null> {
   const { data: { user }, error } = await adminSupabase.auth.getUser(token)
   if (!error && user) return user.id
-  return null
+
+  // Supabase 토큰 만료 → Redis 역매핑으로 userId 복원
+  const mapped = await redis.get<string>(tokenMapKey(token))
+  return mapped ?? null
 }
 
-function extractToken(req: Request, cookieStore: Awaited<ReturnType<typeof cookies>>): string | null {
-  const auth = req.headers.get("Authorization")
-  return (auth?.startsWith("Bearer ") ? auth.slice(7) : null)
-    ?? cookieStore.get("app_token")?.value
-    ?? null
-}
-
+/**
+ * Bearer 토큰 검증 + Redis 세션 일치 확인
+ * - 401: 토큰 없음 / 세션 없음
+ * - 409: Redis에 저장된 토큰과 불일치 → 다른 기기에서 새로 로그인한 상태
+ */
 export async function verifySession(req: Request): Promise<AuthResult> {
-  const cookieStore = await cookies()
-  const token = extractToken(req, cookieStore)
+  const auth = req.headers.get("Authorization")
+  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null
   if (!token) return { ok: false, status: 401, error: "Unauthorized" }
 
   const userId = await resolveUserId(token)
   if (!userId) return { ok: false, status: 401, error: "Invalid token" }
+
+  const stored = await redis.get<string>(sessionKey(userId))
+  if (stored !== null && stored !== token) {
+    return { ok: false, status: 409, error: "DUPLICATE_LOGIN" }
+  }
+
+  // 세션 TTL 슬라이딩 갱신 — 사용 중인 동안 만료되지 않게
+  if (stored === token) {
+    await Promise.all([
+      redis.expire(sessionKey(userId), SESSION_TTL),
+      redis.expire(tokenMapKey(token), SESSION_TTL),
+    ])
+  }
 
   return { ok: true, userId, token }
 }
@@ -40,16 +73,27 @@ export async function verifySession(req: Request): Promise<AuthResult> {
  */
 export async function verifySessionFromUrl(req: Request): Promise<AuthResult> {
   const url = new URL(req.url)
-  const cookieStore = await cookies()
+  const auth = req.headers.get("Authorization")
   const token =
-    extractToken(req, cookieStore) ??
-    url.searchParams.get("token") ??
-    null
+    (auth?.startsWith("Bearer ") ? auth.slice(7) : null) ??
+    url.searchParams.get("token")
 
   if (!token) return { ok: false, status: 401, error: "Unauthorized" }
 
   const userId = await resolveUserId(token)
   if (!userId) return { ok: false, status: 401, error: "Invalid token" }
+
+  const stored = await redis.get<string>(sessionKey(userId))
+  if (stored !== null && stored !== token) {
+    return { ok: false, status: 409, error: "DUPLICATE_LOGIN" }
+  }
+
+  if (stored === token) {
+    await Promise.all([
+      redis.expire(sessionKey(userId), SESSION_TTL),
+      redis.expire(tokenMapKey(token), SESSION_TTL),
+    ])
+  }
 
   return { ok: true, userId, token }
 }

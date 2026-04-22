@@ -72,19 +72,27 @@ export async function POST(request: Request) {
     const baccaratResult: "player" | "banker" | "tie" =
       lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
 
-    // ── race 결과 계산 (3분 라운드 기준) ────────────────────
+    // ── race 결과 계산 (5분 라운드 기준) ────────────────────
     // race는 3분(180초) 라운드: raceRoundNumber = Math.floor(closeTime / 180)
     const raceRoundNumber = Math.floor(closeTime / 180)
     const racePoolKey     = `pool:race:${raceRoundNumber}`
     const raceUserSetKey  = `users:race:${raceRoundNumber}`
+    // 서버측 race 스코어 누적 키 (30초 tick마다 합산)
+    const raceScoreKey    = `race:score:${raceRoundNumber}`
 
-    // 직전 라운드가 방금 끝났는지 확인:
-    // 이 tick의 closeTime이 현재 라운드의 첫 번째 30초 버킷이면 직전 라운드 정산
-    const isFirstTickOfRound = (closeTime % 180) < 30
+    // 서버에서 직접 소수점 스코어 누적: d1(BIT) + d2(COIN)
+    // closeTime % 300 < 300: 모든 30초 tick에서 현재 라운드 스코어에 누적
+    const dec = resolvedClose.toFixed(2).split(".")[1] ?? "00"
+    const d1  = parseInt(dec[0] ?? "0")  // 소수점 첫째 → BIT
+    const d2  = parseInt(dec[1] ?? "0")  // 소수점 둘째 → COIN
+    await redis.hincrby(raceScoreKey, "bit",  d1).catch(() => {})
+    await redis.hincrby(raceScoreKey, "coin", d2).catch(() => {})
+    await redis.expire(raceScoreKey, 400).catch(() => {})  // 3분+여유
 
-    const [racePoolData, raceUserIds] = await Promise.all([
+    const [racePoolData, raceUserIds, raceScoreData] = await Promise.all([
       redis.hgetall(racePoolKey).catch(() => null),
       redis.smembers(raceUserSetKey).catch(() => [] as string[]),
+      redis.hgetall(raceScoreKey).catch(() => null),
     ])
 
     // ── baccarat 풀 + 유저 목록 조회 ────────────────────────
@@ -109,20 +117,6 @@ export async function POST(request: Request) {
       tie:  parseInt((racePoolData?.tie  as string) ?? "0") || 0,
     }
 
-    // ── btc_closing_prices에 바카라 결과/점수 upsert (클라이언트 없어도 서버가 저장) ──
-    // lastDigit = 소수점 둘째(d2) → pScore, bankerDigit = 소수점 첫째(d1) → bScore
-    const bankerDigitForScore = parseInt(decStr[0] ?? "0")   // d1 → 뱅커 끝자리
-    const playerDigitForScore = parseInt(decStr[1] ?? "0")   // d2 → 플레이어 끝자리
-    await admin.from("btc_closing_prices").upsert({
-      time: closeTime,
-      price: resolvedClose,
-      baccarat_result: baccaratResult,
-      b_score: bankerDigitForScore,
-      p_score: playerDigitForScore,
-      b_raw_sum: bankerDigitForScore,  // 서버에서는 한 장 기준(끝자리)
-      p_raw_sum: playerDigitForScore,
-    }, { onConflict: "time" }).catch(() => {})
-
     // baccarat 결과를 Redis에 저장
     const resultPayload = {
       roundNumber,
@@ -137,66 +131,74 @@ export async function POST(request: Request) {
     await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 120 })
 
     // ── race 결과 저장 ─────────────────────────────────────────
-    // 현재 라운드의 첫 번째 tick = 직전 라운드가 방금 종료됨 → 직전 라운드 집계 후 저장
-    if (isFirstTickOfRound) {
-      const prevRaceRound   = raceRoundNumber - 1
-      const prevRaceSettled = await redis.get(`settled:race:${prevRaceRound}`).catch(() => null)
+    // raceRoundNumber가 이전 tick보다 올라갔을 때 = 직전 라운드가 방금 종료됨
+    // 직전 라운드(prevRaceRound) 스코어를 읽어 DB에 저장
+    const prevRaceRound    = raceRoundNumber - 1
+    const prevRaceSettled  = await redis.get(`settled:race:${prevRaceRound}`).catch(() => null)
 
-      if (!prevRaceSettled) {
-        // 직전 라운드 전체 구간 = [prevRaceRound*180, (prevRaceRound+1)*180 - 1]
-        // btc_closing_prices에서 해당 구간 모든 가격 집계 (서버 저장 데이터 기준)
-        const rangeStart = prevRaceRound * 180
-        const rangeEnd   = (prevRaceRound + 1) * 180 - 1
+    if (!prevRaceSettled) {
+      // 직전 라운드 스코어: Redis 누적값 우선
+      const prevScoreKey = `race:score:${prevRaceRound}`
+      const prevScore    = await redis.hgetall(prevScoreKey).catch(() => null)
+      let bitScore  = parseInt((prevScore?.bit  as string) ?? "0") || 0
+      let coinScore = parseInt((prevScore?.coin as string) ?? "0") || 0
+
+      // Redis 없으면 btc_closing_prices에서 직접 집계
+      if (bitScore === 0 && coinScore === 0) {
+        const rangeEnd   = prevRaceRound * 180        // 직전 라운드 종료 시각
+        const rangeStart = rangeEnd - 150             // 30초 × 5 = 직전 3분 게임 구간
         const { data: rows } = await admin
           .from("btc_closing_prices")
-          .select("price, time")
+          .select("price")
           .gte("time", rangeStart)
           .lte("time", rangeEnd)
-          .order("time", { ascending: true })
-
-        let bitScore  = 0
-        let coinScore = 0
         if (rows && rows.length > 0) {
           for (const row of rows) {
             const p = typeof row.price === "string" ? parseFloat(row.price) : (row.price as number)
             const d = p.toFixed(2).split(".")[1] ?? "00"
-            bitScore  += parseInt(d[0] ?? "0")   // d1 → BIT
-            coinScore += parseInt(d[1] ?? "0")   // d2 → COIN
+            bitScore  += parseInt(d[0] ?? "0")
+            coinScore += parseInt(d[1] ?? "0")
           }
         }
-
-        // 직전 라운드 마지막 기준가
-        const prevRaceEndTime = (prevRaceRound + 1) * 180
-        const lastRow = rows?.[rows.length - 1]
-        const prevClosePrice = lastRow
-          ? (typeof lastRow.price === "string" ? parseFloat(lastRow.price) : (lastRow.price as number))
-          : resolvedClose
-
-        const raceWinner: "bit" | "coin" | "tie" =
-          bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
-
-        // DB upsert
-        await admin.from("race_results").upsert({
-          time:       prevRaceEndTime,
-          price:      prevClosePrice,
-          bit_score:  bitScore,
-          coin_score: coinScore,
-          winner:     raceWinner,
-        }, { onConflict: "time" }).catch(() => {})
-
-        // 중복 방지 플래그 (10분 TTL)
-        await redis.set(`settled:race:${prevRaceRound}`, 1, { ex: 600 }).catch(() => {})
-
-        // Redis 결과 캐시
-        await redis.set(`game:result:race:${prevRaceRound}`, JSON.stringify({
-          raceRoundNumber: prevRaceRound,
-          raceWinner,
-          closePrice: prevClosePrice,
-          bitScore,
-          coinScore,
-          settledAt: Date.now(),
-        }), { ex: 600 }).catch(() => {})
       }
+
+      // 직전 라운드 마감 기준가: btc_closing_prices에서 조회
+      const prevRaceEndTime = prevRaceRound * 180
+      const { data: priceRow } = await admin
+        .from("btc_closing_prices")
+        .select("price")
+        .lte("time", prevRaceEndTime)
+        .order("time", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const prevClosePrice = priceRow
+        ? (typeof priceRow.price === "string" ? parseFloat(priceRow.price) : (priceRow.price as number))
+        : resolvedClose
+
+      const raceWinner: "bit" | "coin" | "tie" =
+        bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
+
+      // DB upsert — baka rounds처럼 항상 저장
+      await admin.from("race_results").upsert({
+        time:       prevRaceEndTime,
+        price:      prevClosePrice,
+        bit_score:  bitScore,
+        coin_score: coinScore,
+        winner:     raceWinner,
+      }, { onConflict: "time" }).catch(() => {})
+
+      // 저장 완료 플래그 (중복 방지, 10분 TTL)
+      await redis.set(`settled:race:${prevRaceRound}`, 1, { ex: 600 }).catch(() => {})
+
+      // Redis에 결과 캐시
+      await redis.set(`game:result:race:${prevRaceRound}`, JSON.stringify({
+        raceRoundNumber: prevRaceRound,
+        raceWinner,
+        closePrice: prevClosePrice,
+        bitScore,
+        coinScore,
+        settledAt: Date.now(),
+      }), { ex: 600 }).catch(() => {})
     }
 
     // 정산 완료 플래그 (중복 방지, 5분 TTL)

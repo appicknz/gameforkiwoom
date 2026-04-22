@@ -85,7 +85,12 @@ export function usePriceWorker(options: UsePriceWorkerOptions) {
 
             if (!last || last.time !== data.time) {
               win.__bitcoinClosingPrices = [...prev, { time: data.time, price: data.price }].slice(-100)
-              // DB 저장은 price-server(Railway)에서 직접 수행 — 클라이언트 중복 저장 제거
+              // DB 저장 (fire-and-forget) — baccarat_result 포함
+              fetch("/api/closing-price", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ price: data.price, time: data.time, baccarat_result: baccaratResult }),
+              }).catch(() => {})
             }
             // 3번째 카드 트리거
             optsRef.current.onClosingPrice?.(data.price, data.time)

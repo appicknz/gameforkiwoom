@@ -291,9 +291,20 @@ export default function RacePage() {
 
           </div>
 
-          {/* 오른쪽: 5분 마감 기준가 + 차트 */}
+          {/* 오른쪽: 차트 + 5분 마감 기준가 */}
           <div className="space-y-4">
-            {/* BITTOTO 헤더 + 5분 마감 기준가 */}
+            {/* BitcoinChart — baka와 동일 */}
+            <div
+              className="rounded-2xl overflow-hidden sticky top-4"
+              style={{
+                border: "1px solid rgba(212,175,55,0.2)",
+                boxShadow: "0 0 50px rgba(212,175,55,0.06)",
+              }}
+            >
+                <BitcoinChart mode="race" />
+            </div>
+
+            {/* 5분 마감 기준가 + 게임 규칙 */}
             <div style={{
               background: "rgba(5,13,10,0.95)",
               border: "1px solid rgba(212,175,55,0.2)",
@@ -301,33 +312,19 @@ export default function RacePage() {
               overflow: "hidden",
               padding: "16px",
             }}>
-              {/* BITTOTO 타이틀 — /baka의 BACCARAT 뱃지 스타일 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                <span style={{
-                  fontSize: 20, fontWeight: 900, color: GOLD,
-                  letterSpacing: "0.08em", fontFamily: "monospace",
-                }}>BITTOTO</span>
-                <span style={{
-                  fontSize: 11, color: "rgba(212,175,55,0.7)", fontWeight: 600,
-                  padding: "3px 10px", borderRadius: 6,
-                  border: "1px solid rgba(212,175,55,0.3)",
-                  background: "rgba(212,175,55,0.06)",
-                  letterSpacing: "0.04em",
-                }}>비트토토 레이싱</span>
+              {/* BIT vs COIN 설명 */}
+              <div style={{ marginBottom: 16, padding: "12px", background: "rgba(212,175,55,0.04)", borderRadius: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, marginBottom: 8 }}>게임 규칙</div>
+                <div style={{ fontSize: 11, color: "rgba(212,175,55,0.6)", lineHeight: 1.6 }}>
+                  · 10초 정산 → 50초 배팅 → 2분 레이싱<br />
+                  · 매 초 BTC 현재가 수신<br />
+                  · <span style={{ color: BIT_COLOR }}>BIT팀</span>: 소수점 첫째 자리 누적<br />
+                  · <span style={{ color: COIN_COLOR }}>COIN팀</span>: 소수점 둘째 자리 누적<br />
+                  · 4분 후 더 높은 팀 승리
+                </div>
               </div>
 
               <RaceClosingPrices />
-            </div>
-
-            {/* BitcoinChart — 마감 기준가 아래 */}
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={{
-                border: "1px solid rgba(212,175,55,0.2)",
-                boxShadow: "0 0 50px rgba(212,175,55,0.06)",
-              }}
-            >
-              <BitcoinChart mode="race" />
             </div>
           </div>
 

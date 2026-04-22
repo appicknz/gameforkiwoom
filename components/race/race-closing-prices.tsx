@@ -133,29 +133,24 @@ export function RaceClosingPrices() {
             <span style={{ fontSize: 13, fontWeight: 700, color: GOLD, flex: 1, fontVariantNumeric: "tabular-nums" }}>
               {fmtPrice(entry.price)}
             </span>
-            {/* BIT 점수 — 이기면 채움 사각 라운드 */}
-            <span style={{
-              fontSize: 11, fontWeight: 800,
-              color: entry.winner === "bit" ? "#fff" : BIT_COLOR,
-              background: entry.winner === "bit" ? BIT_COLOR : entry.winner === "tie" ? "rgba(59,130,246,0.12)" : "transparent",
-              border: `1.5px solid ${entry.winner === "bit" ? BIT_COLOR : "rgba(59,130,246,0.35)"}`,
-              padding: "2px 7px", borderRadius: 6,
-              minWidth: 36, textAlign: "center",
-              letterSpacing: "0.02em",
-            }}>
+            {/* 누적 토탈 스코어 */}
+            <span style={{ fontSize: 11, fontWeight: 700, color: BIT_COLOR, minWidth: 30 }}>
               B{entry.bit}
             </span>
-            {/* COIN 점수 — 이기면 채움 사각 라운드 */}
-            <span style={{
-              fontSize: 11, fontWeight: 800,
-              color: entry.winner === "coin" ? "#fff" : COIN_COLOR,
-              background: entry.winner === "coin" ? COIN_COLOR : entry.winner === "tie" ? "rgba(249,115,22,0.12)" : "transparent",
-              border: `1.5px solid ${entry.winner === "coin" ? COIN_COLOR : "rgba(249,115,22,0.35)"}`,
-              padding: "2px 7px", borderRadius: 6,
-              minWidth: 36, textAlign: "center",
-              letterSpacing: "0.02em",
-            }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: COIN_COLOR, minWidth: 34 }}>
               C{entry.coin}
+            </span>
+            {/* 승자 뱃지 */}
+            <span style={{
+              fontSize: 10, fontWeight: 700,
+              color: entry.winner === "bit" ? BIT_COLOR : entry.winner === "coin" ? COIN_COLOR : GOLD,
+              background: entry.winner === "bit" ? "rgba(59,130,246,0.15)" : entry.winner === "coin" ? "rgba(249,115,22,0.15)" : "rgba(212,175,55,0.12)",
+              border: `1px solid ${entry.winner === "bit" ? "rgba(59,130,246,0.3)" : entry.winner === "coin" ? "rgba(249,115,22,0.3)" : "rgba(212,175,55,0.25)"}`,
+              padding: "2px 7px",
+              borderRadius: 5,
+              letterSpacing: "0.04em",
+            }}>
+              {entry.winner === "tie" ? "TIE" : entry.winner === "bit" ? "BIT" : "COIN"}
             </span>
           </div>
         )

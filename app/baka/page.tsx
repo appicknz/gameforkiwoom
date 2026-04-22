@@ -92,9 +92,9 @@ function BakaHeader() {
       justifyContent: "space-between",
     }}>
       {/* 왼쪽: 현재가 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.06em" }}>현재가</span>
-        <span style={{ fontSize: 22, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{price}</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <span style={{ fontSize: 9, color: "rgba(212,175,55,0.45)", letterSpacing: "0.06em" }}>현재가</span>
+        <span style={{ fontSize: 16, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>{price}</span>
       </div>
 
       {/* 오른쪽: BANKER / PLAYER 끝자리 카드 */}
@@ -336,7 +336,7 @@ export default function BakaPage() {
               {/* 게임 상태 박스 — 중앙, /race VerticalTimer 스타일 */}
               {(() => {
                 const { timeLeft } = gameStatus
-                // 페이즈 구조: 정산(5s) rem 30→25 / 배팅(15s) rem 25→10 / 게임중(10s) rem 10→0
+                // 페이즈 구조: 정산(5s) rem 30→25 / 배팅(10s) rem 25→15 / 게임중(15s) rem 15→0
                 const phases = [
                   {
                     label: "정산",
@@ -348,19 +348,19 @@ export default function BakaPage() {
                   },
                   {
                     label: "배팅",
-                    duration: 15,
-                    active: timeLeft <= 25 && timeLeft > 10,
-                    countdown: timeLeft <= 25 && timeLeft > 10 ? timeLeft - 10 : 15,
+                    duration: 10,
+                    active: timeLeft <= 25 && timeLeft > 15,
+                    countdown: timeLeft <= 25 && timeLeft > 15 ? timeLeft - 15 : 10,
                     color: "#10b981",
-                    pct: timeLeft <= 25 && timeLeft > 10 ? (timeLeft - 10) / 15 : 0,
+                    pct: timeLeft <= 25 && timeLeft > 15 ? (timeLeft - 15) / 10 : 0,
                   },
                   {
                     label: "게임중",
-                    duration: 10,
-                    active: timeLeft <= 10 && timeLeft > 0,
-                    countdown: timeLeft <= 10 && timeLeft > 0 ? timeLeft : 10,
+                    duration: 15,
+                    active: timeLeft <= 15 && timeLeft > 0,
+                    countdown: timeLeft <= 15 && timeLeft > 0 ? timeLeft : 15,
                     color: timeLeft <= 3 ? "#ef4444" : "#f97316",
-                    pct: timeLeft <= 10 && timeLeft > 0 ? timeLeft / 10 : 0,
+                    pct: timeLeft <= 15 && timeLeft > 0 ? timeLeft / 15 : 0,
                   },
                 ]
                 const activePhase = phases.find(p => p.active) ?? phases[0]
@@ -431,14 +431,10 @@ export default function BakaPage() {
               })()}
               {(["banker", "player"] as const).map((side, idx) => {
                 const cards = side === "banker" ? cardData.bankerCards : cardData.playerCards
-                const score = side === "banker" ? cardData.bScore : cardData.pScore  // 끝자리
-                const oppScore = side === "banker" ? cardData.pScore : cardData.bScore
-                const rawSum = cards.reduce((s, c) => s + c.value, 0)               // 합산 전체
+                const score = side === "banker" ? cardData.bScore : cardData.pScore
                 const label = side === "banker" ? "BANKER" : "PLAYER"
                 const accentColor = side === "banker" ? "#ef4444" : "#3b82f6"
                 const isWinner = cardData.result === side
-                const isHigher = score > oppScore
-                const hasCards = cards.length > 0
                 return (
                   <div
                     key={side}
@@ -458,26 +454,7 @@ export default function BakaPage() {
                       {isWinner && (
                         <span style={{ fontSize: Math.round(9 * S), background: accentColor, color: "#fff", padding: `1px ${Math.round(5 * S)}px`, borderRadius: 3, fontWeight: 700 }}>WIN</span>
                       )}
-                      {/* 합산 전체 + 끝자리 동그라미 */}
-                      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: Math.round(4 * S) }}>
-                        {hasCards && rawSum !== score && (
-                          <span style={{ fontSize: Math.round(11 * S), fontWeight: 600, color: "rgba(232,213,163,0.4)", lineHeight: 1 }}>{rawSum}</span>
-                        )}
-                        <div style={{
-                          width: Math.round(30 * S), height: Math.round(30 * S),
-                          borderRadius: "50%",
-                          border: `2px solid ${isHigher ? "#d4af37" : isWinner && cardData.result === "tie" ? "rgba(232,213,163,0.5)" : "rgba(232,213,163,0.25)"}`,
-                          background: isHigher ? "rgba(212,175,55,0.18)" : "rgba(0,0,0,0.2)",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          boxShadow: isHigher ? `0 0 ${Math.round(8*S)}px rgba(212,175,55,0.4)` : "none",
-                        }}>
-                          <span style={{
-                            fontSize: Math.round(15 * S), fontWeight: 900,
-                            color: isHigher ? "#d4af37" : "rgba(232,213,163,0.7)",
-                            lineHeight: 1,
-                          }}>{score}</span>
-                        </div>
-                      </div>
+                      <span style={{ fontSize: Math.round(16 * S), fontWeight: 800, color: score >= 8 ? "#d4af37" : "rgba(232,213,163,0.85)", lineHeight: 1, marginLeft: "auto" }}>{score}</span>
                     </div>
                     <div style={{ display: "flex", gap: Math.round(6 * S) }}>
                       {cards.map((card, ci) => <OverlayCard key={`${card.id}-${ci}`} card={card} s={S} />)}

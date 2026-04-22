@@ -1,6 +1,0 @@
--- btc_closing_prices 테이블에 카드 점수 컬럼 추가
-ALTER TABLE btc_closing_prices
-  ADD COLUMN IF NOT EXISTS b_score     SMALLINT DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS p_score     SMALLINT DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS b_raw_sum   SMALLINT DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS p_raw_sum   SMALLINT DEFAULT NULL;
