@@ -244,18 +244,19 @@ function saveClosingPriceToDB(closePrice, closeTime) {
   });
 
   // URL 파싱 (https.request는 URL 문자열 지원 안 함)
-  const parsedUrl = new URL(`${SUPABASE_URL}/rest/v1/btc_closing_prices`);
+  // on_conflict=time: time 컬럼 unique 충돌 시 merge (upsert)
+  const parsedUrl = new URL(`${SUPABASE_URL}/rest/v1/btc_closing_prices?on_conflict=time`);
   const options = {
     hostname: parsedUrl.hostname,
     port: 443,
-    path: parsedUrl.pathname,
+    path: `${parsedUrl.pathname}${parsedUrl.search}`,
     method: "POST",
     headers: {
       "apikey": SUPABASE_KEY,
       "Authorization": `Bearer ${SUPABASE_KEY}`,
       "Content-Type": "application/json",
       "Content-Length": Buffer.byteLength(body),
-      "Prefer": "resolution=merge-duplicates",  // upsert
+      "Prefer": "resolution=merge-duplicates",
     },
   };
 
