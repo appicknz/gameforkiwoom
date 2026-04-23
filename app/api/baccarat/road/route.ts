@@ -30,19 +30,14 @@ export async function GET(req: NextRequest) {
 
     const rawRounds = (rounds || []).reverse() // 오래된 것부터
 
-    // result_price(소수점 d2)로 재계산 — settle이 과거에 d1 기준으로 잘못 저장한 rounds.baccarat_result를 교정
-    function computeResult(r: { baccarat_result: string | null; result_price: number | null }): "player" | "banker" | "tie" {
-      if (r.result_price != null) {
-        const dec = Number(r.result_price).toFixed(2).split(".")[1] ?? "00"
-        const d2  = parseInt(dec[1] ?? "0")
-        return d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
-      }
+    // rounds.baccarat_result 를 그대로 사용 — game/settle이 카드 합산 시뮬레이션으로 저장한 값이 정답
+    function getResult(r: { baccarat_result: string | null }): "player" | "banker" | "tie" {
       return (r.baccarat_result ?? "player") as "player" | "banker" | "tie"
     }
 
-    const results = rawRounds.map(computeResult)
+    const results = rawRounds.map(getResult)
     const rows = rawRounds.map((r) => ({
-      result:   computeResult(r),
+      result:   getResult(r),
       digit:    r.result_digit as number,
       ended_at: r.ended_at as string,
     }))

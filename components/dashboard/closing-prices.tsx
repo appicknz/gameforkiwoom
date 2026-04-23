@@ -33,9 +33,11 @@ function fmtPrice(p: number) {
   return "$" + p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-/** 카드 끝자리 점수로 결과 계산 — 9에 가까운 쪽 승리 */
+/** 카드 합산 끝자리 점수로 결과 계산 — 9에 가까운 쪽(큰 쪽) 승리 */
 function scoreToResult(bScore: number, pScore: number): "player" | "banker" | "tie" {
-  return pScore > bScore ? "player" : bScore > pScore ? "banker" : "tie"
+  // bScore, pScore 는 각각 카드 합산 % 10 의 끝자리
+  if (pScore === bScore) return "tie"
+  return pScore > bScore ? "player" : "banker"
 }
 
 /** B/P 동그라미 점수 표시 — 이긴 쪽 채움, 타이는 초록 묶음 */
@@ -94,8 +96,11 @@ function PriceRow({ entry }: { entry: PriceEntry }) {
   const bDisplay = bRaw !== null ? bRaw : bs
   const pDisplay = pRaw !== null ? pRaw : ps
 
+  // DB에서 가져온 baccaratResult 우선, 없으면 끝자리 크기 비교로 계산
   const baccaratResult: "player" | "banker" | "tie" | null =
-    hasScores ? scoreToResult(bs!, ps!) : (entry.baccaratResult ?? null)
+    entry.baccaratResult != null
+      ? entry.baccaratResult
+      : hasScores ? scoreToResult(bs!, ps!) : null
 
   return (
     <div style={{
