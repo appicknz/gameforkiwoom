@@ -1,28 +1,29 @@
 import "server-only"
-import { adminSupabase } from "@/lib/supabase-admin"
-import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
-
-// JWT 검증은 anon 클라이언트로 — service_role(adminSupabase)은 getUser() 검증이 다르게 동작
-const anonClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
 
 export type AuthResult =
   | { ok: true; userId: string; token: string }
   | { ok: false; status: 401; error: string }
 
 /**
- * Supabase JWT 자체만 검증 — Redis 이중 검증 제거
- * access_token이 유효하면 통과, 만료되면 401 반환
- * 클라이언트가 refresh 요청으로 자동 갱신
+ * JWT를 로컬에서 디코드하여 sub(userId)와 exp를 검증
+ * Supabase 외부 HTTP 호출 없이 즉시 처리 — 지연 0
  */
-async function resolveUserId(token: string): Promise<string | null> {
-  const { data: { user }, error } = await anonClient.auth.getUser(token)
-  if (!error && user) return user.id
-  return null
+function resolveUserIdFromJWT(token: string): string | null {
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+    // base64url → base64 변환 후 디코드
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+    )
+    // 만료 검증
+    if (!payload.sub) return null
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null
+    return payload.sub as string
+  } catch {
+    return null
+  }
 }
 
 function extractToken(req: Request, cookieStore: Awaited<ReturnType<typeof cookies>>): string | null {
@@ -37,7 +38,7 @@ export async function verifySession(req: Request): Promise<AuthResult> {
   const token = extractToken(req, cookieStore)
   if (!token) return { ok: false, status: 401, error: "Unauthorized" }
 
-  const userId = await resolveUserId(token)
+  const userId = resolveUserIdFromJWT(token)
   if (!userId) return { ok: false, status: 401, error: "Invalid token" }
 
   return { ok: true, userId, token }
@@ -56,7 +57,7 @@ export async function verifySessionFromUrl(req: Request): Promise<AuthResult> {
 
   if (!token) return { ok: false, status: 401, error: "Unauthorized" }
 
-  const userId = await resolveUserId(token)
+  const userId = resolveUserIdFromJWT(token)
   if (!userId) return { ok: false, status: 401, error: "Invalid token" }
 
   return { ok: true, userId, token }
