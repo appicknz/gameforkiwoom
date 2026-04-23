@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     }
 
     // 토큰 검증 먼저 — 인증 실패는 구간 체크보다 우선
+    const authResult = await verifySession(request)
     if (!authResult.ok) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
