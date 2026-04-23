@@ -47,13 +47,14 @@ export async function POST(request: Request) {
       .rpc("deduct_balance_for_bet", { p_user_id: userId, p_amount: betAmount })
 
     if (deductError) {
-      // INSUFFICIENT_BALANCE 또는 유저 없음
       const isInsufficient = deductError.message?.includes("INSUFFICIENT_BALANCE")
+      console.error("[v0] deduct_balance_for_bet error:", deductError.message, deductError.code, "userId:", userId, "betAmount:", betAmount)
       return NextResponse.json(
         { error: isInsufficient ? "Insufficient balance" : "Failed to update balance" },
         { status: isInsufficient ? 400 : 500 }
       )
     }
+    console.log("[v0] deduct ok, newBalance:", newBalance, "userId:", userId)
 
     // ── 응답에 필요한 최소한만 동기 처리, 나머지는 fire-and-forget ──
 
@@ -74,7 +75,14 @@ export async function POST(request: Request) {
     if (betsKey) parallelReads.push(redis.get<string>(betsKey))
     if (poolKey && side) parallelReads.push(redis.hincrby(poolKey, side, betAmount))
 
-    const parallelResults = await Promise.all(parallelReads)
+    let parallelResults: unknown[]
+    try {
+      parallelResults = await Promise.all(parallelReads)
+    } catch (redisErr) {
+      console.error("[v0] Redis parallel error:", redisErr)
+      // Redis 실패해도 배팅은 성공 — 잔고는 이미 차감됨
+      return NextResponse.json({ success: true, newBalance })
+    }
     const existingBets = betsKey ? parallelResults[2] : null
 
     // ── 즉시 응답 반환 ────────────────────────────────────────
@@ -175,7 +183,7 @@ export async function POST(request: Request) {
 
     return response
   } catch (error) {
-    console.error("[v0] Bet API error:", error)
+    console.error("[v0] Bet API 500 error:", error, (error as Error)?.message, (error as Error)?.stack?.split("\n")[1])
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
