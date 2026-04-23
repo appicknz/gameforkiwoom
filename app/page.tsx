@@ -60,23 +60,22 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* 우측: 게임 카테고리 썸네일 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
+              {/* 우측: 게임 카테고리 썸네일 — 모바일도 2열 */}
+              <div className="grid grid-cols-2 gap-3 md:gap-6">
                 {gameCategories.map((game) => (
                   <Link key={game.id} href={game.href}>
-                    <div className={`relative group cursor-pointer rounded-2xl overflow-hidden h-48 md:h-56 bg-gradient-to-br ${game.gradient} p-6 flex flex-col justify-between hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1`}>
-                      {/* 배경 그라데이션 오버레이 */}
+                    <div className={`relative group cursor-pointer rounded-xl md:rounded-2xl overflow-hidden h-36 sm:h-48 md:h-56 bg-gradient-to-br ${game.gradient} p-3 md:p-6 flex flex-col justify-between hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1`}>
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors duration-300" />
 
                       <div className="relative z-10">
-                        <div className="text-6xl mb-2">{game.icon}</div>
-                        <h3 className="text-2xl font-bold text-white">{game.name}</h3>
-                        <p className="text-sm text-white/80">{game.description}</p>
+                        <div className="text-3xl md:text-6xl mb-1 md:mb-2">{game.icon}</div>
+                        <h3 className="text-base md:text-2xl font-bold text-white leading-tight">{game.name}</h3>
+                        <p className="text-xs md:text-sm text-white/80 mt-0.5 leading-tight">{game.description}</p>
                       </div>
 
-                      <div className="relative z-10 flex items-center justify-between pt-4 border-t border-white/20">
-                        <span className="text-sm text-white/90">👥 {game.users}</span>
-                        <span className="text-white/60 group-hover:text-white transition-colors">→</span>
+                      <div className="relative z-10 flex items-center justify-between pt-2 md:pt-4 border-t border-white/20">
+                        <span className="text-xs md:text-sm text-white/90 truncate">{game.users}</span>
+                        <span className="text-white/60 group-hover:text-white transition-colors text-sm">→</span>
                       </div>
                     </div>
                   </Link>
