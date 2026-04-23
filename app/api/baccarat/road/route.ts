@@ -8,12 +8,12 @@ export async function GET(req: NextRequest) {
     const date  = searchParams.get("date")
 
     // btc_closing_prices를 Single Source of Truth로 사용
-    // price-server가 카드 합산 시뮬레이션 결과를 baccarat_result로 저장
-    // rounds 테이블은 game/settle API의 타이밍 문제로 결과가 어긋남
+    // b_raw_sum/p_raw_sum(클라이언트 카드 합산) 또는 b_score/p_score(끝자리)로 직접 결과 계산
+    // baccarat_result 컬럼(서버 시뮬레이션)은 신뢰하지 않음
     let query = admin
       .from("btc_closing_prices")
-      .select("time, price, b_score, p_score, baccarat_result")
-      .not("baccarat_result", "is", null)
+      .select("time, price, b_score, p_score, b_raw_sum, p_raw_sum")
+      .not("b_score", "is", null)
       .order("time", { ascending: false })
 
     if (date) {
@@ -32,13 +32,23 @@ export async function GET(req: NextRequest) {
     // 오래된 것부터 정렬
     const rawRows = (prices || []).reverse()
 
-    function getResult(r: { baccarat_result: string | null }): "player" | "banker" | "tie" {
-      return (r.baccarat_result ?? "player") as "player" | "banker" | "tie"
+    // b_raw_sum/p_raw_sum이 있으면 % 10 비교, 없으면 b_score/p_score(이미 끝자리) 비교
+    // closing-prices.tsx의 scoreToResult와 완전히 동일한 로직
+    function computeResult(r: {
+      b_score: number | null; p_score: number | null
+      b_raw_sum: number | null; p_raw_sum: number | null
+    }): "player" | "banker" | "tie" {
+      const bVal = r.b_raw_sum !== null ? r.b_raw_sum : (r.b_score ?? 0)
+      const pVal = r.p_raw_sum !== null ? r.p_raw_sum : (r.p_score ?? 0)
+      const b = bVal % 10
+      const p = pVal % 10
+      if (p === b) return "tie"
+      return p > b ? "player" : "banker"
     }
 
-    const results = rawRows.map(getResult)
+    const results = rawRows.map(computeResult)
     const rows = rawRows.map((r) => ({
-      result:   getResult(r),
+      result:   computeResult(r),
       digit:    Number(r.p_score ?? 0),
       ended_at: new Date(Number(r.time) * 1000).toISOString(),
     }))
