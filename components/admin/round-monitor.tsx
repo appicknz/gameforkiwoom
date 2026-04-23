@@ -485,11 +485,16 @@ export function RoundMonitor({
       })
       if (res.ok) {
         const d = await res.json()
-        setLastBetResults(d.results ?? [])
-        setAccumulatedFee(d.accumulatedFee ?? 0)
-        setBaccaratFee(d.baccaratFee ?? 0)
-        setAbStatus(`바카라 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
-        loadAbUsers()
+        if (d.skipped) {
+          setAbStatus(`바카라 배팅 건너뜀 — ${d.skipReason ?? "배팅 구간 아님"}`)
+        } else {
+          setLastBetResults(d.results ?? [])
+          setAccumulatedFee(d.accumulatedFee ?? 0)
+          setBaccaratFee(d.baccaratFee ?? 0)
+          const roundLabel = d.round != null ? `#${d.round}` : "-"
+          setAbStatus(`바카라 배팅 완료 (라운드 ${roundLabel}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
+          loadAbUsers()
+        }
       }
     } catch { setAbStatus("바카라 배팅 실패") }
     setBaccaratLoading(false)
@@ -522,9 +527,9 @@ export function RoundMonitor({
     const secInRound = nowSec % 30   // 0~29
     const rem = 30 - secInRound      // 30~1
     const round = Math.floor(nowSec / 30)
-    // 0~4초: 정산, 5~14초: 배팅가능, 15~29초: 게임중 (SSE 서버 동일 기준)
+    // 0~4초: 정산(5초), 5~19초: 배팅가능(15초), 20~29초: 게임중(10초)
     const phase: "정산중" | "배팅가능" | "게임중" =
-      secInRound < 5 ? "정산중" : secInRound < 15 ? "배팅가능" : "게임중"
+      secInRound < 5 ? "정산중" : secInRound < 20 ? "배팅가능" : "게임중"
     return { phase, rem, round }
   }
   const getRacePhase = () => {
@@ -1239,7 +1244,7 @@ export function RoundMonitor({
                 onClick={() => setHouseTab("fee")}
                 className={`text-sm font-semibold px-3 py-1 rounded-lg transition-colors ${houseTab === "fee" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
-                {isBranchAdmin ? "내 지점 수수료" : "지점별 수수료"}
+                {isBranchAdmin ? "내 ��점 수수료" : "지점별 수수료"}
               </button>
             </div>
           </div>
