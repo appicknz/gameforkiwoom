@@ -264,14 +264,19 @@ function saveClosingPriceToDB(closePrice, closeTime) {
   const bTotal = (b1v + b2v + d1) % 10;
   const baccaratResult = pTotal > bTotal ? "player" : bTotal > pTotal ? "banker" : "tie";
 
+  // b_raw_sum / p_raw_sum: 카드 합산 전체값 (% 10 전) — 클라이언트와 동일
+  // b_score / p_score: 끝자리(d1, d2) — 30초 마감 목록에서 개별 카드 표시용
+  const bRawSum = b1v + b2v + d1;  // 뱅커 3장 합산 (% 10 전)
+  const pRawSum = p1v + p2v + d2;  // 플레이어 3장 합산 (% 10 전)
+
   const body = JSON.stringify({
     time: closeTime,
     price: closePrice,
     baccarat_result: baccaratResult,
-    b_score: d1,
-    p_score: d2,
-    b_raw_sum: d1,
-    p_raw_sum: d2,
+    b_score: bTotal,   // 끝자리 (% 10)
+    p_score: pTotal,   // 끝자리 (% 10)
+    b_raw_sum: bRawSum,
+    p_raw_sum: pRawSum,
   });
 
   // URL 파싱 (https.request는 URL 문자열 지원 안 함)
