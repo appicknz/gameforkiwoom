@@ -475,11 +475,12 @@ export function RoundMonitor({
 
   // ── 자동배팅 배팅 실행 ────────────────────────────────────────
   const runBaccaratBet = useCallback(async () => {
+    const token = getToken(); if (!token) return
     setBaccaratLoading(true)
     try {
       const res = await fetchWithRefresh("/api/admin/auto-bet", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "bet_baccarat" }),
       })
       if (res.ok) {
@@ -515,7 +516,7 @@ export function RoundMonitor({
     setRaceLoading(false)
   }, [loadAbUsers])
 
-  // ── 페��즈 감지 ───────────────────────────────────────────────
+  // ── 페����� 감지 ───────────────────────────────────────────────
   const getBaccaratPhase = () => {
     const nowSec = Math.floor(Date.now() / 1000)
     const secInRound = nowSec % 30   // 0~29
@@ -713,7 +714,7 @@ export function RoundMonitor({
     return () => clearInterval(iv)
   }, [])
 
-  // ── 플레이스홀더 ──────────────────────────────────────��───────
+  // ── 플레이스홀더 ─────────────────────────────────────����───────
   const nowSec = Math.floor(Date.now() / 1000)
   const emptyBaccarat: RoundStats = {
     round: String(Math.floor(nowSec / 30)), gameType: "baccarat",
@@ -1012,7 +1013,7 @@ export function RoundMonitor({
                       }`}>{baccaratPhase}</span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">배팅창 25~13초 · {baccaratUsers.length}명</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">배팅창 5~19초 · {baccaratUsers.length}명</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {baccaratRunning ? (
@@ -1501,7 +1502,7 @@ export function RoundMonitor({
 
       {/* ��═══════════════════════════════════════════════════════
           전체 초기화 다이얼로그
-      ═══════════════════���════════════════════════════════════ */}
+      ═════════════════���═���════════════════════════════════════ */}
       {showResetDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-xl mx-4">
