@@ -7,10 +7,6 @@
     {
       "path": "/api/cron/race-backfill",
       "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/auto-bet",
-      "schedule": "* * * * *"
     }
   ]
 }

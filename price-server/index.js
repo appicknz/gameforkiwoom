@@ -86,23 +86,14 @@ function updateRaceScore(price, nowSec) {
   const roundId = getRaceRoundId(nowSec);
   const secInRound = getRaceSecInRound(nowSec);
 
-  // 새 라운드 진입 → 직전 라운드 스코어를 DB에 저장 후 초기화
+  // 새 라운드 진입 → 스코어 초기화
   if (roundId !== raceCurrentRoundId) {
-    // 직전 라운드 스코어가 있으면 DB 저장
-    if (raceCurrentRoundId >= 0 && (raceBitScore > 0 || raceCoinScore > 0)) {
-      const winner = raceBitScore > raceCoinScore ? "bit"
-        : raceCoinScore > raceBitScore ? "coin" : "tie";
-      const endTime = (raceCurrentRoundId + 1) * RACE_ROUND_SEC;
-      const lastPriceVal = latestPrice ? latestPrice.price : 0;
-      saveRaceResultToDB(endTime, lastPriceVal, raceBitScore, raceCoinScore, winner);
-      console.log(`[race] round ${raceCurrentRoundId} ended: B${raceBitScore}/C${raceCoinScore} winner=${winner}`);
-    }
     raceCurrentRoundId = roundId;
     raceBitScore = 0;
     raceCoinScore = 0;
   }
 
-  // 레이싱 구간(60~178초)에서만 득점
+  // 레이싱 구간(60~298초)에서만 득점
   if (secInRound < RACE_BETTING_SEC || secInRound >= RACE_ROUND_SEC - 2) return;
 
   const dec = price.toFixed(2).split(".")[1] ?? "00";
@@ -238,61 +229,33 @@ function saveClosingPriceToDB(closePrice, closeTime) {
   }
   // BTC 가격 → 소수점 끝자리 점수 계산
   const decStr = closePrice.toFixed(2).split(".")[1] || "00";
-  const d1 = parseInt(decStr[0] || "0");  // 소수점 첫째 → 뱅커 3번째 카드
-  const d2 = parseInt(decStr[1] || "0");  // 소수점 둘째 → 플레이어 3번째 카드
-
-  // 카드 합산 시뮬레이션 — 클라이언트 startDeal()과 동일 seed/순서
-  // 클라이언트 호출순서: rand()→p1숫자, randSuit(), rand()→b1숫자, randSuit(),
-  //                     rand()→p2숫자, randSuit(), rand()→b2숫자, randSuit()
-  const roundNum = Math.floor(closeTime / 30);
-  const makeSeededRand = (seed) => {
-    let s = seed >>> 0;
-    return () => {
-      s = Math.imul(s ^ (s >>> 15), s | 1);
-      s ^= s + Math.imul(s ^ (s >>> 7), s | 61);
-      return ((s ^ (s >>> 14)) >>> 0) / 0x100000000;
-    };
-  };
-  const seeded   = makeSeededRand(roundNum);
-  const rand     = () => Math.floor(seeded() * 10);
-  const randSuit = () => Math.floor(seeded() * 4);
-  const p1v = rand(); randSuit();
-  const b1v = rand(); randSuit();
-  const p2v = rand(); randSuit();
-  const b2v = rand(); randSuit();
-  const pTotal = (p1v + p2v + d2) % 10;
-  const bTotal = (b1v + b2v + d1) % 10;
-  const baccaratResult = pTotal > bTotal ? "player" : bTotal > pTotal ? "banker" : "tie";
-
-  // b_raw_sum / p_raw_sum: 카드 합산 전체값 (% 10 전) — 클라이언트와 동일
-  // b_score / p_score: 끝자리(d1, d2) — 30초 마감 목록에서 개별 카드 표시용
-  const bRawSum = b1v + b2v + d1;  // 뱅커 3장 합산 (% 10 전)
-  const pRawSum = p1v + p2v + d2;  // 플레이어 3장 합산 (% 10 전)
+  const d1 = parseInt(decStr[0] || "0");  // 소수점 첫째 → bScore
+  const d2 = parseInt(decStr[1] || "0");  // 소수점 둘째 → pScore
+  const baccaratResult = d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie";
 
   const body = JSON.stringify({
     time: closeTime,
     price: closePrice,
     baccarat_result: baccaratResult,
-    b_score: bTotal,   // 끝자리 (% 10)
-    p_score: pTotal,   // 끝자리 (% 10)
-    b_raw_sum: bRawSum,
-    p_raw_sum: pRawSum,
+    b_score: d1,
+    p_score: d2,
+    b_raw_sum: d1,
+    p_raw_sum: d2,
   });
 
   // URL 파싱 (https.request는 URL 문자열 지원 안 함)
-  // on_conflict=time: time 컬럼 unique 충돌 시 merge (upsert)
-  const parsedUrl = new URL(`${SUPABASE_URL}/rest/v1/btc_closing_prices?on_conflict=time`);
+  const parsedUrl = new URL(`${SUPABASE_URL}/rest/v1/btc_closing_prices`);
   const options = {
     hostname: parsedUrl.hostname,
     port: 443,
-    path: `${parsedUrl.pathname}${parsedUrl.search}`,
+    path: parsedUrl.pathname,
     method: "POST",
     headers: {
       "apikey": SUPABASE_KEY,
       "Authorization": `Bearer ${SUPABASE_KEY}`,
       "Content-Type": "application/json",
       "Content-Length": Buffer.byteLength(body),
-      "Prefer": "resolution=merge-duplicates",
+      "Prefer": "resolution=merge-duplicates",  // upsert
     },
   };
 
@@ -312,80 +275,6 @@ function saveClosingPriceToDB(closePrice, closeTime) {
   req.end();
 }
 
-// ─── race 라운드별 가격 누적 (180초 라운드, 30초 tick × 6) ──────────
-// Map<raceRoundNumber, { prices: number[], lastPrice: number }>
-const raceRoundPrices = new Map();
-
-function accumulateRacePrice(closePrice, closeTime) {
-  const raceRound = Math.floor(closeTime / 180);
-  if (!raceRoundPrices.has(raceRound)) {
-    raceRoundPrices.set(raceRound, { prices: [], lastPrice: closePrice });
-  }
-  const entry = raceRoundPrices.get(raceRound);
-  entry.prices.push(closePrice);
-  entry.lastPrice = closePrice;
-
-  // 이전 라운드가 방금 끝났는지 확인 — 새 라운드의 첫 tick
-  const prevRound = raceRound - 1;
-  if (raceRoundPrices.has(prevRound)) {
-    const prev = raceRoundPrices.get(prevRound);
-    // 이미 저장 시도한 라운드는 스킵
-    if (!prev.saved) {
-      prev.saved = true;
-      // bit(d1) + coin(d2) 집계
-      let bitScore = 0, coinScore = 0;
-      for (const p of prev.prices) {
-        const dec = p.toFixed(2).split(".")[1] || "00";
-        bitScore  += parseInt(dec[0] || "0");
-        coinScore += parseInt(dec[1] || "0");
-      }
-      const winner = bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie";
-      const endTime = prevRound * 180 + 180; // 라운드 종료 시각
-      saveRaceResultToDB(endTime, prev.lastPrice, bitScore, coinScore, winner);
-    }
-    // 오래된 라운드 메모리 정리 (2라운드 이상 전)
-    for (const [k] of raceRoundPrices) {
-      if (k < raceRound - 1) raceRoundPrices.delete(k);
-    }
-  }
-}
-
-function saveRaceResultToDB(time, price, bitScore, coinScore, winner) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.log("[race-db] No Supabase env vars, cannot save race result");
-    return;
-  }
-  const body = JSON.stringify({ time, price, bit_score: bitScore, coin_score: coinScore, winner });
-  const parsedUrl = new URL(`${SUPABASE_URL}/rest/v1/race_results?on_conflict=time`);
-  const options = {
-    hostname: parsedUrl.hostname,
-    port: 443,
-    path: `${parsedUrl.pathname}${parsedUrl.search}`,
-    method: "POST",
-    headers: {
-      "apikey": SUPABASE_KEY,
-      "Authorization": `Bearer ${SUPABASE_KEY}`,
-      "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(body),
-      "Prefer": "resolution=merge-duplicates",
-    },
-  };
-  const req = require("https").request(options, (res) => {
-    let data = "";
-    res.on("data", (chunk) => data += chunk);
-    res.on("end", () => {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        console.log(`[race-db] saved: time=${time} B${bitScore}/C${coinScore} winner=${winner}`);
-      } else {
-        console.error(`[race-db] save failed: ${res.statusCode} ${data}`);
-      }
-    });
-  });
-  req.on("error", (e) => console.error("[race-db] save error:", e.message));
-  req.write(body);
-  req.end();
-}
-
 function triggerSettlement(closePrice, closeTime) {
   if (!VERCEL_URL) {
     console.log("[engine] No VERCEL_URL, skipping settlement trigger");
@@ -400,7 +289,7 @@ function triggerSettlement(closePrice, closeTime) {
       "x-internal-secret": process.env.INTERNAL_SECRET || "tasko-internal",
     },
   };
-  // fire-and-forget, 에러는 로���만
+  // fire-and-forget, 에러는 로그만
   const req = url.startsWith("https")
     ? require("https").request(url, options)
     : require("http").request(url, options);

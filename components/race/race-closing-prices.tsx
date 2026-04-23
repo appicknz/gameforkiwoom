@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 
 const GOLD = "#d4af37"
 const GOLD_DIM = "rgba(212,175,55,0.5)"
@@ -35,38 +35,29 @@ export function RaceClosingPrices() {
   const [entries, setEntries] = useState<RaceEntry[]>([])
   const [expanded, setExpanded] = useState(false)
 
-  // DB에서 결과 로드
-  const loadResults = useCallback(() =>
-    fetch("/api/race-results?limit=20")
-      .then(r => r.json())
-      .then(({ results }) => {
-        if (!Array.isArray(results)) return
-        const mapped: RaceEntry[] = results.map((r: any) => ({
-          time:   r.time,
-          price:  typeof r.price === "string" ? parseFloat(r.price) : r.price,
-          bit:    r.bit_score ?? r.bit ?? 0,
-          coin:   r.coin_score ?? r.coin ?? 0,
-          winner: r.winner ?? "tie",
-        }))
-        setEntries(mapped)
-      })
-      .catch(() => {}), [])
-
-  // 마운트 시 초기 로드
+  // 마운트 시: 백필 먼저 → 최근 결과 로드
   useEffect(() => {
-    fetch("/api/cron/race-backfill").catch(() => {}).finally(loadResults)
-  }, [loadResults])
+    const loadResults = () =>
+      fetch("/api/race-results?limit=20")
+        .then(r => r.json())
+        .then(({ results }) => {
+          if (!Array.isArray(results)) return
+          const mapped: RaceEntry[] = results.map((r: any) => ({
+            time:   r.time,
+            price:  typeof r.price === "string" ? parseFloat(r.price) : r.price,
+            bit:    r.bit_score ?? r.bit ?? 0,
+            coin:   r.coin_score ?? r.coin ?? 0,
+            winner: r.winner ?? "tie",
+          }))
+          setEntries(mapped)
+        })
+        .catch(() => {})
 
-  // 3분(180초) 라운드 경계마다 자동 갱신 — 새로고침 없이 결과 업데이트
-  useEffect(() => {
-    const checkAndRefresh = () => {
-      const sec = Math.floor(Date.now() / 1000) % 180
-      // 라운드 종료 직후(0~12초 정산 구간)에 DB 재조회
-      if (sec < 12) loadResults()
-    }
-    const id = setInterval(checkAndRefresh, 5000)
-    return () => clearInterval(id)
-  }, [loadResults])
+    // 백필 후 결과 로드 (백필 실패해도 results는 로드)
+    fetch("/api/cron/race-backfill")
+      .catch(() => {})
+      .finally(loadResults)
+  }, [])
 
   // race:closing 이벤트 구독 — 라운드 종료 시 실시간 추가
   useEffect(() => {
@@ -104,7 +95,7 @@ export function RaceClosingPrices() {
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <h3 style={{ fontSize: 13, fontWeight: 700, color: GOLD, letterSpacing: "0.04em" }}>
-          3분 레이스 결과 (최근 {expanded ? "20" : "10"}라운드)
+          5분 레이스 결과 (최근 {expanded ? "20" : "10"}라운드)
         </h3>
         <button
           onClick={() => setExpanded(v => !v)}

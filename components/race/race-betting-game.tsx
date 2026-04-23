@@ -356,7 +356,7 @@ function RaceResultSheet({ result, open, onClose }: { result: RoundResult | null
 }
 
 // ─── 메인 게임 컴포넌트 ─────────────────────────────────────────────────────
-// 3분(180초) 라운드: 0~9초=정산, 10~59초=배팅, 60~179초=게임중(스코어 누적)
+// 5분 라운드: 0~60초=배팅, 60~300초=딜링(스코어 누적), 0초=정산
 // BIT팀(소수점 첫째자리) vs COIN팀(소수점 둘째자리) 매 초 누적
 interface RaceBettingGameProps {
   onStatusChange?: (timeLeft: number, phase: "betting" | "waiting" | "result" | "dealing") => void
