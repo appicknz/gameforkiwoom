@@ -51,45 +51,38 @@ export async function GET(request: Request) {
       }
 
       // 1) 연결 즉시 현재 잔고 전송
-      try {
-        const cachedRaw = await redis.get(balanceKey)
-        const cached = cachedRaw !== null ? Number(cachedRaw) : null
-        if (cached !== null && !isNaN(cached)) {
-          send({ balance: cached })
-        } else {
-          const { data: bal } = await supabase
-            .from("balances")
-            .select("amount")
-            .eq("user_id", userId)
-            .single()
-          if (bal) {
-            await redis.set(balanceKey, Number(bal.amount), { ex: 3600 })
-            send({ balance: Number(bal.amount) })
-          }
+      const cached = await redis.get<number>(balanceKey)
+      if (cached !== null) {
+        send({ balance: cached })
+      } else {
+        const { data: bal } = await supabase
+          .from("balances")
+          .select("amount")
+          .eq("user_id", userId)
+          .single()
+        if (bal) {
+          await redis.set(balanceKey, bal.amount, { ex: 3600 })
+          send({ balance: bal.amount })
         }
-      } catch { /* 초기 로드 실패해도 연결 유지 */ }
+      }
 
       // 2) 버전 카운터 폴링 — incr 발생 시 즉시 잔고 push
-      let lastVersion = 0
-      try {
-        const vRaw = await redis.get(versionKey)
-        lastVersion = vRaw !== null ? Number(vRaw) : 0
-      } catch {}
+      let lastVersion = (await redis.get<number>(versionKey)) ?? 0
 
-      const interval = setInterval(async () => {
-        if (closed) { clearInterval(interval); return }
-        try {
-          const vRaw = await redis.get(versionKey)
-          const version = vRaw !== null ? Number(vRaw) : 0
+        const interval = setInterval(async () => {
+          if (closed) { clearInterval(interval); return }
+          try {
+            const version = (await redis.get<number>(versionKey)) ?? 0
           if (version !== lastVersion) {
             lastVersion = version
-            const balRaw = await redis.get(balanceKey)
-            const newBalance = balRaw !== null ? Number(balRaw) : null
-            if (newBalance !== null && !isNaN(newBalance)) send({ balance: newBalance })
+            const newBalance = await redis.get<number>(balanceKey)
+            if (newBalance !== null) send({ balance: newBalance })
           }
           // keepalive ping
-          if (!closed) controller.enqueue(encoder.encode(": ping\n\n"))
-        } catch { /* Redis 일시 오류 무시 */ }
+          controller.enqueue(encoder.encode(": ping\n\n"))
+        } catch {
+          clearInterval(interval)
+        }
       }, 2_000)
 
       request.signal.addEventListener("abort", () => {
