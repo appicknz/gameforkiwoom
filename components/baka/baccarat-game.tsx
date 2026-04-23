@@ -171,10 +171,10 @@ export function BigRoad({
   bankerLabel?: string
   tieLabel?: string
 }) {
-  // 18개 슬라이딩 윈도우: 18개 초과 시 맨 앞 잘라내기
-  const displayHistory = history.length > DISPLAY_LIMIT ? history.slice(-DISPLAY_LIMIT) : history
-
-  const cells = buildBigRoad(displayHistory)
+  // 전체 history로 buildBigRoad 실행 후 cells 슬라이싱
+  // history를 먼저 자르면 경계에 걸린 타이가 직전 non-tie 셀 없이 버려짐
+  const allCells = buildBigRoad(history)
+  const cells = allCells.length > DISPLAY_LIMIT ? allCells.slice(-DISPLAY_LIMIT) : allCells
 
   // 컨테이너 너비 측정 → 셀 크기 동적 계산
   const containerRef = useRef<HTMLDivElement>(null)
