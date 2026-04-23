@@ -177,7 +177,7 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
   )
 }
 
-// ── 게임 카드 (바카라 or 레이스) ──────────────────────────────────────────
+// ── 게임 카드 (바카라 or 레이스) ──────────────────────────��───────────────
 function GameRoundCard({
   stats, title, phase, timeLeft,
 }: {
@@ -713,7 +713,7 @@ export function RoundMonitor({
     return () => clearInterval(iv)
   }, [])
 
-  // ── 플레이스홀더 ──────────────────────────────────────────────
+  // ── 플레이스홀더 ──────────────────────────────────────��───────
   const nowSec = Math.floor(Date.now() / 1000)
   const emptyBaccarat: RoundStats = {
     round: String(Math.floor(nowSec / 30)), gameType: "baccarat",
@@ -823,7 +823,7 @@ export function RoundMonitor({
                 <TrendingUp className="w-4 h-4 text-primary" />
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">자동배팅 제어</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">홀수=바카라(30초), 짝수=레이스(5분) &middot; 게임별 독립 제어</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">홀수=바카라(30초), 짝수=레이스(3분) &middot; 게임별 독립 제어</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -1501,7 +1501,7 @@ export function RoundMonitor({
 
       {/* ��═══════════════════════════════════════════════════════
           전체 초기화 다이얼로그
-      ════════════════════════════════════════════════════════ */}
+      ═══════════════════���════════════════════════════════════ */}
       {showResetDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-xl mx-4">

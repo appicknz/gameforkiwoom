@@ -371,9 +371,15 @@ async function runBetForGame(gameType: "baccarat" | "race") {
 
 // POST: 자동배팅 1회 실행 (또는 잔고 일괄 충전)
 export async function POST(request: Request) {
-  const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
-  const admin = await requireAdmin(token, request)
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  // 내부 cron 호출 (x-internal-secret) 또는 관리자 토큰 중 하나로 인증
+  const internalSecret = request.headers.get("x-internal-secret")
+  const isInternal = internalSecret && internalSecret === process.env.CRON_SECRET
+
+  if (!isInternal) {
+    const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
+    const admin = await requireAdmin(token, request)
+    if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
 
   const body = await request.json()
 
