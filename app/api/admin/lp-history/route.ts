@@ -33,12 +33,18 @@ export async function GET(req: Request) {
   // branch_admin은 자신 지점만 조회
   const targetBranchId = profile.role === "branch_admin" ? profile.branch_id : branchId
 
-  const { data, error } = await adminSupabase
+  let query = adminSupabase
     .from("lp_transactions")
     .select("*")
-    .eq("branch_id", targetBranchId)
     .order("created_at", { ascending: false })
     .limit(limit)
+
+  // targetBranchId가 null이면 전체 조회 (master/super_admin 파라미터 없는 경우)
+  if (targetBranchId != null) {
+    query = query.eq("branch_id", targetBranchId)
+  }
+
+  const { data, error } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

@@ -1,6 +1,14 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
+import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
+
+// JWT 검증은 anon 클라이언트로 — service_role(adminSupabase)은 getUser() 검증이 다르게 동작
+const anonClient = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
 
 export type AuthResult =
   | { ok: true; userId: string; token: string }
@@ -12,7 +20,7 @@ export type AuthResult =
  * 클라이언트가 refresh 요청으로 자동 갱신
  */
 async function resolveUserId(token: string): Promise<string | null> {
-  const { data: { user }, error } = await adminSupabase.auth.getUser(token)
+  const { data: { user }, error } = await anonClient.auth.getUser(token)
   if (!error && user) return user.id
   return null
 }
