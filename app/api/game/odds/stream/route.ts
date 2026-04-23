@@ -123,14 +123,16 @@ export async function GET(request: Request) {
         if (gameType === "baccarat") return s >= 5 && s < 15
         return s >= 10 && s < 60
       }
-      let lastVersion = (await redis.get<number>(versionKey)) ?? 0
+      const _v0 = await redis.get(versionKey)
+      let lastVersion = _v0 !== null ? Number(_v0) : 0
       let lastRound = Math.floor(Math.floor(Date.now() / 1000) / roundInterval)
       let wasInBetting = isBettingPhase()
 
       const interval = setInterval(async () => {
         if (closed) { clearInterval(interval); return }
         try {
-          const version = (await redis.get<number>(versionKey)) ?? 0
+          const _ver = await redis.get(versionKey)
+          const version = _ver !== null ? Number(_ver) : 0
           const currentRound = Math.floor(Math.floor(Date.now() / 1000) / roundInterval)
           const inBetting = isBettingPhase()
 
