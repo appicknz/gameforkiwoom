@@ -1,5 +1,4 @@
 import { adminSupabase } from "@/lib/supabase-admin"
-import { createClient } from "@supabase/supabase-js"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
@@ -10,6 +9,20 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 })
 
+/** JWT를 로컬에서 디코딩 — 외부 HTTP 호출 없이 즉시 userId 반환 */
+function decodeJwtUserId(token: string): string | null {
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+    )
+    if (!payload.sub) return null
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null
+    return payload.sub as string
+  } catch { return null }
+}
+
 async function requireAdmin(token: string | null, req?: Request) {
   // Authorization 헤더 없으면 HTTP-only 쿠키에서 토큰 읽기
   if (!token && req) {
@@ -17,17 +30,12 @@ async function requireAdmin(token: string | null, req?: Request) {
     token = cookieStore.get("app_token")?.value ?? null
   }
   if (!token) return null
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-  const { data, error } = await anonClient.auth.getUser(token)
-  if (error || !data.user) return null
+  const userId = decodeJwtUserId(token)
+  if (!userId) return null
   const { data: profile } = await adminSupabase
     .from("profiles")
     .select("role")
-    .eq("id", data.user.id)
+    .eq("id", userId)
     .single()
   const adminRoles = ["master", "super_admin", "admin", "superadmin", "branch_admin"]
   if (!profile || !adminRoles.includes(profile.role)) return null
