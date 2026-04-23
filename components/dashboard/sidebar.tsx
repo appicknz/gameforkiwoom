@@ -124,6 +124,7 @@ export function Sidebar() {
     try { localStorage.removeItem("app_profile") } catch {}
     setIsLoggedIn(false); setUsername(null)
     router.push("/")
+    window.dispatchEvent(new Event("auth:logout"))
     window.dispatchEvent(new StorageEvent("storage"))
   }
 
