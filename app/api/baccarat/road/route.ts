@@ -4,42 +4,43 @@ import { NextRequest, NextResponse } from "next/server"
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl
-    // limit: 구간 필터 (0 = 전체)
     const limit = parseInt(searchParams.get("limit") ?? "200")
-    // date: "YYYY-MM-DD" 형식 날짜 필터 (해당 날짜 00:00~23:59:59 UTC)
-    const date = searchParams.get("date")
+    const date  = searchParams.get("date")
 
+    // btc_closing_prices를 Single Source of Truth로 사용
+    // price-server가 카드 합산 시뮬레이션 결과를 baccarat_result로 저장
+    // rounds 테이블은 game/settle API의 타이밍 문제로 결과가 어긋남
     let query = admin
-      .from("rounds")
-      .select("id, baccarat_result, result_digit, result_price, ended_at")
+      .from("btc_closing_prices")
+      .select("time, price, b_score, p_score, baccarat_result")
       .not("baccarat_result", "is", null)
-      .order("ended_at", { ascending: false })
+      .order("time", { ascending: false })
 
     if (date) {
-      const from = `${date}T00:00:00.000Z`
-      const to   = `${date}T23:59:59.999Z`
-      query = query.gte("ended_at", from).lte("ended_at", to)
+      const fromTs = Math.floor(new Date(`${date}T00:00:00.000Z`).getTime() / 1000)
+      const toTs   = Math.floor(new Date(`${date}T23:59:59.999Z`).getTime() / 1000)
+      query = query.gte("time", fromTs).lte("time", toTs)
     }
 
     if (limit > 0) {
       query = query.limit(limit)
     }
 
-    const { data: rounds, error } = await query
+    const { data: prices, error } = await query
     if (error) throw error
 
-    const rawRounds = (rounds || []).reverse() // 오래된 것부터
+    // 오래된 것부터 정렬
+    const rawRows = (prices || []).reverse()
 
-    // rounds.baccarat_result 를 그대로 사용 — game/settle이 카드 합산 시뮬레이션으로 저장한 값이 정답
     function getResult(r: { baccarat_result: string | null }): "player" | "banker" | "tie" {
       return (r.baccarat_result ?? "player") as "player" | "banker" | "tie"
     }
 
-    const results = rawRounds.map(getResult)
-    const rows = rawRounds.map((r) => ({
+    const results = rawRows.map(getResult)
+    const rows = rawRows.map((r) => ({
       result:   getResult(r),
-      digit:    r.result_digit as number,
-      ended_at: r.ended_at as string,
+      digit:    Number(r.p_score ?? 0),
+      ended_at: new Date(Number(r.time) * 1000).toISOString(),
     }))
 
     const pCount = results.filter((r) => r === "player").length
