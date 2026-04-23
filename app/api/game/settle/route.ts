@@ -43,22 +43,25 @@ export async function POST(request: Request) {
     // 라운드 번호 = closeTime / 30 (price-server가 보내는 버킷 시작 초)
     const roundNumber = Math.floor(closeTime / 30)
 
-    // ── 카드 합산 시뮬레이션 — 클라이언트(applyFinalDigit)와 동일한 seed/로직 ──
-    // seed = Math.floor(closeTime / 30) = roundNumber (클라이언트: Math.floor(Date.now()/30000))
-    const seededRand = (() => {
-      let s = (roundNumber) >>> 0
+    // ── 카드 합산 시뮬레이션 — 클라이언트 startDeal()과 동일한 seed/순서 ──
+    // 클라이언트 호출순서: rand()→p1숫자, randSuit(), rand()→b1숫자, randSuit(),
+    //                     rand()→p2숫자, randSuit(), rand()→b2숫자, randSuit()
+    const makeSeededRand = (seed: number) => {
+      let s = seed >>> 0
       return () => {
         s = Math.imul(s ^ (s >>> 15), s | 1)
         s ^= s + Math.imul(s ^ (s >>> 7), s | 61)
         return ((s ^ (s >>> 14)) >>> 0) / 0x100000000
       }
-    })()
-    const randVal = () => Math.floor(seededRand() * 10)   // 0~9 카드 숫자
-    seededRand()  // suit 소비 (randSuit)
-    const p1v = randVal(); seededRand()
-    const b1v = randVal(); seededRand()
-    const p2v = randVal(); seededRand()
-    const b2v = randVal()
+    }
+    const seeded   = makeSeededRand(roundNumber)
+    const rand     = () => Math.floor(seeded() * 10)  // 0~9 카드 숫자
+    const randSuit = () => Math.floor(seeded() * 4)   // 무늬 소비용
+    // 클라이언트와 정확히 동일한 순서
+    const p1v = rand(); randSuit()
+    const b1v = rand(); randSuit()
+    const p2v = rand(); randSuit()
+    const b2v = rand(); randSuit()
 
     const decStrSave = closePrice.toFixed(2).split(".")[1] ?? "00"
     const d1Save = parseInt(decStrSave[0] ?? "0")   // 소수점 첫째 → 뱅커 3번째 카드

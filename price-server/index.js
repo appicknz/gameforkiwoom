@@ -241,23 +241,25 @@ function saveClosingPriceToDB(closePrice, closeTime) {
   const d1 = parseInt(decStr[0] || "0");  // 소수점 첫째 → 뱅커 3번째 카드
   const d2 = parseInt(decStr[1] || "0");  // 소수점 둘째 → 플레이어 3번째 카드
 
-  // 카드 합산 시뮬레이션 — 클라이언트(applyFinalDigit)와 동일 seed/로직
-  // seed = Math.floor(closeTime / 30) = roundNumber
+  // 카드 합산 시뮬레이션 — 클라이언트 startDeal()과 동일 seed/순서
+  // 클라이언트 호출순서: rand()→p1숫자, randSuit(), rand()→b1숫자, randSuit(),
+  //                     rand()→p2숫자, randSuit(), rand()→b2숫자, randSuit()
   const roundNum = Math.floor(closeTime / 30);
-  const seededRand = (() => {
-    let s = roundNum >>> 0;
+  const makeSeededRand = (seed) => {
+    let s = seed >>> 0;
     return () => {
       s = Math.imul(s ^ (s >>> 15), s | 1);
       s ^= s + Math.imul(s ^ (s >>> 7), s | 61);
       return ((s ^ (s >>> 14)) >>> 0) / 0x100000000;
     };
-  })();
-  const randVal = () => Math.floor(seededRand() * 10);
-  seededRand();              // suit 소비
-  const p1v = randVal(); seededRand();
-  const b1v = randVal(); seededRand();
-  const p2v = randVal(); seededRand();
-  const b2v = randVal();
+  };
+  const seeded   = makeSeededRand(roundNum);
+  const rand     = () => Math.floor(seeded() * 10);
+  const randSuit = () => Math.floor(seeded() * 4);
+  const p1v = rand(); randSuit();
+  const b1v = rand(); randSuit();
+  const p2v = rand(); randSuit();
+  const b2v = rand(); randSuit();
   const pTotal = (p1v + p2v + d2) % 10;
   const bTotal = (b1v + b2v + d1) % 10;
   const baccaratResult = pTotal > bTotal ? "player" : bTotal > pTotal ? "banker" : "tie";
