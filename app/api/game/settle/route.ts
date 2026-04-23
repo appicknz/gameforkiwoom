@@ -43,13 +43,36 @@ export async function POST(request: Request) {
     // 라운드 번호 = closeTime / 30 (price-server가 보내는 버킷 시작 초)
     const roundNumber = Math.floor(closeTime / 30)
 
-    // ── closing price DB 저장 — alreadySettled 체크 전에 항상 실행 ──────
-    // triggerSettlement(price-server) → 이 API → DB 저장 순서로 클라이언트 없이도 기록됨
+    // ── 카드 합산 시뮬레이션 — 클라이언트 startDeal()과 동일한 seed/순서 ──
+    // 클라이언트 호출순서: rand()→p1숫자, randSuit(), rand()→b1숫자, randSuit(),
+    //                     rand()→p2숫자, randSuit(), rand()→b2숫자, randSuit()
+    const makeSeededRand = (seed: number) => {
+      let s = seed >>> 0
+      return () => {
+        s = Math.imul(s ^ (s >>> 15), s | 1)
+        s ^= s + Math.imul(s ^ (s >>> 7), s | 61)
+        return ((s ^ (s >>> 14)) >>> 0) / 0x100000000
+      }
+    }
+    const seeded   = makeSeededRand(roundNumber)
+    const rand     = () => Math.floor(seeded() * 10)  // 0~9 카드 숫자
+    const randSuit = () => Math.floor(seeded() * 4)   // 무늬 소비용
+    // 클라이언트와 정확히 동일한 순서
+    const p1v = rand(); randSuit()
+    const b1v = rand(); randSuit()
+    const p2v = rand(); randSuit()
+    const b2v = rand(); randSuit()
+
     const decStrSave = closePrice.toFixed(2).split(".")[1] ?? "00"
-    const d1Save = parseInt(decStrSave[0] ?? "0")   // 소수점 첫째 → banker 끝자리
-    const d2Save = parseInt(decStrSave[1] ?? "0")   // 소수점 둘째 → player 끝자리
+    const d1Save = parseInt(decStrSave[0] ?? "0")   // 소수점 첫째 → 뱅커 3번째 카드
+    const d2Save = parseInt(decStrSave[1] ?? "0")   // 소수점 둘째 → 플레이어 3번째 카드
+
+    // 카드 합산: (초기 2장 + 3번째 카드) % 10
+    const pTotal = (p1v + p2v + d2Save) % 10
+    const bTotal = (b1v + b2v + d1Save) % 10
+    // 9에 가까운 쪽 승리 (클라이언트 handScore와 동일)
     const baccaratResultSave: "player" | "banker" | "tie" =
-      d2Save <= 4 ? "player" : d2Save <= 8 ? "banker" : "tie"
+      pTotal > bTotal ? "player" : bTotal > pTotal ? "banker" : "tie"
     await admin
       .from("btc_closing_prices")
       .upsert(
@@ -81,11 +104,14 @@ export async function POST(request: Request) {
     const wonDirection: "long" | "short" = resolvedClose >= basePrice ? "long" : "short"
     // 소수점 둘째 자리(d2) 기준 — applyFinalDigit, ClosingPrices와 동일한 기준
     const decStr = resolvedClose.toFixed(2).split(".")[1] ?? "00"
-    const lastDigit = parseInt(decStr[1] ?? "0")   // d2: 소수점 둘째 자리
+    const d1 = parseInt(decStr[0] ?? "0")          // 소수점 첫째 → b_score (뱅커 3번째 카드)
+    const d2 = parseInt(decStr[1] ?? "0")          // 소수점 둘째 → p_score (플레이어 3번째 카드)
+    const lastDigit = d2
     const wonDigit: "under" | "over" = lastDigit <= 4 ? "under" : "over"
     const wonParity: "odd" | "even" = lastDigit % 2 === 0 ? "even" : "odd"
-    const baccaratResult: "player" | "banker" | "tie" =
-      lastDigit <= 4 ? "player" : lastDigit <= 8 ? "banker" : "tie"
+    // 카드 합산 시뮬레이션 결과 재사용 (위에서 이미 계산)
+    // d1Save/d2Save = d1/d2 (같은 closePrice 기준)
+    const baccaratResult: "player" | "banker" | "tie" = baccaratResultSave
 
     // ── race 결과 계산 (3분 라운드 기준) ────────────────────
     // race는 3분(180초) 라운드: raceRoundNumber = Math.floor(closeTime / 180)
@@ -151,7 +177,7 @@ export async function POST(request: Request) {
     }
     await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 120 })
 
-    // ── race 결과 저장 ─────────────────────────────────────────
+    // ── race 결과 저장 ────���────────────────────────────────────
     // 현재 라운드의 첫 번째 tick = 직전 라운드가 방금 종료됨 → 직전 라운드 집계 후 저장
     if (isFirstTickOfRound) {
       const prevRaceRound   = raceRoundNumber - 1
@@ -708,15 +734,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── rounds 테이블 기록 (라운드당 1회) ───────────────────
-    await admin.from("rounds").insert({
+    // ── rounds 테이블 기록 (라운드당 1회, ended_at 기준 upsert로 중복 방지) ───
+    await admin.from("rounds").upsert({
       base_price: basePrice,
       result_price: resolvedClose,
       result_digit: lastDigit,
       baccarat_result: baccaratResult,
       started_at: new Date((roundNumber - 1) * 30 * 1000).toISOString(),
       ended_at: new Date(roundNumber * 30 * 1000).toISOString(),
-    }).then(() => {}).catch(() => {})  // 중�� 삽�� 무시
+    }, { onConflict: "ended_at", ignoreDuplicates: true }).then(() => {}).catch(() => {})
 
     console.log(`[settle] round=${roundNumber} baccarat=${baccaratResult} settled=${settlementResults.length} users`)
 

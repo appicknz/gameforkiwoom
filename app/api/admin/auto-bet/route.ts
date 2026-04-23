@@ -174,11 +174,11 @@ export async function GET(request: Request) {
 function isBettingPhase(gameType: "baccarat" | "race"): { allowed: boolean; reason?: string } {
   const nowSec = Math.floor(Date.now() / 1000)
   if (gameType === "baccarat") {
-    // 30초 라운드: secInRound 기준 — SSE/bet/round-stats 동일
-    // 0~4초: 정산, 5~14초: 배팅, 15~29초: 게임중
+    // 30초 라운드: 실제 게임과 동일 기준
+    // 0~4초: 정산(5초), 5~19초: 배팅(15초), 20~29초: 게임중(10초)
     const s = nowSec % 30
     if (s < 5)  return { allowed: false, reason: `정산중 (secInRound=${s})` }
-    if (s >= 15) return { allowed: false, reason: `게임중 (secInRound=${s})` }
+    if (s >= 20) return { allowed: false, reason: `게임중 (secInRound=${s})` }
     return { allowed: true }
   } else {
     // 180초 라운드: 0~9초: 정산, 10~59초: 배팅, 60~179초: 게임중
@@ -277,10 +277,10 @@ async function runBetForGame(gameType: "baccarat" | "race") {
     }
   }
 
-  // ── 14명을 9초 안에 무작위 간격으로 분산 배팅 ──────────────────
-  // 셔플 후 2~4명씩 랜덤 그룹으로 나눠 그룹 간 딜레이 부여
-  // 총 예산: 9000ms (배팅 구간 10초 - 여유 1초)
-  const SPREAD_BUDGET_MS = 9000
+  // ── 배팅 구간 내에 무작위 분산 배팅 ──────────────────────────
+  // 바카라: 배팅창 15초(5~19초), cron 진입 후 7초 예산 — 게임중(20초) 전에 확실히 완료
+  // 레이스: 배팅창 50초(10~59초), cron 진입 후 40초 예산
+  const SPREAD_BUDGET_MS = gameType === "baccarat" ? 7000 : 40000
 
   // Fisher-Yates 셔플
   const shuffled = [...targetProfiles]
@@ -371,9 +371,15 @@ async function runBetForGame(gameType: "baccarat" | "race") {
 
 // POST: 자동배팅 1회 실행 (또는 잔고 일괄 충전)
 export async function POST(request: Request) {
-  const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
-  const admin = await requireAdmin(token, request)
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  // 내부 cron 호출 (x-internal-secret) 또는 관리자 토큰 중 하나로 인증
+  const internalSecret = request.headers.get("x-internal-secret")
+  const isInternal = internalSecret && internalSecret === process.env.CRON_SECRET
+
+  if (!isInternal) {
+    const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
+    const admin = await requireAdmin(token, request)
+    if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
 
   const body = await request.json()
 

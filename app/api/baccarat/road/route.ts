@@ -4,47 +4,53 @@ import { NextRequest, NextResponse } from "next/server"
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl
-    // limit: 구간 필터 (0 = 전체)
     const limit = parseInt(searchParams.get("limit") ?? "200")
-    // date: "YYYY-MM-DD" 형식 날짜 필터 (해당 날짜 00:00~23:59:59 UTC)
-    const date = searchParams.get("date")
+    const date  = searchParams.get("date")
 
+    // btc_closing_prices를 Single Source of Truth로 사용
+    // b_raw_sum/p_raw_sum(클라이언트 카드 합산) 또는 b_score/p_score(끝자리)로 직접 결과 계산
+    // baccarat_result 컬럼(서버 시뮬레이션)은 신뢰하지 않음
     let query = admin
-      .from("rounds")
-      .select("id, baccarat_result, result_digit, result_price, ended_at")
-      .not("baccarat_result", "is", null)
-      .order("ended_at", { ascending: false })
+      .from("btc_closing_prices")
+      .select("time, price, b_score, p_score, b_raw_sum, p_raw_sum")
+      .not("b_score", "is", null)
+      .order("time", { ascending: false })
 
     if (date) {
-      const from = `${date}T00:00:00.000Z`
-      const to   = `${date}T23:59:59.999Z`
-      query = query.gte("ended_at", from).lte("ended_at", to)
+      const fromTs = Math.floor(new Date(`${date}T00:00:00.000Z`).getTime() / 1000)
+      const toTs   = Math.floor(new Date(`${date}T23:59:59.999Z`).getTime() / 1000)
+      query = query.gte("time", fromTs).lte("time", toTs)
     }
 
     if (limit > 0) {
       query = query.limit(limit)
     }
 
-    const { data: rounds, error } = await query
+    const { data: prices, error } = await query
     if (error) throw error
 
-    const rawRounds = (rounds || []).reverse() // 오래된 것부터
+    // 오래된 것부터 정렬
+    const rawRows = (prices || []).reverse()
 
-    // result_price(소수점 d2)로 재계산 — settle이 과거에 d1 기준으로 잘못 저장한 rounds.baccarat_result를 교정
-    function computeResult(r: { baccarat_result: string | null; result_price: number | null }): "player" | "banker" | "tie" {
-      if (r.result_price != null) {
-        const dec = Number(r.result_price).toFixed(2).split(".")[1] ?? "00"
-        const d2  = parseInt(dec[1] ?? "0")
-        return d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
-      }
-      return (r.baccarat_result ?? "player") as "player" | "banker" | "tie"
+    // b_raw_sum/p_raw_sum이 있으면 % 10 비교, 없으면 b_score/p_score(이미 끝자리) 비교
+    // closing-prices.tsx의 scoreToResult와 완전히 동일한 로직
+    function computeResult(r: {
+      b_score: number | null; p_score: number | null
+      b_raw_sum: number | null; p_raw_sum: number | null
+    }): "player" | "banker" | "tie" {
+      const bVal = r.b_raw_sum !== null ? r.b_raw_sum : (r.b_score ?? 0)
+      const pVal = r.p_raw_sum !== null ? r.p_raw_sum : (r.p_score ?? 0)
+      const b = bVal % 10
+      const p = pVal % 10
+      if (p === b) return "tie"
+      return p > b ? "player" : "banker"
     }
 
-    const results = rawRounds.map(computeResult)
-    const rows = rawRounds.map((r) => ({
+    const results = rawRows.map(computeResult)
+    const rows = rawRows.map((r) => ({
       result:   computeResult(r),
-      digit:    r.result_digit as number,
-      ended_at: r.ended_at as string,
+      digit:    Number(r.p_score ?? 0),
+      ended_at: new Date(Number(r.time) * 1000).toISOString(),
     }))
 
     const pCount = results.filter((r) => r === "player").length

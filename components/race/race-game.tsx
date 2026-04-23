@@ -8,14 +8,14 @@ export type RacePhase = "betting" | "racing" | "result"
 export interface RaceState {
   phase: RacePhase
   timeLeft: number       // 남은 초
-  roundId: number        // Math.floor(now / 300)
+  roundId: number        // Math.floor(now / 180)
   bitScore: number       // BIT팀 누적 (소수점 첫째)
   coinScore: number      // COIN팀 누적 (소수점 둘째)
   winner: "bit" | "coin" | "tie" | null
   lastPrice: number | null
   lastBitDigit: number | null
   lastCoinDigit: number | null
-  secondsInRound: number // 라운드 내 경과 초 (0~299)
+  secondsInRound: number // 라운드 내 경과 초 (0~179)
 }
 
 interface ScoreFlashEntry {
@@ -26,11 +26,12 @@ interface ScoreFlashEntry {
   ts: number
 }
 
-// 300초(5분) 라운드 — 서버/Redis와 동일하게 유지 필수
-// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~297초 게임중(238s), 298~299초 결과
-const ROUND_SEC   = 300
-const SETTLE_SEC  = 10  // 0~9초: 정산
-const BETTING_SEC = 60  // 10~59초: 배팅 (50초)
+// 180초(3분) 라운드 — price-server와 동일
+// 페이즈: 0~9초 정산(10s), 10~59초 배팅(50s), 60~179초 게임중(120s)
+const ROUND_SEC    = 180
+const SETTLE_SEC   = 10   // 0~9초: 정산
+const BETTING_SEC  = 60   // 10~59초: 배팅 (50초)
+const GAME_END_SEC = 180  // 60~179초: 게임중 (120초)
 
 function getRoundId(nowSec: number) { return Math.floor(nowSec / ROUND_SEC) }
 function getSecondsInRound(nowSec: number) { return nowSec % ROUND_SEC }
@@ -61,17 +62,17 @@ export function useRaceGame() {
       const sec    = getSecondsInRound(nowSec)
       const roundId = getRoundId(nowSec)
 
-      // 0~9s: result(정산 10s), 10~59s: betting(배팅 50s), 60~297s: racing(게임중 238s), 298~299s: result
+      // 0~9s: result(정산 10s), 10~59s: betting(배팅 50s), 60~179s: racing(게임중 120s)
       const phase: RacePhase =
-        sec < SETTLE_SEC       ? "result"
-        : sec < BETTING_SEC    ? "betting"
-        : sec < ROUND_SEC - 2  ? "racing"
+        sec < SETTLE_SEC    ? "result"
+        : sec < BETTING_SEC ? "betting"
+        : sec < GAME_END_SEC ? "racing"
         : "result"
 
       const timeLeft =
         phase === "result" && sec < SETTLE_SEC ? SETTLE_SEC - sec
         : phase === "betting" ? BETTING_SEC - sec
-        : phase === "racing"  ? ROUND_SEC - 2 - sec
+        : phase === "racing"  ? GAME_END_SEC - sec
         : 0
 
       setState(prev => {
@@ -157,10 +158,19 @@ export function useRaceGame() {
     return () => window.removeEventListener("baka:race-score", onRaceScore)
   }, [])
 
-  // ── result 페이즈 진입 시 승자 결정 + DB 저장 ────────────────────
+  // ── 게임중 마지막 초(secondsInRound === 179) → 승자 결정 + race:closing 발행 ────
+  // timeLeft는 절대 0이 되지 않음 (180-179=1 → 다음 tick에서 sec=0으로 초기화됨)
+  // 따라서 secondsInRound === GAME_END_SEC - 1 (=179) 시점에 처리
   const resultSavedRef = useRef<number>(-1)
   useEffect(() => {
-    if (state.phase === "result" && state.winner === null && (state.bitScore > 0 || state.coinScore > 0)) {
+    if (
+      state.phase === "racing" &&
+      state.secondsInRound === GAME_END_SEC - 1 &&
+      state.winner === null &&
+      resultSavedRef.current !== state.roundId
+    ) {
+      resultSavedRef.current = state.roundId
+
       const winner: "bit" | "coin" | "tie" =
         state.bitScore > state.coinScore ? "bit"
         : state.coinScore > state.bitScore ? "coin"
@@ -168,24 +178,14 @@ export function useRaceGame() {
 
       setState(prev => ({ ...prev, winner }))
 
-      // 중복 저장 방지
-      if (resultSavedRef.current === state.roundId) return
-      resultSavedRef.current = state.roundId
-
-      // 결과 시각: 이 roundId(raceRoundNumber)의 종료 경계 = roundId * 300
-      // state.roundId 가 raceRoundNumber이므로 종료 시각은 (roundId + 1) * 300
-      const resultTime = (state.roundId + 1) * 300
-
-      // race:closing 이벤트 발행 (차트 기준가선 업데이트, UI 실시간 반영)
-      // DB 저장은 game/settle API(서버)가 담당 — 클라이언트 접속 여부 무관
-      const lastPrice = state.lastPrice
-      if (lastPrice !== null) {
-        window.dispatchEvent(new CustomEvent("race:closing", {
-          detail: { price: lastPrice, time: resultTime, bit: state.bitScore, coin: state.coinScore, winner }
-        }))
-      }
+      // race:closing 이벤트 발행 → race-closing-prices 실시간 업데이트
+      const resultTime = (state.roundId + 1) * 180
+      const lastPrice = state.lastPrice ?? 0
+      window.dispatchEvent(new CustomEvent("race:closing", {
+        detail: { price: lastPrice, time: resultTime, bit: state.bitScore, coin: state.coinScore, winner }
+      }))
     }
-  }, [state.phase, state.winner, state.bitScore, state.coinScore, state.roundId, state.lastPrice])
+  }, [state.phase, state.secondsInRound, state.winner, state.bitScore, state.coinScore, state.roundId, state.lastPrice])
 
   return { state, flashes }
 }

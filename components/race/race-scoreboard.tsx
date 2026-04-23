@@ -237,7 +237,7 @@ function DigitFlash({ digit, color, label }: { digit: number | null; color: stri
 
   useEffect(() => {
     if (digit === null) return
-    // digit 값이 같아도 새 tick이면 항상 �����애니메이션
+    // digit 값이 같아도 새 tick이면 항상 �������애니메이션
     tickRef.current += 1
     setTick(tickRef.current)
     prevDigit.current = digit
@@ -247,8 +247,8 @@ function DigitFlash({ digit, color, label }: { digit: number | null; color: stri
   return <DigitFlashInner key={tick} digit={digit} color={color} label={label} />
 }
 
-// 3단계 카운트다운: 정산(10s) / 배팅(50s) / 게임중(238s) — 300초 라운드 기준
-// secondsInRound: 0~9 정산, 10~59 배팅, 60~297 게임중
+// 3단계 카운트다운: 정산(10s) / 배팅(50s) / 게임중(120s) — 180초 라운드 기준
+// secondsInRound: 0~9 정산, 10~59 배팅, 60~179 게임중
 function PhaseCountdown({ secondsInRound }: { secondsInRound: number }) {
   const phases = [
     {
@@ -269,11 +269,11 @@ function PhaseCountdown({ secondsInRound }: { secondsInRound: number }) {
     },
     {
       label: "게임중",
-      duration: 238,
-      active: secondsInRound >= 60 && secondsInRound < 298,
-      countdown: secondsInRound >= 60 && secondsInRound < 298 ? 298 - secondsInRound : 238,
-      color: secondsInRound >= 293 ? "#ef4444" : "#f97316",
-      pct: secondsInRound >= 60 && secondsInRound < 298 ? (298 - secondsInRound) / 238 : 0,
+      duration: 120,
+      active: secondsInRound >= 60 && secondsInRound < 178,
+      countdown: secondsInRound >= 60 && secondsInRound < 178 ? 178 - secondsInRound : 120,
+      color: secondsInRound >= 173 ? "#ef4444" : "#f97316",
+      pct: secondsInRound >= 60 && secondsInRound < 178 ? (178 - secondsInRound) / 120 : 0,
     },
   ]
 
@@ -514,8 +514,8 @@ export function RaceScoreboard({ state, flashes = [] }: Props) {
         )
       })()}
 
-      {/* 결과 배너 */}
-      {phase === "result" && winner && (
+      {/* 결과 배너 — racing 마지막(secondsInRound=179)에 winner가 set되므로 phase 조건 없이 표시 */}
+      {winner && (
         <div style={{
           textAlign: "center",
           padding: "clamp(10px, 3vw, 16px)",
