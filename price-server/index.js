@@ -238,9 +238,29 @@ function saveClosingPriceToDB(closePrice, closeTime) {
   }
   // BTC 가격 → 소수점 끝자리 점수 계산
   const decStr = closePrice.toFixed(2).split(".")[1] || "00";
-  const d1 = parseInt(decStr[0] || "0");  // 소수점 첫째 → bScore
-  const d2 = parseInt(decStr[1] || "0");  // 소수점 둘째 → pScore
-  const baccaratResult = d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie";
+  const d1 = parseInt(decStr[0] || "0");  // 소수점 첫째 → 뱅커 3번째 카드
+  const d2 = parseInt(decStr[1] || "0");  // 소수점 둘째 → 플레이어 3번째 카드
+
+  // 카드 합산 시뮬레이션 — 클라이언트(applyFinalDigit)와 동일 seed/로직
+  // seed = Math.floor(closeTime / 30) = roundNumber
+  const roundNum = Math.floor(closeTime / 30);
+  const seededRand = (() => {
+    let s = roundNum >>> 0;
+    return () => {
+      s = Math.imul(s ^ (s >>> 15), s | 1);
+      s ^= s + Math.imul(s ^ (s >>> 7), s | 61);
+      return ((s ^ (s >>> 14)) >>> 0) / 0x100000000;
+    };
+  })();
+  const randVal = () => Math.floor(seededRand() * 10);
+  seededRand();              // suit 소비
+  const p1v = randVal(); seededRand();
+  const b1v = randVal(); seededRand();
+  const p2v = randVal(); seededRand();
+  const b2v = randVal();
+  const pTotal = (p1v + p2v + d2) % 10;
+  const bTotal = (b1v + b2v + d1) % 10;
+  const baccaratResult = pTotal > bTotal ? "player" : bTotal > pTotal ? "banker" : "tie";
 
   const body = JSON.stringify({
     time: closeTime,
