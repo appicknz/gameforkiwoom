@@ -46,11 +46,12 @@ export async function POST(request: Request) {
     // ── closing price DB 저장 — alreadySettled 체크 전에 항상 실행 ──────
     // triggerSettlement(price-server) → 이 API → DB 저장 순서로 클라이언트 없이도 기록됨
     const decStrSave = closePrice.toFixed(2).split(".")[1] ?? "00"
-    const d1Save = parseInt(decStrSave[0] ?? "0")   // 소수점 첫째 → banker 점수
-    const d2Save = parseInt(decStrSave[1] ?? "0")   // 소수점 둘째 → player 점수
-    // banker(d1) vs player(d2) 크기 비교로 승패 결정
+    const d1Save = parseInt(decStrSave[0] ?? "0")   // 소수점 첫째 → b_score
+    const d2Save = parseInt(decStrSave[1] ?? "0")   // 소수점 둘째 → p_score
+    // 클라이언트(applyFinalDigit)와 동일 기준: d2 단일값으로 결정
+    // 0~4=player, 5~8=banker, 9=tie
     const baccaratResultSave: "player" | "banker" | "tie" =
-      d1Save > d2Save ? "banker" : d2Save > d1Save ? "player" : "tie"
+      d2Save <= 4 ? "player" : d2Save <= 8 ? "banker" : "tie"
     await admin
       .from("btc_closing_prices")
       .upsert(
@@ -82,14 +83,15 @@ export async function POST(request: Request) {
     const wonDirection: "long" | "short" = resolvedClose >= basePrice ? "long" : "short"
     // 소수점 둘째 자리(d2) 기준 — applyFinalDigit, ClosingPrices와 동일한 기준
     const decStr = resolvedClose.toFixed(2).split(".")[1] ?? "00"
-    const d1 = parseInt(decStr[0] ?? "0")          // 소수점 첫째 → banker 점수
-    const d2 = parseInt(decStr[1] ?? "0")          // 소수점 둘째 → player 점수
+    const d1 = parseInt(decStr[0] ?? "0")          // 소수점 첫째 → b_score
+    const d2 = parseInt(decStr[1] ?? "0")          // 소수점 둘째 → p_score
     const lastDigit = d2
     const wonDigit: "under" | "over" = lastDigit <= 4 ? "under" : "over"
     const wonParity: "odd" | "even" = lastDigit % 2 === 0 ? "even" : "odd"
-    // banker(d1) vs player(d2) 크기 비교로 승패 결정
+    // 클라이언트(applyFinalDigit)와 동일 기준: d2 단일값
+    // 0~4=player, 5~8=banker, 9=tie
     const baccaratResult: "player" | "banker" | "tie" =
-      d1 > d2 ? "banker" : d2 > d1 ? "player" : "tie"
+      d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
 
     // ── race 결과 계산 (3분 라운드 기준) ────────────────────
     // race는 3분(180초) 라운드: raceRoundNumber = Math.floor(closeTime / 180)
@@ -155,7 +157,7 @@ export async function POST(request: Request) {
     }
     await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 120 })
 
-    // ── race 결과 저장 ─────────────────────────────────────────
+    // ── race 결과 저장 ────���────────────────────────────────────
     // 현재 라운드의 첫 번째 tick = 직전 라운드가 방금 종료됨 → 직전 라운드 집계 후 저장
     if (isFirstTickOfRound) {
       const prevRaceRound   = raceRoundNumber - 1
