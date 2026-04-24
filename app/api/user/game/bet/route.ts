@@ -209,7 +209,7 @@ export async function POST(request: Request) {
         roundNumber,
         gameType,
         side,
-        amount,
+        amount: betAmount,
         oddsAtBet: oddsSnap,
         placedAt: Date.now(),
       }), { ex: ttl + 10 })
