@@ -1,5 +1,4 @@
 import { adminSupabase } from "@/lib/supabase-admin"
-import { createClient } from "@supabase/supabase-js"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
@@ -10,28 +9,36 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 })
 
+/** JWT 로컬 디코딩 — 외부 HTTP 없이 즉시 userId 반환 */
+function decodeJwtUserId(token: string): string | null {
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+    )
+    if (!payload.sub) return null
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null
+    return payload.sub as string
+  } catch { return null }
+}
+
 async function requireAdmin(token: string | null, req?: Request) {
-  // Authorization 헤더 없으면 HTTP-only 쿠키에서 토큰 읽기
   if (!token && req) {
     const cookieStore = await cookies()
     token = cookieStore.get("app_token")?.value ?? null
   }
   if (!token) return null
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-  const { data, error } = await anonClient.auth.getUser(token)
-  if (error || !data.user) return null
+  const userId = decodeJwtUserId(token)
+  if (!userId) return null
   const { data: profile } = await adminSupabase
     .from("profiles")
     .select("role")
-    .eq("id", data.user.id)
+    .eq("id", userId)
     .single()
   const adminRoles = ["master", "super_admin", "admin", "superadmin", "branch_admin"]
   if (!profile || !adminRoles.includes(profile.role)) return null
-  return data.user
+  return { id: userId }
 }
 
 // 자동배팅 유저 목록 (사용자2~사용자30, 홀수=baka, 짝수=race)
@@ -404,12 +411,12 @@ export async function POST(request: Request) {
   if (body.action === "bet_baccarat") {
     const r = await runBetForGame("baccarat")
     if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason, gameType: "baccarat" })
-    const [totalFee, baccaratFee] = await Promise.all([
-      redis.get<number>("auto_bet:total_fee") ?? 0,
-      redis.get<number>("auto_bet:baccarat_fee") ?? 0,
+    const [totalFeeRaw, baccaratFeeRaw] = await Promise.all([
+      redis.get("auto_bet:total_fee"),
+      redis.get("auto_bet:baccarat_fee"),
     ])
-    const newTotal = (totalFee as number) + r.totalFee
-    const newBaccarat = (baccaratFee as number) + r.totalFee
+    const newTotal = (Number(totalFeeRaw) || 0) + r.totalFee
+    const newBaccarat = (Number(baccaratFeeRaw) || 0) + r.totalFee
     await Promise.all([
       redis.set("auto_bet:total_fee", newTotal),
       redis.set("auto_bet:baccarat_fee", newBaccarat),
@@ -424,12 +431,12 @@ export async function POST(request: Request) {
   if (body.action === "bet_race") {
     const r = await runBetForGame("race")
     if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason, gameType: "race" })
-    const [totalFee, raceFee] = await Promise.all([
-      redis.get<number>("auto_bet:total_fee") ?? 0,
-      redis.get<number>("auto_bet:race_fee") ?? 0,
+    const [totalFeeRaw, raceFeeRaw] = await Promise.all([
+      redis.get("auto_bet:total_fee"),
+      redis.get("auto_bet:race_fee"),
     ])
-    const newTotal = (totalFee as number) + r.totalFee
-    const newRace = (raceFee as number) + r.totalFee
+    const newTotal = (Number(totalFeeRaw) || 0) + r.totalFee
+    const newRace = (Number(raceFeeRaw) || 0) + r.totalFee
     await Promise.all([
       redis.set("auto_bet:total_fee", newTotal),
       redis.set("auto_bet:race_fee", newRace),
@@ -444,12 +451,12 @@ export async function POST(request: Request) {
   if (body.action === "bet") {
     const r = await runBetForGame("baccarat")
     if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason })
-    const [totalFee, baccaratFee] = await Promise.all([
-      redis.get<number>("auto_bet:total_fee") ?? 0,
-      redis.get<number>("auto_bet:baccarat_fee") ?? 0,
+    const [totalFeeRaw, baccaratFeeRaw] = await Promise.all([
+      redis.get("auto_bet:total_fee"),
+      redis.get("auto_bet:baccarat_fee"),
     ])
-    const newTotal = (totalFee as number) + r.totalFee
-    const newBaccarat = (baccaratFee as number) + r.totalFee
+    const newTotal = (Number(totalFeeRaw) || 0) + r.totalFee
+    const newBaccarat = (Number(baccaratFeeRaw) || 0) + r.totalFee
     await Promise.all([
       redis.set("auto_bet:total_fee", newTotal),
       redis.set("auto_bet:baccarat_fee", newBaccarat),
@@ -458,30 +465,6 @@ export async function POST(request: Request) {
     await redis.lpush("auto_bet:logs", logEntry)
     await redis.ltrim("auto_bet:logs", 0, 99)
     return NextResponse.json({ ok: true, round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: newTotal })
-  }
-
-  // action: "bet_race" — 레���스 유저만 1라운드 배팅
-  if (body.action === "bet_race") {
-    const r = await runBetForGame("race")
-    if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason, gameType: "race" })
-    const existingFee = await redis.get<number>("auto_bet:total_fee") ?? 0
-    await redis.set("auto_bet:total_fee", (existingFee as number) + r.totalFee)
-    const logEntry = JSON.stringify({ ts: Date.now(), results: r.results, totalFee: r.totalFee, gameType: "race" })
-    await redis.lpush("auto_bet:logs", logEntry)
-    await redis.ltrim("auto_bet:logs", 0, 99)
-    return NextResponse.json({ ok: true, gameType: "race", round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: (existingFee as number) + r.totalFee })
-  }
-
-  // action: "bet" — 하위 호환
-  if (body.action === "bet") {
-    const r = await runBetForGame("baccarat")
-    if (r.skipped) return NextResponse.json({ ok: true, skipped: true, skipReason: r.skipReason })
-    const existingFee = await redis.get<number>("auto_bet:total_fee") ?? 0
-    await redis.set("auto_bet:total_fee", (existingFee as number) + r.totalFee)
-    const logEntry = JSON.stringify({ ts: Date.now(), results: r.results, totalFee: r.totalFee })
-    await redis.lpush("auto_bet:logs", logEntry)
-    await redis.ltrim("auto_bet:logs", 0, 99)
-    return NextResponse.json({ ok: true, round: r.round, results: r.results, totalFeeThisRound: r.totalFee, accumulatedFee: (existingFee as number) + r.totalFee })
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 })
