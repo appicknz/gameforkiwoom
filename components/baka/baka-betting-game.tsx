@@ -547,6 +547,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const liveOddsSnapshotRef   = useRef<typeof liveOdds>(null)  // 배팅 ���점 odds 스냅샷 (라운드 종료 후 초기화되기 전 값)
   const liveOddsRef           = useRef<typeof liveOdds>(null)  // 항상 최신 liveOdds를 가리키는 ref (클로저 stale 방지)
   const frozenOddsRef         = useRef<typeof liveOdds>(null)  // 배팅 마감 순간 확정 배당 스냅샷
+  // 디버그용: 배팅 완료 시점에 저장, LOG 2/3에서 재사용
+  const dbgBetRef = useRef<{ round: number; side: BetBaccarat; amount: number; oddsAtBet: number | null | undefined; oddsSnap: typeof liveOdds } | null>(null)
   const basePriceRef = useRef<number | null>(null)
   const roundRef = useRef<number>(0)
   const currentPriceRef = useRef<number | null>(null)
@@ -702,19 +704,18 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         : betBaccaratRef.current === "banker" ? liveOddsSnapshotRef.current?.banker
         : liveOddsSnapshotRef.current?.tie
       // ── LOG 3: 게임 결과 ─────────────────────────────────────
-      if (betBaccaratRef.current) {
-        const side = betBaccaratRef.current
-        const amount = betBaccaratAmountRef.current
-        const snap = liveOddsSnapshotRef.current
-        const oddsAtBet = side === "player" ? snap?.player : side === "banker" ? snap?.banker : snap?.tie
+      if (dbgBetRef.current) {
+        const dbg = dbgBetRef.current
+        const oddsAtBet = dbg.oddsAtBet
+        const expected = wonBaccarat && oddsAtBet ? Math.floor(dbg.amount * oddsAtBet / 1000) * 1000 : 0
         console.log(`%c[게임결과] 라운드#${resolvedRoundNumber}`, "color:#81c784;font-weight:bold", {
-          betSide: side,
+          betSide: dbg.side,
           result: bacResult,
           won: wonBaccarat,
-          betAmount: amount,
-          oddsAtBetTime: oddsAtBet,
-          expectedPayout: wonBaccarat && oddsAtBet ? Math.floor(amount * oddsAtBet / 1000) * 1000 : 0,
-          expectedNetProfit: wonBaccarat && oddsAtBet ? Math.floor(amount * oddsAtBet / 1000) * 1000 - amount : -amount,
+          betAmount: dbg.amount,
+          "① 배팅시점odds": oddsAtBet,
+          expectedPayout: expected,
+          expectedNetProfit: expected - dbg.amount,
           note: "서버 settle-me 응답 대기 중...",
         })
       }
@@ -739,10 +740,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
             const betSide = lastResultRef.current?.baccarat
             const betAmount = lastResultRef.current?.baccaratAmount ?? 0
             const serverOddsForSide = betSide && d.appliedOdds ? d.appliedOdds[betSide] : null
-            const clientOddsAtBet = betSide && liveOddsSnapshotRef.current
-              ? (betSide === "player" ? liveOddsSnapshotRef.current.player
-                : betSide === "banker" ? liveOddsSnapshotRef.current.banker
-                : liveOddsSnapshotRef.current.tie)
+            // dbgBetRef에 배팅 완료 시점 odds가 보존되어 있음 (liveOddsSnapshotRef는 라운드 초기화로 null 가능)
+            const clientOddsAtBet = dbgBetRef.current?.side === betSide
+              ? dbgBetRef.current?.oddsAtBet ?? null
               : null
             const expectedByServerOdds = serverOddsForSide ? Math.floor(betAmount * serverOddsForSide / 1000) * 1000 : 0
             const oddsMatch = clientOddsAtBet != null && serverOddsForSide != null
@@ -905,15 +905,20 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     }
 
     // ── LOG 2: 배팅 마감 (true→false 전환 = 게임중 시작) ──────
-    if (wasBetting && !canBet && betBaccaratRef.current) {
-      const snap = liveOddsRef.current
-      const side = betBaccaratRef.current
-      const oddsAtClose = side === "player" ? snap?.player : side === "banker" ? snap?.banker : snap?.tie
-      console.log(`%c[배당확정] 라운드#${betRoundNumberRef.current} 배팅마감`, "color:#ffb74d;font-weight:bold", {
-        side,
-        oddsAtBettingClose: oddsAtClose,
-        fullOdds: snap,
-        note: "이 배당으로 서버가 정산해야 함",
+    if (wasBetting && !canBet && dbgBetRef.current) {
+      const dbg = dbgBetRef.current
+      // 마감 순간의 현재 odds (frozenOdds 또는 liveOdds)
+      const snapNow = frozenOddsRef.current ?? liveOddsRef.current
+      const oddsNow = dbg.side === "player" ? snapNow?.player : dbg.side === "banker" ? snapNow?.banker : snapNow?.tie
+      const oddsMatch = dbg.oddsAtBet != null && oddsNow != null
+        ? Math.abs(dbg.oddsAtBet - oddsNow) < 0.01 : null
+      console.log(`%c[배당확정] 라운드#${dbg.round} 배팅마감`, "color:#ffb74d;font-weight:bold", {
+        side: dbg.side,
+        amount: dbg.amount,
+        "① 배팅시점odds": dbg.oddsAtBet,
+        "② 마감시점odds": oddsNow,
+        "③ oddsMatch": oddsMatch,
+        note: "서버는 odds:final(SSE저장값)으로 정산",
       })
     }
   }, [canBet])
@@ -1013,6 +1018,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         const snap = liveOddsRef.current
         const side = value as BetBaccarat
         const oddsForSide = side === "player" ? snap?.player : side === "banker" ? snap?.banker : snap?.tie
+        // 이후 LOG 2/3에서 참조할 수 있도록 별도 ref에 보존
+        dbgBetRef.current = { round: betRoundNumberRef.current, side, amount: cfg.amount, oddsAtBet: oddsForSide, oddsSnap: snap }
         console.log(`%c[배팅완료] 라운드#${betRoundNumberRef.current}`, "color:#4fc3f7;font-weight:bold", {
           side,
           amount: cfg.amount,
