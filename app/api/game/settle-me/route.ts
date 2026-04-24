@@ -127,26 +127,26 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── 당첨금 계산 (천원 단위 내림) ──────────────────────────
-    const roundTo1000 = (v: number) => Math.floor(v / 1000) * 1000
+    // ── 당첨금 계산 ─────────────────────────────────────────
     let totalPayout = 0
     const snap = oddsSnap as Record<string, number>
 
     if (gameType === "baccarat") {
       if (bets.direction && bets.directionAmount > 0) {
-        if (bets.direction === wonDirection) totalPayout += roundTo1000(bets.directionAmount * FIXED_ODDS)
+        if (bets.direction === wonDirection) totalPayout += Math.floor(bets.directionAmount * FIXED_ODDS)
       }
       if (bets.digit && bets.digitAmount > 0) {
-        if (bets.digit === wonDigit) totalPayout += roundTo1000(bets.digitAmount * FIXED_ODDS)
+        if (bets.digit === wonDigit) totalPayout += Math.floor(bets.digitAmount * FIXED_ODDS)
       }
       if (bets.parity && bets.parityAmount > 0) {
-        if (bets.parity === wonParity) totalPayout += roundTo1000(bets.parityAmount * FIXED_ODDS)
+        if (bets.parity === wonParity) totalPayout += Math.floor(bets.parityAmount * FIXED_ODDS)
       }
       if (bets.baccaratSide && bets.baccaratAmount > 0) {
         const side = bets.baccaratSide as "player" | "banker" | "tie"
+        // 정확히 맞춰야만 지급 — 타이 결과 시 player/banker는 LOSS (반환 없음)
         if (side === baccaratResult) {
           const odds = snap[side] as number
-          totalPayout += roundTo1000(bets.baccaratAmount * odds)
+          totalPayout += Math.floor(bets.baccaratAmount * odds)
         }
       }
     } else {
@@ -178,7 +178,7 @@ export async function POST(request: Request) {
         // 정확히 맞춰야만 지급 — 타이 결과 시 bit/coin은 LOSS (반환 없음)
         if (side === raceWinner) {
           const odds = snap[side] as number
-          totalPayout += roundTo1000(bets.raceAmount * odds)
+          totalPayout += Math.floor(bets.raceAmount * odds)
         }
       }
     }
@@ -188,7 +188,7 @@ export async function POST(request: Request) {
       const side = bets.baccaratSide as "player" | "banker" | "tie"
       const won = side === baccaratResult
       const odds = oddsSnap[side] as number
-      const betPayout = won ? roundTo1000(bets.baccaratAmount * odds) : 0
+      const betPayout = won ? Math.floor(bets.baccaratAmount * odds) : 0
       const profit = betPayout - bets.baccaratAmount
 
       // game_round_history upsert (존재하면 participant_count만 증가)
@@ -234,21 +234,21 @@ export async function POST(request: Request) {
           user_id: userId, branch_id: branchId, round_id: null,
           bet_direction: bets.direction, bet_digit: null, bet_parity: null,
           bet_amount: bets.directionAmount,
-          payout: bets.direction === wonDirection ? roundTo1000(bets.directionAmount * FIXED_ODDS) : 0,
+          payout: bets.direction === wonDirection ? Math.floor(bets.directionAmount * FIXED_ODDS) : 0,
           result: bets.direction === wonDirection ? "win" : "lose",
         })
         if (bets.digitAmount > 0) historyRows.push({
           user_id: userId, branch_id: branchId, round_id: null,
           bet_direction: null, bet_digit: bets.digit, bet_parity: null,
           bet_amount: bets.digitAmount,
-          payout: bets.digit === wonDigit ? roundTo1000(bets.digitAmount * FIXED_ODDS) : 0,
+          payout: bets.digit === wonDigit ? Math.floor(bets.digitAmount * FIXED_ODDS) : 0,
           result: bets.digit === wonDigit ? "win" : "lose",
         })
         if (bets.parityAmount > 0) historyRows.push({
           user_id: userId, branch_id: branchId, round_id: null,
           bet_direction: null, bet_digit: null, bet_parity: bets.parity,
           bet_amount: bets.parityAmount,
-          payout: bets.parity === wonParity ? roundTo1000(bets.parityAmount * FIXED_ODDS) : 0,
+          payout: bets.parity === wonParity ? Math.floor(bets.parityAmount * FIXED_ODDS) : 0,
           result: bets.parity === wonParity ? "win" : "lose",
         })
         if (bets.baccaratSide && bets.baccaratAmount > 0) {
@@ -259,7 +259,7 @@ export async function POST(request: Request) {
             user_id: userId, branch_id: branchId, round_id: null,
             bet_direction: `baccarat_${side}`, bet_digit: null, bet_parity: null,
             bet_amount: bets.baccaratAmount,
-            payout: won ? roundTo1000(bets.baccaratAmount * odds) : 0,
+            payout: won ? Math.floor(bets.baccaratAmount * odds) : 0,
             result: won ? "win" : "lose",
           })
         }
@@ -277,7 +277,7 @@ export async function POST(request: Request) {
           user_id: userId, branch_id: branchId, round_id: null,
           bet_direction: `race_${side}`, bet_digit: null, bet_parity: null,
           bet_amount: bets.raceAmount,
-          payout: won ? roundTo1000(bets.raceAmount * odds) : 0,
+          payout: won ? Math.floor(bets.raceAmount * odds) : 0,
           result: won ? "win" : "lose",
         })
       }
