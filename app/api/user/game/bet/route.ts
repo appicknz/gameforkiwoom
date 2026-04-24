@@ -22,14 +22,15 @@ export async function POST(request: Request) {
     }
 
     // ── 배팅 구간 서버 검증 (UTC 기준) ───────────────────────────
-    // baccarat: secInRound 5~14초, race: secInRound 10~59초
+    // baccarat: 30초 라운드, 정산 0~4초, 배팅 5~19초, 게임중 20~29초
+    // race:    180초 라운드, 정산 0~9초, 배팅 10~59초, 게임중 60~179초
     const nowSec = Math.floor(Date.now() / 1000)
     const type = (gameType ?? "baccarat") as "baccarat" | "race"
     const roundSec = type === "race" ? 180 : 30
     const secInRound = nowSec % roundSec
     const inBettingPhase = type === "race"
       ? secInRound >= 10 && secInRound < 60
-      : secInRound >= 5  && secInRound < 15
+      : secInRound >= 5  && secInRound < 20
     if (!inBettingPhase) {
       return NextResponse.json({ error: "Betting is closed for this round" }, { status: 400 })
     }
