@@ -137,11 +137,12 @@ export async function GET(request: Request) {
 
           // 배팅 마감 순간 감지: 배팅 → 게임중 전환
           if (wasInBetting && !inBetting) {
-            // 확정 배당을 odds:final에 저장 (settle이 이 값을 정산에 사용)
+            // ※ 키는 lastRound 기준 — 전환 직후 currentRound가 바뀌면 새 라운드 키에 저장되는 버그 방지
+            // ※ NX: 이미 저장된 값이 있으면 덮어쓰지 않음 (auto-bet과 충돌 방지)
             const payload = await getOddsPayload(gameType, branchId)
-            const finalKey = `odds:final:${gameType}:${currentRound}`
+            const finalKey = `odds:final:${gameType}:${lastRound}`
             const oddsToSave = (payload as { odds: unknown }).odds
-            await redis.set(finalKey, JSON.stringify(oddsToSave), { ex: roundInterval + 60 }).catch(() => {})
+            await redis.set(finalKey, JSON.stringify(oddsToSave), { ex: roundInterval + 60, nx: true }).catch(() => {})
             // 마감 배당을 클라이언트에도 1회 전송
             send(payload)
           }

@@ -351,7 +351,8 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       }
       const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, userCountFinal as number)
       const snap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
-      await redis.set(finalOddsKey, JSON.stringify(snap), { ex: ttl })
+      // NX: SSE가 이미 저장했으면 덮어쓰지 않음 — 배팅 마감 순간의 확정 배당 보존
+      await redis.set(finalOddsKey, JSON.stringify(snap), { ex: ttl, nx: true })
       // 각 결과에 본인 사이드 odds 채우기
       for (const res of settled) {
         if (res.success) res.odds = snap[res.side as keyof typeof snap] ?? null
@@ -364,7 +365,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       }
       const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, userCountFinal as number)
       const snap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
-      await redis.set(finalOddsKey, JSON.stringify(snap), { ex: ttl })
+      await redis.set(finalOddsKey, JSON.stringify(snap), { ex: ttl, nx: true })
       for (const res of settled) {
         if (res.success) res.odds = snap[res.side as keyof typeof snap] ?? null
       }
