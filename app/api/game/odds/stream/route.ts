@@ -116,11 +116,12 @@ export async function GET(request: Request) {
 
       // 2) 버전 카운터 폴링 — 배팅 발생(incr) 또는 라운드 전환 시 갱신
       const roundInterval = gameType === "race" ? 180 : 30
-      // baccarat: 배팅 구간 = secInRound 5~14 (timeLeft 25~15), 정산 0~4, 게임중 15~29
+      // baccarat: 배팅 구간 = secInRound 5~19, 정산 0~4, 게임중 20~29
       // race:     배팅 구간 = secInRound 10~59, 정산 0~9, 게임중 60~179
+      // ※ bet/route.ts 서버 검증과 반드시 동일해야 함 — 불일치 시 odds:final 타이밍 오염
       const isBettingPhase = () => {
         const s = Math.floor(Date.now() / 1000) % roundInterval
-        if (gameType === "baccarat") return s >= 5 && s < 15
+        if (gameType === "baccarat") return s >= 5 && s < 20
         return s >= 10 && s < 60
       }
       let lastVersion = (await redis.get<number>(versionKey)) ?? 0
