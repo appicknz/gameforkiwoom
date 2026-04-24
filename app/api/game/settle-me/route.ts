@@ -72,62 +72,53 @@ export async function POST(request: Request) {
 
     const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
 
-    // ── odds 확정 배당 조회 ──────────────────────────────────────
-    // 오직 유저 배팅 시점 스냅샷만 사용 (odds:snap:{gameType}:{round}:{userId})
-    // odds:final은 SSE 연결 수만큼 저장 경쟁이 발생해 타이밍 오염 → 완전 제거
-    // bet/route.ts에서 배팅 성공 시 oddsSnap을 저장하므로 항상 배팅 시점 값이 보장됨
+    // ── 확정 배당 계산 ───────────────────────────────────────────
+    // 배팅 마감 후 풀이 고정된 상태에서 settle-me가 호출됨
+    // 같은 포지션에 배팅한 모든 유저는 동일한 최종 풀 기준 배당을 받아야 함
+    // odds:final / odds:snap 의존 완전 제거 — 항상 pool Redis 직접 재계산
     let oddsSnap: { player?: number; banker?: number; tie?: number; bit?: number; coin?: number } = {}
 
-    const snapOddsRaw = await redis.get(`odds:snap:${gameType}:${resolvedRound}:${userId}`)
-    if (snapOddsRaw) {
-      try { oddsSnap = typeof snapOddsRaw === "string" ? JSON.parse(snapOddsRaw) : snapOddsRaw as typeof oddsSnap } catch {}
+    // 유저 브랜치 LP 설정 조회
+    const { data: profileRow } = await admin
+      .from("profiles").select("branch_id").eq("id", userId).single()
+    let lpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
+    if (profileRow?.branch_id) {
+      const { data: branchRow } = await admin
+        .from("branches")
+        .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+        .eq("id", profileRow.branch_id).single()
+      if (branchRow) lpConfig = branchToLpConfig(branchRow)
     }
 
-    // snap 없으면 — 풀 + 유저의 실제 LP 설정으로 재계산 (TTL 만료 비상 fallback)
-    if (Object.keys(oddsSnap).length === 0) {
-      // 유저 브랜치 LP 설정 조회
-      const { data: profileRow } = await admin
-        .from("profiles").select("branch_id").eq("id", userId).single()
-      let lpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
-      if (profileRow?.branch_id) {
-        const { data: branchRow } = await admin
-          .from("branches")
-          .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
-          .eq("id", profileRow.branch_id).single()
-        if (branchRow) lpConfig = branchToLpConfig(branchRow)
-      }
+    const poolKey = `pool:${gameType}:${resolvedRound}`
+    const [poolData, userCount] = await Promise.all([
+      redis.hgetall(poolKey).catch(() => null),
+      redis.scard(`users:${gameType}:${resolvedRound}`).catch(() => 0),
+    ])
+    const safeCount = (userCount as number) ?? 0
 
-      const poolKey = `pool:${gameType}:${resolvedRound}`
-      const [poolData, userCount] = await Promise.all([
-        redis.hgetall(poolKey).catch(() => null),
-        redis.scard(`users:${gameType}:${resolvedRound}`).catch(() => 0),
-      ])
-      const safeCount = (userCount as number) ?? 0
-
-      if (gameType === "baccarat") {
-        const pool = {
-          player: parseInt((poolData?.player as string) ?? "0") || 0,
-          banker: parseInt((poolData?.banker as string) ?? "0") || 0,
-          tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
-        }
-        if (pool.player + pool.banker + pool.tie === 0) {
-          // 풀도 만료 — 배당 데이터 없음, 정산 불가
-          return NextResponse.json({ error: "배당 데이터가 만료되었습니다. 관리자에게 문의하세요." }, { status: 422 })
-        }
-        const r = calcBaccaratOdds(pool, lpConfig, safeCount)
-        oddsSnap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
-      } else {
-        const pool = {
-          bit:  parseInt((poolData?.bit  as string) ?? "0") || 0,
-          coin: parseInt((poolData?.coin as string) ?? "0") || 0,
-          tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
-        }
-        if (pool.bit + pool.coin + pool.tie === 0) {
-          return NextResponse.json({ error: "배당 데이터가 만료되었습니다. 관리자에게 문의하세요." }, { status: 422 })
-        }
-        const r = calcRaceOdds(pool, lpConfig, safeCount)
-        oddsSnap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+    if (gameType === "baccarat") {
+      const pool = {
+        player: parseInt((poolData?.player as string) ?? "0") || 0,
+        banker: parseInt((poolData?.banker as string) ?? "0") || 0,
+        tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
       }
+      if (pool.player + pool.banker + pool.tie === 0) {
+        return NextResponse.json({ error: "배당 데이터가 만료되었습니다. 관리자에게 문의하세요." }, { status: 422 })
+      }
+      const r = calcBaccaratOdds(pool, lpConfig, safeCount)
+      oddsSnap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+    } else {
+      const pool = {
+        bit:  parseInt((poolData?.bit  as string) ?? "0") || 0,
+        coin: parseInt((poolData?.coin as string) ?? "0") || 0,
+        tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
+      }
+      if (pool.bit + pool.coin + pool.tie === 0) {
+        return NextResponse.json({ error: "배당 데이터가 만료되었습니다. 관리자에게 문의하세요." }, { status: 422 })
+      }
+      const r = calcRaceOdds(pool, lpConfig, safeCount)
+      oddsSnap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
     }
 
     // ── 당첨금 계산 (천원 단위 내림) ─────────────────────────
