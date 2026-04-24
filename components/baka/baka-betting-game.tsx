@@ -701,16 +701,23 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       const appliedOddsForSide = betBaccaratRef.current === "player" ? snapshotPlayer
         : betBaccaratRef.current === "banker" ? liveOddsSnapshotRef.current?.banker
         : liveOddsSnapshotRef.current?.tie
-      // ── [DEBUG] 배팅 정보 ────────────────────────────────────
-      console.log("[baka:bet]", {
-        round: resolvedRoundNumber,
-        side: betBaccaratRef.current,
-        amount: betBaccaratAmountRef.current,
-        clientOddsSnapshot: liveOddsSnapshotRef.current,
-        clientOddsForSide: appliedOddsForSide,
-        bacResult,
-        wonBaccarat,
-      })
+      // ── LOG 3: 게임 결과 ─────────────────────────────────────
+      if (betBaccaratRef.current) {
+        const side = betBaccaratRef.current
+        const amount = betBaccaratAmountRef.current
+        const snap = liveOddsSnapshotRef.current
+        const oddsAtBet = side === "player" ? snap?.player : side === "banker" ? snap?.banker : snap?.tie
+        console.log(`%c[게임결과] 라운드#${resolvedRoundNumber}`, "color:#81c784;font-weight:bold", {
+          betSide: side,
+          result: bacResult,
+          won: wonBaccarat,
+          betAmount: amount,
+          oddsAtBetTime: oddsAtBet,
+          expectedPayout: wonBaccarat && oddsAtBet ? Math.floor(amount * oddsAtBet / 1000) * 1000 : 0,
+          expectedNetProfit: wonBaccarat && oddsAtBet ? Math.floor(amount * oddsAtBet / 1000) * 1000 - amount : -amount,
+          note: "서버 settle-me 응답 대기 중...",
+        })
+      }
 
       if (token) {
         fetch("/api/game/settle-me", {
@@ -728,22 +735,33 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
             return JSON.parse(text)
           })
           .then(d => {
-            // ── [DEBUG] 서버 정산 응답 ──────────────────────────
+            // ── LOG 3-2: 서버 정산 응답 (게임결과 로그와 비교) ───
             const betSide = lastResultRef.current?.baccarat
             const betAmount = lastResultRef.current?.baccaratAmount ?? 0
             const serverOddsForSide = betSide && d.appliedOdds ? d.appliedOdds[betSide] : null
-            const expectedPayout = serverOddsForSide ? Math.floor(betAmount * serverOddsForSide / 1000) * 1000 : null
-            console.log("[baka:settle]", {
-              round: resolvedRoundNumber,
-              side: betSide,
-              amount: betAmount,
-              serverAppliedOdds: d.appliedOdds,
-              oddsForSide: serverOddsForSide,
+            const clientOddsAtBet = betSide && liveOddsSnapshotRef.current
+              ? (betSide === "player" ? liveOddsSnapshotRef.current.player
+                : betSide === "banker" ? liveOddsSnapshotRef.current.banker
+                : liveOddsSnapshotRef.current.tie)
+              : null
+            const expectedByServerOdds = serverOddsForSide ? Math.floor(betAmount * serverOddsForSide / 1000) * 1000 : 0
+            const oddsMatch = clientOddsAtBet != null && serverOddsForSide != null
+              ? Math.abs(clientOddsAtBet - serverOddsForSide) < 0.01
+              : null
+            console.log(`%c[서버정산] 라운드#${resolvedRoundNumber}`, oddsMatch === false ? "color:#e57373;font-weight:bold" : "color:#ce93d8;font-weight:bold", {
+              betSide,
+              betAmount,
+              "① 배팅시점odds(클라)": clientOddsAtBet,
+              "② 확정odds(서버)": serverOddsForSide,
+              "③ oddsMatch": oddsMatch,
               serverPayout: d.payout,
-              expectedPayout,
-              payoutMatch: d.payout === expectedPayout,
+              expectedByServerOdds,
+              payoutMatch: d.payout === expectedByServerOdds,
               newBalance: d.balance,
             })
+            if (oddsMatch === false) {
+              console.warn(`%c[불일치!] 배팅시점 ${clientOddsAtBet}x ≠ 서버확정 ${serverOddsForSide}x — odds:final 오염 의심`, "color:#e57373;font-weight:bold")
+            }
 
             // 정산 완료 후 잔고 갱신
             if (typeof d.balance === "number") {
@@ -827,7 +845,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     }, []),
   })
 
-  // baka:closing 이벤트 구독 — bitcoin-chart.tsx k.x===true 공식 종가 = 패널과 동일 소스
+  // baka:closing 이벤트 구독 �� bitcoin-chart.tsx k.x===true 공식 종가 = 패널과 동일 소스
   useEffect(() => {
     const handler = (e: Event) => {
       const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
@@ -877,12 +895,26 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     return s >= 5 && s < 20
   })()
 
-  // canBetRef 동기화 + 배팅 시작 시 최신 odds 즉시 반영
+  // canBetRef 동기화 + 배팅 시작/마감 로그
   useEffect(() => {
+    const wasBetting = canBetRef.current
     canBetRef.current = canBet
     if (canBet && liveOddsRef.current) {
-      // 배팅 구간 진입: 최신 liveOdds를 state에 즉��� 반영
+      // 배팅 구간 진입: 최신 liveOdds를 state에 즉시 반영
       setLiveOdds(liveOddsRef.current)
+    }
+
+    // ── LOG 2: 배팅 마감 (true→false 전환 = 게임중 시작) ──────
+    if (wasBetting && !canBet && betBaccaratRef.current) {
+      const snap = liveOddsRef.current
+      const side = betBaccaratRef.current
+      const oddsAtClose = side === "player" ? snap?.player : side === "banker" ? snap?.banker : snap?.tie
+      console.log(`%c[배당확정] 라운드#${betRoundNumberRef.current} 배팅마감`, "color:#ffb74d;font-weight:bold", {
+        side,
+        oddsAtBettingClose: oddsAtClose,
+        fullOdds: snap,
+        note: "이 배당으로 서버가 정산해야 함",
+      })
     }
   }, [canBet])
 
@@ -974,6 +1006,19 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       if (!basePriceRef.current && currentPriceRef.current) {
         basePriceRef.current = currentPriceRef.current
         setBasePrice(currentPriceRef.current)
+      }
+
+      // ── LOG 1: 배팅 완료 ────────────────────────────────────
+      if (type === "baccarat") {
+        const snap = liveOddsRef.current
+        const side = value as BetBaccarat
+        const oddsForSide = side === "player" ? snap?.player : side === "banker" ? snap?.banker : snap?.tie
+        console.log(`%c[배팅완료] 라운드#${betRoundNumberRef.current}`, "color:#4fc3f7;font-weight:bold", {
+          side,
+          amount: cfg.amount,
+          oddsAtBetTime: oddsForSide,
+          fullOddsSnapshot: snap,
+        })
       }
     }
 
