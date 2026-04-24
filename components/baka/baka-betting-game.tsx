@@ -469,6 +469,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
   const [phase, setPhase] = useState<"betting" | "waiting" | "result">("betting")
   const [lastResult, setLastResult] = useState<RoundResult | null>(null)
+  const lastResultRef = useRef<RoundResult | null>(null)
+  useEffect(() => { lastResultRef.current = lastResult }, [lastResult])
   const [wins, setWins] = useState(0)
   const [losses, setLosses] = useState(0)
   const [balance, setBalance] = useState<number | null>(null)
@@ -542,7 +544,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const betParityAmountRef = useRef(0)
   const betBaccaratAmountRef  = useRef(0)
   const betRoundNumberRef     = useRef(0)   // 배팅 시점 roundNumber 보존 (정산 시 라운드 경계 문제 방지)
-  const liveOddsSnapshotRef   = useRef<typeof liveOdds>(null)  // 배팅 시점 odds 스냅샷 (라운드 종료 후 초기화되기 전 값)
+  const liveOddsSnapshotRef   = useRef<typeof liveOdds>(null)  // 배팅 ���점 odds 스냅샷 (라운드 종료 후 초기화되기 전 값)
   const liveOddsRef           = useRef<typeof liveOdds>(null)  // 항상 최신 liveOdds를 가리키는 ref (클로저 stale 방지)
   const frozenOddsRef         = useRef<typeof liveOdds>(null)  // 배팅 마감 순간 확정 배당 스냅샷
   const basePriceRef = useRef<number | null>(null)
@@ -723,15 +725,17 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
               setBalance(d.balance)
               window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
             }
-            // 서버 확정 배당 + 서버 정산 payout 저장 후 모달 오픈
-            setLastResult(prev => {
-              if (!prev) return prev
-              const next: RoundResult = { ...prev }
-              if (d.appliedOdds) next.baccaratOdds = d.appliedOdds
-              // 서버가 내려준 payout을 직접 사용 — 클라이언트 재계산 오류 방지
-              if (typeof d.payout === "number") next.serverPayout = d.payout
-              return next
-            })
+            // 서버 확정 배당 + payout 반영
+            // lastResultRef.current로 최신 result를 동기적으로 읽어 한 번에 교체
+            // → setLastResult 함수형 업데이트의 비동기 배치 타이밍 문제 완전 회피
+            const currentResult = lastResultRef.current
+            if (currentResult) {
+              const updated: RoundResult = { ...currentResult }
+              if (d.appliedOdds) updated.baccaratOdds = d.appliedOdds
+              // d.payout = 총수령액 (배팅금 포함, 천원 단위 내림 적용됨)
+              if (typeof d.payout === "number") updated.serverPayout = d.payout
+              setLastResult(updated)
+            }
             if (hasBaccaratBet) setShowResultSheet(true)
           })
           .catch(err => console.error("[v0] settle-me fetch error:", err))
