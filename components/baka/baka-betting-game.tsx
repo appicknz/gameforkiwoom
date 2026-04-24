@@ -766,6 +766,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
             basePrice: effectiveBase,
             roundNumber: resolvedRoundNumber,
             gameType: "baccarat",
+            // 실제 카드 게임 결과 — 서버가 이 값을 우선 사용해야 정확한 정산 가능
+            // 소수점 기반 추정은 실제 카드 결과와 다를 수 있음
+            baccaratResult: bacResult,
           }),
         })
           .then(async r => {
