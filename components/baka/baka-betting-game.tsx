@@ -30,7 +30,7 @@ interface RoundResult {
   baccaratAmount: number
   // 정산 시점의 실시간 LP 배당률 스냅샷
   baccaratOdds: { player: number; banker: number; tie: number } | null
-  // 서버 settle-me가 계산한 최종 payout (천원 단위 내림 적용)
+  // 서버 settle-me가 계산한 최종 payout (백원 단위 내림 적용)
   serverPayout?: number
 }
 
@@ -294,15 +294,15 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
   const bets = [
     result.direction && {
       key: result.direction, label: LABEL_MAP[result.direction], won: result.wonDirection, amount: result.directionAmount,
-      payout: result.wonDirection ? Math.floor(result.directionAmount * PAYOUT_RATIO / 1000) * 1000 : 0
+      payout: result.wonDirection ? Math.floor(result.directionAmount * PAYOUT_RATIO / 100) * 100 : 0
     },
     result.digit && {
       key: result.digit, label: LABEL_MAP[result.digit], won: result.wonDigit, amount: result.digitAmount,
-      payout: result.wonDigit ? Math.floor(result.digitAmount * PAYOUT_RATIO / 1000) * 1000 : 0
+      payout: result.wonDigit ? Math.floor(result.digitAmount * PAYOUT_RATIO / 100) * 100 : 0
     },
     result.parity && {
       key: result.parity, label: LABEL_MAP[result.parity], won: result.wonParity, amount: result.parityAmount,
-      payout: result.wonParity ? Math.floor(result.parityAmount * PAYOUT_RATIO / 1000) * 1000 : 0
+      payout: result.wonParity ? Math.floor(result.parityAmount * PAYOUT_RATIO / 100) * 100 : 0
     },
     result.baccarat && {
       key: result.baccarat, label: LABEL_MAP[result.baccarat], won: result.wonBaccarat, amount: result.baccaratAmount,
@@ -315,15 +315,15 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
       })(),
       payout: result.wonBaccarat
         ? (() => {
-          // 서버 확정 payout 우선 사용 (천원 단위 내림 적용된 값)
+          // 서버 확정 payout 우선 사용 (백원 단위 내림 적용된 값)
           if (typeof result.serverPayout === "number" && result.serverPayout > 0) return result.serverPayout
-          // fallback: 클라이언트 odds로 계산 (천원 단위 내림)
+          // fallback: 클라이언트 odds로 계산 (백원 단위 내림)
           const o = result.baccaratOdds
           if (!o) return 0
           const odds = result.baccarat === "player" ? o.player
             : result.baccarat === "banker" ? o.banker
             : o.tie
-          return Math.floor((result.baccaratAmount * (odds ?? 0)) / 1000) * 1000
+          return Math.floor((result.baccaratAmount * (odds ?? 0)) / 100) * 100
         })()
         : 0,
     },

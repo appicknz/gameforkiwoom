@@ -121,8 +121,8 @@ export async function POST(request: Request) {
       oddsSnap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
     }
 
-    // ── 당첨금 계산 (천원 단위 내림) ─────────────────────────
-    const roundTo1000 = (v: number) => Math.floor(v / 1000) * 1000
+    // ── 당첨금 계산 (백원 단위 내림) ─────────────────────────
+    const roundTo1000 = (v: number) => Math.floor(v / 100) * 100
     let totalPayout = 0
     const snap = oddsSnap as Record<string, number>
 
