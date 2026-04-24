@@ -525,6 +525,43 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     }
   }, [])
 
+  // ── 마운트 시 활성 배팅 복원 (새로고침 대응) ─────────────────
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch("/api/user/game/bet?type=baccarat", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.activeBet) return
+        const { roundNumber, side, amount, oddsAtBet } = data.activeBet
+        // 현재 라운드와 동일한 배팅만 복원 (이미 지난 라운드는 무시)
+        const nowRound = Math.floor(Date.now() / 1000 / 30)
+        if (roundNumber !== nowRound) return
+
+        // baccarat 배팅 복원
+        if (side === "player" || side === "banker" || side === "tie") {
+          betBaccaratRef.current = side
+          betBaccaratAmountRef.current = amount
+          setBetBaccarat(side)
+          setBetBaccaratAmount(amount)
+          betRoundNumberRef.current = roundNumber
+          if (oddsAtBet) {
+            liveOddsSnapshotRef.current = oddsAtBet
+            dbgBetRef.current = {
+              round: roundNumber,
+              side,
+              amount,
+              oddsAtBet: oddsAtBet[side] ?? null,
+              oddsSnap: oddsAtBet,
+            }
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   // 자동 배팅
   const [autoBet, setAutoBet] = useState<AutoBetConfig>(DEFAULT_AUTO_BET)
   const [autoBetOpen, setAutoBetOpen] = useState(false)

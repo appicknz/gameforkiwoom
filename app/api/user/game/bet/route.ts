@@ -9,6 +9,29 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 })
 
+/** 현재 라운드 활성 배팅 조회 — 새로고침 복원용 */
+export async function GET(req: Request) {
+  const auth = await verifySession(req)
+  if (!auth.ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { userId } = auth
+
+  const url = new URL(req.url)
+  const gameType = (url.searchParams.get("type") ?? "baccarat") as "baccarat" | "race"
+  const roundInterval = gameType === "race" ? 180 : 30
+  const nowSec = Math.floor(Date.now() / 1000)
+  const currentRound = Math.floor(nowSec / roundInterval)
+
+  // 현재 라운드 + 직전 라운드 모두 확인 (정산 구간에 새로고침 대비)
+  const [cur, prev] = await Promise.all([
+    redis.get(`bet:active:${gameType}:${currentRound}:${userId}`),
+    redis.get(`bet:active:${gameType}:${currentRound - 1}:${userId}`),
+  ])
+  const raw = cur ?? prev
+  if (!raw) return NextResponse.json({ activeBet: null })
+  const activeBet = typeof raw === "string" ? JSON.parse(raw) : raw
+  return NextResponse.json({ activeBet })
+}
+
 export async function POST(request: Request) {
   const supabase = adminSupabase
 
@@ -179,6 +202,17 @@ export async function POST(request: Request) {
       // 유저 개인 odds 스냅샷만 저장 — 배팅 시점 기록용
       // odds:final은 SSE(배팅→게임중 전환 순간)만 저장 — 여기서 덮어쓰면 배당 오염됨
       await redis.set(oddsSnapKey, JSON.stringify(oddsSnap), { ex: ttl })
+
+      // 활성 배팅 저장 — 새로고침 시 복원용 (TTL = 라운드 종료 후 약간 여유)
+      const activeBetKey = `bet:active:${gameType}:${roundNumber}:${userId}`
+      await redis.set(activeBetKey, JSON.stringify({
+        roundNumber,
+        gameType,
+        side,
+        amount,
+        oddsAtBet: oddsSnap,
+        placedAt: Date.now(),
+      }), { ex: ttl + 10 })
 
     }
 
