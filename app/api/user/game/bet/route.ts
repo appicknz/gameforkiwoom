@@ -176,18 +176,9 @@ export async function POST(request: Request) {
         }
       }
 
-      // 항상 최신 풀 기준 odds로 갱신 (파리뮤추얼: 배팅이 들어올수록 배당 변동)
-      // 기존 스냅샷보다 새 oddsSnap을 우선 적용
-      const existingSnap = await redis.get<string>(oddsSnapKey)
-      const prevSnap = existingSnap
-        ? (typeof existingSnap === "string" ? JSON.parse(existingSnap) : existingSnap)
-        : {}
-      const mergedSnap = { ...prevSnap, ...oddsSnap }  // oddsSnap이 prevSnap을 덮어씀
-      await redis.set(oddsSnapKey, JSON.stringify(mergedSnap), { ex: ttl })
-
-      // 라운드 단위 최종 배당 저장 — 단일 키 (SSE·settle·round-stats 모두 동일 키 읽음)
-      const finalOddsKey = `odds:final:${gameType}:${roundNumber}`
-      await redis.set(finalOddsKey, JSON.stringify(oddsSnap), { ex: ttl })
+      // 유저 개인 odds 스냅샷만 저장 — 배팅 시점 기록용
+      // odds:final은 SSE(배팅→게임중 전환 순간)만 저장 — 여기서 덮어쓰면 배당 오염됨
+      await redis.set(oddsSnapKey, JSON.stringify(oddsSnap), { ex: ttl })
 
     }
 

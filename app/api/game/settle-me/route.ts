@@ -72,15 +72,25 @@ export async function POST(request: Request) {
 
     const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
 
-    // ── odds 확정 배당 (단일 소스: odds:final — SSE가 배팅 마감 시 저장) ─────
-    // 관리자 모니터·클라이언트·정산 모두 동일한 키를 사용해 배당 일치 보장
+    // ── odds 확정 배당 조회 우선순위 ────────────────────────────
+    // 1순위: odds:final — SSE가 배팅→게임중 전환 순간 저장한 라운드 확정 배당
+    // 2순위: odds:snap:{gameType}:{round}:{userId} — 유저 배팅 시점 스냅샷
+    // 3순위: 풀 재계산 (TTL 만료 등 비상 fallback)
     let oddsSnap: { player?: number; banker?: number; tie?: number; bit?: number; coin?: number } = {}
-    const finalOddsRaw = await redis.get<string>(`odds:final:${gameType}:${resolvedRound}`)
+
+    const [finalOddsRaw, snapOddsRaw] = await Promise.all([
+      redis.get(`odds:final:${gameType}:${resolvedRound}`),
+      redis.get(`odds:snap:${gameType}:${resolvedRound}:${userId}`),
+    ])
+
     if (finalOddsRaw) {
-      try { oddsSnap = typeof finalOddsRaw === "string" ? JSON.parse(finalOddsRaw) : finalOddsRaw } catch {}
+      try { oddsSnap = typeof finalOddsRaw === "string" ? JSON.parse(finalOddsRaw) : finalOddsRaw as typeof oddsSnap } catch {}
+    } else if (snapOddsRaw) {
+      // odds:final이 아직 없으면 유저 배팅 시점 스냅샷 사용
+      try { oddsSnap = typeof snapOddsRaw === "string" ? JSON.parse(snapOddsRaw) : snapOddsRaw as typeof oddsSnap } catch {}
     }
 
-    // odds:final 없으면 — 풀 + 유저의 실제 LP 설정으로 재계산 (TTL 3600s 내에서는 발생하면 안 됨)
+    // odds:final·snap 모두 없으면 — 풀 + 유저의 실제 LP 설정으로 재계산 (비상 fallback)
     if (Object.keys(oddsSnap).length === 0) {
       // 유저 브랜치 LP 설정 조회
       const { data: profileRow } = await admin
@@ -144,7 +154,7 @@ export async function POST(request: Request) {
       }
       if (bets.baccaratSide && bets.baccaratAmount > 0) {
         const side = bets.baccaratSide as "player" | "banker" | "tie"
-        // 정확히 맞춰야만 지급 — 타이 결과 시 player/banker는 LOSS (반환 없음)
+        // 정확히 맞춰야만 지��� — 타이 결과 시 player/banker는 LOSS (반환 없음)
         if (side === baccaratResult) {
           const odds = snap[side] as number
           totalPayout += roundTo1000(bets.baccaratAmount * odds)
