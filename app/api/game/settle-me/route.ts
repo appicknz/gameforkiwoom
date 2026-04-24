@@ -72,25 +72,18 @@ export async function POST(request: Request) {
 
     const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
 
-    // ── odds 확정 배당 조회 우선순위 ────────────────────────────
-    // 1순위: odds:final — SSE가 배팅→게임중 전환 순간 저장한 라운드 확정 배당
-    // 2순위: odds:snap:{gameType}:{round}:{userId} — 유저 배팅 시점 스냅샷
-    // 3순위: 풀 재계산 (TTL 만료 등 비상 fallback)
+    // ── odds 확정 배당 조회 ──────────────────────────────────────
+    // 오직 유저 배팅 시점 스냅샷만 사용 (odds:snap:{gameType}:{round}:{userId})
+    // odds:final은 SSE 연결 수만큼 저장 경쟁이 발생해 타이밍 오염 → 완전 제거
+    // bet/route.ts에서 배팅 성공 시 oddsSnap을 저장하므로 항상 배팅 시점 값이 보장됨
     let oddsSnap: { player?: number; banker?: number; tie?: number; bit?: number; coin?: number } = {}
 
-    const [finalOddsRaw, snapOddsRaw] = await Promise.all([
-      redis.get(`odds:final:${gameType}:${resolvedRound}`),
-      redis.get(`odds:snap:${gameType}:${resolvedRound}:${userId}`),
-    ])
-
-    if (finalOddsRaw) {
-      try { oddsSnap = typeof finalOddsRaw === "string" ? JSON.parse(finalOddsRaw) : finalOddsRaw as typeof oddsSnap } catch {}
-    } else if (snapOddsRaw) {
-      // odds:final이 아직 없으면 유저 배팅 시점 스냅샷 사용
+    const snapOddsRaw = await redis.get(`odds:snap:${gameType}:${resolvedRound}:${userId}`)
+    if (snapOddsRaw) {
       try { oddsSnap = typeof snapOddsRaw === "string" ? JSON.parse(snapOddsRaw) : snapOddsRaw as typeof oddsSnap } catch {}
     }
 
-    // odds:final·snap 모두 없으면 — 풀 + 유저의 실제 LP 설정으로 재계산 (비상 fallback)
+    // snap 없으면 — 풀 + 유저의 실제 LP 설정으로 재계산 (TTL 만료 비상 fallback)
     if (Object.keys(oddsSnap).length === 0) {
       // 유저 브랜치 LP 설정 조회
       const { data: profileRow } = await admin

@@ -270,14 +270,41 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       const betPayload = gameType === "baccarat"
         ? { baccaratSide: side, baccaratAmount: amount }
         : { raceSide: side, raceAmount: amount }
+      // 배팅 시점 풀로 odds 계산 → 유저별 odds:snap 저장 (settle-me가 이 값으로 정산)
+      const [poolDataNow, userCountNow] = await Promise.all([
+        redis.hgetall(poolKey).catch(() => null),
+        redis.scard(userSetKey).catch(() => 0),
+      ])
+      let oddsSnapNow: Record<string, number> = {}
+      if (gameType === "baccarat") {
+        const pool = {
+          player: parseInt((poolDataNow?.player as string) ?? "0") || 0,
+          banker: parseInt((poolDataNow?.banker as string) ?? "0") || 0,
+          tie:    parseInt((poolDataNow?.tie    as string) ?? "0") || 0,
+        }
+        const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, (userCountNow as number) ?? 0)
+        oddsSnapNow = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+      } else {
+        const pool = {
+          bit:  parseInt((poolDataNow?.bit  as string) ?? "0") || 0,
+          coin: parseInt((poolDataNow?.coin as string) ?? "0") || 0,
+          tie:  parseInt((poolDataNow?.tie  as string) ?? "0") || 0,
+        }
+        const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, (userCountNow as number) ?? 0)
+        oddsSnapNow = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+      }
+      const oddsSnapKey = `odds:snap:${gameType}:${roundNumber}:${p.id}`
+
       await Promise.all([
         redis.set(userBetsKey, JSON.stringify(betPayload), { ex: ttl }),
         redis.set(`bet:round:${gameType}:${p.id}`, roundNumber, { ex: ttl }),
         redis.set(`balance:${p.id}`, newBal as number, { ex: 3600 }),
         redis.incr(`balance_version:${p.id}`),
+        redis.set(oddsSnapKey, JSON.stringify(oddsSnapNow), { ex: ttl }),
       ])
 
-      return { username: p.username, gameType, side, amount, success: true, balance: newBal as number, round: roundNumber, odds: null, fee: Math.floor(amount * 0.2) }
+      const betOdds = oddsSnapNow[side] ?? null
+      return { username: p.username, gameType, side, amount, success: true, balance: newBal as number, round: roundNumber, odds: betOdds, fee: Math.floor(amount * 0.2) }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error"
       return { username: p.username, gameType, side, amount, success: false, error: msg, balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
@@ -336,42 +363,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
     settled.push(...groupResults)
   }
 
-  // 전체 배팅이 끝난 후 최종 풀로 odds 한 번만 계산 → odds:final 저장 (단일 소스)
-  try {
-    const [poolDataFinal, userCountFinal] = await Promise.all([
-      redis.hgetall(poolKey),
-      redis.scard(userSetKey),
-    ])
-    const finalOddsKey = `odds:final:${gameType}:${roundNumber}`
-    if (gameType === "baccarat") {
-      const pool = {
-        player: parseInt((poolDataFinal?.player as string) ?? "0") || 0,
-        banker: parseInt((poolDataFinal?.banker as string) ?? "0") || 0,
-        tie:    parseInt((poolDataFinal?.tie    as string) ?? "0") || 0,
-      }
-      const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, userCountFinal as number)
-      const snap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
-      // NX: SSE가 이미 저장했으면 덮어쓰지 않음 — 배팅 마감 순간의 확정 배당 보존
-      await redis.set(finalOddsKey, JSON.stringify(snap), { ex: ttl, nx: true })
-      // 각 결과에 본인 사이드 odds 채우기
-      for (const res of settled) {
-        if (res.success) res.odds = snap[res.side as keyof typeof snap] ?? null
-      }
-    } else {
-      const pool = {
-        bit:  parseInt((poolDataFinal?.bit  as string) ?? "0") || 0,
-        coin: parseInt((poolDataFinal?.coin as string) ?? "0") || 0,
-        tie:  parseInt((poolDataFinal?.tie  as string) ?? "0") || 0,
-      }
-      const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, userCountFinal as number)
-      const snap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
-      await redis.set(finalOddsKey, JSON.stringify(snap), { ex: ttl, nx: true })
-      for (const res of settled) {
-        if (res.success) res.odds = snap[res.side as keyof typeof snap] ?? null
-      }
-    }
-  } catch {}
-
+  // odds:final 저장 제거 — 각 유저의 odds:snap이 betOne에서 저장됨
   const results = settled.map(({ fee: _fee, ...rest }) => rest)
   const totalFee = settled.reduce((s, r) => s + r.fee, 0)
   return { results, totalFee, round: roundNumber }
