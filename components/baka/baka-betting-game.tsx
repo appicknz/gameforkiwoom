@@ -471,6 +471,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const [lastResult, setLastResult] = useState<RoundResult | null>(null)
   const lastResultRef = useRef<RoundResult | null>(null)
   useEffect(() => { lastResultRef.current = lastResult }, [lastResult])
+  // baccarat:deal-complete 결과를 미리 캐싱 — settle()이 리스너 등록 전에 이벤트가 올 수 있음
+  const dealCompleteResultRef = useRef<"player" | "banker" | "tie" | null>(null)
   const [wins, setWins] = useState(0)
   const [losses, setLosses] = useState(0)
   const [balance, setBalance] = useState<number | null>(null)
@@ -657,11 +659,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     // 2) 매 라운드 DB 저장 (빅로드용, 배팅 무관)
     // 가격/시간 저장은 price-server(Railway)에서 직접 수행
     // 카드 연출 완료 후 점수만 upsert (클라이언트만 카드 점수를 알 수 있음)
+    // 매 라운드 시작 시 캐시 초기화
+    dealCompleteResultRef.current = null
     const onDealForScore = (ev: Event) => {
       window.removeEventListener("baccarat:deal-complete", onDealForScore)
       const { result, pScore, bScore, pRawSum, bRawSum } = (ev as CustomEvent<{
         result: "player" | "banker" | "tie"; pScore: number; bScore: number; pRawSum: number; bRawSum: number
       }>).detail
+      // settle()이 리스너 등록 전에 이벤트가 왔어도 ref에서 꺼낼 수 있도록 캐싱
+      dealCompleteResultRef.current = result
       fetch("/api/closing-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -852,18 +858,26 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     //      (applyFinalDigit 완료 시점이 정확히 전달됨 → 고정 딜레이 불필요)
     //    - 바카라 배팅 없음: 카드 연출과 무관, 즉시 정���
     if (betBaccaratRef.current) {
-      const onDealComplete = (e: Event) => {
-        window.removeEventListener("baccarat:deal-complete", onDealComplete)
-        // applyFinalDigit이 실제 카드 점수로 계산한 결과 사용
-        const actualResult = (e as CustomEvent).detail?.result as "player" | "banker" | "tie" | undefined
-        settle(actualResult ?? serverBacResult)
+      // 이미 이벤트가 왔으면 (ref에 캐싱됨) 즉시 정산 — 타이밍 경쟁 완전 해소
+      if (dealCompleteResultRef.current) {
+        settle(dealCompleteResultRef.current)
+      } else {
+        const onDealComplete = (e: Event) => {
+          window.removeEventListener("baccarat:deal-complete", onDealComplete)
+          const actualResult = (e as CustomEvent).detail?.result as "player" | "banker" | "tie" | undefined
+          settle(actualResult ?? serverBacResult)
+        }
+        window.addEventListener("baccarat:deal-complete", onDealComplete)
+        // 안전 타임아웃: 이벤트 미수신 시 2000ms 후 강제 정산 (소수점 기반)
+        setTimeout(() => {
+          window.removeEventListener("baccarat:deal-complete", onDealComplete)
+          if (dealCompleteResultRef.current) {
+            settle(dealCompleteResultRef.current)
+          } else {
+            settle(serverBacResult)
+          }
+        }, 2000)
       }
-      window.addEventListener("baccarat:deal-complete", onDealComplete)
-      // 안전 타임아���: 이벤��� 미수신 시 1200ms 후 강제 정산 (폴백)
-      setTimeout(() => {
-        window.removeEventListener("baccarat:deal-complete", onDealComplete)
-        settle(serverBacResult)
-      }, 1200)
     } else {
       settle(null)  // 즉시 정산 (������라 외 ���목)
     }
