@@ -30,6 +30,8 @@ interface RoundResult {
   baccaratAmount: number
   // 정산 시점의 실시간 LP 배당률 스냅샷
   baccaratOdds: { player: number; banker: number; tie: number } | null
+  // 서버 settle-me가 계산한 최종 payout (천원 단위 내림 적용)
+  serverPayout?: number
 }
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
@@ -292,15 +294,15 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
   const bets = [
     result.direction && {
       key: result.direction, label: LABEL_MAP[result.direction], won: result.wonDirection, amount: result.directionAmount,
-      payout: result.wonDirection ? Math.floor(result.directionAmount * PAYOUT_RATIO) : 0
+      payout: result.wonDirection ? Math.floor(result.directionAmount * PAYOUT_RATIO / 1000) * 1000 : 0
     },
     result.digit && {
       key: result.digit, label: LABEL_MAP[result.digit], won: result.wonDigit, amount: result.digitAmount,
-      payout: result.wonDigit ? Math.floor(result.digitAmount * PAYOUT_RATIO) : 0
+      payout: result.wonDigit ? Math.floor(result.digitAmount * PAYOUT_RATIO / 1000) * 1000 : 0
     },
     result.parity && {
       key: result.parity, label: LABEL_MAP[result.parity], won: result.wonParity, amount: result.parityAmount,
-      payout: result.wonParity ? Math.floor(result.parityAmount * PAYOUT_RATIO) : 0
+      payout: result.wonParity ? Math.floor(result.parityAmount * PAYOUT_RATIO / 1000) * 1000 : 0
     },
     result.baccarat && {
       key: result.baccarat, label: LABEL_MAP[result.baccarat], won: result.wonBaccarat, amount: result.baccaratAmount,
@@ -313,14 +315,17 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
       })(),
       payout: result.wonBaccarat
         ? (() => {
+          // 서버 확정 payout 우선 사용 (천원 단위 내림 적용된 값)
+          if (typeof result.serverPayout === "number" && result.serverPayout > 0) return result.serverPayout
+          // fallback: 클라이언트 odds로 계산 (천원 단위 내림)
           const o = result.baccaratOdds
           if (!o) return 0
           const odds = result.baccarat === "player" ? o.player
             : result.baccarat === "banker" ? o.banker
             : o.tie
-          return Math.floor(result.baccaratAmount * (odds ?? 0))
+          return Math.floor((result.baccaratAmount * (odds ?? 0)) / 1000) * 1000
         })()
-        : 0,  // 타이 결과여도 player/banker 배팅은 반환 없이 LOSS
+        : 0,
     },
   ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number; payout: number; odds?: number | null; isRefund?: boolean }[]
 
@@ -343,7 +348,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
         {/* 헤더 */}
         <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ background: headerBg }}>
           <div>
-            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라������드 #{result.round} 결과</p>
+            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라�������드 #{result.round} 결과</p>
             <p className="text-2xl font-black tracking-tight" style={{ color: headerColor }}>
               {headerLabel}
             </p>
@@ -718,10 +723,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
               setBalance(d.balance)
               window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
             }
-            // 서버 확정 배당으로 업데이트 후 모달 오픈 — 처음부터 정확한 배율 표시
-            if (d.appliedOdds) {
-              setLastResult(prev => prev ? { ...prev, baccaratOdds: d.appliedOdds } : prev)
-            }
+            // 서버 확정 배당 + 서버 정산 payout 저장 후 모달 오픈
+            setLastResult(prev => {
+              if (!prev) return prev
+              const next: RoundResult = { ...prev }
+              if (d.appliedOdds) next.baccaratOdds = d.appliedOdds
+              // 서버가 내려준 payout을 직접 사용 — 클라이언트 재계산 오류 방지
+              if (typeof d.payout === "number") next.serverPayout = d.payout
+              return next
+            })
             if (hasBaccaratBet) setShowResultSheet(true)
           })
           .catch(err => console.error("[v0] settle-me fetch error:", err))
