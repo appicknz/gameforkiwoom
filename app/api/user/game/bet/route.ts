@@ -21,25 +21,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid bet amount" }, { status: 400 })
     }
 
-    // 토큰 검증 먼저 — 인증 실패는 구간 체크보다 우선
-    if (!authResult.ok) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
-    }
-    const userId = authResult.userId
-
-    // ── 배팅 구간 서버 검증 ────────────────────────────────────
-    // baccarat: 0~4초=정산, 5~19초=배팅, 20~29초=게임중
-    // race:     0~9초=정산, 10~59초=배팅, 60~179초=게임중
+    // ── 배팅 구간 서버 검증 (UTC 기준) ───────────────────────────
+    // baccarat: secInRound 5~14초, race: secInRound 10~59초
     const nowSec = Math.floor(Date.now() / 1000)
     const type = (gameType ?? "baccarat") as "baccarat" | "race"
     const roundSec = type === "race" ? 180 : 30
     const secInRound = nowSec % roundSec
     const inBettingPhase = type === "race"
       ? secInRound >= 10 && secInRound < 60
-      : secInRound >= 5  && secInRound < 20
+      : secInRound >= 5  && secInRound < 15
     if (!inBettingPhase) {
       return NextResponse.json({ error: "Betting is closed for this round" }, { status: 400 })
     }
+
+    // 토큰 검증 + 중복 세션 확인
+    const authResult = await verifySession(request)
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+    }
+    const userId = authResult.userId
 
     // atomic RPC로 잔고 차감 — SELECT→UPDATE 레이스 컨디션 완전 제거
     const { data: newBalance, error: deductError } = await supabase
@@ -54,67 +54,54 @@ export async function POST(request: Request) {
       )
     }
 
-    // 유저 profile + LP 캐시 병렬 조회 — DB 왕복 최소화
-    const lpCacheKey = `lp:config:user:${userId}`
-    const [{ data: profileData }, cachedLpRaw] = await Promise.all([
-      supabase.from("profiles").select("branch_id").eq("id", userId).single(),
-      redis.get<string>(lpCacheKey),
-    ])
-    const branchId: string | null = profileData?.branch_id ?? null
+    // 유저의 branch_id 조회 (balance_transactions FK 필요)
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("branch_id")
+      .eq("id", userId)
+      .single()
 
-    // LP 설정 (캐시 → DB 순)
-    let lpConfig = { ...DEFAULT_LP_CONFIG }
-    if (cachedLpRaw) {
-      try { lpConfig = typeof cachedLpRaw === "string" ? JSON.parse(cachedLpRaw) : cachedLpRaw } catch {}
-    } else if (branchId) {
-      const { data: branch } = await adminSupabase
-        .from("branches")
-        .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
-        .eq("id", branchId).single()
-      if (branch) {
-        lpConfig = branchToLpConfig(branch)
-        await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 30 })
-      }
-    }
-
-    // balance_transactions 기록 (배팅 차감 이력) — 비동기 fire-and-forget
+    // balance_transactions 기록 (배팅 차감 이력)
+    // balance_before = 차감 후 잔고 + 배팅금 (atomic RPC가 차감 후 잔고를 반환하므로 역산)
     const balBefore = (newBalance as number) + betAmount
-    supabase.from("balance_transactions").insert({
+    await supabase.from("balance_transactions").insert({
       user_id: userId,
-      branch_id: branchId,
+      branch_id: profileData?.branch_id ?? null,
       type: "bet",
       amount: -betAmount,
       balance_before: balBefore,
       balance_after: newBalance,
       note: `배팅 차감`,
-    }).then(() => {}).catch(() => {})
+    })
 
-    // Redis 잔고 + version 업데이트
+    // Redis에 최신 잔고 저장 + version increment → balance SSE가 변경 감지
+    // newBalance는 DB atomic RPC에서 반환한 실제 차감 후 잔고
     const redisOps: Promise<unknown>[] = [
       redis.set(`balance:${userId}`, newBalance as number, { ex: 3600 }),
       redis.incr(`balance_version:${userId}`),
     ]
 
-    // 배팅 풀 집계 + bets 저장
-    if (gameType && side) {
-      const rNowSec = Math.floor(Date.now() / 1000)
-      const roundNumber = gameType === "race"
-        ? Math.floor(rNowSec / 180)
-        : Math.floor(rNowSec / 30)
-      const ttl = 3600
+      // 배팅 풀 집계 + 유저별 bets 저장 (settle API 사용)
+      // baccarat: 30초 라운드, race: 180초(3분) 라운드 — SSE/settle/round-stats 동일 기준
+      if (gameType && side) {
+        const nowSec = Math.floor(Date.now() / 1000)
+        const roundNumber = gameType === "race"
+          ? Math.floor(nowSec / 180)
+          : Math.floor(nowSec / 30)
+        // TTL을 충분히 길게 유지 — settle-me가 라운드 종료 후 호출될 때도 배당 조회 가능
+        const ttl = gameType === "race" ? 3600 : 3600
 
       const poolKey       = `pool:${gameType}:${roundNumber}`
       const userSetKey    = `users:${gameType}:${roundNumber}`
       const betsKey       = `bet:bets:${gameType}:${roundNumber}:${userId}`
       const oddsSnapKey   = `odds:snap:${gameType}:${roundNumber}:${userId}`
 
-      // 기존 bets에 merge + pool 업데이트 병렬 처리
-      const [existing] = await Promise.all([
-        redis.get<string>(betsKey),
-      ])
+      // 기존 bets에 merge (여러 번 배팅 가능)
+      const existing = await redis.get<string>(betsKey)
       const prev = existing ? (typeof existing === "string" ? JSON.parse(existing) : existing) : {}
       const merged = betsPayload ? { ...prev, ...betsPayload } : prev
 
+      // baccaratSide / raceSide 누락 방어: side 파라미터로 강제 보정
       if (gameType === "baccarat" && side && !merged.baccaratSide) {
         merged.baccaratSide = side
         if (!merged.baccaratAmount) merged.baccaratAmount = betAmount
@@ -122,6 +109,25 @@ export async function POST(request: Request) {
       if (gameType === "race" && side && !merged.raceSide) {
         merged.raceSide = side
         if (!merged.raceAmount) merged.raceAmount = betAmount
+      }
+
+      const branchId: string | null = profileData?.branch_id ?? null
+
+      // LP 설정 조회
+      let lpConfig = { ...DEFAULT_LP_CONFIG }
+      const lpCacheKey = `lp:config:user:${userId}`
+      const cachedLp = await redis.get<string>(lpCacheKey)
+      if (cachedLp) {
+        try { lpConfig = typeof cachedLp === "string" ? JSON.parse(cachedLp) : cachedLp } catch {}
+      } else if (branchId) {
+        const { data: branch } = await adminSupabase
+          .from("branches")
+          .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+          .eq("id", branchId).single()
+        if (branch) {
+          lpConfig = branchToLpConfig(branch)
+          await redis.set(lpCacheKey, JSON.stringify(lpConfig), { ex: 30 })
+        }
       }
 
       // 유저의 현재 진행중 배팅 roundNumber를 별도 키로 저장

@@ -11,7 +11,7 @@ import { Home, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 
 const STORAGE_KEY = "app_token"
@@ -73,21 +73,16 @@ export function TopBar() {
   const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [pwLoading, setPwLoading] = useState(false)
 
-  // ── 초기화 + auth:login/storage 이벤트 수신: 프로필 + 잔고 복원 ──
-  const loadSession = useCallback(async () => {
+  // ── 초기화: localStorage 토큰으로 프로필 + 잔고 복원 ──────────────
+  useEffect(() => {
     const token = getToken()
-    if (!token) {
-      setIsLoggedIn(false)
-      setProfile(null)
-      setBalance(0)
-      return
-    }
-    try {
-      const [pr, br] = await Promise.all([
-        fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
-      ])
-      if (pr.status === 401) { clearToken(); setIsLoggedIn(false); setProfile(null); setBalance(0); return }
+    if (!token) return
+
+    Promise.all([
+      fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
+      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
+    ]).then(async ([pr, br]) => {
+      if (pr.status === 401) { clearToken(); return } // 토큰 만료
       if (pr.ok) {
         const d = await pr.json()
         if (d.profile) {
@@ -99,21 +94,8 @@ export function TopBar() {
         const d = await br.json()
         setBalance(d.balance ?? 0)
       }
-    } catch {}
+    }).catch(() => {})
   }, [])
-
-  useEffect(() => {
-    loadSession()
-    // sidebar 로그인/로그아웃 이벤트 수신
-    window.addEventListener("auth:login", loadSession)
-    window.addEventListener("auth:logout", loadSession)
-    window.addEventListener("storage", loadSession)
-    return () => {
-      window.removeEventListener("auth:login", loadSession)
-      window.removeEventListener("auth:logout", loadSession)
-      window.removeEventListener("storage", loadSession)
-    }
-  }, [loadSession])
 
   // ── 토큰 자동 갱신: 45분마다 /api/auth/refresh 호출 ────────────────────
   // Supabase access_token은 1시간 만료 — 만료 전에 갱신해 세션 유지
@@ -164,10 +146,10 @@ export function TopBar() {
     return () => window.removeEventListener("balance:update", handler)
   }, [])
 
-  // ── SSE 잔고 스트림: 서버에서 push — isLoggedIn 변경 시 재연결 ──
+  // ── SSE 잔고 스트림: 서버에서 push (다기기 실시간 동기화, 폴링 없음) ──
   useEffect(() => {
     const token = getToken()
-    if (!token || !isLoggedIn) return
+    if (!token) return
 
     let es: EventSource | null = null
     let retry: ReturnType<typeof setTimeout> | null = null
