@@ -642,12 +642,12 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
     // 소수점 2자리 toFixed 파싱 → 부동소수점 오차 없음
     const decStr = closePrice.toFixed(2).split(".")[1] ?? "00"
-    const d1 = parseInt(decStr[0] ?? "0")   // 소수점 첫째 자리 → 뱅커
-    const d2 = parseInt(decStr[1] ?? "0")   // 소수점 둘째 자리 → 플레이어
+    const d1 = parseInt(decStr[0] ?? "0")   // 소수점 첫째 자리 → 뱅커 점수
+    const d2 = parseInt(decStr[1] ?? "0")   // 소수점 둘째 자리 → 플레이어 점수
 
-    // 0~4=player, 5~8=banker, 9=tie
+    // 9에 가까운 쪽이 이김: d1=뱅커, d2=플레이어, 같으면 타이
     const serverBacResult: "player" | "banker" | "tie" =
-      d2 <= 4 ? "player" : d2 <= 8 ? "banker" : "tie"
+      d1 === d2 ? "tie" : d1 > d2 ? "banker" : "player"
 
     // 3번째 카드: 패널과 동일한 마감가로 전달
     onFinalDigitTrigger?.(closePrice)
@@ -858,26 +858,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     //      (applyFinalDigit 완료 시점이 정확히 전달됨 → 고정 딜레이 불필요)
     //    - 바카라 배팅 없음: 카드 연출과 무관, 즉시 정���
     if (betBaccaratRef.current) {
-      // 이미 이벤트가 왔으면 (ref에 캐싱됨) 즉시 정산 — 타이밍 경쟁 완전 해소
-      if (dealCompleteResultRef.current) {
-        settle(dealCompleteResultRef.current)
-      } else {
-        const onDealComplete = (e: Event) => {
-          window.removeEventListener("baccarat:deal-complete", onDealComplete)
-          const actualResult = (e as CustomEvent).detail?.result as "player" | "banker" | "tie" | undefined
-          settle(actualResult ?? serverBacResult)
-        }
-        window.addEventListener("baccarat:deal-complete", onDealComplete)
-        // 안전 타임아웃: 이벤트 미수신 시 2000ms 후 강제 정산 (소수점 기반)
-        setTimeout(() => {
-          window.removeEventListener("baccarat:deal-complete", onDealComplete)
-          if (dealCompleteResultRef.current) {
-            settle(dealCompleteResultRef.current)
-          } else {
-            settle(serverBacResult)
-          }
-        }, 2000)
-      }
+      // 마감가 d1(뱅커) vs d2(플레이어) 비교 결과로 즉시 정산
+      // baccarat:deal-complete 이벤트 의존 완전 제거 — 타이밍 경쟁 없음
+      settle(serverBacResult)
     } else {
       settle(null)  // 즉시 정산 (������라 외 ���목)
     }
