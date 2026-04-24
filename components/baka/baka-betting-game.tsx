@@ -701,7 +701,16 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       const appliedOddsForSide = betBaccaratRef.current === "player" ? snapshotPlayer
         : betBaccaratRef.current === "banker" ? liveOddsSnapshotRef.current?.banker
         : liveOddsSnapshotRef.current?.tie
-      console.log("[v0] 게임 종료 | result:", bacResult, "| won:", wonBaccarat, "| side:", betBaccaratRef.current, "| amount:", betBaccaratAmountRef.current, "| 확정배율:", appliedOddsForSide, "| fullSnapshot:", JSON.stringify(liveOddsSnapshotRef.current), "| round:", resolvedRoundNumber)
+      // ── [DEBUG] 배팅 정보 ────────────────────────────────────
+      console.log("[baka:bet]", {
+        round: resolvedRoundNumber,
+        side: betBaccaratRef.current,
+        amount: betBaccaratAmountRef.current,
+        clientOddsSnapshot: liveOddsSnapshotRef.current,
+        clientOddsForSide: appliedOddsForSide,
+        bacResult,
+        wonBaccarat,
+      })
 
       if (token) {
         fetch("/api/game/settle-me", {
@@ -716,29 +725,52 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         })
           .then(async r => {
             const text = await r.text()
-            console.log("[v0] settle-me 응답 status:", r.status, "| body:", text)
             return JSON.parse(text)
           })
           .then(d => {
+            // ── [DEBUG] 서버 정산 응답 ──────────────────────────
+            const betSide = lastResultRef.current?.baccarat
+            const betAmount = lastResultRef.current?.baccaratAmount ?? 0
+            const serverOddsForSide = betSide && d.appliedOdds ? d.appliedOdds[betSide] : null
+            const expectedPayout = serverOddsForSide ? Math.floor(betAmount * serverOddsForSide / 1000) * 1000 : null
+            console.log("[baka:settle]", {
+              round: resolvedRoundNumber,
+              side: betSide,
+              amount: betAmount,
+              serverAppliedOdds: d.appliedOdds,
+              oddsForSide: serverOddsForSide,
+              serverPayout: d.payout,
+              expectedPayout,
+              payoutMatch: d.payout === expectedPayout,
+              newBalance: d.balance,
+            })
+
             // 정산 완료 후 잔고 갱신
             if (typeof d.balance === "number") {
               setBalance(d.balance)
               window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
             }
             // 서버 확정 배당 + payout 반영
-            // lastResultRef.current로 최신 result를 동기적으로 읽어 한 번에 교체
-            // → setLastResult 함수형 업데이트의 비동기 배치 타이밍 문제 완전 회피
             const currentResult = lastResultRef.current
             if (currentResult) {
               const updated: RoundResult = { ...currentResult }
               if (d.appliedOdds) updated.baccaratOdds = d.appliedOdds
-              // d.payout = 총수령액 (배팅금 포함, 천원 단위 내림 적용됨)
               if (typeof d.payout === "number") updated.serverPayout = d.payout
+
+              // ── [DEBUG] 모달 표시 데이터 ──────────────────────
+              console.log("[baka:modal]", {
+                side: updated.baccarat,
+                amount: updated.baccaratAmount,
+                serverPayout: updated.serverPayout,
+                netProfit: typeof updated.serverPayout === "number" ? updated.serverPayout - updated.baccaratAmount : "N/A",
+                baccaratOdds: updated.baccaratOdds,
+              })
+
               setLastResult(updated)
             }
             if (hasBaccaratBet) setShowResultSheet(true)
           })
-          .catch(err => console.error("[v0] settle-me fetch error:", err))
+          .catch(err => console.error("[baka:settle error]", err))
       }
 
       // 베팅 상태 초기화 (다음 라운드 준비)
