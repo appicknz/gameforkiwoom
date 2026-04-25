@@ -177,7 +177,7 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
   )
 }
 
-// ── 게임 카드 (바카라 or 레이스) ──────────────────────────��───────────────
+// ── 게임 카드 (바카라 or 레이스) ──────────────────────────���───────────────
 function GameRoundCard({
   stats, title, phase, timeLeft,
 }: {
@@ -1140,10 +1140,15 @@ export function RoundMonitor({
                 </button>
               </div>
             </div>
-            <div className="px-4 py-2 bg-muted/50 grid grid-cols-[4.5rem_4rem_3.5rem_5.5rem_5.5rem_4rem_5.5rem] gap-2 text-xs text-muted-foreground font-medium">
-              <span>유저</span><span>최근결과</span>
-              <span className="text-right">승률</span><span className="text-right">수익누적</span>
-              <span className="text-right">손실누적</span><span className="text-right">수수료</span><span className="text-right">잔고</span>
+            {/* 헤더: 유저 | 최근결과 | 승률 | 수수료 | 잔고 | 수익누적 | 손실누적 */}
+            <div className="px-4 py-2 bg-muted/50 grid grid-cols-[4.5rem_4rem_3rem_4rem_5.5rem_5.5rem_5.5rem] gap-2 text-xs text-muted-foreground font-medium">
+              <span>유저</span>
+              <span>최근결과</span>
+              <span className="text-right">승률</span>
+              <span className="text-right">수수료</span>
+              <span className="text-right">잔고</span>
+              <span className="text-right text-emerald-500">수익누적</span>
+              <span className="text-right text-red-500">손실누적</span>
             </div>
             <div className="divide-y divide-border">
               {abUsers.length === 0 ? (
@@ -1156,8 +1161,10 @@ export function RoundMonitor({
                   ? "text-emerald-500 bg-emerald-500/10"
                   : ls?.result === "lose" ? "text-red-500 bg-red-500/10"
                   : "text-amber-500 bg-amber-500/10"
+                const netPnl = us ? us.winProfit - us.loss : null
                 return (
-                  <div key={u.id} className="px-4 py-2 grid grid-cols-[4.5rem_4rem_3.5rem_5.5rem_5.5rem_4rem_5.5rem] gap-2 items-center">
+                  <div key={u.id} className="px-4 py-2 grid grid-cols-[4.5rem_4rem_3rem_4rem_5.5rem_5.5rem_5.5rem] gap-2 items-center">
+                    {/* 유저 */}
                     <div>
                       <span className="text-xs font-medium text-foreground truncate block">{u.username}</span>
                       <span className="text-[10px] text-muted-foreground tabular-nums">
@@ -1169,24 +1176,37 @@ export function RoundMonitor({
                         )}
                       </span>
                     </div>
+                    {/* 최근결과 */}
                     {resultLabel
                       ? <span className={`text-xs font-bold px-1.5 py-0.5 rounded text-center w-fit ${resultColor}`}>{resultLabel}</span>
                       : <span className="text-xs text-muted-foreground">—</span>
                     }
+                    {/* 승률 */}
                     <span className="text-xs font-bold tabular-nums text-right text-foreground">
                       {us && us.totalBets > 0 ? `${us.winRate}%` : "—"}
                     </span>
-                    <span className="text-xs font-bold tabular-nums text-right text-emerald-500">
-                      {us && us.winProfit > 0 ? `+${fmt(us.winProfit)}` : us ? fmt(0) : "—"}
-                    </span>
-                    <span className="text-xs font-bold tabular-nums text-right text-red-500">
-                      {us && us.loss > 0 ? `-${fmt(us.loss)}` : us ? fmt(0) : "—"}
-                    </span>
+                    {/* 수수료 */}
                     <span className="text-xs tabular-nums text-right text-amber-500">
                       {us ? fmt(us.fee) : "—"}
                     </span>
-                    <span className={`text-xs font-bold tabular-nums text-right ${u.balance < 1_000_000 ? "text-orange-500" : "text-foreground"}`}>
-                      {fmt(u.balance)}
+                    {/* 잔고 — 순손익 표시 (잔고와 대조) */}
+                    <div className="text-right">
+                      <span className={`text-xs font-bold tabular-nums block ${u.balance < 1_000_000 ? "text-orange-500" : "text-foreground"}`}>
+                        {fmt(u.balance)}
+                      </span>
+                      {netPnl !== null && (
+                        <span className={`text-[10px] tabular-nums font-semibold ${netPnl >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                          {netPnl >= 0 ? "+" : ""}{fmt(netPnl)}
+                        </span>
+                      )}
+                    </div>
+                    {/* 수익누적 */}
+                    <span className="text-xs font-bold tabular-nums text-right text-emerald-500">
+                      {us && us.winProfit > 0 ? `+${fmt(us.winProfit)}` : us ? fmt(0) : "—"}
+                    </span>
+                    {/* 손실누적 */}
+                    <span className="text-xs font-bold tabular-nums text-right text-red-500">
+                      {us && us.loss > 0 ? `-${fmt(us.loss)}` : us ? fmt(0) : "—"}
                     </span>
                   </div>
                 )
