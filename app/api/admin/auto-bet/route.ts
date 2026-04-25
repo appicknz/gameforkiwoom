@@ -59,15 +59,10 @@ async function settlePendingBots(
 ) {
   if (roundNumber < 0) return { skipped: true, reason: "invalid round" }
 
-  console.log(`[v0] settlePendingBots called: gameType=${gameType} roundNumber=${roundNumber} profiles=${profiles.length}`)
-
   // ── 중복 정산 방어 (잠금은 실제 정산 성공 후에만 설정) ──────────
   const settleKey = `bot:settled:${gameType}:${roundNumber}`
   const alreadySettled = await redis.get(settleKey)
-  if (alreadySettled) {
-    console.log(`[v0] already settled: ${gameType} round ${roundNumber}`)
-    return { skipped: true }
-  }
+  if (alreadySettled) return { skipped: true }
 
   // ── 결과 조회 ────────────────────────────────────────────────────
   // 1차: settle/route.ts가 저장한 Redis 결과
@@ -79,7 +74,6 @@ async function settlePendingBots(
   let raceWinner:   "bit"   | "coin" | "tie"      = "tie"
 
   const resultRaw = await redis.get<string>(`game:result:${gameType}:${roundNumber}`)
-  console.log(`[v0] Redis result key=game:result:${gameType}:${roundNumber} found=${!!resultRaw}`)
   if (resultRaw) {
     const gr       = typeof resultRaw === "string" ? JSON.parse(resultRaw) : resultRaw
     baccaratResult = gr.baccaratResult ?? "tie"
@@ -87,11 +81,9 @@ async function settlePendingBots(
     wonDigit       = gr.wonDigit       ?? "under"
     wonParity      = gr.wonParity      ?? "odd"
     raceWinner     = gr.raceWinner     ?? "tie"
-    console.log(`[v0] Redis result: baccaratResult=${baccaratResult} raceWinner=${raceWinner}`)
   } else {
     // 2차: DB에서 해당 라운드 closeTime = roundNumber * 30 (Unix초)
     const closeTime = roundNumber * 30
-    console.log(`[v0] DB fallback: closeTime=${closeTime} range=${closeTime - 29}~${closeTime + 30}`)
     const { data: row } = await adminSupabase
       .from("btc_closing_prices")
       .select("price, baccarat_result")
@@ -101,7 +93,6 @@ async function settlePendingBots(
       .limit(1)
       .maybeSingle()
 
-    console.log(`[v0] DB row found=${!!row} baccarat_result=${row?.baccarat_result}`)
     if (!row) {
       // 결과가 아직 없음 — 잠금 걸지 않고 return (다음 새로고침에서 재시도)
       return { skipped: true, reason: "no result in DB yet" }
@@ -173,11 +164,7 @@ async function settlePendingBots(
       const b  = await redis.get<string>(bk)
       if (b) { betsRaw = b; resolvedBetsKey = bk; resolvedRound = rn; break }
     }
-    if (!betsRaw) {
-      console.log(`[v0] no bets found for ${p.username} gameType=${gameType} candidates=${JSON.stringify(candidates)}`)
-      return
-    }
-    console.log(`[v0] bets found ${p.username} key=${resolvedBetsKey} data=${betsRaw}`)
+    if (!betsRaw) return
 
     // ── 배팅 시점 odds snap 사용 (없으면 풀 기반 계산값 fallback) ──
     const oddsSnapKey = `odds:snap:${gameType}:${resolvedRound}:${p.id}`
@@ -232,13 +219,8 @@ async function settlePendingBots(
     if (historyRows.length === 0) return
 
     // ── bet_history INSERT ───────────────────────────────────────
-    console.log(`[v0] settle ${p.username} round=${resolvedRound} rows=`, JSON.stringify(historyRows))
     const { error: insertErr } = await adminSupabase.from("bet_history").insert(historyRows)
-    if (insertErr) {
-      console.log(`[v0] INSERT ERROR ${p.username}:`, insertErr.code, insertErr.message, insertErr.details)
-      return  // INSERT 실패 시 잠금 설정 안 함 → 다음 호출에서 재시도
-    }
-    console.log(`[v0] INSERT OK ${p.username} payout=${totalPayout}`)
+    if (insertErr) return  // INSERT 실패 시 잠금 설정 안 함 → 다음 호출에서 재시도
 
     // ── 승리 시 잔고 환급 ────────────────────────────────────────
     if (totalPayout > 0) {
