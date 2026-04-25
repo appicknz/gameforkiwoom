@@ -175,7 +175,7 @@ export async function POST(request: Request) {
       baccaratResult,
       settledAt: Date.now(),
     }
-    await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 120 })
+    await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 600 })
 
     // ── race 결과 저장 ────���────────────────────────────────────
     // 현재 라운드의 첫 번째 tick = 직전 라운드가 방금 종료됨 → 직전 라운드 집계 후 저장
