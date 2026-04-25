@@ -63,6 +63,15 @@ export async function POST(request: Request) {
     raceWinner = bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
   }
 
+  // ── 중복 정산 방어: 이미 이 라운드를 정산했으면 skip ──────────
+  const settleKey = `bot:settled:${gameType}:${roundNumber}`
+  const alreadySettled = await redis.get(settleKey)
+  if (alreadySettled) {
+    return NextResponse.json({ ok: true, skipped: true, reason: "already settled" })
+  }
+  // 정산 잠금 (120초 TTL — 다음 라운드 종료 전에 만료)
+  await redis.set(settleKey, 1, { ex: 120 })
+
   // ── 봇 유저 조회 ───────────────────────────────────────────
   const { data: profiles } = await admin
     .from("profiles")

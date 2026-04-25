@@ -177,7 +177,7 @@ function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void 
   )
 }
 
-// ── 게임 카드 (바카라 or 레이스) ──────────────────────────���───────────────
+// ── 게임 카드 (바카라 or 레이스) ──────────────────────────����───────────────
 function GameRoundCard({
   stats, title, phase, timeLeft,
 }: {
@@ -1079,85 +1079,18 @@ export function RoundMonitor({
             )}
           </div>
 
-          {/* 최근 배팅 접수 */}
-          {lastBetResults && (
-            <div className="bg-card border border-border rounded-2xl overflow-hidden">
-              <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground">최근 배팅 접수</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">승패는 라운드 종료 후 유저 목록에서 확인</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* 바카라/레이스 구분 뱃지 */}
-                  {(() => {
-                    const hasBac = lastBetResults.some(r => r.gameType === "baccarat")
-                    const hasRace = lastBetResults.some(r => r.gameType === "race")
-                    return (
-                      <div className="flex items-center gap-1">
-                        {hasBac && <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-semibold">바카라</span>}
-                        {hasRace && <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 font-semibold">레이스</span>}
-                      </div>
-                    )
-                  })()}
-                  <span className="text-xs text-muted-foreground">라운드 #{lastBetResults[0]?.round ?? "-"}</span>
-                </div>
-              </div>
-              {/* 헤더 */}
-              <div className="px-4 py-1.5 bg-muted/40 grid grid-cols-[4.5rem_3.5rem_4.5rem_4.5rem_3rem_5rem_5rem_4rem_4rem] gap-1.5 text-xs text-muted-foreground font-medium">
-                <span>유저</span>
-                <span>게임</span>
-                <span>side</span>
-                <span className="text-right">배팅금액</span>
-                <span className="text-right">배당</span>
-                <span className="text-right text-blue-500">배팅누적</span>
-                <span className="text-right text-emerald-500">수익누적</span>
-                <span className="text-right text-red-500">승/패</span>
-                <span className="text-right">잔고</span>
-              </div>
-              <div className="divide-y divide-border">
-                {lastBetResults.map((r, i) => {
-                  // abUsers에서 해당 유저의 누적 통계 조회
-                  const userStat = abUsers.find(u => u.username === r.username)?.userStats ?? null
-                  return (
-                    <div key={i} className="px-4 py-2 grid grid-cols-[4.5rem_3.5rem_4.5rem_4.5rem_3rem_5rem_5rem_4rem_4rem] gap-1.5 items-center">
-                      <span className="text-xs font-medium text-foreground truncate">{r.username}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full w-fit font-semibold ${r.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
-                        {r.gameType === "baccarat" ? "바카라" : "레이스"}
-                      </span>
-                      <span className={`text-xs font-semibold ${SIDE_COLOR[r.side] ?? "text-foreground"}`}>
-                        {SIDE_LABEL[r.side] ?? r.side}
-                      </span>
-                      <span className="text-xs tabular-nums text-foreground text-right">{fmt(r.amount)}</span>
-                      <span className="text-xs font-bold tabular-nums text-amber-500 text-right">
-                        {r.success && r.odds != null ? `${r.odds.toFixed(2)}x` : "—"}
-                      </span>
-                      {/* 배팅 누적액 (bet_amount 합산) */}
-                      <span className="text-xs tabular-nums text-right text-blue-500">
-                        {userStat ? fmt(userStat.winProfit + userStat.loss) : "—"}
-                      </span>
-                      {/* 수익 누적액 */}
-                      <span className="text-xs tabular-nums text-right text-emerald-500 font-semibold">
-                        {userStat ? (userStat.winProfit > 0 ? `+${fmt(userStat.winProfit)}` : fmt(0)) : "—"}
-                      </span>
-                      {/* 승/패 횟수 */}
-                      <div className="text-right">
-                        <span className="text-[10px] tabular-nums text-emerald-500 font-bold">{userStat?.winCount ?? "—"}</span>
-                        <span className="text-[10px] text-muted-foreground">/</span>
-                        <span className="text-[10px] tabular-nums text-red-500 font-bold">{userStat?.loseCount ?? "—"}</span>
-                      </div>
-                      {/* 잔고 */}
-                      <span className="text-xs tabular-nums text-muted-foreground text-right">{fmt(r.balance)}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* 자동배팅 유저 목록 */}
+          {/* 자동배팅 유저 통합 목록 — 최근 배팅 접수 + 누적 통계 */}
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-foreground">자동배팅 유저 목록</h4>
+              <div>
+                <h4 className="text-sm font-semibold text-foreground">자동배팅 유저 현황</h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  이번 라운드 배팅 · 누적 통계 · 잔고 통합
+                  {lastBetResults?.[0]?.round && (
+                    <span className="ml-2 text-muted-foreground">라운드 #{lastBetResults[0].round}</span>
+                  )}
+                </p>
+              </div>
               <div className="flex gap-1">
                 <button
                   onClick={() => setAbUserTab("baccarat")}
@@ -1173,74 +1106,115 @@ export function RoundMonitor({
                 </button>
               </div>
             </div>
-            {/* 헤더: 유저 | 최근결과 | 승률 | 수수료 | 잔고 | 수익누적 | 손실누적 */}
-            <div className="px-4 py-2 bg-muted/50 grid grid-cols-[4.5rem_4rem_3rem_4rem_5.5rem_5.5rem_5.5rem] gap-2 text-xs text-muted-foreground font-medium">
+
+            {/* 컬럼: 유저 | 게임/side/배팅 | 배당 | 최근결과 | 배팅누적 | 수익누적 | 손실누적 | 승W/패L | 잔고 */}
+            <div className="px-4 py-1.5 bg-muted/40 grid grid-cols-[4.5rem_7rem_3rem_3rem_5rem_5rem_5rem_3.5rem_5.5rem] gap-1.5 text-xs text-muted-foreground font-medium">
               <span>유저</span>
-              <span>최근결과</span>
-              <span className="text-right">승률</span>
-              <span className="text-right">수수료</span>
-              <span className="text-right">잔고</span>
+              <span>이번 배팅</span>
+              <span className="text-right">배당</span>
+              <span className="text-center">결과</span>
+              <span className="text-right text-blue-400">배팅누적</span>
               <span className="text-right text-emerald-500">수익누적</span>
               <span className="text-right text-red-500">손실누적</span>
+              <span className="text-center">승/패</span>
+              <span className="text-right">잔고</span>
             </div>
+
             <div className="divide-y divide-border">
               {abUsers.length === 0 ? (
                 <div className="py-8 text-center text-sm text-muted-foreground">유저 목록 로딩 중...</div>
               ) : (abUserTab === "baccarat" ? baccaratUsers : raceUsers).map(u => {
-                const ls = u.lastSettled
                 const us = u.userStats
+                const ls = u.lastSettled
+                // 최근 배팅 접수에서 이 유저의 현재 라운드 배팅 정보 매칭
+                const betResult = lastBetResults?.find(r => r.username === u.username)
                 const resultLabel = ls?.result === "win" ? "승" : ls?.result === "lose" ? "패" : ls?.result === "tie" ? "타이" : null
                 const resultColor = ls?.result === "win"
                   ? "text-emerald-500 bg-emerald-500/10"
                   : ls?.result === "lose" ? "text-red-500 bg-red-500/10"
-                  : "text-amber-500 bg-amber-500/10"
-                const netPnl = us ? us.winProfit - us.loss : null
+                  : ls?.result === "tie" ? "text-amber-500 bg-amber-500/10" : ""
+                // 배팅 누적 = 총 bet_amount 합 = 수익(환급제외) + 손실
+                const totalBetAmount = us ? us.winProfit + us.loss : null
+
                 return (
-                  <div key={u.id} className="px-4 py-2 grid grid-cols-[4.5rem_4rem_3rem_4rem_5.5rem_5.5rem_5.5rem] gap-2 items-center">
-                    {/* 유저 */}
+                  <div key={u.id} className="px-4 py-2 grid grid-cols-[4.5rem_7rem_3rem_3rem_5rem_5rem_5rem_3.5rem_5.5rem] gap-1.5 items-center">
+                    {/* 유저명 + 라운드 */}
                     <div>
                       <span className="text-xs font-medium text-foreground truncate block">{u.username}</span>
-                      <span className="text-[10px] text-muted-foreground tabular-nums">
-                        #{u.currentRound}
-                        {u.currentBet && (
-                          <span className={`ml-1 ${SIDE_COLOR[u.currentBet.side] ?? ""}`}>
-                            {SIDE_LABEL[u.currentBet.side] ?? u.currentBet.side} {u.currentBet.odds != null ? `${u.currentBet.odds.toFixed(2)}x` : ""}
-                          </span>
-                        )}
-                      </span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">#{u.currentRound}</span>
                     </div>
+
+                    {/* 이번 배팅: 게임뱃지 + side + 금액 */}
+                    <div className="flex items-center gap-1 min-w-0">
+                      {betResult ? (
+                        <>
+                          <span className={`text-[9px] px-1 py-0.5 rounded font-semibold shrink-0 ${betResult.gameType === "baccarat" ? "bg-blue-500/10 text-blue-500" : "bg-orange-500/10 text-orange-500"}`}>
+                            {betResult.gameType === "baccarat" ? "바카" : "레이스"}
+                          </span>
+                          <span className={`text-[10px] font-semibold shrink-0 ${SIDE_COLOR[betResult.side] ?? "text-foreground"}`}>
+                            {SIDE_LABEL[betResult.side] ?? betResult.side}
+                          </span>
+                          <span className="text-[10px] tabular-nums text-foreground truncate">{fmt(betResult.amount)}</span>
+                        </>
+                      ) : u.currentBet ? (
+                        <>
+                          <span className={`text-[10px] font-semibold ${SIDE_COLOR[u.currentBet.side] ?? "text-foreground"}`}>
+                            {SIDE_LABEL[u.currentBet.side] ?? u.currentBet.side}
+                          </span>
+                          <span className="text-[10px] tabular-nums text-foreground">{fmt(u.currentBet.amount)}</span>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">배팅없음</span>
+                      )}
+                    </div>
+
+                    {/* 배당 */}
+                    <span className="text-xs font-bold tabular-nums text-amber-500 text-right">
+                      {betResult?.odds != null ? `${betResult.odds.toFixed(2)}x`
+                        : u.currentBet?.odds != null ? `${u.currentBet.odds.toFixed(2)}x` : "—"}
+                    </span>
+
                     {/* 최근결과 */}
-                    {resultLabel
-                      ? <span className={`text-xs font-bold px-1.5 py-0.5 rounded text-center w-fit ${resultColor}`}>{resultLabel}</span>
-                      : <span className="text-xs text-muted-foreground">—</span>
-                    }
-                    {/* 승률 */}
-                    <span className="text-xs font-bold tabular-nums text-right text-foreground">
-                      {us && us.totalBets > 0 ? `${us.winRate}%` : "—"}
+                    <div className="text-center">
+                      {resultLabel
+                        ? <span className={`text-[10px] font-bold px-1 py-0.5 rounded ${resultColor}`}>{resultLabel}</span>
+                        : <span className="text-[10px] text-muted-foreground">—</span>
+                      }
+                    </div>
+
+                    {/* 배팅 누적액 */}
+                    <span className="text-xs tabular-nums text-right text-blue-400">
+                      {totalBetAmount !== null ? fmt(totalBetAmount) : "—"}
                     </span>
-                    {/* 수수료 */}
-                    <span className="text-xs tabular-nums text-right text-amber-500">
-                      {us ? fmt(us.fee) : "—"}
+
+                    {/* 수익 누적 */}
+                    <span className="text-xs font-bold tabular-nums text-right text-emerald-500">
+                      {us ? (us.winProfit > 0 ? `+${fmt(us.winProfit)}` : fmt(0)) : "—"}
                     </span>
-                    {/* 잔고 — 순손익 표시 (잔고와 대조) */}
+
+                    {/* 손실 누적 */}
+                    <span className="text-xs font-bold tabular-nums text-right text-red-500">
+                      {us ? (us.loss > 0 ? `-${fmt(us.loss)}` : fmt(0)) : "—"}
+                    </span>
+
+                    {/* 승/패 횟수 */}
+                    <div className="text-center text-[10px] tabular-nums">
+                      <span className="text-emerald-500 font-bold">{us?.winCount ?? "—"}</span>
+                      <span className="text-muted-foreground">/</span>
+                      <span className="text-red-500 font-bold">{us?.loseCount ?? "—"}</span>
+                    </div>
+
+                    {/* 잔고 */}
                     <div className="text-right">
                       <span className={`text-xs font-bold tabular-nums block ${u.balance < 1_000_000 ? "text-orange-500" : "text-foreground"}`}>
                         {fmt(u.balance)}
                       </span>
-                      {netPnl !== null && (
-                        <span className={`text-[10px] tabular-nums font-semibold ${netPnl >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                          {netPnl >= 0 ? "+" : ""}{fmt(netPnl)}
+                      {us && (
+                        <span className={`text-[9px] tabular-nums ${us.winProfit - us.loss >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                          {us.winProfit - us.loss >= 0 ? "+" : ""}{fmt(us.winProfit - us.loss)}
                         </span>
                       )}
                     </div>
-                    {/* 수익누적 */}
-                    <span className="text-xs font-bold tabular-nums text-right text-emerald-500">
-                      {us && us.winProfit > 0 ? `+${fmt(us.winProfit)}` : us ? fmt(0) : "—"}
-                    </span>
-                    {/* 손실누적 */}
-                    <span className="text-xs font-bold tabular-nums text-right text-red-500">
-                      {us && us.loss > 0 ? `-${fmt(us.loss)}` : us ? fmt(0) : "—"}
-                    </span>
                   </div>
                 )
               })}

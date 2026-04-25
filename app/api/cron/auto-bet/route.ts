@@ -58,45 +58,39 @@ export async function GET(request: Request) {
 
   const results: Record<string, unknown> = {}
 
-  // ── 첫 번째 시도 ─────────────────────────────────────────────
-  const nowSec1 = Math.floor(Date.now() / 1000)
-  const baccaratSec1 = nowSec1 % 30
-  const raceSec1     = nowSec1 % 180
+  // ── 1차: 현재 시각 기준 ──────────────────────────────────────
+  const nowSec1    = Math.floor(Date.now() / 1000)
+  const bacRound1  = Math.floor(nowSec1 / 30)
+  const raceRound1 = Math.floor(nowSec1 / 180)
+  const bacSec1    = nowSec1 % 30
+  const raceSec1   = nowSec1 % 180
 
-  // 바카라: 배팅 구간 5~19초 — 진입 직후 배팅
-  const doBaccarat1 = baccaratSec1 >= 5 && baccaratSec1 <= 9
-  // 레이스: 배팅 구간 10~59초 — 진입 직후 배팅
-  const doRace1 = raceSec1 >= 10 && raceSec1 <= 12
-  // 바카라: 정산 구간 0~4초 — 직전 라운드 봇 정산
-  const doSettle1 = baccaratSec1 >= 0 && baccaratSec1 <= 4
-  // 레이스: 정산 구간 0~9초 — 직전 라운드 봇 정산
-  const doRaceSettle1 = raceSec1 >= 0 && raceSec1 <= 9
-
-  const baccaratRound1 = Math.floor(nowSec1 / 30)
-  const raceRound1     = Math.floor(nowSec1 / 180)
+  const doBaccarat1 = bacSec1 >= 5 && bacSec1 <= 9
+  const doRace1     = raceSec1 >= 10 && raceSec1 <= 12
 
   if (doBaccarat1) results.baccarat1 = await callAutoBet("bet_baccarat")
   if (doRace1)     results.race      = await callAutoBet("bet_race")
-  // 정산: 직전 라운드 정산 (현재 라운드 -1)
-  if (doSettle1)     results.settle1      = await callBotSettle("baccarat", baccaratRound1 - 1)
-  if (doRaceSettle1) results.raceSettle1  = await callBotSettle("race", raceRound1 - 1)
 
-  // ── 30초 대기 후 두 번째 바카라 라운드 처리 ──────────────────
+  // 정산: 항상 직전 라운드 정산 시도 (bot-settle 내부에서 중복 방어)
+  results.settle1    = await callBotSettle("baccarat", bacRound1 - 1)
+  results.raceSettle = await callBotSettle("race", raceRound1 - 1)
+
+  // ── 2차: 30초 대기 후 두 번째 바카라 라운드 처리 ─────────────
   await new Promise(res => setTimeout(res, 30000))
 
-  const nowSec2 = Math.floor(Date.now() / 1000)
-  const baccaratSec2 = nowSec2 % 30
-  const doBaccarat2  = baccaratSec2 >= 5 && baccaratSec2 <= 9
-  const doSettle2    = baccaratSec2 >= 0 && baccaratSec2 <= 4
-  const baccaratRound2 = Math.floor(nowSec2 / 30)
+  const nowSec2   = Math.floor(Date.now() / 1000)
+  const bacRound2 = Math.floor(nowSec2 / 30)
+  const bacSec2   = nowSec2 % 30
+  const doBaccarat2 = bacSec2 >= 5 && bacSec2 <= 9
 
   if (doBaccarat2) results.baccarat2 = await callAutoBet("bet_baccarat")
-  if (doSettle2)   results.settle2   = await callBotSettle("baccarat", baccaratRound2 - 1)
+  // 2차에서도 직전 라운드 정산
+  results.settle2 = await callBotSettle("baccarat", bacRound2 - 1)
 
   return NextResponse.json({
     ok: true,
     ts: new Date().toISOString(),
-    triggered: { baccarat1: doBaccarat1, baccarat2: doBaccarat2, race: doRace1, settle1: doSettle1, settle2: doSettle2, raceSettle: doRaceSettle1 },
+    triggered: { baccarat1: doBaccarat1, baccarat2: doBaccarat2, race: doRace1 },
     results,
   })
 }
