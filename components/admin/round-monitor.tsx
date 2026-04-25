@@ -843,18 +843,42 @@ export function RoundMonitor({
                   <Wallet className="w-3 h-3" />
                   {toppingUp ? "충전 중..." : `잔고 충전${lowBalanceCount > 0 ? ` (${lowBalanceCount}명)` : ""}`}
                 </Button>
-                <Button
-                  variant="outline" size="sm" className="h-7 text-xs gap-1 text-blue-500 border-blue-500/30 hover:bg-blue-500/10"
-                  onClick={() => { setResetGameType("baccarat"); setShowResetDialog(true); setResetError(""); setResetPassword("") }}
-                >
-                  <RotateCcw className="w-3 h-3" /> 바카라 초기화
-                </Button>
-                <Button
-                  variant="outline" size="sm" className="h-7 text-xs gap-1 text-orange-500 border-orange-500/30 hover:bg-orange-500/10"
-                  onClick={() => { setResetGameType("race"); setShowResetDialog(true); setResetError(""); setResetPassword("") }}
-                >
-                  <RotateCcw className="w-3 h-3" /> 레이스 초기화
-                </Button>
+                {/* 바카라 초기화 + 시작/중지 */}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline" size="sm" className="h-7 text-xs gap-1 text-blue-500 border-blue-500/30 hover:bg-blue-500/10"
+                    onClick={() => { setResetGameType("baccarat"); setShowResetDialog(true); setResetError(""); setResetPassword("") }}
+                  >
+                    <RotateCcw className="w-3 h-3" /> 바카라 초기화
+                  </Button>
+                  {baccaratRunning ? (
+                    <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopBaccarat}>
+                      <Square className="w-3 h-3" /> 중지
+                    </Button>
+                  ) : (
+                    <Button size="sm" className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={startBaccarat} disabled={baccaratLoading}>
+                      <Play className="w-3 h-3" /> 바카라 시작
+                    </Button>
+                  )}
+                </div>
+                {/* 레이스 초기화 + 시작/중지 */}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline" size="sm" className="h-7 text-xs gap-1 text-orange-500 border-orange-500/30 hover:bg-orange-500/10"
+                    onClick={() => { setResetGameType("race"); setShowResetDialog(true); setResetError(""); setResetPassword("") }}
+                  >
+                    <RotateCcw className="w-3 h-3" /> 레이스 초기화
+                  </Button>
+                  {raceRunning ? (
+                    <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopRace}>
+                      <Square className="w-3 h-3" /> 중지
+                    </Button>
+                  ) : (
+                    <Button size="sm" className="h-7 text-xs gap-1 bg-orange-600 hover:bg-orange-700 text-white" onClick={startRace} disabled={raceLoading}>
+                      <Play className="w-3 h-3" /> 레이스 시작
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1003,67 +1027,40 @@ export function RoundMonitor({
               </div>
             </div>
 
-            {/* 바카라 / 레이스 독립 제어 */}
+            {/* 바카라 / 레이스 페이즈 상태 + 1회 버튼 */}
             <div className="px-5 pb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* 바카라 */}
-              <div className="border border-border rounded-xl p-4 flex items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold text-blue-500">바카라 자동배팅</p>
-                    {baccaratRunning && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                        baccaratPhase === "배팅가능" ? "bg-emerald-500/15 text-emerald-500"
-                        : baccaratPhase === "정산중"  ? "bg-amber-500/15 text-amber-500"
-                        : "bg-muted-foreground/15 text-muted-foreground"
-                      }`}>{baccaratPhase}</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">배팅창 5~19초 · {baccaratUsers.length}명</p>
-                </div>
+              <div className="border border-border rounded-xl p-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  {baccaratRunning ? (
-                    <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopBaccarat}>
-                      <Square className="w-3 h-3" /> 중지
-                    </Button>
-                  ) : (
-                    <Button size="sm" className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={startBaccarat} disabled={baccaratLoading}>
-                      <Play className="w-3 h-3" /> 시작
-                    </Button>
+                  <p className="text-xs font-semibold text-blue-500">바카라</p>
+                  {baccaratRunning && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                      baccaratPhase === "배팅가능" ? "bg-emerald-500/15 text-emerald-500"
+                      : baccaratPhase === "정산중"  ? "bg-amber-500/15 text-amber-500"
+                      : "bg-muted-foreground/15 text-muted-foreground"
+                    }`}>{baccaratPhase}</span>
                   )}
-                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={runBaccaratBet} disabled={baccaratLoading || baccaratRunning}>
-                    {baccaratLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : "1회"}
-                  </Button>
+                  <p className="text-xs text-muted-foreground">배팅창 5~19초 · {baccaratUsers.length}명</p>
                 </div>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={runBaccaratBet} disabled={baccaratLoading || baccaratRunning}>
+                  {baccaratLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : "1회"}
+                </Button>
               </div>
               {/* 레이스 */}
-              <div className="border border-border rounded-xl p-4 flex items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold text-orange-500">레이스 자동배팅</p>
-                    {raceRunning && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                        racePhase === "배팅가능"
-                          ? "bg-emerald-500/15 text-emerald-500"
-                          : "bg-muted-foreground/15 text-muted-foreground"
-                      }`}>{racePhase}</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">배팅창 0~60초 · {raceUsers.length}명</p>
-                </div>
+              <div className="border border-border rounded-xl p-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  {raceRunning ? (
-                    <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopRace}>
-                      <Square className="w-3 h-3" /> 중지
-                    </Button>
-                  ) : (
-                    <Button size="sm" className="h-7 text-xs gap-1 bg-orange-600 hover:bg-orange-700 text-white" onClick={startRace} disabled={raceLoading}>
-                      <Play className="w-3 h-3" /> 시작
-                    </Button>
+                  <p className="text-xs font-semibold text-orange-500">레이스</p>
+                  {raceRunning && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                      racePhase === "배팅가능" ? "bg-emerald-500/15 text-emerald-500"
+                      : "bg-muted-foreground/15 text-muted-foreground"
+                    }`}>{racePhase}</span>
                   )}
-                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={runRaceBet} disabled={raceLoading || raceRunning}>
-                    {raceLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : "1회"}
-                  </Button>
+                  <p className="text-xs text-muted-foreground">배팅창 0~60초 · {raceUsers.length}명</p>
                 </div>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={runRaceBet} disabled={raceLoading || raceRunning}>
+                  {raceLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : "1회"}
+                </Button>
               </div>
             </div>
 
@@ -1090,33 +1087,69 @@ export function RoundMonitor({
                   <h4 className="text-sm font-semibold text-foreground">최근 배팅 접수</h4>
                   <p className="text-xs text-muted-foreground mt-0.5">승패는 라운드 종료 후 유저 목록에서 확인</p>
                 </div>
-                <span className="text-xs text-muted-foreground">라운드 #{lastBetResults[0]?.round ?? "-"}</span>
+                <div className="flex items-center gap-2">
+                  {/* 바카라/레이스 구분 뱃지 */}
+                  {(() => {
+                    const hasBac = lastBetResults.some(r => r.gameType === "baccarat")
+                    const hasRace = lastBetResults.some(r => r.gameType === "race")
+                    return (
+                      <div className="flex items-center gap-1">
+                        {hasBac && <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-semibold">바카라</span>}
+                        {hasRace && <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 font-semibold">레이스</span>}
+                      </div>
+                    )
+                  })()}
+                  <span className="text-xs text-muted-foreground">라운드 #{lastBetResults[0]?.round ?? "-"}</span>
+                </div>
               </div>
-              <div className="px-5 py-1.5 bg-muted/40 grid grid-cols-[5rem_4.5rem_5rem_5rem_4rem_4rem_5.5rem] gap-2 text-xs text-muted-foreground font-medium">
-                <span>유저</span><span>게임</span><span>side</span><span>배팅금액</span>
-                <span className="text-right">배당</span><span>상태</span><span className="text-right">잔고</span>
+              {/* 헤더 */}
+              <div className="px-4 py-1.5 bg-muted/40 grid grid-cols-[4.5rem_3.5rem_4.5rem_4.5rem_3rem_5rem_5rem_4rem_4rem] gap-1.5 text-xs text-muted-foreground font-medium">
+                <span>유저</span>
+                <span>게임</span>
+                <span>side</span>
+                <span className="text-right">배팅금액</span>
+                <span className="text-right">배당</span>
+                <span className="text-right text-blue-500">배팅누적</span>
+                <span className="text-right text-emerald-500">수익누적</span>
+                <span className="text-right text-red-500">승/패</span>
+                <span className="text-right">잔고</span>
               </div>
               <div className="divide-y divide-border">
-                {lastBetResults.map((r, i) => (
-                  <div key={i} className="px-5 py-2 grid grid-cols-[5rem_4.5rem_5rem_5rem_4rem_4rem_5.5rem] gap-2 items-center">
-                    <span className="text-xs font-medium text-foreground truncate">{r.username}</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full w-fit ${r.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
-                      {r.gameType === "baccarat" ? "바카라" : "레이스"}
-                    </span>
-                    <span className={`text-xs font-semibold ${SIDE_COLOR[r.side] ?? "text-foreground"}`}>
-                      {SIDE_LABEL[r.side] ?? r.side}
-                    </span>
-                    <span className="text-xs tabular-nums text-foreground">{fmt(r.amount)}</span>
-                    <span className="text-xs font-bold tabular-nums text-amber-500 text-right">
-                      {r.success && r.odds != null ? `${r.odds.toFixed(2)}x` : "—"}
-                    </span>
-                    {r.success
-                      ? <span className="text-xs text-emerald-500 font-medium">접수</span>
-                      : <span className="text-xs text-red-500 truncate">{r.error}</span>
-                    }
-                    <span className="text-xs tabular-nums text-muted-foreground text-right">{fmt(r.balance)}</span>
-                  </div>
-                ))}
+                {lastBetResults.map((r, i) => {
+                  // abUsers에서 해당 유저의 누적 통계 조회
+                  const userStat = abUsers.find(u => u.username === r.username)?.userStats ?? null
+                  return (
+                    <div key={i} className="px-4 py-2 grid grid-cols-[4.5rem_3.5rem_4.5rem_4.5rem_3rem_5rem_5rem_4rem_4rem] gap-1.5 items-center">
+                      <span className="text-xs font-medium text-foreground truncate">{r.username}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full w-fit font-semibold ${r.gameType === "baccarat" ? "bg-blue-500/10 text-blue-600" : "bg-orange-500/10 text-orange-600"}`}>
+                        {r.gameType === "baccarat" ? "바카라" : "레이스"}
+                      </span>
+                      <span className={`text-xs font-semibold ${SIDE_COLOR[r.side] ?? "text-foreground"}`}>
+                        {SIDE_LABEL[r.side] ?? r.side}
+                      </span>
+                      <span className="text-xs tabular-nums text-foreground text-right">{fmt(r.amount)}</span>
+                      <span className="text-xs font-bold tabular-nums text-amber-500 text-right">
+                        {r.success && r.odds != null ? `${r.odds.toFixed(2)}x` : "—"}
+                      </span>
+                      {/* 배팅 누적액 (bet_amount 합산) */}
+                      <span className="text-xs tabular-nums text-right text-blue-500">
+                        {userStat ? fmt(userStat.winProfit + userStat.loss) : "—"}
+                      </span>
+                      {/* 수익 누적액 */}
+                      <span className="text-xs tabular-nums text-right text-emerald-500 font-semibold">
+                        {userStat ? (userStat.winProfit > 0 ? `+${fmt(userStat.winProfit)}` : fmt(0)) : "—"}
+                      </span>
+                      {/* 승/패 횟수 */}
+                      <div className="text-right">
+                        <span className="text-[10px] tabular-nums text-emerald-500 font-bold">{userStat?.winCount ?? "—"}</span>
+                        <span className="text-[10px] text-muted-foreground">/</span>
+                        <span className="text-[10px] tabular-nums text-red-500 font-bold">{userStat?.loseCount ?? "—"}</span>
+                      </div>
+                      {/* 잔고 */}
+                      <span className="text-xs tabular-nums text-muted-foreground text-right">{fmt(r.balance)}</span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -1508,7 +1541,7 @@ export function RoundMonitor({
         )}
       </div></>}
 
-      {/* ═════════════════════════════════════════���══════════════
+      {/* ════════════════════════════════════���════���══════════════
           섹션 5 — 지점별 LP 설정 (superadmin 전용)
       ══════════��═════════════════��═══════════════════════════ */}
       {isSuperAdmin && branches.length > 0 && (
