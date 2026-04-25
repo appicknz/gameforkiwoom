@@ -20,51 +20,83 @@ export async function GET(request: Request) {
     try {
       const res = await fetch(`${baseUrl}/api/admin/auto-bet`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-internal-secret": process.env.CRON_SECRET ?? "",
-        },
+        headers: { "Content-Type": "application/json", "x-internal-secret": process.env.CRON_SECRET ?? "" },
         body: JSON.stringify({ action }),
       })
       return await res.json()
-    } catch (e) {
-      return { error: String(e) }
-    }
+    } catch (e) { return { error: String(e) } }
+  }
+
+  // 봇 정산 호출 — 마감가를 btc_closing_prices에서 조회해 정산
+  const callBotSettle = async (gameType: "baccarat" | "race", roundNumber: number) => {
+    try {
+      // 해당 라운드 마감가 조회
+      const { createClient } = await import("@supabase/supabase-js")
+      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const roundEndTime = gameType === "baccarat" ? (roundNumber + 1) * 30 : (roundNumber + 1) * 180
+      const { data: closeRow } = await supabase
+        .from("btc_closing_prices")
+        .select("price")
+        .lte("time", roundEndTime)
+        .order("time", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (!closeRow) return { skipped: true, reason: "no close price" }
+
+      const closePrice = typeof closeRow.price === "string" ? parseFloat(closeRow.price) : closeRow.price
+      const basePrice  = roundNumber * (gameType === "baccarat" ? 30 : 180)  // 라운드 시작가는 없으므로 closePrice로 대체
+
+      const res = await fetch(`${baseUrl}/api/cron/bot-settle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-internal-secret": process.env.CRON_SECRET ?? "" },
+        body: JSON.stringify({ roundNumber, gameType, closePrice, basePrice: closePrice }),
+      })
+      return await res.json()
+    } catch (e) { return { error: String(e) } }
   }
 
   const results: Record<string, unknown> = {}
 
   // ── 첫 번째 시도 ─────────────────────────────────────────────
   const nowSec1 = Math.floor(Date.now() / 1000)
-  const baccaratSec1 = nowSec1 % 30   // 0~29
-  const raceSec1     = nowSec1 % 180  // 0~179
+  const baccaratSec1 = nowSec1 % 30
+  const raceSec1     = nowSec1 % 180
 
-  // 바카라: 배팅 구간 5~19초 (15초) — 구간 진입 직후(5~9초)에 트리거
+  // 바카라: 배팅 구간 5~19초 — 진입 직후 배팅
   const doBaccarat1 = baccaratSec1 >= 5 && baccaratSec1 <= 9
-  // 레이스: 배팅 구간 10~59초 — 구간 진입 직후(10~12초)에 트리거
+  // 레이스: 배팅 구간 10~59초 — 진입 직후 배팅
   const doRace1 = raceSec1 >= 10 && raceSec1 <= 12
+  // 바카라: 정산 구간 0~4초 — 직전 라운드 봇 정산
+  const doSettle1 = baccaratSec1 >= 0 && baccaratSec1 <= 4
+  // 레이스: 정산 구간 0~9초 — 직전 라운드 봇 정산
+  const doRaceSettle1 = raceSec1 >= 0 && raceSec1 <= 9
+
+  const baccaratRound1 = Math.floor(nowSec1 / 30)
+  const raceRound1     = Math.floor(nowSec1 / 180)
 
   if (doBaccarat1) results.baccarat1 = await callAutoBet("bet_baccarat")
   if (doRace1)     results.race      = await callAutoBet("bet_race")
+  // 정산: 직전 라운드 정산 (현재 라운드 -1)
+  if (doSettle1)     results.settle1      = await callBotSettle("baccarat", baccaratRound1 - 1)
+  if (doRaceSettle1) results.raceSettle1  = await callBotSettle("race", raceRound1 - 1)
 
   // ── 30초 대기 후 두 번째 바카라 라운드 처리 ──────────────────
-  // cron이 분당 1회라 한 번의 cron 실행에서 2개의 30초 라운드를 모두 커버
   await new Promise(res => setTimeout(res, 30000))
 
   const nowSec2 = Math.floor(Date.now() / 1000)
   const baccaratSec2 = nowSec2 % 30
-  const doBaccarat2 = baccaratSec2 >= 5 && baccaratSec2 <= 9
+  const doBaccarat2  = baccaratSec2 >= 5 && baccaratSec2 <= 9
+  const doSettle2    = baccaratSec2 >= 0 && baccaratSec2 <= 4
+  const baccaratRound2 = Math.floor(nowSec2 / 30)
 
   if (doBaccarat2) results.baccarat2 = await callAutoBet("bet_baccarat")
+  if (doSettle2)   results.settle2   = await callBotSettle("baccarat", baccaratRound2 - 1)
 
   return NextResponse.json({
     ok: true,
     ts: new Date().toISOString(),
-    triggered: {
-      baccarat1: doBaccarat1,
-      baccarat2: doBaccarat2,
-      race: doRace1,
-    },
+    triggered: { baccarat1: doBaccarat1, baccarat2: doBaccarat2, race: doRace1, settle1: doSettle1, settle2: doSettle2, raceSettle: doRaceSettle1 },
     results,
   })
 }
