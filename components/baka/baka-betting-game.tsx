@@ -32,6 +32,9 @@ interface RoundResult {
   baccaratOdds: { player: number; banker: number; tie: number } | null
   // 서버 settle-me가 계산한 최종 payout (백원 단위 내림 적용)
   serverPayout?: number
+  // 카드 합산 끝자리 점수 (표시용)
+  pScore?: number   // 플레이어 합산 끝자리
+  bScore?: number   // 뱅커 합산 끝자리
 }
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
@@ -287,146 +290,195 @@ function BakaBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
 function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null; open: boolean; onClose: () => void }) {
   if (!open || !result) return null
 
-  const lastDigit = calcPlayerDigit(result.closePrice)  // 소수점 둘째 자리 (플레이어 기준)
   const priceChange = result.closePrice - result.basePrice
   const isUp = priceChange >= 0
 
-  const bets = [
-    result.direction && {
-      key: result.direction, label: LABEL_MAP[result.direction], won: result.wonDirection, amount: result.directionAmount,
-      payout: result.wonDirection ? Math.floor(result.directionAmount * PAYOUT_RATIO / 100) * 100 : 0
-    },
-    result.digit && {
-      key: result.digit, label: LABEL_MAP[result.digit], won: result.wonDigit, amount: result.digitAmount,
-      payout: result.wonDigit ? Math.floor(result.digitAmount * PAYOUT_RATIO / 100) * 100 : 0
-    },
-    result.parity && {
-      key: result.parity, label: LABEL_MAP[result.parity], won: result.wonParity, amount: result.parityAmount,
-      payout: result.wonParity ? Math.floor(result.parityAmount * PAYOUT_RATIO / 100) * 100 : 0
-    },
-    result.baccarat && {
-      key: result.baccarat, label: LABEL_MAP[result.baccarat], won: result.wonBaccarat, amount: result.baccaratAmount,
-      odds: (() => {
-        if (!result.baccaratOdds) return null
-        const o = result.baccaratOdds
-        return result.baccarat === "player" ? (o.player ?? null)
-          : result.baccarat === "banker" ? (o.banker ?? null)
-          : (o.tie ?? null)
-      })(),
-      payout: result.wonBaccarat
-        ? (() => {
-          // 서버 확정 payout 우선 사용 (백원 단위 내림 적용된 값)
-          if (typeof result.serverPayout === "number" && result.serverPayout > 0) return result.serverPayout
-          // fallback: 클라이언트 odds로 계산 (백원 단위 내림)
-          const o = result.baccaratOdds
-          if (!o) return 0
-          const odds = result.baccarat === "player" ? o.player
-            : result.baccarat === "banker" ? o.banker
-            : o.tie
-          return Math.floor((result.baccaratAmount * (odds ?? 0)) / 100) * 100
-        })()
-        : 0,
-    },
-  ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number; payout: number; odds?: number | null; isRefund?: boolean }[]
+  // 바카라 배팅 정보
+  const bacOdds = result.baccaratOdds
+    ? (result.baccarat === "player" ? result.baccaratOdds.player
+      : result.baccarat === "banker" ? result.baccaratOdds.banker
+      : result.baccaratOdds.tie)
+    : null
+  const bacPayout = result.wonBaccarat
+    ? (typeof result.serverPayout === "number" && result.serverPayout > 0
+        ? result.serverPayout
+        : bacOdds ? Math.floor((result.baccaratAmount * bacOdds) / 100) * 100 : 0)
+    : 0
 
-  const totalBet    = bets.reduce((s, b) => s + b.amount, 0)
-  const totalPayout = bets.reduce((s, b) => s + b.payout, 0)
-  const netProfit   = totalPayout - totalBet
+  // 비바카라 배팅 (롱/숏, 오버/언더, 홀/짝)
+  const sideBets = [
+    result.direction && { key: result.direction, label: LABEL_MAP[result.direction], won: result.wonDirection, amount: result.directionAmount,
+      payout: result.wonDirection ? Math.floor(result.directionAmount * PAYOUT_RATIO / 100) * 100 : 0 },
+    result.digit && { key: result.digit, label: LABEL_MAP[result.digit], won: result.wonDigit, amount: result.digitAmount,
+      payout: result.wonDigit ? Math.floor(result.digitAmount * PAYOUT_RATIO / 100) * 100 : 0 },
+    result.parity && { key: result.parity, label: LABEL_MAP[result.parity], won: result.wonParity, amount: result.parityAmount,
+      payout: result.wonParity ? Math.floor(result.parityAmount * PAYOUT_RATIO / 100) * 100 : 0 },
+  ].filter(Boolean) as { key: string; label: { text: string; color: string; bg: string }; won: boolean; amount: number; payout: number }[]
 
-  // 헤더 상태 결정 — 반환(PUSH) 없음, 승/패만 존재
-  const allWon  = bets.length > 0 && bets.every(b => b.won)
-  const allLost = bets.length > 0 && bets.every(b => !b.won)
-  const headerLabel = allWon ? "WIN" : allLost ? "LOSS" : netProfit > 0 ? "WIN" : "LOSS"
-  const headerColor = allWon ? G.gold : allLost ? "#ef4444" : netProfit > 0 ? G.gold : "#ef4444"
-  const headerBg    = allWon ? "rgba(212,175,55,0.08)" : "rgba(239,68,68,0.08)"
+  // 승패 헤더
+  const hasBaccarat = !!result.baccarat
+  const won = hasBaccarat ? result.wonBaccarat : sideBets.some(b => b.won)
+  const headerLabel = won ? "WIN" : "LOSS"
+  const headerColor = won ? G.gold : "#ef4444"
+  const headerBg    = won ? "rgba(212,175,55,0.08)" : "rgba(239,68,68,0.08)"
+
+  // 결과쪽 이긴 포지션 레이블
+  const winnerLabel = result.baccaratResult ? LABEL_MAP[result.baccaratResult] : null
 
   return (
     <>
       <div className="fixed inset-0 z-40" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose} />
       <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl shadow-2xl max-w-lg mx-auto"
         style={{ background: "linear-gradient(180deg,#1a1506,#0d0b04)", border: "1px solid rgba(212,175,55,0.3)", borderBottom: "none" }}>
+
         {/* 헤더 */}
         <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ background: headerBg }}>
           <div>
-            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라�������드 #{result.round} 결과</p>
-            <p className="text-2xl font-black tracking-tight" style={{ color: headerColor }}>
-              {headerLabel}
-            </p>
-            <p className="text-[11px] mt-0.5" style={{ color: G.textDim }}>
-              끝자리 <span className="font-bold" style={{ color: G.gold }}>{lastDigit}</span>
-              {"  "}{isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
-              {result.baccaratResult && (
-                <span className="ml-2 font-bold" style={{ color: LABEL_MAP[result.baccaratResult].color }}>
-                  비트바카{result.baccaratResult === "player" ? "PLAYER" : result.baccaratResult === "banker" ? "BANKER" : "TIE"}
+            <p className="text-[11px] mb-0.5" style={{ color: G.textDim }}>라운드 #{result.round} 결과</p>
+            <p className="text-3xl font-black tracking-tight" style={{ color: headerColor }}>{headerLabel}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[11px]" style={{ color: G.textDim }}>
+                {isUp ? "▲" : "▼"} ${Math.abs(priceChange).toFixed(1)}
+              </span>
+              {/* 이긴 포지션 배지 */}
+              {winnerLabel && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md"
+                  style={{ background: winnerLabel.bg, color: winnerLabel.color }}>
+                  {winnerLabel.text} WIN
                 </span>
               )}
-            </p>
+            </div>
           </div>
-          <button onClick={onClose} style={{ color: G.textDim }}>
-            <X className="w-5 h-5" />
-          </button>
+          <button onClick={onClose} style={{ color: G.textDim }}><X className="w-5 h-5" /></button>
         </div>
 
         <div className="px-5 py-4 space-y-3">
-          {bets.map((bet) => {
-            const net = bet.payout - bet.amount
-            return (
-              <div key={bet.key} className="flex items-center gap-3 p-3 rounded-xl"
-                style={{
-                  background: bet.won ? "rgba(212,175,55,0.06)" : "rgba(239,68,68,0.06)",
-                  border: `1px solid ${bet.won ? "rgba(212,175,55,0.2)" : "rgba(239,68,68,0.2)"}`,
-                }}>
-                <span className="text-sm font-bold px-2.5 py-1 rounded-lg shrink-0"
-                  style={{ background: bet.label.bg, color: bet.label.color }}>
-                  {bet.label.text}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs" style={{ color: G.textDim }}>배팅</p>
-                  <p className="text-sm font-semibold tabular-nums" style={{ color: G.text }}>
-                    ₩{bet.amount.toLocaleString()}
+
+          {/* 바카라 점수 카드 */}
+          {hasBaccarat && (
+            <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${G.goldBorder}` }}>
+              <div className="flex items-center justify-between">
+                {/* BANKER */}
+                <div className="flex-1 text-center">
+                  <p className="text-[10px] font-bold mb-1" style={{ color: LABEL_MAP.banker.color }}>BANKER</p>
+                  <p className="text-3xl font-black tabular-nums"
+                    style={{ color: result.baccaratResult === "banker" ? LABEL_MAP.banker.color : G.textDim }}>
+                    {result.bScore ?? "-"}
                   </p>
-                  {bet.odds && (
-                    <p className="text-[10px] mt-0.5 tabular-nums font-bold" style={{ color: G.gold }}>
-                      {bet.odds.toFixed(2)}x
-                    </p>
+                  {result.baccaratResult === "banker" && (
+                    <p className="text-[10px] font-bold mt-0.5" style={{ color: LABEL_MAP.banker.color }}>WIN</p>
                   )}
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-[10px] mb-0.5" style={{ color: G.textDim }}>
-                    {bet.won ? "순수익" : "손실"}
-                  </p>
-                  <p className="text-sm font-bold tabular-nums"
-                    style={{ color: bet.won ? G.gold : "#ef4444" }}>
-                    {bet.won
-                      ? `+₩${(bet.payout - bet.amount).toLocaleString()}`
-                      : `-₩${bet.amount.toLocaleString()}`}
-                  </p>
-                  {bet.won && (
-                    <p className="text-[9px]" style={{ color: G.goldDim }}>
-                      총수령 ₩{bet.payout.toLocaleString()} (배팅+수익)
-                    </p>
+                {/* VS */}
+                <div className="px-3 text-center">
+                  <p className="text-sm font-black" style={{ color: G.textDim }}>VS</p>
+                  {result.baccaratResult === "tie" && (
+                    <p className="text-[10px] font-bold mt-0.5" style={{ color: LABEL_MAP.tie.color }}>TIE</p>
                   )}
                 </div>
-                <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black"
-                  style={{ background: bet.won ? G.gold : "#ef4444", color: "#000" }}>
-                  {bet.won ? "승" : "패"}
+                {/* PLAYER */}
+                <div className="flex-1 text-center">
+                  <p className="text-[10px] font-bold mb-1" style={{ color: LABEL_MAP.player.color }}>PLAYER</p>
+                  <p className="text-3xl font-black tabular-nums"
+                    style={{ color: result.baccaratResult === "player" ? LABEL_MAP.player.color : G.textDim }}>
+                    {result.pScore ?? "-"}
+                  </p>
+                  {result.baccaratResult === "player" && (
+                    <p className="text-[10px] font-bold mt-0.5" style={{ color: LABEL_MAP.player.color }}>WIN</p>
+                  )}
                 </div>
               </div>
-            )
-          })}
+            </div>
+          )}
 
-          <div className="flex items-center justify-between pt-3" style={{ borderTop: `1px solid ${G.goldBorder}` }}>
-            <div>
-              <p className="text-xs" style={{ color: G.textDim }}>총 배팅</p>
-              <p className="text-sm font-semibold tabular-nums" style={{ color: G.text }}>₩{totalBet.toLocaleString()}</p>
+          {/* 바카라 배팅 결과 */}
+          {result.baccarat && (
+            <div className="flex items-center gap-3 p-3 rounded-xl"
+              style={{
+                background: result.wonBaccarat ? "rgba(212,175,55,0.06)" : "rgba(239,68,68,0.06)",
+                border: `1px solid ${result.wonBaccarat ? "rgba(212,175,55,0.2)" : "rgba(239,68,68,0.2)"}`,
+              }}>
+              {/* 배팅 포지션 배지 */}
+              <span className="text-sm font-bold px-2.5 py-1 rounded-lg shrink-0"
+                style={{ background: LABEL_MAP[result.baccarat].bg, color: LABEL_MAP[result.baccarat].color }}>
+                {LABEL_MAP[result.baccarat].text}
+              </span>
+              {/* 배팅액 + 배율 */}
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px]" style={{ color: G.textDim }}>배팅</p>
+                <p className="text-base font-bold tabular-nums" style={{ color: G.text }}>
+                  ₩{result.baccaratAmount.toLocaleString()}
+                </p>
+                {bacOdds && (
+                  <p className="text-[11px] font-bold tabular-nums" style={{ color: G.gold }}>{bacOdds.toFixed(2)}x</p>
+                )}
+              </div>
+              {/* 총수령액 or 손실 */}
+              <div className="text-right shrink-0">
+                {result.wonBaccarat ? (
+                  <>
+                    <p className="text-[10px]" style={{ color: G.textDim }}>총수령</p>
+                    <p className="text-lg font-black tabular-nums" style={{ color: G.gold }}>
+                      ₩{bacPayout.toLocaleString()}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[10px]" style={{ color: G.textDim }}>손실</p>
+                    <p className="text-base font-bold tabular-nums" style={{ color: "#ef4444" }}>
+                      -₩{result.baccaratAmount.toLocaleString()}
+                    </p>
+                  </>
+                )}
+              </div>
+              {/* 승/패 뱃지 */}
+              <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black"
+                style={{ background: result.wonBaccarat ? G.gold : "#ef4444", color: "#000" }}>
+                {result.wonBaccarat ? "승" : "패"}
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-xs" style={{ color: G.textDim }}>순손익</p>
-              <p className="text-lg font-black tabular-nums" style={{ color: netProfit >= 0 ? G.gold : "#ef4444" }}>
-                {netProfit >= 0 ? "+" : ""}₩{netProfit.toLocaleString()}
-              </p>
+          )}
+
+          {/* 비바카라 배팅들 */}
+          {sideBets.map((bet) => (
+            <div key={bet.key} className="flex items-center gap-3 p-3 rounded-xl"
+              style={{
+                background: bet.won ? "rgba(212,175,55,0.06)" : "rgba(239,68,68,0.06)",
+                border: `1px solid ${bet.won ? "rgba(212,175,55,0.2)" : "rgba(239,68,68,0.2)"}`,
+              }}>
+              <span className="text-sm font-bold px-2.5 py-1 rounded-lg shrink-0"
+                style={{ background: bet.label.bg, color: bet.label.color }}>
+                {bet.label.text}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px]" style={{ color: G.textDim }}>배팅</p>
+                <p className="text-base font-bold tabular-nums" style={{ color: G.text }}>
+                  ₩{bet.amount.toLocaleString()}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                {bet.won ? (
+                  <>
+                    <p className="text-[10px]" style={{ color: G.textDim }}>총수령</p>
+                    <p className="text-lg font-black tabular-nums" style={{ color: G.gold }}>
+                      ₩{bet.payout.toLocaleString()}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[10px]" style={{ color: G.textDim }}>손실</p>
+                    <p className="text-base font-bold tabular-nums" style={{ color: "#ef4444" }}>
+                      -₩{bet.amount.toLocaleString()}
+                    </p>
+                  </>
+                )}
+              </div>
+              <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black"
+                style={{ background: bet.won ? G.gold : "#ef4444", color: "#000" }}>
+                {bet.won ? "승" : "패"}
+              </div>
             </div>
-          </div>
+          ))}
 
           <button onClick={onClose} className="w-full py-3 rounded-xl font-semibold text-sm transition-all"
             style={{ background: G.goldFaint, border: `1px solid ${G.goldBorder}`, color: G.gold }}>
@@ -727,8 +779,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         digitAmount: betDigitAmountRef.current,
         parityAmount: betParityAmountRef.current,
         baccaratAmount: betBaccaratAmountRef.current,
-        // 서버 확�� 배당을 받은 후 채워짐 — null로 초기화해 깜빡임 방지
+        // 서버 확정 배당을 받은 후 채워짐 — null로 초기화해 깜빡임 방지
         baccaratOdds: null,
+        pScore,
+        bScore,
       }
       setLastResult(result)
       // 바카라 배팅이 없으면 즉시 표시, 있으면 settle-me 응답 후 표시해 배당 깜빡임 방지
