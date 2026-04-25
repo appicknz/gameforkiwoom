@@ -662,7 +662,9 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     // btcResult를 dispatch — baka-betting-game의 settle()이 이 값을 승패 판정에 사용
     const pRawSum = finalP.reduce((s, c) => s + c.value, 0)
     const bRawSum = finalB.reduce((s, c) => s + c.value, 0)
-    window.dispatchEvent(new CustomEvent("baccarat:deal-complete", { detail: { result: btcResult, pScore, bScore, pRawSum, bRawSum } }))
+    window.dispatchEvent(new CustomEvent("baccarat:deal-complete", {
+      detail: { result: btcResult, pScore, bScore, pRawSum, bRawSum, playerCards: finalP, bankerCards: finalB }
+    }))
   }, [])
 
   // 라운드 전환 시 카드 초기화 — dealing 중이 아닐 때만 리셋

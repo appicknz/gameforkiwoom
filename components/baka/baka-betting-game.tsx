@@ -33,8 +33,12 @@ interface RoundResult {
   // 서버 settle-me가 계산한 최종 payout (백원 단위 내림 적용)
   serverPayout?: number
   // 카드 합산 끝자리 점수 (표시용)
-  pScore?: number   // 플레이어 합산 끝자리
-  bScore?: number   // 뱅커 합산 끝자리
+  pScore?: number
+  bScore?: number
+  pRawSum?: number   // 플레이어 합산 전체 (끝자리 강조 표시용)
+  bRawSum?: number   // 뱅커 합산 전체
+  playerCards?: { label: string; suit: string; value: number }[]
+  bankerCards?: { label: string; suit: string; value: number }[]
 }
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
@@ -354,39 +358,68 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 
         <div className="px-5 py-4 space-y-3">
 
-          {/* 바카라 점수 카드 */}
+          {/* 바카라 점수 카드 — 카드 목록 + 합산 + 끝자리 강조 */}
           {hasBaccarat && (
-            <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${G.goldBorder}` }}>
-              <div className="flex items-center justify-between">
+            <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${G.goldBorder}` }}>
+              <div className="grid grid-cols-2 divide-x" style={{ divideColor: G.goldBorder }}>
                 {/* BANKER */}
-                <div className="flex-1 text-center">
-                  <p className="text-[10px] font-bold mb-1" style={{ color: LABEL_MAP.banker.color }}>BANKER</p>
-                  <p className="text-3xl font-black tabular-nums"
-                    style={{ color: result.baccaratResult === "banker" ? LABEL_MAP.banker.color : G.textDim }}>
-                    {result.bScore ?? "-"}
-                  </p>
-                  {result.baccaratResult === "banker" && (
-                    <p className="text-[10px] font-bold mt-0.5" style={{ color: LABEL_MAP.banker.color }}>WIN</p>
-                  )}
-                </div>
-                {/* VS */}
-                <div className="px-3 text-center">
-                  <p className="text-sm font-black" style={{ color: G.textDim }}>VS</p>
-                  {result.baccaratResult === "tie" && (
-                    <p className="text-[10px] font-bold mt-0.5" style={{ color: LABEL_MAP.tie.color }}>TIE</p>
-                  )}
-                </div>
-                {/* PLAYER */}
-                <div className="flex-1 text-center">
-                  <p className="text-[10px] font-bold mb-1" style={{ color: LABEL_MAP.player.color }}>PLAYER</p>
-                  <p className="text-3xl font-black tabular-nums"
-                    style={{ color: result.baccaratResult === "player" ? LABEL_MAP.player.color : G.textDim }}>
-                    {result.pScore ?? "-"}
-                  </p>
-                  {result.baccaratResult === "player" && (
-                    <p className="text-[10px] font-bold mt-0.5" style={{ color: LABEL_MAP.player.color }}>WIN</p>
-                  )}
-                </div>
+                {[
+                  { side: "banker" as const, cards: result.bankerCards, rawSum: result.bRawSum, score: result.bScore },
+                  { side: "player" as const, cards: result.playerCards, rawSum: result.pRawSum, score: result.pScore },
+                ].map(({ side, cards, rawSum, score }) => {
+                  const isWinner = result.baccaratResult === side
+                  const isTie = result.baccaratResult === "tie"
+                  const lbl = LABEL_MAP[side]
+                  const rawStr = String(rawSum ?? score ?? 0)
+                  // 끝자리 강조: "12" → "1" + "2(강조)"
+                  const frontDigits = rawStr.slice(0, -1)
+                  const lastDigit   = rawStr.slice(-1)
+                  return (
+                    <div key={side} className="p-3 text-center"
+                      style={{ background: isWinner || isTie ? "rgba(212,175,55,0.05)" : "rgba(0,0,0,0.2)" }}>
+                      {/* 포지션 + WIN 뱃지 */}
+                      <div className="flex items-center justify-center gap-1.5 mb-2">
+                        <p className="text-[11px] font-black tracking-wider" style={{ color: lbl.color }}>
+                          {side.toUpperCase()}
+                        </p>
+                        {(isWinner || isTie) && (
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+                            style={{ background: isTie ? LABEL_MAP.tie.bg : lbl.bg, color: isTie ? LABEL_MAP.tie.color : lbl.color }}>
+                            {isTie ? "TIE" : "WIN"}
+                          </span>
+                        )}
+                      </div>
+                      {/* 카드 목록 */}
+                      {cards && cards.length > 0 && (
+                        <div className="flex items-center justify-center gap-1 mb-2 flex-wrap">
+                          {cards.map((c, i) => {
+                            const isRed = c.suit === "♥" || c.suit === "♦"
+                            return (
+                              <div key={i} className="flex flex-col items-center justify-center rounded-md w-7 h-9 text-[10px] font-black"
+                                style={{ background: "#fff", color: isRed ? "#dc2626" : "#111", border: "1px solid #ddd" }}>
+                                <span style={{ lineHeight: 1 }}>{c.label}</span>
+                                <span style={{ lineHeight: 1, fontSize: 9 }}>{c.suit}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {/* 합산 = 앞자리(dim) + 끝자리(강조) */}
+                      <div className="flex items-end justify-center gap-0" style={{ lineHeight: 1 }}>
+                        {frontDigits && (
+                          <span className="text-xl font-black tabular-nums" style={{ color: G.textDim }}>
+                            {frontDigits}
+                          </span>
+                        )}
+                        <span className="font-black tabular-nums"
+                          style={{ fontSize: 32, color: isWinner || isTie ? lbl.color : G.textDim }}>
+                          {lastDigit}
+                        </span>
+                      </div>
+                      <p className="text-[9px] mt-0.5" style={{ color: G.textDim }}>합산 끝자리</p>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -717,8 +750,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     dealCompleteScoreRef.current  = null
     const onDealForScore = (ev: Event) => {
       window.removeEventListener("baccarat:deal-complete", onDealForScore)
-      const { result, pScore, bScore, pRawSum, bRawSum } = (ev as CustomEvent<{
+      const { result, pScore, bScore, pRawSum, bRawSum, playerCards, bankerCards } = (ev as CustomEvent<{
         result: "player" | "banker" | "tie"; pScore: number; bScore: number; pRawSum: number; bRawSum: number
+        playerCards: { label: string; suit: string; value: number }[]
+        bankerCards: { label: string; suit: string; value: number }[]
       }>).detail
       dealCompleteResultRef.current = result
       dealCompleteScoreRef.current = { pScore, bScore }
@@ -728,9 +763,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ price: closePrice, time, baccarat_result: result, b_score: bScore, p_score: pScore, b_raw_sum: bRawSum, p_raw_sum: pRawSum }),
       }).catch(() => { })
-      // 바카라 배팅이 있으면 여기서 바로 정산 — 별도 리스너 불필요
+      // 바카라 배팅이 있으면 여기서 바로 정산
       if (betBaccaratRef.current) {
-        settle(result, pScore, bScore)
+        settle(result, pScore, bScore, pRawSum, bRawSum, playerCards, bankerCards)
       }
     }
     window.addEventListener("baccarat:deal-complete", onDealForScore)
@@ -761,7 +796,13 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       : false
 
     // 정산 함수 — bacResult: 카드 합산 끝자리 결과, pScore/bScore: 합산 끝자리 숫자
-    const settle = (bacResult: "player" | "banker" | "tie" | null, pScore?: number, bScore?: number) => {
+    const settle = (
+      bacResult: "player" | "banker" | "tie" | null,
+      pScore?: number, bScore?: number,
+      pRawSum?: number, bRawSum?: number,
+      playerCards?: { label: string; suit: string; value: number }[],
+      bankerCards?: { label: string; suit: string; value: number }[],
+    ) => {
       const wonBaccarat = betBaccaratRef.current ? betBaccaratRef.current === bacResult : false
       const baccaratRefund = false  // /baka: 타이 결과 시 player/banker는 LOSS, 반환 없음
 
@@ -783,6 +824,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         baccaratOdds: null,
         pScore,
         bScore,
+        pRawSum,
+        bRawSum,
+        playerCards,
+        bankerCards,
       }
       setLastResult(result)
       // 바카라 배팅이 없으면 즉시 표시, 있으면 settle-me 응답 후 표시해 배당 깜빡임 방지
