@@ -473,6 +473,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   useEffect(() => { lastResultRef.current = lastResult }, [lastResult])
   // baccarat:deal-complete 결과를 미리 캐싱 — settle()이 리스너 등록 전에 이벤트가 올 수 있음
   const dealCompleteResultRef = useRef<"player" | "banker" | "tie" | null>(null)
+  const dealCompleteScoreRef  = useRef<{ pScore: number; bScore: number } | null>(null)
   const [wins, setWins] = useState(0)
   const [losses, setLosses] = useState(0)
   const [balance, setBalance] = useState<number | null>(null)
@@ -661,13 +662,14 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     // 카드 연출 완료 후 점수만 upsert (클라이언트만 카드 점수를 알 수 있음)
     // 매 라운드 시작 시 캐시 초기화
     dealCompleteResultRef.current = null
+    dealCompleteScoreRef.current  = null
     const onDealForScore = (ev: Event) => {
       window.removeEventListener("baccarat:deal-complete", onDealForScore)
       const { result, pScore, bScore, pRawSum, bRawSum } = (ev as CustomEvent<{
         result: "player" | "banker" | "tie"; pScore: number; bScore: number; pRawSum: number; bRawSum: number
       }>).detail
-      // settle()이 리스너 등록 전에 이벤트가 왔어도 ref에서 꺼낼 수 있도록 캐싱
       dealCompleteResultRef.current = result
+      dealCompleteScoreRef.current = { pScore, bScore }
       fetch("/api/closing-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -701,9 +703,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       ? (betParityRef.current === "odd" ? d2 % 2 !== 0 : d2 % 2 === 0)
       : false
 
-    // 정산 함수 — bacResult: 확정된 바카라 결과 (없으면 null)
-    // 클라이언트에서 직접 /api/game/settle 호출 → Railway 유무와 무관하게 항상 정산
-    const settle = (bacResult: "player" | "banker" | "tie" | null) => {
+    // 정산 함수 — bacResult: 카드 합산 끝자리 결과, pScore/bScore: 합산 끝자리 숫자
+    const settle = (bacResult: "player" | "banker" | "tie" | null, pScore?: number, bScore?: number) => {
       const wonBaccarat = betBaccaratRef.current ? betBaccaratRef.current === bacResult : false
       const baccaratRefund = false  // /baka: 타이 결과 시 player/banker는 LOSS, 반환 없음
 
@@ -772,8 +773,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
             basePrice: effectiveBase,
             roundNumber: resolvedRoundNumber,
             gameType: "baccarat",
-            // 카드 3장 합산 끝자리 기반 실제 결과 — 서버가 이 값으로 승패 판정
             baccaratResult: bacResult,
+            pScore,   // 플레이어 합산 끝자리 — 서버 승패 판정에 사용
+            bScore,   // 뱅커 합산 끝자리 — 서버 승패 판정에 사용
           }),
         })
           .then(async r => {
@@ -857,20 +859,24 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     //      이미 캐싱됐으면 즉시, 아니면 이벤트 대기, 2초 후에도 없으면 소수점 fallback
     //    - 바카라 배팅 없음: 즉시 정산
     if (betBaccaratRef.current) {
-      if (dealCompleteResultRef.current) {
+      if (dealCompleteResultRef.current && dealCompleteScoreRef.current) {
         // 이미 카드 연출 완료 — 즉시 정산
-        settle(dealCompleteResultRef.current)
+        const { pScore, bScore } = dealCompleteScoreRef.current
+        settle(dealCompleteResultRef.current, pScore, bScore)
       } else {
         const onDealComplete = (e: Event) => {
           window.removeEventListener("baccarat:deal-complete", onDealComplete)
-          const actual = (e as CustomEvent).detail?.result as "player" | "banker" | "tie" | undefined
-          settle(actual ?? serverBacResult)
+          const detail = (e as CustomEvent).detail as { result: "player" | "banker" | "tie"; pScore: number; bScore: number }
+          dealCompleteScoreRef.current = { pScore: detail.pScore, bScore: detail.bScore }
+          settle(detail.result, detail.pScore, detail.bScore)
         }
         window.addEventListener("baccarat:deal-complete", onDealComplete)
-        // 2초 타임아웃: 카드 이벤트 미수신 시 소수점 기반 fallback
+        // 2초 타임아웃: 이벤트 미수신 시 에러 처리 — fallback 없음
         setTimeout(() => {
           window.removeEventListener("baccarat:deal-complete", onDealComplete)
-          settle(dealCompleteResultRef.current ?? serverBacResult)
+          if (!dealCompleteScoreRef.current) {
+            console.error("[v0] baccarat:deal-complete 미수신 — 정산 불가")
+          }
         }, 2000)
       }
     } else {
