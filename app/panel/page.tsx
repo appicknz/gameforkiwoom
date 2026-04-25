@@ -1104,7 +1104,21 @@ export default function PanelPage() {
               </div>
             )}
 
-
+            {/* 지점별 LP 설정 (마스터 전용) */}
+            {isSuperAdmin && (
+              <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h3 className="text-sm font-semibold text-foreground">지점별 LP 금액 설정</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">바카라 / 레이스 게임별 LP 유동성 금액 (마스터 전용)</p>
+                </div>
+                <div className="divide-y divide-border">
+                  {branches.map(branch => (
+                    <LpBranchRow key={branch.id} branch={branch} onSaved={loadHouseStats} />
+                  ))}
+                  {branches.length === 0 && <p className="py-6 text-center text-xs text-muted-foreground">지점이 없습니다.</p>}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
