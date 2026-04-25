@@ -53,14 +53,19 @@ export async function POST(request: Request) {
   const baccaratResult: "player" | "banker" | "tie" =
     d1 === d2 ? "tie" : d1 > d2 ? "banker" : "player"
 
-  // race 승패
+  // race 승패: game:result:race Redis 우선, 없으면 race:score Redis 사용
   let raceWinner: "bit" | "coin" | "tie" = "tie"
   if (gameType === "race") {
-    const raceScoreKey = `race:score:${roundNumber}`
-    const scoreData = await redis.hgetall(raceScoreKey).catch(() => null)
-    const bitScore  = parseInt((scoreData?.bit  as string) ?? "0") || 0
-    const coinScore = parseInt((scoreData?.coin as string) ?? "0") || 0
-    raceWinner = bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
+    const raceResultRaw = await redis.get<string>(`game:result:race:${roundNumber}`).catch(() => null)
+    if (raceResultRaw) {
+      const rr = typeof raceResultRaw === "string" ? JSON.parse(raceResultRaw) : raceResultRaw
+      raceWinner = rr.raceWinner ?? "tie"
+    } else {
+      const scoreData = await redis.hgetall(`race:score:${roundNumber}`).catch(() => null)
+      const bitScore  = parseInt((scoreData?.bit  as string) ?? "0") || 0
+      const coinScore = parseInt((scoreData?.coin as string) ?? "0") || 0
+      raceWinner = bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
+    }
   }
 
   // ── 중복 정산 방어: 이미 이 라운드를 정산했으면 skip ──────────
@@ -69,8 +74,7 @@ export async function POST(request: Request) {
   if (alreadySettled) {
     return NextResponse.json({ ok: true, skipped: true, reason: "already settled" })
   }
-  // 정산 잠금 (120초 TTL — 다음 라운드 종료 전에 만료)
-  await redis.set(settleKey, 1, { ex: 120 })
+  // 잠금은 실제 정산 성공 후 설정 (실패 시 재시도 가능하도록)
 
   // ── 봇 유저 조회 ───────────────────────────────────────────
   const { data: profiles } = await admin
@@ -223,12 +227,18 @@ export async function POST(request: Request) {
     }
   }))
 
+  // 1명 이상 정산 성공 시에만 잠금 — 실패 시 다음 cron에서 재시도 가능
+  if (settledCount > 0) {
+    await redis.set(settleKey, 1, { ex: 300 })
+  }
+
   return NextResponse.json({
     ok: true,
     gameType,
     roundNumber,
     closePrice,
     baccaratResult,
+    raceWinner,
     settled: settledCount,
     errors: errors.length > 0 ? errors : undefined,
   })

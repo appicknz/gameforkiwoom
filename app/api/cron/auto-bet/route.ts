@@ -66,7 +66,8 @@ export async function GET(request: Request) {
   const raceSec1   = nowSec1 % 180
 
   const doBaccarat1 = bacSec1 >= 5 && bacSec1 <= 9
-  const doRace1     = raceSec1 >= 10 && raceSec1 <= 12
+  // 레이스: 배팅창 전체(10~59초)에서 시도 — betOne 내부에서 이미 배팅한 유저는 skip
+  const doRace1     = raceSec1 >= 10 && raceSec1 < 60
 
   if (doBaccarat1) results.baccarat1 = await callAutoBet("bet_baccarat")
   if (doRace1)     results.race      = await callAutoBet("bet_race")
