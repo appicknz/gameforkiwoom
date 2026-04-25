@@ -51,6 +51,124 @@ function randomPick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
+// ── 봇 정산 로직 (GET 호출 시 직전 완료 라운드 자동 정산) ─────────
+async function settlePendingBots(gameType: "baccarat" | "race", roundNumber: number, profiles: { id: string; username: string; branch_id: string | null }[]) {
+  const settleKey = `bot:settled:${gameType}:${roundNumber}`
+  const alreadySettled = await redis.get(settleKey)
+  if (alreadySettled) return { skipped: true }
+
+  // 정산 잠금
+  await redis.set(settleKey, 1, { ex: 120 })
+
+  // 마감가 조회
+  const { data: closeRow } = await adminSupabase
+    .from("btc_closing_prices")
+    .select("price, baccarat_result, b_score, p_score")
+    .order("time", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!closeRow) return { skipped: true, reason: "no close price" }
+
+  const closePrice = typeof closeRow.price === "string" ? parseFloat(closeRow.price) : closeRow.price
+  const decStr = closePrice.toFixed(2).split(".")[1] ?? "00"
+  const d1 = parseInt(decStr[0] ?? "0")
+  const d2 = parseInt(decStr[1] ?? "0")
+  const wonDirection: "long" | "short" = "long" // 단순화
+  const wonDigit: "under" | "over" = d2 <= 4 ? "under" : "over"
+  const wonParity: "odd" | "even" = d2 % 2 === 0 ? "even" : "odd"
+  const baccaratResult: "player" | "banker" | "tie" = closeRow.baccarat_result ?? (d1 === d2 ? "tie" : d1 > d2 ? "banker" : "player")
+
+  // race 결과
+  let raceWinner: "bit" | "coin" | "tie" = "tie"
+  if (gameType === "race") {
+    const scoreData = await redis.hgetall(`race:score:${roundNumber}`).catch(() => null)
+    const bitScore = parseInt((scoreData?.bit as string) ?? "0") || 0
+    const coinScore = parseInt((scoreData?.coin as string) ?? "0") || 0
+    raceWinner = bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie"
+  }
+
+  // 풀 배당
+  const poolKey = `pool:${gameType}:${roundNumber}`
+  const poolData = await redis.hgetall(poolKey).catch(() => null)
+  const userCount = await redis.scard(`users:${gameType}:${roundNumber}`).catch(() => 0)
+  let oddsSnap: Record<string, number> = {}
+  if (gameType === "baccarat") {
+    const pool = { player: parseInt((poolData?.player as string) ?? "0") || 0, banker: parseInt((poolData?.banker as string) ?? "0") || 0, tie: parseInt((poolData?.tie as string) ?? "0") || 0 }
+    if (pool.player + pool.banker + pool.tie > 0) {
+      const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, userCount as number)
+      oddsSnap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+    }
+  } else {
+    const pool = { bit: parseInt((poolData?.bit as string) ?? "0") || 0, coin: parseInt((poolData?.coin as string) ?? "0") || 0, tie: parseInt((poolData?.tie as string) ?? "0") || 0 }
+    if (pool.bit + pool.coin + pool.tie > 0) {
+      const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, userCount as number)
+      oddsSnap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+    }
+  }
+
+  const FIXED_ODDS = 1.6
+  const roundTo100 = (v: number) => Math.floor(v / 100) * 100
+  let settledCount = 0
+
+  await Promise.all(profiles.map(async (p) => {
+    const betsKey = `bet:bets:${gameType}:${roundNumber}:${p.id}`
+    const betsRaw = await redis.get<string>(betsKey)
+    if (!betsRaw) return
+    const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
+    const branchId = p.branch_id ?? null
+    let totalPayout = 0
+    const historyRows: Record<string, unknown>[] = []
+
+    if (gameType === "baccarat") {
+      if (bets.directionAmount > 0) {
+        const won = bets.direction === wonDirection
+        const payout = won ? roundTo100(bets.directionAmount * FIXED_ODDS) : 0
+        totalPayout += payout
+        historyRows.push({ user_id: p.id, branch_id: branchId, round_id: null, bet_direction: bets.direction, bet_digit: null, bet_parity: null, bet_amount: bets.directionAmount, payout, result: won ? "win" : "lose" })
+      }
+      if (bets.digitAmount > 0) {
+        const won = bets.digit === wonDigit
+        const payout = won ? roundTo100(bets.digitAmount * FIXED_ODDS) : 0
+        totalPayout += payout
+        historyRows.push({ user_id: p.id, branch_id: branchId, round_id: null, bet_direction: null, bet_digit: bets.digit, bet_parity: null, bet_amount: bets.digitAmount, payout, result: won ? "win" : "lose" })
+      }
+      if (bets.parityAmount > 0) {
+        const won = bets.parity === wonParity
+        const payout = won ? roundTo100(bets.parityAmount * FIXED_ODDS) : 0
+        totalPayout += payout
+        historyRows.push({ user_id: p.id, branch_id: branchId, round_id: null, bet_direction: null, bet_digit: null, bet_parity: bets.parity, bet_amount: bets.parityAmount, payout, result: won ? "win" : "lose" })
+      }
+      if (bets.baccaratSide && bets.baccaratAmount > 0) {
+        const side = bets.baccaratSide as "player" | "banker" | "tie"
+        const won = side === baccaratResult
+        const odds = oddsSnap[side] ?? FIXED_ODDS
+        const payout = won ? roundTo100(bets.baccaratAmount * odds) : 0
+        totalPayout += payout
+        historyRows.push({ user_id: p.id, branch_id: branchId, round_id: null, bet_direction: `baccarat_${side}`, bet_digit: null, bet_parity: null, bet_amount: bets.baccaratAmount, payout, result: won ? "win" : "lose" })
+      }
+    } else {
+      if (bets.raceSide && bets.raceAmount > 0) {
+        const side = bets.raceSide as "bit" | "coin" | "tie"
+        const won = side === raceWinner
+        const odds = oddsSnap[side] ?? FIXED_ODDS
+        const payout = won ? roundTo100(bets.raceAmount * odds) : 0
+        totalPayout += payout
+        historyRows.push({ user_id: p.id, branch_id: branchId, round_id: null, bet_direction: `race_${side}`, bet_digit: null, bet_parity: null, bet_amount: bets.raceAmount, payout, result: won ? "win" : "lose" })
+      }
+    }
+
+    if (historyRows.length === 0) return
+    await adminSupabase.from("bet_history").insert(historyRows).catch(() => {})
+    if (totalPayout > 0) {
+      await adminSupabase.rpc("add_balance_for_payout", { p_user_id: p.id, p_amount: totalPayout }).catch(() => {})
+    }
+    await redis.del(betsKey).catch(() => {})
+    settledCount++
+  }))
+
+  return { settled: settledCount, baccaratResult, raceWinner }
+}
+
 // GET: 자동배팅 유저 목록 + 잔고 조회
 export async function GET(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? null
@@ -78,6 +196,14 @@ export async function GET(request: Request) {
   const nowSec = Math.floor(Date.now() / 1000)
   const baccaratRound = Math.floor(nowSec / 30)
   const raceRound     = Math.floor(nowSec / 180)
+
+  // ── 직전 완료 라운드 자동 정산 (cron 대체) ─────────────────
+  const bacProfiles = profiles.filter(p => parseInt(p.username.replace("사용자", "")) % 2 !== 0)
+  const raceProfiles = profiles.filter(p => parseInt(p.username.replace("사용자", "")) % 2 === 0)
+  await Promise.all([
+    settlePendingBots("baccarat", baccaratRound - 1, bacProfiles),
+    settlePendingBots("race", raceRound - 1, raceProfiles),
+  ])
 
   // ── bet_history 전수 조회 (통계 집계 + 최근 정산 내역 동시 처리) ──
   const { data: allHistory } = await adminSupabase
