@@ -135,49 +135,8 @@ const SIDE_COLOR: Record<string, string> = {
   bit: "text-blue-500", coin: "text-orange-500",
 }
 
-// ── LP 설정 행 ────────────────────────────────────────────────────────────
-function LpBranchRow({ branch, onSaved }: { branch: Branch; onSaved: () => void }) {
-  const [baccaratLp, setBaccaratLp] = useState(String(branch.lp_amount_baccarat ?? 50000))
-  const [raceLp, setRaceLp] = useState(String(branch.lp_amount_race ?? 50000))
-  const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
-  const handleSave = async () => {
-    setSaving(true); setMsg(null)
-    const token = getToken(); if (!token) return
-    const res = await fetch("/api/admin/branches/betting", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ branchId: branch.id, lpAmountBaccarat: parseInt(baccaratLp) || 0, lpAmountRace: parseInt(raceLp) || 0 }),
-    })
-    if (res.ok) { setMsg({ text: "저장됨", ok: true }); onSaved() }
-    else setMsg({ text: "저장 실패", ok: false })
-    setSaving(false)
-    setTimeout(() => setMsg(null), 2000)
-  }
-
-  return (
-    <div className="px-5 py-4">
-      <p className="text-sm font-semibold text-foreground mb-3">{branch.name}</p>
-      <div className="flex gap-3 flex-wrap items-end">
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">바카라 LP</p>
-          <Input type="number" value={baccaratLp} onChange={e => setBaccaratLp(e.target.value)} className="h-8 w-32 text-sm" />
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">레이스 LP</p>
-          <Input type="number" value={raceLp} onChange={e => setRaceLp(e.target.value)} className="h-8 w-32 text-sm" />
-        </div>
-        <Button size="sm" className="h-8 text-xs" onClick={handleSave} disabled={saving}>
-          {saving ? "저장 중..." : "저장"}
-        </Button>
-        {msg && <span className={`text-xs font-medium ${msg.ok ? "text-emerald-500" : "text-red-500"}`}>{msg.text}</span>}
-      </div>
-    </div>
-  )
-}
-
-// ── 게임 카드 (바카라 or 레이스) ──────────────────────────����───────────────
+// ── 게임 카드 (바카라 or 레이스) ──────────────────────────�����───────────────
 function GameRoundCard({
   stats, title, phase, timeLeft,
 }: {
@@ -1107,7 +1066,7 @@ export function RoundMonitor({
               </div>
             </div>
 
-            {/* 컬럼: 유저 | 게임/side/배팅 | 배당 | 최근결과 | 배팅누적 | 수익누적 | 손실누적 | 승W/패L | 잔고 */}
+            {/* 컬럼: 유저 | 게임/side/배팅 | 배당 | 최근결과 | 배팅누적 | 수익��적 | 손실누적 | 승W/패L | 잔고 */}
             <div className="px-4 py-1.5 bg-muted/40 grid grid-cols-[4.5rem_7rem_3rem_3rem_5rem_5rem_5rem_3.5rem_5.5rem] gap-1.5 text-xs text-muted-foreground font-medium">
               <span>유저</span>
               <span>이번 배팅</span>
@@ -1518,19 +1477,7 @@ export function RoundMonitor({
       {/* ════════════════════════════════════���════���══════════════
           섹션 5 — 지점별 LP 설정 (superadmin 전용)
       ══════════��═════════════════��═══════════════════════════ */}
-      {isSuperAdmin && branches.length > 0 && (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
-            <h3 className="text-sm font-semibold text-foreground">지점별 LP 금액 설정</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">바카라 / 레이스 게임별 LP 유동성 금액 (마스터 전용)</p>
-          </div>
-          <div className="divide-y divide-border">
-            {branches.map(branch => (
-              <LpBranchRow key={branch.id} branch={branch} onSaved={loadHouseStats} />
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {/* ��═══════════════════════════════════════════════════════
           전체 초기화 다이얼로그
