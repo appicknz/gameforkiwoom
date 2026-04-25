@@ -772,8 +772,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
             basePrice: effectiveBase,
             roundNumber: resolvedRoundNumber,
             gameType: "baccarat",
-            // 실제 카드 게임 결과 — 서버가 이 값을 우선 사용해야 정확한 정산 가능
-            // 소수점 기반 추정은 실제 카드 결과와 다를 수 있음
+            // 카드 3장 합산 끝자리 기반 실제 결과 — 서버가 이 값으로 승패 판정
             baccaratResult: bacResult,
           }),
         })
@@ -854,15 +853,28 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     }
 
     // 5) 정산 타이밍:
-    //    - 바카라 배팅 있음: baccarat:deal-complete 이벤트 수신 즉시 정산
-    //      (applyFinalDigit 완료 시점이 정확히 전달됨 → 고정 딜레이 불필요)
-    //    - 바카라 배팅 없음: 카드 연출과 무관, 즉시 정���
+    //    - 바카라 배팅 있음: 카드 합산 끝자리 결과(baccarat:deal-complete) 우선 사용
+    //      이미 캐싱됐으면 즉시, 아니면 이벤트 대기, 2초 후에도 없으면 소수점 fallback
+    //    - 바카라 배팅 없음: 즉시 정산
     if (betBaccaratRef.current) {
-      // 마감가 d1(뱅커) vs d2(플레이어) 비교 결과로 즉시 정산
-      // baccarat:deal-complete 이벤트 의존 완전 제거 — 타이밍 경쟁 없음
-      settle(serverBacResult)
+      if (dealCompleteResultRef.current) {
+        // 이미 카드 연출 완료 — 즉시 정산
+        settle(dealCompleteResultRef.current)
+      } else {
+        const onDealComplete = (e: Event) => {
+          window.removeEventListener("baccarat:deal-complete", onDealComplete)
+          const actual = (e as CustomEvent).detail?.result as "player" | "banker" | "tie" | undefined
+          settle(actual ?? serverBacResult)
+        }
+        window.addEventListener("baccarat:deal-complete", onDealComplete)
+        // 2초 타임아웃: 카드 이벤트 미수신 시 소수점 기반 fallback
+        setTimeout(() => {
+          window.removeEventListener("baccarat:deal-complete", onDealComplete)
+          settle(dealCompleteResultRef.current ?? serverBacResult)
+        }, 2000)
+      }
     } else {
-      settle(null)  // 즉시 정산 (������라 외 ���목)
+      settle(null)  // 즉시 정산 (바카라 외 항목)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onFinalDigitTrigger])
@@ -1382,7 +1394,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           <div className="grid grid-cols-3 gap-1.5">
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
-              // liveOdds는 배팅 구간에만 갱신되므로 그대로 사용하면 게임중 동결됨
+              // liveOdds는 ���팅 구간에만 갱신되므로 그대로 사용하면 게임중 동결됨
               const oddsAvailable = liveOdds?.available !== false
               const oddsVal = (liveOdds && oddsAvailable)
                 ? (side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie)

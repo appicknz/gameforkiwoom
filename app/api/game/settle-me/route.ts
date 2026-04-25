@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const userId = user.id
 
   try {
-    const { closePrice, basePrice, roundNumber, gameType = "baccarat", bitScore: clientBitScore, coinScore: clientCoinScore } = await request.json()
+    const { closePrice, basePrice, roundNumber, gameType = "baccarat", bitScore: clientBitScore, coinScore: clientCoinScore, baccaratResult: clientBaccaratResult } = await request.json()
     if (typeof closePrice !== "number" || typeof roundNumber !== "number") {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 })
     }
@@ -36,14 +36,17 @@ export async function POST(request: Request) {
     // ── 승패 결과 계산 ───────────────────────────────────────
     const effectiveBase: number = typeof basePrice === "number" ? basePrice : closePrice
     const decStr = closePrice.toFixed(2).split(".")[1] ?? "00"
-    const d1     = parseInt(decStr[0] ?? "0")  // 소수점 첫째 자리 = 뱅커 점수
-    const d2     = parseInt(decStr[1] ?? "0")  // 소수점 둘째 자리 = 플레이어 점수
+    const d1     = parseInt(decStr[0] ?? "0")  // 소수점 첫째 자리 = 뱅커 점수 (fallback)
+    const d2     = parseInt(decStr[1] ?? "0")  // 소수점 둘째 자리 = 플레이어 점수 (fallback)
     const wonDirection: "long" | "short" = closePrice >= effectiveBase ? "long" : "short"
     const wonDigit:     "under" | "over" = d2 <= 4 ? "under" : "over"
     const wonParity:    "odd"   | "even" = d2 % 2 === 0 ? "even" : "odd"
-    // 9에 가까운 쪽이 이김 — 클라이언트/서버 동일 로직
+    // 카드 3장 합산 끝자리 결과를 클라이언트가 전달 — 이 값 우선 사용
+    // 없으면 소수점 d1 vs d2 fallback (구버전 대응)
     const baccaratResult: "player" | "banker" | "tie" =
-      d1 === d2 ? "tie" : d1 > d2 ? "banker" : "player"
+      (clientBaccaratResult === "player" || clientBaccaratResult === "banker" || clientBaccaratResult === "tie")
+        ? clientBaccaratResult
+        : d1 === d2 ? "tie" : d1 > d2 ? "banker" : "player"
 
     // ── 유저 배팅 내역 조회 ──────────────────────────────────
     // 저장된 roundNumber를 우선 사용 (프론트에서 넘긴 값이 라운드 경계에서 틀릴 수 있음)

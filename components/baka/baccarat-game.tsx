@@ -640,13 +640,12 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     setState(prev => ({ ...prev, playerCards: finalP, finalCard: null }))
     await sleep(350)
 
-    // 5. 승부 결정: BTC 마감가 소수점 끝자리로 결정 (카드 합산은 연출용)
-    //    d1 = 소수점 첫째 자리 = 뱅커 점수, d2 = 소수점 둘째 자리 = 플레이어 점수
-    //    9에 가까운 쪽이 이김 — 초기 2장은 연출이므로 합산에 영향 없음
-    const pScore = playerDigit   // 연출용 점수 표시에만 사용
-    const bScore = bankerDigit   // 연출용 점수 표시에만 사용
+    // 5. 승부 결정: 3장 합산 끝자리 기준 — 9에 가까운 쪽이 이김
+    //    초기 2장(seed 랜덤) + 3번째 카드(BTC 끝자리) 합산 % 10
+    const pScore = handScore(finalP)   // 플레이어 합산 끝자리
+    const bScore = handScore(finalB)   // 뱅커 합산 끝자리
     const btcResult: "player" | "banker" | "tie" =
-      playerDigit === bankerDigit ? "tie" : playerDigit > bankerDigit ? "player" : "banker"
+      pScore > bScore ? "player" : bScore > pScore ? "banker" : "tie"
 
     setState(prev => ({
       ...prev,
