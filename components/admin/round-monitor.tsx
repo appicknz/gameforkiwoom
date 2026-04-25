@@ -1083,7 +1083,21 @@ export function RoundMonitor({
                 const us = u.userStats
                 const ls = u.lastSettled
                 const betResult = lastBetResults?.find(r => r.username === u.username)
-                const resultLabel = ls?.result === "win" ? "승리" : ls?.result === "lose" ? "패배" : ls?.result === "tie" ? "타이" : null
+
+                // 현재 라운드 시작 Unix timestamp (초)
+                const roundDuration = u.gameType === "baccarat" ? 30 : 180
+                const currentRoundStartSec = u.currentRound * roundDuration
+                // lastSettled가 현재 라운드 시작 이후에 생성됐는지 확인
+                const lsCreatedSec = ls?.createdAt ? Math.floor(new Date(ls.createdAt).getTime() / 1000) : 0
+                const isCurrentRoundResult = lsCreatedSec >= currentRoundStartSec
+
+                // 현재 라운드 배팅 중 → 결과 미확정
+                // 현재 라운드 정산 완료 → 결과 표시
+                // 직전 라운드 이전 → 표시 안 함
+                const showResult = isCurrentRoundResult && !u.currentBet
+                const resultLabel = showResult
+                  ? ls?.result === "win" ? "승리" : ls?.result === "lose" ? "패배" : ls?.result === "tie" ? "타이" : null
+                  : null
                 const resultColor = ls?.result === "win"
                   ? "text-emerald-500 bg-emerald-500/10 border-emerald-500/30"
                   : ls?.result === "lose" ? "text-red-500 bg-red-500/10 border-red-500/30"
@@ -1135,11 +1149,16 @@ export function RoundMonitor({
                       )}
                     </div>
 
-                    {/* 최근결과 */}
+                    {/* 이번 라운드 결과 */}
                     <div className="col-span-1 text-center">
-                      {resultLabel ? (
+                      {u.currentBet ? (
+                        // 현재 라운드 배팅 접수됨 → 결과 대기
+                        <span className="text-[10px] font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded-md">진행중</span>
+                      ) : resultLabel ? (
+                        // 현재 라운드 정산 완료
                         <span className={`text-xs font-bold px-2 py-1 rounded-md border ${resultColor}`}>{resultLabel}</span>
                       ) : (
+                        // 이번 라운드 배팅 없음
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </div>
