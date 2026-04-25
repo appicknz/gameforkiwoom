@@ -670,14 +670,19 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       }>).detail
       dealCompleteResultRef.current = result
       dealCompleteScoreRef.current = { pScore, bScore }
+      // DB 저장 (빅로드용)
       fetch("/api/closing-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ price: closePrice, time, baccarat_result: result, b_score: bScore, p_score: pScore, b_raw_sum: bRawSum, p_raw_sum: pRawSum }),
       }).catch(() => { })
+      // 바카라 배팅이 있으면 여기서 바로 정산 — 별도 리스너 불필요
+      if (betBaccaratRef.current) {
+        settle(result, pScore, bScore)
+      }
     }
     window.addEventListener("baccarat:deal-complete", onDealForScore)
-    setTimeout(() => window.removeEventListener("baccarat:deal-complete", onDealForScore), 3000)
+    setTimeout(() => window.removeEventListener("baccarat:deal-complete", onDealForScore), 5000)
 
     fetch("/api/rounds/save", {
       method: "POST",
@@ -855,32 +860,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     }
 
     // 5) 정산 타이밍:
-    //    - 바카라 배팅 있음: 카드 합산 끝자리 결과(baccarat:deal-complete) 우선 사용
-    //      이미 캐싱됐으면 즉시, 아니면 이벤트 대기, 2초 후에도 없으면 소수점 fallback
+    //    - 바카라 배팅: onDealForScore 내부에서 settle() 호출 (위에서 처리)
     //    - 바카라 배팅 없음: 즉시 정산
-    if (betBaccaratRef.current) {
-      if (dealCompleteResultRef.current && dealCompleteScoreRef.current) {
-        // 이미 카드 연출 완료 — 즉시 정산
-        const { pScore, bScore } = dealCompleteScoreRef.current
-        settle(dealCompleteResultRef.current, pScore, bScore)
-      } else {
-        const onDealComplete = (e: Event) => {
-          window.removeEventListener("baccarat:deal-complete", onDealComplete)
-          const detail = (e as CustomEvent).detail as { result: "player" | "banker" | "tie"; pScore: number; bScore: number }
-          dealCompleteScoreRef.current = { pScore: detail.pScore, bScore: detail.bScore }
-          settle(detail.result, detail.pScore, detail.bScore)
-        }
-        window.addEventListener("baccarat:deal-complete", onDealComplete)
-        // 2초 타임아웃: 이벤트 미수신 시 에러 처리 — fallback 없음
-        setTimeout(() => {
-          window.removeEventListener("baccarat:deal-complete", onDealComplete)
-          if (!dealCompleteScoreRef.current) {
-            console.error("[v0] baccarat:deal-complete 미수신 — 정산 불가")
-          }
-        }, 2000)
-      }
-    } else {
-      settle(null)  // 즉시 정산 (바카라 외 항목)
+    if (!betBaccaratRef.current) {
+      settle(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onFinalDigitTrigger])
