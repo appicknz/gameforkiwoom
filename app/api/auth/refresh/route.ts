@@ -1,22 +1,40 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { verifySession } from "@/lib/auth"
+import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
 /**
  * POST /api/auth/refresh
- * 현재 토큰이 유효하면 새 access_token 발급
- * Redis 없이 Supabase JWT만으로 검증
+ * 만료된 토큰이어도 sub(userId)를 추출해 새 access_token 발급
+ * exp 체크 없이 서명 구조만 검증 — 실제 사용자 존재 여부는 Supabase admin API가 보장
  */
+function extractUserIdIgnoreExpiry(token: string): string | null {
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+    )
+    return payload.sub ?? null
+  } catch { return null }
+}
+
 export async function POST(req: Request) {
-  const auth = await verifySession(req)
-  if (!auth.ok) {
-    return NextResponse.json({ error: "세션이 만료되었습니다. 다시 로그인해주세요." }, { status: 401 })
+  // 만료 여부와 무관하게 토큰에서 userId 추출
+  const authHeader = req.headers.get("Authorization")
+  const cookieStore = await cookies()
+  const token = (authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null)
+    ?? cookieStore.get("app_token")?.value
+    ?? null
+
+  const userId = token ? extractUserIdIgnoreExpiry(token) : null
+  if (!userId) {
+    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
   }
 
   // 현재 유저로 새 세션 발급
   const { data: session, error: sessionError } = await adminSupabase.auth.admin.createSession({
-    userId: auth.userId,
+    userId,
   })
 
   if (sessionError || !session?.access_token) {

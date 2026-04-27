@@ -24,12 +24,18 @@ async function fetchWithRefresh(input: RequestInfo, init: RequestInit = {}): Pro
   const res = await fetch(input, authInit)
   if (res.status !== 401) return res
 
-  // 토큰 갱신 시도
+  // 토큰 갱신 시도 — 만료된 토큰이어도 refresh 라우트에서 허용
   const refreshRes = await fetch("/api/auth/refresh", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   })
-  if (!refreshRes.ok) return res  // 갱신 실패 → 원래 401 반환
+
+  if (!refreshRes.ok) {
+    // 갱신 실패 = refresh_token도 만료 → 재로그인 필요
+    alert("세션이 만료되었습니다. 다시 로그인해주세요.")
+    window.location.href = "/login"
+    return res
+  }
 
   const { token: newToken } = await refreshRes.json()
   if (!newToken) return res
@@ -1501,7 +1507,7 @@ export function RoundMonitor({
 
       {/* ��═══════════════════════════════════════════════════════
           전체 초기화 다이얼로그
-      ═════════════════���═���════════════════════════════════════ */}
+      ══════════���══════���═���════════════════════════════════════ */}
       {showResetDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-xl mx-4">
