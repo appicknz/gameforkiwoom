@@ -514,8 +514,8 @@ async function runBetForGame(gameType: "baccarat" | "race") {
 
   // ── 배팅 구간 내에 무작위 분산 배팅 ──────────────────────────
   // 바카라: 배팅창 15초(5~19초), cron 진입 후 7초 예산 — 게임중(20초) 전에 확실히 완료
-  // 레이스: 배팅창 50초(10~59초), cron 진입 후 40초 예산
-  const SPREAD_BUDGET_MS = gameType === "baccarat" ? 7000 : 40000
+  // 레이스: cron maxDuration=55초 제약으로 분산 배팅 불가 → 5초 예산으로 즉시 완료
+  const SPREAD_BUDGET_MS = gameType === "baccarat" ? 7000 : 5000
 
   // Fisher-Yates 셔플
   const shuffled = [...targetProfiles]

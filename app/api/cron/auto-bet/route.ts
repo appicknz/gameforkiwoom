@@ -69,12 +69,13 @@ export async function GET(request: Request) {
   // 레이스: 배팅창 전체(10~59초)에서 시도 — betOne 내부에서 이미 배팅한 유저는 skip
   const doRace1     = raceSec1 >= 10 && raceSec1 < 60
 
-  if (doBaccarat1) results.baccarat1 = await callAutoBet("bet_baccarat")
+  // 레이스 배팅 + 정산을 30초 대기 전에 먼저 처리 (maxDuration=55초 제약)
   if (doRace1)     results.race      = await callAutoBet("bet_race")
-
-  // 정산: 항상 직전 라운드 정산 시도 (bot-settle 내부에서 중복 방어)
-  results.settle1    = await callBotSettle("baccarat", bacRound1 - 1)
   results.raceSettle = await callBotSettle("race", raceRound1 - 1)
+
+  // 바카라 1차 배팅 + 정산
+  if (doBaccarat1) results.baccarat1 = await callAutoBet("bet_baccarat")
+  results.settle1    = await callBotSettle("baccarat", bacRound1 - 1)
 
   // ── 2차: 30초 대기 후 두 번째 바카라 라운드 처리 ─────────────
   await new Promise(res => setTimeout(res, 30000))
@@ -85,7 +86,6 @@ export async function GET(request: Request) {
   const doBaccarat2 = bacSec2 >= 5 && bacSec2 <= 9
 
   if (doBaccarat2) results.baccarat2 = await callAutoBet("bet_baccarat")
-  // 2차에서도 직전 라운드 정산
   results.settle2 = await callBotSettle("baccarat", bacRound2 - 1)
 
   return NextResponse.json({
