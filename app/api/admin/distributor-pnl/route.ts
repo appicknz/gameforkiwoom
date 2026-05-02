@@ -26,6 +26,11 @@ export async function GET(req: Request) {
     cookieStore.get("app_token")?.value ??
     ""
 
+  const { searchParams } = new URL(req.url)
+  const targetId = searchParams.get("target_id")
+  const all      = searchParams.get("all") === "1"
+  const period   = searchParams.get("period") // "month" | "last_month" | null
+
   // pw 파라미터로 마스터 직접 인증 허용 (mas 페이지 호환)
   const pw = searchParams.get("pw")
   const masterPw = process.env.SUPER_ADMIN_PASSWORD
@@ -33,11 +38,6 @@ export async function GET(req: Request) {
 
   const auth = isMasterByPw ? { userId: process.env.SUPER_ADMIN_ID ?? "", role: "master" } : await requireAdmin(token)
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { searchParams } = new URL(req.url)
-  const targetId = searchParams.get("target_id")
-  const all      = searchParams.get("all") === "1"
-  const period   = searchParams.get("period") // "month" | "last_month" | null
 
   // 기간 필터
   const now      = new Date()
