@@ -8,8 +8,16 @@ import { useRouter } from "next/navigation"
 import { RoundMonitor } from "@/components/admin/round-monitor"
 import { RoundHistory } from "@/components/admin/round-history"
 
-const SUPER_ROLES = ["master", "super_admin"]
+const SUPER_ROLES = ["master"] // master 전용 권한 (지점관리, 라운드모니터 등)
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin", "admin"]
+
+// 역할별 기본 탭
+const DEFAULT_TAB: Record<string, "users" | "branches" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts"> = {
+  master:       "users",
+  super_admin:  "points",  // 대총판: 포인트(충전 승인) 탭
+  branch_admin: "branches", // 총판: 지점관리 탭
+  admin:        "cash",    // 지점: 현금/환전 탭
+}
 
 function getToken(): string | null {
   try { return localStorage.getItem("app_token") } catch { return null }
@@ -351,6 +359,8 @@ export default function PanelPage() {
         setMyRole(role)
         setMyBranchCode(data.profile?.branch_code ?? null)
         setProfile({ username: data.profile?.username ?? "", role })
+        // 역할에 맞는 기본 탭으로 자동 이동
+        if (DEFAULT_TAB[role]) setActiveTab(DEFAULT_TAB[role])
         setLoading(false)
       })
       .catch(() => router.replace("/"))
@@ -719,95 +729,74 @@ export default function PanelPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Shield className="w-5 h-5 text-primary" />
-          <h1 className="text-lg font-semibold text-foreground">관리자 패널</h1>
-          {myBranchCode && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
-              지점코드: {myBranchCode}
-            </span>
-          )}
-        </div>
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            <h1 className="text-lg font-semibold text-foreground">관리자 패널</h1>
+            {myRole && (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                myRole === "master" ? "bg-purple-100 text-purple-700" :
+                myRole === "super_admin" ? "bg-red-100 text-red-700" :
+                myRole === "branch_admin" ? "bg-blue-100 text-blue-700" :
+                "bg-orange-100 text-orange-700"
+              }`}>
+                {{ master: "마스터", super_admin: "대총판", branch_admin: "총판", admin: "지점" }[myRole] ?? myRole}
+              </span>
+            )}
+            {myBranchCode && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                코드: {myBranchCode}
+              </span>
+            )}
+          </div>
         <Button variant="ghost" size="sm" onClick={() => router.replace("/")} className="gap-1.5 text-muted-foreground">
           <LogOut className="w-4 h-4" /> 나가기
         </Button>
       </header>
 
       <div className="border-b border-border bg-card">
-        <div className="flex px-6">
-          <button
-            onClick={() => setActiveTab("users")}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "users" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            <Users className="w-4 h-4" /> 회원관리
-          </button>
-          {isSuperAdmin && (
-            <button
-              onClick={() => setActiveTab("branches")}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              <GitBranch className="w-4 h-4" /> 지점관리
-            </button>
-          )}
-          <button
-            onClick={() => setActiveTab("monitor")}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "monitor" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            <Activity className="w-4 h-4" /> 라운드 모니터
-          </button>
-          <button
-            onClick={() => setActiveTab("history")}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "history" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            <TrendingDown className="w-4 h-4" /> 라운드 기록
-          </button>
+        <div className="flex px-6 overflow-x-auto">
 
-          <button
-            onClick={() => { setActiveTab("points"); loadPpRequests(); loadPcRequests() }}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "points" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            <Wallet className="w-4 h-4" /> 포인트
-          </button>
-          <button
-            onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests() }}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "cash" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            <Banknote className="w-4 h-4" /> 현금/환전
-          </button>
-          <button
-            onClick={() => { setActiveTab("calendar"); loadCalendar(calYear, calMonth, calBranchFilter || undefined) }}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "calendar" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            <CalendarDays className="w-4 h-4" /> 매출달력
-          </button>
-          {isSuperAdmin && (
-            <button
-              onClick={() => { setActiveTab("pnl"); loadPnl(pnlPeriod) }}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "pnl" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-            >
-              <TrendingUp className="w-4 h-4" /> 손익
+          {/* ── 마스터 전용 탭 ── */}
+          {myRole === "master" && (<>
+            <button onClick={() => setActiveTab("users")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "users" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Users className="w-4 h-4" /> 회원관리</button>
+            <button onClick={() => setActiveTab("branches")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><GitBranch className="w-4 h-4" /> 지점관리</button>
+            <button onClick={() => setActiveTab("monitor")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "monitor" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Activity className="w-4 h-4" /> 라운드 모니터</button>
+            <button onClick={() => setActiveTab("history")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "history" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><TrendingDown className="w-4 h-4" /> 라운드 기록</button>
+            <button onClick={() => { setActiveTab("points"); loadPpRequests(); loadPcRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "points" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Wallet className="w-4 h-4" /> 포인트</button>
+            <button onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "cash" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Banknote className="w-4 h-4" /> 현금/환전</button>
+            <button onClick={() => { setActiveTab("calendar"); loadCalendar(calYear, calMonth, calBranchFilter || undefined) }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "calendar" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><CalendarDays className="w-4 h-4" /> 매출달력</button>
+            <button onClick={() => { setActiveTab("pnl"); loadPnl(pnlPeriod) }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "pnl" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><TrendingUp className="w-4 h-4" /> 손익</button>
+            <button onClick={() => setActiveTab("accounts")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "accounts" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Shield className="w-4 h-4" /> 계정생성</button>
+            <button onClick={() => { setActiveTab("cards"); fetchCardImages() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><ImageIcon className="w-4 h-4" /> 카드관리</button>
+          </>)}
+
+          {/* ── 대총판 전용 탭 (포인트 충전 승인만) ── */}
+          {myRole === "super_admin" && (
+            <button onClick={() => { setActiveTab("points"); loadPpRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "points" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              <Wallet className="w-4 h-4" />
+              대총판
+              {ppRequests.filter((r: any) => r.status === "pending").length > 0 && (
+                <span className="ml-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                  {ppRequests.filter((r: any) => r.status === "pending").length}
+                </span>
+              )}
             </button>
           )}
-          {myRole === "master" && (
-            <button
-              onClick={() => setActiveTab("accounts")}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "accounts" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-            >
-              <Shield className="w-4 h-4" /> 계정생성
+
+          {/* ── 총판 전용 탭 (지점관리만) ── */}
+          {myRole === "branch_admin" && (
+            <button onClick={() => setActiveTab("branches")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              <GitBranch className="w-4 h-4" /> 총판
             </button>
           )}
-          {myRole === "master" && (
-            <button
-              onClick={() => { setActiveTab("cards"); fetchCardImages() }}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-            >
-              <ImageIcon className="w-4 h-4" /> 카드관리
+
+          {/* ── 지점 전용 탭 (현금/환전만) ── */}
+          {myRole === "admin" && (
+            <button onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "cash" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              <Banknote className="w-4 h-4" /> 지점
             </button>
           )}
+
         </div>
       </div>
 
@@ -910,7 +899,7 @@ export default function PanelPage() {
         )}
 
         {/* 지점관리 탭 (대총판/마스터 전용) */}
-        {activeTab === "branches" && isSuperAdmin && (
+        {activeTab === "branches" && (myRole === "master" || myRole === "branch_admin") && (
           <>
             {/* 지점 생성 폼 */}
             <div className="bg-card border border-border rounded-xl p-5 mb-6">
@@ -1277,8 +1266,40 @@ export default function PanelPage() {
         {activeTab === "points" && (
           <div className="space-y-6">
 
-            {/* 포인트 구매 요청 (현금 내고 포인트 사기) — super_admin/branch_admin/admin */}
-            {!isSuperAdmin && (
+            {/* 대총판 요약 카드 4개 */}
+            {myRole === "super_admin" && (() => {
+              const pending = ppRequests.filter((r: any) => r.status === "pending")
+              const approved = ppRequests.filter((r: any) => ["approved","activated"].includes(r.status))
+              const totalCharged = approved.reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
+              const totalFee = ppRequests.reduce((s: number, r: any) => s + (r.fee_amount ?? 0), 0)
+              return (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
+                    <p className="text-xs text-muted-foreground">입금 확인 필요</p>
+                    <p className="text-2xl font-bold text-primary">{pending.length}<span className="text-base font-medium text-muted-foreground ml-1">건</span></p>
+                    <p className="text-[11px] text-muted-foreground">대기 중인 충전 요청</p>
+                  </div>
+                  <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
+                    <p className="text-xs text-muted-foreground">총 충전액</p>
+                    <p className="text-2xl font-bold text-emerald-600">₩{totalCharged.toLocaleString()}</p>
+                    <p className="text-[11px] text-muted-foreground">승인 완료 누적</p>
+                  </div>
+                  <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
+                    <p className="text-xs text-muted-foreground">수수료 총액</p>
+                    <p className="text-2xl font-bold text-amber-500">₩{totalFee.toLocaleString()}</p>
+                    <p className="text-[11px] text-muted-foreground">누적 수수료</p>
+                  </div>
+                  <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
+                    <p className="text-xs text-muted-foreground">내 잔고</p>
+                    <p className="text-2xl font-bold text-foreground">₩{users.find(u => u.id === myUserId)?.balance?.toLocaleString() ?? "0"}</p>
+                    <p className="text-[11px] text-muted-foreground">현재 보유 포인트</p>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* 포인트 구매 요청 폼 — 총판/지점만 */}
+            {(myRole === "branch_admin" || myRole === "admin") && (
               <div className="bg-card border border-border rounded-xl p-5 space-y-3">
                 <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Wallet className="w-4 h-4 text-primary" /> 포인트 구매 요청</h2>
                 <p className="text-xs text-muted-foreground">현금 금액을 입력하고 요청하면 마스터/대총판이 포인트를 지급합니다.</p>
