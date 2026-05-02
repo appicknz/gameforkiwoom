@@ -63,11 +63,14 @@ export async function POST(req: Request) {
   }
 
   // profiles 테이블에 역할 등록
+  // branch_code/branch_id 는 branches 테이블 FK → 관리자 계정은 지점 미소속이므로 NULL
   const { error: profileErr } = await adminSupabase.from("profiles").upsert({
     id: authUser.user.id,
     username: username.trim(),
     role,
-    branch_code: memo?.trim() ?? null,
+    memo: memo?.trim() ?? null,
+    branch_id: null,
+    branch_code: null,
   })
   if (profileErr) {
     // auth 유저는 생성됐지만 profile 실패 시 auth 유저 삭제
