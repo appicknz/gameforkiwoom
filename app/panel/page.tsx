@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, TrendingUp, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, TrendingUp, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy, ImageIcon, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -153,7 +153,47 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards">("users")
+
+  // 카드 이미지 관리 state (master 전용)
+  interface CardImage { url: string; pathname: string; uploadedAt: string }
+  const [cardImages, setCardImages] = useState<CardImage[]>([])
+  const [cardLoading, setCardLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState("")
+  const cardFileInputRef = useRef<HTMLInputElement>(null)
+
+  const fetchCardImages = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setCardLoading(true)
+    try {
+      const res = await fetch(`/api/admin/card-images`, { headers: { Authorization: `Bearer ${token}` } })
+      if (res.ok) { const d = await res.json(); setCardImages(d.images ?? []) }
+    } finally { setCardLoading(false) }
+  }, [])
+
+  const handleCardUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files; if (!files || files.length === 0) return
+    const token = getToken(); if (!token) return
+    setUploading(true); setUploadError("")
+    try {
+      for (const file of Array.from(files)) {
+        const fd = new FormData(); fd.append("file", file)
+        const res = await fetch("/api/admin/card-images", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd })
+        if (!res.ok) throw new Error("업로드 실패")
+      }
+      await fetchCardImages()
+    } catch { setUploadError("업로드 중 오류가 발생했습니다.") }
+    finally { setUploading(false); if (cardFileInputRef.current) cardFileInputRef.current.value = "" }
+  }
+
+  const handleCardDelete = async (url: string) => {
+    if (!confirm("이 이미지를 삭제하시겠습니까?")) return
+    const token = getToken(); if (!token) return
+    const res = await fetch("/api/admin/card-images", { method: "DELETE", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ url }) })
+    if (res.ok) await fetchCardImages()
+    else alert("삭제 중 오류가 발생했습니다.")
+  }
 
   // 손익 state
   interface PnlData { rate_profit: number; fee_total: number; exchange_payout: number; net_pnl: number; balance: number; cash_balance: number }
@@ -703,6 +743,14 @@ export default function PanelPage() {
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "pnl" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
             >
               <TrendingUp className="w-4 h-4" /> 손익
+            </button>
+          )}
+          {myRole === "master" && (
+            <button
+              onClick={() => { setActiveTab("cards"); fetchCardImages() }}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            >
+              <ImageIcon className="w-4 h-4" /> 카드관리
             </button>
           )}
         </div>
@@ -1794,6 +1842,65 @@ export default function PanelPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 카드 관리 탭 (master 전용) */}
+        {activeTab === "cards" && myRole === "master" && (
+          <div className="space-y-6">
+            <div className="bg-card border border-border rounded-xl p-5">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground mb-1">카드 이미지 관리</h2>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    업로드한 이미지는 순번 순서대로 카드 배경으로 사용됩니다.<br />
+                    각 라운드에서 순번 기반으로 하나가 선택되어 카드에 오버레이됩니다.<br />
+                    JPG, PNG, WebP 파일을 지원합니다.
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <input ref={cardFileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleCardUpload} />
+                  <Button onClick={() => cardFileInputRef.current?.click()} disabled={uploading} className="flex items-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    {uploading ? "업로드 중..." : "이미지 추가"}
+                  </Button>
+                </div>
+              </div>
+              {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>현재 등록된 이미지: <strong className="text-foreground">{cardImages.length}장</strong></span>
+              </div>
+            </div>
+            {cardLoading ? (
+              <div className="py-16 text-center text-muted-foreground text-sm">불러오는 중...</div>
+            ) : cardImages.length === 0 ? (
+              <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center">
+                <ImageIcon className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">업로드된 카드 이미지가 없습니다.</p>
+                <p className="text-xs text-muted-foreground mt-1">위의 &quot;이미지 추가&quot; 버튼으로 업로드하세요.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {cardImages.map((img, idx) => (
+                  <div key={img.pathname} className="group relative bg-card border border-border rounded-xl overflow-hidden aspect-[3/4]">
+                    <div className="absolute top-2 left-2 z-10 bg-black/70 text-white text-xs font-bold px-2 py-0.5 rounded-full">#{idx + 1}</div>
+                    <img src={img.url} alt={`카드 이미지 #${idx + 1}`} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <button
+                        onClick={() => handleCardDelete(img.url)}
+                        className="flex items-center gap-1.5 bg-destructive text-destructive-foreground text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-destructive/90 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> 삭제
+                      </button>
+                    </div>
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-2">
+                      <p className="text-white text-xs truncate">{img.pathname.split("/").pop()}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
