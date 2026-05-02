@@ -185,6 +185,23 @@ export default function PanelPage() {
     finally { setAcSubmitting(false) }
   }
 
+  const handleDeleteAccount = async (targetId: string, targetUsername: string) => {
+    if (!confirm(`"${targetUsername}" 계정을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) return
+    const token = getToken(); if (!token) return
+    const res = await fetch("/api/admin/create-account", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ targetId }),
+    })
+    const d = await res.json()
+    if (res.ok) {
+      setAcMsg({ text: `"${targetUsername}" 계정이 삭제되었습니다.`, ok: true })
+      loadUsers(adminPw)
+    } else {
+      alert(d.error ?? "삭제 중 오류가 발생했습니다.")
+    }
+  }
+
   // 카드 이미지 관리 state (master 전용)
   interface CardImage { url: string; pathname: string; uploadedAt: string }
   const [cardImages, setCardImages] = useState<CardImage[]>([])
@@ -1482,7 +1499,7 @@ export default function PanelPage() {
               </div>
             </div>
 
-            {/* 하위 역할 잔고 현황 (master/super_admin만) */}
+            {/* 하위 역할 ��고 현황 (master/super_admin만) */}
             {isSuperAdmin && subBalances.length > 0 && (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="px-5 py-3 border-b border-border flex items-center justify-between">
@@ -1989,20 +2006,28 @@ export default function PanelPage() {
                     .map(u => {
                       const rl = roleLabel[u.role]
                       return (
-                        <div key={u.id} className="px-5 py-3 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <div key={u.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
                               <span className="text-xs font-semibold text-primary">{u.username.charAt(0)}</span>
                             </div>
-                            <div>
-                              <div className="flex items-center gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-medium text-foreground">{u.username}</span>
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${rl.color}`}>{rl.label}</span>
                               </div>
                               <p className="text-xs text-muted-foreground">{formatDate(u.created_at)}</p>
                             </div>
                           </div>
-                          <p className="text-sm font-semibold text-foreground">{formatBalance(u.balance)}</p>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <p className="text-sm font-semibold text-foreground">{formatBalance(u.balance)}</p>
+                            <button
+                              onClick={() => handleDeleteAccount(u.id, u.username)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> 삭제
+                            </button>
+                          </div>
                         </div>
                       )
                     })

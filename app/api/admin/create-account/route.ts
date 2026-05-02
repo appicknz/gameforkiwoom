@@ -84,3 +84,37 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, id: userId, username: username.trim(), role })
 }
+
+export async function DELETE(req: Request) {
+  const cookieStore = await cookies()
+  const token =
+    req.headers.get("Authorization")?.replace("Bearer ", "") ??
+    cookieStore.get("app_token")?.value ??
+    ""
+
+  const callerId = decodeJwtSub(token)
+  if (!callerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { data: caller } = await adminSupabase.from("profiles").select("role").eq("id", callerId).single()
+  if (!caller || caller.role !== "master") {
+    return NextResponse.json({ error: "마스터 계정만 삭제할 수 있습니다." }, { status: 403 })
+  }
+
+  const { targetId } = await req.json()
+  if (!targetId) return NextResponse.json({ error: "대상 ID가 필요합니다." }, { status: 400 })
+
+  // master 계정은 삭제 불가
+  const { data: target } = await adminSupabase.from("profiles").select("role, username").eq("id", targetId).single()
+  if (!target) return NextResponse.json({ error: "계정을 찾을 수 없습니다." }, { status: 404 })
+  if (target.role === "master") return NextResponse.json({ error: "마스터 계정은 삭제할 수 없습니다." }, { status: 403 })
+
+  // profiles 삭제 (cascade 없을 경우 먼저 삭제)
+  await adminSupabase.from("balances").delete().eq("user_id", targetId)
+  await adminSupabase.from("profiles").delete().eq("id", targetId)
+
+  // auth.users 삭제
+  const { error: authErr } = await adminSupabase.auth.admin.deleteUser(targetId)
+  if (authErr) return NextResponse.json({ error: "Auth 삭제 실패: " + authErr.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true, username: target.username })
+}
