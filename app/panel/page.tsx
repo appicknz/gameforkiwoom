@@ -153,7 +153,37 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts">("users")
+
+  // 계정 생성 (master 전용)
+  const [acUsername, setAcUsername]   = useState("")
+  const [acPassword, setAcPassword]   = useState("")
+  const [acRole, setAcRole]           = useState<"super_admin" | "branch_admin" | "admin">("super_admin")
+  const [acMemo, setAcMemo]           = useState("")
+  const [acSubmitting, setAcSubmitting] = useState(false)
+  const [acMsg, setAcMsg]             = useState<{ text: string; ok: boolean } | null>(null)
+
+  const handleCreateAccount = async () => {
+    if (!acUsername.trim() || !acPassword.trim()) { setAcMsg({ text: "아이디와 비밀번호를 모두 입력하세요.", ok: false }); return }
+    const token = getToken(); if (!token) return
+    setAcSubmitting(true); setAcMsg(null)
+    try {
+      const res = await fetch("/api/admin/create-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username: acUsername.trim(), password: acPassword, role: acRole, memo: acMemo }),
+      })
+      const d = await res.json()
+      if (res.ok) {
+        setAcMsg({ text: `계정이 생성되었습니다. (${acUsername})`, ok: true })
+        setAcUsername(""); setAcPassword(""); setAcMemo("")
+        loadUsers(adminPw)
+      } else {
+        setAcMsg({ text: d.error ?? "계정 생성에 실패했습니다.", ok: false })
+      }
+    } catch { setAcMsg({ text: "오류가 발생했습니다.", ok: false }) }
+    finally { setAcSubmitting(false) }
+  }
 
   // 카드 이미지 관리 state (master 전용)
   interface CardImage { url: string; pathname: string; uploadedAt: string }
@@ -381,7 +411,7 @@ export default function PanelPage() {
   useEffect(() => {
     if (adminPw && myUserId) {
       loadUsers(adminPw)
-      // superadmin: 전체 지점 로드
+      // superadmin: 전체 지점 로��
       // branch_admin: 자기 지점 id 파악을 위해 branches 로드 후 myBranchId 설정
       loadBranches(adminPw).then(() => {
         // branches 상태는 비동기로 업데이트되므로 직접 fetch
@@ -488,11 +518,11 @@ export default function PanelPage() {
   const formatDate = (s: string) => new Date(s).toLocaleDateString("ko-KR")
 
   const roleLabel: Record<string, { label: string; color: string }> = {
-    master:       { label: "마스터",     color: "bg-purple-100 text-purple-700" },
-    super_admin:  { label: "수퍼관리자", color: "bg-red-100 text-red-700" },
-    branch_admin: { label: "지점관리자", color: "bg-blue-100 text-blue-700" },
-    admin:        { label: "관리자",     color: "bg-orange-100 text-orange-700" },
-    user:         { label: "일반회원",   color: "bg-gray-100 text-gray-600" },
+    master:       { label: "마스터",   color: "bg-purple-100 text-purple-700" },
+    super_admin:  { label: "대총판",   color: "bg-red-100 text-red-700" },
+    branch_admin: { label: "총판",     color: "bg-blue-100 text-blue-700" },
+    admin:        { label: "지점",     color: "bg-orange-100 text-orange-700" },
+    user:         { label: "일반회원", color: "bg-gray-100 text-gray-600" },
   }
 
   // ── 포인트 구매 요청 (현금 내고 포인트 사기) ──
@@ -747,6 +777,14 @@ export default function PanelPage() {
           )}
           {myRole === "master" && (
             <button
+              onClick={() => setActiveTab("accounts")}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "accounts" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            >
+              <Shield className="w-4 h-4" /> 계정생성
+            </button>
+          )}
+          {myRole === "master" && (
+            <button
               onClick={() => { setActiveTab("cards"); fetchCardImages() }}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
             >
@@ -854,7 +892,7 @@ export default function PanelPage() {
           </>
         )}
 
-        {/* 지점관리 탭 (super_admin/master 전용) */}
+        {/* 지점관리 탭 (대총판/마스터 전용) */}
         {activeTab === "branches" && isSuperAdmin && (
           <>
             {/* 지점 생성 폼 */}
@@ -873,12 +911,12 @@ export default function PanelPage() {
                   value={newBranchCode}
                   onChange={e => setNewBranchCode(e.target.value.toUpperCase())}
                 />
-                {/* 지점관리자 검색 (필수) */}
+                {/* 총판 검색 (필수) */}
                 <div className="relative">
                   <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
                   <Input
                     className="pl-9"
-                    placeholder="지점관리자 아이디 검색 (필수)"
+                    placeholder="총판 아이디 검색 (필수)"
                     value={ownerSearch}
                     onChange={e => {
                       setOwnerSearch(e.target.value)
@@ -1226,7 +1264,7 @@ export default function PanelPage() {
             {!isSuperAdmin && (
               <div className="bg-card border border-border rounded-xl p-5 space-y-3">
                 <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Wallet className="w-4 h-4 text-primary" /> 포인트 구매 요청</h2>
-                <p className="text-xs text-muted-foreground">현금 금액을 입력하고 요청하면 마스터/수퍼관리자가 포인트를 지급합니다.</p>
+                <p className="text-xs text-muted-foreground">현금 금액을 입력하고 요청하면 마스터/대총판이 포인트를 지급합니다.</p>
                 <div className="flex gap-2">
                   <Input placeholder="현금 금액" type="number" value={ppCashAmt} onChange={e => setPpCashAmt(e.target.value)} className="h-9 text-sm w-40" />
                   <Input placeholder="메모 (선택)" value={ppMemo} onChange={e => setPpMemo(e.target.value)} className="h-9 text-sm flex-1" />
@@ -1473,7 +1511,7 @@ export default function PanelPage() {
             {/* 환전 요청 생성 */}
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-primary" /> 환전 요청</h2>
-              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인트를 입력하면 수퍼관리자/마스터가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
+              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인트를 입력하면 대총판/마스터가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
               <div className="flex gap-2 flex-wrap">
                 <Input placeholder="유저 아이디" value={exTargetId} onChange={e => setExTargetId(e.target.value)} className="h-9 text-sm w-40" />
                 <Input placeholder="포인트 금액" type="number" value={exPointAmt} onChange={e => setExPointAmt(e.target.value)} className="h-9 text-sm w-36" />
@@ -1844,6 +1882,133 @@ export default function PanelPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* 계정 생성 탭 (master 전용) */}
+        {activeTab === "accounts" && myRole === "master" && (
+          <div className="space-y-6">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" /> 관리자 계정 생성
+              </h2>
+              <p className="text-xs text-muted-foreground mb-5">
+                대총판 · 총판 · 지점 계정을 직접 생성합니다. 생성 후 해당 계정으로 로그인하면 각 역할에 맞는 탭이 표시됩니다.
+              </p>
+
+              {/* 역할 선택 */}
+              <div className="mb-5">
+                <p className="text-xs font-medium text-foreground mb-2">역할 선택</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {([
+                    { value: "super_admin", label: "대총판", desc: "포인트 구매 요청 승인, 총판 잔고 관리", color: "border-red-200 bg-red-50 text-red-700" },
+                    { value: "branch_admin", label: "총판", desc: "지점 생성, 지점에 포인트 분배", color: "border-blue-200 bg-blue-50 text-blue-700" },
+                    { value: "admin", label: "지점", desc: "유저 관리, 환전 요청 처리", color: "border-orange-200 bg-orange-50 text-orange-700" },
+                  ] as const).map(r => (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => setAcRole(r.value)}
+                      className={`relative rounded-xl border-2 p-4 text-left transition-all ${
+                        acRole === r.value
+                          ? r.color + " ring-2 ring-offset-1 ring-primary"
+                          : "border-border bg-card hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold">{r.label}</span>
+                        {acRole === r.value && (
+                          <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                            <div className="w-2 h-2 rounded-full bg-white" />
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">{r.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 입력 필드 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <p className="text-xs font-medium text-foreground mb-1.5">아이디</p>
+                  <Input
+                    placeholder="사용할 아이디 입력"
+                    value={acUsername}
+                    onChange={e => setAcUsername(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-foreground mb-1.5">비밀번호</p>
+                  <Input
+                    type="password"
+                    placeholder="초기 비밀번호 설정"
+                    value={acPassword}
+                    onChange={e => setAcPassword(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="mb-4">
+                <p className="text-xs font-medium text-foreground mb-1.5">메모 (선택)</p>
+                <Input
+                  placeholder="예: 역삼1 담당, 홍길동"
+                  value={acMemo}
+                  onChange={e => setAcMemo(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+
+              {acMsg && (
+                <p className={`text-xs mb-3 ${acMsg.ok ? "text-primary" : "text-destructive"}`}>{acMsg.text}</p>
+              )}
+
+              <Button
+                onClick={handleCreateAccount}
+                disabled={acSubmitting || !acUsername.trim() || !acPassword.trim()}
+                className="gap-1.5 text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                {acSubmitting ? "생성 중..." : `${acRole === "super_admin" ? "대총판" : acRole === "branch_admin" ? "총판" : "지점"} 계정 생성`}
+              </Button>
+            </div>
+
+            {/* 현재 관리자 계정 목록 */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border">
+                <h3 className="text-sm font-semibold text-foreground">관리자 계정 목록</h3>
+              </div>
+              <div className="divide-y divide-border">
+                {users.filter(u => ["super_admin", "branch_admin", "admin"].includes(u.role)).length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">생성된 관리자 계정이 없습니다.</p>
+                ) : (
+                  users
+                    .filter(u => ["super_admin", "branch_admin", "admin"].includes(u.role))
+                    .map(u => {
+                      const rl = roleLabel[u.role]
+                      return (
+                        <div key={u.id} className="px-5 py-3 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="text-xs font-semibold text-primary">{u.username.charAt(0)}</span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-foreground">{u.username}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${rl.color}`}>{rl.label}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">{formatDate(u.created_at)}</p>
+                            </div>
+                          </div>
+                          <p className="text-sm font-semibold text-foreground">{formatBalance(u.balance)}</p>
+                        </div>
+                      )
+                    })
+                )}
+              </div>
+            </div>
           </div>
         )}
 
