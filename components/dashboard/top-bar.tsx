@@ -73,28 +73,40 @@ export function TopBar() {
   const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [pwLoading, setPwLoading] = useState(false)
 
-  // ── 초기화: localStorage 토큰으로 프로필 + 잔고 복원 ──────────────
+  // ── 초기화 + 사이드바 로그인 이벤트 수신: 토큰으로 프로필 + 잔고 복원 ──────
   useEffect(() => {
-    const token = getToken()
-    if (!token) return
+    const loadFromToken = () => {
+      const token = getToken()
+      if (!token) { setIsLoggedIn(false); setProfile(null); setBalance(0); return }
 
-    Promise.all([
-      fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
-      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
-    ]).then(async ([pr, br]) => {
-      if (pr.status === 401) { clearToken(); return } // 토큰 만료
-      if (pr.ok) {
-        const d = await pr.json()
-        if (d.profile) {
-          setProfile({ username: d.profile.username, role: d.profile.role, branch_code: d.profile.branch_code ?? null })
-          setIsLoggedIn(true)
+      Promise.all([
+        fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } }),
+      ]).then(async ([pr, br]) => {
+        if (pr.status === 401) { clearToken(); setIsLoggedIn(false); setProfile(null); return }
+        if (pr.ok) {
+          const d = await pr.json()
+          if (d.profile) {
+            setProfile({ username: d.profile.username, role: d.profile.role, branch_code: d.profile.branch_code ?? null })
+            setIsLoggedIn(true)
+          }
         }
-      }
-      if (br.ok) {
-        const d = await br.json()
-        setBalance(d.balance ?? 0)
-      }
-    }).catch(() => {})
+        if (br.ok) {
+          const d = await br.json()
+          setBalance(d.balance ?? 0)
+        }
+      }).catch(() => {})
+    }
+
+    loadFromToken()
+
+    // 사이드바에서 로그인/로그아웃 시 동기화
+    window.addEventListener("auth:login", loadFromToken)
+    window.addEventListener("auth:logout", loadFromToken)
+    return () => {
+      window.removeEventListener("auth:login", loadFromToken)
+      window.removeEventListener("auth:logout", loadFromToken)
+    }
   }, [])
 
   // ── 토큰 자동 갱신: 45분마다 /api/auth/refresh 호출 ────────────────────
