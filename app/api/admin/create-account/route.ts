@@ -2,6 +2,7 @@ import "server-only"
 import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { cookies } from "next/headers"
+import { randomUUID } from "crypto"
 
 function decodeJwtSub(token: string): string | null {
   try {
@@ -49,12 +50,13 @@ export async function POST(req: Request) {
     .maybeSingle()
   if (existing) return NextResponse.json({ error: "이미 사용 중인 아이디입니다." }, { status: 409 })
 
-  // Supabase Auth에 유저 생성 (email은 username@internal.tasko로 고정)
-  const email = `${username.trim().toLowerCase()}@internal.tasko`
+  // Supabase Auth에 유저 생성 — 이메일 형식 필수이므로 UUID 기반 더미 이메일 사용
+  const email = `${randomUUID()}@noreply.app`
   const { data: authUser, error: authErr } = await adminSupabase.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
+    user_metadata: { username: username.trim() },
   })
   if (authErr || !authUser.user) {
     return NextResponse.json({ error: authErr?.message ?? "계정 생성 실패" }, { status: 500 })
