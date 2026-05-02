@@ -36,39 +36,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 })
   }
 
-  // 3) 비밀번호 검증: signInWithPassword 시도
-  //    실패 시(이메일 확인 정책 등) admin.createSession으로 폴백
-  let accessToken: string | null = null
-
+  // 3) signInWithPassword 시도
   const { data: signIn, error: signInError } = await getAnonClient().auth.signInWithPassword({
     email: userData.user.email,
     password,
   })
 
-  if (!signInError && signIn.session) {
-    // 정상 로그인 성공
-    accessToken = signIn.session.access_token
-  } else {
-    // signInWithPassword 실패 — 비밀번호 직접 검증 후 admin.createSession 폴백
-    // admin API로 비밀번호 업데이트(동일값) 시도: 성공하면 비밀번호 맞음
-    const { error: updateErr } = await adminSupabase.auth.admin.updateUserById(profile.id, { password })
-    if (updateErr) {
-      return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 })
-    }
-    // 업데이트 후 재로그인
-    const { data: retry, error: retryErr } = await getAnonClient().auth.signInWithPassword({
-      email: userData.user.email,
-      password,
-    })
-    if (retryErr || !retry.session) {
-      // 최후 수단: admin.createSession (비밀번호 검증 없이 세션 발급)
-      const { data: adminSession, error: sessionErr } = await adminSupabase.auth.admin.createSession({ userId: profile.id })
-      if (sessionErr || !adminSession.session) {
+  let accessToken: string | null = signIn?.session?.access_token ?? null
+
+  if (signInError || !accessToken) {
+    const msg = signInError?.message ?? ""
+    // "Email not confirmed" 오류: 이메일 확인 정책에 막힌 것이므로
+    // 비밀번호 자체는 맞음 → 이메일 확인을 강제로 처리 후 재시도
+    if (msg.includes("Email not confirmed") || msg.includes("email_not_confirmed")) {
+      await adminSupabase.auth.admin.updateUserById(profile.id, { email_confirm: true })
+      const { data: retry, error: retryErr } = await getAnonClient().auth.signInWithPassword({
+        email: userData.user.email,
+        password,
+      })
+      if (retryErr || !retry.session) {
         return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 })
       }
-      accessToken = adminSession.session.access_token
-    } else {
       accessToken = retry.session.access_token
+    } else {
+      // "Invalid credentials" 또는 기타 오류 = 비밀번호 틀림
+      return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 })
     }
   }
 
@@ -78,8 +70,8 @@ export async function POST(req: Request) {
     role: (profile as any).role ?? "user",
   })
 
-  // HTTP-only 쿠키에도 저장 — 같은 도메인 모든 탭/창에서 자동 전송
-  response.cookies.set("app_token", signIn.session.access_token, {
+  // HTTP-only 쿠키에도 저장
+  response.cookies.set("app_token", accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
