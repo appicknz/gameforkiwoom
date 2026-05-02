@@ -68,7 +68,6 @@ export async function POST(req: Request) {
     id: authUser.user.id,
     username: username.trim(),
     role,
-    memo: memo?.trim() ?? null,
     branch_id: null,
     branch_code: null,
   })
