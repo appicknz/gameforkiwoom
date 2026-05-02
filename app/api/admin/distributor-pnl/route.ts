@@ -1,8 +1,29 @@
 import "server-only"
 import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { requireAdmin } from "@/lib/auth"
 import { cookies } from "next/headers"
+
+function decodeJwtSub(token: string): string | null {
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"))
+    return payload.sub ?? null
+  } catch { return null }
+}
+
+async function getAuthInfo(token: string): Promise<{ userId: string; role: string } | null> {
+  const userId = decodeJwtSub(token)
+  if (!userId) return null
+  const { data: profile } = await adminSupabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single()
+  const adminRoles = ["master", "super_admin", "admin", "superadmin", "branch_admin"]
+  if (!profile || !adminRoles.includes(profile.role)) return null
+  return { userId, role: profile.role }
+}
 
 export const dynamic = "force-dynamic"
 
@@ -36,7 +57,7 @@ export async function GET(req: Request) {
   const masterPw = process.env.SUPER_ADMIN_PASSWORD
   const isMasterByPw = pw && masterPw && pw === masterPw
 
-  const auth = isMasterByPw ? { userId: process.env.SUPER_ADMIN_ID ?? "", role: "master" } : await requireAdmin(token)
+  const auth = isMasterByPw ? { userId: process.env.SUPER_ADMIN_ID ?? "", role: "master" } : await getAuthInfo(token)
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   // 기간 필터
