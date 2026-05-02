@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { Lock, Shield, Upload, Trash2, ImageIcon, Users } from "lucide-react"
+import { useState, useRef, useCallback } from "react"
+import { Lock, Shield, Upload, Trash2, ImageIcon, Users, TrendingUp, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface UserRow {
@@ -10,6 +10,15 @@ interface UserRow {
   role: string
   balance: number
   created_at: string
+}
+
+interface DistributorPnl {
+  id: string
+  username: string
+  rate_profit: number
+  fee_total: number
+  exchange_payout: number
+  net_pnl: number
 }
 
 interface CardImage {
@@ -30,7 +39,7 @@ const ROLE_COLOR: Record<string, string> = {
   user: "bg-secondary text-secondary-foreground",
 }
 
-type Tab = "users" | "cards"
+type Tab = "users" | "cards" | "pnl"
 
 export default function AdminPage() {
   const [pw, setPw] = useState("")
@@ -38,6 +47,19 @@ export default function AdminPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<Tab>("users")
+
+  // 손익 state
+  const [pnlList, setPnlList] = useState<DistributorPnl[]>([])
+  const [pnlLoading, setPnlLoading] = useState(false)
+  const [pnlPeriod, setPnlPeriod] = useState<"all" | "month" | "last_month">("all")
+
+  const loadPnl = useCallback(async (period: "all" | "month" | "last_month" = "all") => {
+    setPnlLoading(true)
+    const params = period !== "all" ? `?all=1&period=${period}` : "?all=1"
+    const res = await fetch(`/api/admin/distributor-pnl${params}&pw=${encodeURIComponent(pw)}`)
+    if (res.ok) { const d = await res.json(); setPnlList(d.pnl ?? []) }
+    setPnlLoading(false)
+  }, [pw])
 
   // 회원 관리
   const [users, setUsers] = useState<UserRow[]>([])
@@ -201,6 +223,17 @@ export default function AdminPage() {
           >
             <ImageIcon className="w-4 h-4" />
             카드 관리
+          </button>
+          <button
+            onClick={() => { setTab("pnl"); loadPnl(pnlPeriod) }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === "pnl"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <TrendingUp className="w-4 h-4" />
+            총판 손익
           </button>
         </div>
 
@@ -376,6 +409,105 @@ export default function AdminPage() {
             )}
           </div>
         )}
+        {/* 총판 손익 탭 */}
+        {tab === "pnl" && (
+          <div>
+            {/* 기간 필터 */}
+            <div className="flex items-center gap-2 mb-6">
+              {(["all", "month", "last_month"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => { setPnlPeriod(p); loadPnl(p) }}
+                  className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    pnlPeriod === p
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {p === "all" ? "전체" : p === "month" ? "이번달" : "지난달"}
+                </button>
+              ))}
+              <button
+                onClick={() => loadPnl(pnlPeriod)}
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${pnlLoading ? "animate-spin" : ""}`} /> 새로고침
+              </button>
+            </div>
+
+            {pnlLoading ? (
+              <div className="py-20 flex justify-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+              </div>
+            ) : pnlList.length === 0 ? (
+              <div className="py-20 text-center text-sm text-muted-foreground">데이터가 없습니다.</div>
+            ) : (
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-border">
+                  <h2 className="text-sm font-semibold text-foreground">총판별 손익 현황</h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50 text-muted-foreground text-xs">
+                        <th className="text-left px-4 py-3 font-medium">총판</th>
+                        <th className="text-right px-4 py-3 font-medium">요율 차익</th>
+                        <th className="text-right px-4 py-3 font-medium">수수료</th>
+                        <th className="text-right px-4 py-3 font-medium">환전 지급</th>
+                        <th className="text-right px-4 py-3 font-medium">순 손익</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pnlList.map((d, i) => (
+                        <tr key={d.id} className={`border-t border-border hover:bg-muted/30 transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                                {d.username.slice(0, 1).toUpperCase()}
+                              </div>
+                              <span className="font-medium text-foreground">{d.username}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-emerald-600">
+                            +₩{d.rate_profit.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-emerald-600">
+                            +₩{d.fee_total.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-red-500">
+                            -₩{d.exchange_payout.toLocaleString()}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-mono font-bold ${d.net_pnl >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                            {d.net_pnl >= 0 ? "+" : ""}₩{d.net_pnl.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {/* 합계 행 */}
+                    <tfoot>
+                      <tr className="border-t-2 border-border bg-muted/30 font-semibold text-xs">
+                        <td className="px-4 py-3 text-muted-foreground">합계</td>
+                        <td className="px-4 py-3 text-right font-mono text-emerald-600">
+                          +₩{pnlList.reduce((s, d) => s + d.rate_profit, 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-emerald-600">
+                          +₩{pnlList.reduce((s, d) => s + d.fee_total, 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-red-500">
+                          -₩{pnlList.reduce((s, d) => s + d.exchange_payout, 0).toLocaleString()}
+                        </td>
+                        <td className={`px-4 py-3 text-right font-mono ${pnlList.reduce((s, d) => s + d.net_pnl, 0) >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                          {pnlList.reduce((s, d) => s + d.net_pnl, 0) >= 0 ? "+" : ""}₩{pnlList.reduce((s, d) => s + d.net_pnl, 0).toLocaleString()}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   )

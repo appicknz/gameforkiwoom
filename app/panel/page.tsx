@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, TrendingUp, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -153,7 +153,22 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "history" | "points" | "cash" | "calendar">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl">("users")
+
+  // 손익 state
+  interface PnlData { rate_profit: number; fee_total: number; exchange_payout: number; net_pnl: number; balance: number; cash_balance: number }
+  const [pnlData, setPnlData] = useState<PnlData | null>(null)
+  const [pnlLoading, setPnlLoading] = useState(false)
+  const [pnlPeriod, setPnlPeriod] = useState<"all" | "month" | "last_month">("all")
+
+  const loadPnl = useCallback(async (period: "all" | "month" | "last_month" = "all") => {
+    const token = getToken(); if (!token) return
+    setPnlLoading(true)
+    const params = period !== "all" ? `?period=${period}` : ""
+    const res = await fetch(`/api/admin/distributor-pnl${params}`, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setPnlData(d) }
+    setPnlLoading(false)
+  }, [])
 
 
   // LP 히스토리
@@ -682,7 +697,14 @@ export default function PanelPage() {
           >
             <CalendarDays className="w-4 h-4" /> 매출달력
           </button>
-
+          {isSuperAdmin && (
+            <button
+              onClick={() => { setActiveTab("pnl"); loadPnl(pnlPeriod) }}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "pnl" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            >
+              <TrendingUp className="w-4 h-4" /> 손익
+            </button>
+          )}
         </div>
       </div>
 
@@ -1057,7 +1079,7 @@ export default function PanelPage() {
                           <div>
                             <p className="text-muted-foreground">하우스 손익</p>
                             <p className={`font-bold tabular-nums ${housePnl >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                              {housePnl >= 0 ? "+" : "-"}₩{Math.abs(housePnl).toLocaleString()}
+                              {housePnl >= 0 ? "+" : "-"}���{Math.abs(housePnl).toLocaleString()}
                             </p>
                           </div>
                           <div>
@@ -1772,6 +1794,105 @@ export default function PanelPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 손익 탭 */}
+        {activeTab === "pnl" && isSuperAdmin && (
+          <div>
+            {/* 기간 필터 */}
+            <div className="flex items-center gap-2 mb-6">
+              {(["all", "month", "last_month"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => { setPnlPeriod(p); loadPnl(p) }}
+                  className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    pnlPeriod === p
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {p === "all" ? "전체" : p === "month" ? "이번달" : "지난달"}
+                </button>
+              ))}
+              <button
+                onClick={() => loadPnl(pnlPeriod)}
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${pnlLoading ? "animate-spin" : ""}`} /> 새로고침
+              </button>
+            </div>
+
+            {pnlLoading ? (
+              <div className="py-20 flex justify-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+              </div>
+            ) : pnlData ? (
+              <>
+                {/* 요약 카드 4개 */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-card border border-border rounded-xl p-5">
+                    <p className="text-xs text-muted-foreground mb-1">요율 차익</p>
+                    <p className="text-xs text-muted-foreground mb-2">현금 입금 → 포인트 발급 차이</p>
+                    <p className="text-2xl font-bold text-emerald-600">
+                      +{formatBalance(pnlData.rate_profit)}
+                    </p>
+                  </div>
+                  <div className="bg-card border border-border rounded-xl p-5">
+                    <p className="text-xs text-muted-foreground mb-1">수수료 누적</p>
+                    <p className="text-xs text-muted-foreground mb-2">산하 지점 게임 수수료</p>
+                    <p className="text-2xl font-bold text-emerald-600">
+                      +{formatBalance(pnlData.fee_total)}
+                    </p>
+                  </div>
+                  <div className="bg-card border border-border rounded-xl p-5">
+                    <p className="text-xs text-muted-foreground mb-1">환전 지급</p>
+                    <p className="text-xs text-muted-foreground mb-2">유저 환전 요청 승인 합산</p>
+                    <p className="text-2xl font-bold text-red-500">
+                      -{formatBalance(pnlData.exchange_payout)}
+                    </p>
+                  </div>
+                  <div className={`border rounded-xl p-5 ${pnlData.net_pnl >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+                    <p className="text-xs text-muted-foreground mb-1">순 손익</p>
+                    <p className="text-xs text-muted-foreground mb-2">요율차익 + 수수료 - 환전</p>
+                    <p className={`text-2xl font-bold ${pnlData.net_pnl >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                      {pnlData.net_pnl >= 0 ? "+" : ""}{formatBalance(pnlData.net_pnl)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 잔고 현황 */}
+                <div className="bg-card border border-border rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-foreground mb-4">현재 잔고 현황</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">게임 포인트 잔고</p>
+                      <p className="text-lg font-bold text-foreground">{formatBalance(pnlData.balance)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">현금 잔고</p>
+                      <p className="text-lg font-bold text-foreground">{formatBalance(pnlData.cash_balance)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">누적 수익 대비 현재 잔고</p>
+                      <p className={`text-sm font-semibold ${
+                        pnlData.balance >= pnlData.net_pnl ? "text-emerald-600" : "text-amber-500"
+                      }`}>
+                        {pnlData.net_pnl > 0
+                          ? `수익의 ${Math.round((pnlData.balance / pnlData.net_pnl) * 100)}% 보유 중`
+                          : "손실 구간"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="py-20 text-center text-sm text-muted-foreground">
+                데이터를 불러올 수 없습니다.
               </div>
             )}
           </div>
