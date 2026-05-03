@@ -22,6 +22,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url)
   const filterBranchCode = searchParams.get("branch_code")
+  const filterRole = searchParams.get("role")
 
   let query = adminSupabase
     .from("profiles")
@@ -33,6 +34,11 @@ export async function GET(req: Request) {
     query = query.eq("branch_code", filterBranchCode ?? requester.branch_code)
   } else if (filterBranchCode) {
     query = query.eq("branch_code", filterBranchCode)
+  }
+
+  // 역할 필터
+  if (filterRole) {
+    query = query.eq("role", filterRole)
   }
 
   const { data: profiles } = await query
