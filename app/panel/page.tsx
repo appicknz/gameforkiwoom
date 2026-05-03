@@ -211,6 +211,7 @@ export default function PanelPage() {
   const [saBranchAdmins, setSaBranchAdmins] = useState<User[]>([])
   const [saListLoading, setSaListLoading]   = useState(false)
   const [saSelectedBa, setSaSelectedBa]     = useState<User | null>(null) // 선택된 총판 (드릴다운)
+  const [saShowAll, setSaShowAll]           = useState(false) // 충전 요청 더보기
 
   const handleCreateBranchAdmin = async () => {
     if (!saUsername.trim() || !saPassword.trim()) { setSaMsg({ text: "아이디와 비밀번호를 모두 입력하세요.", ok: false }); return }
@@ -1843,7 +1844,7 @@ export default function PanelPage() {
                     return (
                       <button
                         key={ba.id}
-                        onClick={() => setSaSelectedBa(isSelected ? null : ba)}
+                        onClick={() => { setSaSelectedBa(isSelected ? null : ba); setSaShowAll(false) }}
                         className={`w-full px-4 py-3.5 flex items-center justify-between hover:bg-muted/40 transition-colors text-left ${isSelected ? "bg-primary/5 border-l-2 border-primary" : ""}`}
                       >
                         <div className="min-w-0">
@@ -1876,9 +1877,9 @@ export default function PanelPage() {
                 ) : (() => {
                   const baRequests = ppRequests.filter((r: any) => r.requester_id === saSelectedBa.id)
                   const pendingReqs = baRequests.filter((r: any) => r.status === "pending")
-                  // 최신 1건 + 더보기 방식: pending은 항상 표시, 나머지는 접힘
-                  const [showAll, setShowAll] = useState(false)
-                  const visibleRequests = showAll ? baRequests : baRequests.slice(0, Math.max(1, pendingReqs.length) + (pendingReqs.length === 0 ? 1 : 0))
+                  const showAll = saShowAll
+                  const setShowAll = setSaShowAll
+                  const visibleRequests = showAll ? baRequests : baRequests.slice(0, pendingReqs.length > 0 ? pendingReqs.length : 1)
                   const hiddenCount = baRequests.length - visibleRequests.length
                   return (
                     <div className="flex flex-col flex-1 min-h-0">
@@ -1966,72 +1967,6 @@ export default function PanelPage() {
           </div>
           )
         })()}
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-muted-foreground">잔고</span>
-                          <span className="text-sm font-bold text-emerald-600">₩{(saSelectedBa.balance ?? 0).toLocaleString()}</span>
-                        </div>
-                      </div>
-                      {/* 테이블 헤더 */}
-                      {baRequests.length > 0 && (
-                        <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 px-5 py-2 bg-muted/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
-                          <span>요청일시</span>
-                          <span className="text-right">요청금액</span>
-                          <span className="text-right">요율</span>
-                          <span className="text-right">지급금액</span>
-                          <span className="text-right">상태</span>
-                        </div>
-                      )}
-                      {/* 목록 */}
-                      <div className="flex-1 overflow-y-auto divide-y divide-border">
-                        {baRequests.length === 0 && (
-                          <p className="py-8 text-center text-sm text-muted-foreground">충전 요청 내역이 없습니다.</p>
-                        )}
-                        {baRequests.map((r: any) => {
-                          const isPending = r.status === "pending"
-                          const isApproved = r.status === "approved" || r.status === "activated"
-                          return (
-                            <div key={r.id} className={`px-5 py-3 grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 items-center ${isPending ? "bg-yellow-50/40" : ""}`}>
-                              <div>
-                                <p className="text-xs text-foreground">{new Date(r.created_at).toLocaleString("ko-KR")}</p>
-                                {r.memo && <p className="text-[10px] text-muted-foreground">{r.memo}</p>}
-                                {isApproved && r.approved_at && (
-                                  <p className="text-[10px] text-primary">지급: {new Date(r.approved_at).toLocaleString("ko-KR")}</p>
-                                )}
-                              </div>
-                              <span className="text-sm font-bold text-right">₩{r.cash_amount?.toLocaleString()}</span>
-                              <span className="text-sm text-muted-foreground text-right">{r.rate ?? "-"}</span>
-                              <span className={`text-sm font-bold text-right ${isApproved ? "text-primary" : "text-muted-foreground"}`}>
-                                {r.point_amount ? `₩${r.point_amount.toLocaleString()}` : "-"}
-                              </span>
-                              <div className="flex items-center justify-end gap-1.5">
-                                {isPending ? (
-                                  <>
-                                    <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-destructive border-destructive/30 hover:bg-destructive/10" onClick={async () => {
-                                      const token = getToken()
-                                      await fetch("/api/admin/point-purchase", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "reject" }) })
-                                      loadPpRequests()
-                                    }}>거절</Button>
-                                    <Button size="sm" className="h-7 px-3 text-[11px]" onClick={() => { setPpApproveId(r.id); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }}>승인</Button>
-                                  </>
-                                ) : (
-                                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${isApproved ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                                    {isApproved ? "지급완료" : "거절"}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-
-            </div>
-          </div>
-        )}
 
         {/* ───────────── 포인트 탭 ───────────── */}
         {activeTab === "points" && (
