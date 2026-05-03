@@ -2843,36 +2843,19 @@ export default function PanelPage() {
             {/* ── 지점 전용 요약 카드 + 회원/배팅 ── */}
             {myRole === "admin" && (
               <div className="space-y-4">
-                {/* 요약 카드 5개 */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                {/* 요약 카드 3개 */}
+                <div className="grid grid-cols-3 gap-3">
                   {/* 유저 수 */}
                   <div className="bg-card border border-border rounded-xl p-4">
                     <p className="text-xs text-muted-foreground mb-1">유저 수</p>
                     <p className="text-2xl font-bold text-foreground">{adminMembers.length}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
                     <p className="text-[11px] text-muted-foreground mt-1">현재 잔액 <span className="font-semibold text-foreground">₩{myBalance.toLocaleString()}</span></p>
                   </div>
-                  {/* 대기 중인 충전 */}
+                  {/* 내 포인트 잔고 */}
                   <div className="bg-card border border-border rounded-xl p-4">
-                    <p className="text-xs text-muted-foreground mb-1">대기 중인 충전</p>
-                    <p className="text-2xl font-bold text-amber-500">{prRequests.filter((r: any) => r.status === "pending").length}<span className="text-sm font-normal text-muted-foreground ml-1">건</span></p>
-                    <p className="text-[11px] text-muted-foreground mt-1">비밀번호 포함 계정 승인</p>
-                  </div>
-                  {/* 대기 중인 환전 — 클릭 시 펼침 */}
-                  <button
-                    onClick={() => setBranchExExpanded(v => !v)}
-                    className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
-                  >
-                    <p className="text-xs text-muted-foreground mb-1">대기 중인 환전</p>
-                    <p className={`text-2xl font-bold ${branchPendingEx > 0 ? "text-primary" : "text-foreground"}`}>
-                      {branchPendingEx}<span className="text-sm font-normal text-muted-foreground ml-1">건</span>
-                    </p>
-                    <p className="text-[11px] text-primary/70 mt-1">{branchExExpanded ? "접기 ▲" : "목록 보기 ▼"}</p>
-                  </button>
-                  {/* 누적 환전액 */}
-                  <div className="bg-card border border-border rounded-xl p-4">
-                    <p className="text-xs text-muted-foreground mb-1">누적 환전액</p>
-                    <p className="text-2xl font-bold text-foreground">₩{branchTotalEx.toLocaleString()}</p>
-                    <p className="text-[11px] text-muted-foreground mt-1">완료된 환전 누계</p>
+                    <p className="text-xs text-muted-foreground mb-1">내 포인트 잔고</p>
+                    <p className="text-2xl font-bold text-foreground">{pointBalance.toLocaleString()}<span className="text-sm font-normal text-muted-foreground ml-1">P</span></p>
+                    <p className="text-[11px] text-muted-foreground mt-1">총판에서 충전받은 포인트</p>
                   </div>
                   {/* 수수료 잔고 */}
                   <div className="bg-card border border-border rounded-xl p-4">
@@ -2880,6 +2863,48 @@ export default function PanelPage() {
                     <p className="text-2xl font-bold text-amber-500">₩{myCommBalance.toLocaleString()}</p>
                     <p className="text-[11px] text-muted-foreground mt-1">배팅 수수료 누적</p>
                   </div>
+                </div>
+
+                {/* 충전 요청 버튼 */}
+                <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+                  <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-primary" /> 충전 요청
+                  </h2>
+                  <p className="text-xs text-muted-foreground">총판에게 포인트 충전을 요청합니다. 총판이 승인하면 포인트가 지급됩니다.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Input
+                      placeholder="포인트 금액"
+                      type="number"
+                      value={baChargeAmt}
+                      onChange={e => setBaChargeAmt(e.target.value)}
+                      className="h-9 text-sm w-40"
+                    />
+                    <Input
+                      placeholder="메모 (선택)"
+                      value={baChargeMemo}
+                      onChange={e => setBaChargeMemo(e.target.value)}
+                      className="h-9 text-sm flex-1"
+                    />
+                    <Button size="sm" className="h-9 shrink-0" disabled={baChargeSubmitting} onClick={async () => {
+                      if (!baChargeAmt || Number(baChargeAmt) <= 0) {
+                        setBaChargeMsg({ text: "금액을 입력하세요.", ok: false }); return
+                      }
+                      setBaChargeSubmitting(true); setBaChargeMsg(null)
+                      const token = getToken()
+                      const res = await fetch("/api/admin/point-purchase", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ pointAmount: Number(baChargeAmt), memo: baChargeMemo }),
+                      })
+                      const d = await res.json()
+                      setBaChargeMsg(res.ok
+                        ? { text: "충전 요청이 총판에게 전달됐습니다.", ok: true }
+                        : { text: d.error ?? "오류가 발생했습니다.", ok: false })
+                      if (res.ok) { setBaChargeAmt(""); setBaChargeMemo("") }
+                      setBaChargeSubmitting(false)
+                    }}>요청</Button>
+                  </div>
+                  {baChargeMsg && <p className={`text-xs ${baChargeMsg.ok ? "text-primary" : "text-destructive"}`}>{baChargeMsg.text}</p>}
                 </div>
 
                 {/* 대기 중인 환전 펼침 */}
@@ -3113,8 +3138,8 @@ export default function PanelPage() {
               </div>
             )}
 
-            {/* 내 잔고 요약 */}
-            <div className="grid grid-cols-3 gap-4">
+            {/* 내 잔고 요약 — admin(지점)은 위 전용 UI만 사용, 아래는 숨김 */}
+            {myRole !== "admin" && <div className="grid grid-cols-3 gap-4">
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground mb-1">내 현금 잔고</p>
                 <p className="text-2xl font-bold text-foreground">₩{cashBalance.toLocaleString()}</p>
@@ -3344,6 +3369,8 @@ export default function PanelPage() {
                 ))}
               </div>
             </div>
+            {/* admin(지점) 공통 섹션 숨김 닫기 */}
+            </div>}
           </div>
         )}
 
