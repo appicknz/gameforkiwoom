@@ -798,9 +798,9 @@ export default function PanelPage() {
   const [baChargeLoading, setBaChargeLoading] = useState(false)
   const [baChargeExpanded, setBaChargeExpanded] = useState(false)
   // 총판 전용: 지점이 올린 충전 요청 목록
-  const [branchChargeReqs, setBranchChargeReqs]     = useState<any[]>([])
-  const [branchChargeLoading, setBranchChargeLoading] = useState(false)
-  const [branchChargeExpanded, setBranchChargeExpanded] = useState(false)
+  const [branchChargeReqs, setBranchChargeReqs]         = useState<any[]>([])
+  const [baBranchChargeLoading, setBaBranchChargeLoading] = useState(false)
+  const [branchChargeExpanded, setBranchChargeExpanded]   = useState(false)
   // 총판 환전 요청 목록 (branch_admin 전용 요약)
   const [baExRequests, setBaExRequests]       = useState<any[]>([])
   const [baExLoading, setBaExLoading]         = useState(false)
@@ -828,10 +828,10 @@ export default function PanelPage() {
 
   const loadBranchChargeReqs = useCallback(async () => {
     const token = getToken(); if (!token) return
-    setBranchChargeLoading(true)
+    setBaBranchChargeLoading(true)
     const res = await fetch("/api/admin/point-purchase?from=branches", { headers: { Authorization: `Bearer ${token}` } })
     if (res.ok) { const d = await res.json(); setBranchChargeReqs(d.requests ?? []) }
-    setBranchChargeLoading(false)
+    setBaBranchChargeLoading(false)
   }, [])
 
   const loadBranchUsers = useCallback(async () => {
@@ -1909,8 +1909,8 @@ export default function PanelPage() {
                           </span>
                         )}
                       </h3>
-                      <Button variant="ghost" size="sm" onClick={loadBranchChargeReqs} disabled={branchChargeLoading} className="h-7 w-7 p-0">
-                        <RefreshCw className={`w-3.5 h-3.5 ${branchChargeLoading ? "animate-spin" : ""}`} />
+                      <Button variant="ghost" size="sm" onClick={loadBranchChargeReqs} disabled={baBranchChargeLoading} className="h-7 w-7 p-0">
+                        <RefreshCw className={`w-3.5 h-3.5 ${baBranchChargeLoading ? "animate-spin" : ""}`} />
                       </Button>
                     </div>
                     {branchChargeReqs.length === 0 ? (
@@ -3851,7 +3851,7 @@ export default function PanelPage() {
               <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center">
                 <ImageIcon className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">업로드된 카드 이미지가 없습니다.</p>
-                <p className="text-xs text-muted-foreground mt-1">위�� &quot;이미지 추가&quot; 버튼으로 업로드하세요.</p>
+                <p className="text-xs text-muted-foreground mt-1">위�� &quot;이미지 추가&quot; 버튼으로 업로���하세요.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
