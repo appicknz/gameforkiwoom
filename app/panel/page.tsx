@@ -468,6 +468,32 @@ export default function PanelPage() {
               }
             })
             .catch(() => {})
+        } else if (role === "admin") {
+          // 지점: 회원 목록 + 환전 요청 초기 로드
+          fetch("/api/admin/branch-users", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d) {
+                setAdminMembers(d.members ?? [])
+                setBranchBets(d.bets ?? [])
+              }
+            })
+            .catch(() => {})
+          fetch("/api/admin/exchange-request", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d?.requests) {
+                const reqs = d.requests
+                setBranchExReqs(reqs)
+                setBranchPendingEx(reqs.filter((r: any) => r.status === "pending").length)
+                setBranchTotalEx(reqs.filter((r: any) => r.status === "approved").reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0))
+              }
+            })
+            .catch(() => {})
+          fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d?.requests) setPrRequests(d.requests) })
+            .catch(() => {})
         }
       })
       .catch(() => router.replace("/"))
@@ -1168,7 +1194,7 @@ export default function PanelPage() {
                     </div>
                   </div>
                 </div>
-                <p className="text-[11px] text-amber-600">이 화면을 닫으면 비밀번호를 다시 확인할 수 없습니다.</p>
+                <p className="text-[11px] text-amber-600">이 화면을 닫으면 비밀번호를 다시 확인할 수 없���니다.</p>
                 <Button className="w-full" onClick={() => { setBaCreateOpen(false); setBaCreatedInfo(null); setBaNewBranchShowPw(false) }}>
                   확인
                 </Button>
@@ -1672,7 +1698,7 @@ export default function PanelPage() {
                         onClick={() => setBaExExpanded(v => !v)}
                         className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
                       >
-                        <p className="text-xs text-muted-foreground mb-1">대기 중인 환전</p>
+                        <p className="text-xs text-muted-foreground mb-1">대�� 중인 환전</p>
                         <p className={`text-2xl font-bold ${pendingEx > 0 ? "text-primary" : "text-foreground"}`}>
                           {pendingEx}<span className="text-sm font-normal text-muted-foreground ml-1">건</span>
                         </p>

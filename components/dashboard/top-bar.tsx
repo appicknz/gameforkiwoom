@@ -254,11 +254,18 @@ export function TopBar() {
       // 서버가 발급한 토큰 저장 (localStorage["app_token"] 전용)
       saveToken(data.token)
 
-      setProfile({ username: data.username, role: data.role ?? "user" })
+      const role = data.role ?? "user"
+      setProfile({ username: data.username, role })
       setIsLoggedIn(true)
       setDropdownOpen(false)
       setLoginUsername("")
       setLoginPw("")
+
+      // admin(지점) / branch_admin(총판) / super_admin / master 는 패널로 바로 이동
+      if (ADMIN_ROLES.includes(role)) {
+        router.push("/panel")
+        return
+      }
 
       // 잔고 로드
       fetch("/api/user/balance", { headers: { Authorization: `Bearer ${data.token}` } })
