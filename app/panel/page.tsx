@@ -210,8 +210,10 @@ export default function PanelPage() {
   // 대총판 전용: 총판 목록 state
   const [saBranchAdmins, setSaBranchAdmins] = useState<User[]>([])
   const [saListLoading, setSaListLoading]   = useState(false)
-  const [saSelectedBa, setSaSelectedBa]     = useState<User | null>(null) // 선택된 총판 (드릴다운)
-  const [saShowAll, setSaShowAll]           = useState(false) // 충전 요청 더보기
+  const [saSelectedBa, setSaSelectedBa]     = useState<User | null>(null)
+  const [saSearch, setSaSearch]             = useState("")     // 총판 검색
+  const [saPage, setSaPage]                 = useState(1)      // 총판 목록 페이지
+  const [saReqPage, setSaReqPage]           = useState(1)      // 충전 요청 페이지
 
   const handleCreateBranchAdmin = async () => {
     if (!saUsername.trim() || !saPassword.trim()) { setSaMsg({ text: "아이디와 비밀번호를 모두 입력하세요.", ok: false }); return }
@@ -1043,7 +1045,7 @@ export default function PanelPage() {
               </div>
               <div className="space-y-2 mb-3">
                 <div>
-                  <p className="text-xs font-medium text-foreground mb-1">요율 입력 <span className="text-muted-foreground font-normal">(예: 1.2 → {cashAmt > 0 ? `₩${Math.floor(cashAmt * 1.2).toLocaleString()}` : "1.2배"} 지급)</span></p>
+                  <p className="text-xs font-medium text-foreground mb-1">요율 입력 <span className="text-muted-foreground font-normal">(예: 1.2 �� {cashAmt > 0 ? `₩${Math.floor(cashAmt * 1.2).toLocaleString()}` : "1.2배"} 지급)</span></p>
                   <Input type="number" step="0.01" placeholder="예: 1.2" value={ppApprovePoints} onChange={e => setPpApprovePoints(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
@@ -1897,52 +1899,89 @@ export default function PanelPage() {
             <div className="bg-card border border-border rounded-xl overflow-hidden flex" style={{ minHeight: 400 }}>
 
               {/* 좌: 총판 리스트 */}
-              <div className="w-72 shrink-0 border-r border-border flex flex-col">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                  <h3 className="text-sm font-semibold text-foreground">총판 목록</h3>
-                  <Button variant="ghost" size="sm" onClick={loadBranchAdmins} disabled={saListLoading} className="h-7 w-7 p-0">
-                    <RefreshCw className={`w-3.5 h-3.5 ${saListLoading ? "animate-spin" : ""}`} />
-                  </Button>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-border">
-                  {saListLoading && <p className="py-8 text-center text-xs text-muted-foreground">불러오는 중...</p>}
-                  {!saListLoading && saBranchAdmins.length === 0 && (
-                    <p className="py-8 text-center text-sm text-muted-foreground">총판이 없습니다.</p>
-                  )}
-                  {saBranchAdmins.map(ba => {
-                    const baRequests = ppRequests.filter((r: any) => r.requester_id === ba.id)
-                    const pendingCnt = baRequests.filter((r: any) => r.status === "pending").length
-                    const totalRequested = baRequests.reduce((s: number, r: any) => s + (r.cash_amount ?? 0), 0)
-                    const isSelected = saSelectedBa?.id === ba.id
-                    return (
-                      <button
-                        key={ba.id}
-                        onClick={() => { setSaSelectedBa(isSelected ? null : ba); setSaShowAll(false) }}
-                        className={`w-full px-4 py-3.5 flex items-center justify-between hover:bg-muted/40 transition-colors text-left ${isSelected ? "bg-primary/5 border-l-2 border-primary" : ""}`}
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                              <span className="text-[10px] font-bold text-primary">{ba.username.charAt(0).toUpperCase()}</span>
+              {(() => {
+                const SA_PAGE_SIZE = 10
+                const filtered = saBranchAdmins.filter(ba =>
+                  !saSearch.trim() || ba.username.toLowerCase().includes(saSearch.trim().toLowerCase())
+                )
+                const totalPages = Math.max(1, Math.ceil(filtered.length / SA_PAGE_SIZE))
+                const currentPage = Math.min(saPage, totalPages)
+                const pageItems = filtered.slice((currentPage - 1) * SA_PAGE_SIZE, currentPage * SA_PAGE_SIZE)
+                return (
+                  <div className="w-72 shrink-0 border-r border-border flex flex-col">
+                    {/* 헤더: 제목 + 검색 + 새로고침 */}
+                    <div className="px-4 py-3 border-b border-border space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-foreground">총판 목록</h3>
+                        <Button variant="ghost" size="sm" onClick={loadBranchAdmins} disabled={saListLoading} className="h-7 w-7 p-0">
+                          <RefreshCw className={`w-3.5 h-3.5 ${saListLoading ? "animate-spin" : ""}`} />
+                        </Button>
+                      </div>
+                      <Input
+                        placeholder="총판 검색..."
+                        value={saSearch}
+                        onChange={e => { setSaSearch(e.target.value); setSaPage(1) }}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    {/* 목록 */}
+                    <div className="flex-1 overflow-y-auto divide-y divide-border">
+                      {saListLoading && <p className="py-8 text-center text-xs text-muted-foreground">불러오는 중...</p>}
+                      {!saListLoading && filtered.length === 0 && (
+                        <p className="py-8 text-center text-sm text-muted-foreground">{saSearch ? "검색 결과 없음" : "총판이 없습니다."}</p>
+                      )}
+                      {pageItems.map(ba => {
+                        const baRequests = ppRequests.filter((r: any) => r.requester_id === ba.id)
+                        const pendingCnt = baRequests.filter((r: any) => r.status === "pending").length
+                        const totalRequested = baRequests.reduce((s: number, r: any) => s + (r.cash_amount ?? 0), 0)
+                        const isSelected = saSelectedBa?.id === ba.id
+                        return (
+                          <button
+                            key={ba.id}
+                            onClick={() => { setSaSelectedBa(isSelected ? null : ba); setSaReqPage(1) }}
+                            className={`w-full px-4 py-3.5 flex items-center justify-between hover:bg-muted/40 transition-colors text-left ${isSelected ? "bg-primary/5 border-l-2 border-primary" : ""}`}
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                  <span className="text-[10px] font-bold text-primary">{ba.username.charAt(0).toUpperCase()}</span>
+                                </div>
+                                <span className="text-sm font-semibold text-foreground truncate">{ba.username}</span>
+                                {pendingCnt > 0 && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold leading-none">{pendingCnt}</span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 pl-8.5">
+                                요청누적 <span className="font-medium text-foreground">₩{totalRequested.toLocaleString()}</span>
+                              </p>
+                              <p className="text-[10px] text-muted-foreground pl-8.5">
+                                잔고 <span className="font-medium text-foreground">₩{(ba.balance ?? 0).toLocaleString()}</span>
+                              </p>
                             </div>
-                            <span className="text-sm font-semibold text-foreground truncate">{ba.username}</span>
-                            {pendingCnt > 0 && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold leading-none">{pendingCnt}</span>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-muted-foreground mt-0.5 pl-8.5">
-                            요청누적 <span className="font-medium text-foreground">₩{totalRequested.toLocaleString()}</span>
-                          </p>
-                          <p className="text-[10px] text-muted-foreground pl-8.5">
-                            잔고 <span className="font-medium text-foreground">₩{(ba.balance ?? 0).toLocaleString()}</span>
-                          </p>
-                        </div>
-                        <ChevronRight className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${isSelected ? "rotate-90" : ""}`} />
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+                            <ChevronRight className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${isSelected ? "rotate-90" : ""}`} />
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {/* 페이지네이션 */}
+                    {totalPages > 1 && (
+                      <div className="px-4 py-2.5 border-t border-border flex items-center justify-between shrink-0">
+                        <button
+                          onClick={() => setSaPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-2 py-1"
+                        >이전</button>
+                        <span className="text-xs text-muted-foreground">{currentPage} / {totalPages}</span>
+                        <button
+                          onClick={() => setSaPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-2 py-1"
+                        >다음</button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* 우: 선택된 총판의 충전 요청 목록 */}
               <div className="flex-1 flex flex-col min-w-0">
@@ -1951,12 +1990,14 @@ export default function PanelPage() {
                     <p className="text-sm text-muted-foreground">총판을 선택하면 충전 요청 목록이 표시됩니다.</p>
                   </div>
                 ) : (() => {
-                  const baRequests = ppRequests.filter((r: any) => r.requester_id === saSelectedBa.id)
+                  const REQ_PAGE_SIZE = 10
+                  // 최신순 정렬
+                  const baRequests = [...ppRequests.filter((r: any) => r.requester_id === saSelectedBa.id)]
+                    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                   const pendingReqs = baRequests.filter((r: any) => r.status === "pending")
-                  const showAll = saShowAll
-                  const setShowAll = setSaShowAll
-                  const visibleRequests = showAll ? baRequests : baRequests.slice(0, pendingReqs.length > 0 ? pendingReqs.length : 1)
-                  const hiddenCount = baRequests.length - visibleRequests.length
+                  const reqTotalPages = Math.max(1, Math.ceil(baRequests.length / REQ_PAGE_SIZE))
+                  const reqCurrentPage = Math.min(saReqPage, reqTotalPages)
+                  const pageRequests = baRequests.slice((reqCurrentPage - 1) * REQ_PAGE_SIZE, reqCurrentPage * REQ_PAGE_SIZE)
                   return (
                     <div className="flex flex-col flex-1 min-h-0">
                       {/* 헤더 */}
@@ -1988,7 +2029,7 @@ export default function PanelPage() {
                         {baRequests.length === 0 && (
                           <p className="py-8 text-center text-sm text-muted-foreground">충전 요청 내역이 없습니다.</p>
                         )}
-                        {visibleRequests.map((r: any) => {
+                        {pageRequests.map((r: any) => {
                           const isPending = r.status === "pending"
                           const isApproved = r.status === "approved" || r.status === "activated"
                           return (
@@ -2024,16 +2065,23 @@ export default function PanelPage() {
                             </div>
                           )
                         })}
-                        {/* 더보기 / 접기 */}
-                        {baRequests.length > 1 && (
-                          <button
-                            onClick={() => setShowAll(v => !v)}
-                            className="w-full py-3 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors text-center"
-                          >
-                            {showAll ? "접기" : `더보기 (${hiddenCount}건 더 있음)`}
-                          </button>
-                        )}
                       </div>
+                      {/* 충전 요청 페이지네이션 */}
+                      {reqTotalPages > 1 && (
+                        <div className="px-5 py-2.5 border-t border-border flex items-center justify-between shrink-0">
+                          <button
+                            onClick={() => setSaReqPage(p => Math.max(1, p - 1))}
+                            disabled={reqCurrentPage === 1}
+                            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-2 py-1"
+                          >이전</button>
+                          <span className="text-xs text-muted-foreground">{reqCurrentPage} / {reqTotalPages} 페이지 · 전체 {baRequests.length}건</span>
+                          <button
+                            onClick={() => setSaReqPage(p => Math.min(reqTotalPages, p + 1))}
+                            disabled={reqCurrentPage === reqTotalPages}
+                            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed px-2 py-1"
+                          >다음</button>
+                        </div>
+                      )}
                     </div>
                   )
                 })()}
