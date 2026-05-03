@@ -1418,12 +1418,17 @@ export default function PanelPage() {
                         <p className="text-2xl font-bold text-foreground">{branches.length}<span className="text-sm font-normal text-muted-foreground ml-1">개</span></p>
                         <p className="text-[11px] text-muted-foreground mt-1">현재 잔액 <span className="font-semibold text-foreground">₩{myBalance.toLocaleString()}</span></p>
                       </div>
-                      {/* 대기 중인 충전 */}
-                      <div className="bg-card border border-border rounded-xl p-4">
+                      {/* 대기 중인 충전 — 클릭 시 펼침 */}
+                      <button
+                        onClick={() => setBaChargeExpanded(v => !v)}
+                        className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
+                      >
                         <p className="text-xs text-muted-foreground mb-1">대기 중인 충전</p>
-                        <p className="text-2xl font-bold text-amber-500">{pendingCharge}<span className="text-sm font-normal text-muted-foreground ml-1">건</span></p>
-                        <p className="text-[11px] text-muted-foreground mt-1">대총판 승인 대기</p>
-                      </div>
+                        <p className={`text-2xl font-bold ${pendingCharge > 0 ? "text-amber-500" : "text-foreground"}`}>
+                          {pendingCharge}<span className="text-sm font-normal text-muted-foreground ml-1">건</span>
+                        </p>
+                        <p className="text-[11px] text-primary/70 mt-1">{baChargeExpanded ? "접기 ▲" : "목록 보기 ▼"}</p>
+                      </button>
                       {/* 대기 중인 환전 — 클릭 시 펼침 */}
                       <button
                         onClick={() => setBaExExpanded(v => !v)}
@@ -1590,56 +1595,60 @@ export default function PanelPage() {
                   {baChargeMsg && <p className={`text-xs mt-2 ${baChargeMsg.ok ? "text-primary" : "text-destructive"}`}>{baChargeMsg.text}</p>}
                 </div>
 
-                {/* 충전 요청 내역 */}
-                {baChargeRequests.length > 0 && (
+                {/* 충전 요청 내역 펼침 패널 */}
+                {baChargeExpanded && (
                   <div className="bg-card border border-border rounded-xl overflow-hidden">
                     <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-                      <h3 className="text-sm font-semibold text-foreground">충전 요청 내역</h3>
-                      <Button variant="ghost" size="sm" onClick={loadBaChargeRequests} disabled={baChargeLoading} className="gap-1 text-xs">
-                        <RefreshCw className={`w-3 h-3 ${baChargeLoading ? "animate-spin" : ""}`} /> 새로고침
+                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        <Wallet className="w-4 h-4 text-amber-500" /> 충전 요청 내역
+                        {baChargeRequests.filter((r: any) => r.status === "pending").length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">
+                            {baChargeRequests.filter((r: any) => r.status === "pending").length}건 대기
+                          </span>
+                        )}
+                      </h3>
+                      <Button variant="ghost" size="sm" onClick={loadBaChargeRequests} disabled={baChargeLoading} className="h-7 w-7 p-0">
+                        <RefreshCw className={`w-3.5 h-3.5 ${baChargeLoading ? "animate-spin" : ""}`} />
                       </Button>
                     </div>
-
-                    {/* 테이블 헤더 */}
-                    <div className="grid grid-cols-4 gap-2 px-5 py-2 bg-muted/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                      <span>요청일자</span>
-                      <span className="text-right">요청금액</span>
-                      <span className="text-right">요율</span>
-                      <span className="text-right">상태</span>
-                    </div>
-
-                    <div className="divide-y divide-border">
-                      {(baChargeExpanded ? baChargeRequests : baChargeRequests.slice(0, 1)).map((r: any, idx: number) => {
-                        const rate = r.point_amount && r.cash_amount ? (r.point_amount / r.cash_amount).toFixed(2) : "-"
-                        const statusMap: Record<string, { label: string; cls: string }> = {
-                          pending:   { label: "대기중",    cls: "bg-yellow-100 text-yellow-700" },
-                          approved:  { label: "지급완료",  cls: "bg-green-100 text-green-700" },
-                          activated: { label: "지급완료",  cls: "bg-green-100 text-green-700" },
-                          rejected:  { label: "거절",      cls: "bg-red-100 text-red-700" },
-                          requested: { label: "요청완료",  cls: "bg-blue-100 text-blue-700" },
-                        }
-                        const st = statusMap[r.status] ?? { label: r.status, cls: "bg-muted text-muted-foreground" }
-                        return (
-                          <div key={r.id} className={`grid grid-cols-4 gap-2 px-5 py-3 items-center text-sm ${idx === 0 ? "bg-primary/3" : ""}`}>
-                            <span className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString("ko-KR")}<br /><span className="text-[10px]">{new Date(r.created_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span></span>
-                            <span className="text-right font-semibold text-foreground">₩{r.cash_amount?.toLocaleString()}</span>
-                            <span className="text-right text-muted-foreground">{rate}</span>
-                            <span className="flex justify-end">
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${st.cls}`}>{st.label}</span>
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {/* 더보기 버튼 */}
-                    {baChargeRequests.length > 1 && (
-                      <button
-                        onClick={() => setBaChargeExpanded(v => !v)}
-                        className="w-full py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border-t border-border"
-                      >
-                        {baChargeExpanded ? "접기 ▲" : `더보기 (${baChargeRequests.length - 1}건 더) ▼`}
-                      </button>
+                    {baChargeRequests.length === 0 ? (
+                      <p className="py-8 text-center text-sm text-muted-foreground">충전 요청 내역이 없습니다.</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-2 bg-muted/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          <span>요청일시</span>
+                          <span className="text-right">요청금액</span>
+                          <span className="text-right">요율</span>
+                          <span className="text-right">상태</span>
+                        </div>
+                        <div className="divide-y divide-border">
+                          {baChargeRequests.map((r: any) => {
+                            const rate = r.point_amount && r.cash_amount ? (r.point_amount / r.cash_amount).toFixed(2) : "-"
+                            const statusMap: Record<string, { label: string; cls: string }> = {
+                              pending:   { label: "대기중",   cls: "bg-yellow-100 text-yellow-700" },
+                              approved:  { label: "지급완료", cls: "bg-green-100 text-green-700" },
+                              activated: { label: "지급완료", cls: "bg-green-100 text-green-700" },
+                              rejected:  { label: "거절",     cls: "bg-red-100 text-red-700" },
+                              requested: { label: "요청완료", cls: "bg-blue-100 text-blue-700" },
+                            }
+                            const st = statusMap[r.status] ?? { label: r.status, cls: "bg-muted text-muted-foreground" }
+                            return (
+                              <div key={r.id} className={`grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-3 items-center ${r.status === "pending" ? "bg-yellow-50/40" : ""}`}>
+                                <div>
+                                  <p className="text-xs text-foreground">{new Date(r.created_at).toLocaleString("ko-KR")}</p>
+                                  {r.memo && <p className="text-[10px] text-muted-foreground">{r.memo}</p>}
+                                  {r.approved_at && <p className="text-[10px] text-primary">지급: {new Date(r.approved_at).toLocaleString("ko-KR")}</p>}
+                                </div>
+                                <span className="text-sm font-semibold text-foreground text-right">₩{r.cash_amount?.toLocaleString()}</span>
+                                <span className="text-sm text-muted-foreground text-right">{rate}</span>
+                                <span className="flex justify-end">
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${st.cls}`}>{st.label}</span>
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
