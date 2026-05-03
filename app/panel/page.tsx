@@ -3139,7 +3139,8 @@ export default function PanelPage() {
             )}
 
             {/* 내 잔고 요약 — admin(지점)은 위 전용 UI만 사용, 아래는 숨김 */}
-            {myRole !== "admin" && <div className="grid grid-cols-3 gap-4">
+            {myRole !== "admin" && <>
+            <div className="grid grid-cols-3 gap-4">
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground mb-1">내 현금 잔고</p>
                 <p className="text-2xl font-bold text-foreground">₩{cashBalance.toLocaleString()}</p>
@@ -3333,7 +3334,7 @@ export default function PanelPage() {
                       setPrApproveMsg(res.ok ? { text: "초기화 완료", ok: true } : { text: d.error ?? "오류", ok: false })
                       if (res.ok) { loadPrRequests(); setTimeout(() => setPrApproveId(null), 1200) }
                       setPrApproving(false)
-                    }}>확인</Button>
+                    }}>��인</Button>
                   </div>
                 </div>
               </div>
@@ -3370,7 +3371,7 @@ export default function PanelPage() {
               </div>
             </div>
             {/* admin(지점) 공통 섹션 숨김 닫기 */}
-            </div>}
+            </div></>}
           </div>
         )}
 
