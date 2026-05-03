@@ -140,8 +140,11 @@ export async function PATCH(req: Request) {
     .select("*").eq("id", requestId).eq("status", "pending").single()
   if (!req2) return NextResponse.json({ error: "요청을 찾을 수 없거나 이미 처리됐습니다." }, { status: 404 })
 
-  // 요청자(branch_admin 등)에게 요율 적용 포인트 충전
+  // 요청자(지점/총판)에게 포인트 충전
   await upsertBalance(req2.requester_id, pointAmount)
+
+  // 승인자(총판/대총판)의 포인트 잔액에서 cashAmount 차감
+  await upsertBalance(auth.userId, -req2.cash_amount)
 
   // 현금 거래 이력 기록 (실패해도 상태 업데이트는 진행)
   try {

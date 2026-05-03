@@ -2212,7 +2212,7 @@ export default function PanelPage() {
                                 <p className="text-xs text-muted-foreground pt-2">ID: <span className="text-foreground font-mono text-[11px]">{u.id}</span></p>
                                 <p className="text-xs text-muted-foreground">가입일: {new Date(u.created_at).toLocaleString("ko-KR")}</p>
                                 <p className="text-xs text-muted-foreground">역할: {roleLabel[u.role]?.label ?? u.role}</p>
-                                <p className="text-xs text-muted-foreground">지점���드: {u.branch_code ?? "-"}</p>
+                                <p className="text-xs text-muted-foreground">지점�����드: {u.branch_code ?? "-"}</p>
                               </div>
                             )}
                           </div>
@@ -2720,7 +2720,7 @@ export default function PanelPage() {
 
 
 
-            {/* 포인트 ���전 요청 (임시계정 생성) — master 전용 */}
+            {/* 포��트 ���전 요청 (임시계정 생성) — master 전용 */}
             {myRole === "master" && <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Plus className="w-4 h-4 text-primary" /> 포인트 충전 요청 (유저 계정 생성)</h2>
               <p className="text-xs text-muted-foreground">승인되면 포인트가 충전된 임시 계정이 자동 생성됩니���.</p>
@@ -2922,7 +2922,7 @@ export default function PanelPage() {
                       const res = await fetch("/api/admin/point-purchase", {
                         method: "POST",
                         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                        body: JSON.stringify({ pointAmount: Number(baChargeAmt), memo: baChargeMemo }),
+                        body: JSON.stringify({ cashAmount: Number(baChargeAmt), memo: baChargeMemo }),
                       })
                       const d = await res.json()
                       setBaChargeMsg(res.ok
