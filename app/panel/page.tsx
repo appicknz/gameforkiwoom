@@ -12,11 +12,11 @@ const SUPER_ROLES = ["master"] // master 전용 권한 (지점관리, 라운드�
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin", "admin"]
 
 // 역할별 기본 탭
-const DEFAULT_TAB: Record<string, "users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts"> = {
+const DEFAULT_TAB: Record<string, "users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "branch_home"> = {
   master:       "users",
-  super_admin:  "branches_sa", // 대총판: 총판 목록 탭
-  branch_admin: "branches",    // 총판: 지점관리 탭
-  admin:        "cash",        // 지점: 현금/환전 탭
+  super_admin:  "branches_sa",   // 대총판: 총판 목록 탭
+  branch_admin: "branches",      // 총판: 지점관리 탭
+  admin:        "branch_home",   // 지점: 지점 홈 탭
 }
 
 function getToken(): string | null {
@@ -162,7 +162,24 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "branch_home">("users")
+  // 지점 홈 탭 (admin 전용)
+  const [bhUsers, setBhUsers]                   = useState<any[]>([])
+  const [bhUsersLoading, setBhUsersLoading]     = useState(false)
+  const [bhSelectedUser, setBhSelectedUser]     = useState<any | null>(null)
+  const [bhBets, setBhBets]                     = useState<any[]>([])
+  const [bhBetsLoading, setBhBetsLoading]       = useState(false)
+  const [bhExRequests, setBhExRequests]         = useState<any[]>([])
+  const [bhExLoading, setBhExLoading]           = useState(false)
+  const [bhChargingUserId, setBhChargingUserId] = useState<string | null>(null)
+  const [bhChargeAmt, setBhChargeAmt]           = useState("")
+  const [bhChargeLoading, setBhChargeLoading]   = useState(false)
+  const [bhChargeMsg, setBhChargeMsg]           = useState<{ text: string; ok: boolean } | null>(null)
+  const [bhExUserId, setBhExUserId]             = useState<string | null>(null)
+  const [bhExAmt, setBhExAmt]                   = useState("")
+  const [bhExSubmitting, setBhExSubmitting]     = useState(false)
+  const [bhExMsg, setBhExMsg]                   = useState<{ text: string; ok: boolean } | null>(null)
+  const [bhPendingChargeCount, setBhPendingChargeCount] = useState(0)
   // 수수료 설정 (마스터 전용)
   const [commRates, setCommRates]         = useState<{ role: string; rate: number }[]>([])
   const [commEditing, setCommEditing]     = useState<Record<string, string>>({}) // role → 입력 중인 % 문자열
@@ -464,6 +481,20 @@ export default function PanelPage() {
                 setBaTotalCharged(total)
               }
             })
+            .catch(() => {})
+        } else if (role === "admin") {
+          // 지점 홈 초기 로드
+          fetch("/api/admin/users", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d?.users) setBhUsers(d.users.filter((u: any) => u.role === "user")) })
+            .catch(() => {})
+          fetch("/api/admin/exchange-request", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d?.requests) setBhExRequests(d.requests) })
+            .catch(() => {})
+          fetch("/api/admin/cash", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d) { setCashBalance(d.cashBalance ?? 0); setPointBalance(d.pointBalance ?? 0) } })
             .catch(() => {})
         }
       })
@@ -788,6 +819,33 @@ export default function PanelPage() {
         .reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
       setBaTotalCharged(total)
     }
+  }, [])
+
+  const loadBhUsers = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setBhUsersLoading(true)
+    const res = await fetch("/api/admin/users", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) {
+      const d = await res.json()
+      setBhUsers((d.users ?? []).filter((u: any) => u.role === "user"))
+    }
+    setBhUsersLoading(false)
+  }, [])
+
+  const loadBhBets = useCallback(async (userId: string) => {
+    const token = getToken(); if (!token) return
+    setBhBetsLoading(true)
+    const res = await fetch(`/api/admin/user-bets?userId=${userId}&limit=100`, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setBhBets(d.bets ?? []) }
+    setBhBetsLoading(false)
+  }, [])
+
+  const loadBhExRequests = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setBhExLoading(true)
+    const res = await fetch("/api/admin/exchange-request", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setBhExRequests(d.requests ?? []) }
+    setBhExLoading(false)
   }, [])
 
   const loadCommRates = useCallback(async () => {
@@ -1245,7 +1303,7 @@ export default function PanelPage() {
 
           {/* ── 지점 전용 탭 (현금/환전만) ── */}
           {myRole === "admin" && (
-            <button onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "cash" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <button onClick={() => { setActiveTab("branch_home"); loadBhUsers(); loadBhExRequests(); loadMyCommBalance(); loadCash() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branch_home" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               <Banknote className="w-4 h-4" /> 지점
             </button>
           )}
@@ -3279,7 +3337,7 @@ export default function PanelPage() {
                 )}
               </div>
 
-              {/* 내 수수료 잔고 */}
+              {/* 내 수수료 잔�� */}
               <div className="bg-card border border-border rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-foreground">내 수수료 잔고</h3>
