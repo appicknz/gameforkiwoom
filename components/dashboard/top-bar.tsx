@@ -97,8 +97,14 @@ export function TopBar() {
         if (pr.ok) {
           const d = await pr.json()
           if (d.profile) {
-            setProfile({ username: d.profile.username, role: d.profile.role, branch_code: d.profile.branch_code ?? null })
+            const role = d.profile.role
+            setProfile({ username: d.profile.username, role, branch_code: d.profile.branch_code ?? null })
             setIsLoggedIn(true)
+            // 관리자 계열 역할이고 현재 게임 화면(/)에 있으면 패널로 이동
+            if (ADMIN_ROLES.includes(role) && window.location.pathname === "/") {
+              router.push("/panel")
+              return
+            }
           }
         }
         if (br.ok) {
@@ -117,7 +123,7 @@ export function TopBar() {
       window.removeEventListener("auth:login", loadFromToken)
       window.removeEventListener("auth:logout", loadFromToken)
     }
-  }, [])
+  }, [router])
 
   // ── 토큰 자동 갱신: 45분마다 /api/auth/refresh 호출 ────────────────────
   // Supabase access_token은 1시간 만료 — 만료 전에 갱신해 세션 유지
