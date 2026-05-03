@@ -1913,6 +1913,7 @@ export default function PanelPage() {
                   {saBranchAdmins.map(ba => {
                     const baRequests = ppRequests.filter((r: any) => r.requester_id === ba.id)
                     const pendingCnt = baRequests.filter((r: any) => r.status === "pending").length
+                    const totalRequested = baRequests.reduce((s: number, r: any) => s + (r.cash_amount ?? 0), 0)
                     const isSelected = saSelectedBa?.id === ba.id
                     return (
                       <button
@@ -1931,6 +1932,9 @@ export default function PanelPage() {
                             )}
                           </div>
                           <p className="text-[10px] text-muted-foreground mt-0.5 pl-8.5">
+                            요청누적 <span className="font-medium text-foreground">₩{totalRequested.toLocaleString()}</span>
+                          </p>
+                          <p className="text-[10px] text-muted-foreground pl-8.5">
                             잔고 <span className="font-medium text-foreground">₩{(ba.balance ?? 0).toLocaleString()}</span>
                           </p>
                         </div>
@@ -2077,7 +2081,7 @@ export default function PanelPage() {
             {/* 포인트 충전 요청 (임시계정 생성) — master 전용 */}
             {myRole === "master" && <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Plus className="w-4 h-4 text-primary" /> 포인트 충전 요청 (유저 계정 생성)</h2>
-              <p className="text-xs text-muted-foreground">승인되면 포인트가 충전된 임시 계정이 자동 생성됩니다.</p>
+              <p className="text-xs text-muted-foreground">승인되면 포인트가 충전된 임시 계정이 자동 생성됩니���.</p>
               <div className="flex gap-2">
                 <Input placeholder="충전 포인트" type="number" value={pcPointAmt} onChange={e => setPcPointAmt(e.target.value)} className="h-9 text-sm w-40" />
                 <Input placeholder="메모 (선택)" value={pcMemo} onChange={e => setPcMemo(e.target.value)} className="h-9 text-sm flex-1" />
