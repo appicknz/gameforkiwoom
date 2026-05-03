@@ -57,6 +57,13 @@ export async function GET(req: Request) {
     } else {
       query = query.eq("requester_id", auth.userId)
     }
+  } else if (me.role === "admin") {
+    // 지점 admin: 자기 지점 유저들의 환전 요청 조회
+    const { data: branchUsers } = await adminSupabase
+      .from("profiles").select("id").eq("branch_id", auth.userId)
+    const userIds = (branchUsers ?? []).map((p: any) => p.id)
+    userIds.push(auth.userId)
+    query = query.in("requester_id", userIds)
   } else if (!["master", "super_admin"].includes(me.role)) {
     query = query.eq("requester_id", auth.userId)
   }
@@ -114,16 +121,16 @@ export async function PATCH(req: Request) {
 
   const { data: me } = await adminSupabase.from("profiles").select("role").eq("id", auth.userId).single()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!["master", "super_admin", "branch_admin"].includes(me.role)) {
+  if (!["master", "super_admin", "branch_admin", "admin"].includes(me.role)) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
   }
 
   const { requestId, action } = await req.json()
   if (!requestId) return NextResponse.json({ error: "requestId 필요" }, { status: 400 })
 
-  // branch_admin: 환전 완료 처리 (실제 외부 환전 후 완료 버튼)
+  // admin/branch_admin: 환전 완료 처리 (실제 외부 환전 후 완료 버튼)
   if (action === "complete") {
-    if (!["branch_admin", "master", "super_admin"].includes(me.role)) {
+    if (!["admin", "branch_admin", "master", "super_admin"].includes(me.role)) {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
     }
     const { data: er } = await adminSupabase.from("exchange_requests")
@@ -154,7 +161,7 @@ export async function PATCH(req: Request) {
   }
 
   if (action === "reject") {
-    if (!["master", "super_admin", "branch_admin"].includes(me.role)) {
+    if (!["master", "super_admin", "branch_admin", "admin"].includes(me.role)) {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
     }
     await adminSupabase.from("exchange_requests")

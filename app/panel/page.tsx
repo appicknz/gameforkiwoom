@@ -770,6 +770,40 @@ export default function PanelPage() {
     setBaChargeLoading(false)
   }, [])
 
+  const loadBranchUsers = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    const res = await fetch("/api/admin/branch-users", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) {
+      const d = await res.json()
+      setBranchMembers(d.members ?? [])
+      setBranchBets(d.bets ?? [])
+    }
+  }, [])
+
+  const loadBranchBets = useCallback(async (userId?: string, page = 1) => {
+    const token = getToken(); if (!token) return
+    setBranchBetsLoading(true)
+    const params = new URLSearchParams({ page: String(page) })
+    if (userId) params.set("userId", userId)
+    const res = await fetch(`/api/admin/branch-users?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setBranchBets(d.bets ?? []) }
+    setBranchBetsLoading(false)
+  }, [])
+
+  const loadBranchExReqs = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setBranchExLoading(true)
+    const res = await fetch("/api/admin/exchange-request", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) {
+      const d = await res.json()
+      const reqs = d.requests ?? []
+      setBranchExReqs(reqs)
+      setBranchPendingEx(reqs.filter((r: any) => r.status === "pending").length)
+      setBranchTotalEx(reqs.filter((r: any) => r.status === "approved").reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0))
+    }
+    setBranchExLoading(false)
+  }, [])
+
   const loadBaExRequests = useCallback(async () => {
     const token = getToken(); if (!token) return
     setBaExLoading(true)
@@ -866,6 +900,27 @@ export default function PanelPage() {
   const [pcActivatePw2, setPcActivatePw2]   = useState("")
   const [pcActivating, setPcActivating]     = useState(false)
   const [pcActivateMsg, setPcActivateMsg]   = useState<{ text: string; ok: boolean } | null>(null)
+
+  // ── 지점 회원 & 배팅 내역 (admin 전용) ──
+  const [branchMembers, setBranchMembers]   = useState<any[]>([])
+  const [branchBets, setBranchBets]         = useState<any[]>([])
+  const [branchBetsLoading, setBranchBetsLoading] = useState(false)
+  const [selectedMember, setSelectedMember] = useState<any | null>(null)
+  const [betPage, setBetPage]               = useState(1)
+  const [branchTab, setBranchTab]           = useState<"members" | "bets">("members")
+  // 지점 요약 통계
+  const [branchPendingCharge, setBranchPendingCharge] = useState(0)
+  const [branchPendingEx, setBranchPendingEx]         = useState(0)
+  const [branchTotalEx, setBranchTotalEx]             = useState(0)
+  // 충전/회수 모달
+  const [branchChargeUserId, setBranchChargeUserId]   = useState<string | null>(null)
+  const [branchChargeAmt, setBranchChargeAmt]         = useState("")
+  const [branchChargeLoading, setBranchChargeLoading] = useState(false)
+  const [branchChargeMsg, setBranchChargeMsg]         = useState<{ text: string; ok: boolean } | null>(null)
+  // 환전 처리 모달
+  const [branchExReqs, setBranchExReqs]     = useState<any[]>([])
+  const [branchExLoading, setBranchExLoading] = useState(false)
+  const [branchExExpanded, setBranchExExpanded] = useState(false)
 
   // ── 환전 요청 ──
   const [exRequests, setExRequests]         = useState<any[]>([])
@@ -1245,7 +1300,7 @@ export default function PanelPage() {
 
           {/* ── 지점 전용 탭 (현금/환전만) ── */}
           {myRole === "admin" && (
-            <button onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "cash" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <button onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests(); loadBranchUsers(); loadBranchExReqs() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "cash" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               <Banknote className="w-4 h-4" /> 지점
             </button>
           )}
@@ -2455,6 +2510,279 @@ export default function PanelPage() {
         {activeTab === "cash" && (
           <div className="space-y-6">
 
+            {/* ── 지점 전용 요약 카드 + 회원/배팅 ── */}
+            {myRole === "admin" && (
+              <div className="space-y-4">
+                {/* 요약 카드 5개 */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {/* 유저 수 */}
+                  <div className="bg-card border border-border rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground mb-1">유저 수</p>
+                    <p className="text-2xl font-bold text-foreground">{branchMembers.length}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
+                    <p className="text-[11px] text-muted-foreground mt-1">현재 잔액 <span className="font-semibold text-foreground">₩{myBalance.toLocaleString()}</span></p>
+                  </div>
+                  {/* 대기 중인 충전 */}
+                  <div className="bg-card border border-border rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground mb-1">대기 중인 충전</p>
+                    <p className="text-2xl font-bold text-amber-500">{prRequests.filter((r: any) => r.status === "pending").length}<span className="text-sm font-normal text-muted-foreground ml-1">건</span></p>
+                    <p className="text-[11px] text-muted-foreground mt-1">비밀번호 포함 계정 승인</p>
+                  </div>
+                  {/* 대기 중인 환전 — 클릭 시 펼침 */}
+                  <button
+                    onClick={() => setBranchExExpanded(v => !v)}
+                    className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
+                  >
+                    <p className="text-xs text-muted-foreground mb-1">대기 중인 환전</p>
+                    <p className={`text-2xl font-bold ${branchPendingEx > 0 ? "text-primary" : "text-foreground"}`}>
+                      {branchPendingEx}<span className="text-sm font-normal text-muted-foreground ml-1">건</span>
+                    </p>
+                    <p className="text-[11px] text-primary/70 mt-1">{branchExExpanded ? "접기 ▲" : "목록 보기 ▼"}</p>
+                  </button>
+                  {/* 누적 환전액 */}
+                  <div className="bg-card border border-border rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground mb-1">누적 환전액</p>
+                    <p className="text-2xl font-bold text-foreground">₩{branchTotalEx.toLocaleString()}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">완료된 환전 누계</p>
+                  </div>
+                  {/* 수수료 잔고 */}
+                  <div className="bg-card border border-border rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground mb-1">수수료 잔고</p>
+                    <p className="text-2xl font-bold text-amber-500">₩{myCommBalance.toLocaleString()}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">배팅 수수료 누적</p>
+                  </div>
+                </div>
+
+                {/* 대기 중인 환전 펼침 */}
+                {branchExExpanded && (
+                  <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        <ArrowLeftRight className="w-4 h-4 text-primary" /> 대기 중인 환전 요청
+                        {branchPendingEx > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">{branchPendingEx}건</span>
+                        )}
+                      </h3>
+                      <Button variant="ghost" size="sm" onClick={loadBranchExReqs} disabled={branchExLoading} className="h-7 w-7 p-0">
+                        <RefreshCw className={`w-3.5 h-3.5 ${branchExLoading ? "animate-spin" : ""}`} />
+                      </Button>
+                    </div>
+                    {branchExReqs.filter((r: any) => r.status === "pending").length === 0 ? (
+                      <p className="py-8 text-center text-sm text-muted-foreground">대기 중인 환전 요청이 없습니다.</p>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-5 py-2 bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          <span>유저 / 요청일시</span><span className="text-right">금액</span><span className="text-right">처리</span>
+                        </div>
+                        {branchExReqs.filter((r: any) => r.status === "pending").map((r: any) => (
+                          <div key={r.id} className="px-5 py-3 grid grid-cols-[1fr_auto_auto] gap-4 items-center">
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">{r.target_user?.username ?? "-"}</p>
+                              <p className="text-[10px] text-muted-foreground">{new Date(r.created_at).toLocaleString("ko-KR")}</p>
+                            </div>
+                            <span className="text-sm font-bold text-foreground">₩{r.point_amount?.toLocaleString()}</span>
+                            <div className="flex gap-1.5">
+                              <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-destructive border-destructive/30 hover:bg-destructive/10"
+                                onClick={async () => {
+                                  const token = getToken()
+                                  await fetch("/api/admin/exchange-request", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "reject" }) })
+                                  loadBranchExReqs()
+                                }}>거절</Button>
+                              <Button size="sm" className="h-7 px-3 text-[11px]"
+                                onClick={async () => {
+                                  const token = getToken()
+                                  await fetch("/api/admin/exchange-request", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "complete" }) })
+                                  loadBranchExReqs()
+                                }}>완료</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 회원 목록 + 배팅 내역 탭 */}
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  {/* 내부 탭 */}
+                  <div className="flex border-b border-border">
+                    <button
+                      onClick={() => setBranchTab("members")}
+                      className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${branchTab === "members" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                    >회원 목록 ({branchMembers.length}명)</button>
+                    <button
+                      onClick={() => { setBranchTab("bets"); if (branchBets.length === 0) loadBranchBets(selectedMember?.id) }}
+                      className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${branchTab === "bets" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                    >배팅 내역{selectedMember ? ` — ${selectedMember.username}` : ""}</button>
+                    <div className="ml-auto flex items-center px-4 gap-2">
+                      {selectedMember && (
+                        <button onClick={() => { setSelectedMember(null); loadBranchBets(undefined, 1); setBetPage(1) }} className="text-[11px] text-muted-foreground hover:text-foreground">전체 보기</button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => { loadBranchUsers(); loadBranchBets(selectedMember?.id, betPage) }} className="h-7 w-7 p-0">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 회원 목록 */}
+                  {branchTab === "members" && (
+                    <div className="divide-y divide-border">
+                      {branchMembers.length === 0 && (
+                        <p className="py-8 text-center text-sm text-muted-foreground">등록된 회원이 없습니다.</p>
+                      )}
+                      {/* 헤더 */}
+                      {branchMembers.length > 0 && (
+                        <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-5 py-2 bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          <span>회원 ID</span><span className="text-right">잔고</span><span className="text-right">관리</span>
+                        </div>
+                      )}
+                      {branchMembers.map(member => (
+                        <div key={member.id} className="px-5 py-3 grid grid-cols-[1fr_auto_auto] gap-4 items-center">
+                          <button
+                            onClick={() => { setSelectedMember(member); setBranchTab("bets"); setBetPage(1); loadBranchBets(member.id, 1) }}
+                            className="text-left"
+                          >
+                            <p className="text-sm font-semibold text-foreground hover:text-primary transition-colors">{member.username}</p>
+                            <p className="text-[10px] text-muted-foreground">클릭하면 배팅 내역 조회</p>
+                          </button>
+                          <span className="text-sm font-bold text-foreground text-right">₩{(member.balance ?? 0).toLocaleString()}</span>
+                          <div className="flex gap-1.5">
+                            {/* 충전 버튼 */}
+                            <Button size="sm" className="h-7 px-2.5 text-[11px]"
+                              onClick={() => { setBranchChargeUserId(member.id); setBranchChargeAmt(""); setBranchChargeMsg(null) }}>
+                              충전
+                            </Button>
+                            {/* 회수 버튼 */}
+                            <Button size="sm" variant="outline" className="h-7 px-2.5 text-[11px] text-destructive border-destructive/30 hover:bg-destructive/10"
+                              onClick={() => { setBranchChargeUserId(`-${member.id}`); setBranchChargeAmt(""); setBranchChargeMsg(null) }}>
+                              회수
+                            </Button>
+                            {/* 환전 버튼 — 환전 요청 탭으로 이동 */}
+                            <Button size="sm" variant="outline" className="h-7 px-2.5 text-[11px]"
+                              onClick={() => { setExTargetId(member.username); setBranchTab("members") }}>
+                              환전
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 배팅 내역 */}
+                  {branchTab === "bets" && (
+                    <div>
+                      {branchBetsLoading && (
+                        <p className="py-8 text-center text-sm text-muted-foreground">불러오는 중...</p>
+                      )}
+                      {!branchBetsLoading && branchBets.length === 0 && (
+                        <p className="py-8 text-center text-sm text-muted-foreground">배팅 내역이 없습니다.</p>
+                      )}
+                      {!branchBetsLoading && branchBets.length > 0 && (
+                        <>
+                          <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-x-3 px-5 py-2 bg-muted/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                            <span>날짜</span>
+                            <span>회원ID</span>
+                            <span className="text-center">배팅번호</span>
+                            <span className="text-center">종목</span>
+                            <span className="text-center">배팅 위치</span>
+                            <span className="text-right">배당</span>
+                            <span className="text-center">승패</span>
+                            <span className="text-right">결과 잔고</span>
+                          </div>
+                          <div className="divide-y divide-border">
+                            {branchBets.map((b: any) => {
+                              const isWin = b.result === "win"
+                              const gameLabel = b.game_type === "baccarat" ? "바카라" : b.game_type === "race" ? "레이스" : b.game_type ?? "-"
+                              const betTarget = b.bet_direction
+                                ? b.bet_direction.startsWith("baccarat_")
+                                  ? ({ baccarat_player: "플레이어", baccarat_banker: "뱅커", baccarat_tie: "타이" } as any)[b.bet_direction] ?? b.bet_direction
+                                  : b.bet_direction
+                                : b.bet_digit ?? b.bet_parity ?? "-"
+                              const odds = b.bet_amount > 0
+                                ? ((b.payout ?? 0) / b.bet_amount).toFixed(2)
+                                : "-"
+                              return (
+                                <div key={b.id} className={`grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-x-3 px-5 py-2.5 items-center text-sm ${isWin ? "bg-green-50/30" : ""}`}>
+                                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{new Date(b.created_at).toLocaleDateString("ko-KR")}<br />{new Date(b.created_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>
+                                  <span className="font-medium text-foreground truncate">{b.username}</span>
+                                  <span className="text-center text-xs text-muted-foreground font-mono">{b.round_number}</span>
+                                  <span className={`text-center text-[11px] px-1.5 py-0.5 rounded-full font-semibold ${b.game_type === "baccarat" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>{gameLabel}</span>
+                                  <span className="text-center text-xs text-foreground">{betTarget}</span>
+                                  <span className="text-right text-xs font-bold text-foreground">{odds}x</span>
+                                  <span className={`text-center text-[11px] px-1.5 py-0.5 rounded-full font-bold ${isWin ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>{isWin ? "승" : "패"}</span>
+                                  <div className="text-right">
+                                    <p className="text-xs font-bold text-foreground">₩{(b.payout ?? 0).toLocaleString()}</p>
+                                    <p className="text-[10px] text-muted-foreground">배팅 ₩{(b.bet_amount ?? 0).toLocaleString()}</p>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {/* 페이지네이션 */}
+                          <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+                            <button onClick={() => { const p = Math.max(1, betPage - 1); setBetPage(p); loadBranchBets(selectedMember?.id, p) }} disabled={betPage === 1} className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 px-2 py-1">이전</button>
+                            <span className="text-xs text-muted-foreground">{betPage} 페이지</span>
+                            <button onClick={() => { const p = betPage + 1; setBetPage(p); loadBranchBets(selectedMember?.id, p) }} disabled={branchBets.length < 20} className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 px-2 py-1">다음</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 충전/회수 인라인 모달 */}
+                {branchChargeUserId && (() => {
+                  const isWithdraw = branchChargeUserId.startsWith("-")
+                  const uid = isWithdraw ? branchChargeUserId.slice(1) : branchChargeUserId
+                  const member = branchMembers.find(m => m.id === uid)
+                  return (
+                    <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+                      <h3 className="text-sm font-semibold text-foreground">
+                        {member?.username} — {isWithdraw ? "포인트 회수" : "포인트 충전"}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">현재 잔고: ₩{(member?.balance ?? 0).toLocaleString()}</p>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          placeholder="금액 입력"
+                          value={branchChargeAmt}
+                          onChange={e => setBranchChargeAmt(e.target.value)}
+                          className="h-9 text-sm flex-1"
+                        />
+                        <Button
+                          size="sm"
+                          disabled={branchChargeLoading}
+                          variant={isWithdraw ? "outline" : "default"}
+                          className={isWithdraw ? "h-9 text-destructive border-destructive/30 hover:bg-destructive/10" : "h-9"}
+                          onClick={async () => {
+                            setBranchChargeLoading(true); setBranchChargeMsg(null)
+                            const token = getToken()
+                            const amt = parseInt(branchChargeAmt)
+                            if (!branchChargeAmt || isNaN(amt) || amt <= 0) {
+                              setBranchChargeMsg({ text: "올바른 금액을 입력하세요.", ok: false })
+                              setBranchChargeLoading(false); return
+                            }
+                            const res = await fetch("/api/admin/charge", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ userId: uid, amount: isWithdraw ? -amt : amt }),
+                            })
+                            const d = await res.json()
+                            setBranchChargeMsg(res.ok ? { text: `${isWithdraw ? "회수" : "충전"} 완료`, ok: true } : { text: d.error ?? "오류", ok: false })
+                            if (res.ok) { setBranchChargeAmt(""); loadBranchUsers() }
+                            setBranchChargeLoading(false)
+                          }}
+                        >{branchChargeLoading ? "처리중..." : isWithdraw ? "회수" : "충전"}</Button>
+                        <Button size="sm" variant="ghost" className="h-9" onClick={() => { setBranchChargeUserId(null); setBranchChargeMsg(null) }}>취소</Button>
+                      </div>
+                      {branchChargeMsg && (
+                        <p className={`text-xs ${branchChargeMsg.ok ? "text-primary" : "text-destructive"}`}>{branchChargeMsg.text}</p>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
             {/* 내 잔고 요약 */}
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-card border border-border rounded-xl p-4">
@@ -3279,7 +3607,7 @@ export default function PanelPage() {
                 )}
               </div>
 
-              {/* 내 수수료 잔고 */}
+              {/* 내 수수료 잔�� */}
               <div className="bg-card border border-border rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-foreground">내 수수료 잔고</h3>
