@@ -193,6 +193,35 @@ export default function PanelPage() {
     finally { setAcSubmitting(false) }
   }
 
+  // 대총판 전용: 총판 계정 생성 모달 state
+  const [saOpen, setSaOpen]           = useState(false)
+  const [saUsername, setSaUsername]   = useState("")
+  const [saPassword, setSaPassword]   = useState("")
+  const [saSubmitting, setSaSubmitting] = useState(false)
+  const [saMsg, setSaMsg]             = useState<{ text: string; ok: boolean } | null>(null)
+
+  const handleCreateBranchAdmin = async () => {
+    if (!saUsername.trim() || !saPassword.trim()) { setSaMsg({ text: "아이디와 비밀번호를 모두 입력하세요.", ok: false }); return }
+    const token = getToken(); if (!token) return
+    setSaSubmitting(true); setSaMsg(null)
+    try {
+      const res = await fetch("/api/admin/create-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username: saUsername.trim(), password: saPassword, role: "branch_admin" }),
+      })
+      const d = await res.json()
+      if (res.ok) {
+        setSaMsg({ text: `총판 계정 "${saUsername}" 이 생성되었습니다.`, ok: true })
+        setSaUsername(""); setSaPassword("")
+        loadUsers(adminPw)
+      } else {
+        setSaMsg({ text: d.error ?? "계정 생성에 실패했습니다.", ok: false })
+      }
+    } catch { setSaMsg({ text: "오류가 발생했습니다.", ok: false }) }
+    finally { setSaSubmitting(false) }
+  }
+
   const handleDeleteAccount = async (targetId: string, targetUsername: string) => {
     if (!confirm(`"${targetUsername}" 계정을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) return
     const token = getToken(); if (!token) return
@@ -748,10 +777,63 @@ export default function PanelPage() {
               </span>
             )}
           </div>
-        <Button variant="ghost" size="sm" onClick={() => router.replace("/")} className="gap-1.5 text-muted-foreground">
-          <LogOut className="w-4 h-4" /> 나가기
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* 대총판: 잔고 + 총판 계정생성 버튼 */}
+          {myRole === "super_admin" && (
+            <>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-sm font-semibold text-foreground">
+                <Wallet className="w-3.5 h-3.5 text-muted-foreground" />
+                ₩{(users.find(u => u.id === myUserId)?.balance ?? 0).toLocaleString()}
+              </div>
+              <Button size="sm" onClick={() => setSaOpen(true)} className="gap-1.5 text-xs">
+                <Plus className="w-3.5 h-3.5" /> 총판 계정생성
+              </Button>
+            </>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => router.replace("/")} className="gap-1.5 text-muted-foreground">
+            <LogOut className="w-4 h-4" /> 나가기
+          </Button>
+        </div>
       </header>
+
+      {/* ── 대총판 전용: 총판 계정생성 모달 ── */}
+      {saOpen && myRole === "super_admin" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" /> 총판 계정 생성
+              </h2>
+              <button onClick={() => { setSaOpen(false); setSaMsg(null); setSaUsername(""); setSaPassword("") }} className="text-muted-foreground hover:text-foreground">
+                <span className="text-lg leading-none">✕</span>
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+              총판 계정을 생성합니다. 생성된 계정으로 로그인하면 지점관리 탭이 표시됩니다.
+            </p>
+            <div className="space-y-3 mb-4">
+              <div>
+                <p className="text-xs font-medium text-foreground mb-1.5">아이디</p>
+                <Input placeholder="사용할 아이디 입력" value={saUsername} onChange={e => setSaUsername(e.target.value)} className="h-9 text-sm" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-foreground mb-1.5">비밀번호</p>
+                <Input type="password" placeholder="초기 비밀번호 설정" value={saPassword} onChange={e => setSaPassword(e.target.value)} className="h-9 text-sm" />
+              </div>
+            </div>
+            {saMsg && (
+              <p className={`text-xs mb-3 ${saMsg.ok ? "text-primary" : "text-destructive"}`}>{saMsg.text}</p>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSaOpen(false); setSaMsg(null); setSaUsername(""); setSaPassword("") }}>취소</Button>
+              <Button size="sm" className="flex-1 gap-1.5" disabled={saSubmitting || !saUsername.trim() || !saPassword.trim()} onClick={handleCreateBranchAdmin}>
+                <Plus className="w-3.5 h-3.5" />
+                {saSubmitting ? "생성 중..." : "총판 생성"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="border-b border-border bg-card">
         <div className="flex px-6 overflow-x-auto">
@@ -1579,7 +1661,7 @@ export default function PanelPage() {
                 </Button>
               </div>
               <div className="divide-y divide-border">
-                {exRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
+                {exRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">���청이 없습니다.</p>}
                 {exRequests.map((r: any) => (
                   <div key={r.id} className="px-5 py-4 flex items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -1683,7 +1765,7 @@ export default function PanelPage() {
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                 <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
                   <h3 className="text-sm font-semibold text-foreground">비밀번호 초기화 승인</h3>
-                  <Input type="password" placeholder="새 비밀번호 (4자 이상)" value={prNewPw} onChange={e => setPrNewPw(e.target.value)} className="h-9 text-sm" />
+                  <Input type="password" placeholder="새 비��번호 (4자 이상)" value={prNewPw} onChange={e => setPrNewPw(e.target.value)} className="h-9 text-sm" />
                   {prApproveMsg && <p className={`text-xs ${prApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{prApproveMsg.text}</p>}
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => setPrApproveId(null)}>취소</Button>

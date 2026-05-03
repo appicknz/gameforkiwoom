@@ -25,21 +25,29 @@ export async function POST(req: Request) {
   const callerId = decodeJwtSub(token)
   if (!callerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  // 호출자가 master인지 확인
   const { data: caller } = await adminSupabase.from("profiles").select("role").eq("id", callerId).single()
-  if (!caller || caller.role !== "master") {
-    return NextResponse.json({ error: "마스터 계정만 관리자를 생성할 수 있습니다." }, { status: 403 })
-  }
+  if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { username, password, role, memo } = await req.json()
+  const { username, password, role } = await req.json()
 
   if (!username?.trim() || !password?.trim()) {
     return NextResponse.json({ error: "아이디와 비밀번호를 입력하세요." }, { status: 400 })
   }
 
-  const allowedRoles = ["super_admin", "branch_admin", "admin"]
-  if (!allowedRoles.includes(role)) {
-    return NextResponse.json({ error: "유효하지 않은 역할입니다." }, { status: 400 })
+  // 권한별 생성 가능 역할 제한
+  // master → 모두 생성 가능 (super_admin, branch_admin, admin)
+  // super_admin → branch_admin만 생성 가능
+  if (caller.role === "master") {
+    const allowedRoles = ["super_admin", "branch_admin", "admin"]
+    if (!allowedRoles.includes(role)) {
+      return NextResponse.json({ error: "유효하지 않은 역할입니다." }, { status: 400 })
+    }
+  } else if (caller.role === "super_admin") {
+    if (role !== "branch_admin") {
+      return NextResponse.json({ error: "대총판은 총판 계정만 생성할 수 있습니다." }, { status: 403 })
+    }
+  } else {
+    return NextResponse.json({ error: "계정 생성 권한이 없습니다." }, { status: 403 })
   }
 
   // 아이디 중복 확인
