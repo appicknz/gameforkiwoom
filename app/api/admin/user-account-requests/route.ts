@@ -40,12 +40,13 @@ export async function GET(req: Request) {
   if (me.role === "admin") {
     query = query.eq("requester_id", userId)
   } else if (me.role === "branch_admin") {
-    // 이 총판 산하 지점들의 요청
-    const { data: branches } = await adminSupabase
-      .from("profiles").select("id").eq("super_admin_id", userId)
-    const branchIds = (branches ?? []).map((b: any) => b.id)
-    branchIds.push(userId)
-    query = query.in("requester_id", branchIds)
+    // 이 총판(branch_admin) 소속의 지점(admin) 계정들이 보낸 요청
+    // profiles.branch_id = 총판 userId 로 연결된 admin 계정 목록
+    const { data: branchAdmins } = await adminSupabase
+      .from("profiles").select("id").eq("role", "admin").eq("branch_id", userId)
+    const branchAdminIds = (branchAdmins ?? []).map((b: any) => b.id)
+    if (branchAdminIds.length === 0) return NextResponse.json({ requests: [] })
+    query = query.in("requester_id", branchAdminIds)
   } else if (!["master", "super_admin"].includes(me.role)) {
     return NextResponse.json({ error: "권한 없음" }, { status: 403 })
   }

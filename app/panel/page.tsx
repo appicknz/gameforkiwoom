@@ -889,6 +889,13 @@ export default function PanelPage() {
     if (res.ok) { const d = await res.json(); setAcctRequests(d.requests ?? []) }
   }, [])
 
+  // branch_admin 전용: 계정 생성 요청 5초 폴링
+  useEffect(() => {
+    if (myRole !== "branch_admin") return
+    const id = setInterval(() => { loadAcctRequests() }, 5000)
+    return () => clearInterval(id)
+  }, [myRole, loadAcctRequests])
+
   const loadBaExRequests = useCallback(async () => {
     const token = getToken(); if (!token) return
     setBaExLoading(true)
@@ -2403,7 +2410,7 @@ export default function PanelPage() {
               <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">지점별 하우스 손익</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">게임 유형별 배팅·지급·LP·수수료 집계</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">게임 유형별 배팅·지급·LP·수수료 ��계</p>
                 </div>
                 <Button variant="ghost" size="sm" onClick={loadHouseStats} disabled={houseLoading} className="gap-1.5 text-xs">
                   <RefreshCw className={`w-3.5 h-3.5 ${houseLoading ? "animate-spin" : ""}`} /> 새로고침
@@ -3851,7 +3858,7 @@ export default function PanelPage() {
               <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center">
                 <ImageIcon className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">업로드된 카드 이미지가 없습니다.</p>
-                <p className="text-xs text-muted-foreground mt-1">위�� &quot;이미지 추가&quot; 버튼으로 업로���하세요.</p>
+                <p className="text-xs text-muted-foreground mt-1">위�� &quot;이미지 추가&quot; ��튼으로 업로���하세요.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
