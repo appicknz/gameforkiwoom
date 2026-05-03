@@ -194,6 +194,13 @@ export default function PanelPage() {
     finally { setAcSubmitting(false) }
   }
 
+  // 총판 전용: 지점 생성 모달 state
+  const [baCreateOpen, setBaCreateOpen]       = useState(false)
+  const [baNewBranchName, setBaNewBranchName] = useState("")
+  const [baNewBranchCode, setBaNewBranchCode] = useState("")
+  const [baCreateLoading, setBaCreateLoading] = useState(false)
+  const [baCreateMsg, setBaCreateMsg]         = useState<{ text: string; ok: boolean } | null>(null)
+
   // 대총판 전용: 총판 계정 생성 모달 state
   const [saOpen, setSaOpen]           = useState(false)
   const [saUsername, setSaUsername]   = useState("")
@@ -602,6 +609,30 @@ export default function PanelPage() {
 
   }
 
+  // 총판 전용: 지점 생성
+  const handleBaCreateBranch = async () => {
+    if (!baNewBranchName.trim() || !baNewBranchCode.trim()) {
+      setBaCreateMsg({ text: "지점명과 지점코드를 모두 입력하세요.", ok: false }); return
+    }
+    setBaCreateLoading(true); setBaCreateMsg(null)
+    const token = getToken(); if (!token) { setBaCreateLoading(false); return }
+    const res = await fetch("/api/admin/branches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: baNewBranchName.trim(), code: baNewBranchCode.trim().toUpperCase() }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setBaCreateMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
+    } else {
+      setBaCreateMsg({ text: `지점 '${baNewBranchName}'이 생성됐습니다.`, ok: true })
+      setBaNewBranchName(""); setBaNewBranchCode("")
+      loadBranches(adminPw)
+      setTimeout(() => { setBaCreateOpen(false); setBaCreateMsg(null) }, 1200)
+    }
+    setBaCreateLoading(false)
+  }
+
   // 지점 삭제
   const handleDeleteBranch = async (id: string) => {
     if (!confirm("지점을 삭제하시겠습니까? 소속 회원의 지점코드가 해제됩니다.")) return
@@ -909,11 +940,55 @@ export default function PanelPage() {
               </Button>
             </>
           )}
+          {myRole === "branch_admin" && (
+            <Button size="sm" onClick={() => { setBaCreateOpen(true); setBaCreateMsg(null); setBaNewBranchName(""); setBaNewBranchCode("") }} className="gap-1.5 text-xs">
+              <Plus className="w-3.5 h-3.5" /> 지점 계정생성
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => router.replace("/")} className="gap-1.5 text-muted-foreground">
             <LogOut className="w-4 h-4" /> 나가기
           </Button>
         </div>
       </header>
+
+      {/* ── 총판 전용: 지점 계정생성 모달 ── */}
+      {baCreateOpen && myRole === "branch_admin" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <GitBranch className="w-4 h-4 text-primary" /> 지점 생성
+              </h2>
+              <button onClick={() => setBaCreateOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <span className="text-lg leading-none">✕</span>
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+              지점명과 지점코드를 입력하면 지점이 생성됩니다. 해당 지점코드로 유저를 생성할 수 있습니다.
+            </p>
+            <div className="space-y-3 mb-4">
+              <div>
+                <p className="text-xs font-medium text-foreground mb-1.5">지점명</p>
+                <Input placeholder="예: 역삼1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-foreground mb-1.5">지점코드</p>
+                <Input placeholder="예: YS001" value={baNewBranchCode} onChange={e => setBaNewBranchCode(e.target.value.toUpperCase())} className="h-9 text-sm font-mono" />
+              </div>
+            </div>
+            {baCreateMsg && (
+              <p className={`text-xs mb-3 ${baCreateMsg.ok ? "text-primary" : "text-destructive"}`}>{baCreateMsg.text}</p>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => setBaCreateOpen(false)}>취소</Button>
+              <Button size="sm" className="flex-1 gap-1.5" disabled={baCreateLoading || !baNewBranchName.trim() || !baNewBranchCode.trim()} onClick={handleBaCreateBranch}>
+                <Plus className="w-3.5 h-3.5" />
+                {baCreateLoading ? "생성 중..." : "지점 생성"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 대총판 전용: 총판 계정생성 모달 ── */}
       {saOpen && myRole === "super_admin" && (

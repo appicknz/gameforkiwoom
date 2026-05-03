@@ -13,7 +13,7 @@ export async function GET(req: Request) {
 
   const { data: requester } = await adminSupabase
     .from('profiles')
-    .select('id, role, branch_code')
+    .select('id, role, branch_code, username')
     .eq('id', auth.userId)
     .single()
 
@@ -26,8 +26,11 @@ export async function GET(req: Request) {
     .select("id, code, name, status, owner_email, created_at, betting_mode, lp_enabled, lp_amount")
     .order("created_at", { ascending: false })
 
-  // branch_admin/admin은 자기 지점만
-  if (!SUPER_ROLES.includes(requester.role) && requester.branch_code) {
+  if (requester.role === 'branch_admin') {
+    // 총판: 자신이 owner인 지점 전체 조회
+    query = query.eq("owner_email", requester.username)
+  } else if (requester.role === 'admin' && requester.branch_code) {
+    // 지점 관리자: 자기 지점만
     query = query.eq("code", requester.branch_code)
   }
 
@@ -36,26 +39,33 @@ export async function GET(req: Request) {
   return NextResponse.json({ branches: data ?? [] })
 }
 
-// 지점 생성 (master/super_admin만)
+// 지점 생성 (master/super_admin/branch_admin)
 export async function POST(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: requester } = await adminSupabase
     .from('profiles')
-    .select('id, role')
+    .select('id, role, username')
     .eq('id', auth.userId)
     .single()
 
-  if (!requester || !SUPER_ROLES.includes(requester.role)) {
+  const canCreate = ['master', 'super_admin', 'branch_admin']
+  if (!requester || !canCreate.includes(requester.role)) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
   const body = await req.json()
   const { name, code, ownerUsername } = body
 
-  if (!name || !code || !ownerUsername) {
-    return NextResponse.json({ error: "지점명, 코드, 관리자 아이디를 모두 입력하세요." }, { status: 400 })
+  if (!name || !code) {
+    return NextResponse.json({ error: "지점명과 코드를 입력하세요." }, { status: 400 })
+  }
+
+  // master/super_admin은 ownerUsername 필수, branch_admin은 자기 자신이 owner
+  const isSuperRole = SUPER_ROLES.includes(requester.role)
+  if (isSuperRole && !ownerUsername) {
+    return NextResponse.json({ error: "관리자 아이디를 입력하세요." }, { status: 400 })
   }
 
   const { data: existing } = await adminSupabase
@@ -68,24 +78,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "이미 사용 중인 지점코드입니다." }, { status: 409 })
   }
 
-  const { data: ownerProfile } = await adminSupabase
-    .from("profiles")
-    .select("id, username")
-    .eq("username", ownerUsername)
-    .maybeSingle()
+  let ownerName = requester.username
 
-  if (!ownerProfile) {
-    return NextResponse.json({ error: "해당 아이디의 회원을 찾을 수 없습니다." }, { status: 404 })
+  if (isSuperRole) {
+    const { data: ownerProfile } = await adminSupabase
+      .from("profiles")
+      .select("id, username")
+      .eq("username", ownerUsername)
+      .maybeSingle()
+
+    if (!ownerProfile) {
+      return NextResponse.json({ error: "해당 아이디의 회원을 찾을 수 없습니다." }, { status: 404 })
+    }
+
+    await adminSupabase
+      .from("profiles")
+      .update({ role: "branch_admin", branch_code: code.toUpperCase() })
+      .eq("id", ownerProfile.id)
+
+    ownerName = ownerProfile.username
   }
-
-  await adminSupabase
-    .from("profiles")
-    .update({ role: "branch_admin", branch_code: code.toUpperCase() })
-    .eq("id", ownerProfile.id)
 
   const { data, error } = await adminSupabase
     .from("branches")
-    .insert({ name, code: code.toUpperCase(), status: "approved", owner_email: ownerProfile.username })
+    .insert({ name, code: code.toUpperCase(), status: "approved", owner_email: ownerName })
     .select()
     .single()
 
