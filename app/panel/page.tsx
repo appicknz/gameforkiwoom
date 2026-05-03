@@ -581,6 +581,78 @@ export default function PanelPage() {
     user:         { label: "일반회원", color: "bg-gray-100 text-gray-600" },
   }
 
+  // ── 총판 전용: 지점 드릴다운 + 유저 생성 ──
+  const [selectedBranch, setSelectedBranch]   = useState<any | null>(null) // 클릭한 지점
+  const [branchMembers, setBranchMembers]     = useState<any[]>([])
+  const [branchMembersLoading, setBranchMembersLoading] = useState(false)
+  const [memberSearch, setMemberSearch]       = useState("")
+  const [expandedMember, setExpandedMember]   = useState<string | null>(null)
+  // 유저 생성 폼
+  const [buUsername, setBuUsername]           = useState("")
+  const [buPassword, setBuPassword]           = useState("")
+  const [buCount, setBuCount]                 = useState("1")
+  const [buMemo, setBuMemo]                   = useState("")
+  const [buSubmitting, setBuSubmitting]       = useState(false)
+  const [buMsg, setBuMsg]                     = useState<{ text: string; ok: boolean } | null>(null)
+  // 충전 요청 (총판이 대총판에게)
+  const [baChargeAmt, setBaChargeAmt]         = useState("")
+  const [baChargeMemo, setBaChargeMemo]       = useState("")
+  const [baChargeSubmitting, setBaChargeSubmitting] = useState(false)
+  const [baChargeMsg, setBaChargeMsg]         = useState<{ text: string; ok: boolean } | null>(null)
+  const [baChargeRequests, setBaChargeRequests] = useState<any[]>([])
+  const [baChargeLoading, setBaChargeLoading] = useState(false)
+
+  const loadBranchMembers = useCallback(async (branchCode: string) => {
+    const token = getToken(); if (!token) return
+    setBranchMembersLoading(true)
+    try {
+      const res = await fetch(`/api/admin/users?branch_code=${encodeURIComponent(branchCode)}`, { headers: { Authorization: `Bearer ${token}` } })
+      if (res.ok) { const d = await res.json(); setBranchMembers(d.users ?? []) }
+    } finally { setBranchMembersLoading(false) }
+  }, [])
+
+  const loadBaChargeRequests = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setBaChargeLoading(true)
+    const res = await fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setBaChargeRequests(d.requests ?? []) }
+    setBaChargeLoading(false)
+  }, [])
+
+  const handleBranchAdminCharge = async () => {
+    if (!baChargeAmt || Number(baChargeAmt) <= 0) { setBaChargeMsg({ text: "금액을 입력하세요.", ok: false }); return }
+    const token = getToken(); if (!token) return
+    setBaChargeSubmitting(true); setBaChargeMsg(null)
+    const res = await fetch("/api/admin/point-purchase", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ cashAmount: Number(baChargeAmt), memo: baChargeMemo }),
+    })
+    const d = await res.json()
+    setBaChargeMsg(res.ok ? { text: "충전 요청이 전송됐습니다. 대총판 승인 후 잔액이 추가됩니다.", ok: true } : { text: d.error ?? "오류", ok: false })
+    if (res.ok) { setBaChargeAmt(""); setBaChargeMemo(""); loadBaChargeRequests() }
+    setBaChargeSubmitting(false)
+  }
+
+  const handleBulkUserCreate = async (branchCode: string) => {
+    if (!buUsername.trim() || !buPassword.trim()) { setBuMsg({ text: "아이디와 비밀번호를 입력하세요.", ok: false }); return }
+    const count = Math.max(1, Math.min(50, Number(buCount) || 1))
+    const token = getToken(); if (!token) return
+    setBuSubmitting(true); setBuMsg(null)
+    const res = await fetch("/api/admin/bulk-users", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ username: buUsername.trim(), password: buPassword, count, memo: buMemo, branchCode }),
+    })
+    const d = await res.json()
+    if (res.ok) {
+      setBuMsg({ text: `${d.created}개 계정이 생성됐습니다.`, ok: true })
+      setBuUsername(""); setBuPassword(""); setBuCount("1"); setBuMemo("")
+      if (selectedBranch) loadBranchMembers(selectedBranch.code)
+    } else {
+      setBuMsg({ text: d.error ?? "생성 실패", ok: false })
+    }
+    setBuSubmitting(false)
+  }
+
   // ── 포인트 구매 요청 (현금 내고 포인트 사기) ──
   const [ppRequests, setPpRequests]         = useState<any[]>([])
   const [ppLoading, setPpLoading]           = useState(false)
@@ -865,10 +937,15 @@ export default function PanelPage() {
             </button>
           )}
 
-          {/* ── 총판 전용 탭 (지점관리만) ── */}
+          {/* ── 총판 전용 탭 ── */}
           {myRole === "branch_admin" && (
-            <button onClick={() => setActiveTab("branches")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <button onClick={() => { setActiveTab("branches"); loadBranches(adminPw); loadBaChargeRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               <GitBranch className="w-4 h-4" /> 총판
+              {baChargeRequests.filter((r: any) => r.status === "pending").length > 0 && (
+                <span className="ml-1 bg-amber-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                  {baChargeRequests.filter((r: any) => r.status === "pending").length}
+                </span>
+              )}
             </button>
           )}
 
@@ -983,7 +1060,8 @@ export default function PanelPage() {
         {/* 지점관리 탭 (대총판/마스터 전용) */}
         {activeTab === "branches" && (myRole === "master" || myRole === "branch_admin") && (
           <>
-            {/* 지점 생성 폼 */}
+          {/* ══════ 마스터 전용: 지점 생성 폼 ══════ */}
+          {myRole === "master" && (
             <div className="bg-card border border-border rounded-xl p-5 mb-6">
               <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
                 <GitBranch className="w-4 h-4 text-primary" /> 새 지점 생성
@@ -1051,8 +1129,70 @@ export default function PanelPage() {
                 <Plus className="w-4 h-4" /> 지점 생성
               </Button>
             </div>
+          )}
 
-            {/* 지점 목록 */}
+            {/* ══════ 총판 전용: 잔고 + 충전 요청 ══════ */}
+            {myRole === "branch_admin" && (
+              <div className="space-y-4 mb-4">
+                {/* 잔고 요약 카드 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-card border border-border rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground mb-1">현재 잔액</p>
+                    <p className="text-2xl font-bold text-foreground">₩{(users.find(u => u.id === myUserId)?.balance ?? 0).toLocaleString()}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">대총판 승인 시 요율 적용 후 지급</p>
+                  </div>
+                  <div className="bg-card border border-border rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground mb-1">대기 중 충전 요청</p>
+                    <p className="text-2xl font-bold text-amber-500">{baChargeRequests.filter((r: any) => r.status === "pending").length}<span className="text-base font-medium text-muted-foreground ml-1">건</span></p>
+                    <p className="text-[11px] text-muted-foreground mt-1">승인 대기 중</p>
+                  </div>
+                </div>
+
+                {/* 충전 요청 폼 */}
+                <div className="bg-card border border-border rounded-xl p-5">
+                  <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2"><Wallet className="w-4 h-4 text-primary" /> 충전 요청</h2>
+                  <p className="text-xs text-muted-foreground mb-4">입금할 현금 금액을 입력하면 대총판에게 알림이 전송됩니다. 대총판이 요율을 적용해 승인하면 잔액이 추가됩니다.</p>
+                  <div className="flex gap-2">
+                    <Input placeholder="입금 금액 (원)" type="number" value={baChargeAmt} onChange={e => setBaChargeAmt(e.target.value)} className="h-9 text-sm w-40" />
+                    <Input placeholder="메모 (선택)" value={baChargeMemo} onChange={e => setBaChargeMemo(e.target.value)} className="h-9 text-sm flex-1" />
+                    <Button size="sm" className="h-9 shrink-0 gap-1.5" disabled={baChargeSubmitting} onClick={handleBranchAdminCharge}>
+                      <Plus className="w-3.5 h-3.5" /> 요청
+                    </Button>
+                  </div>
+                  {baChargeMsg && <p className={`text-xs mt-2 ${baChargeMsg.ok ? "text-primary" : "text-destructive"}`}>{baChargeMsg.text}</p>}
+                </div>
+
+                {/* 충전 요청 내역 */}
+                {baChargeRequests.length > 0 && (
+                  <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                      <h3 className="text-sm font-semibold text-foreground">충전 요청 내역</h3>
+                      <Button variant="ghost" size="sm" onClick={loadBaChargeRequests} disabled={baChargeLoading} className="gap-1 text-xs">
+                        <RefreshCw className={`w-3 h-3 ${baChargeLoading ? "animate-spin" : ""}`} /> 새로고침
+                      </Button>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {baChargeRequests.slice(0, 10).map((r: any) => (
+                        <div key={r.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-foreground">₩{r.cash_amount?.toLocaleString()}</span>
+                              {r.point_amount && <span className="text-xs text-primary">→ ₩{r.point_amount?.toLocaleString()} 충전</span>}
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" || r.status === "activated" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                {r.status === "pending" ? "대기" : r.status === "rejected" ? "거절" : "승인"}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">{r.memo} · {new Date(r.created_at).toLocaleString("ko-KR")}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ══════ 공통: 지점 목록 (총판은 카드형 클릭 가능) ══════ */}
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <h2 className="text-sm font-semibold text-foreground">지점 목록</h2>
@@ -1065,51 +1205,147 @@ export default function PanelPage() {
                 <div className="py-12 flex justify-center">
                   <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
                 </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {branches.length === 0 && (
-                    <p className="py-10 text-center text-sm text-muted-foreground">생성된 지점이 없습니다.</p>
-                  )}
-
-                  {branches.map(branch => {
-                    return (
-                      <div key={branch.id} className="px-5 py-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                              <GitBranch className="w-4 h-4 text-blue-600" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-foreground">{branch.name}</span>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-medium">
-                                  {branch.code}
-                                </span>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                관리자: {branch.owner_email ?? "미지정"} · {formatDate(branch.created_at)}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="sm" variant="ghost"
-                              className="text-destructive hover:bg-destructive/10 gap-1 text-xs"
-                              onClick={() => handleDeleteBranch(branch.id)}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" /> 삭제
-                            </Button>
-                          </div>
+              ) : branches.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">생성된 지점이 없습니다.</p>
+              ) : myRole === "branch_admin" ? (
+                /* 총판: 큰 카드형 그리드 */
+                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {branches.map(branch => (
+                    <button
+                      key={branch.id}
+                      onClick={() => { setSelectedBranch(branch); setBranchMembers([]); setMemberSearch(""); loadBranchMembers(branch.code) }}
+                      className="relative bg-gradient-to-br from-primary/5 to-primary/10 border-2 border-border hover:border-primary/40 rounded-2xl p-5 text-left transition-all hover:shadow-md group"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <GitBranch className="w-5 h-5 text-primary" />
                         </div>
-
-
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-bold">{branch.code}</span>
                       </div>
-                    )
-                  })}
+                      <p className="text-base font-bold text-foreground group-hover:text-primary transition-colors">{branch.name}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{formatDate(branch.created_at)}</p>
+                      <div className="absolute bottom-4 right-4 text-xs text-primary/60 font-medium">클릭하여 열기 →</div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                /* 마스터: 리스트형 */
+                <div className="divide-y divide-border">
+                  {branches.map(branch => (
+                    <div key={branch.id} className="px-5 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                          <GitBranch className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-foreground">{branch.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-medium">{branch.code}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">관리자: {branch.owner_email ?? "미지정"} · {formatDate(branch.created_at)}</p>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10 gap-1 text-xs" onClick={() => handleDeleteBranch(branch.id)}>
+                        <Trash2 className="w-3.5 h-3.5" /> 삭제
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           </>
+        )}
+
+        {/* ══════ 총판 지점 드릴다운 패널 ══════ */}
+        {selectedBranch && myRole === "branch_admin" && (
+          <div className="fixed inset-0 z-50 flex">
+            {/* 배경 딤 */}
+            <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedBranch(null)} />
+            {/* 사이드 패널 */}
+            <div className="relative ml-auto w-full max-w-2xl bg-background border-l border-border h-full overflow-y-auto shadow-2xl flex flex-col">
+              {/* 헤더 */}
+              <div className="sticky top-0 bg-background border-b border-border px-6 py-4 flex items-center justify-between z-10">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="w-4 h-4 text-primary" />
+                    <h2 className="text-base font-semibold text-foreground">{selectedBranch.name}</h2>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-bold">{selectedBranch.code}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{formatDate(selectedBranch.created_at)}</p>
+                </div>
+                <button onClick={() => setSelectedBranch(null)} className="text-muted-foreground hover:text-foreground text-xl leading-none px-2">✕</button>
+              </div>
+
+              <div className="flex-1 p-6 space-y-6">
+                {/* 유저 생성 폼 */}
+                <div className="bg-card border border-border rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2"><Plus className="w-4 h-4 text-primary" /> 유저 생성</h3>
+                  <p className="text-xs text-muted-foreground mb-4">수량만큼 계정이 생성됩니다. 아이디가 여러 개면 뒤에 번호가 자동으로 붙습니다 (예: user01, user02).</p>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <Input placeholder="아이디" value={buUsername} onChange={e => setBuUsername(e.target.value)} className="h-9 text-sm" />
+                    <Input placeholder="비밀번호" type="password" value={buPassword} onChange={e => setBuPassword(e.target.value)} className="h-9 text-sm" />
+                    <Input placeholder="수량 (최대 50)" type="number" min={1} max={50} value={buCount} onChange={e => setBuCount(e.target.value)} className="h-9 text-sm" />
+                    <Input placeholder="메모 (선택)" value={buMemo} onChange={e => setBuMemo(e.target.value)} className="h-9 text-sm" />
+                  </div>
+                  {buMsg && <p className={`text-xs mb-2 ${buMsg.ok ? "text-primary" : "text-destructive"}`}>{buMsg.text}</p>}
+                  <Button size="sm" className="gap-1.5 text-sm" disabled={buSubmitting || !buUsername.trim() || !buPassword.trim()} onClick={() => handleBulkUserCreate(selectedBranch.code)}>
+                    <Plus className="w-3.5 h-3.5" /> {buSubmitting ? "생성 중..." : `${buCount}개 유저 생성`}
+                  </Button>
+                </div>
+
+                {/* 회원 목록 */}
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-foreground shrink-0">회원 목록 ({branchMembers.length}명)</h3>
+                    <Input placeholder="아이디 검색" value={memberSearch} onChange={e => setMemberSearch(e.target.value)} className="h-8 text-xs max-w-48" />
+                    <Button variant="ghost" size="sm" onClick={() => loadBranchMembers(selectedBranch.code)} disabled={branchMembersLoading} className="gap-1 text-xs shrink-0">
+                      <RefreshCw className={`w-3 h-3 ${branchMembersLoading ? "animate-spin" : ""}`} />
+                    </Button>
+                  </div>
+                  {branchMembersLoading ? (
+                    <div className="py-10 flex justify-center"><div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" /></div>
+                  ) : branchMembers.filter(u => !memberSearch || u.username.toLowerCase().includes(memberSearch.toLowerCase())).length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">회원이 없습니다.</p>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {branchMembers
+                        .filter(u => !memberSearch || u.username.toLowerCase().includes(memberSearch.toLowerCase()))
+                        .map(u => (
+                          <div key={u.id}>
+                            <button
+                              className="w-full px-5 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors text-left"
+                              onClick={() => setExpandedMember(expandedMember === u.id ? null : u.id)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                  <span className="text-[10px] font-bold text-primary">{u.username.charAt(0)}</span>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-foreground">{u.username}</p>
+                                  <p className="text-[10px] text-muted-foreground">{formatDate(u.created_at)}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-semibold text-foreground">₩{(u.balance ?? 0).toLocaleString()}</span>
+                                <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${expandedMember === u.id ? "rotate-90" : ""}`} />
+                              </div>
+                            </button>
+                            {expandedMember === u.id && (
+                              <div className="px-5 pb-4 bg-muted/30 space-y-1">
+                                <p className="text-xs text-muted-foreground pt-2">ID: <span className="text-foreground font-mono text-[11px]">{u.id}</span></p>
+                                <p className="text-xs text-muted-foreground">가입일: {new Date(u.created_at).toLocaleString("ko-KR")}</p>
+                                <p className="text-xs text-muted-foreground">역할: {roleLabel[u.role]?.label ?? u.role}</p>
+                                <p className="text-xs text-muted-foreground">지점코드: {u.branch_code ?? "-"}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
         {/* LP 히스토리 탭 - 라운드 모니터로 통합됨 (이 블록은 도달 안됨) */}
         {false && (
@@ -1631,7 +1867,7 @@ export default function PanelPage() {
             {/* 환전 요청 생성 */}
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-primary" /> 환전 요청</h2>
-              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인트를 입력하면 대총판/마스터가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
+              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인트를 입력하면 대총판/마스��가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
               <div className="flex gap-2 flex-wrap">
                 <Input placeholder="유저 아이디" value={exTargetId} onChange={e => setExTargetId(e.target.value)} className="h-9 text-sm w-40" />
                 <Input placeholder="포인트 금액" type="number" value={exPointAmt} onChange={e => setExPointAmt(e.target.value)} className="h-9 text-sm w-36" />

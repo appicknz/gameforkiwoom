@@ -20,14 +20,19 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
+  const { searchParams } = new URL(req.url)
+  const filterBranchCode = searchParams.get("branch_code")
+
   let query = adminSupabase
     .from("profiles")
     .select("id, username, role, created_at, branch_code")
     .order("created_at", { ascending: false })
 
-  // branch_admin은 자기 지점 회원만 조회
+  // branch_admin은 자기 지점 회원만 조회 (특정 지점 필터 가능)
   if (requester.role === "branch_admin" && requester.branch_code) {
-    query = query.eq("branch_code", requester.branch_code)
+    query = query.eq("branch_code", filterBranchCode ?? requester.branch_code)
+  } else if (filterBranchCode) {
+    query = query.eq("branch_code", filterBranchCode)
   }
 
   const { data: profiles } = await query
