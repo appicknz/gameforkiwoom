@@ -1868,8 +1868,7 @@ export default function PanelPage() {
         {/* ───────────── 대총판: 총판 목록 탭 ───────────── */}
         {activeTab === "branches_sa" && myRole === "super_admin" && (() => {
           const pending = ppRequests.filter((r: any) => r.status === "pending")
-          const approved = ppRequests.filter((r: any) => ["approved", "activated"].includes(r.status))
-          const totalCharged = approved.reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
+          const totalBalances = saBranchAdmins.reduce((s, u) => s + (u.balance ?? 0), 0)
           const totalSales = ppRequests.reduce((s: number, r: any) => s + (r.cash_amount ?? 0), 0)
           return (
           <div className="space-y-4">
@@ -1885,8 +1884,8 @@ export default function PanelPage() {
                 <p className="text-2xl font-bold text-primary">{pending.length}<span className="text-sm font-normal text-muted-foreground ml-1">건</span></p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">총 충전액</p>
-                <p className="text-2xl font-bold text-emerald-600">₩{totalCharged.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mb-1">총판 잔고 합계</p>
+                <p className="text-2xl font-bold text-emerald-600">₩{totalBalances.toLocaleString()}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground mb-1">요청금액(매출)</p>
