@@ -875,7 +875,7 @@ export default function PanelPage() {
   if (!adminPw) {
     const isBranchAdmin = myRole === "branch_admin"
     const pwLabel = isBranchAdmin ? "본인 비밀번호" : "마스터 비밀번호"
-    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력하세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
+    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력���세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -928,17 +928,11 @@ export default function PanelPage() {
             )}
           </div>
         <div className="flex items-center gap-3">
-          {/* 대총판: 잔고 + 총판 계정생성 버튼 */}
+          {/* 대총판: 총판 계정생성 버튼 */}
           {myRole === "super_admin" && (
-            <>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-sm font-semibold text-foreground">
-                <Wallet className="w-3.5 h-3.5 text-muted-foreground" />
-                ₩{myBalance.toLocaleString()}
-              </div>
-              <Button size="sm" onClick={() => setSaOpen(true)} className="gap-1.5 text-xs">
-                <Plus className="w-3.5 h-3.5" /> 총판 계정생성
-              </Button>
-            </>
+            <Button size="sm" onClick={() => setSaOpen(true)} className="gap-1.5 text-xs">
+              <Plus className="w-3.5 h-3.5" /> 총판 계정생성
+            </Button>
           )}
           {myRole === "branch_admin" && (
             <Button size="sm" onClick={() => { setBaCreateOpen(true); setBaCreateMsg(null); setBaNewBranchName(""); setBaNewBranchCode("") }} className="gap-1.5 text-xs">
@@ -1779,6 +1773,7 @@ export default function PanelPage() {
               const approved = ppRequests.filter((r: any) => ["approved","activated"].includes(r.status))
               const totalCharged = approved.reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
               const totalFee = ppRequests.reduce((s: number, r: any) => s + (r.fee_amount ?? 0), 0)
+              const totalSales = ppRequests.reduce((s: number, r: any) => s + (r.cash_amount ?? 0), 0)
               return (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
@@ -1797,9 +1792,9 @@ export default function PanelPage() {
                     <p className="text-[11px] text-muted-foreground">누적 수수료</p>
                   </div>
                   <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
-                    <p className="text-xs text-muted-foreground">내 잔고</p>
-                    <p className="text-2xl font-bold text-foreground">₩{myBalance.toLocaleString()}</p>
-                    <p className="text-[11px] text-muted-foreground">현재 보유 포인트</p>
+                    <p className="text-xs text-muted-foreground">요청금액(매출)</p>
+                    <p className="text-2xl font-bold text-foreground">₩{totalSales.toLocaleString()}</p>
+                    <p className="text-[11px] text-muted-foreground">전체 요청 누적액</p>
                   </div>
                 </div>
               )
@@ -2241,7 +2236,7 @@ export default function PanelPage() {
             {/* 비밀번호 초기화 요청 */}
             {["branch_admin", "admin"].includes(myRole) && (
               <div className="bg-card border border-border rounded-xl p-5 space-y-3">
-                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><KeyRound className="w-4 h-4 text-primary" /> 비밀번호 초기화 요청</h2>
+                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><KeyRound className="w-4 h-4 text-primary" /> 비밀번호 초기화 ��청</h2>
                 <div className="flex gap-2">
                   <Input placeholder="유저 아이디" value={prTargetId} onChange={e => setPrTargetId(e.target.value)} className="h-9 text-sm flex-1" />
                   <Button size="sm" className="h-9 shrink-0" disabled={prSubmitting} onClick={async () => {
