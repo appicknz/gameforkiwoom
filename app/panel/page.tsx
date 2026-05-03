@@ -1738,46 +1738,81 @@ export default function PanelPage() {
               </div>
             )}
 
-            {/* 포인트 구매 요청 목록 */}
+            {/* 포인트 구매 요청 목록 — 대총판/마스터 */}
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-                <h2 className="text-sm font-semibold text-foreground">포인트 구매 요청 목록</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">충전 요청 목록</h2>
+                  {ppRequests.filter((r: any) => r.status === "pending").length > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">
+                      {ppRequests.filter((r: any) => r.status === "pending").length}건 대기
+                    </span>
+                  )}
+                </div>
                 <Button variant="ghost" size="sm" onClick={loadPpRequests} disabled={ppLoading} className="gap-1.5 text-xs">
                   <RefreshCw className={`w-3.5 h-3.5 ${ppLoading ? "animate-spin" : ""}`} /> 새로고침
                 </Button>
               </div>
+
+              {/* 테이블 헤더 */}
+              {ppRequests.length > 0 && (
+                <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 px-5 py-2 bg-muted/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  <span>요청자</span>
+                  <span className="text-right">요청금액</span>
+                  <span className="text-right">요율</span>
+                  <span className="text-right">지급금액</span>
+                  <span className="text-right">상태</span>
+                </div>
+              )}
+
               <div className="divide-y divide-border">
                 {ppRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
-                {ppRequests.map((r: any) => (
-                  <div key={r.id} className="px-5 py-4 flex items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-foreground">{r.requester?.username}</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{r.requester_role}</span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" || r.status === "activated" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-                          {r.status === "pending" ? "대기중" : r.status === "rejected" ? "거절" : "지급완료"}
+                {ppRequests.map((r: any) => {
+                  const roleKo: Record<string, string> = { branch_admin: "총판", admin: "지점", super_admin: "대총판" }
+                  const isPending = r.status === "pending"
+                  const isApproved = r.status === "approved" || r.status === "activated"
+                  return (
+                    <div key={r.id} className={`px-5 py-4 ${isPending ? "bg-yellow-50/40" : ""}`}>
+                      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 items-center">
+                        {/* 요청자 */}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold text-foreground">{r.requester?.username ?? "-"}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">{roleKo[r.requester_role] ?? r.requester_role}</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(r.created_at).toLocaleString("ko-KR")}{r.memo ? ` · ${r.memo}` : ""}</p>
+                        </div>
+                        {/* 요청금액 */}
+                        <span className="text-sm font-bold text-foreground text-right">₩{r.cash_amount?.toLocaleString()}</span>
+                        {/* 요율 */}
+                        <span className="text-sm text-muted-foreground text-right">{r.rate ?? "-"}</span>
+                        {/* 지급금액 */}
+                        <span className={`text-sm font-bold text-right ${isApproved ? "text-primary" : "text-muted-foreground"}`}>
+                          {r.point_amount ? `₩${r.point_amount.toLocaleString()}` : "-"}
                         </span>
+                        {/* 상태 + 버튼 */}
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isPending ? (
+                            <>
+                              <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-destructive border-destructive/30 hover:bg-destructive/10" onClick={async () => {
+                                const token = getToken()
+                                await fetch("/api/admin/point-purchase", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "reject" }) })
+                                loadPpRequests()
+                              }}>거절</Button>
+                              <Button size="sm" className="h-7 px-3 text-[11px] gap-1" onClick={() => { setPpApproveId(r.id); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }}>
+                                승인
+                              </Button>
+                            </>
+                          ) : (
+                            <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${isApproved ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                              {isApproved ? "지급완료" : "거절"}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        현금 ₩{r.cash_amount?.toLocaleString()}
-                        {r.point_amount ? ` → ₩${r.point_amount?.toLocaleString()} 지급` : ""}
-                        {r.rate ? ` (요율 ${r.rate})` : ""}
-                        {r.memo ? ` · ${r.memo}` : ""}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground/60">{new Date(r.created_at).toLocaleString("ko-KR")}</p>
                     </div>
-                    {isSuperAdmin && r.status === "pending" && (
-                      <div className="flex gap-1.5 shrink-0">
-                        <Button size="sm" variant="outline" className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={async () => {
-                          const token = getToken()
-                          await fetch("/api/admin/point-purchase", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "reject" }) })
-                          loadPpRequests()
-                        }}>거절</Button>
-                        <Button size="sm" className="h-8 text-xs" onClick={() => { setPpApproveId(r.id); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }}>승인</Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -1872,8 +1907,8 @@ export default function PanelPage() {
               )
             })()}
 
-            {/* 포인트 충전 요청 (임시계정 생성) — super_admin 제외 */}
-            {myRole !== "super_admin" && <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+            {/* 포인트 충전 요청 (임시계정 생성) — master 전용 */}
+            {myRole === "master" && <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Plus className="w-4 h-4 text-primary" /> 포인트 충전 요청 (유저 계정 생성)</h2>
               <p className="text-xs text-muted-foreground">승인되면 포인트가 충전된 임시 계정이 자동 생성됩니다.</p>
               <div className="flex gap-2">
@@ -1895,8 +1930,8 @@ export default function PanelPage() {
               {pcMsg && <p className={`text-xs ${pcMsg.ok ? "text-primary" : "text-destructive"}`}>{pcMsg.text}</p>}
             </div>}
 
-            {/* 충전 요청 목록 — super_admin 제외 */}
-            {myRole !== "super_admin" && <div className="bg-card border border-border rounded-xl overflow-hidden">
+            {/* 충전 요청 목록 — master 전용 */}
+            {myRole === "master" && <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <h2 className="text-sm font-semibold text-foreground">충전 요청 목록</h2>
                 <Button variant="ghost" size="sm" onClick={loadPcRequests} disabled={pcLoading} className="gap-1.5 text-xs">
@@ -2143,7 +2178,7 @@ export default function PanelPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium text-foreground">{r.target_user?.username}</span>
                           <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-                            {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거절"}
+                            {r.status === "pending" ? "대기" : r.status === "approved" ? "���료" : "거절"}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">요청자: {r.requester?.username}</p>
@@ -2372,7 +2407,7 @@ export default function PanelPage() {
                                   <th className="py-2 text-left font-medium">라운드</th>
                                   <th className="py-2 text-left font-medium">게임</th>
                                   <th className="py-2 text-left font-medium">배팅</th>
-                                  <th className="py-2 text-right font-medium">배팅액</th>
+                                  <th className="py-2 text-right font-medium">배팅��</th>
                                   <th className="py-2 text-right font-medium">배당</th>
                                   <th className="py-2 text-right font-medium">결과</th>
                                   <th className="py-2 text-right font-medium">수익</th>
