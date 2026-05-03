@@ -53,7 +53,7 @@ export async function GET(req: Request) {
 
       // 누적 지급 포인트: 총판이 이 지점 admin에게 승인한 point_purchase_requests 합계
       let totalGranted = 0
-      if (adminIds.length > 0) {
+      if (adminIds.length > 0 ) {
         const { data: purchaseRows } = await adminSupabase
           .from("point_purchase_requests")
           .select("point_amount")

@@ -162,8 +162,8 @@ export async function PATCH(req: Request) {
   // 요청자(지점/총판)에게 포인트 충전
   await upsertBalance(req2.requester_id, pointAmount)
 
-  // 승인자(총판/대총판)의 포인트 잔액에서 cashAmount 차감
-  await upsertBalance(auth.userId, -req2.cash_amount)
+  // 승인자(총판)의 포인트 잔액에서 지급 포인트만큼 차감
+  await upsertBalance(auth.userId, -pointAmount)
 
   // 현금 거래 이력 기록 (실패해도 상태 업데이트는 진행)
   try {

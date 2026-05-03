@@ -623,13 +623,17 @@ export default function PanelPage() {
     setBranchesLoading(true)
     const token = getToken()
     if (!token) { setBranchesLoading(false); return }
-    const res = await fetch(`/api/admin/branches`, {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      },
-    })
-    const data = await res.json()
-    if (res.ok) setBranches(data.branches ?? [])
+    try {
+      const res = await fetch(`/api/admin/branches`, {
+        headers: { "Authorization": `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setBranches(data.branches ?? [])
+      }
+    } catch (e) {
+      // 응답 파싱 실패 무시
+    }
     setBranchesLoading(false)
   }, [myUserId])
 
@@ -829,8 +833,10 @@ export default function PanelPage() {
   const loadBranchChargeReqs = useCallback(async () => {
     const token = getToken(); if (!token) return
     setBaBranchChargeLoading(true)
-    const res = await fetch("/api/admin/point-purchase?from=branches", { headers: { Authorization: `Bearer ${token}` } })
-    if (res.ok) { const d = await res.json(); setBranchChargeReqs(d.requests ?? []) }
+    try {
+      const res = await fetch("/api/admin/point-purchase?from=branches", { headers: { Authorization: `Bearer ${token}` } })
+      if (res.ok) { const d = await res.json(); setBranchChargeReqs(d.requests ?? []) }
+    } catch (e) {}
     setBaBranchChargeLoading(false)
   }, [])
 
@@ -1486,7 +1492,7 @@ export default function PanelPage() {
       <div className="border-b border-border bg-card">
         <div className="flex px-6 overflow-x-auto">
 
-          {/* ── 마스터 전��� 탭 ── */}
+          {/* ── 마스터 전����� 탭 ── */}
           {myRole === "master" && (<>
             <button onClick={() => setActiveTab("users")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "users" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Users className="w-4 h-4" /> 회원관리</button>
             <button onClick={() => setActiveTab("branches")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><GitBranch className="w-4 h-4" /> 지점관리</button>
@@ -3109,7 +3115,7 @@ export default function PanelPage() {
                     >배팅 내역{selectedMember ? ` — ${selectedMember.username}` : ""}</button>
                     <div className="ml-auto flex items-center px-4 gap-2">
                       {selectedMember && (
-                        <button onClick={() => { setSelectedMember(null); loadBranchBets(undefined, 1); setBetPage(1) }} className="text-[11px] text-muted-foreground hover:text-foreground">전체 보기</button>
+                        <button onClick={() => { setSelectedMember(null); loadBranchBets(undefined, 1); setBetPage(1) }} className="text-[11px] text-muted-foreground hover:text-foreground">��체 보기</button>
                       )}
                       <Button variant="ghost" size="sm" onClick={() => { loadBranchUsers(); loadBranchBets(selectedMember?.id, betPage) }} className="h-7 w-7 p-0">
                         <RefreshCw className="w-3.5 h-3.5" />
