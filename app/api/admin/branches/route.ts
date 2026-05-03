@@ -36,7 +36,56 @@ export async function GET(req: Request) {
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ branches: data ?? [] })
+
+  const branches = data ?? []
+
+  // branch_admin 전용: 각 지점의 누적 지급 포인트 + 현재 유저 포인트 합계 계산
+  if (requester.role === 'branch_admin' && branches.length > 0) {
+    const enriched = await Promise.all(branches.map(async (branch: any) => {
+      // 해당 지점의 admin 계정 userId 조회
+      const { data: adminProfiles } = await adminSupabase
+        .from("profiles")
+        .select("id")
+        .eq("role", "admin")
+        .eq("branch_code", branch.code)
+
+      const adminIds = (adminProfiles ?? []).map((p: any) => p.id)
+
+      // 누적 지급 포인트: 총판이 이 지점 admin에게 승인한 point_purchase_requests 합계
+      let totalGranted = 0
+      if (adminIds.length > 0) {
+        const { data: purchaseRows } = await adminSupabase
+          .from("point_purchase_requests")
+          .select("point_amount")
+          .in("requester_id", adminIds)
+          .eq("status", "approved")
+        totalGranted = (purchaseRows ?? []).reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
+      }
+
+      // 현재 지점 소속 유저(일반 user)들의 포인트 합계
+      const { data: userProfiles } = await adminSupabase
+        .from("profiles")
+        .select("id")
+        .eq("branch_code", branch.code)
+        .eq("role", "user")
+      const userIds = (userProfiles ?? []).map((p: any) => p.id)
+
+      let totalUserPoints = 0
+      if (userIds.length > 0) {
+        const { data: balanceRows } = await adminSupabase
+          .from("balances")
+          .select("amount")
+          .in("user_id", userIds)
+        totalUserPoints = (balanceRows ?? []).reduce((s: number, b: any) => s + (b.amount ?? 0), 0)
+      }
+
+      return { ...branch, total_granted: totalGranted, total_user_points: totalUserPoints }
+    }))
+
+    return NextResponse.json({ branches: enriched })
+  }
+
+  return NextResponse.json({ branches })
 }
 
 // 지점 생성 (master/super_admin/branch_admin)

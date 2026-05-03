@@ -1486,7 +1486,7 @@ export default function PanelPage() {
       <div className="border-b border-border bg-card">
         <div className="flex px-6 overflow-x-auto">
 
-          {/* ── 마스터 전용 탭 ── */}
+          {/* ── 마스터 전��� 탭 ── */}
           {myRole === "master" && (<>
             <button onClick={() => setActiveTab("users")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "users" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Users className="w-4 h-4" /> 회원관리</button>
             <button onClick={() => setActiveTab("branches")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><GitBranch className="w-4 h-4" /> 지점관리</button>
@@ -1725,7 +1725,7 @@ export default function PanelPage() {
                         <p className="text-2xl font-bold text-foreground">{branches.length}<span className="text-sm font-normal text-muted-foreground ml-1">개</span></p>
                         <p className="text-[11px] text-muted-foreground mt-1">현재 잔액 <span className="font-semibold text-foreground">₩{myBalance.toLocaleString()}</span></p>
                       </div>
-                      {/* 대기 중인 충전 — 클릭 시 펼침 */}
+                      {/* 대기 중인 충전 — 클릭 시 ��침 */}
                       <button
                         onClick={() => setBaChargeExpanded(v => !v)}
                         className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
@@ -2196,7 +2196,17 @@ export default function PanelPage() {
                         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                           <GitBranch className="w-5 h-5 text-primary" />
                         </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-bold">{branch.code}</span>
+                        <div className="flex flex-col items-end gap-1.5">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-bold">{branch.code}</span>
+                          <div className="text-right space-y-0.5">
+                            <p className="text-[10px] text-muted-foreground leading-none">
+                              누적 지급 <span className="font-semibold text-foreground">{((branch.total_granted ?? 0) / 10000).toLocaleString()}만P</span>
+                            </p>
+                            <p className="text-[10px] text-muted-foreground leading-none">
+                              유저 보유 <span className="font-semibold text-primary">{((branch.total_user_points ?? 0) / 10000).toLocaleString()}만P</span>
+                            </p>
+                          </div>
+                        </div>
                       </div>
                       <p className="text-base font-bold text-foreground group-hover:text-primary transition-colors">{branch.name}</p>
                       <p className="text-xs text-muted-foreground mt-1">{formatDate(branch.created_at)}</p>
