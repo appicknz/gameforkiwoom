@@ -391,9 +391,38 @@ export default function PanelPage() {
         // 역할에 맞는 기본 탭으로 자동 이동
         if (DEFAULT_TAB[role]) setActiveTab(DEFAULT_TAB[role])
         setLoading(false)
+        // 역할별 초기 데이터 로드
+        const tok = getToken()
+        if (!tok) return
+        if (role === "super_admin") {
+          // 대총판: 포인트 구매 요청 목록 즉시 로드
+          fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d?.requests) setPpRequests(d.requests) })
+            .catch(() => {})
+        } else if (role === "branch_admin") {
+          // 총판: 충전 요청 내역 즉시 로드
+          fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d?.requests) setBaChargeRequests(d.requests) })
+            .catch(() => {})
+        }
       })
       .catch(() => router.replace("/"))
   }, [router])
+
+  // 대총판: 30초마다 충전 요청 목록 자동 갱신
+  useEffect(() => {
+    if (myRole !== "super_admin") return
+    const interval = setInterval(() => {
+      const tok = getToken(); if (!tok) return
+      fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.requests) setPpRequests(d.requests) })
+        .catch(() => {})
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [myRole])
 
   const [pwChecking, setPwChecking] = useState(false)
 
@@ -1609,7 +1638,7 @@ export default function PanelPage() {
               <div className="bg-card border border-border rounded-2xl overflow-hidden">
                 <div className="px-5 py-4 border-b border-border">
                   <h3 className="text-sm font-semibold text-foreground">지점별 LP 금액 설정</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">바카라 / 레이스 게임별 LP 유동성 금액 (마스터 전용)</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">바카라 / 레이스 게임별 LP 유동성 ��액 (마스터 전용)</p>
                 </div>
                 <div className="divide-y divide-border">
                   {branches.map(branch => (
