@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation"
 
 const STORAGE_KEY = "app_token"
 const PROFILE_KEY = "app_profile"
-const ADMIN_ROLES = ["master", "super_admin", "branch_admin"]
+const ADMIN_ROLES = ["master", "super_admin", "branch_admin", "admin"]
 
 interface Profile { username: string; role: string; branch_code?: string | null }
 
