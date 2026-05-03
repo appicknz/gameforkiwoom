@@ -775,7 +775,7 @@ export default function PanelPage() {
     const res = await fetch("/api/admin/branch-users", { headers: { Authorization: `Bearer ${token}` } })
     if (res.ok) {
       const d = await res.json()
-      setBranchMembers(d.members ?? [])
+      setAdminMembers(d.members ?? [])
       setBranchBets(d.bets ?? [])
     }
   }, [])
@@ -902,7 +902,7 @@ export default function PanelPage() {
   const [pcActivateMsg, setPcActivateMsg]   = useState<{ text: string; ok: boolean } | null>(null)
 
   // ── 지점 회원 & 배팅 내역 (admin 전용) ──
-  const [branchMembers, setBranchMembers]   = useState<any[]>([])
+  const [adminMembers, setAdminMembers]     = useState<any[]>([])
   const [branchBets, setBranchBets]         = useState<any[]>([])
   const [branchBetsLoading, setBranchBetsLoading] = useState(false)
   const [selectedMember, setSelectedMember] = useState<any | null>(null)
@@ -2256,7 +2256,7 @@ export default function PanelPage() {
                   </div>
                 ) : (() => {
                   const REQ_PAGE_SIZE = 10
-                  // 최신순 정렬
+                  // 최���순 정렬
                   const baRequests = [...ppRequests.filter((r: any) => r.requester_id === saSelectedBa.id)]
                     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                   const pendingReqs = baRequests.filter((r: any) => r.status === "pending")
@@ -2518,7 +2518,7 @@ export default function PanelPage() {
                   {/* 유저 수 */}
                   <div className="bg-card border border-border rounded-xl p-4">
                     <p className="text-xs text-muted-foreground mb-1">유저 수</p>
-                    <p className="text-2xl font-bold text-foreground">{branchMembers.length}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
+                    <p className="text-2xl font-bold text-foreground">{adminMembers.length}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
                     <p className="text-[11px] text-muted-foreground mt-1">현재 잔액 <span className="font-semibold text-foreground">₩{myBalance.toLocaleString()}</span></p>
                   </div>
                   {/* 대기 중인 충전 */}
@@ -2608,7 +2608,7 @@ export default function PanelPage() {
                     <button
                       onClick={() => setBranchTab("members")}
                       className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${branchTab === "members" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                    >회원 목록 ({branchMembers.length}명)</button>
+                    >회원 목록 ({adminMembers.length}명)</button>
                     <button
                       onClick={() => { setBranchTab("bets"); if (branchBets.length === 0) loadBranchBets(selectedMember?.id) }}
                       className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${branchTab === "bets" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
@@ -2626,16 +2626,16 @@ export default function PanelPage() {
                   {/* 회원 목록 */}
                   {branchTab === "members" && (
                     <div className="divide-y divide-border">
-                      {branchMembers.length === 0 && (
+                      {adminMembers.length === 0 && (
                         <p className="py-8 text-center text-sm text-muted-foreground">등록된 회원이 없습니다.</p>
                       )}
                       {/* 헤더 */}
-                      {branchMembers.length > 0 && (
+                      {adminMembers.length > 0 && (
                         <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-5 py-2 bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                           <span>회원 ID</span><span className="text-right">잔고</span><span className="text-right">관리</span>
                         </div>
                       )}
-                      {branchMembers.map(member => (
+                      {adminMembers.map(member => (
                         <div key={member.id} className="px-5 py-3 grid grid-cols-[1fr_auto_auto] gap-4 items-center">
                           <button
                             onClick={() => { setSelectedMember(member); setBranchTab("bets"); setBetPage(1); loadBranchBets(member.id, 1) }}
@@ -2686,7 +2686,7 @@ export default function PanelPage() {
                             <span className="text-center">배팅 위치</span>
                             <span className="text-right">배당</span>
                             <span className="text-center">승패</span>
-                            <span className="text-right">결과 잔고</span>
+                            <span className="text-right">결과 ���고</span>
                           </div>
                           <div className="divide-y divide-border">
                             {branchBets.map((b: any) => {
@@ -2733,7 +2733,7 @@ export default function PanelPage() {
                 {branchChargeUserId && (() => {
                   const isWithdraw = branchChargeUserId.startsWith("-")
                   const uid = isWithdraw ? branchChargeUserId.slice(1) : branchChargeUserId
-                  const member = branchMembers.find(m => m.id === uid)
+                  const member = adminMembers.find(m => m.id === uid)
                   return (
                     <div className="bg-card border border-border rounded-xl p-5 space-y-3">
                       <h3 className="text-sm font-semibold text-foreground">
