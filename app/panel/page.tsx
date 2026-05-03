@@ -2471,11 +2471,6 @@ export default function PanelPage() {
                 <p className="text-[11px] text-muted-foreground mt-1">배팅 수수료 누적</p>
               </div>
             </div>
-              <div className="bg-card border border-border rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">내 포인��� 잔고</p>
-                <p className="text-2xl font-bold text-foreground">{pointBalance.toLocaleString()} P</p>
-              </div>
-            </div>
 
             {/* 하위 역할 ��고 현황 (master/super_admin만) */}
             {isSuperAdmin && subBalances.length > 0 && (
