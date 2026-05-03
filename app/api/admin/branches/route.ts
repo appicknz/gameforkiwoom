@@ -126,18 +126,15 @@ export async function POST(req: Request) {
         email,
         password: password.trim(),
         email_confirm: true,
-        user_metadata: { username: upperCode },
+        // role을 metadata에 명시 → handle_new_user 트리거가 올바른 role로 profiles INSERT
+        user_metadata: { username: upperCode, role: "admin", branch_code: upperCode },
       })
       if (!authErr && authUser.user) {
         const adminUserId = authUser.user.id
-        await adminSupabase.from("profiles").upsert({
-          id: adminUserId,
-          username: upperCode,
-          role: "admin",
-          branch_id: requester.id,   // 총판 ID를 branch_id로
-          branch_code: upperCode,
-        })
-        await adminSupabase.from("balances").upsert({ user_id: adminUserId, amount: 0 })
+        // 트리거 이후 branch_id(총판 ID) 추가 업데이트
+        await adminSupabase.from("profiles").update({
+          branch_id: requester.id,
+        }).eq("id", adminUserId)
       }
     }
   }
