@@ -601,6 +601,7 @@ export default function PanelPage() {
   const [baChargeMsg, setBaChargeMsg]         = useState<{ text: string; ok: boolean } | null>(null)
   const [baChargeRequests, setBaChargeRequests] = useState<any[]>([])
   const [baChargeLoading, setBaChargeLoading] = useState(false)
+  const [baChargeExpanded, setBaChargeExpanded] = useState(false)
 
   const loadBranchMembers = useCallback(async (branchCode: string) => {
     const token = getToken(); if (!token) return
@@ -1150,12 +1151,53 @@ export default function PanelPage() {
 
                 {/* 충전 요청 폼 */}
                 <div className="bg-card border border-border rounded-xl p-5">
-                  <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2"><Wallet className="w-4 h-4 text-primary" /> 충전 요청</h2>
-                  <p className="text-xs text-muted-foreground mb-4">입금할 현금 금액을 입력하면 대총판에게 알림이 전송됩니다. 대총판이 요율을 적용해 승인하면 잔액이 추가됩니다.</p>
+                  <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-primary" /> 충전 요청
+                  </h2>
+                  <p className="text-xs text-muted-foreground mb-4">버튼을 눌러 금액을 쌓거나 직접 입력하세요. 대총판이 요율을 적용해 승인하면 잔액이 추가됩니다.</p>
+
+                  {/* 빠른 금액 버튼 */}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {[50000, 100000, 500000, 1000000, 10000000, 50000000, 100000000].map(amt => (
+                      <button
+                        key={amt}
+                        onClick={() => setBaChargeAmt(prev => String((Number(prev) || 0) + amt))}
+                        className="px-3 py-1.5 rounded-lg border border-border bg-muted hover:bg-primary/10 hover:border-primary/40 text-xs font-semibold text-foreground transition-colors"
+                      >
+                        +{amt >= 100000000 ? `${amt / 100000000}억` : amt >= 10000000 ? `${amt / 10000000}천만` : amt >= 10000 ? `${amt / 10000}만` : amt.toLocaleString()}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setBaChargeAmt("")}
+                      className="px-3 py-1.5 rounded-lg border border-border bg-muted hover:bg-destructive/10 hover:border-destructive/40 text-xs font-semibold text-muted-foreground transition-colors"
+                    >
+                      초기화
+                    </button>
+                  </div>
+
+                  {/* 현재 입력 금액 표시 */}
+                  {Number(baChargeAmt) > 0 && (
+                    <div className="mb-3 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-sm font-bold text-primary">
+                      ₩{Number(baChargeAmt).toLocaleString()}
+                    </div>
+                  )}
+
+                  {/* 직접 입력 + 메모 + 요청 버튼 */}
                   <div className="flex gap-2">
-                    <Input placeholder="입금 금액 (원)" type="number" value={baChargeAmt} onChange={e => setBaChargeAmt(e.target.value)} className="h-9 text-sm w-40" />
-                    <Input placeholder="메모 (선택)" value={baChargeMemo} onChange={e => setBaChargeMemo(e.target.value)} className="h-9 text-sm flex-1" />
-                    <Button size="sm" className="h-9 shrink-0 gap-1.5" disabled={baChargeSubmitting} onClick={handleBranchAdminCharge}>
+                    <Input
+                      placeholder="금액 직접 입력 (원)"
+                      type="number"
+                      value={baChargeAmt}
+                      onChange={e => setBaChargeAmt(e.target.value)}
+                      className="h-9 text-sm w-44"
+                    />
+                    <Input
+                      placeholder="메모 (선택)"
+                      value={baChargeMemo}
+                      onChange={e => setBaChargeMemo(e.target.value)}
+                      className="h-9 text-sm flex-1"
+                    />
+                    <Button size="sm" className="h-9 shrink-0 gap-1.5" disabled={baChargeSubmitting || !Number(baChargeAmt)} onClick={handleBranchAdminCharge}>
                       <Plus className="w-3.5 h-3.5" /> 요청
                     </Button>
                   </div>
@@ -1171,22 +1213,48 @@ export default function PanelPage() {
                         <RefreshCw className={`w-3 h-3 ${baChargeLoading ? "animate-spin" : ""}`} /> 새로고침
                       </Button>
                     </div>
-                    <div className="divide-y divide-border">
-                      {baChargeRequests.slice(0, 10).map((r: any) => (
-                        <div key={r.id} className="px-5 py-3 flex items-center justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-foreground">₩{r.cash_amount?.toLocaleString()}</span>
-                              {r.point_amount && <span className="text-xs text-primary">→ ₩{r.point_amount?.toLocaleString()} 충전</span>}
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" || r.status === "activated" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-                                {r.status === "pending" ? "대기" : r.status === "rejected" ? "거절" : "승인"}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">{r.memo} · {new Date(r.created_at).toLocaleString("ko-KR")}</p>
-                          </div>
-                        </div>
-                      ))}
+
+                    {/* 테이블 헤더 */}
+                    <div className="grid grid-cols-4 gap-2 px-5 py-2 bg-muted/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      <span>요청일자</span>
+                      <span className="text-right">요청금액</span>
+                      <span className="text-right">요율</span>
+                      <span className="text-right">상태</span>
                     </div>
+
+                    <div className="divide-y divide-border">
+                      {(baChargeExpanded ? baChargeRequests : baChargeRequests.slice(0, 1)).map((r: any, idx: number) => {
+                        const rate = r.point_amount && r.cash_amount ? (r.point_amount / r.cash_amount).toFixed(2) : "-"
+                        const statusMap: Record<string, { label: string; cls: string }> = {
+                          pending:   { label: "대기중",    cls: "bg-yellow-100 text-yellow-700" },
+                          approved:  { label: "지급완료",  cls: "bg-green-100 text-green-700" },
+                          activated: { label: "지급완료",  cls: "bg-green-100 text-green-700" },
+                          rejected:  { label: "거절",      cls: "bg-red-100 text-red-700" },
+                          requested: { label: "요청완료",  cls: "bg-blue-100 text-blue-700" },
+                        }
+                        const st = statusMap[r.status] ?? { label: r.status, cls: "bg-muted text-muted-foreground" }
+                        return (
+                          <div key={r.id} className={`grid grid-cols-4 gap-2 px-5 py-3 items-center text-sm ${idx === 0 ? "bg-primary/3" : ""}`}>
+                            <span className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString("ko-KR")}<br /><span className="text-[10px]">{new Date(r.created_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span></span>
+                            <span className="text-right font-semibold text-foreground">₩{r.cash_amount?.toLocaleString()}</span>
+                            <span className="text-right text-muted-foreground">{rate}</span>
+                            <span className="flex justify-end">
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${st.cls}`}>{st.label}</span>
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* 더보기 버튼 */}
+                    {baChargeRequests.length > 1 && (
+                      <button
+                        onClick={() => setBaChargeExpanded(v => !v)}
+                        className="w-full py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border-t border-border"
+                      >
+                        {baChargeExpanded ? "접기 ▲" : `더보기 (${baChargeRequests.length - 1}건 더) ▼`}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
