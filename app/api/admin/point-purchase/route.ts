@@ -106,7 +106,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "승인 권한이 없습니다." }, { status: 403 })
   }
 
-  const { requestId, pointAmount, password, action } = await req.json()
+  const { requestId, pointAmount, rate, password, action } = await req.json()
   if (!requestId) return NextResponse.json({ error: "requestId 필요" }, { status: 400 })
 
   if (action === "reject") {
@@ -166,6 +166,7 @@ export async function PATCH(req: Request) {
     status: "approved",
     approver_id: auth.userId,
     point_amount: pointAmount,
+    rate: rate ?? null,
     approver_password_verified: true,
     approved_at: new Date().toISOString(),
   }).eq("id", requestId)
