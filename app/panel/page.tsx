@@ -1780,7 +1780,14 @@ export default function PanelPage() {
                             <span className="text-sm font-semibold text-foreground">{r.requester?.username ?? "-"}</span>
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">{roleKo[r.requester_role] ?? r.requester_role}</span>
                           </div>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(r.created_at).toLocaleString("ko-KR")}{r.memo ? ` · ${r.memo}` : ""}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            요청: {new Date(r.created_at).toLocaleString("ko-KR")}{r.memo ? ` · ${r.memo}` : ""}
+                          </p>
+                          {isApproved && r.approved_at && (
+                            <p className="text-[10px] text-primary mt-0.5">
+                              지급: {new Date(r.approved_at).toLocaleString("ko-KR")}
+                            </p>
+                          )}
                         </div>
                         {/* 요청금액 */}
                         <span className="text-sm font-bold text-foreground text-right">₩{r.cash_amount?.toLocaleString()}</span>
@@ -1804,9 +1811,11 @@ export default function PanelPage() {
                               </Button>
                             </>
                           ) : (
-                            <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${isApproved ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                              {isApproved ? "지급완료" : "거절"}
-                            </span>
+                            <div className="text-right">
+                              <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${isApproved ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                                {isApproved ? "지급완료" : "거절"}
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1883,14 +1892,12 @@ export default function PanelPage() {
                         onClick={async () => {
                           setPpApproving(true); setPpApproveMsg(null)
                           const token = getToken()
-                          console.log("[v0] approve payload", { requestId: ppApproveId, pointAmount: payout, rate, hasPassword: !!ppApprovePw, hasToken: !!token })
                           const res = await fetch("/api/admin/point-purchase", {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                             body: JSON.stringify({ requestId: ppApproveId, pointAmount: payout, rate, password: ppApprovePw }),
                           })
                           const d = await res.json()
-                          console.log("[v0] approve response", res.status, d)
                           if (res.ok) {
                             setPpApproveMsg({ text: `지급 완료. ₩${payout.toLocaleString()} 지급됨`, ok: true })
                             loadPpRequests()

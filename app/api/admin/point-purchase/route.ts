@@ -52,7 +52,7 @@ export async function GET(req: Request) {
     .from("point_purchase_requests")
     .select(`
       id, requester_id, requester_role, cash_amount, point_amount,
-      status, memo, created_at, approved_at,
+      status, memo, created_at, approved_at, rate,
       requester:profiles!requester_id(username),
       approver:profiles!approver_id(username)
     `)
@@ -106,9 +106,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "승인 권한이 없습니다." }, { status: 403 })
   }
 
-  const body = await req.json()
-  const { requestId, pointAmount, rate, password, action } = body
-  console.log("[v0] PATCH point-purchase", { requestId, pointAmount, rate, action, hasPassword: !!password, userId: auth.userId })
+  const { requestId, pointAmount, rate, password, action } = await req.json()
   if (!requestId) return NextResponse.json({ error: "requestId 필요" }, { status: 400 })
 
   if (action === "reject") {
@@ -123,8 +121,7 @@ export async function PATCH(req: Request) {
   if (!pointAmount || pointAmount <= 0) return NextResponse.json({ error: "포인트 금액을 입력해주세요." }, { status: 400 })
 
   // 승인자 비밀번호 검증
-  const { data: authUserData, error: userFetchErr } = await adminSupabase.auth.admin.getUserById(auth.userId)
-  console.log("[v0] approver email:", authUserData?.user?.email, "fetchErr:", userFetchErr?.message)
+  const { data: authUserData } = await adminSupabase.auth.admin.getUserById(auth.userId)
   if (!authUserData?.user?.email) return NextResponse.json({ error: "계정 정보를 확인할 수 없습니다." }, { status: 500 })
 
   const { createClient } = await import("@supabase/supabase-js")
@@ -136,7 +133,6 @@ export async function PATCH(req: Request) {
   const { error: pwErr } = await anonClient.auth.signInWithPassword({
     email: authUserData.user.email, password
   })
-  console.log("[v0] password verify result:", pwErr ? pwErr.message : "OK")
   if (pwErr) return NextResponse.json({ error: "비밀번호가 올바르지 않습니다." }, { status: 401 })
 
   // 요청 조회
@@ -145,21 +141,24 @@ export async function PATCH(req: Request) {
   if (!req2) return NextResponse.json({ error: "요청을 찾을 수 없거나 이미 처리됐습니다." }, { status: 404 })
 
   // 요청자(branch_admin 등)에게 요율 적용 포인트 충전
-  console.log("[v0] crediting requester", req2.requester_id, "amount:", pointAmount)
   await upsertBalance(req2.requester_id, pointAmount)
 
-  // 현금 거래 이력 기록
-  await adminSupabase.from("cash_transactions").insert({
-    from_user_id: req2.requester_id,
-    to_user_id: auth.userId,
-    cash_amount: req2.cash_amount,
-    point_amount: pointAmount,
-    tx_type: "purchase_approve",
-    memo: `포인트 구매 승인 #${requestId.slice(0, 8)}`,
-  })
+  // 현금 거래 이력 기록 (실패해도 상태 업데이트는 진행)
+  try {
+    await adminSupabase.from("cash_transactions").insert({
+      from_user_id: req2.requester_id,
+      to_user_id: auth.userId,
+      cash_amount: req2.cash_amount,
+      point_amount: pointAmount,
+      tx_type: "purchase_approve",
+      memo: `포인트 구매 승인 #${requestId.slice(0, 8)}`,
+    })
+  } catch (e) {
+    // 이력 기록 실패 무시 — 상태 업데이트는 반드시 진행
+  }
 
-  // 요청 상태 업데이트
-  await adminSupabase.from("point_purchase_requests").update({
+  // 요청 상태 업데이트 — 항상 실행
+  const { error: updateErr } = await adminSupabase.from("point_purchase_requests").update({
     status: "approved",
     approver_id: auth.userId,
     point_amount: pointAmount,
@@ -167,6 +166,10 @@ export async function PATCH(req: Request) {
     approver_password_verified: true,
     approved_at: new Date().toISOString(),
   }).eq("id", requestId)
+
+  if (updateErr) {
+    return NextResponse.json({ error: `상태 업데이트 실패: ${updateErr.message}` }, { status: 500 })
+  }
 
   return NextResponse.json({ success: true, pointAmount })
 }
