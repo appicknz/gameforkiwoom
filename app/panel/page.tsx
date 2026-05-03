@@ -154,6 +154,7 @@ export default function PanelPage() {
   const [myRole, setMyRole] = useState<string>("")
   const [myUserId, setMyUserId] = useState<string>("")
   const [myBranchCode, setMyBranchCode] = useState<string | null>(null)
+  const [myBalance, setMyBalance] = useState<number>(0)
   const [myBranchId, setMyBranchId] = useState<string | undefined>(undefined)
   const [profile, setProfile] = useState<{ username: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -394,14 +395,17 @@ export default function PanelPage() {
         // 역할별 초기 데이터 로드
         const tok = getToken()
         if (!tok) return
+        // 내 잔고 즉시 로드 (모든 역할)
+        fetch("/api/admin/my-balance", { headers: { Authorization: `Bearer ${tok}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d && typeof d.balance === "number") setMyBalance(d.balance) })
+          .catch(() => {})
         if (role === "super_admin") {
-          // 대총판: 포인트 구매 요청 목록 즉시 로드
           fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
             .then(r => r.ok ? r.json() : null)
             .then(d => { if (d?.requests) setPpRequests(d.requests) })
             .catch(() => {})
         } else if (role === "branch_admin") {
-          // 총판: 충전 요청 내역 즉시 로드
           fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
             .then(r => r.ok ? r.json() : null)
             .then(d => { if (d?.requests) setBaChargeRequests(d.requests) })
@@ -463,11 +467,12 @@ export default function PanelPage() {
     setUsersLoading(false)
   }, [myUserId])
 
-  // 대총판/총판: 5초마다 충전 요청 목록 + 잔고 자동 갱신
+  // 대총판/총판: 5초마다 충전 요청 목록 + 내 잔고 자동 갱신
   useEffect(() => {
     if (myRole !== "super_admin" && myRole !== "branch_admin") return
     const poll = () => {
       const tok = getToken(); if (!tok) return
+      // 충전 요청 목록
       fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
         .then(r => r.ok ? r.json() : null)
         .then(d => {
@@ -476,13 +481,17 @@ export default function PanelPage() {
           else setBaChargeRequests(d.requests)
         })
         .catch(() => {})
-      if (myRole === "branch_admin" && adminPw) {
-        loadUsers(adminPw)
-      }
+      // 내 잔고 갱신
+      fetch("/api/admin/my-balance", { headers: { Authorization: `Bearer ${tok}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d && typeof d.balance === "number") setMyBalance(d.balance) })
+        .catch(() => {})
     }
+    // 즉시 1회 실행 후 5초 폴링
+    poll()
     const interval = setInterval(poll, 5000)
     return () => clearInterval(interval)
-  }, [myRole, adminPw, loadUsers])
+  }, [myRole])
 
   // 지점 목록 로드
   const loadBranches = useCallback(async (pw: string) => {
@@ -893,7 +902,7 @@ export default function PanelPage() {
             <>
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-sm font-semibold text-foreground">
                 <Wallet className="w-3.5 h-3.5 text-muted-foreground" />
-                ₩{(users.find(u => u.id === myUserId)?.balance ?? 0).toLocaleString()}
+                ₩{myBalance.toLocaleString()}
               </div>
               <Button size="sm" onClick={() => setSaOpen(true)} className="gap-1.5 text-xs">
                 <Plus className="w-3.5 h-3.5" /> 총판 계정생성
@@ -1176,7 +1185,7 @@ export default function PanelPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-card border border-border rounded-xl p-4">
                     <p className="text-xs text-muted-foreground mb-1">현재 잔액</p>
-                    <p className="text-2xl font-bold text-foreground">₩{(users.find(u => u.id === myUserId)?.balance ?? 0).toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-foreground">₩{myBalance.toLocaleString()}</p>
                     <p className="text-[11px] text-muted-foreground mt-1">대총판 승인 시 요율 적용 후 지급</p>
                   </div>
                   <div className="bg-card border border-border rounded-xl p-4">
@@ -1452,7 +1461,7 @@ export default function PanelPage() {
             </div>
           </div>
         )}
-        {/* LP 히스토리 탭 - 라운드 모니터로 통합됨 (이 블록은 도달 안됨) */}
+        {/* LP 히스토리 탭 - 라운드 모니터로 ���합됨 (이 블록은 도달 안됨) */}
         {false && (
           <div className="space-y-4">
             <div className="bg-card border border-border rounded-2xl overflow-hidden">
@@ -1714,14 +1723,14 @@ export default function PanelPage() {
                   </div>
                   <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
                     <p className="text-xs text-muted-foreground">내 잔고</p>
-                    <p className="text-2xl font-bold text-foreground">₩{users.find(u => u.id === myUserId)?.balance?.toLocaleString() ?? "0"}</p>
+                    <p className="text-2xl font-bold text-foreground">₩{myBalance.toLocaleString()}</p>
                     <p className="text-[11px] text-muted-foreground">현재 보유 포인트</p>
                   </div>
                 </div>
               )
             })()}
 
-            {/* 포인트 구매 요청 폼 — 총판/지점만 */}
+            {/* 포인트 구매 요청 폼 — ��판/지점만 */}
             {(myRole === "branch_admin" || myRole === "admin") && (
               <div className="bg-card border border-border rounded-xl p-5 space-y-3">
                 <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Wallet className="w-4 h-4 text-primary" /> 포인트 구매 요청</h2>
