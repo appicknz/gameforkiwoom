@@ -411,18 +411,28 @@ export default function PanelPage() {
       .catch(() => router.replace("/"))
   }, [router])
 
-  // 대총판: 30초마다 충전 요청 목록 자동 갱신
+  // 대총판/총판: 5초마다 충전 요청 목록 + 잔고 자동 갱신 (실시간에 가까운 폴링)
   useEffect(() => {
-    if (myRole !== "super_admin") return
-    const interval = setInterval(() => {
+    if (myRole !== "super_admin" && myRole !== "branch_admin") return
+    const poll = () => {
       const tok = getToken(); if (!tok) return
+      // 요청 목록 갱신
       fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
         .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d?.requests) setPpRequests(d.requests) })
+        .then(d => {
+          if (!d?.requests) return
+          if (myRole === "super_admin") setPpRequests(d.requests)
+          else setBaChargeRequests(d.requests)
+        })
         .catch(() => {})
-    }, 30000)
+      // 잔고 갱신 (총판: 승인 시 잔고가 올라가야 하므로)
+      if (myRole === "branch_admin" && adminPw) {
+        loadUsers(adminPw)
+      }
+    }
+    const interval = setInterval(poll, 5000)
     return () => clearInterval(interval)
-  }, [myRole])
+  }, [myRole, adminPw, loadUsers])
 
   const [pwChecking, setPwChecking] = useState(false)
 
@@ -1900,7 +1910,8 @@ export default function PanelPage() {
                           const d = await res.json()
                           if (res.ok) {
                             setPpApproveMsg({ text: `지급 완료. ₩${payout.toLocaleString()} 지급됨`, ok: true })
-                            loadPpRequests()
+                            loadPpRequests()   // 요청 목록 즉시 갱신
+                            loadUsers(adminPw) // 잔고 즉시 갱신
                             setTimeout(() => { setPpApproveId(null); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }, 1500)
                           } else {
                             setPpApproveMsg({ text: d.error ?? "오류가 발생했습니다.", ok: false })
