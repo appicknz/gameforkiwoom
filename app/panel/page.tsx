@@ -2212,7 +2212,7 @@ export default function PanelPage() {
                                 <p className="text-xs text-muted-foreground pt-2">ID: <span className="text-foreground font-mono text-[11px]">{u.id}</span></p>
                                 <p className="text-xs text-muted-foreground">가입일: {new Date(u.created_at).toLocaleString("ko-KR")}</p>
                                 <p className="text-xs text-muted-foreground">역할: {roleLabel[u.role]?.label ?? u.role}</p>
-                                <p className="text-xs text-muted-foreground">지점코드: {u.branch_code ?? "-"}</p>
+                                <p className="text-xs text-muted-foreground">지점���드: {u.branch_code ?? "-"}</p>
                               </div>
                             )}
                           </div>
@@ -2720,7 +2720,7 @@ export default function PanelPage() {
 
 
 
-            {/* 포인트 충전 요청 (임시계정 생성) — master 전용 */}
+            {/* 포인트 ���전 요청 (임시계정 생성) — master 전용 */}
             {myRole === "master" && <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Plus className="w-4 h-4 text-primary" /> 포인트 충전 요청 (유저 계정 생성)</h2>
               <p className="text-xs text-muted-foreground">승인되면 포인트가 충전된 임시 계정이 자동 생성됩니���.</p>
@@ -2865,15 +2865,43 @@ export default function PanelPage() {
                   </div>
                 </div>
 
-                {/* 충전 요청 버튼 */}
+                {/* 충전 요청 */}
                 <div className="bg-card border border-border rounded-xl p-5 space-y-3">
                   <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <Wallet className="w-4 h-4 text-primary" /> 충전 요청
                   </h2>
-                  <p className="text-xs text-muted-foreground">총판에게 포인트 충전을 요청합니다. 총판이 승인하면 포인트가 지급됩니다.</p>
-                  <div className="flex gap-2 flex-wrap">
+                  <p className="text-xs text-muted-foreground">버튼을 눌러 금액을 누적한 뒤 요청하세요. 총판이 승인하면 포인트가 지급됩니다.</p>
+
+                  {/* 금액 프리셋 버튼 */}
+                  <div className="flex flex-wrap gap-2">
+                    {[50000, 100000, 500000, 1000000, 10000000, 50000000, 100000000].map(amt => (
+                      <button
+                        key={amt}
+                        onClick={() => setBaChargeAmt(v => String((Number(v) || 0) + amt))}
+                        className="px-3 py-1.5 rounded-lg border border-border bg-muted hover:bg-primary/10 hover:border-primary/40 text-xs font-semibold text-foreground transition-colors"
+                      >
+                        +{amt >= 100000000 ? `${amt / 100000000}억` : amt >= 10000000 ? `${amt / 10000000}천만` : `${amt / 10000}만`}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setBaChargeAmt("")}
+                      className="px-3 py-1.5 rounded-lg border border-border bg-muted hover:bg-destructive/10 hover:border-destructive/40 text-xs font-semibold text-muted-foreground transition-colors"
+                    >
+                      초기화
+                    </button>
+                  </div>
+
+                  {/* 누적 금액 표시 */}
+                  {Number(baChargeAmt) > 0 && (
+                    <div className="px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-sm font-bold text-primary">
+                      ₩{Number(baChargeAmt).toLocaleString()}
+                    </div>
+                  )}
+
+                  {/* 직접 입력 + 메모 + 요청 */}
+                  <div className="flex gap-2">
                     <Input
-                      placeholder="포인트 금액"
+                      placeholder="직접 입력 (원)"
                       type="number"
                       value={baChargeAmt}
                       onChange={e => setBaChargeAmt(e.target.value)}
@@ -2885,7 +2913,7 @@ export default function PanelPage() {
                       onChange={e => setBaChargeMemo(e.target.value)}
                       className="h-9 text-sm flex-1"
                     />
-                    <Button size="sm" className="h-9 shrink-0" disabled={baChargeSubmitting} onClick={async () => {
+                    <Button size="sm" className="h-9 shrink-0 gap-1.5" disabled={baChargeSubmitting || !Number(baChargeAmt)} onClick={async () => {
                       if (!baChargeAmt || Number(baChargeAmt) <= 0) {
                         setBaChargeMsg({ text: "금액을 입력하세요.", ok: false }); return
                       }
@@ -2902,7 +2930,9 @@ export default function PanelPage() {
                         : { text: d.error ?? "오류가 발생했습니다.", ok: false })
                       if (res.ok) { setBaChargeAmt(""); setBaChargeMemo("") }
                       setBaChargeSubmitting(false)
-                    }}>요청</Button>
+                    }}>
+                      <Plus className="w-3.5 h-3.5" /> 요청
+                    </Button>
                   </div>
                   {baChargeMsg && <p className={`text-xs ${baChargeMsg.ok ? "text-primary" : "text-destructive"}`}>{baChargeMsg.text}</p>}
                 </div>
@@ -3146,7 +3176,7 @@ export default function PanelPage() {
                 <p className="text-2xl font-bold text-foreground">₩{cashBalance.toLocaleString()}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">내 포인트 잔고</p>
+                <p className="text-xs text-muted-foreground mb-1">��� 포인트 잔고</p>
                 <p className="text-2xl font-bold text-foreground">{pointBalance.toLocaleString()} P</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
