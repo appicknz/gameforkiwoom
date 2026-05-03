@@ -40,9 +40,24 @@ export async function GET(req: Request) {
       target_user:profiles!target_user_id(username, id)
     `)
     .order("created_at", { ascending: false })
-    .limit(200)
+    .limit(500)
 
-  if (!["master", "super_admin"].includes(me.role)) {
+  // branch_admin은 자신의 지점(branch_code) 내 admin들이 요청한 것 + 자신이 요청한 것
+  if (me.role === "branch_admin") {
+    // 자신과 같은 branch_code를 가진 admin들의 id 조회
+    const { data: myProfile } = await adminSupabase
+      .from("profiles").select("branch_code").eq("id", auth.userId).single()
+    const branchCode = myProfile?.branch_code
+    if (branchCode) {
+      const { data: branchAdmins } = await adminSupabase
+        .from("profiles").select("id").eq("branch_code", branchCode).in("role", ["admin"])
+      const adminIds = (branchAdmins ?? []).map((p: any) => p.id)
+      adminIds.push(auth.userId)
+      query = query.in("requester_id", adminIds)
+    } else {
+      query = query.eq("requester_id", auth.userId)
+    }
+  } else if (!["master", "super_admin"].includes(me.role)) {
     query = query.eq("requester_id", auth.userId)
   }
 
@@ -92,27 +107,65 @@ export async function POST(req: Request) {
   return NextResponse.json({ request: data })
 }
 
-// PATCH: 승인 (master/super_admin만)
+// PATCH: 환전 완료/거절/승인
 export async function PATCH(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: me } = await adminSupabase.from("profiles").select("role").eq("id", auth.userId).single()
-  if (!me || !["master", "super_admin"].includes(me.role)) {
-    return NextResponse.json({ error: "승인 권한이 없습니다." }, { status: 403 })
+  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!["master", "super_admin", "branch_admin"].includes(me.role)) {
+    return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
   }
 
   const { requestId, action } = await req.json()
   if (!requestId) return NextResponse.json({ error: "requestId 필요" }, { status: 400 })
 
+  // branch_admin: 환전 완료 처리 (실제 외부 환전 후 완료 버튼)
+  if (action === "complete") {
+    if (!["branch_admin", "master", "super_admin"].includes(me.role)) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
+    }
+    const { data: er } = await adminSupabase.from("exchange_requests")
+      .select("*").eq("id", requestId).eq("status", "pending").single()
+    if (!er) return NextResponse.json({ error: "요청을 찾을 수 없거나 이미 처리됐습니다." }, { status: 404 })
+
+    // 유저 포인트 차감 (환전 완료 시 포인트 소각)
+    await upsertBalance(er.target_user_id, -er.point_amount)
+
+    // daily_sales_log 업데이트
+    const today = new Date().toISOString().slice(0, 10)
+    const { data: targetProfile } = await adminSupabase
+      .from("profiles").select("branch_code").eq("id", er.requester_id).single()
+    const branchCode = targetProfile?.branch_code ?? "NONE"
+    await adminSupabase.rpc("increment_daily_sales", {
+      p_date: today, p_branch: branchCode,
+      p_charge_count: 0, p_charge_total: 0,
+      p_exchange_count: 1, p_exchange_total: er.point_amount,
+    })
+
+    await adminSupabase.from("exchange_requests").update({
+      status: "approved",
+      approver_id: auth.userId,
+      approved_at: new Date().toISOString(),
+    }).eq("id", requestId)
+
+    return NextResponse.json({ success: true })
+  }
+
   if (action === "reject") {
+    if (!["master", "super_admin", "branch_admin"].includes(me.role)) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
+    }
     await adminSupabase.from("exchange_requests")
       .update({ status: "rejected", approver_id: auth.userId, approved_at: new Date().toISOString() })
       .eq("id", requestId).eq("status", "pending")
     return NextResponse.json({ success: true })
   }
 
-  // 승인
+  // 기존 approve (master/super_admin)
+  if (!["master", "super_admin"].includes(me.role)) return NextResponse.json({ error: "승인 권한이 없습니다." }, { status: 403 })
+
   const { data: er } = await adminSupabase.from("exchange_requests")
     .select("*").eq("id", requestId).eq("status", "pending").single()
   if (!er) return NextResponse.json({ error: "요청을 찾을 수 없거나 이미 처리됐습니다." }, { status: 404 })

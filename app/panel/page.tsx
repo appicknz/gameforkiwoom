@@ -438,6 +438,21 @@ export default function PanelPage() {
             .then(r => r.ok ? r.json() : null)
             .then(d => { if (d?.requests) setBaChargeRequests(d.requests) })
             .catch(() => {})
+          fetch("/api/admin/exchange-request", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d?.requests) setBaExRequests(d.requests) })
+            .catch(() => {})
+          fetch("/api/admin/point-charge", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d?.requests) {
+                const total = d.requests
+                  .filter((r: any) => ["approved","activated"].includes(r.status))
+                  .reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
+                setBaTotalCharged(total)
+              }
+            })
+            .catch(() => {})
         }
       })
       .catch(() => router.replace("/"))
@@ -514,6 +529,13 @@ export default function PanelPage() {
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d && typeof d.balance === "number") setMyBalance(d.balance) })
         .catch(() => {})
+      // 총판: 환전 요청 목록 갱신
+      if (myRole === "branch_admin") {
+        fetch("/api/admin/exchange-request", { headers: { Authorization: `Bearer ${tok}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d?.requests) setBaExRequests(d.requests) })
+          .catch(() => {})
+      }
       // 대총판: 총판 목록 잔고 동기화
       if (myRole === "super_admin") {
         fetch("/api/admin/users?role=branch_admin", { headers: { Authorization: `Bearer ${tok}` } })
@@ -711,6 +733,13 @@ export default function PanelPage() {
   const [baChargeRequests, setBaChargeRequests] = useState<any[]>([])
   const [baChargeLoading, setBaChargeLoading] = useState(false)
   const [baChargeExpanded, setBaChargeExpanded] = useState(false)
+  // 총판 환전 요청 목록 (branch_admin 전용 요약)
+  const [baExRequests, setBaExRequests]       = useState<any[]>([])
+  const [baExLoading, setBaExLoading]         = useState(false)
+  const [baExExpanded, setBaExExpanded]       = useState(false) // 환전 대기 펼침
+  const [baStatExpanded, setBaStatExpanded]   = useState(false) // 누적 통계 펼침
+  // 총판 지점에 지급된 포인트 합계 (point_charge_requests 기준)
+  const [baTotalCharged, setBaTotalCharged]   = useState(0)
 
   const loadBranchMembers = useCallback(async (branchCode: string) => {
     const token = getToken(); if (!token) return
@@ -727,6 +756,26 @@ export default function PanelPage() {
     const res = await fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${token}` } })
     if (res.ok) { const d = await res.json(); setBaChargeRequests(d.requests ?? []) }
     setBaChargeLoading(false)
+  }, [])
+
+  const loadBaExRequests = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setBaExLoading(true)
+    const res = await fetch("/api/admin/exchange-request", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setBaExRequests(d.requests ?? []) }
+    setBaExLoading(false)
+  }, [])
+
+  const loadBaTotalCharged = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    const res = await fetch("/api/admin/point-charge", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) {
+      const d = await res.json()
+      const total = (d.requests ?? [])
+        .filter((r: any) => ["approved","activated"].includes(r.status))
+        .reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
+      setBaTotalCharged(total)
+    }
   }, [])
 
   const handleBranchAdminCharge = async () => {
@@ -1159,7 +1208,7 @@ export default function PanelPage() {
 
           {/* ── 총판 전용 탭 ── */}
           {myRole === "branch_admin" && (
-            <button onClick={() => { setActiveTab("branches"); loadBranches(adminPw); loadBaChargeRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <button onClick={() => { setActiveTab("branches"); loadBranches(adminPw); loadBaChargeRequests(); loadBaExRequests(); loadBaTotalCharged() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               <GitBranch className="w-4 h-4" /> 총판
               {baChargeRequests.filter((r: any) => r.status === "pending").length > 0 && (
                 <span className="ml-1 bg-amber-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
@@ -1351,22 +1400,140 @@ export default function PanelPage() {
             </div>
           )}
 
-            {/* ══════ 총판 전용: 잔고 + 충전 요청 ══════ */}
+            {/* ══════ 총판 전용: 요약 카드 ══════ */}
             {myRole === "branch_admin" && (
               <div className="space-y-4 mb-4">
-                {/* 잔고 요약 카드 */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-card border border-border rounded-xl p-4">
-                    <p className="text-xs text-muted-foreground mb-1">현재 잔액</p>
-                    <p className="text-2xl font-bold text-foreground">₩{myBalance.toLocaleString()}</p>
-                    <p className="text-[11px] text-muted-foreground mt-1">대총판 승인 시 요율 적용 후 지급</p>
-                  </div>
-                  <div className="bg-card border border-border rounded-xl p-4">
-                    <p className="text-xs text-muted-foreground mb-1">대기 중 충전 요청</p>
-                    <p className="text-2xl font-bold text-amber-500">{baChargeRequests.filter((r: any) => r.status === "pending").length}<span className="text-base font-medium text-muted-foreground ml-1">건</span></p>
-                    <p className="text-[11px] text-muted-foreground mt-1">승인 대기 중</p>
-                  </div>
-                </div>
+                {/* 상단 4개 카드 */}
+                {(() => {
+                  const pendingCharge = baChargeRequests.filter((r: any) => r.status === "pending").length
+                  const pendingEx = baExRequests.filter((r: any) => r.status === "pending").length
+                  const totalEx = baExRequests
+                    .filter((r: any) => r.status === "approved")
+                    .reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {/* 지점 수 */}
+                      <div className="bg-card border border-border rounded-xl p-4">
+                        <p className="text-xs text-muted-foreground mb-1">지점 수</p>
+                        <p className="text-2xl font-bold text-foreground">{branches.length}<span className="text-sm font-normal text-muted-foreground ml-1">개</span></p>
+                        <p className="text-[11px] text-muted-foreground mt-1">현재 잔액 <span className="font-semibold text-foreground">₩{myBalance.toLocaleString()}</span></p>
+                      </div>
+                      {/* 대기 중인 충전 */}
+                      <div className="bg-card border border-border rounded-xl p-4">
+                        <p className="text-xs text-muted-foreground mb-1">대기 중인 충전</p>
+                        <p className="text-2xl font-bold text-amber-500">{pendingCharge}<span className="text-sm font-normal text-muted-foreground ml-1">건</span></p>
+                        <p className="text-[11px] text-muted-foreground mt-1">대총판 승인 대기</p>
+                      </div>
+                      {/* 대기 중인 환전 — 클릭 시 펼침 */}
+                      <button
+                        onClick={() => setBaExExpanded(v => !v)}
+                        className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
+                      >
+                        <p className="text-xs text-muted-foreground mb-1">대기 중인 환전</p>
+                        <p className={`text-2xl font-bold ${pendingEx > 0 ? "text-primary" : "text-foreground"}`}>
+                          {pendingEx}<span className="text-sm font-normal text-muted-foreground ml-1">건</span>
+                        </p>
+                        <p className="text-[11px] text-primary/70 mt-1">{baExExpanded ? "접기 ▲" : "목록 보기 ▼"}</p>
+                      </button>
+                      {/* 누적 통계 — 클릭 시 펼침 */}
+                      <button
+                        onClick={() => setBaStatExpanded(v => !v)}
+                        className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
+                      >
+                        <p className="text-xs text-muted-foreground mb-1">누적 환전액</p>
+                        <p className="text-2xl font-bold text-foreground">₩{totalEx.toLocaleString()}</p>
+                        <p className="text-[11px] text-primary/70 mt-1">{baStatExpanded ? "접기 ▲" : "상세 보기 ▼"}</p>
+                      </button>
+                    </div>
+                  )
+                })()}
+
+                {/* 환전 요청 펼침 목록 */}
+                {baExExpanded && (() => {
+                  const pendingEx = baExRequests.filter((r: any) => r.status === "pending")
+                  return (
+                    <div className="bg-card border border-border rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                          <ArrowLeftRight className="w-4 h-4 text-primary" /> 대기 중인 환전 요청
+                          {pendingEx.length > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">{pendingEx.length}건</span>
+                          )}
+                        </h3>
+                        <Button variant="ghost" size="sm" onClick={loadBaExRequests} disabled={baExLoading} className="h-7 w-7 p-0">
+                          <RefreshCw className={`w-3.5 h-3.5 ${baExLoading ? "animate-spin" : ""}`} />
+                        </Button>
+                      </div>
+                      {pendingEx.length === 0 ? (
+                        <p className="py-8 text-center text-sm text-muted-foreground">대기 중인 환전 요청이 없습니다.</p>
+                      ) : (
+                        <div className="divide-y divide-border">
+                          <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-5 py-2 bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                            <span>유저 / 요청일시</span>
+                            <span className="text-right">금액</span>
+                            <span className="text-right">처리</span>
+                          </div>
+                          {pendingEx.map((r: any) => (
+                            <div key={r.id} className="px-5 py-3 grid grid-cols-[1fr_auto_auto] gap-4 items-center">
+                              <div>
+                                <p className="text-sm font-semibold text-foreground">{r.target_user?.username ?? "-"}</p>
+                                <p className="text-[10px] text-muted-foreground">{new Date(r.created_at).toLocaleString("ko-KR")}</p>
+                                {r.memo && <p className="text-[10px] text-muted-foreground">{r.memo}</p>}
+                              </div>
+                              <span className="text-sm font-bold text-foreground">₩{r.point_amount?.toLocaleString()}</span>
+                              <div className="flex gap-1.5">
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-destructive border-destructive/30 hover:bg-destructive/10"
+                                  onClick={async () => {
+                                    const token = getToken()
+                                    await fetch("/api/admin/exchange-request", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "reject" }) })
+                                    loadBaExRequests()
+                                  }}>거절</Button>
+                                <Button size="sm" className="h-7 px-3 text-[11px]"
+                                  onClick={async () => {
+                                    const token = getToken()
+                                    await fetch("/api/admin/exchange-request", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "complete" }) })
+                                    loadBaExRequests()
+                                  }}>완료</Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {/* 누적 통계 펼침 */}
+                {baStatExpanded && (() => {
+                  const approvedEx = baExRequests.filter((r: any) => r.status === "approved")
+                  const totalEx = approvedEx.reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
+                  // 수수료: point_charge_requests의 fee_amount 합계 (없으면 0)
+                  const totalFee = baChargeRequests.reduce((s: number, r: any) => s + (r.fee_amount ?? 0), 0)
+                  return (
+                    <div className="bg-card border border-border rounded-xl overflow-hidden">
+                      <div className="px-5 py-3 border-b border-border">
+                        <h3 className="text-sm font-semibold text-foreground">누적 통계</h3>
+                      </div>
+                      <div className="grid grid-cols-3 divide-x divide-border">
+                        <div className="p-5">
+                          <p className="text-xs text-muted-foreground mb-1">누적 환전액</p>
+                          <p className="text-xl font-bold text-foreground">₩{totalEx.toLocaleString()}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1">완료된 환전 누계</p>
+                        </div>
+                        <div className="p-5">
+                          <p className="text-xs text-muted-foreground mb-1">수수료</p>
+                          <p className="text-xl font-bold text-amber-500">₩{totalFee.toLocaleString()}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1">충전 요청 수수료 누계</p>
+                        </div>
+                        <div className="p-5">
+                          <p className="text-xs text-muted-foreground mb-1">지급된 포인트</p>
+                          <p className="text-xl font-bold text-primary">₩{baTotalCharged.toLocaleString()}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1">지점에 공급된 누계</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* 충전 요청 폼 */}
                 <div className="bg-card border border-border rounded-xl p-5">
