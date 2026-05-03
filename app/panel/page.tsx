@@ -1307,7 +1307,7 @@ export default function PanelPage() {
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1">메모 (선택)</label>
                 <textarea
-                  placeholder="총판에게 전달할 메모"
+                  placeholder="총���에게 전달할 메모"
                   value={acuMemo}
                   onChange={e => setAcuMemo(e.target.value)}
                   rows={2}
@@ -3371,7 +3371,7 @@ export default function PanelPage() {
               </div>
             </div>
             {/* admin(지점) 공통 섹션 숨김 닫기 */}
-            </div></>}
+            </>}
           </div>
         )}
 
@@ -3569,7 +3569,7 @@ export default function PanelPage() {
                 <Shield className="w-4 h-4 text-primary" /> 관리자 계정 생성
               </h2>
               <p className="text-xs text-muted-foreground mb-5">
-                대총판 · 총판 · 지점 계정을 직접 생성합니다. 생성 후 해당 계정으로 로그인하면 각 역할에 맞는 탭이 표시됩니다.
+                대총판 · 총판 · 지점 계정을 직접 생성합니다. 생성 후 해당 계정으�� 로그인하면 각 역할에 맞는 탭이 표시됩니다.
               </p>
 
               {/* 역할 선택 */}
