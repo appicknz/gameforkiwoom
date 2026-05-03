@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, TrendingUp, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy, ImageIcon, Upload, Percent } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, TrendingUp, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy, ImageIcon, Upload, Percent, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -205,8 +205,11 @@ export default function PanelPage() {
   const [baCreateOpen, setBaCreateOpen]       = useState(false)
   const [baNewBranchName, setBaNewBranchName] = useState("")
   const [baNewBranchCode, setBaNewBranchCode] = useState("")
+  const [baNewBranchPw, setBaNewBranchPw]     = useState("")
+  const [baNewBranchShowPw, setBaNewBranchShowPw] = useState(false)
   const [baCreateLoading, setBaCreateLoading] = useState(false)
   const [baCreateMsg, setBaCreateMsg]         = useState<{ text: string; ok: boolean } | null>(null)
+  const [baCreatedInfo, setBaCreatedInfo]     = useState<{ code: string; password: string } | null>(null)
 
   // 대총판 전용: 총판 계정 생성 모달 state
   const [saOpen, setSaOpen]           = useState(false)
@@ -677,24 +680,24 @@ export default function PanelPage() {
 
   // 총판 전용: 지점 생성
   const handleBaCreateBranch = async () => {
-    if (!baNewBranchName.trim() || !baNewBranchCode.trim()) {
-      setBaCreateMsg({ text: "지점명과 지점코드를 모두 입력하세요.", ok: false }); return
+    if (!baNewBranchName.trim() || !baNewBranchCode.trim() || !baNewBranchPw.trim()) {
+      setBaCreateMsg({ text: "지점명, 지점코드, 비밀번호를 모두 입력하세요.", ok: false }); return
     }
     setBaCreateLoading(true); setBaCreateMsg(null)
     const token = getToken(); if (!token) { setBaCreateLoading(false); return }
     const res = await fetch("/api/admin/branches", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: baNewBranchName.trim(), code: baNewBranchCode.trim().toUpperCase() }),
+      body: JSON.stringify({ name: baNewBranchName.trim(), code: baNewBranchCode.trim().toUpperCase(), password: baNewBranchPw.trim() }),
     })
     const data = await res.json()
     if (!res.ok) {
       setBaCreateMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
     } else {
+      setBaCreatedInfo({ code: baNewBranchCode.trim().toUpperCase(), password: baNewBranchPw.trim() })
       setBaCreateMsg({ text: `지점 '${baNewBranchName}'이 생성됐습니다.`, ok: true })
-      setBaNewBranchName(""); setBaNewBranchCode("")
+      setBaNewBranchName(""); setBaNewBranchCode(""); setBaNewBranchPw("")
       loadBranches(adminPw)
-      setTimeout(() => { setBaCreateOpen(false); setBaCreateMsg(null) }, 1200)
     }
     setBaCreateLoading(false)
   }
@@ -724,7 +727,7 @@ export default function PanelPage() {
     user:         { label: "일반회원", color: "bg-gray-100 text-gray-600" },
   }
 
-  // ── 총판 전용: 지점 드릴다운 + 유저 생성 ──
+  // ─��� 총판 전용: 지점 드릴다운 + 유저 생성 ──
   const [selectedBranch, setSelectedBranch]   = useState<any | null>(null) // 클릭한 지점
   const [branchMembers, setBranchMembers]     = useState<any[]>([])
   const [branchMembersLoading, setBranchMembersLoading] = useState(false)
@@ -1139,33 +1142,79 @@ export default function PanelPage() {
               <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
                 <GitBranch className="w-4 h-4 text-primary" /> 지점 생성
               </h2>
-              <button onClick={() => setBaCreateOpen(false)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => { setBaCreateOpen(false); setBaCreatedInfo(null); setBaCreateMsg(null) }} className="text-muted-foreground hover:text-foreground">
                 <span className="text-lg leading-none">✕</span>
               </button>
             </div>
-            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              지점명과 지점코드를 입력하면 지점이 생성됩니다. 해당 지점코드로 유저를 생성할 수 있습니다.
-            </p>
-            <div className="space-y-3 mb-4">
-              <div>
-                <p className="text-xs font-medium text-foreground mb-1.5">지점명</p>
-                <Input placeholder="예: 역삼1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
+
+            {/* 생성 완료 — 계정 정보 표시 */}
+            {baCreatedInfo ? (
+              <div className="space-y-4">
+                <p className="text-xs text-muted-foreground">지점이 생성됐습니다. 아래 정보를 지점에 전달하세요.</p>
+                <div className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">로그인 ID (지점코드)</span>
+                    <span className="font-mono text-sm font-bold text-foreground">{baCreatedInfo.code}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">비밀번호</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold text-foreground">
+                        {baNewBranchShowPw ? baCreatedInfo.password : "•".repeat(baCreatedInfo.password.length)}
+                      </span>
+                      <button onClick={() => setBaNewBranchShowPw(v => !v)} className="text-muted-foreground hover:text-foreground">
+                        {baNewBranchShowPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[11px] text-amber-600">이 화면을 닫으면 비밀번호를 다시 확인할 수 없습니다.</p>
+                <Button className="w-full" onClick={() => { setBaCreateOpen(false); setBaCreatedInfo(null); setBaNewBranchShowPw(false) }}>
+                  확인
+                </Button>
               </div>
-              <div>
-                <p className="text-xs font-medium text-foreground mb-1.5">지점코드</p>
-                <Input placeholder="예: YS001" value={baNewBranchCode} onChange={e => setBaNewBranchCode(e.target.value.toUpperCase())} className="h-9 text-sm font-mono" />
-              </div>
-            </div>
-            {baCreateMsg && (
-              <p className={`text-xs mb-3 ${baCreateMsg.ok ? "text-primary" : "text-destructive"}`}>{baCreateMsg.text}</p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+                  지점명은 총판 목록에서 구분용으로만 사용됩니다. 지점코드가 로그인 ID가 되며, 비밀번호와 함께 지점에 전달하세요.
+                </p>
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <p className="text-xs font-medium text-foreground mb-1.5">지점명 <span className="text-muted-foreground font-normal">(구분용)</span></p>
+                    <Input placeholder="예: 역삼1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-foreground mb-1.5">지점코드 <span className="text-muted-foreground font-normal">(로그인 ID)</span></p>
+                    <Input placeholder="예: YS001" value={baNewBranchCode} onChange={e => setBaNewBranchCode(e.target.value.toUpperCase())} className="h-9 text-sm font-mono" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-foreground mb-1.5">비밀번호</p>
+                    <div className="relative">
+                      <Input
+                        type={baNewBranchShowPw ? "text" : "password"}
+                        placeholder="지점 로그인 비밀번호"
+                        value={baNewBranchPw}
+                        onChange={e => setBaNewBranchPw(e.target.value)}
+                        className="h-9 text-sm pr-9"
+                      />
+                      <button type="button" onClick={() => setBaNewBranchShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        {baNewBranchShowPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {baCreateMsg && (
+                  <p className={`text-xs mb-3 ${baCreateMsg.ok ? "text-primary" : "text-destructive"}`}>{baCreateMsg.text}</p>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setBaCreateOpen(false)}>취소</Button>
+                  <Button size="sm" className="flex-1 gap-1.5" disabled={baCreateLoading || !baNewBranchName.trim() || !baNewBranchCode.trim() || !baNewBranchPw.trim()} onClick={handleBaCreateBranch}>
+                    <Plus className="w-3.5 h-3.5" />
+                    {baCreateLoading ? "생성 중..." : "지점 생성"}
+                  </Button>
+                </div>
+              </>
             )}
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => setBaCreateOpen(false)}>취소</Button>
-              <Button size="sm" className="flex-1 gap-1.5" disabled={baCreateLoading || !baNewBranchName.trim() || !baNewBranchCode.trim()} onClick={handleBaCreateBranch}>
-                <Plus className="w-3.5 h-3.5" />
-                {baCreateLoading ? "생성 중..." : "지점 생성"}
-              </Button>
-            </div>
           </div>
         </div>
       )}
@@ -1348,7 +1397,7 @@ export default function PanelPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-foreground mb-1.5">비밀번호</p>
-                <Input type="password" placeholder="초기 비밀번호 설정" value={saPassword} onChange={e => setSaPassword(e.target.value)} className="h-9 text-sm" />
+                <Input type="password" placeholder="초기 비밀���호 설정" value={saPassword} onChange={e => setSaPassword(e.target.value)} className="h-9 text-sm" />
               </div>
             </div>
             {saMsg && (
@@ -2907,7 +2956,7 @@ export default function PanelPage() {
                   {branchTab === "bets" && (
                     <div>
                       {branchBetsLoading && (
-                        <p className="py-8 text-center text-sm text-muted-foreground">불러오는 중...</p>
+                        <p className="py-8 text-center text-sm text-muted-foreground">불러오�� 중...</p>
                       )}
                       {!branchBetsLoading && branchBets.length === 0 && (
                         <p className="py-8 text-center text-sm text-muted-foreground">배팅 내역이 없습니다.</p>

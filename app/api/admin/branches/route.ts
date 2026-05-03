@@ -56,10 +56,15 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json()
-  const { name, code, ownerUsername } = body
+  const { name, code, ownerUsername, password } = body
 
   if (!name || !code) {
     return NextResponse.json({ error: "지점명과 코드를 입력하세요." }, { status: 400 })
+  }
+
+  // branch_admin이 지점 생성 시 비밀번호 필수
+  if (requester.role === 'branch_admin' && !password?.trim()) {
+    return NextResponse.json({ error: "비밀번호를 입력하세요." }, { status: 400 })
   }
 
   // master/super_admin은 ownerUsername 필수, branch_admin은 자기 자신이 owner
@@ -106,6 +111,37 @@ export async function POST(req: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // branch_admin이 생성한 경우: 지점코드를 아이디, 입력 비밀번호로 admin 계정 자동 생성
+  if (requester.role === 'branch_admin' && password?.trim()) {
+    const { randomUUID } = await import("crypto")
+    const uid = randomUUID()
+    const email = `${uid}@noreply.app`
+    const upperCode = code.toUpperCase()
+
+    // 이미 같은 username(지점코드)이 있으면 생성 건너뜀
+    const { data: dup } = await adminSupabase.from("profiles").select("id").eq("username", upperCode).maybeSingle()
+    if (!dup) {
+      const { data: authUser, error: authErr } = await adminSupabase.auth.admin.createUser({
+        email,
+        password: password.trim(),
+        email_confirm: true,
+        user_metadata: { username: upperCode },
+      })
+      if (!authErr && authUser.user) {
+        const adminUserId = authUser.user.id
+        await adminSupabase.from("profiles").upsert({
+          id: adminUserId,
+          username: upperCode,
+          role: "admin",
+          branch_id: requester.id,   // 총판 ID를 branch_id로
+          branch_code: upperCode,
+        })
+        await adminSupabase.from("balances").upsert({ user_id: adminUserId, amount: 0 })
+      }
+    }
+  }
+
   return NextResponse.json({ branch: data })
 }
 
