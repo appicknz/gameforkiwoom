@@ -1988,8 +1988,6 @@ export default function PanelPage() {
                   </div>
                 ))}
               </div>
-            </div>
-
             </div>}
 
             {/* 계정 활성화 모달 */}
