@@ -106,7 +106,9 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "승인 권한이 없습니다." }, { status: 403 })
   }
 
-  const { requestId, pointAmount, rate, password, action } = await req.json()
+  const body = await req.json()
+  const { requestId, pointAmount, rate, password, action } = body
+  console.log("[v0] PATCH point-purchase", { requestId, pointAmount, rate, action, hasPassword: !!password, userId: auth.userId })
   if (!requestId) return NextResponse.json({ error: "requestId 필요" }, { status: 400 })
 
   if (action === "reject") {
@@ -121,7 +123,8 @@ export async function PATCH(req: Request) {
   if (!pointAmount || pointAmount <= 0) return NextResponse.json({ error: "포인트 금액을 입력해주세요." }, { status: 400 })
 
   // 승인자 비밀번호 검증
-  const { data: authUserData } = await adminSupabase.auth.admin.getUserById(auth.userId)
+  const { data: authUserData, error: userFetchErr } = await adminSupabase.auth.admin.getUserById(auth.userId)
+  console.log("[v0] approver email:", authUserData?.user?.email, "fetchErr:", userFetchErr?.message)
   if (!authUserData?.user?.email) return NextResponse.json({ error: "계정 정보를 확인할 수 없습니다." }, { status: 500 })
 
   const { createClient } = await import("@supabase/supabase-js")
@@ -133,6 +136,7 @@ export async function PATCH(req: Request) {
   const { error: pwErr } = await anonClient.auth.signInWithPassword({
     email: authUserData.user.email, password
   })
+  console.log("[v0] password verify result:", pwErr ? pwErr.message : "OK")
   if (pwErr) return NextResponse.json({ error: "비밀번호가 올바르지 않습니다." }, { status: 401 })
 
   // 요청 조회
@@ -140,16 +144,9 @@ export async function PATCH(req: Request) {
     .select("*").eq("id", requestId).eq("status", "pending").single()
   if (!req2) return NextResponse.json({ error: "요청을 찾을 수 없거나 이미 처리됐습니다." }, { status: 404 })
 
-  // 승인자(master) 포인트 차감
-  const { data: approverBal } = await adminSupabase.from("balances").select("amount").eq("user_id", auth.userId).single()
-  if (!approverBal || approverBal.amount < pointAmount) {
-    return NextResponse.json({ error: "승인자의 포인트가 부족합니다." }, { status: 400 })
-  }
-  await upsertBalance(auth.userId, -pointAmount)
-
-  // 요청자(super_admin/branch_admin)에게 포인트 충전 + 현금 기록
+  // 요청자(branch_admin 등)에게 요율 적용 포인트 충전
+  console.log("[v0] crediting requester", req2.requester_id, "amount:", pointAmount)
   await upsertBalance(req2.requester_id, pointAmount)
-  await upsertCashBalance(req2.requester_id, req2.cash_amount)
 
   // 현금 거래 이력 기록
   await adminSupabase.from("cash_transactions").insert({

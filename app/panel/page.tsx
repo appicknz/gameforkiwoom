@@ -1883,12 +1883,14 @@ export default function PanelPage() {
                         onClick={async () => {
                           setPpApproving(true); setPpApproveMsg(null)
                           const token = getToken()
+                          console.log("[v0] approve payload", { requestId: ppApproveId, pointAmount: payout, rate, hasPassword: !!ppApprovePw, hasToken: !!token })
                           const res = await fetch("/api/admin/point-purchase", {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                             body: JSON.stringify({ requestId: ppApproveId, pointAmount: payout, rate, password: ppApprovePw }),
                           })
                           const d = await res.json()
+                          console.log("[v0] approve response", res.status, d)
                           if (res.ok) {
                             setPpApproveMsg({ text: `지급 완료. ₩${payout.toLocaleString()} 지급됨`, ok: true })
                             loadPpRequests()
@@ -2034,7 +2036,7 @@ export default function PanelPage() {
                 <p className="text-2xl font-bold text-foreground">₩{cashBalance.toLocaleString()}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">내 포인트 잔고</p>
+                <p className="text-xs text-muted-foreground mb-1">내 포인��� 잔고</p>
                 <p className="text-2xl font-bold text-foreground">{pointBalance.toLocaleString()} P</p>
               </div>
             </div>
