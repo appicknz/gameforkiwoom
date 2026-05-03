@@ -64,6 +64,16 @@ export function TopBar() {
   const [branchMsg, setBranchMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [branchLoading, setBranchLoading] = useState(false)
 
+  // 유저 계정 생성 요청 (admin 전용)
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false)
+  const [cuUsername, setCuUsername]   = useState("")
+  const [cuPassword, setCuPassword]   = useState("")
+  const [cuCount, setCuCount]         = useState("1")
+  const [cuMemo, setCuMemo]           = useState("")
+  const [cuLoading, setCuLoading]     = useState(false)
+  const [cuMsg, setCuMsg]             = useState<{ text: string; ok: boolean } | null>(null)
+  const [showCuPw, setShowCuPw]       = useState(false)
+
   // 비밀번호 변경
   const [showPwForm, setShowPwForm] = useState(false)
   const [newPw, setNewPw] = useState("")
@@ -330,7 +340,7 @@ export function TopBar() {
     }
   }
 
-  // ── 로그아웃 ─────────────────────────────────────────────────────
+  // ── 로그���웃 ─────────────────────────────────────────────────────
   const handleLogout = () => {
     clearToken()
     setIsLoggedIn(false)
@@ -500,6 +510,17 @@ export function TopBar() {
                     </div>
                   )}
 
+                  {/* 유저 계정 생성 요청 (지점 전용) */}
+                  {profile?.role === "admin" && (
+                    <button
+                      onClick={() => { setDropdownOpen(false); setShowCreateUserModal(true); setCuMsg(null) }}
+                      className="flex items-center gap-2 w-full px-4 py-3 text-sm text-foreground hover:bg-muted/50 transition-colors border-b border-border"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      유저 계정 생성
+                    </button>
+                  )}
+
                   {/* 관리자 패널 */}
                   {ADMIN_ROLES.includes(profile?.role ?? "") && (
                     <button
@@ -609,6 +630,116 @@ export function TopBar() {
         </div>
       </div>
     </header>
+
+    {/* ── 유저 계정 생성 요청 모달 (admin 전용) ── */}
+    {showCreateUserModal && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        {/* 백드롭 */}
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateUserModal(false)} />
+        <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+          {/* 헤더 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4 text-primary" />
+              <h2 className="text-base font-semibold text-foreground">유저 계정 생성 요청</h2>
+            </div>
+            <button onClick={() => setShowCreateUserModal(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            총판에게 요청이 전달되며, 승인 후 계정이 생성됩니다.<br />
+            수량이 2 이상이면 ID 뒤에 번호가 자동으로 붙습니다. (예: user01, user02)
+          </p>
+
+          <div className="space-y-3">
+            {/* ID */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">ID (아이디)</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <input
+                  type="text" placeholder="생성할 ID 입력"
+                  value={cuUsername} onChange={e => setCuUsername(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
+                />
+              </div>
+            </div>
+
+            {/* 비밀번호 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">초기 비밀번호</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <input
+                  type={showCuPw ? "text" : "password"} placeholder="초기 비밀번호"
+                  value={cuPassword} onChange={e => setCuPassword(e.target.value)}
+                  className="w-full h-9 pl-9 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
+                />
+                <button type="button" onClick={() => setShowCuPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {showCuPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* 수량 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">수량</label>
+              <input
+                type="number" min="1" max="100" placeholder="1"
+                value={cuCount} onChange={e => setCuCount(e.target.value)}
+                className="w-full h-9 px-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+              />
+            </div>
+
+            {/* 메모 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">메모 (선택)</label>
+              <textarea
+                placeholder="총판에게 전달할 메모"
+                value={cuMemo} onChange={e => setCuMemo(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60 resize-none"
+              />
+            </div>
+          </div>
+
+          {cuMsg && (
+            <p className={`text-xs ${cuMsg.ok ? "text-primary" : "text-destructive"}`}>{cuMsg.text}</p>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1 h-9" onClick={() => setShowCreateUserModal(false)}>취소</Button>
+            <Button
+              className="flex-1 h-9"
+              disabled={cuLoading}
+              onClick={async () => {
+                if (!cuUsername.trim() || !cuPassword.trim()) {
+                  setCuMsg({ text: "ID와 비밀번호를 입력하세요.", ok: false }); return
+                }
+                setCuLoading(true); setCuMsg(null)
+                const token = getToken()
+                const res = await fetch("/api/admin/user-account-requests", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ username: cuUsername, password: cuPassword, count: parseInt(cuCount) || 1, memo: cuMemo }),
+                })
+                const d = await res.json()
+                if (res.ok) {
+                  setCuMsg({ text: "요청이 총판에게 전달되었습니다.", ok: true })
+                  setCuUsername(""); setCuPassword(""); setCuCount("1"); setCuMemo("")
+                } else {
+                  setCuMsg({ text: d.error ?? "오류가 발생했습니다.", ok: false })
+                }
+                setCuLoading(false)
+              }}
+            >
+              {cuLoading ? "요청 중..." : "요청 보내기"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   )
 }

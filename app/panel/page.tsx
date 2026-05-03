@@ -804,6 +804,17 @@ export default function PanelPage() {
     setBranchExLoading(false)
   }, [])
 
+  // ── 유저 계정 생성 요청 (branch_admin 승인용) ──
+  const [acctRequests, setAcctRequests]       = useState<any[]>([])
+  const [acctExpanded, setAcctExpanded]       = useState(false)
+  const [acctProcessing, setAcctProcessing]   = useState<number | null>(null)
+
+  const loadAcctRequests = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    const res = await fetch("/api/admin/user-account-requests", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setAcctRequests(d.requests ?? []) }
+  }, [])
+
   const loadBaExRequests = useCallback(async () => {
     const token = getToken(); if (!token) return
     setBaExLoading(true)
@@ -1288,7 +1299,7 @@ export default function PanelPage() {
 
           {/* ── 총판 전용 탭 ── */}
           {myRole === "branch_admin" && (
-            <button onClick={() => { setActiveTab("branches"); loadBranches(adminPw); loadBaChargeRequests(); loadBaExRequests(); loadBaTotalCharged() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <button onClick={() => { setActiveTab("branches"); loadBranches(adminPw); loadBaChargeRequests(); loadBaExRequests(); loadBaTotalCharged(); loadAcctRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               <GitBranch className="w-4 h-4" /> 총판
               {baChargeRequests.filter((r: any) => r.status === "pending").length > 0 && (
                 <span className="ml-1 bg-amber-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
@@ -1535,6 +1546,133 @@ export default function PanelPage() {
                         <p className="text-2xl font-bold text-amber-500">₩{myCommBalance.toLocaleString()}</p>
                         <p className="text-[11px] text-muted-foreground mt-1">배팅 수수료 누적</p>
                       </div>
+                    </div>
+                  )
+                })()}
+
+                {/* ── 유저 계정 생성 요청 (총판 승인) ── */}
+                {myRole === "branch_admin" && (() => {
+                  const pendingAcct = acctRequests.filter((r: any) => r.status === "pending")
+                  const approvedAcct = acctRequests.filter((r: any) => r.status === "approved")
+                  return (
+                    <div className="bg-card border border-border rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setAcctExpanded(v => !v)}
+                        className="flex items-center justify-between w-full px-5 py-3 border-b border-border hover:bg-muted/30 transition-colors"
+                      >
+                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                          <Users className="w-4 h-4 text-primary" />
+                          유저 계정 생성 요청
+                          {pendingAcct.length > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">{pendingAcct.length}건 대기</span>
+                          )}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="sm" onClick={e => { e.stopPropagation(); loadAcctRequests() }} className="h-7 w-7 p-0">
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </Button>
+                          <span className="text-xs text-muted-foreground">{acctExpanded ? "접기 ▲" : "펼치기 ▼"}</span>
+                        </div>
+                      </button>
+
+                      {acctExpanded && (
+                        <div>
+                          {/* 대기 중인 요청 */}
+                          {pendingAcct.length > 0 && (
+                            <div>
+                              <div className="px-5 py-2 bg-amber-50/50 border-b border-border">
+                                <p className="text-xs font-semibold text-amber-600">대기 중 ({pendingAcct.length}건)</p>
+                              </div>
+                              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 px-5 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+                                <span>요청 ID / 지점</span>
+                                <span className="text-center">수량</span>
+                                <span className="text-center">메모</span>
+                                <span className="text-right">요청일시</span>
+                                <span className="text-right">처리</span>
+                              </div>
+                              <div className="divide-y divide-border">
+                                {pendingAcct.map((r: any) => (
+                                  <div key={r.id} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 px-5 py-3 items-center">
+                                    <div>
+                                      <p className="text-sm font-semibold text-foreground">{r.username_prefix}</p>
+                                      <p className="text-[10px] text-muted-foreground">{r.requester?.username ?? "-"}</p>
+                                    </div>
+                                    <span className="text-sm font-bold text-foreground text-center">{r.count}개</span>
+                                    <span className="text-xs text-muted-foreground text-center max-w-[100px] truncate">{r.memo ?? "-"}</span>
+                                    <span className="text-[10px] text-muted-foreground text-right whitespace-nowrap">{new Date(r.created_at).toLocaleDateString("ko-KR")}</span>
+                                    <div className="flex gap-1.5 justify-end">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={acctProcessing === r.id}
+                                        className="h-7 px-2 text-[11px] text-destructive border-destructive/30 hover:bg-destructive/10"
+                                        onClick={async () => {
+                                          setAcctProcessing(r.id)
+                                          const token = getToken()
+                                          await fetch("/api/admin/user-account-requests", {
+                                            method: "PATCH",
+                                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                            body: JSON.stringify({ requestId: r.id, action: "reject" }),
+                                          })
+                                          await loadAcctRequests()
+                                          setAcctProcessing(null)
+                                        }}
+                                      >{acctProcessing === r.id ? "..." : "거절"}</Button>
+                                      <Button
+                                        size="sm"
+                                        disabled={acctProcessing === r.id}
+                                        className="h-7 px-3 text-[11px]"
+                                        onClick={async () => {
+                                          setAcctProcessing(r.id)
+                                          const token = getToken()
+                                          const res = await fetch("/api/admin/user-account-requests", {
+                                            method: "PATCH",
+                                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                            body: JSON.stringify({ requestId: r.id, action: "approve" }),
+                                          })
+                                          const d = await res.json()
+                                          await loadAcctRequests()
+                                          setAcctProcessing(null)
+                                          if (res.ok) loadBranches(adminPw)
+                                        }}
+                                      >{acctProcessing === r.id ? "처리중..." : "승인"}</Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 처리 완료 내역 */}
+                          {approvedAcct.length > 0 && (
+                            <div>
+                              <div className="px-5 py-2 bg-muted/30 border-b border-border">
+                                <p className="text-xs font-semibold text-muted-foreground">승인 완료 ({approvedAcct.length}건)</p>
+                              </div>
+                              <div className="divide-y divide-border">
+                                {approvedAcct.slice(0, 5).map((r: any) => (
+                                  <div key={r.id} className="px-5 py-2.5 flex items-center justify-between gap-4">
+                                    <div>
+                                      <p className="text-sm font-medium text-foreground">{r.username_prefix}</p>
+                                      <p className="text-[10px] text-muted-foreground">{r.requester?.username ?? "-"} · {r.count}개 생성</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-[11px] text-primary font-semibold">승인 완료</p>
+                                      {r.created_usernames?.length > 0 && (
+                                        <p className="text-[10px] text-muted-foreground">{r.created_usernames.slice(0, 3).join(", ")}{r.created_usernames.length > 3 ? ` 외 ${r.created_usernames.length - 3}개` : ""}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {pendingAcct.length === 0 && approvedAcct.length === 0 && (
+                            <p className="py-6 text-center text-sm text-muted-foreground">계정 생성 요청이 없습니다.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })()}
