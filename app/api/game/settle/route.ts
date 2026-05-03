@@ -407,8 +407,20 @@ export async function POST(request: Request) {
       }
     }
 
+    // ── 수수료 요율 로드 (DB에서 한 번만 조회) ──────────────
+    const { data: commRates } = await admin.from("commission_rates").select("role, rate")
+    const rateMap: Record<string, number> = {}
+    for (const r of (commRates ?? [])) rateMap[r.role] = Number(r.rate)
+
+    // 역할별 수혜자 캐시 (라운드당 1회 조회)
+    // master, super_admin은 시스템에 1명씩만 존재한다고 가정
+    const { data: masterProfile } = await admin.from("profiles").select("id").eq("role", "master").limit(1).single().catch(() => ({ data: null }))
+    const masterUserId: string | null = (masterProfile as any)?.id ?? null
+    const { data: saProfile } = await admin.from("profiles").select("id").eq("role", "super_admin").limit(1).single().catch(() => ({ data: null }))
+    const saUserId: string | null = (saProfile as any)?.id ?? null
+
     // ── 바카라 house_stats 지점별 집계 ──────────────────────
-    // 유저별 배팅액과 지급액을 집계해 지점별 수수료(=배팅액×20%) / 총배팅 / 총지급 기록
+    // 유저별 배팅액과 지급액을 집계해 지점별 수수료 / 총배팅 / 총지급 기록
     {
       // branchId → { totalBet, totalPayout } 맵
       const branchAccum: Record<string, { totalBet: number; totalPayout: number }> = {}
@@ -464,17 +476,69 @@ export async function POST(request: Request) {
         branchAccum[branchId].totalBet     += userBet
         branchAccum[branchId].totalPayout  += userPayout
 
-        // fee_logs: 유저별 상세 수수료 기록 (어느 지점 어느 유저에서 나온건지 추적)
+        // 수수료 분배 (commission_rates 기준)
         if (userBet > 0) {
-          const userFee = Math.floor(userBet * 0.20)
+          const totalRate = Object.values(rateMap).reduce((s, v) => s + v, 0)
+          const totalFee  = Math.floor(userBet * totalRate)
+          const masterFee      = Math.floor(userBet * (rateMap["master"]       ?? 0))
+          const superAdminFee  = Math.floor(userBet * (rateMap["super_admin"]  ?? 0))
+          const adminFee       = Math.floor(userBet * (rateMap["admin"]        ?? 0))
+          const branchAdminFee = Math.floor(userBet * (rateMap["branch_admin"] ?? 0))
+
+          // fee_logs 기록
           await admin.from("fee_logs").insert({
             round_number: roundNumber,
             game_type:    "baccarat",
             user_id:      userId,
             branch_id:    branchId,
             bet_amount:   userBet,
-            fee_amount:   userFee,
+            fee_amount:   totalFee,
           }).then(() => {}).catch(() => {})
+
+          // commission_logs 기록 + 잔고 분배
+          // 지점(admin) 담당자 조회
+          const { data: branchRow } = await admin.from("profiles")
+            .select("id, branch_admin_id:id")
+            .eq("id", branchId).single().catch(() => ({ data: null }))
+          const { data: branchAdminRow } = await admin.from("profiles")
+            .select("id").eq("id", branchId).single().catch(() => ({ data: null }))
+
+          // commission_logs 삽입
+          await admin.from("commission_logs").insert({
+            round_number: roundNumber,
+            game_type:    "baccarat",
+            user_id:      userId,
+            branch_id:    branchId,
+            bet_amount:   userBet,
+            master_fee:       masterFee,
+            super_admin_fee:  superAdminFee,
+            branch_admin_fee: branchAdminFee,
+            admin_fee:        adminFee,
+            total_fee:        totalFee,
+            master_id:        masterUserId,
+            super_admin_id:   saUserId,
+            admin_id:         branchId, // 지점 admin = branchId
+          }).then(() => {}).catch(() => {})
+
+          // commission_balances upsert (각 역할 수혜자에게 누적)
+          const upsertCommission = async (uid: string | null, fee: number) => {
+            if (!uid || fee <= 0) return
+            await admin.rpc("increment_commission_balance", { p_user_id: uid, p_amount: fee })
+              .then(() => {}).catch(() => {})
+          }
+          await Promise.all([
+            upsertCommission(masterUserId, masterFee),
+            upsertCommission(saUserId, superAdminFee),
+            upsertCommission(branchId, adminFee), // 지점 admin ID = branch_id
+          ])
+
+          // branch_admin: 지점의 총판 조회 후 분배
+          if (branchAdminFee > 0) {
+            const { data: branchProfile } = await admin.from("profiles")
+              .select("super_admin_id").eq("id", branchId).single().catch(() => ({ data: null }))
+            const baId = (branchProfile as any)?.super_admin_id ?? null
+            await upsertCommission(baId, branchAdminFee)
+          }
         }
       }
 
@@ -706,17 +770,55 @@ export async function POST(request: Request) {
         raceBranchAccum[branchId].totalBet    += userBet
         raceBranchAccum[branchId].totalPayout += userPayout
 
-        // fee_logs: 유저별 상세 수수료 기록
+        // race 수수료 분배
         if (userBet > 0) {
-          const userFee = Math.floor(userBet * 0.20)
+          const totalRate = Object.values(rateMap).reduce((s, v) => s + v, 0)
+          const totalFee  = Math.floor(userBet * totalRate)
+          const masterFee      = Math.floor(userBet * (rateMap["master"]       ?? 0))
+          const superAdminFee  = Math.floor(userBet * (rateMap["super_admin"]  ?? 0))
+          const adminFee       = Math.floor(userBet * (rateMap["admin"]        ?? 0))
+          const branchAdminFee = Math.floor(userBet * (rateMap["branch_admin"] ?? 0))
+
           await admin.from("fee_logs").insert({
             round_number: prevRaceRoundNumber,
             game_type:    "race",
             user_id:      userId,
             branch_id:    branchId,
             bet_amount:   userBet,
-            fee_amount:   userFee,
+            fee_amount:   totalFee,
           }).then(() => {}).catch(() => {})
+
+          await admin.from("commission_logs").insert({
+            round_number: prevRaceRoundNumber,
+            game_type:    "race",
+            user_id:      userId,
+            branch_id:    branchId,
+            bet_amount:   userBet,
+            master_fee:       masterFee,
+            super_admin_fee:  superAdminFee,
+            branch_admin_fee: branchAdminFee,
+            admin_fee:        adminFee,
+            total_fee:        totalFee,
+            master_id:        masterUserId,
+            super_admin_id:   saUserId,
+            admin_id:         branchId,
+          }).then(() => {}).catch(() => {})
+
+          const upsertCommission = async (uid: string | null, fee: number) => {
+            if (!uid || fee <= 0) return
+            await admin.rpc("increment_commission_balance", { p_user_id: uid, p_amount: fee })
+              .then(() => {}).catch(() => {})
+          }
+          await Promise.all([
+            upsertCommission(masterUserId, masterFee),
+            upsertCommission(saUserId, superAdminFee),
+            upsertCommission(branchId, adminFee),
+          ])
+          if (branchAdminFee > 0) {
+            const { data: bp } = await admin.from("profiles")
+              .select("super_admin_id").eq("id", branchId).single().catch(() => ({ data: null }))
+            await upsertCommission((bp as any)?.super_admin_id ?? null, branchAdminFee)
+          }
         }
       }
 
