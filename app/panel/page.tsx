@@ -1014,6 +1014,79 @@ export default function PanelPage() {
         </div>
       )}
 
+      {/* ── 승인 모달 (포인트 구매) — 모든 탭에서 동작 ── */}
+      {ppApproveId && (() => {
+        const req = ppRequests.find((r: any) => r.id === ppApproveId)
+        const cashAmt = req?.cash_amount ?? 0
+        const rate = parseFloat(ppApprovePoints) || 0
+        const payout = rate > 0 ? Math.floor(cashAmt * rate) : 0
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+              <h3 className="text-base font-semibold text-foreground mb-1">충전 요청 승인</h3>
+              <p className="text-xs text-muted-foreground mb-4">요율을 입력하면 지급 포인트가 자동 계산됩니다.</p>
+              <div className="bg-muted rounded-xl px-4 py-3 mb-4 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">요청자</span>
+                  <span className="font-semibold text-foreground">{req?.requester?.username ?? "-"}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">요청 금액</span>
+                  <span className="font-semibold text-foreground">₩{cashAmt.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">지급 포인트</span>
+                  <span className={`font-bold ${payout > 0 ? "text-primary" : "text-muted-foreground"}`}>
+                    {payout > 0 ? `₩${payout.toLocaleString()}` : "-"}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2 mb-3">
+                <div>
+                  <p className="text-xs font-medium text-foreground mb-1">요율 입력 <span className="text-muted-foreground font-normal">(예: 1.2 → {cashAmt > 0 ? `₩${Math.floor(cashAmt * 1.2).toLocaleString()}` : "1.2배"} 지급)</span></p>
+                  <Input type="number" step="0.01" placeholder="예: 1.2" value={ppApprovePoints} onChange={e => setPpApprovePoints(e.target.value)} className="h-9 text-sm" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-foreground mb-1">비밀번호 확인</p>
+                  <Input type="password" placeholder="내 비밀번호 입력" value={ppApprovePw} onChange={e => setPpApprovePw(e.target.value)} className="h-9 text-sm" />
+                </div>
+              </div>
+              {ppApproveMsg && <p className={`text-xs mb-3 ${ppApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{ppApproveMsg.text}</p>}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => { setPpApproveId(null); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }}>취소</Button>
+                <Button
+                  data-confirm
+                  size="sm"
+                  className="flex-1"
+                  disabled={ppApproving || payout <= 0 || !ppApprovePw}
+                  onClick={async () => {
+                    setPpApproving(true); setPpApproveMsg(null)
+                    const token = getToken()
+                    const res = await fetch("/api/admin/point-purchase", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ requestId: ppApproveId, pointAmount: payout, rate, password: ppApprovePw }),
+                    })
+                    const d = await res.json()
+                    if (res.ok) {
+                      setPpApproveMsg({ text: `지급 완료. ₩${payout.toLocaleString()} 지급됨`, ok: true })
+                      loadPpRequests()
+                      loadUsers(adminPw)
+                      setTimeout(() => { setPpApproveId(null); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }, 1500)
+                    } else {
+                      setPpApproveMsg({ text: d.error ?? "오류가 발생했습니다.", ok: false })
+                    }
+                    setPpApproving(false)
+                  }}
+                >
+                  {ppApproving ? "처리 중..." : `₩${payout > 0 ? payout.toLocaleString() : "??"} 지급 확인`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── 대총판 전용: 총판 계정생성 모달 ── */}
       {saOpen && myRole === "super_admin" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1404,7 +1477,7 @@ export default function PanelPage() {
               </div>
             )}
 
-            {/* ══════ 공통: 지점 목록 (총판은 카드형 클릭 가능) ══════ */}
+            {/* ══════ 공통: 지��� 목록 (총판은 카드형 클릭 가능) ══════ */}
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <h2 className="text-sm font-semibold text-foreground">지점 목록</h2>
@@ -1485,7 +1558,7 @@ export default function PanelPage() {
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">{formatDate(selectedBranch.created_at)}</p>
                 </div>
-                <button onClick={() => setSelectedBranch(null)} className="text-muted-foreground hover:text-foreground text-xl leading-none px-2">✕</button>
+                <button onClick={() => setSelectedBranch(null)} className="text-muted-foreground hover:text-foreground text-xl leading-none px-2">��</button>
               </div>
 
               <div className="flex-1 p-6 space-y-6">
@@ -1999,97 +2072,7 @@ export default function PanelPage() {
 
 
 
-            {/* 승인 모달 (포인트 구매) — 요율 입력 + 비밀번호 확인 */}
-            {ppApproveId && (() => {
-              const req = ppRequests.find((r: any) => r.id === ppApproveId)
-              const cashAmt = req?.cash_amount ?? 0
-              const rate = parseFloat(ppApprovePoints) || 0
-              const payout = rate > 0 ? Math.floor(cashAmt * rate) : 0
-              return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                  <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-                    <h3 className="text-base font-semibold text-foreground mb-1">충전 요청 승인</h3>
-                    <p className="text-xs text-muted-foreground mb-4">요율을 입력하면 지급 포인트가 자동 계산됩니다.</p>
 
-                    {/* 요청 정보 */}
-                    <div className="bg-muted rounded-xl px-4 py-3 mb-4 space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">요청자</span>
-                        <span className="font-semibold text-foreground">{req?.requester?.username ?? "-"}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">요청 금액</span>
-                        <span className="font-semibold text-foreground">₩{cashAmt.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">지급 포인트</span>
-                        <span className={`font-bold ${payout > 0 ? "text-primary" : "text-muted-foreground"}`}>
-                          {payout > 0 ? `₩${payout.toLocaleString()}` : "-"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 mb-3">
-                      <div>
-                        <p className="text-xs font-medium text-foreground mb-1">요율 입력 <span className="text-muted-foreground font-normal">(예: 1.2 → {cashAmt > 0 ? `₩${Math.floor(cashAmt * 1.2).toLocaleString()}` : "1.2배"} 지급)</span></p>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="예: 1.2"
-                          value={ppApprovePoints}
-                          onChange={e => setPpApprovePoints(e.target.value)}
-                          className="h-9 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-foreground mb-1">비밀번호 확인</p>
-                        <Input
-                          type="password"
-                          placeholder="내 비밀번호 입력"
-                          value={ppApprovePw}
-                          onChange={e => setPpApprovePw(e.target.value)}
-                          className="h-9 text-sm"
-                          onKeyDown={e => { if (e.key === "Enter" && payout > 0 && ppApprovePw) (e.target as HTMLElement).closest("div")?.querySelector<HTMLButtonElement>("[data-confirm]")?.click() }}
-                        />
-                      </div>
-                    </div>
-
-                    {ppApproveMsg && <p className={`text-xs mb-3 ${ppApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{ppApproveMsg.text}</p>}
-
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1" onClick={() => { setPpApproveId(null); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }}>취소</Button>
-                      <Button
-                        data-confirm
-                        size="sm"
-                        className="flex-1"
-                        disabled={ppApproving || payout <= 0 || !ppApprovePw}
-                        onClick={async () => {
-                          setPpApproving(true); setPpApproveMsg(null)
-                          const token = getToken()
-                          const res = await fetch("/api/admin/point-purchase", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                            body: JSON.stringify({ requestId: ppApproveId, pointAmount: payout, rate, password: ppApprovePw }),
-                          })
-                          const d = await res.json()
-                          if (res.ok) {
-                            setPpApproveMsg({ text: `지급 완료. ₩${payout.toLocaleString()} 지급됨`, ok: true })
-                            loadPpRequests()   // 요청 목록 즉시 갱신
-                            loadUsers(adminPw) // 잔고 즉시 갱신
-                            setTimeout(() => { setPpApproveId(null); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }, 1500)
-                          } else {
-                            setPpApproveMsg({ text: d.error ?? "오류가 발생했습니다.", ok: false })
-                          }
-                          setPpApproving(false)
-                        }}
-                      >
-                        {ppApproving ? "처리 중..." : `₩${payout > 0 ? payout.toLocaleString() : "??"} 지급 확인`}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })()}
 
             {/* 포인트 충전 요청 (임시계정 생성) — master 전용 */}
             {myRole === "master" && <div className="bg-card border border-border rounded-xl p-5 space-y-3">
