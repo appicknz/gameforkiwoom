@@ -22,6 +22,19 @@ const DEFAULT_TAB: Record<string, "users" | "branches" | "branches_sa" | "monito
 function getToken(): string | null {
   try { return localStorage.getItem("app_token") } catch { return null }
 }
+function clearToken() {
+  try { localStorage.removeItem("app_token") } catch {}
+}
+const PW_CACHE_KEY = "panel_admin_pw_cache"
+function getCachedPw(): string | null {
+  try { return sessionStorage.getItem(PW_CACHE_KEY) } catch { return null }
+}
+function setCachedPw(pw: string) {
+  try { sessionStorage.setItem(PW_CACHE_KEY, pw) } catch {}
+}
+function clearCachedPw() {
+  try { sessionStorage.removeItem(PW_CACHE_KEY) } catch {}
+}
 
 interface User {
   id: string
@@ -158,7 +171,11 @@ export default function PanelPage() {
   const [myBranchId, setMyBranchId] = useState<string | undefined>(undefined)
   const [profile, setProfile] = useState<{ username: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [adminPw, setAdminPw] = useState("")
+  const [adminPw, setAdminPw] = useState<string>(() => {
+    // sessionStorage 캐시 우선, 없으면 admin 역할은 빈 문자열로 시작 (게이트 스킵)
+    if (typeof window !== "undefined") return getCachedPw() ?? ""
+    return ""
+  })
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
@@ -527,6 +544,7 @@ export default function PanelPage() {
       return
     }
 
+    setCachedPw(pwInput)
     setAdminPw(pwInput)
     setPwInput("")
   }
@@ -1082,7 +1100,8 @@ export default function PanelPage() {
     )
   }
 
-  if (!adminPw) {
+  // admin(지점)은 로그인 인증 자체가 본인 확인 — 비밀번호 게이트 불필요
+  if (!adminPw && myRole !== "admin") {
     const isBranchAdmin = myRole === "branch_admin"
     const pwLabel = isBranchAdmin ? "본인 비밀번호" : "마스터 비밀번호"
     const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력���세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
@@ -1154,7 +1173,7 @@ export default function PanelPage() {
               <Plus className="w-3.5 h-3.5" /> 유저 생성요청
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={() => router.replace("/")} className="gap-1.5 text-muted-foreground">
+          <Button variant="ghost" size="sm" onClick={() => { clearToken(); clearCachedPw(); router.replace("/") }} className="gap-1.5 text-muted-foreground">
             <LogOut className="w-4 h-4" /> 나가기
           </Button>
         </div>
@@ -1760,7 +1779,7 @@ export default function PanelPage() {
                                 <span>요청 ID / 지점</span>
                                 <span className="text-center">수량</span>
                                 <span className="text-center">메모</span>
-                                <span className="text-right">요청일시</span>
+                                <span className="text-right">���청일시</span>
                                 <span className="text-right">처리</span>
                               </div>
                               <div className="divide-y divide-border">
@@ -2024,7 +2043,7 @@ export default function PanelPage() {
                               approved:  { label: "지급완료", cls: "bg-green-100 text-green-700" },
                               activated: { label: "지급완료", cls: "bg-green-100 text-green-700" },
                               rejected:  { label: "거절",     cls: "bg-red-100 text-red-700" },
-                              requested: { label: "요청완료", cls: "bg-blue-100 text-blue-700" },
+                              requested: { label: "요��완료", cls: "bg-blue-100 text-blue-700" },
                             }
                             const st = statusMap[r.status] ?? { label: r.status, cls: "bg-muted text-muted-foreground" }
                             return (
@@ -3078,7 +3097,7 @@ export default function PanelPage() {
                               body: JSON.stringify({ userId: uid, amount: isWithdraw ? -amt : amt }),
                             })
                             const d = await res.json()
-                            setBranchChargeMsg(res.ok ? { text: `${isWithdraw ? "회수" : "충전"} 완료`, ok: true } : { text: d.error ?? "오류", ok: false })
+                            setBranchChargeMsg(res.ok ? { text: `${isWithdraw ? "회수" : "충전"} 완료`, ok: true } : { text: d.error ?? "오��", ok: false })
                             if (res.ok) { setBranchChargeAmt(""); loadBranchUsers() }
                             setBranchChargeLoading(false)
                           }}
