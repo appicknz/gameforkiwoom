@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, TrendingUp, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy, ImageIcon, Upload } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, TrendingUp, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy, ImageIcon, Upload, Percent } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -162,7 +162,14 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission">("users")
+  // 수수료 설정 (마스터 전용)
+  const [commRates, setCommRates]         = useState<{ role: string; rate: number }[]>([])
+  const [commEditing, setCommEditing]     = useState<Record<string, string>>({}) // role → 입력 중인 % 문자열
+  const [commSaving, setCommSaving]       = useState(false)
+  const [commMsg, setCommMsg]             = useState<{ text: string; ok: boolean } | null>(null)
+  // 내 수수료 잔고
+  const [myCommBalance, setMyCommBalance] = useState<number>(0)
 
   // 계정 생성 (master 전용)
   const [acUsername, setAcUsername]   = useState("")
@@ -423,6 +430,11 @@ export default function PanelPage() {
         fetch("/api/admin/my-balance", { headers: { Authorization: `Bearer ${tok}` } })
           .then(r => r.ok ? r.json() : null)
           .then(d => { if (d && typeof d.balance === "number") setMyBalance(d.balance) })
+          .catch(() => {})
+        // 수수료 잔고 즉시 로드 (모든 역할)
+        fetch("/api/admin/commission-balances", { headers: { Authorization: `Bearer ${tok}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d) setMyCommBalance(d.balance ?? 0) })
           .catch(() => {})
         if (role === "super_admin") {
           fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
@@ -776,6 +788,18 @@ export default function PanelPage() {
         .reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
       setBaTotalCharged(total)
     }
+  }, [])
+
+  const loadCommRates = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    const res = await fetch("/api/admin/commission-rates", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setCommRates(d.rates ?? []) }
+  }, [])
+
+  const loadMyCommBalance = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    const res = await fetch("/api/admin/commission-balances", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setMyCommBalance(d.balance ?? 0) }
   }, [])
 
   const handleBranchAdminCharge = async () => {
@@ -1192,6 +1216,7 @@ export default function PanelPage() {
             <button onClick={() => { setActiveTab("pnl"); loadPnl(pnlPeriod) }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "pnl" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><TrendingUp className="w-4 h-4" /> 손익</button>
             <button onClick={() => setActiveTab("accounts")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "accounts" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Shield className="w-4 h-4" /> 계정생성</button>
             <button onClick={() => { setActiveTab("cards"); fetchCardImages() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><ImageIcon className="w-4 h-4" /> 카드관리</button>
+            <button onClick={() => { setActiveTab("commission"); loadCommRates() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "commission" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Percent className="w-4 h-4" /> 수수료 설정</button>
           </>)}
 
           {/* ── 대총판 전용 탭 ── */}
@@ -1411,7 +1436,7 @@ export default function PanelPage() {
                     .filter((r: any) => r.status === "approved")
                     .reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
                   return (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                       {/* 지점 수 */}
                       <div className="bg-card border border-border rounded-xl p-4">
                         <p className="text-xs text-muted-foreground mb-1">지점 수</p>
@@ -1449,6 +1474,12 @@ export default function PanelPage() {
                         <p className="text-2xl font-bold text-foreground">₩{totalEx.toLocaleString()}</p>
                         <p className="text-[11px] text-primary/70 mt-1">{baStatExpanded ? "접기 ▲" : "상세 보기 ▼"}</p>
                       </button>
+                      {/* 수수료 잔고 */}
+                      <div className="bg-card border border-border rounded-xl p-4">
+                        <p className="text-xs text-muted-foreground mb-1">수수료 잔고</p>
+                        <p className="text-2xl font-bold text-amber-500">₩{myCommBalance.toLocaleString()}</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">배팅 수수료 누적</p>
+                      </div>
                     </div>
                   )
                 })()}
@@ -1512,8 +1543,6 @@ export default function PanelPage() {
                 {baStatExpanded && (() => {
                   const approvedEx = baExRequests.filter((r: any) => r.status === "approved")
                   const totalEx = approvedEx.reduce((s: number, r: any) => s + (r.point_amount ?? 0), 0)
-                  // 수수료: point_charge_requests의 fee_amount 합계 (없으면 0)
-                  const totalFee = baChargeRequests.reduce((s: number, r: any) => s + (r.fee_amount ?? 0), 0)
                   return (
                     <div className="bg-card border border-border rounded-xl overflow-hidden">
                       <div className="px-5 py-3 border-b border-border">
@@ -1526,9 +1555,9 @@ export default function PanelPage() {
                           <p className="text-[11px] text-muted-foreground mt-1">완료된 환전 누계</p>
                         </div>
                         <div className="p-5">
-                          <p className="text-xs text-muted-foreground mb-1">수수료</p>
-                          <p className="text-xl font-bold text-amber-500">₩{totalFee.toLocaleString()}</p>
-                          <p className="text-[11px] text-muted-foreground mt-1">충전 요청 수수료 누계</p>
+                          <p className="text-xs text-muted-foreground mb-1">배팅 수수료</p>
+                          <p className="text-xl font-bold text-amber-500">₩{myCommBalance.toLocaleString()}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1">유저 배팅 수수료 누계</p>
                         </div>
                         <div className="p-5">
                           <p className="text-xs text-muted-foreground mb-1">지급된 포인트</p>
@@ -2051,8 +2080,8 @@ export default function PanelPage() {
           return (
           <div className="space-y-4">
 
-            {/* 요약 카드 4개 */}
-            <div className="grid grid-cols-4 gap-4">
+            {/* 요약 카드 5개 */}
+            <div className="grid grid-cols-5 gap-4">
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground mb-1">총판 수</p>
                 <p className="text-2xl font-bold text-foreground">{saBranchAdmins.length}<span className="text-sm font-normal text-muted-foreground ml-1">개</span></p>
@@ -2068,6 +2097,11 @@ export default function PanelPage() {
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground mb-1">요청금액(매출)</p>
                 <p className="text-2xl font-bold text-foreground">₩{totalSales.toLocaleString()}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">수수료 잔고</p>
+                <p className="text-2xl font-bold text-amber-500">₩{myCommBalance.toLocaleString()}</p>
+                <p className="text-[11px] text-muted-foreground mt-1">배팅 수수료 누적</p>
               </div>
             </div>
 
@@ -2422,11 +2456,21 @@ export default function PanelPage() {
           <div className="space-y-6">
 
             {/* 내 잔고 요약 */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground mb-1">내 현금 잔고</p>
                 <p className="text-2xl font-bold text-foreground">₩{cashBalance.toLocaleString()}</p>
               </div>
+              <div className="bg-card border border-border rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">내 포인트 잔고</p>
+                <p className="text-2xl font-bold text-foreground">{pointBalance.toLocaleString()} P</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">수수료 잔고</p>
+                <p className="text-2xl font-bold text-amber-500">₩{myCommBalance.toLocaleString()}</p>
+                <p className="text-[11px] text-muted-foreground mt-1">배팅 수수료 누적</p>
+              </div>
+            </div>
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground mb-1">내 포인��� 잔고</p>
                 <p className="text-2xl font-bold text-foreground">{pointBalance.toLocaleString()} P</p>
@@ -3128,6 +3172,132 @@ export default function PanelPage() {
             )}
           </div>
         )}
+
+        {/* ── 수수료 설정 탭 (master 전용) ── */}
+        {activeTab === "commission" && myRole === "master" && (() => {
+          const ROLE_LABELS: Record<string, string> = {
+            master:       "마스터",
+            super_admin:  "대총판",
+            branch_admin: "총판",
+            admin:        "지점",
+          }
+          const totalRate = commRates.reduce((s, r) => s + r.rate, 0)
+          const editing = commEditing
+
+          const handleChange = (role: string, val: string) => {
+            setCommEditing(prev => ({ ...prev, [role]: val }))
+          }
+
+          const handleSave = async () => {
+            setCommSaving(true); setCommMsg(null)
+            const token = getToken()
+            const rates = commRates.map(r => ({
+              role: r.role,
+              rate: parseFloat(editing[r.role] ?? String(r.rate * 100)) / 100,
+            }))
+            const res = await fetch("/api/admin/commission-rates", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ rates }),
+            })
+            const d = await res.json()
+            if (res.ok) {
+              setCommMsg({ text: `저장 완료. 총 수수료: ${(d.totalRate * 100).toFixed(1)}%`, ok: true })
+              loadCommRates()
+              setCommEditing({})
+            } else {
+              setCommMsg({ text: d.error ?? "저장 실패", ok: false })
+            }
+            setCommSaving(false)
+          }
+
+          return (
+            <div className="space-y-6 max-w-lg">
+              <div className="bg-card border border-border rounded-2xl p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <Percent className="w-4 h-4 text-primary" />
+                  <h2 className="text-base font-semibold text-foreground">배팅 수수료 요율 설정</h2>
+                </div>
+                <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
+                  유저가 배팅한 금액에 대해 각 역할에 지급되는 수수료 비율입니다.<br />
+                  합계가 100%를 초과할 수 없으며, 나머지는 배당 풀로 사용됩니다.
+                </p>
+
+                <div className="space-y-3">
+                  {["master", "super_admin", "branch_admin", "admin"].map(role => {
+                    const current = commRates.find(r => r.role === role)?.rate ?? 0
+                    const inputVal = editing[role] ?? String((current * 100).toFixed(1))
+                    return (
+                      <div key={role} className="flex items-center justify-between gap-4 bg-muted/40 rounded-xl px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{ROLE_LABELS[role]}</p>
+                          <p className="text-[11px] text-muted-foreground">현재 {(current * 100).toFixed(1)}%</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={inputVal}
+                            onChange={e => handleChange(role, e.target.value)}
+                            className="w-24 h-9 text-sm text-right"
+                          />
+                          <span className="text-sm text-muted-foreground">%</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* 합계 표시 */}
+                <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    입력 합계:{" "}
+                    <span className={`font-bold ${
+                      Object.keys(commEditing).length > 0
+                        ? Object.values(commEditing).reduce((s, v) => s + (parseFloat(v) || 0), 0) > 100
+                          ? "text-destructive"
+                          : "text-primary"
+                        : "text-foreground"
+                    }`}>
+                      {Object.keys(commEditing).length > 0
+                        ? Object.values(commEditing).reduce((s, v) => s + (parseFloat(v) || 0), 0).toFixed(1)
+                        : (totalRate * 100).toFixed(1)
+                      }%
+                    </span>
+                    <span className="text-muted-foreground"> / 배당 풀: </span>
+                    <span className="font-medium text-foreground">
+                      {Object.keys(commEditing).length > 0
+                        ? Math.max(0, 100 - Object.values(commEditing).reduce((s, v) => s + (parseFloat(v) || 0), 0)).toFixed(1)
+                        : (100 - totalRate * 100).toFixed(1)
+                      }%
+                    </span>
+                  </p>
+                  <Button size="sm" onClick={handleSave} disabled={commSaving} className="px-5">
+                    {commSaving ? "저장 중..." : "저장"}
+                  </Button>
+                </div>
+
+                {commMsg && (
+                  <p className={`mt-3 text-xs ${commMsg.ok ? "text-primary" : "text-destructive"}`}>{commMsg.text}</p>
+                )}
+              </div>
+
+              {/* 내 수수료 잔고 */}
+              <div className="bg-card border border-border rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-foreground">내 수수료 잔고</h3>
+                  <Button variant="ghost" size="sm" onClick={loadMyCommBalance} className="h-7 w-7 p-0">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                <p className="text-3xl font-bold text-primary">₩{myCommBalance.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">유저 배팅액에서 마스터 요율만큼 누적된 수수료</p>
+              </div>
+            </div>
+          )
+        })()}
 
       </main>
     </div>
