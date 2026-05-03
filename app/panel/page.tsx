@@ -411,29 +411,6 @@ export default function PanelPage() {
       .catch(() => router.replace("/"))
   }, [router])
 
-  // 대총판/총판: 5초마다 충전 요청 목록 + 잔고 자동 갱신 (실시간에 가까운 폴링)
-  useEffect(() => {
-    if (myRole !== "super_admin" && myRole !== "branch_admin") return
-    const poll = () => {
-      const tok = getToken(); if (!tok) return
-      // 요청 목록 갱신
-      fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => {
-          if (!d?.requests) return
-          if (myRole === "super_admin") setPpRequests(d.requests)
-          else setBaChargeRequests(d.requests)
-        })
-        .catch(() => {})
-      // 잔고 갱신 (총판: 승인 시 잔고가 올라가야 하므로)
-      if (myRole === "branch_admin" && adminPw) {
-        loadUsers(adminPw)
-      }
-    }
-    const interval = setInterval(poll, 5000)
-    return () => clearInterval(interval)
-  }, [myRole, adminPw, loadUsers])
-
   const [pwChecking, setPwChecking] = useState(false)
 
   const handlePwSubmit = async () => {
@@ -485,6 +462,27 @@ export default function PanelPage() {
     }
     setUsersLoading(false)
   }, [myUserId])
+
+  // 대총판/총판: 5초마다 충전 요청 목록 + 잔고 자동 갱신
+  useEffect(() => {
+    if (myRole !== "super_admin" && myRole !== "branch_admin") return
+    const poll = () => {
+      const tok = getToken(); if (!tok) return
+      fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (!d?.requests) return
+          if (myRole === "super_admin") setPpRequests(d.requests)
+          else setBaChargeRequests(d.requests)
+        })
+        .catch(() => {})
+      if (myRole === "branch_admin" && adminPw) {
+        loadUsers(adminPw)
+      }
+    }
+    const interval = setInterval(poll, 5000)
+    return () => clearInterval(interval)
+  }, [myRole, adminPw, loadUsers])
 
   // 지점 목록 로드
   const loadBranches = useCallback(async (pw: string) => {
