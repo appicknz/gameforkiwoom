@@ -1390,73 +1390,81 @@ export default function PanelPage() {
                 <button onClick={() => setSelectedBranch(null)} className="text-muted-foreground hover:text-foreground text-xl leading-none px-2">✕</button>
               </div>
 
-              <div className="flex-1 p-6 space-y-6">
-                {/* 유저 생성 폼 */}
-                <div className="bg-card border border-border rounded-xl p-5">
-                  <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2"><Plus className="w-4 h-4 text-primary" /> 유저 생성</h3>
-                  <p className="text-xs text-muted-foreground mb-4">수량만큼 계정이 생성됩니다. 아이디가 여러 개면 뒤에 번호가 자동으로 붙습니다 (예: user01, user02).</p>
-                  <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="flex-1 flex gap-0 min-h-0 overflow-hidden">
+
+                {/* 왼쪽: 유저 생성 폼 */}
+                <div className="w-72 shrink-0 border-r border-border p-5 space-y-4 overflow-y-auto">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+                      <Plus className="w-4 h-4 text-primary" /> 유저 생성
+                    </h3>
+                    <p className="text-xs text-muted-foreground">수량만큼 계정이 생성됩니다. 아이디가 여러 개면 뒤에 번호가 자동으로 붙습니다 (예: user01, user02).</p>
+                  </div>
+                  <div className="space-y-2">
                     <Input placeholder="아이디" value={buUsername} onChange={e => setBuUsername(e.target.value)} className="h-9 text-sm" />
                     <Input placeholder="비밀번호" type="password" value={buPassword} onChange={e => setBuPassword(e.target.value)} className="h-9 text-sm" />
                     <Input placeholder="수량 (최대 50)" type="number" min={1} max={50} value={buCount} onChange={e => setBuCount(e.target.value)} className="h-9 text-sm" />
                     <Input placeholder="메모 (선택)" value={buMemo} onChange={e => setBuMemo(e.target.value)} className="h-9 text-sm" />
                   </div>
-                  {buMsg && <p className={`text-xs mb-2 ${buMsg.ok ? "text-primary" : "text-destructive"}`}>{buMsg.text}</p>}
-                  <Button size="sm" className="gap-1.5 text-sm" disabled={buSubmitting || !buUsername.trim() || !buPassword.trim()} onClick={() => handleBulkUserCreate(selectedBranch.code)}>
+                  {buMsg && <p className={`text-xs ${buMsg.ok ? "text-primary" : "text-destructive"}`}>{buMsg.text}</p>}
+                  <Button size="sm" className="w-full gap-1.5 text-sm" disabled={buSubmitting || !buUsername.trim() || !buPassword.trim()} onClick={() => handleBulkUserCreate(selectedBranch.code)}>
                     <Plus className="w-3.5 h-3.5" /> {buSubmitting ? "생성 중..." : `${buCount}개 유저 생성`}
                   </Button>
                 </div>
 
-                {/* 회원 목록 */}
-                <div className="bg-card border border-border rounded-xl overflow-hidden">
-                  <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3">
+                {/* 오른쪽: 회원 목록 */}
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3 shrink-0">
                     <h3 className="text-sm font-semibold text-foreground shrink-0">회원 목록 ({branchMembers.length}명)</h3>
                     <Input placeholder="아이디 검색" value={memberSearch} onChange={e => setMemberSearch(e.target.value)} className="h-8 text-xs max-w-48" />
                     <Button variant="ghost" size="sm" onClick={() => loadBranchMembers(selectedBranch.code)} disabled={branchMembersLoading} className="gap-1 text-xs shrink-0">
                       <RefreshCw className={`w-3 h-3 ${branchMembersLoading ? "animate-spin" : ""}`} />
                     </Button>
                   </div>
-                  {branchMembersLoading ? (
-                    <div className="py-10 flex justify-center"><div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" /></div>
-                  ) : branchMembers.filter(u => !memberSearch || u.username.toLowerCase().includes(memberSearch.toLowerCase())).length === 0 ? (
-                    <p className="py-8 text-center text-sm text-muted-foreground">회원이 없습니다.</p>
-                  ) : (
-                    <div className="divide-y divide-border">
-                      {branchMembers
-                        .filter(u => !memberSearch || u.username.toLowerCase().includes(memberSearch.toLowerCase()))
-                        .map(u => (
-                          <div key={u.id}>
-                            <button
-                              className="w-full px-5 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors text-left"
-                              onClick={() => setExpandedMember(expandedMember === u.id ? null : u.id)}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                  <span className="text-[10px] font-bold text-primary">{u.username.charAt(0)}</span>
+                  <div className="flex-1 overflow-y-auto">
+                    {branchMembersLoading ? (
+                      <div className="py-10 flex justify-center"><div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" /></div>
+                    ) : branchMembers.filter(u => !memberSearch || u.username.toLowerCase().includes(memberSearch.toLowerCase())).length === 0 ? (
+                      <p className="py-8 text-center text-sm text-muted-foreground">회원이 없습니다.</p>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {branchMembers
+                          .filter(u => !memberSearch || u.username.toLowerCase().includes(memberSearch.toLowerCase()))
+                          .map(u => (
+                            <div key={u.id}>
+                              <button
+                                className="w-full px-5 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors text-left"
+                                onClick={() => setExpandedMember(expandedMember === u.id ? null : u.id)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                    <span className="text-[10px] font-bold text-primary">{u.username.charAt(0)}</span>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-foreground">{u.username}</p>
+                                    <p className="text-[10px] text-muted-foreground">{formatDate(u.created_at)}</p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="text-sm font-medium text-foreground">{u.username}</p>
-                                  <p className="text-[10px] text-muted-foreground">{formatDate(u.created_at)}</p>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-semibold text-foreground">₩{(u.balance ?? 0).toLocaleString()}</span>
+                                  <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${expandedMember === u.id ? "rotate-90" : ""}`} />
                                 </div>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="text-sm font-semibold text-foreground">₩{(u.balance ?? 0).toLocaleString()}</span>
-                                <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${expandedMember === u.id ? "rotate-90" : ""}`} />
-                              </div>
-                            </button>
-                            {expandedMember === u.id && (
-                              <div className="px-5 pb-4 bg-muted/30 space-y-1">
-                                <p className="text-xs text-muted-foreground pt-2">ID: <span className="text-foreground font-mono text-[11px]">{u.id}</span></p>
-                                <p className="text-xs text-muted-foreground">가입일: {new Date(u.created_at).toLocaleString("ko-KR")}</p>
-                                <p className="text-xs text-muted-foreground">역할: {roleLabel[u.role]?.label ?? u.role}</p>
-                                <p className="text-xs text-muted-foreground">지점코드: {u.branch_code ?? "-"}</p>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                    </div>
-                  )}
+                              </button>
+                              {expandedMember === u.id && (
+                                <div className="px-5 pb-4 bg-muted/30 space-y-1">
+                                  <p className="text-xs text-muted-foreground pt-2">ID: <span className="text-foreground font-mono text-[11px]">{u.id}</span></p>
+                                  <p className="text-xs text-muted-foreground">가입일: {new Date(u.created_at).toLocaleString("ko-KR")}</p>
+                                  <p className="text-xs text-muted-foreground">역할: {roleLabel[u.role]?.label ?? u.role}</p>
+                                  <p className="text-xs text-muted-foreground">지점코드: {u.branch_code ?? "-"}</p>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+
               </div>
             </div>
           </div>
