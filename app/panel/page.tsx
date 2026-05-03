@@ -804,6 +804,16 @@ export default function PanelPage() {
     setBranchExLoading(false)
   }, [])
 
+  // ── 유저 계정 생성 요청 모달 (admin 전용) ──
+  const [adminCreateUserOpen, setAdminCreateUserOpen] = useState(false)
+  const [acuUsername, setAcuUsername]   = useState("")
+  const [acuPassword, setAcuPassword]   = useState("")
+  const [acuCount, setAcuCount]         = useState("1")
+  const [acuMemo, setAcuMemo]           = useState("")
+  const [acuLoading, setAcuLoading]     = useState(false)
+  const [acuMsg, setAcuMsg]             = useState<{ text: string; ok: boolean } | null>(null)
+  const [acuShowPw, setAcuShowPw]       = useState(false)
+
   // ── 유저 계정 생성 요청 (branch_admin 승인용) ──
   const [acctRequests, setAcctRequests]       = useState<any[]>([])
   const [acctExpanded, setAcctExpanded]       = useState(false)
@@ -1110,6 +1120,11 @@ export default function PanelPage() {
               <Plus className="w-3.5 h-3.5" /> 지점 계정생성
             </Button>
           )}
+          {myRole === "admin" && (
+            <Button size="sm" onClick={() => { setAdminCreateUserOpen(true); setAcuUsername(""); setAcuPassword(""); setAcuCount("1"); setAcuMemo(""); setAcuMsg(null) }} className="gap-1.5 text-xs">
+              <Plus className="w-3.5 h-3.5" /> 유저 생성요청
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => router.replace("/")} className="gap-1.5 text-muted-foreground">
             <LogOut className="w-4 h-4" /> 나가기
           </Button>
@@ -1149,6 +1164,89 @@ export default function PanelPage() {
               <Button size="sm" className="flex-1 gap-1.5" disabled={baCreateLoading || !baNewBranchName.trim() || !baNewBranchCode.trim()} onClick={handleBaCreateBranch}>
                 <Plus className="w-3.5 h-3.5" />
                 {baCreateLoading ? "생성 중..." : "지점 생성"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 지점 전용: 유저 계정 생성 요청 모달 ── */}
+      {adminCreateUserOpen && myRole === "admin" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-primary" /> 유저 계정 생성 요청
+              </h2>
+              <button onClick={() => setAdminCreateUserOpen(false)} className="text-muted-foreground hover:text-foreground">
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+              총판에게 요청이 전달되며, 승인 후 계정이 생성됩니다.<br />
+              수량이 2 이상이면 ID 뒤에 번호가 자동으로 붙습니다. (예: user01, user02)
+            </p>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">ID (아이디)</label>
+                <Input placeholder="생성할 ID" value={acuUsername} onChange={e => setAcuUsername(e.target.value)} className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">초기 비밀번호</label>
+                <div className="relative">
+                  <Input
+                    type={acuShowPw ? "text" : "password"}
+                    placeholder="초기 비밀번호"
+                    value={acuPassword}
+                    onChange={e => setAcuPassword(e.target.value)}
+                    className="h-9 text-sm pr-9"
+                  />
+                  <button type="button" onClick={() => setAcuShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    {acuShowPw ? <KeyRound className="w-3.5 h-3.5" /> : <KeyRound className="w-3.5 h-3.5 opacity-40" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">수량</label>
+                <Input type="number" min="1" max="100" placeholder="1" value={acuCount} onChange={e => setAcuCount(e.target.value)} className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">메모 (선택)</label>
+                <textarea
+                  placeholder="총판에게 전달할 메모"
+                  value={acuMemo}
+                  onChange={e => setAcuMemo(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60 resize-none"
+                />
+              </div>
+            </div>
+            {acuMsg && <p className={`text-xs mb-3 ${acuMsg.ok ? "text-primary" : "text-destructive"}`}>{acuMsg.text}</p>}
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => setAdminCreateUserOpen(false)}>취소</Button>
+              <Button
+                size="sm"
+                className="flex-1 gap-1.5"
+                disabled={acuLoading || !acuUsername.trim() || !acuPassword.trim()}
+                onClick={async () => {
+                  setAcuLoading(true); setAcuMsg(null)
+                  const token = getToken()
+                  const res = await fetch("/api/admin/user-account-requests", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ username: acuUsername, password: acuPassword, count: parseInt(acuCount) || 1, memo: acuMemo }),
+                  })
+                  const d = await res.json()
+                  if (res.ok) {
+                    setAcuMsg({ text: "요청이 총판에게 전달되었습니다.", ok: true })
+                    setAcuUsername(""); setAcuPassword(""); setAcuCount("1"); setAcuMemo("")
+                  } else {
+                    setAcuMsg({ text: d.error ?? "오류가 발생했습니다.", ok: false })
+                  }
+                  setAcuLoading(false)
+                }}
+              >
+                {acuLoading ? "요청 중..." : "요청 보내기"}
               </Button>
             </div>
           </div>
