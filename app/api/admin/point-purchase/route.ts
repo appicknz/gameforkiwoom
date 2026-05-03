@@ -47,19 +47,38 @@ export async function GET(req: Request) {
   const ROLES = ["master", "super_admin", "branch_admin", "admin"]
   if (!ROLES.includes(me.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  // master/super_admin은 전체 조회, 나머지는 자신의 요청만
+  const url = new URL(req.url)
+  const fromBranches = url.searchParams.get("from") === "branches"
+
+  // master/super_admin은 전체 조회, branch_admin은 자신의 요청 or 자신이 관리하는 지점(admin) 요청
+  // ?from=branches 쿼리 시 branch_admin은 admin 역할 요청만 필터
   let query = adminSupabase
     .from("point_purchase_requests")
     .select(`
       id, requester_id, requester_role, cash_amount, point_amount,
       status, memo, created_at, approved_at, rate,
-      requester:profiles!requester_id(username),
+      requester:profiles!requester_id(username, branch_id),
       approver:profiles!approver_id(username)
     `)
     .order("created_at", { ascending: false })
-    .limit(100)
+    .limit(200)
 
-  if (!["master", "super_admin"].includes(me.role)) {
+  if (me.role === "branch_admin") {
+    if (fromBranches) {
+      // 자신이 총판인 지점(admin) 계정들의 요청 — branch_id = 현재 총판 프로필의 branches.id
+      // profiles.branch_id가 branch_admin 자신의 branches row를 가리킴
+      const { data: myBranch } = await adminSupabase
+        .from("branches").select("id").eq("owner_email", me.username ?? "").maybeSingle()
+      // branch_id로 연결된 admin 프로필 목록 조회
+      const { data: branchAdmins } = await adminSupabase
+        .from("profiles").select("id").eq("role", "admin").eq("branch_id", auth.userId)
+      const adminIds = (branchAdmins ?? []).map((p: any) => p.id)
+      if (adminIds.length === 0) return NextResponse.json({ requests: [] })
+      query = query.in("requester_id", adminIds)
+    } else {
+      query = query.eq("requester_id", auth.userId)
+    }
+  } else if (!["master", "super_admin"].includes(me.role)) {
     query = query.eq("requester_id", auth.userId)
   }
 
@@ -102,7 +121,7 @@ export async function PATCH(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: me } = await adminSupabase.from("profiles").select("role").eq("id", auth.userId).single()
-  if (!me || !["master", "super_admin"].includes(me.role)) {
+  if (!me || !["master", "super_admin", "branch_admin"].includes(me.role)) {
     return NextResponse.json({ error: "승인 권한이 없습니다." }, { status: 403 })
   }
 

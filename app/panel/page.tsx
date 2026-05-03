@@ -470,6 +470,11 @@ export default function PanelPage() {
             .then(r => r.ok ? r.json() : null)
             .then(d => { if (d?.requests) setBaChargeRequests(d.requests) })
             .catch(() => {})
+          // 지점이 올린 충전 요청 초기 로드
+          fetch("/api/admin/point-purchase?from=branches", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d?.requests) setBranchChargeReqs(d.requests) })
+            .catch(() => {})
           fetch("/api/admin/exchange-request", { headers: { Authorization: `Bearer ${tok}` } })
             .then(r => r.ok ? r.json() : null)
             .then(d => { if (d?.requests) setBaExRequests(d.requests) })
@@ -792,6 +797,10 @@ export default function PanelPage() {
   const [baChargeRequests, setBaChargeRequests] = useState<any[]>([])
   const [baChargeLoading, setBaChargeLoading] = useState(false)
   const [baChargeExpanded, setBaChargeExpanded] = useState(false)
+  // 총판 전용: 지점이 올린 충전 요청 목록
+  const [branchChargeReqs, setBranchChargeReqs]     = useState<any[]>([])
+  const [branchChargeLoading, setBranchChargeLoading] = useState(false)
+  const [branchChargeExpanded, setBranchChargeExpanded] = useState(false)
   // 총판 환전 요청 목록 (branch_admin 전용 요약)
   const [baExRequests, setBaExRequests]       = useState<any[]>([])
   const [baExLoading, setBaExLoading]         = useState(false)
@@ -815,6 +824,14 @@ export default function PanelPage() {
     const res = await fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${token}` } })
     if (res.ok) { const d = await res.json(); setBaChargeRequests(d.requests ?? []) }
     setBaChargeLoading(false)
+  }, [])
+
+  const loadBranchChargeReqs = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    setBranchChargeLoading(true)
+    const res = await fetch("/api/admin/point-purchase?from=branches", { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); setBranchChargeReqs(d.requests ?? []) }
+    setBranchChargeLoading(false)
   }, [])
 
   const loadBranchUsers = useCallback(async () => {
@@ -1491,7 +1508,7 @@ export default function PanelPage() {
 
           {/* ── 총판 전용 탭 ── */}
           {myRole === "branch_admin" && (
-            <button onClick={() => { setActiveTab("branches"); loadBranches(adminPw); loadBaChargeRequests(); loadBaExRequests(); loadBaTotalCharged(); loadAcctRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <button onClick={() => { setActiveTab("branches"); loadBranches(adminPw); loadBaChargeRequests(); loadBranchChargeReqs(); loadBaExRequests(); loadBaTotalCharged(); loadAcctRequests() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "branches" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               <GitBranch className="w-4 h-4" /> 총판
               {baChargeRequests.filter((r: any) => r.status === "pending").length > 0 && (
                 <span className="ml-1 bg-amber-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
@@ -1712,12 +1729,23 @@ export default function PanelPage() {
                         </p>
                         <p className="text-[11px] text-primary/70 mt-1">{baChargeExpanded ? "접기 ▲" : "목록 보기 ▼"}</p>
                       </button>
+                      {/* 지점 충전 요청 — 클릭 시 펼침 */}
+                      <button
+                        onClick={() => { setBranchChargeExpanded(v => !v); if (!branchChargeExpanded) loadBranchChargeReqs() }}
+                        className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
+                      >
+                        <p className="text-xs text-muted-foreground mb-1">지점 충전 요청</p>
+                        <p className={`text-2xl font-bold ${branchChargeReqs.filter((r: any) => r.status === "pending").length > 0 ? "text-primary" : "text-foreground"}`}>
+                          {branchChargeReqs.filter((r: any) => r.status === "pending").length}<span className="text-sm font-normal text-muted-foreground ml-1">건</span>
+                        </p>
+                        <p className="text-[11px] text-primary/70 mt-1">{branchChargeExpanded ? "접기 ▲" : "목록 보기 ▼"}</p>
+                      </button>
                       {/* 대기 중인 환전 — 클릭 시 펼침 */}
                       <button
                         onClick={() => setBaExExpanded(v => !v)}
                         className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
                       >
-                        <p className="text-xs text-muted-foreground mb-1">대�� 중인 환전</p>
+                        <p className="text-xs text-muted-foreground mb-1">대기 중인 환전</p>
                         <p className={`text-2xl font-bold ${pendingEx > 0 ? "text-primary" : "text-foreground"}`}>
                           {pendingEx}<span className="text-sm font-normal text-muted-foreground ml-1">건</span>
                         </p>
@@ -1868,6 +1896,70 @@ export default function PanelPage() {
                     </div>
                   )
                 })()}
+
+                {/* 지점 충전 요청 펼침 목록 */}
+                {branchChargeExpanded && (
+                  <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        <Wallet className="w-4 h-4 text-primary" /> 지점 충전 요청
+                        {branchChargeReqs.filter((r: any) => r.status === "pending").length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">
+                            {branchChargeReqs.filter((r: any) => r.status === "pending").length}건 대기
+                          </span>
+                        )}
+                      </h3>
+                      <Button variant="ghost" size="sm" onClick={loadBranchChargeReqs} disabled={branchChargeLoading} className="h-7 w-7 p-0">
+                        <RefreshCw className={`w-3.5 h-3.5 ${branchChargeLoading ? "animate-spin" : ""}`} />
+                      </Button>
+                    </div>
+                    {branchChargeReqs.length === 0 ? (
+                      <p className="py-8 text-center text-sm text-muted-foreground">지점으로부터 받은 충전 요청이 없습니다.</p>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-2 bg-muted/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          <span>지점 / 요청일시</span>
+                          <span className="text-right">요청금액</span>
+                          <span className="text-right">지급포인트</span>
+                          <span className="text-right">처리</span>
+                        </div>
+                        {branchChargeReqs.map((r: any) => (
+                          <div key={r.id} className={`grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-3 items-center ${r.status === "pending" ? "bg-primary/5" : ""}`}>
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">{r.requester?.username ?? "-"}</p>
+                              <p className="text-[10px] text-muted-foreground">{new Date(r.created_at).toLocaleString("ko-KR")}</p>
+                              {r.memo && <p className="text-[10px] text-muted-foreground">{r.memo}</p>}
+                            </div>
+                            <span className="text-sm font-bold text-foreground text-right">₩{r.cash_amount?.toLocaleString()}</span>
+                            <span className="text-sm text-muted-foreground text-right">
+                              {r.status === "approved" ? `${r.point_amount?.toLocaleString()} P` : "-"}
+                            </span>
+                            <div className="flex justify-end">
+                              {r.status === "pending" ? (
+                                <Button
+                                  size="sm"
+                                  className="h-7 px-3 text-[11px]"
+                                  onClick={() => {
+                                    setPpApproveId(r.id)
+                                    setPpApprovePw("")
+                                    setPpApprovePoints(String(r.cash_amount))
+                                    setPpApproveMsg(null)
+                                  }}
+                                >
+                                  승인
+                                </Button>
+                              ) : (
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${r.status === "approved" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                                  {r.status === "approved" ? "완료" : "거절"}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 환전 요청 펼침 목록 */}
                 {baExExpanded && (() => {
@@ -2212,7 +2304,7 @@ export default function PanelPage() {
                                 <p className="text-xs text-muted-foreground pt-2">ID: <span className="text-foreground font-mono text-[11px]">{u.id}</span></p>
                                 <p className="text-xs text-muted-foreground">가입일: {new Date(u.created_at).toLocaleString("ko-KR")}</p>
                                 <p className="text-xs text-muted-foreground">역할: {roleLabel[u.role]?.label ?? u.role}</p>
-                                <p className="text-xs text-muted-foreground">지점�����드: {u.branch_code ?? "-"}</p>
+                                <p className="text-xs text-muted-foreground">지점�������드: {u.branch_code ?? "-"}</p>
                               </div>
                             )}
                           </div>
