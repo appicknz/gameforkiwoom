@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   const { userId } = getAuth(req)
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: me } = await adminSupabase.from("profiles").select("role, id").eq("id", userId).single()
+  const { data: me } = await adminSupabase.from("profiles").select("role, id, username").eq("id", userId).single()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   let query = adminSupabase
@@ -40,18 +40,12 @@ export async function GET(req: Request) {
   if (me.role === "admin") {
     query = query.eq("requester_id", userId)
   } else if (me.role === "branch_admin") {
-    // 연결 경로: branch_admin email → branches.owner_email → branches.code → profiles.branch_code(admin) → requester_id
-    const { data: authUser } = await adminSupabase.auth.admin.getUserById(userId)
-    const email = authUser?.user?.email
-    if (!email) return NextResponse.json({ requests: [] })
-
-    // 이 총판이 소유한 지점 코드 목록
+    // branches.owner_email 에는 username이 저장됨 (이메일 아님)
     const { data: ownedBranches } = await adminSupabase
-      .from("branches").select("code").eq("owner_email", email)
+      .from("branches").select("code").eq("owner_email", me.username)
     const codes = (ownedBranches ?? []).map((b: any) => b.code)
     if (codes.length === 0) return NextResponse.json({ requests: [] })
 
-    // 해당 지점 코드를 가진 admin 프로필 id 목록
     const { data: branchAdmins } = await adminSupabase
       .from("profiles").select("id").eq("role", "admin").in("branch_code", codes)
     const branchAdminIds = (branchAdmins ?? []).map((b: any) => b.id)

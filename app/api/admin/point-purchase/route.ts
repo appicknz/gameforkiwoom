@@ -65,13 +65,9 @@ export async function GET(req: Request) {
 
   if (me.role === "branch_admin") {
     if (fromBranches) {
-      // 연결 경로: branch_admin email → branches.owner_email → branches.code → profiles.branch_code(admin)
-      const { data: authUser } = await adminSupabase.auth.admin.getUserById(auth.userId)
-      const email = authUser?.user?.email
-      if (!email) return NextResponse.json({ requests: [] })
-
+      // branches.owner_email 에는 username이 저장됨 (이메일 아님)
       const { data: ownedBranches } = await adminSupabase
-        .from("branches").select("code").eq("owner_email", email)
+        .from("branches").select("code").eq("owner_email", me.username)
       const codes = (ownedBranches ?? []).map((b: any) => b.code)
       if (codes.length === 0) return NextResponse.json({ requests: [] })
 
