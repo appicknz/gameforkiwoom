@@ -28,47 +28,62 @@ export async function GET(req: Request) {
   const { data: me } = await adminSupabase.from("profiles").select("role, id, username").eq("id", userId).single()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  let query = adminSupabase
-    .from("user_account_requests")
-    .select(`
-      id, requester_id, branch_id, username_prefix, count, memo, status,
-      created_at, approved_at, created_usernames,
-      requester:profiles!requester_id ( username )
-    `)
-    .order("created_at", { ascending: false })
+  let requesterIds: string[] | null = null
 
   if (me.role === "admin") {
-    query = query.eq("requester_id", userId)
+    requesterIds = [userId]
   } else if (me.role === "branch_admin") {
-    // 방법1: branches.owner_email = me.username → branch codes → admin profiles
+    // branches.owner_email = me.username → branch codes → admin profiles
     const { data: ownedBranches } = await adminSupabase
       .from("branches").select("code").eq("owner_email", me.username)
     const codes = (ownedBranches ?? []).map((b: any) => b.code)
 
     let branchAdminIds: string[] = []
-
     if (codes.length > 0) {
       const { data: branchAdmins } = await adminSupabase
         .from("profiles").select("id").eq("role", "admin").in("branch_code", codes)
       branchAdminIds = (branchAdmins ?? []).map((b: any) => b.id)
     }
-
-    // 방법2: branches 체인 실패 시 role=admin 전체 fallback
+    // fallback: role=admin 전체
     if (branchAdminIds.length === 0) {
       const { data: allAdmins } = await adminSupabase
         .from("profiles").select("id").eq("role", "admin")
       branchAdminIds = (allAdmins ?? []).map((b: any) => b.id)
     }
-
     if (branchAdminIds.length === 0) return NextResponse.json({ requests: [] })
-    query = query.in("requester_id", branchAdminIds)
+    requesterIds = branchAdminIds
   } else if (!["master", "super_admin"].includes(me.role)) {
     return NextResponse.json({ error: "권한 없음" }, { status: 403 })
   }
 
-  const { data, error } = await query
+  // join 없이 단순 컬럼 조회 (FK join 오류 방지)
+  let baseQuery = adminSupabase
+    .from("user_account_requests")
+    .select("id, requester_id, branch_id, username_prefix, count, memo, status, created_at, approved_at, created_usernames")
+    .order("created_at", { ascending: false })
+
+  if (requesterIds !== null) {
+    baseQuery = baseQuery.in("requester_id", requesterIds)
+  }
+
+  const { data: rows, error } = await baseQuery
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ requests: data ?? [] })
+
+  // requester username 별도 조회 후 매핑
+  const allIds = [...new Set((rows ?? []).map((r: any) => r.requester_id))]
+  let usernameMap: Record<string, string> = {}
+  if (allIds.length > 0) {
+    const { data: profiles } = await adminSupabase
+      .from("profiles").select("id, username").in("id", allIds)
+    usernameMap = Object.fromEntries((profiles ?? []).map((p: any) => [p.id, p.username]))
+  }
+
+  const requests = (rows ?? []).map((r: any) => ({
+    ...r,
+    requester: { username: usernameMap[r.requester_id] ?? r.requester_id },
+  }))
+
+  return NextResponse.json({ requests })
 }
 
 // ── POST: 지점(admin)이 계정 생성 요청 ──
