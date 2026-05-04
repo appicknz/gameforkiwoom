@@ -40,12 +40,23 @@ export async function GET(req: Request) {
   if (me.role === "admin") {
     query = query.eq("requester_id", userId)
   } else if (me.role === "branch_admin") {
-    // 이 총판(branch_admin) 소속의 지점(admin) 계정들이 보낸 요청
-    // profiles.branch_id = 총판 userId 로 연결된 admin 계정 목록
+    // 연결 경로: branch_admin email → branches.owner_email → branches.code → profiles.branch_code(admin) → requester_id
+    const { data: authUser } = await adminSupabase.auth.admin.getUserById(userId)
+    const email = authUser?.user?.email
+    if (!email) return NextResponse.json({ requests: [] })
+
+    // 이 총판이 소유한 지점 코드 목록
+    const { data: ownedBranches } = await adminSupabase
+      .from("branches").select("code").eq("owner_email", email)
+    const codes = (ownedBranches ?? []).map((b: any) => b.code)
+    if (codes.length === 0) return NextResponse.json({ requests: [] })
+
+    // 해당 지점 코드를 가진 admin 프로필 id 목록
     const { data: branchAdmins } = await adminSupabase
-      .from("profiles").select("id").eq("role", "admin").eq("branch_id", userId)
+      .from("profiles").select("id").eq("role", "admin").in("branch_code", codes)
     const branchAdminIds = (branchAdmins ?? []).map((b: any) => b.id)
     if (branchAdminIds.length === 0) return NextResponse.json({ requests: [] })
+
     query = query.in("requester_id", branchAdminIds)
   } else if (!["master", "super_admin"].includes(me.role)) {
     return NextResponse.json({ error: "권한 없음" }, { status: 403 })

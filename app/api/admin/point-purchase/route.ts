@@ -65,15 +65,21 @@ export async function GET(req: Request) {
 
   if (me.role === "branch_admin") {
     if (fromBranches) {
-      // 자신이 총판인 지점(admin) 계정들의 요청 — branch_id = 현재 총판 프로필의 branches.id
-      // profiles.branch_id가 branch_admin 자신의 branches row를 가리킴
-      const { data: myBranch } = await adminSupabase
-        .from("branches").select("id").eq("owner_email", me.username ?? "").maybeSingle()
-      // branch_id로 연결된 admin 프로필 목록 조회
+      // 연결 경로: branch_admin email → branches.owner_email → branches.code → profiles.branch_code(admin)
+      const { data: authUser } = await adminSupabase.auth.admin.getUserById(auth.userId)
+      const email = authUser?.user?.email
+      if (!email) return NextResponse.json({ requests: [] })
+
+      const { data: ownedBranches } = await adminSupabase
+        .from("branches").select("code").eq("owner_email", email)
+      const codes = (ownedBranches ?? []).map((b: any) => b.code)
+      if (codes.length === 0) return NextResponse.json({ requests: [] })
+
       const { data: branchAdmins } = await adminSupabase
-        .from("profiles").select("id").eq("role", "admin").eq("branch_id", auth.userId)
+        .from("profiles").select("id").eq("role", "admin").in("branch_code", codes)
       const adminIds = (branchAdmins ?? []).map((p: any) => p.id)
       if (adminIds.length === 0) return NextResponse.json({ requests: [] })
+
       query = query.in("requester_id", adminIds)
     } else {
       query = query.eq("requester_id", auth.userId)

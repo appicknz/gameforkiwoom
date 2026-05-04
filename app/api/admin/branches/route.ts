@@ -27,8 +27,10 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false })
 
   if (requester.role === 'branch_admin') {
-    // 총판: 자신이 owner인 지점 전체 조회
-    query = query.eq("owner_email", requester.username)
+    // 총판: auth.users에서 실제 이메일로 소유 지점 조회
+    const { data: authUser } = await adminSupabase.auth.admin.getUserById(auth.userId)
+    const email = authUser?.user?.email ?? ""
+    query = query.eq("owner_email", email)
   } else if (requester.role === 'admin' && requester.branch_code) {
     // 지점 관리자: 자기 지점만
     query = query.eq("code", requester.branch_code)
