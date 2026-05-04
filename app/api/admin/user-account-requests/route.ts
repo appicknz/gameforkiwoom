@@ -31,42 +31,35 @@ export async function GET(req: Request) {
   let query = adminSupabase
     .from("user_account_requests")
     .select(`
-      id, username_prefix, count, memo, status, created_at, approved_at,
-      created_usernames,
-      requester:requester_id ( username )
+      id, requester_id, branch_id, username_prefix, count, memo, status,
+      created_at, approved_at, created_usernames,
+      requester:profiles!requester_id ( username )
     `)
     .order("created_at", { ascending: false })
 
   if (me.role === "admin") {
     query = query.eq("requester_id", userId)
   } else if (me.role === "branch_admin") {
-    console.log("[v0] branch_admin GET - me.username:", me.username, "me.id:", me.id)
-    
-    // 방법1: branches 체인 시도
-    const { data: ownedBranches, error: branchErr } = await adminSupabase
+    // 방법1: branches.owner_email = me.username → branch codes → admin profiles
+    const { data: ownedBranches } = await adminSupabase
       .from("branches").select("code").eq("owner_email", me.username)
-    console.log("[v0] ownedBranches:", ownedBranches, "error:", branchErr)
     const codes = (ownedBranches ?? []).map((b: any) => b.code)
 
     let branchAdminIds: string[] = []
 
     if (codes.length > 0) {
-      const { data: branchAdmins, error: adminErr } = await adminSupabase
+      const { data: branchAdmins } = await adminSupabase
         .from("profiles").select("id").eq("role", "admin").in("branch_code", codes)
-      console.log("[v0] branchAdmins by code:", branchAdmins, "error:", adminErr)
       branchAdminIds = (branchAdmins ?? []).map((b: any) => b.id)
     }
 
-    // 방법2: branches 체인 실패 시 — role=admin 인 모든 프로필 (소규모 환경 fallback)
+    // 방법2: branches 체인 실패 시 role=admin 전체 fallback
     if (branchAdminIds.length === 0) {
-      console.log("[v0] fallback: fetching all admins")
       const { data: allAdmins } = await adminSupabase
         .from("profiles").select("id").eq("role", "admin")
-      console.log("[v0] allAdmins:", allAdmins)
       branchAdminIds = (allAdmins ?? []).map((b: any) => b.id)
     }
 
-    console.log("[v0] final branchAdminIds:", branchAdminIds)
     if (branchAdminIds.length === 0) return NextResponse.json({ requests: [] })
     query = query.in("requester_id", branchAdminIds)
   } else if (!["master", "super_admin"].includes(me.role)) {

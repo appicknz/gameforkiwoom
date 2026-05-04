@@ -879,7 +879,7 @@ export default function PanelPage() {
     setBranchExLoading(false)
   }, [])
 
-  // ── 유저 계정 생성 요청 모달 (admin 전용) ─��
+  // ── 유저 계정 생성 요청 모달 (admin 전용) ─����
   const [adminCreateUserOpen, setAdminCreateUserOpen] = useState(false)
   const [acuUsername, setAcuUsername]   = useState("")
   const [acuPassword, setAcuPassword]   = useState("")
@@ -896,12 +896,9 @@ export default function PanelPage() {
 
   const loadAcctRequests = useCallback(async () => {
     const token = getToken(); if (!token) return
-    console.log("[v0] loadAcctRequests called, myRole:", myRole)
     const res = await fetch("/api/admin/user-account-requests", { headers: { Authorization: `Bearer ${token}` } })
-    const d = await res.json()
-    console.log("[v0] loadAcctRequests response:", res.status, d)
-    if (res.ok) { setAcctRequests(d.requests ?? []) }
-  }, [myRole])
+    if (res.ok) { const d = await res.json(); setAcctRequests(d.requests ?? []) }
+  }, [])
 
   // branch_admin 전용: 계정 생성 요청 5초 폴링
   useEffect(() => {
@@ -1315,7 +1312,7 @@ export default function PanelPage() {
               </button>
             </div>
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              총판에게 요청이 전달되며, 승인 후 계정이 생성됩니다.<br />
+              총판에게 요청이 전달되며, 승인 후 계정이 ��성됩니다.<br />
               수량이 2 이상이면 ID 뒤에 번호가 자동으로 붙습니다. (예: user01, user02)
             </p>
             <div className="space-y-3 mb-4">
@@ -2072,7 +2069,7 @@ export default function PanelPage() {
                   <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
                     <Wallet className="w-4 h-4 text-primary" /> 충전 요청
                   </h2>
-                  <p className="text-xs text-muted-foreground mb-4">버튼을 눌러 금액을 쌓거나 직접 입력하세요. 대총판이 요율을 적용해 승인하면 잔액이 추가됩니다.</p>
+                  <p className="text-xs text-muted-foreground mb-4">버튼을 눌러 금액을 쌓���나 직접 입력하세요. 대총판이 요율을 적용해 승인하면 잔액이 추가됩니다.</p>
 
                   {/* 빠른 금액 버튼 */}
                   <div className="flex flex-wrap gap-2 mb-3">
@@ -2709,7 +2706,7 @@ export default function PanelPage() {
                   </div>
                 ) : (() => {
                   const REQ_PAGE_SIZE = 10
-                  // 최���순 정렬
+                  // 최�����순 정렬
                   const baRequests = [...ppRequests.filter((r: any) => r.requester_id === saSelectedBa.id)]
                     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                   const pendingReqs = baRequests.filter((r: any) => r.status === "pending")
@@ -3376,7 +3373,7 @@ export default function PanelPage() {
                         <span className="text-sm font-medium text-foreground">{r.target_user?.username}</span>
                         <span className="text-xs font-semibold text-foreground">{r.point_amount?.toLocaleString()} P</span>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-                          {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거절"}
+                          {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거��"}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">요청자: {r.requester?.username} {r.memo ? `· ${r.memo}` : ""}</p>

@@ -41,7 +41,7 @@ export async function GET(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const { data: me } = await adminSupabase.from("profiles").select("role").eq("id", auth.userId).single()
+  const { data: me } = await adminSupabase.from("profiles").select("role, username").eq("id", auth.userId).single()
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const ROLES = ["master", "super_admin", "branch_admin", "admin"]
@@ -64,25 +64,16 @@ export async function GET(req: Request) {
     .limit(200)
 
   if (me.role === "branch_admin") {
-    console.log("[v0] point-purchase GET - me.username:", me.username, "fromBranches:", fromBranches)
     if (fromBranches) {
-      const { data: ownedBranches, error: brErr } = await adminSupabase
+      const { data: ownedBranches } = await adminSupabase
         .from("branches").select("code").eq("owner_email", me.username)
-      console.log("[v0] ownedBranches:", ownedBranches, "error:", brErr)
       const codes = (ownedBranches ?? []).map((b: any) => b.code)
-      if (codes.length === 0) {
-        console.log("[v0] no owned branches found, returning empty")
-        return NextResponse.json({ requests: [] })
-      }
+      if (codes.length === 0) return NextResponse.json({ requests: [] })
 
-      const { data: branchAdmins, error: adErr } = await adminSupabase
+      const { data: branchAdmins } = await adminSupabase
         .from("profiles").select("id").eq("role", "admin").in("branch_code", codes)
-      console.log("[v0] branchAdmins:", branchAdmins, "error:", adErr)
       const adminIds = (branchAdmins ?? []).map((p: any) => p.id)
-      if (adminIds.length === 0) {
-        console.log("[v0] no admin profiles found, returning empty")
-        return NextResponse.json({ requests: [] })
-      }
+      if (adminIds.length === 0) return NextResponse.json({ requests: [] })
 
       query = query.in("requester_id", adminIds)
     } else {
