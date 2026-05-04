@@ -466,6 +466,11 @@ export default function PanelPage() {
             .then(d => { if (d?.users) setSaBranchAdmins(d.users) })
             .catch(() => {})
         } else if (role === "branch_admin") {
+          // 유저 계정 생성 요청 초기 로드
+          fetch("/api/admin/user-account-requests", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d?.requests) setAcctRequests(d.requests) })
+            .catch(() => {})
           fetch("/api/admin/point-purchase", { headers: { Authorization: `Bearer ${tok}` } })
             .then(r => r.ok ? r.json() : null)
             .then(d => { if (d?.requests) setBaChargeRequests(d.requests) })
@@ -1190,7 +1195,7 @@ export default function PanelPage() {
           {/* 대총판: 총판 계정생성 버튼 */}
           {myRole === "super_admin" && (
             <Button size="sm" onClick={() => setSaOpen(true)} className="gap-1.5 text-xs">
-              <Plus className="w-3.5 h-3.5" /> 총판 계정생성
+              <Plus className="w-3.5 h-3.5" /> 총판 계��생성
             </Button>
           )}
           {myRole === "branch_admin" && (
@@ -2465,7 +2470,7 @@ export default function PanelPage() {
                               onClick={() => handleCollect(stat.branch_id, stat.game_type)}
                             >
                               <Download className="w-3 h-3" />
-                              {collectingId === key ? "처리 중..." : `₩${pending.toLocaleString()} 수금`}
+                              {collectingId === key ? "처리 중..." : `���${pending.toLocaleString()} 수금`}
                             </Button>
                           )}
                         </div>

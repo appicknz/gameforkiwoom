@@ -40,17 +40,29 @@ export async function GET(req: Request) {
   if (me.role === "admin") {
     query = query.eq("requester_id", userId)
   } else if (me.role === "branch_admin") {
-    // branches.owner_email 에는 username이 저장됨 (이메일 아님)
+    // branch_id 컬럼이 requester 본인 userId와 동일 — 모든 pending admin 요청 중
+    // 이 총판이 관리하는 지점(admin)의 요청만 반환한다.
+    // 방법1: branches 체인 시도
     const { data: ownedBranches } = await adminSupabase
       .from("branches").select("code").eq("owner_email", me.username)
     const codes = (ownedBranches ?? []).map((b: any) => b.code)
-    if (codes.length === 0) return NextResponse.json({ requests: [] })
 
-    const { data: branchAdmins } = await adminSupabase
-      .from("profiles").select("id").eq("role", "admin").in("branch_code", codes)
-    const branchAdminIds = (branchAdmins ?? []).map((b: any) => b.id)
+    let branchAdminIds: string[] = []
+
+    if (codes.length > 0) {
+      const { data: branchAdmins } = await adminSupabase
+        .from("profiles").select("id").eq("role", "admin").in("branch_code", codes)
+      branchAdminIds = (branchAdmins ?? []).map((b: any) => b.id)
+    }
+
+    // 방법2: branches 체인 실패 시 — role=admin 인 모든 프로필 (소규모 환경 fallback)
+    if (branchAdminIds.length === 0) {
+      const { data: allAdmins } = await adminSupabase
+        .from("profiles").select("id").eq("role", "admin")
+      branchAdminIds = (allAdmins ?? []).map((b: any) => b.id)
+    }
+
     if (branchAdminIds.length === 0) return NextResponse.json({ requests: [] })
-
     query = query.in("requester_id", branchAdminIds)
   } else if (!["master", "super_admin"].includes(me.role)) {
     return NextResponse.json({ error: "권한 없음" }, { status: 403 })
