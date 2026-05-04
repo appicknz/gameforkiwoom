@@ -879,7 +879,7 @@ export default function PanelPage() {
     setBranchExLoading(false)
   }, [])
 
-  // ── 유저 계정 생성 요청 모달 (admin 전용) ──
+  // ── 유저 계정 생성 요청 모달 (admin 전용) ─��
   const [adminCreateUserOpen, setAdminCreateUserOpen] = useState(false)
   const [acuUsername, setAcuUsername]   = useState("")
   const [acuPassword, setAcuPassword]   = useState("")
@@ -896,9 +896,12 @@ export default function PanelPage() {
 
   const loadAcctRequests = useCallback(async () => {
     const token = getToken(); if (!token) return
+    console.log("[v0] loadAcctRequests called, myRole:", myRole)
     const res = await fetch("/api/admin/user-account-requests", { headers: { Authorization: `Bearer ${token}` } })
-    if (res.ok) { const d = await res.json(); setAcctRequests(d.requests ?? []) }
-  }, [])
+    const d = await res.json()
+    console.log("[v0] loadAcctRequests response:", res.status, d)
+    if (res.ok) { setAcctRequests(d.requests ?? []) }
+  }, [myRole])
 
   // branch_admin 전용: 계정 생성 요청 5초 폴링
   useEffect(() => {
@@ -1025,7 +1028,7 @@ export default function PanelPage() {
   const [branchExLoading, setBranchExLoading] = useState(false)
   const [branchExExpanded, setBranchExExpanded] = useState(false)
 
-  // ── 환전 요청 ──
+  // ── 환전 ���청 ──
   const [exRequests, setExRequests]         = useState<any[]>([])
   const [exLoading, setExLoading]           = useState(false)
   const [exTargetId, setExTargetId]         = useState("")
@@ -2002,7 +2005,7 @@ export default function PanelPage() {
                           <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-5 py-2 bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                             <span>유저 / 요청일시</span>
                             <span className="text-right">금액</span>
-                            <span className="text-right">처리</span>
+                            <span className="text-right">��리</span>
                           </div>
                           {pendingEx.map((r: any) => (
                             <div key={r.id} className="px-5 py-3 grid grid-cols-[1fr_auto_auto] gap-4 items-center">
@@ -2153,7 +2156,7 @@ export default function PanelPage() {
                               approved:  { label: "지급완료", cls: "bg-green-100 text-green-700" },
                               activated: { label: "지급완료", cls: "bg-green-100 text-green-700" },
                               rejected:  { label: "거절",     cls: "bg-red-100 text-red-700" },
-                              requested: { label: "요��완료", cls: "bg-blue-100 text-blue-700" },
+                              requested: { label: "요����완료", cls: "bg-blue-100 text-blue-700" },
                             }
                             const st = statusMap[r.status] ?? { label: r.status, cls: "bg-muted text-muted-foreground" }
                             return (
@@ -3335,7 +3338,7 @@ export default function PanelPage() {
             {/* 환전 요청 생성 */}
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-primary" /> 환전 요청</h2>
-              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인트를 입력하면 대총판/마스��가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
+              <p className="text-xs text-muted-foreground">유�� 아이디와 환전할 포인트를 입력하면 대총판/마스��가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
               <div className="flex gap-2 flex-wrap">
                 <Input placeholder="유저 아이디" value={exTargetId} onChange={e => setExTargetId(e.target.value)} className="h-9 text-sm w-40" />
                 <Input placeholder="포인트 금액" type="number" value={exPointAmt} onChange={e => setExPointAmt(e.target.value)} className="h-9 text-sm w-36" />

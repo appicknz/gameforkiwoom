@@ -40,28 +40,33 @@ export async function GET(req: Request) {
   if (me.role === "admin") {
     query = query.eq("requester_id", userId)
   } else if (me.role === "branch_admin") {
-    // branch_id 컬럼이 requester 본인 userId와 동일 — 모든 pending admin 요청 중
-    // 이 총판이 관리하는 지점(admin)의 요청만 반환한다.
+    console.log("[v0] branch_admin GET - me.username:", me.username, "me.id:", me.id)
+    
     // 방법1: branches 체인 시도
-    const { data: ownedBranches } = await adminSupabase
+    const { data: ownedBranches, error: branchErr } = await adminSupabase
       .from("branches").select("code").eq("owner_email", me.username)
+    console.log("[v0] ownedBranches:", ownedBranches, "error:", branchErr)
     const codes = (ownedBranches ?? []).map((b: any) => b.code)
 
     let branchAdminIds: string[] = []
 
     if (codes.length > 0) {
-      const { data: branchAdmins } = await adminSupabase
+      const { data: branchAdmins, error: adminErr } = await adminSupabase
         .from("profiles").select("id").eq("role", "admin").in("branch_code", codes)
+      console.log("[v0] branchAdmins by code:", branchAdmins, "error:", adminErr)
       branchAdminIds = (branchAdmins ?? []).map((b: any) => b.id)
     }
 
     // 방법2: branches 체인 실패 시 — role=admin 인 모든 프로필 (소규모 환경 fallback)
     if (branchAdminIds.length === 0) {
+      console.log("[v0] fallback: fetching all admins")
       const { data: allAdmins } = await adminSupabase
         .from("profiles").select("id").eq("role", "admin")
+      console.log("[v0] allAdmins:", allAdmins)
       branchAdminIds = (allAdmins ?? []).map((b: any) => b.id)
     }
 
+    console.log("[v0] final branchAdminIds:", branchAdminIds)
     if (branchAdminIds.length === 0) return NextResponse.json({ requests: [] })
     query = query.in("requester_id", branchAdminIds)
   } else if (!["master", "super_admin"].includes(me.role)) {
