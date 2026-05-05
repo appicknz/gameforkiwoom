@@ -879,7 +879,7 @@ export default function PanelPage() {
     setBranchExLoading(false)
   }, [])
 
-  // ── 유저 계정 생성 요청 모달 (admin 전��) ─����
+  // ── 유저 계정 생성 요청 모달 (admin 전��) ������
   const [adminCreateUserOpen, setAdminCreateUserOpen] = useState(false)
   const [acuUsername, setAcuUsername]   = useState("")
   const [acuPassword, setAcuPassword]   = useState("")
@@ -1385,6 +1385,8 @@ export default function PanelPage() {
       {/* ── 승인 모달 (포인트 구매) — 모든 탭에서 동작 ── */}
       {ppApproveId && (() => {
         const req = ppRequests.find((r: any) => r.id === ppApproveId)
+          ?? baChargeRequests.find((r: any) => r.id === ppApproveId)
+          ?? branchChargeReqs.find((r: any) => r.id === ppApproveId)
         const cashAmt = req?.cash_amount ?? 0
         const rate = parseFloat(ppApprovePoints) || 0
         const payout = rate > 0 ? Math.floor(cashAmt * rate) : 0
@@ -1960,7 +1962,7 @@ export default function PanelPage() {
                                   onClick={() => {
                                     setPpApproveId(r.id)
                                     setPpApprovePw("")
-                                    setPpApprovePoints(String(r.cash_amount))
+                                    setPpApprovePoints("")
                                     setPpApproveMsg(null)
                                   }}
                                 >
@@ -3248,7 +3250,7 @@ export default function PanelPage() {
                       <div className="flex gap-2">
                         <Input
                           type="number"
-                          placeholder="금액 입력"
+                          placeholder="금��� 입력"
                           value={branchChargeAmt}
                           onChange={e => setBranchChargeAmt(e.target.value)}
                           className="h-9 text-sm flex-1"
@@ -3464,7 +3466,7 @@ export default function PanelPage() {
               </div>
             )}
 
-            {/* 비밀번호 초기화 승인 모달 */}
+            {/* 비밀번호 초��화 승인 모달 */}
             {prApproveId && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                 <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
