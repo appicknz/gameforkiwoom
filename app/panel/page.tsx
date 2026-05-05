@@ -879,7 +879,7 @@ export default function PanelPage() {
     setBranchExLoading(false)
   }, [])
 
-  // ── 유저 계정 생성 요청 모달 (admin 전용) ─����
+  // ── 유저 계정 생성 요청 모달 (admin 전��) ─����
   const [adminCreateUserOpen, setAdminCreateUserOpen] = useState(false)
   const [acuUsername, setAcuUsername]   = useState("")
   const [acuPassword, setAcuPassword]   = useState("")
@@ -1732,7 +1732,7 @@ export default function PanelPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                       {/* 지점 수 */}
                       <div className="bg-card border border-border rounded-xl p-4">
-                        <p className="text-xs text-muted-foreground mb-1">지점 수</p>
+                        <p className="text-xs text-muted-foreground mb-1">��점 수</p>
                         <p className="text-2xl font-bold text-foreground">{branches.length}<span className="text-sm font-normal text-muted-foreground ml-1">개</span></p>
                         <p className="text-[11px] text-muted-foreground mt-1">현재 잔액 <span className="font-semibold text-foreground">₩{myBalance.toLocaleString()}</span></p>
                       </div>
@@ -1794,9 +1794,9 @@ export default function PanelPage() {
                   const approvedAcct = acctRequests.filter((r: any) => r.status === "approved")
                   return (
                     <div className="bg-card border border-border rounded-xl overflow-hidden">
-                      <button
+                      <div
                         onClick={() => setAcctExpanded(v => !v)}
-                        className="flex items-center justify-between w-full px-5 py-3 border-b border-border hover:bg-muted/30 transition-colors"
+                        className="flex items-center justify-between w-full px-5 py-3 border-b border-border hover:bg-muted/30 transition-colors cursor-pointer"
                       >
                         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                           <Users className="w-4 h-4 text-primary" />
@@ -1811,7 +1811,7 @@ export default function PanelPage() {
                           </Button>
                           <span className="text-xs text-muted-foreground">{acctExpanded ? "접기 ▲" : "펼치기 ▼"}</span>
                         </div>
-                      </button>
+                      </div>
 
                       {acctExpanded && (
                         <div>
@@ -3600,7 +3600,7 @@ export default function PanelPage() {
                     <span className="text-muted-foreground">월 합계</span>
                     <span className="text-emerald-600 font-semibold">충전 +{calData.reduce((s, r) => s + r.charge_total, 0).toLocaleString()}</span>
                     <span className="text-red-500 font-semibold">환전 -{calData.reduce((s, r) => s + r.exchange_total, 0).toLocaleString()}</span>
-                    <span className="font-bold text-foreground">순이익 {calData.reduce((s, r) => s + r.net_total, 0).toLocaleString()}</span>
+                    <span className="font-bold text-foreground">���이익 {calData.reduce((s, r) => s + r.net_total, 0).toLocaleString()}</span>
                   </div>
                 </div>
               )
