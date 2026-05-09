@@ -502,7 +502,12 @@ export function Sidebar() {
             </div>
           </div>
 
-          {/* ③ 왜 우리를 선택할까요 */}
+          {/* ③ 모의매매 거래 통계 */}
+          <div className="border-t border-border pt-3">
+            <TradeStatsMini />
+          </div>
+
+          {/* ④ 오늘의 비트 */}
           <div className="space-y-2">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">오늘의 비트</p>
             {features.map((f) => (
@@ -518,7 +523,7 @@ export function Sidebar() {
             ))}
           </div>
 
-          {/* ④ 외부 링크 */}
+          {/* ⑤ 외부 링크 */}
           <div className="shrink-0">
             <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">외부링크</p>
             <Link
@@ -530,11 +535,6 @@ export function Sidebar() {
               <span className="text-sm">바이낸스</span>
               <ExternalLink className="w-3 h-3 ml-auto opacity-40" />
             </Link>
-          </div>
-
-          {/* ⑤ 모의매매 거래 통계 */}
-          <div className="border-t border-border pt-3">
-            <TradeStatsMini />
           </div>
         </div>
       </aside>
