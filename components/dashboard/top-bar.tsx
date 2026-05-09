@@ -7,12 +7,12 @@
  * - 잔고: balance:update 커스텀 이벤트로 betting-game과 동기화
  */
 
-import { X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, Shield, GitBranch, Zap } from "lucide-react"
+import { Home, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield, GitBranch } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState, useEffect, useRef } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 const STORAGE_KEY = "app_token"
 const PROFILE_KEY = "app_profile"
@@ -30,16 +30,8 @@ function clearToken() {
   try { localStorage.removeItem(STORAGE_KEY) } catch {}
 }
 
-const NAV_LINKS = [
-  { href: "/",       label: "홈"       },
-  { href: "/race",   label: "레이스"   },
-  { href: "/baka",   label: "바카라"   },
-  { href: "/trade",  label: "모의매매" },
-]
-
 export function TopBar() {
-  const router   = useRouter()
-  const pathname = usePathname()
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [balance, setBalance] = useState(0)
@@ -404,84 +396,40 @@ export function TopBar() {
         </button>
       </div>
     )}
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/98 backdrop-blur-md">
-      <div className="flex h-12 items-center gap-3 px-4">
-
-        {/* 좌측: 로고 + 네비 링크 */}
-        <Link href="/" className="flex items-center gap-1.5 shrink-0 mr-1">
-          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-            <Zap className="w-4 h-4 text-black" />
-          </div>
-          <span className="text-sm font-bold text-foreground hidden sm:block">BitBet</span>
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
+      <div className="flex h-14 items-center justify-between px-4">
+        {/* 좌측 홈 버튼 */}
+        <Link
+          href="/"
+          className="w-10 h-10 rounded-full bg-green-700 hover:bg-green-800 transition-all duration-300 flex items-center justify-center hover:scale-110"
+          aria-label="홈으로 이동"
+        >
+          <Home className="w-5 h-5 text-white" />
         </Link>
 
-        <nav className="flex items-center gap-0.5">
-          {NAV_LINKS.map(({ href, label }) => {
-            const active = pathname === href
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                  active
-                    ? "bg-primary/15 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                }`}
-              >
-                {label}
-              </Link>
-            )
-          })}
-        </nav>
+        {/* 중앙 잔고 */}
+        <button className="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full hover:bg-primary/20 transition-colors">
+          <Wallet className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold text-primary">₩ {balance.toLocaleString()}</span>
+        </button>
 
-        {/* 중앙 스페이서 */}
-        <div className="flex-1" />
-
-        {/* 우측: 잔고 + 로그인/아바타 */}
-        {isLoggedIn && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border">
-            <Wallet className="w-3.5 h-3.5 text-primary shrink-0" />
-            <span className="text-sm font-semibold text-primary tabular-nums">
-              ₩{balance.toLocaleString()}
-            </span>
-          </div>
-        )}
-
+        {/* 우측 프로필 */}
         <div className="flex items-center gap-2" ref={dropdownRef}>
-          {isLoggedIn ? (
-            <button
-              onClick={() => setDropdownOpen(v => !v)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-secondary transition-colors"
-              aria-label="프로필"
-            >
-              <Avatar className="w-7 h-7">
-                <AvatarFallback className="bg-primary text-black text-xs font-bold">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-sm font-medium text-foreground hidden sm:block">{profile?.username}</span>
-              <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => { setDropdownOpen(true); setAuthTab("login") }}
-                className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                로그인
-              </button>
-              <button
-                onClick={() => { setDropdownOpen(true); setAuthTab("register") }}
-                className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-primary text-black hover:bg-primary/90 transition-colors"
-              >
-                회원가입
-              </button>
-            </div>
-          )}
+          <button
+            onClick={() => setDropdownOpen(v => !v)}
+            className="flex items-center gap-2 rounded-full hover:scale-110 transition-all duration-300"
+            aria-label="프로필"
+          >
+            <Avatar className="w-10 h-10 bg-green-700">
+              <AvatarFallback className="bg-green-700 text-white text-xs font-bold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+          </button>
 
           {/* 드롭다운 */}
           {dropdownOpen && (
-            <div className="absolute top-12 right-4 w-72 bg-background border border-border rounded-xl shadow-lg overflow-hidden z-50">
+            <div className="absolute top-14 right-4 w-72 bg-background border border-border rounded-xl shadow-lg overflow-hidden z-50">
 
               {isLoggedIn ? (
                 <>
