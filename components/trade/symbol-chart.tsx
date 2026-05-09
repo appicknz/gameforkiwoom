@@ -84,14 +84,26 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
     })
 
     const series = chart.addCandlestickSeries({
-      upColor:         "#00e676",
-      downColor:       "#ff3d57",
-      borderUpColor:   "#00e676",
-      borderDownColor: "#ff3d57",
-      wickUpColor:     "#00e676",
-      wickDownColor:   "#ff3d57",
+      upColor:          "#00e676",
+      downColor:        "#ff3d57",
+      borderUpColor:    "#00e676",
+      borderDownColor:  "#ff3d57",
+      wickUpColor:      "#00e676",
+      wickDownColor:    "#ff3d57",
+      lastValueVisible: false,  // 기본 초록/빨강 라벨 숨김
+      priceLineVisible: false,
     })
     seriesRef.current = series
+
+    // 현재가 표시용 흰색 가격 라인 (lastValueVisible 대체)
+    const currentPriceLine = series.createPriceLine({
+      price:            0,
+      color:            "rgba(255,255,255,0.5)",
+      lineWidth:        1,
+      lineStyle:        1,
+      axisLabelVisible: true,
+      title:            "",
+    })
 
     const ro = new ResizeObserver(() => {
       chart.applyOptions({ width: container.clientWidth })
@@ -115,6 +127,10 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
         }))
         series.setData(candles)
         chart.timeScale().fitContent()
+        // 히스토리 로드 직후 현재가 라인 초기값 세팅
+        if (candles.length > 0) {
+          currentPriceLine.applyOptions({ price: candles[candles.length - 1].close })
+        }
       })
       .catch(() => {})
 
@@ -125,14 +141,16 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
       try {
         const k = JSON.parse(e.data).k
         if (!k) return
+        const close = parseFloat(k.c)
         series.update({
           time:  Math.floor(k.t / 1000) as any,
           open:  parseFloat(k.o),
           high:  parseFloat(k.h),
           low:   parseFloat(k.l),
-          close: parseFloat(k.c),
+          close,
         })
-        onPriceRef.current?.(parseFloat(k.c))
+        currentPriceLine.applyOptions({ price: close })
+        onPriceRef.current?.(close)
       } catch {}
     }
     ws.onerror = () => ws?.close()
