@@ -76,6 +76,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
         borderVisible: false,
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: 8,
       },
       watermark: { visible: false },
       handleScroll: true,
