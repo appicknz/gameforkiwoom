@@ -1,13 +1,13 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { CheckCircle, ShoppingBag, Clock } from "lucide-react"
 import Link from "next/link"
 
-function SuccessContent() {
-  const params    = useSearchParams()
-  const router    = useRouter()
+export default function OrderSuccessPage() {
+  const params   = useSearchParams()
+  const router   = useRouter()
   const sessionId = params.get("session_id")
   const [countdown, setCountdown] = useState(5)
 
@@ -61,17 +61,5 @@ function SuccessContent() {
         </div>
       </div>
     </div>
-  )
-}
-
-export default function OrderSuccessPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    }>
-      <SuccessContent />
-    </Suspense>
   )
 }
