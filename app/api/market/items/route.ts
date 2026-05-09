@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { verifySession } from "@/lib/auth"
-import { stripe } from "@/lib/stripe"
 
 // GET: 상품 목록 (공개)
 export async function GET(req: Request) {
@@ -15,9 +14,8 @@ export async function GET(req: Request) {
     .select(`
       id, title, description, image_url, link_url,
       price_krw, view_count, order_count, created_at,
-      category_id,
-      market_categories(name, icon),
-      profiles:publisher_id(username, role)
+      category_id, publisher_id,
+      market_categories(name, icon)
     `)
     .eq("is_active", true)
 
@@ -37,9 +35,25 @@ export async function GET(req: Request) {
   }
 
   const { data, error } = await query
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ items: data ?? [] })
+
+  // publisher 프로필 별도 조회
+  const publisherIds = [...new Set((data ?? []).map((i: any) => i.publisher_id).filter(Boolean))]
+  let profilesMap: Record<string, { username: string; role: string }> = {}
+  if (publisherIds.length > 0) {
+    const { data: profiles } = await adminSupabase
+      .from("profiles")
+      .select("id, username, role")
+      .in("id", publisherIds)
+    profiles?.forEach((p: any) => { profilesMap[p.id] = { username: p.username, role: p.role } })
+  }
+
+  const items = (data ?? []).map((item: any) => ({
+    ...item,
+    profiles: profilesMap[item.publisher_id] ?? null,
+  }))
+
+  return NextResponse.json({ items })
 }
 
 // POST: 상품 등록 (master 전용)
@@ -66,6 +80,7 @@ export async function POST(req: Request) {
   }
 
   // Stripe 상품 + 가격 동적 생성
+  const { stripe } = await import("@/lib/stripe")
   const stripeProduct = await stripe.products.create({ name: title })
   const stripePrice   = await stripe.prices.create({
     product:     stripeProduct.id,
