@@ -107,11 +107,13 @@ function TradingPanel({
   balance,
   onOpen,
   onClose,
+  isOpening,
 }: {
   positions: Position[]
-  balance: number
+  balance: number | null
   onOpen: (dir: Direction, amount: number, leverage: number) => void
   onClose: (id: string) => void
+  isOpening: boolean
 }) {
   const [direction, setDirection] = useState<Direction>("long")
   const [amount, setAmount] = useState("100")
@@ -128,9 +130,10 @@ function TradingPanel({
 
   const handleOpen = () => {
     const amt = parseFloat(amount)
-    if (!amt || amt <= 0 || amt > balance) return
+    if (!amt || amt <= 0) return
+    if (balance !== null && amt > balance) return
     onOpen(direction, amt, leverage)
-    setAmount("100")
+    setAmount("")
   }
 
   const panelBg = "rgba(5,13,10,0.95)"
@@ -142,10 +145,10 @@ function TradingPanel({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <Wallet style={{ width: 14, height: 14, color: GOLD, opacity: 0.7 }} />
-          <span style={{ fontSize: 11, color: "rgba(212,175,55,0.55)", letterSpacing: "0.05em" }}>모의 잔고</span>
+          <span style={{ fontSize: 11, color: "rgba(212,175,55,0.55)", letterSpacing: "0.05em" }}>잔고</span>
         </div>
         <span style={{ fontSize: 14, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
-          ${fmt(balance)}
+          {balance === null ? "—" : `₩${balance.toLocaleString("ko-KR")}`}
         </span>
       </div>
 
@@ -201,7 +204,7 @@ function TradingPanel({
         />
         {/* 빠른 선택 */}
         <div style={{ display: "flex", gap: 5, marginTop: 6 }}>
-          {[50, 100, 200, 500].map(v => (
+          {[10000, 50000, 100000, 500000].map(v => (
             <button key={v} onClick={() => setAmount(String(v))}
               style={{
                 flex: 1, padding: "4px 0", borderRadius: 6,
@@ -209,7 +212,7 @@ function TradingPanel({
                 background: "rgba(212,175,55,0.06)",
                 color: "rgba(212,175,55,0.6)", fontSize: 10, cursor: "pointer",
               }}>
-              {v}
+              {v >= 10000 ? `${v / 10000}만` : v}
             </button>
           ))}
         </div>
@@ -255,21 +258,26 @@ function TradingPanel({
       {/* 진입 버튼 */}
       <button
         onClick={handleOpen}
+        disabled={isOpening || balance === null}
         style={{
           width: "100%", padding: "12px 0",
           borderRadius: 12,
           border: "none",
-          background: direction === "long"
-            ? "linear-gradient(135deg, #16a34a, #22c55e)"
-            : "linear-gradient(135deg, #dc2626, #ef4444)",
-          color: "#fff", fontWeight: 800, fontSize: 14,
-          cursor: "pointer",
-          boxShadow: direction === "long"
+          background: isOpening || balance === null
+            ? "rgba(255,255,255,0.08)"
+            : direction === "long"
+              ? "linear-gradient(135deg, #16a34a, #22c55e)"
+              : "linear-gradient(135deg, #dc2626, #ef4444)",
+          color: isOpening || balance === null ? "rgba(255,255,255,0.3)" : "#fff",
+          fontWeight: 800, fontSize: 14,
+          cursor: isOpening || balance === null ? "not-allowed" : "pointer",
+          boxShadow: isOpening ? "none" : direction === "long"
             ? "0 4px 16px rgba(34,197,94,0.25)"
             : "0 4px 16px rgba(239,68,68,0.25)",
+          transition: "all 0.15s",
         }}
       >
-        {direction === "long" ? "롱 진입" : "숏 진입"}
+        {isOpening ? "처리중..." : direction === "long" ? "롱 진입" : "숏 진입"}
       </button>
     </div>
   )
@@ -384,20 +392,36 @@ function TradeHistory({ logs }: { logs: TradeLog[] }) {
   )
 }
 
+function getToken(): string | null {
+  if (typeof window === "undefined") return null
+  try { return localStorage.getItem("app_token") } catch { return null }
+}
+
 // ─── 메인 페이지 ─────────────────────────────────────────────────
 export default function TradePage() {
-  const [balance, setBalance] = useState(10000)
+  const [balance, setBalance] = useState<number | null>(null)
   const [positions, setPositions] = useState<Position[]>([])
   const [logs, setLogs] = useState<TradeLog[]>([])
+  const [openingId, setOpeningId] = useState<string | null>(null)
+  const [closingId, setClosingId] = useState<string | null>(null)
   const currentPriceRef = useRef<number | null>(null)
 
   usePriceWorker({})
+
+  // 실제 잔고 조회
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch("/api/user/trade", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.balance !== undefined) setBalance(d.balance) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const onPrice = (e: Event) => {
       const price = (e as CustomEvent<{ price: number }>).detail.price
       currentPriceRef.current = price
-      // 포지션 PnL 실시간 업데이트
       setPositions(prev => prev.map(pos => {
         const priceDiff = pos.direction === "long"
           ? price - pos.entryPrice
@@ -411,35 +435,68 @@ export default function TradePage() {
     return () => window.removeEventListener("baka:price", onPrice)
   }, [])
 
-  const handleOpen = useCallback((dir: Direction, amount: number, leverage: number) => {
+  const handleOpen = useCallback(async (dir: Direction, amount: number, leverage: number) => {
     const price = currentPriceRef.current
-    if (!price) return
-    const newPos: Position = {
-      id: Date.now().toString(),
-      symbol: "BTCUSDT",
-      direction: dir,
-      entryPrice: price,
-      amount,
-      leverage,
-      openedAt: Date.now(),
-      pnl: 0,
-      pnlPct: 0,
-    }
-    setBalance(prev => prev - amount)
-    setPositions(prev => [newPos, ...prev])
-  }, [])
+    if (!price || balance === null) return
+    if (amount > balance) return
 
-  const handleClose = useCallback((id: string) => {
+    const tempId = Date.now().toString()
+    setOpeningId(tempId)
+    try {
+      const token = getToken()
+      const res = await fetch("/api/user/trade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount }),
+      })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error ?? "진입 실패"); return }
+
+      setBalance(data.newBalance)
+      setPositions(prev => [{
+        id: tempId,
+        symbol: "BTCUSDT",
+        direction: dir,
+        entryPrice: price,
+        amount,
+        leverage,
+        openedAt: Date.now(),
+        pnl: 0,
+        pnlPct: 0,
+      }, ...prev])
+    } finally {
+      setOpeningId(null)
+    }
+  }, [balance])
+
+  const handleClose = useCallback(async (id: string) => {
     const price = currentPriceRef.current
     if (!price) return
-    setPositions(prev => {
-      const pos = prev.find(p => p.id === id)
-      if (!pos) return prev
+    const pos = positions.find(p => p.id === id)
+    if (!pos) return
+
+    setClosingId(id)
+    try {
       const priceDiff = pos.direction === "long"
         ? price - pos.entryPrice
         : pos.entryPrice - price
       const pnl = (priceDiff / pos.entryPrice) * pos.amount * pos.leverage
-      setBalance(b => b + pos.amount + pnl)
+      const payout = pos.amount + pnl
+
+      const token = getToken()
+      const res = await fetch("/api/user/trade", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          payout,
+          note: `모의매매 청산 (${pos.direction === "long" ? "롱" : "숏"} ${pos.leverage}x, PnL: ${pnl >= 0 ? "+" : ""}${fmt(pnl)})`,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error ?? "청산 실패"); return }
+
+      setBalance(data.newBalance)
+      setPositions(prev => prev.filter(p => p.id !== id))
       setLogs(l => [{
         id: Date.now().toString(),
         direction: pos.direction,
@@ -448,9 +505,10 @@ export default function TradePage() {
         entryPrice: pos.entryPrice,
         exitPrice: price,
       }, ...l])
-      return prev.filter(p => p.id !== id)
-    })
-  }, [])
+    } finally {
+      setClosingId(null)
+    }
+  }, [positions])
 
   return (
     <div
@@ -471,6 +529,7 @@ export default function TradePage() {
               balance={balance}
               onOpen={handleOpen}
               onClose={handleClose}
+              isOpening={openingId !== null}
             />
 
             {/* 포지션 목록 */}
