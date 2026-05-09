@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { COIN_SYMBOLS } from "@/lib/coin-list"
 import { TrendingUp, TrendingDown, Search, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 
@@ -14,7 +13,7 @@ interface TickerData {
   volume24h: number
 }
 
-const CHUNK_SIZE = 180
+const CHUNK_SIZE = 100
 
 function formatPrice(price: number): string {
   if (price === 0) return "-"
@@ -32,8 +31,11 @@ function formatVolume(vol: number): string {
 }
 
 export default function LivePricesTab() {
+  const [symbols, setSymbols] = useState<string[]>([])
+  const [symbolsLoading, setSymbolsLoading] = useState(true)
   const [tickers, setTickers] = useState<Map<string, TickerData>>(new Map())
   const [connectedCount, setConnectedCount] = useState(0)
+  const [totalChunks, setTotalChunks] = useState(0)
   const [searchTerm, setSearchTerm] = useState("")
   const [sortKey, setSortKey] = useState<"symbol" | "price" | "change24h" | "volume24h">("volume24h")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
@@ -42,32 +44,57 @@ export default function LivePricesTab() {
   const socketsRef = useRef<WebSocket[]>([])
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const connectedRef = useRef(0)
-  const totalChunksRef = useRef(0)
 
+  // 1단계: exchangeInfo로 전체 활성 심볼 동적 로드
   useEffect(() => {
-    // 청크 분할
-    const chunks: string[][] = []
-    for (let i = 0; i < COIN_SYMBOLS.length; i += CHUNK_SIZE) {
-      chunks.push(COIN_SYMBOLS.slice(i, i + CHUNK_SIZE))
+    let cancelled = false
+    async function fetchSymbols() {
+      try {
+        const res = await fetch("https://fapi.binance.com/fapi/v1/exchangeInfo")
+        const json = await res.json()
+        if (cancelled) return
+        const activeUSDT: string[] = (json.symbols ?? [])
+          .filter((s: any) => s.status === "TRADING" && s.quoteAsset === "USDT" && s.contractType === "PERPETUAL")
+          .map((s: any) => s.symbol as string)
+          .sort()
+        setSymbols(activeUSDT)
+      } catch {
+        // 실패 시 최소 fallback
+        if (!cancelled) setSymbols(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"])
+      } finally {
+        if (!cancelled) setSymbolsLoading(false)
+      }
     }
-    totalChunksRef.current = chunks.length
+    fetchSymbols()
+    return () => { cancelled = true }
+  }, [])
+
+  // 2단계: 심볼 로드 완료 후 WebSocket 청크 연결
+  useEffect(() => {
+    if (symbolsLoading || symbols.length === 0) return
+
+    const chunks: string[][] = []
+    for (let i = 0; i < symbols.length; i += CHUNK_SIZE) {
+      chunks.push(symbols.slice(i, i + CHUNK_SIZE))
+    }
+    setTotalChunks(chunks.length)
     connectedRef.current = 0
+    socketsRef.current = []
+    timersRef.current = []
 
     function openChunk(chunk: string[], idx: number) {
       const streams = chunk.map((s) => s.toLowerCase() + "@miniTicker").join("/")
-      // miniTicker는 /market 엔드포인트에 속함 (공식 문서 기준)
       const ws = new WebSocket(`wss://fstream.binance.com/market/stream?streams=${streams}`)
       socketsRef.current[idx] = ws
 
       ws.onopen = () => {
         connectedRef.current++
-        setConnectedCount(connectedRef.current)
+        setConnectedCount((c) => c + 1)
       }
 
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data)
-          // combined stream: {"stream":"...","data":{...}}
           const d = msg.data ?? msg
           if (!d?.s) return
           const price = parseFloat(d.c)
@@ -88,7 +115,6 @@ export default function LivePricesTab() {
       ws.onclose = () => {
         connectedRef.current = Math.max(0, connectedRef.current - 1)
         setConnectedCount(connectedRef.current)
-        // 3초 후 해당 청크만 재연결
         const t = setTimeout(() => openChunk(chunk, idx), 3000)
         timersRef.current.push(t)
       }
@@ -96,7 +122,6 @@ export default function LivePricesTab() {
 
     chunks.forEach((chunk, idx) => openChunk(chunk, idx))
 
-    // 500ms마다 화면 갱신
     const flush = setInterval(() => {
       setTickers(new Map(tickersRef.current))
     }, 500)
@@ -109,9 +134,10 @@ export default function LivePricesTab() {
         try { ws.onclose = null; ws.close() } catch {}
       })
       socketsRef.current = []
+      connectedRef.current = 0
+      setConnectedCount(0)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [symbols, symbolsLoading])
 
   const handleSort = (key: typeof sortKey) => {
     if (sortKey === key) {
@@ -122,7 +148,7 @@ export default function LivePricesTab() {
     }
   }
 
-  const displayList = COIN_SYMBOLS
+  const displayList = symbols
     .filter((sym) => {
       if (!searchTerm) return true
       return sym.toLowerCase().includes(searchTerm.toLowerCase())
@@ -154,25 +180,35 @@ export default function LivePricesTab() {
     </button>
   )
 
-  const isConnected = connectedCount === totalChunksRef.current && totalChunksRef.current > 0
+  const isConnected = connectedCount === totalChunks && totalChunks > 0
 
   return (
     <div className="flex flex-col h-full bg-[#0a0b0f]">
       {/* Header bar */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800/60 gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <div
-            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isConnected ? "bg-emerald-500" : "bg-yellow-500 animate-pulse"}`}
+            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+              symbolsLoading
+                ? "bg-gray-500 animate-pulse"
+                : isConnected
+                ? "bg-emerald-500"
+                : "bg-yellow-500 animate-pulse"
+            }`}
           />
-          <span className="text-xs text-gray-400">
-            {isConnected ? "LIVE" : `연결 중 ${connectedCount}/${totalChunksRef.current}...`}
+          <span className="text-xs text-gray-400 whitespace-nowrap">
+            {symbolsLoading
+              ? "심볼 로딩..."
+              : isConnected
+              ? `LIVE · ${symbols.length}개`
+              : `연결 중 ${connectedCount}/${totalChunks}`}
           </span>
-          <span className="text-xs text-gray-600">
-            {tickers.size} / {COIN_SYMBOLS.length}
-          </span>
+          {!symbolsLoading && (
+            <span className="text-xs text-gray-600">{tickers.size}/{symbols.length}</span>
+          )}
         </div>
 
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500 pointer-events-none" />
           <Input
             value={searchTerm}
@@ -201,55 +237,63 @@ export default function LivePricesTab() {
         </div>
       </div>
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto">
-        {displayList.map((item) => {
-          const isPositive = item.change24h >= 0
-          const hasData = item.price > 0
+      {/* 심볼 로딩 중 */}
+      {symbolsLoading && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-6 h-6 border-2 border-gray-700 border-t-gray-400 rounded-full animate-spin" />
+            <p className="text-xs text-gray-500">바이낸스 심볼 로딩 중...</p>
+          </div>
+        </div>
+      )}
 
-          return (
-            <div
-              key={item.symbol}
-              className="flex items-center justify-between px-4 h-[52px] border-b border-gray-800/20 hover:bg-gray-800/30 transition-colors"
-            >
-              {/* Symbol */}
-              <div className="flex items-center gap-2 min-w-[100px]">
-                {hasData ? (
-                  isPositive ? (
-                    <TrendingUp className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+      {/* List */}
+      {!symbolsLoading && (
+        <div className="flex-1 overflow-y-auto">
+          {displayList.map((item) => {
+            const isPositive = item.change24h >= 0
+            const hasData = item.price > 0
+
+            return (
+              <div
+                key={item.symbol}
+                className="flex items-center justify-between px-4 h-[52px] border-b border-gray-800/20 hover:bg-gray-800/30 transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-[100px]">
+                  {hasData ? (
+                    isPositive ? (
+                      <TrendingUp className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+                    ) : (
+                      <TrendingDown className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
+                    )
                   ) : (
-                    <TrendingDown className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
-                  )
-                ) : (
-                  <div className="h-3.5 w-3.5 flex-shrink-0" />
-                )}
-                <span className="text-sm font-medium text-gray-200">
-                  {item.symbol.replace("USDT", "")}
+                    <div className="h-3.5 w-3.5 flex-shrink-0" />
+                  )}
+                  <span className="text-sm font-medium text-gray-200">
+                    {item.symbol.replace("USDT", "")}
+                  </span>
+                </div>
+
+                <span className={`text-sm font-mono tabular-nums w-[90px] text-right ${hasData ? "text-gray-100" : "text-gray-600"}`}>
+                  {hasData ? `$${formatPrice(item.price)}` : "-"}
+                </span>
+
+                <span
+                  className={`text-sm font-medium tabular-nums w-[72px] text-right ${
+                    !hasData ? "text-gray-600" : isPositive ? "text-green-400" : "text-red-400"
+                  }`}
+                >
+                  {hasData ? `${isPositive ? "+" : ""}${item.change24h.toFixed(2)}%` : "-"}
+                </span>
+
+                <span className={`text-xs tabular-nums w-[60px] text-right ${hasData ? "text-gray-400" : "text-gray-700"}`}>
+                  {hasData ? formatVolume(item.volume24h) : "-"}
                 </span>
               </div>
-
-              {/* Price */}
-              <span className={`text-sm font-mono tabular-nums w-[90px] text-right ${hasData ? "text-gray-100" : "text-gray-600"}`}>
-                {hasData ? `$${formatPrice(item.price)}` : "-"}
-              </span>
-
-              {/* 24h Change */}
-              <span
-                className={`text-sm font-medium tabular-nums w-[72px] text-right ${
-                  !hasData ? "text-gray-600" : isPositive ? "text-green-400" : "text-red-400"
-                }`}
-              >
-                {hasData ? `${isPositive ? "+" : ""}${item.change24h.toFixed(2)}%` : "-"}
-              </span>
-
-              {/* Volume */}
-              <span className={`text-xs tabular-nums w-[60px] text-right ${hasData ? "text-gray-400" : "text-gray-700"}`}>
-                {hasData ? formatVolume(item.volume24h) : "-"}
-              </span>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
