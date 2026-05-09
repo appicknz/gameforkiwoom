@@ -101,7 +101,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
     let ws: WebSocket | null = null
     let cancelled = false
 
-    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=200`)
+    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=100`)
       .then(r => r.json())
       .then((data: any[][]) => {
         if (cancelled) return
