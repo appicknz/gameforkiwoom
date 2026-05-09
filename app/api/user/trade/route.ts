@@ -29,7 +29,8 @@ export async function POST(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { userId } = auth
 
-  const { amount } = await req.json()
+  const { amount: rawAmount } = await req.json()
+  const amount = Math.round(rawAmount)
   if (!amount || amount <= 0) {
     return NextResponse.json({ error: "금액을 입력해주세요." }, { status: 400 })
   }
@@ -74,10 +75,18 @@ export async function PATCH(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { userId } = auth
 
-  // payout = 투자금 + PnL (음수면 손실)
-  const { payout, note } = await req.json()
-  if (payout === undefined) {
+  // payout = 투자금 + PnL (음수면 손실) — bigint RPC이므로 반드시 정수로 변환
+  const { payout: rawPayout, note } = await req.json()
+  if (rawPayout === undefined) {
     return NextResponse.json({ error: "payout 필요" }, { status: 400 })
+  }
+  const payout = Math.round(Math.max(0, rawPayout))  // 음수 방지 + 정수 변환
+
+  // payout이 0이면 잔고 변화 없이 바로 성공 반환
+  if (payout === 0) {
+    const cached = await redis.get(`balance:${userId}`)
+    const bal = cached !== null ? Number(cached) : 0
+    return NextResponse.json({ success: true, newBalance: bal })
   }
 
   // 바카라/레이스 settle과 동일: atomic RPC로 잔고 지급
@@ -91,7 +100,7 @@ export async function PATCH(req: Request) {
   const { data: profile } = await adminSupabase
     .from("profiles").select("branch_id").eq("id", userId).single()
 
-  const balBefore = (newBalance as number) - payout
+  const balBefore = Math.round((newBalance as number) - payout)
 
   await adminSupabase.from("balance_transactions").insert({
     user_id: userId,
