@@ -822,7 +822,7 @@ export default function PanelPage() {
     const token = getToken(); if (!token) return
     setBranchMembersLoading(true)
     try {
-      const res = await fetch(`/api/admin/users?branch_code=${encodeURIComponent(branchCode)}`, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetch(`/api/admin/users?branch_code=${encodeURIComponent(branchCode)}&role=user`, { headers: { Authorization: `Bearer ${token}` } })
       if (res.ok) { const d = await res.json(); setBranchMembers(d.users ?? []) }
     } finally { setBranchMembersLoading(false) }
   }, [])
@@ -879,7 +879,7 @@ export default function PanelPage() {
     setBranchExLoading(false)
   }, [])
 
-  // ── 유저 계정 생성 요청 모달 (admin 전��) ������
+  // ── 유저 계정 생성 요청 모달 (admin 전��) �������
   const [adminCreateUserOpen, setAdminCreateUserOpen] = useState(false)
   const [acuUsername, setAcuUsername]   = useState("")
   const [acuPassword, setAcuPassword]   = useState("")
@@ -3601,7 +3601,7 @@ export default function PanelPage() {
                   <div className="px-5 py-3 border-t border-border bg-muted/30 flex gap-6 text-sm">
                     <span className="text-muted-foreground">월 합계</span>
                     <span className="text-emerald-600 font-semibold">충전 +{calData.reduce((s, r) => s + r.charge_total, 0).toLocaleString()}</span>
-                    <span className="text-red-500 font-semibold">환전 -{calData.reduce((s, r) => s + r.exchange_total, 0).toLocaleString()}</span>
+                    <span className="text-red-500 font-semibold">��전 -{calData.reduce((s, r) => s + r.exchange_total, 0).toLocaleString()}</span>
                     <span className="font-bold text-foreground">���이익 {calData.reduce((s, r) => s + r.net_total, 0).toLocaleString()}</span>
                   </div>
                 </div>
@@ -3857,7 +3857,7 @@ export default function PanelPage() {
                   <h2 className="text-sm font-semibold text-foreground mb-1">카드 이미지 관리</h2>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     업로드한 이미지는 순번 순서대로 카드 배경으로 사용됩니다.<br />
-                    각 라운드에서 순번 기반으로 하나가 선택되어 카드에 오버레이됩니다.<br />
+                    각 라운드에서 순번 기반으로 하나가 선택되어 카��에 오버레이됩니다.<br />
                     JPG, PNG, WebP 파일을 지원합니다.
                   </p>
                 </div>
@@ -3888,7 +3888,7 @@ export default function PanelPage() {
                 {cardImages.map((img, idx) => (
                   <div key={img.pathname} className="group relative bg-card border border-border rounded-xl overflow-hidden aspect-[3/4]">
                     <div className="absolute top-2 left-2 z-10 bg-black/70 text-white text-xs font-bold px-2 py-0.5 rounded-full">#{idx + 1}</div>
-                    <img src={img.url} alt={`카드 이미지 #${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={img.url} alt={`카드 이��지 #${idx + 1}`} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                       <button
                         onClick={() => handleCardDelete(img.url)}
@@ -3963,7 +3963,7 @@ export default function PanelPage() {
                     </p>
                   </div>
                   <div className={`border rounded-xl p-5 ${pnlData.net_pnl >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
-                    <p className="text-xs text-muted-foreground mb-1">순 손익</p>
+                    <p className="text-xs text-muted-foreground mb-1">순 손��</p>
                     <p className="text-xs text-muted-foreground mb-2">요율차익 + 수수료 - 환전</p>
                     <p className={`text-2xl font-bold ${pnlData.net_pnl >= 0 ? "text-emerald-600" : "text-red-500"}`}>
                       {pnlData.net_pnl >= 0 ? "+" : ""}{formatBalance(pnlData.net_pnl)}

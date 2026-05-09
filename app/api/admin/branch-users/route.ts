@@ -34,19 +34,25 @@ export async function GET(req: Request) {
   // 지점 멤버 목록
   let memberQuery = adminSupabase
     .from("profiles")
-    .select("id, username, balance:balances(amount)")
+    .select("id, username, branch_code, balance:balances(amount)")
     .eq("role", "user")
     .order("created_at", { ascending: false })
 
   if (me.role === "admin") {
-    // 자기 지점 회원만
-    memberQuery = memberQuery.eq("branch_id", me.id)
+    // 자기 지점 회원만 — branch_code 기준으로 조회 (branch_id는 null일 수 있음)
+    if (me.branch_code) {
+      memberQuery = memberQuery.eq("branch_code", me.branch_code)
+    } else {
+      memberQuery = memberQuery.eq("branch_id", me.id)
+    }
   } else if (me.role === "branch_admin") {
-    // 소속 지점들의 회원
-    const { data: myBranches } = await adminSupabase
-      .from("profiles").select("id").eq("role", "admin").eq("branch_code", me.branch_code)
-    const branchIds = (myBranches ?? []).map((b: any) => b.id)
-    if (branchIds.length > 0) memberQuery = memberQuery.in("branch_id", branchIds)
+    // 소속 지점들의 회원 — branch_code 기준
+    const { data: ownedBranches } = await adminSupabase
+      .from("branches").select("code").eq("owner_email", me.branch_code ?? "")
+    const codes = (ownedBranches ?? []).map((b: any) => b.code)
+    if (codes.length > 0) {
+      memberQuery = memberQuery.in("branch_code", codes)
+    }
   }
 
   const { data: members } = await memberQuery.limit(200)
