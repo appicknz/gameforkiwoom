@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const { data: profile, error: profileError } = await adminSupabase
     .from("profiles")
     .select("id, username, role")
-    .eq("username", username)
+    .ilike("username", username)
     .single()
 
   if (profileError || !profile) {

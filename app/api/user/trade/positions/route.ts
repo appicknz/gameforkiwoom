@@ -8,23 +8,23 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 })
 
-// Binance에서 현재가 조회 (서버사이드 전용)
+// Binance 현물 REST — 여러 엔드포인트 순차 시도
 async function fetchBinancePrice(symbol: string): Promise<number> {
-  // 현물 API 시도 → 실패 시 backup
-  const urls = [
+  const endpoints = [
     `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`,
     `https://api1.binance.com/api/v3/ticker/price?symbol=${symbol}`,
     `https://api2.binance.com/api/v3/ticker/price?symbol=${symbol}`,
+    `https://api3.binance.com/api/v3/ticker/price?symbol=${symbol}`,
   ]
-  for (const url of urls) {
+  for (const url of endpoints) {
     try {
-      const res = await fetch(url, { cache: "no-store" })
+      const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(4000) })
       if (!res.ok) continue
       const data = await res.json()
-      if (data.price) return parseFloat(data.price)
+      if (data?.price) return parseFloat(data.price)
     } catch { continue }
   }
-  throw new Error(`Binance price fetch failed: ${symbol}`)
+  throw new Error(`Binance price fetch failed for ${symbol}`)
 }
 
 // 손익 계산 (서버사이드 전용)
@@ -33,22 +33,19 @@ function calcPnl(
   entryPrice: number,
   currentPrice: number,
   leverage: number,
-  margin: number    // 원화 마진
+  margin: number
 ): { pnl: number; pnlPct: number; liquidated: boolean } {
+  if (!entryPrice || !currentPrice) return { pnl: 0, pnlPct: 0, liquidated: false }
   const priceDelta = direction === "long"
     ? (currentPrice - entryPrice) / entryPrice
     : (entryPrice - currentPrice) / entryPrice
-
-  const pnlPct   = priceDelta * leverage * 100
-  const pnl      = Math.round(margin * priceDelta * leverage)
-  const liquidated = pnlPct <= -100  // 증거금 100% 손실
-
+  const pnlPct    = priceDelta * leverage * 100
+  const pnl       = Math.round(margin * priceDelta * leverage)
+  const liquidated = pnlPct <= -100
   return { pnl, pnlPct, liquidated }
 }
 
-// ──────────────────────────────────────────────
-// GET: 내 오픈 포지션 목록 + 실시간 손익
-// ──────────────────────────────────────────────
+// GET: 내 오픈 포지션 + 실시간 손익
 export async function GET(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
@@ -63,7 +60,6 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!rows || rows.length === 0) return NextResponse.json({ positions: [] })
 
-  // 심볼별로 묶어서 한 번씩만 Binance 조회
   const symbols = [...new Set(rows.map(r => r.symbol))]
   const prices: Record<string, number> = {}
   await Promise.all(
@@ -78,45 +74,37 @@ export async function GET(req: Request) {
     const { pnl, pnlPct, liquidated } = calcPnl(
       row.direction, Number(row.entry_price), cur, row.leverage, Number(row.margin)
     )
-    return {
-      ...row,
-      current_price: cur,
-      unrealized_pnl: pnl,
-      unrealized_pnl_pct: pnlPct,
-      liquidated,
-    }
+    return { ...row, current_price: cur, unrealized_pnl: pnl, unrealized_pnl_pct: pnlPct, liquidated }
   })
 
   return NextResponse.json({ positions })
 }
 
-// ──────────────────────────────────────────────
-// POST: 포지션 진입 (서버에서 진입가 확정)
-// ──────────────────────────────────────────────
+// POST: 포지션 진입 — 서버에서 진입가 확정
 export async function POST(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
   const { userId } = auth
 
-  const { symbol, direction, leverage, amount: rawAmount } = await req.json()
+  const body = await req.json().catch(() => ({}))
+  const { symbol, direction, leverage, amount: rawAmount } = body
   if (!symbol || !direction || !leverage || !rawAmount) {
     return NextResponse.json({ error: "필수 항목 누락" }, { status: 400 })
   }
   const margin = Math.round(rawAmount)
   if (margin <= 0) return NextResponse.json({ error: "금액 오류" }, { status: 400 })
 
-  // 1) 서버에서 진입가 확정
+  // 서버에서 진입가 확정
   let entryPrice: number
   try {
     entryPrice = await fetchBinancePrice(symbol)
-  } catch {
-    return NextResponse.json({ error: "가격 조회 실패" }, { status: 503 })
+  } catch (e) {
+    return NextResponse.json({ error: "가격 조회 실패. 잠시 후 다시 시도해주세요." }, { status: 503 })
   }
 
-  // 2) 잔고 차감 (atomic RPC)
+  // 잔고 차감
   const { data: newBalance, error: deductErr } = await adminSupabase
     .rpc("deduct_balance_for_bet", { p_user_id: userId, p_amount: margin })
-
   if (deductErr) {
     const isInsufficient = deductErr.message?.includes("INSUFFICIENT_BALANCE")
     return NextResponse.json(
@@ -129,7 +117,6 @@ export async function POST(req: Request) {
   const { data: profile } = await adminSupabase
     .from("profiles").select("branch_id").eq("id", userId).single()
 
-  // 3) balance_transactions 기록
   await adminSupabase.from("balance_transactions").insert({
     user_id: userId,
     branch_id: profile?.branch_id ?? null,
@@ -140,26 +127,18 @@ export async function POST(req: Request) {
     note: `모의매매 진입 ${symbol} ${direction} ${leverage}x`,
   })
 
-  // 4) trade_positions 저장
   const { data: position, error: posErr } = await adminSupabase
     .from("trade_positions")
     .insert({
-      user_id:       userId,
-      symbol,
-      direction,
-      leverage,
-      margin,
-      position_size: margin * leverage,
-      entry_price:   entryPrice,
-      status:        "open",
-      branch_id:     profile?.branch_id ?? null,
+      user_id: userId, symbol, direction, leverage,
+      margin, position_size: margin * leverage,
+      entry_price: entryPrice, status: "open",
+      branch_id: profile?.branch_id ?? null,
     })
-    .select()
-    .single()
+    .select().single()
 
   if (posErr) return NextResponse.json({ error: "포지션 저장 실패" }, { status: 500 })
 
-  // 5) Redis 잔고 업데이트
   await Promise.all([
     redis.set(`balance:${userId}`, newBalance as number, { ex: 3600 }),
     redis.incr(`balance_version:${userId}`),
@@ -172,18 +151,16 @@ export async function POST(req: Request) {
   })
 }
 
-// ──────────────────────────────────────────────
-// DELETE: 포지션 청산 (서버에서 청산가 확정 + 손익 계산)
-// ──────────────────────────────────────────────
+// DELETE: 포지션 청산 — 서버에서 청산가+손익 확정
 export async function DELETE(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
   const { userId } = auth
 
-  const { position_id } = await req.json()
+  const body = await req.json().catch(() => ({}))
+  const { position_id } = body
   if (!position_id) return NextResponse.json({ error: "position_id 필요" }, { status: 400 })
 
-  // 1) 본인 포지션 확인
   const { data: pos, error: fetchErr } = await adminSupabase
     .from("trade_positions")
     .select("*")
@@ -194,35 +171,27 @@ export async function DELETE(req: Request) {
 
   if (fetchErr || !pos) return NextResponse.json({ error: "포지션 없음" }, { status: 404 })
 
-  // 2) 서버에서 청산가 확정
   let exitPrice: number
   try {
     exitPrice = await fetchBinancePrice(pos.symbol)
   } catch {
-    return NextResponse.json({ error: "청산 가격 조회 실패" }, { status: 503 })
+    return NextResponse.json({ error: "청산 가격 조회 실패. 잠시 후 다시 시도해주세요." }, { status: 503 })
   }
 
-  // 3) 서버사이드 손익 계산
   const { pnl, pnlPct, liquidated } = calcPnl(
     pos.direction, Number(pos.entry_price), exitPrice, pos.leverage, Number(pos.margin)
   )
-
-  // payout = 마진 + 손익 (최소 0, 청산 시 0)
   const payout = liquidated ? 0 : Math.max(0, Math.round(Number(pos.margin) + pnl))
 
-  // 4) 포지션 상태 업데이트
   await adminSupabase
     .from("trade_positions")
     .update({
-      status:    liquidated ? "liquidated" : "closed",
-      exit_price: exitPrice,
-      pnl,
-      pnl_pct:   pnlPct,
+      status: liquidated ? "liquidated" : "closed",
+      exit_price: exitPrice, pnl, pnl_pct: pnlPct,
       closed_at: new Date().toISOString(),
     })
     .eq("id", position_id)
 
-  // 5) 잔고 반환
   let newBalance = 0
   if (payout > 0) {
     const { data: bal } = await adminSupabase
@@ -235,8 +204,8 @@ export async function DELETE(req: Request) {
 
   const { data: profile } = await adminSupabase
     .from("profiles").select("branch_id").eq("id", userId).single()
+  const balBefore = Math.max(0, Math.round(newBalance - payout))
 
-  const balBefore = Math.round(newBalance - payout)
   await adminSupabase.from("balance_transactions").insert({
     user_id: userId,
     branch_id: profile?.branch_id ?? null,
@@ -247,13 +216,12 @@ export async function DELETE(req: Request) {
     note: `모의매매 청산 ${pos.symbol} ${pos.direction} ${pos.leverage}x PnL:${pnl >= 0 ? "+" : ""}${pnl}`,
   })
 
-  // 6) bet_history 기록
   await adminSupabase.from("bet_history").insert({
     user_id: userId,
     branch_id: profile?.branch_id ?? null,
     round_id: null,
     bet_direction: pos.direction,
-    bet_digit: `trade:${pos.symbol}:${pos.direction}:${pos.leverage}x:${pos.entry_price}:${exitPrice}`,
+    bet_digit: `trade:${pos.symbol}:${pos.direction}:${pos.leverage}x`,
     bet_parity: null,
     bet_amount: Math.round(Number(pos.margin)),
     payout,
@@ -265,13 +233,5 @@ export async function DELETE(req: Request) {
     redis.incr(`balance_version:${userId}`),
   ])
 
-  return NextResponse.json({
-    success: true,
-    exit_price: exitPrice,
-    pnl,
-    pnl_pct: pnlPct,
-    payout,
-    newBalance,
-    liquidated,
-  })
+  return NextResponse.json({ success: true, exit_price: exitPrice, pnl, pnl_pct: pnlPct, payout, newBalance, liquidated })
 }

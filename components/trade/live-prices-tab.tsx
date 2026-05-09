@@ -137,15 +137,15 @@ interface LivePricesTabProps {
 }
 
 export default function LivePricesTab({ onSelect, onPriceUpdate, selectedSymbol }: LivePricesTabProps) {
-  const [, forceUpdate]   = useState(0)
+  const [, forceUpdate]      = useState(0)
   const [searchTerm, setSearchTerm] = useState("")
   const [sortKey, setSortKey] = useState<"symbol" | "price" | "change24h" | "volume24h">("change24h")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
-  const autoSelectedRef    = useRef(false)
-  const onPriceUpdateRef   = useRef(onPriceUpdate)
-  const selectedSymbolRef  = useRef(selectedSymbol)
+  const autoSelectedRef      = useRef(false)
+  const onPriceUpdateRef     = useRef(onPriceUpdate)
+  const selectedSymbolRef    = useRef(selectedSymbol)
 
-  useEffect(() => { onPriceUpdateRef.current = onPriceUpdate }, [onPriceUpdate])
+  useEffect(() => { onPriceUpdateRef.current  = onPriceUpdate  }, [onPriceUpdate])
   useEffect(() => { selectedSymbolRef.current = selectedSymbol }, [selectedSymbol])
 
   // 싱글톤 초기화 (최초 1회만 실행)
@@ -153,13 +153,17 @@ export default function LivePricesTab({ onSelect, onPriceUpdate, selectedSymbol 
     initCache()
   }, [])
 
-  // 리스너 등록 — flush마다 선택된 심볼 가격을 onPriceUpdate로 전달
+  // 리스너 등록 — flush마다 re-render + 선택 심볼 가격을 onPriceUpdate로 전달
   useEffect(() => {
     const listener = () => {
       forceUpdate((n) => n + 1)
-      if (selectedSymbolRef.current && onPriceUpdateRef.current) {
-        const ticker = _cache.tickers.get(selectedSymbolRef.current)
-        if (ticker) onPriceUpdateRef.current(ticker.symbol, ticker.price)
+      if (onPriceUpdateRef.current) {
+        // 변경된 모든 심볼 가격 전달 (또는 선택 심볼만)
+        const sym = selectedSymbolRef.current
+        if (sym) {
+          const ticker = _cache.tickers.get(sym)
+          if (ticker) onPriceUpdateRef.current(sym, ticker.price)
+        }
       }
     }
     _cache.listeners.add(listener)
