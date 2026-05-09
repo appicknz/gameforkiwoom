@@ -483,25 +483,24 @@ export default function TradePage() {
   }, [balance])
 
   const handleClose = useCallback(async (id: string) => {
-    const price = currentPriceRef.current ?? 0
     const pos = positions.find(p => p.id === id)
     if (!pos) return
 
+    // pos.pnl / pos.pnlPct 는 baka:price 이벤트로 이미 최신 상태
+    const pnl = pos.pnl
+    const exitPrice = currentPriceRef.current ?? pos.entryPrice
+    // 청산 시 받을 금액: 투자금 + 손익 (최소 0, 즉 전액 손실)
+    const payout = Math.max(0, pos.amount + pnl)
+
     setClosingId(id)
     try {
-      const priceDiff = pos.direction === "long"
-        ? price - pos.entryPrice
-        : pos.entryPrice - price
-      const pnl = (priceDiff / pos.entryPrice) * pos.amount * pos.leverage
-      const payout = pos.amount + pnl
-
       const token = getToken()
       const res = await fetch("/api/user/trade", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           payout,
-          note: `모의매매 청산 (${pos.direction === "long" ? "롱" : "숏"} ${pos.leverage}x, PnL: ${pnl >= 0 ? "+" : ""}${fmt(pnl)})`,
+          note: `모의매매 청산 (${pos.direction === "long" ? "롱" : "숏"} ${pos.leverage}x, PnL: ${pnl >= 0 ? "+" : ""}${Math.floor(pnl).toLocaleString("ko-KR")}원)`,
         }),
       })
       const data = await res.json()
@@ -515,7 +514,7 @@ export default function TradePage() {
         pnl,
         closedAt: Date.now(),
         entryPrice: pos.entryPrice,
-        exitPrice: price,
+        exitPrice,
       }, ...l])
     } finally {
       setClosingId(null)
