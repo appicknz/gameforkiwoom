@@ -387,6 +387,8 @@ export default function TradePage() {
   const handleSelectSymbol = useCallback((symbol: string, price: number) => {
     setSelectedSymbol(symbol)
     setSelectedPrice(price)
+    // 심볼이 바뀌면 이전 심볼의 실시간 가격을 초기화
+    currentPriceRef.current = price
   }, [])
 
   // 실시간 표시 잔고 = DB 잔고 + 열린 포지션 PnL 합산
@@ -442,7 +444,7 @@ export default function TradePage() {
       setBalance(data.newBalance)
       setPositions(prev => [{
         id: tempId,
-        symbol: "BTCUSDT",
+        symbol: selectedSymbol,   // 선택된 종목 사용
         direction: dir,
         entryPrice: price,
         amount,
@@ -454,7 +456,7 @@ export default function TradePage() {
     } finally {
       setOpeningId(null)
     }
-  }, [balance])
+  }, [balance, selectedSymbol])
 
   const handleClose = useCallback(async (id: string) => {
     const pos = positions.find(p => p.id === id)
@@ -525,6 +527,10 @@ export default function TradePage() {
                 symbol={selectedSymbol}
                 height={260}
                 positions={positions.filter(p => p.symbol === selectedSymbol)}
+                onPrice={(p) => {
+                  currentPriceRef.current = p
+                  setSelectedPrice(p)
+                }}
               />
             </div>
 
