@@ -25,15 +25,8 @@ interface Position {
 }
 
 // ─── 숫자 포맷 ───────────────────────────────────────────────────
-// 가격 크기에 따라 소수 자릿수를 자동 결정 — 절대 잘리지 않음
-function fmtPrice(n: number): string {
-  if (n === 0) return "0"
-  if (n >= 10000) return n.toLocaleString("en-US", { maximumFractionDigits: 2 })
-  if (n >= 1000)  return n.toLocaleString("en-US", { maximumFractionDigits: 2 })
-  if (n >= 1)     return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })
-  if (n >= 0.01)  return n.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 6 })
-  if (n >= 0.001) return n.toLocaleString("en-US", { minimumFractionDigits: 5, maximumFractionDigits: 7 })
-  return n.toLocaleString("en-US", { minimumFractionDigits: 6, maximumFractionDigits: 10 })
+function fmt(n: number, d = 2) {
+  return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })
 }
 
 // ─── 심볼 현재가 헤더 ────────────────────────────────────────────
@@ -61,7 +54,7 @@ function SymbolHeader({ symbol, livePrice }: { symbol: string; livePrice: number
           <div style={{ fontSize: 9, color: "rgba(212,175,55,0.45)", letterSpacing: "0.06em", marginBottom: 2 }}>{base} / USDT · 영구계약</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
             <span style={{ fontSize: 18, fontWeight: 800, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
-              {livePrice !== null ? `$${fmtPrice(livePrice)}` : "—"}
+              {livePrice !== null ? `$${livePrice.toLocaleString("en-US", { maximumFractionDigits: 4 })}` : "—"}
             </span>
           </div>
         </div>
@@ -253,8 +246,8 @@ function PositionCard({ pos, onClose, closingId }: { pos: Position; onClose: (id
       {/* 중단: 진입가 / 청산가 / 경과시간 */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
         {[
-          { label: "진입가", value: `$${fmtPrice(pos.entryPrice)}` },
-          { label: "청산가", value: `$${fmtPrice(liquidationPrice)}`, color: DOWN_COLOR },
+          { label: "진입가", value: `$${fmt(pos.entryPrice)}` },
+          { label: "청산가", value: `$${fmt(liquidationPrice)}`, color: DOWN_COLOR },
           { label: "경과", value: elapsedStr },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 7, padding: "5px 8px" }}>
