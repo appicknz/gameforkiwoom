@@ -42,8 +42,9 @@ export default function LivePricesTab({ onSelect, selectedSymbol }: LivePricesTa
   const [connectedCount, setConnectedCount] = useState(0)
   const [totalChunks, setTotalChunks] = useState(0)
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortKey, setSortKey] = useState<"symbol" | "price" | "change24h" | "volume24h">("volume24h")
+  const [sortKey, setSortKey] = useState<"symbol" | "price" | "change24h" | "volume24h">("change24h")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
+  const autoSelectedRef = useRef(false)
 
   const tickersRef = useRef<Map<string, TickerData>>(new Map())
   const socketsRef = useRef<WebSocket[]>([])
@@ -128,7 +129,17 @@ export default function LivePricesTab({ onSelect, selectedSymbol }: LivePricesTa
     chunks.forEach((chunk, idx) => openChunk(chunk, idx))
 
     const flush = setInterval(() => {
-      setTickers(new Map(tickersRef.current))
+      const snap = new Map(tickersRef.current)
+      setTickers(snap)
+
+      // 데이터가 처음 들어오면 정렬 기준 1위 심볼을 자동 선택
+      if (!autoSelectedRef.current && snap.size > 0 && onSelect && !selectedSymbol) {
+        const sorted = Array.from(snap.values()).sort((a, b) => b.change24h - a.change24h)
+        if (sorted.length > 0) {
+          autoSelectedRef.current = true
+          onSelect(sorted[0].symbol, sorted[0].price)
+        }
+      }
     }, 500)
 
     return () => {
@@ -171,19 +182,22 @@ export default function LivePricesTab({ onSelect, selectedSymbol }: LivePricesTa
       return sortDir === "asc" ? diff : -diff
     })
 
-  const SortBtn = ({ label, k }: { label: string; k: typeof sortKey }) => (
-    <button
-      onClick={() => handleSort(k)}
-      className={`text-[11px] flex items-center gap-0.5 transition-colors ${
-        sortKey === k ? "text-gray-200" : "text-gray-500 hover:text-gray-300"
-      }`}
-    >
-      {label}
-      {sortKey === k && (
-        <span className="text-[9px]">{sortDir === "asc" ? "▲" : "▼"}</span>
-      )}
-    </button>
-  )
+  const SortBtn = ({ label, k }: { label: string; k: typeof sortKey }) => {
+    const isActive = sortKey === k
+    return (
+      <button
+        onClick={() => handleSort(k)}
+        className={`text-[11px] flex items-center gap-0.5 transition-colors select-none ${
+          isActive ? "text-[#d4af37]" : "text-gray-500 hover:text-gray-300"
+        }`}
+      >
+        {label}
+        <span className={`text-[9px] transition-opacity ${isActive ? "opacity-100" : "opacity-30"}`}>
+          {isActive ? (sortDir === "asc" ? "▲" : "▼") : "▼"}
+        </span>
+      </button>
+    )
+  }
 
   const isConnected = connectedCount === totalChunks && totalChunks > 0
 
