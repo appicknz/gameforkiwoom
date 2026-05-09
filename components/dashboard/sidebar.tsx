@@ -40,12 +40,20 @@ function getMonthDays(year: number, month: number) {
 interface DayStat { count: number; pnl: number; bet: number }
 
 function TradeStatsMini() {
-  const todayKST = toKSTDateStr(new Date())
-  const [viewYear, setViewYear]   = useState(() => parseInt(todayKST.slice(0, 4)))
-  const [viewMonth, setViewMonth] = useState(() => parseInt(todayKST.slice(5, 7)) - 1)
+  // Date는 서버·클라이언트 시각 차이로 hydration mismatch 발생 → useEffect에서 초기화
+  const [todayKST, setTodayKST] = useState("")
+  const [viewYear, setViewYear]   = useState(0)
+  const [viewMonth, setViewMonth] = useState(0)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [byDate, setByDate] = useState<Record<string, DayStat>>({})
   const [open, setOpen] = useState(true)
+
+  useEffect(() => {
+    const kst = toKSTDateStr(new Date())
+    setTodayKST(kst)
+    setViewYear(parseInt(kst.slice(0, 4)))
+    setViewMonth(parseInt(kst.slice(5, 7)) - 1)
+  }, [])
 
   const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
 
@@ -81,6 +89,9 @@ function TradeStatsMini() {
   const selectedStat = selectedDate ? byDate[selectedDate] : null
   const selectedPnlPct = selectedStat && selectedStat.bet > 0
     ? (selectedStat.pnl / selectedStat.bet) * 100 : 0
+
+  // 날짜 초기화 전 렌더링 방지
+  if (viewYear === 0) return null
 
   const { firstDay, daysInMonth } = getMonthDays(viewYear, viewMonth)
   const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
