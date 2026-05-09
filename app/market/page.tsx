@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2 } from "lucide-react"
+import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
-import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
+import MarketAdminPanel from "@/components/market/market-admin-panel"
 
 interface Category { id: string; name: string; icon: string }
 interface Item {
@@ -44,7 +44,6 @@ export default function MarketPage() {
   const [q, setQ]                     = useState("")
   const [loading, setLoading]         = useState(true)
   const [showAdmin, setShowAdmin]     = useState(false)
-  const [editItem, setEditItem]       = useState<EditItem | null>(null)
   const [role, setRole]               = useState<string | null>(null)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -118,7 +117,7 @@ export default function MarketPage() {
 
             {role === "master" && (
               <button
-                onClick={() => { setEditItem(null); setShowAdmin(v => !v) }}
+                onClick={() => setShowAdmin(v => !v)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -163,9 +162,8 @@ export default function MarketPage() {
         {showAdmin && role === "master" && (
           <MarketAdminPanel
             categories={categories.filter(c => c.name !== "전체")}
-            editItem={editItem}
-            onClose={() => { setShowAdmin(false); setEditItem(null) }}
-            onSuccess={() => { setShowAdmin(false); setEditItem(null); fetchItems(activeCat, sort, q) }}
+            onClose={() => setShowAdmin(false)}
+            onSuccess={() => { setShowAdmin(false); fetchItems(activeCat, sort, q) }}
           />
         )}
 
@@ -184,26 +182,7 @@ export default function MarketPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {items.map(item => (
-              <MarketItemCard
-                key={item.id}
-                item={item}
-                isAdmin={role === "master"}
-                onEdit={() => {
-                  setEditItem({
-                    id:           item.id,
-                    title:        item.title,
-                    description:  item.description,
-                    link_url:     null,
-                    price_krw:    item.price_krw,
-                    category_id:  item.category_id,
-                    publisher_id: "", // 패널 내에서 publishers 로드 후 표시
-                    image_url:    item.image_url,
-                    is_active:    true,
-                  })
-                  setShowAdmin(true)
-                  window.scrollTo({ top: 0, behavior: "smooth" })
-                }}
-              />
+              <MarketItemCard key={item.id} item={item} />
             ))}
           </div>
         )}
@@ -212,62 +191,47 @@ export default function MarketPage() {
   )
 }
 
-function MarketItemCard({
-  item, isAdmin, onEdit,
-}: {
-  item: Item
-  isAdmin: boolean
-  onEdit: () => void
-}) {
+function MarketItemCard({ item }: { item: Item }) {
   return (
-    <div className="group relative rounded-xl border border-border bg-secondary/20 overflow-hidden hover:border-primary/40 transition-all duration-200 hover:-translate-y-0.5">
-      {/* 관리자 수정 버튼 */}
-      {isAdmin && (
-        <button
-          onClick={e => { e.preventDefault(); onEdit() }}
-          className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-black/70 backdrop-blur-sm text-white hover:bg-primary hover:text-black transition-colors opacity-0 group-hover:opacity-100"
-          title="수정"
-        >
-          <Edit2 className="w-3 h-3" />
-        </button>
-      )}
-
-      <Link href={`/market/${item.id}`} className="block">
-        {/* 이미지 영역 */}
-        <div className="relative aspect-square bg-secondary overflow-hidden">
-          {item.image_url ? (
-            <Image
-              src={item.image_url}
-              alt={item.title}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl">
-              {item.market_categories?.icon ?? "📦"}
-            </div>
-          )}
-          {item.market_categories && (
-            <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[10px] text-white font-medium">
-              {item.market_categories.icon} {item.market_categories.name}
-            </span>
-          )}
-        </div>
-
-        {/* 정보 영역 */}
-        <div className="p-2.5 space-y-1">
-          <p className="text-xs font-semibold text-foreground line-clamp-2 leading-snug">{item.title}</p>
-          {item.profiles && (
-            <p className="text-[10px] text-muted-foreground">by {item.profiles.username}</p>
-          )}
-          <p className="text-xs font-bold text-primary">
-            {item.price_krw.toLocaleString("ko-KR")}원
-          </p>
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            <span>{item.order_count.toLocaleString()}명 구매</span>
+    <Link
+      href={`/market/${item.id}`}
+      className="group rounded-xl border border-border bg-secondary/20 overflow-hidden hover:border-primary/40 transition-all duration-200 hover:-translate-y-0.5"
+    >
+      {/* 이미지 영역 */}
+      <div className="relative aspect-square bg-secondary overflow-hidden">
+        {item.image_url ? (
+          <Image
+            src={item.image_url}
+            alt={item.title}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-4xl">
+            {item.market_categories?.icon ?? "📦"}
           </div>
+        )}
+        {/* 카테고리 뱃지 */}
+        {item.market_categories && (
+          <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[10px] text-white font-medium">
+            {item.market_categories.icon} {item.market_categories.name}
+          </span>
+        )}
+      </div>
+
+      {/* 정보 영역 */}
+      <div className="p-2.5 space-y-1">
+        <p className="text-xs font-semibold text-foreground line-clamp-2 leading-snug">{item.title}</p>
+        {item.profiles && (
+          <p className="text-[10px] text-muted-foreground">by {item.profiles.username}</p>
+        )}
+        <p className="text-xs font-bold text-primary">
+          {item.price_krw.toLocaleString("ko-KR")}원
+        </p>
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <span>{item.order_count.toLocaleString()}명 구매</span>
         </div>
-      </Link>
-    </div>
+      </div>
+    </Link>
   )
 }
