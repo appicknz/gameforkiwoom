@@ -10,13 +10,21 @@ const redis = new Redis({
 
 // Binance에서 현재가 조회 (서버사이드 전용)
 async function fetchBinancePrice(symbol: string): Promise<number> {
-  const res = await fetch(
-    `https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`,
-    { next: { revalidate: 0 } }
-  )
-  if (!res.ok) throw new Error(`Binance price fetch failed: ${symbol}`)
-  const data = await res.json()
-  return parseFloat(data.price)
+  // 현물 API 시도 → 실패 시 backup
+  const urls = [
+    `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`,
+    `https://api1.binance.com/api/v3/ticker/price?symbol=${symbol}`,
+    `https://api2.binance.com/api/v3/ticker/price?symbol=${symbol}`,
+  ]
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { cache: "no-store" })
+      if (!res.ok) continue
+      const data = await res.json()
+      if (data.price) return parseFloat(data.price)
+    } catch { continue }
+  }
+  throw new Error(`Binance price fetch failed: ${symbol}`)
 }
 
 // 손익 계산 (서버사이드 전용)

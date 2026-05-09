@@ -71,7 +71,6 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
         borderVisible: false,
         autoScale: true,
         textColor: TEXT,
-        minimumWidth: 90,
       },
       timeScale: {
         borderVisible: false,
@@ -91,23 +90,8 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
       borderDownColor:  "#ff3d57",
       wickUpColor:      "#00e676",
       wickDownColor:    "#ff3d57",
-      lastValueVisible: false,
+      lastValueVisible: false,  // 기본 초록/빨강 라벨 숨김
       priceLineVisible: false,
-      priceFormat: {
-        type: "custom",
-        formatter: (price: number) => {
-          if (price === 0) return "0"
-          if (price < 0.0001)  return price.toFixed(8)
-          if (price < 0.001)   return price.toFixed(7)
-          if (price < 0.01)    return price.toFixed(6)
-          if (price < 0.1)     return price.toFixed(5)
-          if (price < 1)       return price.toFixed(4)
-          if (price < 10)      return price.toFixed(3)
-          if (price < 1000)    return price.toFixed(2)
-          return price.toFixed(0)
-        },
-        minMove: 0.00000001,
-      },
     })
     seriesRef.current = series
 
