@@ -80,29 +80,25 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "payout 필요" }, { status: 400 })
   }
 
-  // 현재 잔고 조회
-  const { data: existing } = await adminSupabase
-    .from("balances").select("amount").eq("user_id", userId).single()
-  const current = existing?.amount ?? 0
-  const newBalance = Math.max(0, current + payout)
+  // 바카라/레이스 settle과 동일: atomic RPC로 잔고 지급
+  const { data: newBalance, error: payoutError } = await adminSupabase
+    .rpc("add_balance_for_payout", { p_user_id: userId, p_amount: payout })
 
-  if (existing) {
-    await adminSupabase.from("balances")
-      .update({ amount: newBalance }).eq("user_id", userId)
-  } else {
-    await adminSupabase.from("balances")
-      .insert({ user_id: userId, amount: newBalance })
+  if (payoutError) {
+    return NextResponse.json({ error: "잔고 지급 실패" }, { status: 500 })
   }
 
   const { data: profile } = await adminSupabase
     .from("profiles").select("branch_id").eq("id", userId).single()
+
+  const balBefore = (newBalance as number) - payout
 
   await adminSupabase.from("balance_transactions").insert({
     user_id: userId,
     branch_id: profile?.branch_id ?? null,
     type: "win",
     amount: payout,
-    balance_before: current,
+    balance_before: balBefore,
     balance_after: newBalance,
     note: note ?? "모의매매 청산",
   })

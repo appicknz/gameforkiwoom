@@ -131,7 +131,6 @@ function TradingPanel({
   const handleOpen = () => {
     const amt = parseFloat(amount)
     if (!amt || amt <= 0) return
-    if (balance !== null && amt > balance) return
     onOpen(direction, amt, leverage)
     setAmount("")
   }
@@ -436,18 +435,17 @@ export default function TradePage() {
   }, [])
 
   const handleOpen = useCallback(async (dir: Direction, amount: number, leverage: number) => {
-    // WebSocket 연결 전이면 전역 캐시 fallback 사용
-    const price = currentPriceRef.current ?? (typeof window !== "undefined" ? (window as any).__bitcoinCurrentPrice ?? null : null)
     if (balance === null) return
-    if (amount > balance) return
+    if (amount <= 0 || amount > balance) { alert("잔고가 부족합니다."); return }
 
+    const price = currentPriceRef.current ?? 0
     const tempId = Date.now().toString()
     setOpeningId(tempId)
     try {
       const token = getToken()
       const res = await fetch("/api/user/trade", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ amount }),
       })
       const data = await res.json()
@@ -471,8 +469,7 @@ export default function TradePage() {
   }, [balance])
 
   const handleClose = useCallback(async (id: string) => {
-    const price = currentPriceRef.current
-    if (!price) return
+    const price = currentPriceRef.current ?? 0
     const pos = positions.find(p => p.id === id)
     if (!pos) return
 
