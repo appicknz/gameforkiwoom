@@ -45,7 +45,7 @@ function TradeStatsMini() {
   const [viewMonth, setViewMonth] = useState(() => parseInt(todayKST.slice(5, 7)) - 1)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [byDate, setByDate] = useState<Record<string, DayStat>>({})
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
 
   const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
 
@@ -87,20 +87,6 @@ function TradeStatsMini() {
   const UP   = "#00e676"
   const DOWN = "#ff3d57"
   const GOLD = "#d4af37"
-
-  if (totalCount === 0 && !open) {
-    return (
-      <div className="px-1">
-        <button
-          onClick={() => { setOpen(true); fetchAll() }}
-          className="w-full flex items-center gap-1.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <BarChart2 className="w-3 h-3 shrink-0" />
-          <span className="text-[10px]">매매 통계</span>
-        </button>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-2 px-1">
@@ -345,7 +331,7 @@ export function Sidebar() {
         mobileOpen && "flex -translate-x-0",
         !mobileOpen && "lg:flex -translate-x-full lg:translate-x-0"
       )}>
-        {/* 로고 헤더 */}
+        {/* 로��� 헤더 */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-border shrink-0">
           <Link href="/" className="flex items-center gap-2 group" onClick={() => setMobileOpen(false)}>
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center transition-transform group-hover:scale-110 duration-300 relative shrink-0">
