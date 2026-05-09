@@ -1,69 +1,50 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef } from "react"
 import { X, Upload, Link as LinkIcon, Loader2 } from "lucide-react"
 
 interface Category { id: string; name: string; icon: string }
 interface Publisher { id: string; username: string; role: string }
 
-export interface EditItem {
-  id: string
-  title: string
-  description: string
-  link_url: string | null
-  price_krw: number
-  category_id: string | null
-  publisher_id: string
-  image_url: string | null
-  is_active: boolean
-}
-
 interface Props {
   categories: Category[]
   onClose: () => void
   onSuccess: () => void
-  editItem?: EditItem | null   // 수정 모드일 때 전달
 }
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin:  "대총판",
   branch_admin: "총판",
   admin:        "지점",
-  master:       "마스터",
 }
 
 function getToken() {
   try { return localStorage.getItem("app_token") } catch { return null }
 }
 
-export default function MarketAdminPanel({ categories, onClose, onSuccess, editItem }: Props) {
-  const isEdit = !!editItem
-
+export default function MarketAdminPanel({ categories, onClose, onSuccess }: Props) {
   const [publishers, setPublishers] = useState<Publisher[]>([])
+  const [pubLoaded, setPubLoaded]   = useState(false)
   const [form, setForm] = useState({
-    title:        editItem?.title        ?? "",
-    description:  editItem?.description  ?? "",
-    link_url:     editItem?.link_url     ?? "",
-    price_krw:    editItem?.price_krw    ? String(editItem.price_krw) : "",
-    category_id:  editItem?.category_id  ?? "",
-    publisher_id: editItem?.publisher_id ?? "",
-    is_active:    editItem?.is_active    ?? true,
+    title: "", description: "", link_url: "",
+    price_krw: "", category_id: "", publisher_id: "",
   })
-  const [imageFile, setImageFile]       = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(editItem?.image_url ?? null)
-  const [uploading, setUploading]       = useState(false)
-  const [submitting, setSubmitting]     = useState(false)
-  const [error, setError]               = useState("")
+  const [imageFile, setImageFile]     = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploading, setUploading]     = useState(false)
+  const [submitting, setSubmitting]   = useState(false)
+  const [error, setError]             = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
+  // 발행자 목록 최초 1회 로드
+  useState(() => {
     const token = getToken()
     if (!token) return
     fetch("/api/market/publishers", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(d => setPublishers(d.publishers ?? []))
-      .catch(() => {})
-  }, [])
+      .then(d => { setPublishers(d.publishers ?? []); setPubLoaded(true) })
+      .catch(() => setPubLoaded(true))
+  })
 
   const handleImage = (file: File) => {
     setImageFile(file)
@@ -79,24 +60,22 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
 
     setSubmitting(true)
     try {
-      let image_url: string | null = editItem?.image_url ?? null
+      let image_url: string | null = null
 
+      // 이미지 업로드 (Vercel Blob)
       if (imageFile) {
         setUploading(true)
         const fd = new FormData()
         fd.append("file", imageFile)
-        const res  = await fetch("/api/market/upload", { method: "POST", body: fd })
+        const res = await fetch("/api/market/upload", { method: "POST", body: fd })
         const data = await res.json()
-        image_url  = data.url ?? null
+        image_url = data.url ?? null
         setUploading(false)
       }
 
       const token = getToken()
-      const url    = isEdit ? `/api/market/items/${editItem!.id}` : "/api/market/items"
-      const method = isEdit ? "PATCH" : "POST"
-
-      const res = await fetch(url, {
-        method,
+      const res = await fetch("/api/market/items", {
+        method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           title:        form.title,
@@ -105,12 +84,11 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
           price_krw:    parseInt(form.price_krw, 10),
           category_id:  form.category_id || null,
           publisher_id: form.publisher_id,
-          is_active:    form.is_active,
           image_url,
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? (isEdit ? "수정 실패" : "등록 실패")); return }
+      if (!res.ok) { setError(data.error ?? "등록 실패"); return }
       onSuccess()
     } catch {
       setError("오류가 발생했습니다.")
@@ -123,17 +101,16 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
   return (
     <div className="rounded-xl border border-primary/30 bg-secondary/30 p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-foreground">
-          {isEdit ? "상품 수정" : "상품 등록"}
-        </h3>
+        <h3 className="text-sm font-bold text-foreground">상품 등록</h3>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
           <X className="w-4 h-4" />
         </button>
       </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* 좌측: 이미지 + 링크 */}
+        {/* 좌측: 이미지 + 기본 정보 */}
         <div className="space-y-3">
+          {/* 이미지 업로드 */}
           <div
             onClick={() => fileRef.current?.click()}
             className="relative aspect-square rounded-xl border-2 border-dashed border-border hover:border-primary/50 bg-secondary/40 cursor-pointer overflow-hidden transition-colors flex items-center justify-center"
@@ -153,6 +130,7 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
             onChange={e => e.target.files?.[0] && handleImage(e.target.files[0])}
           />
 
+          {/* 링크 */}
           <div className="relative">
             <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <input
@@ -162,25 +140,11 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
               className="w-full pl-9 pr-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
-
-          {/* 수정 모드: 활성/비활성 토글 */}
-          {isEdit && (
-            <label className="flex items-center gap-2 cursor-pointer">
-              <div
-                onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
-                className={`relative w-10 h-5 rounded-full transition-colors ${form.is_active ? "bg-primary" : "bg-secondary border border-border"}`}
-              >
-                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${form.is_active ? "translate-x-5" : "translate-x-0.5"}`} />
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {form.is_active ? "판매 중" : "판매 중단"}
-              </span>
-            </label>
-          )}
         </div>
 
         {/* 우측: 텍스트 정보 */}
         <div className="space-y-3">
+          {/* 타이틀 */}
           <input
             type="text" placeholder="상품 타이틀 *"
             value={form.title}
@@ -188,6 +152,7 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
             className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
 
+          {/* 설명 */}
           <textarea
             placeholder="상품 설명"
             value={form.description}
@@ -196,6 +161,7 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
             className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
           />
 
+          {/* 가격 */}
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₩</span>
             <input
@@ -206,6 +172,7 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
             />
           </div>
 
+          {/* 카테고리 */}
           <select
             value={form.category_id}
             onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}
@@ -217,6 +184,7 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
             ))}
           </select>
 
+          {/* 발행자 선택 */}
           <select
             value={form.publisher_id}
             onChange={e => setForm(f => ({ ...f, publisher_id: e.target.value }))}
@@ -237,7 +205,7 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
             className="w-full py-2 rounded-lg bg-primary text-black text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {(submitting || uploading) && <Loader2 className="w-4 h-4 animate-spin" />}
-            {uploading ? "이미지 업로드 중..." : submitting ? (isEdit ? "수정 중..." : "등록 중...") : (isEdit ? "수정 완료" : "상품 등록")}
+            {uploading ? "이미지 업로드 중..." : submitting ? "등록 중..." : "상품 등록"}
           </button>
         </div>
       </form>
