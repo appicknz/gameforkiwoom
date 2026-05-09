@@ -231,7 +231,7 @@ function PositionCard({ pos, onClose, closingId }: { pos: Position; onClose: (id
             color: dirColor, fontSize: 10, fontWeight: 800, letterSpacing: "0.05em",
           }}>{isLong ? "LONG" : "SHORT"}</div>
           <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
-            BTC/USDT <span style={{ color: "rgba(212,175,55,0.55)", fontWeight: 500 }}>{pos.leverage}x</span>
+            {pos.symbol.replace("USDT", "")}/USDT <span style={{ color: "rgba(212,175,55,0.55)", fontWeight: 500 }}>{pos.leverage}x</span>
           </span>
         </div>
         <div style={{ textAlign: "right" }}>
