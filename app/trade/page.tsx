@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab from "@/components/trade/live-prices-tab"
+import SymbolChart from "@/components/trade/symbol-chart"
 import { TrendingUp, TrendingDown, ArrowUpDown, BarChart2, Clock, Wallet } from "lucide-react"
 
 const GOLD = "#d4af37"
@@ -28,85 +29,49 @@ function fmt(n: number, d = 2) {
   return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })
 }
 
-// ─── 현재가 헤더 ─────────────────────────────────────────────────
-function LivePriceHeader() {
-  const priceRef = useRef<HTMLSpanElement>(null)
-  const changeRef = useRef<HTMLSpanElement>(null)
-  const prevRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    const onPrice = (e: Event) => {
-      const { price } = (e as CustomEvent<{ price: number }>).detail
-      if (priceRef.current) {
-        priceRef.current.textContent = `$${fmt(price)}`
-        // 색상 변화
-        if (prevRef.current !== null) {
-          const color = price >= prevRef.current ? UP_COLOR : DOWN_COLOR
-          priceRef.current.style.color = color
-        }
-        prevRef.current = price
-      }
-    }
-    const onClosing = (e: Event) => {
-      const { price } = (e as CustomEvent<{ price: number }>).detail
-      if (changeRef.current) {
-        const win = window as any
-        const hist: Array<{ time: number; price: number }> = win.__bitcoinClosingPrices ?? []
-        if (hist.length >= 2) {
-          const first = hist[0].price
-          const pct = ((price - first) / first) * 100
-          const isUp = pct >= 0
-          changeRef.current.textContent = `${isUp ? "+" : ""}${pct.toFixed(2)}%`
-          changeRef.current.style.color = isUp ? UP_COLOR : DOWN_COLOR
-        }
-      }
-    }
-    window.addEventListener("baka:price", onPrice)
-    window.addEventListener("baka:closing", onClosing)
-    return () => {
-      window.removeEventListener("baka:price", onPrice)
-      window.removeEventListener("baka:closing", onClosing)
-    }
-  }, [])
+// ─── 심볼 현재가 헤더 ────────────────────────────────────────────
+function SymbolHeader({ symbol, livePrice }: { symbol: string; livePrice: number | null }) {
+  const base = symbol.replace("USDT", "")
+  const isBTC = symbol === "BTCUSDT"
 
   return (
     <div style={{
       background: "rgba(5,13,10,0.95)",
       border: "1px solid rgba(212,175,55,0.2)",
-      borderRadius: 16,
-      padding: "10px 16px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
+      borderRadius: 16, padding: "10px 16px",
+      display: "flex", alignItems: "center", justifyContent: "space-between",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{
           width: 34, height: 34, borderRadius: "50%",
-          background: "radial-gradient(circle at 35% 35%, #f7931a, #c06000)",
+          background: isBTC
+            ? "radial-gradient(circle at 35% 35%, #f7931a, #c06000)"
+            : "radial-gradient(circle at 35% 35%, #627EEA, #3a4fc7)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 15, fontWeight: 900, color: "#fff", flexShrink: 0,
-        }}>₿</div>
+          fontSize: 11, fontWeight: 900, color: "#fff", flexShrink: 0,
+        }}>{base.slice(0, 3)}</div>
         <div>
-          <div style={{ fontSize: 9, color: "rgba(212,175,55,0.45)", letterSpacing: "0.06em", marginBottom: 2 }}>BTC / USDT</div>
+          <div style={{ fontSize: 9, color: "rgba(212,175,55,0.45)", letterSpacing: "0.06em", marginBottom: 2 }}>{base} / USDT · 영구계약</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span ref={priceRef} style={{ fontSize: 18, fontWeight: 800, color: GOLD, fontVariantNumeric: "tabular-nums" }}>—</span>
-            <span ref={changeRef} style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.3)" }}>—</span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
+              {livePrice !== null ? `$${livePrice.toLocaleString("en-US", { maximumFractionDigits: 4 })}` : "—"}
+            </span>
           </div>
         </div>
       </div>
-      <div style={{ fontSize: 10, color: "rgba(212,175,55,0.4)", letterSpacing: "0.05em", fontWeight: 600 }}>
-        모의 매매
-      </div>
+      <div style={{ fontSize: 10, color: "rgba(212,175,55,0.4)", letterSpacing: "0.05em", fontWeight: 600 }}>모의 매매</div>
     </div>
   )
 }
 
 // ─── 메인 트레이딩 패널 ──────────────────────────────────────────
 function TradingPanel({
+  symbol,
   balance,
   onOpen,
   isOpening,
 }: {
+  symbol: string
   balance: number | null
   onOpen: (dir: Direction, amount: number, leverage: number) => void
   isOpening: boolean
@@ -114,6 +79,7 @@ function TradingPanel({
   const [amountPct, setAmountPct] = useState(10)
   const [leverage, setLeverage] = useState(10)
 
+  const base = symbol.replace("USDT", "")
   const maxBalance = balance ?? 0
   const amount = Math.floor(maxBalance * amountPct / 100)
 
@@ -217,8 +183,8 @@ function TradingPanel({
             }}
           >
             {dir === "long"
-              ? <><TrendingUp style={{ width: 14, height: 14 }} />{isOpening ? "처리중..." : "롱 진입"}</>
-              : <><TrendingDown style={{ width: 14, height: 14 }} />{isOpening ? "처리중..." : "숏 진입"}</>
+              ? <><TrendingUp style={{ width: 14, height: 14 }} />{isOpening ? "처리중..." : `롱 진입 · ${base}`}</>
+              : <><TrendingDown style={{ width: 14, height: 14 }} />{isOpening ? "처리중..." : `숏 진입 · ${base}`}</>
             }
           </button>
         ))}
@@ -408,12 +374,19 @@ function getToken(): string | null {
 
 // ─── 메인 페이지 ─────────────────────────────────────────────────
 export default function TradePage() {
-  const [balance, setBalance] = useState<number | null>(null)   // 실제 DB 잔고
+  const [balance, setBalance] = useState<number | null>(null)
   const [positions, setPositions] = useState<Position[]>([])
   const [logs, setLogs] = useState<TradeLog[]>([])
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [closingId, setClosingId] = useState<string | null>(null)
+  const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT")
+  const [selectedPrice, setSelectedPrice] = useState<number | null>(null)
   const currentPriceRef = useRef<number | null>(null)
+
+  const handleSelectSymbol = useCallback((symbol: string, price: number) => {
+    setSelectedSymbol(symbol)
+    setSelectedPrice(price)
+  }, [])
 
   // 실시간 표시 잔고 = DB 잔고 + 열린 포지션 PnL 합산
   const totalPnl = positions.reduce((sum, p) => sum + p.pnl, 0)
@@ -530,11 +503,20 @@ export default function TradePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           {/* 왼쪽: 트레이딩 패널 */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* 헤더 */}
-            <LivePriceHeader />
+          <div className="lg:col-span-2 space-y-3">
+            {/* 심볼 헤더 */}
+            <SymbolHeader symbol={selectedSymbol} livePrice={selectedPrice} />
 
-            {/* 실시간 잔고 (DB잔고 + 열린 포지션 PnL) */}
+            {/* 실시간 차트 */}
+            <div style={{
+              background: "rgba(5,13,10,0.95)",
+              border: "1px solid rgba(212,175,55,0.15)",
+              borderRadius: 16, overflow: "hidden",
+            }}>
+              <SymbolChart symbol={selectedSymbol} height={240} />
+            </div>
+
+            {/* 평가 잔고 */}
             <div style={{
               background: "rgba(5,13,10,0.9)",
               border: "1px solid rgba(212,175,55,0.15)",
@@ -545,10 +527,7 @@ export default function TradePage() {
                 <Wallet style={{ width: 13, height: 13, color: GOLD, opacity: 0.6 }} />
                 <span style={{ fontSize: 11, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>평가 잔고</span>
                 {positions.length > 0 && (
-                  <span style={{
-                    fontSize: 10, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR,
-                    fontVariantNumeric: "tabular-nums",
-                  }}>
+                  <span style={{ fontSize: 10, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR, fontVariantNumeric: "tabular-nums" }}>
                     ({totalPnl >= 0 ? "+" : ""}₩{Math.floor(totalPnl).toLocaleString("ko-KR")} 미실현)
                   </span>
                 )}
@@ -560,6 +539,7 @@ export default function TradePage() {
 
             {/* 트레이딩 입력 패널 */}
             <TradingPanel
+              symbol={selectedSymbol}
               balance={balance}
               onOpen={handleOpen}
               isOpening={openingId !== null}
@@ -593,7 +573,7 @@ export default function TradePage() {
               </span>
             </div>
 
-            {/* 라이브 시세 리스트 */}
+            {/* 라이브 시세 리스트 — 클릭 시 차트/거래 종목 변경 */}
             <div style={{
               background: "#0a0b0f",
               border: "1px solid rgba(212,175,55,0.15)",
@@ -601,7 +581,10 @@ export default function TradePage() {
               overflow: "hidden",
               height: "calc(100vh - 160px)",
             }}>
-              <LivePricesTab />
+              <LivePricesTab
+              onSelect={handleSelectSymbol}
+              selectedSymbol={selectedSymbol}
+            />
             </div>
           </div>
 

@@ -30,7 +30,12 @@ function formatVolume(vol: number): string {
   return vol.toFixed(0)
 }
 
-export default function LivePricesTab() {
+interface LivePricesTabProps {
+  onSelect?: (symbol: string, price: number) => void
+  selectedSymbol?: string
+}
+
+export default function LivePricesTab({ onSelect, selectedSymbol }: LivePricesTabProps) {
   const [symbols, setSymbols] = useState<string[]>([])
   const [symbolsLoading, setSymbolsLoading] = useState(true)
   const [tickers, setTickers] = useState<Map<string, TickerData>>(new Map())
@@ -254,10 +259,16 @@ export default function LivePricesTab() {
             const isPositive = item.change24h >= 0
             const hasData = item.price > 0
 
+            const isSelected = item.symbol === selectedSymbol
             return (
               <div
                 key={item.symbol}
-                className="flex items-center justify-between px-4 h-[52px] border-b border-gray-800/20 hover:bg-gray-800/30 transition-colors"
+                onClick={() => onSelect?.(item.symbol, item.price)}
+                className={`flex items-center justify-between px-4 h-[52px] border-b border-gray-800/20 transition-colors cursor-pointer ${
+                  isSelected
+                    ? "bg-[#d4af37]/10 border-l-2 border-l-[#d4af37]"
+                    : "hover:bg-gray-800/30"
+                }`}
               >
                 <div className="flex items-center gap-2 min-w-[100px]">
                   {hasData ? (
