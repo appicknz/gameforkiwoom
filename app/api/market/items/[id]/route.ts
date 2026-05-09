@@ -26,39 +26,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   return NextResponse.json({ item: data })
 }
 
-// PATCH: 상품 수정 (master 전용)
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const auth = await verifySession(req)
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
-
-  const { data: profile } = await adminSupabase
-    .from("profiles").select("role").eq("id", auth.userId).single()
-
-  if (profile?.role !== "master") {
-    return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
-  }
-
-  const body = await req.json()
-  const { title, description, link_url, price_krw, category_id, publisher_id, image_url, is_active } = body
-
-  const { data, error } = await adminSupabase
-    .from("market_items")
-    .update({
-      title, description, link_url, price_krw,
-      category_id: category_id || null,
-      publisher_id, image_url,
-      is_active: is_active ?? true,
-      stripe_price_id: null, // 가격 변경 시 stripe price 재생성 필요
-    })
-    .eq("id", id)
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ item: data })
-}
-
 // DELETE: 상품 비활성화 (master 전용)
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

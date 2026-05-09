@@ -15,8 +15,9 @@ export async function GET(req: Request) {
     .select(`
       id, title, description, image_url, link_url,
       price_krw, view_count, order_count, created_at,
-      category_id, publisher_id,
-      market_categories(name, icon)
+      category_id,
+      market_categories(name, icon),
+      profiles:publisher_id(username, role)
     `)
     .eq("is_active", true)
 
@@ -36,25 +37,9 @@ export async function GET(req: Request) {
   }
 
   const { data, error } = await query
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // publisher 프로필 별도 조회
-  const publisherIds = [...new Set((data ?? []).map((i: any) => i.publisher_id).filter(Boolean))]
-  let profilesMap: Record<string, { username: string; role: string }> = {}
-  if (publisherIds.length > 0) {
-    const { data: profiles } = await adminSupabase
-      .from("profiles")
-      .select("id, username, role")
-      .in("id", publisherIds)
-    profiles?.forEach((p: any) => { profilesMap[p.id] = { username: p.username, role: p.role } })
-  }
-
-  const items = (data ?? []).map((item: any) => ({
-    ...item,
-    profiles: profilesMap[item.publisher_id] ?? null,
-  }))
-
-  return NextResponse.json({ items })
+  return NextResponse.json({ items: data ?? [] })
 }
 
 // POST: 상품 등록 (master 전용)
