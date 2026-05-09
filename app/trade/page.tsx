@@ -116,30 +116,30 @@ function TradingPanel({
   isOpening: boolean
 }) {
   const [direction, setDirection] = useState<Direction>("long")
-  const [amount, setAmount] = useState("100")
+  const [amountPct, setAmountPct] = useState(10) // 잔고 대비 % (1~100)
   const [leverage, setLeverage] = useState(10)
-  const priceRef = useRef<number | null>(null)
 
-  useEffect(() => {
-    const onPrice = (e: Event) => {
-      priceRef.current = (e as CustomEvent<{ price: number }>).detail.price
-    }
-    window.addEventListener("baka:price", onPrice)
-    return () => window.removeEventListener("baka:price", onPrice)
-  }, [])
+  const maxBalance = balance ?? 0
+  const rawAmount = Math.floor(maxBalance * amountPct / 100)
+  const amount = rawAmount
 
   const handleOpen = () => {
-    const amt = parseFloat(amount)
-    if (!amt || amt <= 0) return
-    onOpen(direction, amt, leverage)
-    setAmount("")
+    if (!amount || amount <= 0) return
+    onOpen(direction, amount, leverage)
+    setAmountPct(10)
   }
 
   const panelBg = "rgba(5,13,10,0.95)"
   const borderColor = "rgba(212,175,55,0.18)"
+  const sliderTrackStyle = `
+    .trade-slider::-webkit-slider-thumb { background: ${GOLD}; }
+    .trade-slider::-moz-range-thumb { background: ${GOLD}; border: none; }
+  `
 
   return (
-    <div style={{ background: panelBg, border: `1px solid ${borderColor}`, borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ background: panelBg, border: `1px solid ${borderColor}`, borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+      <style>{sliderTrackStyle}</style>
+
       {/* 잔고 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -153,126 +153,129 @@ function TradingPanel({
 
       {/* 방향 선택 */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <button
-          onClick={() => setDirection("long")}
-          style={{
-            padding: "10px 0",
-            borderRadius: 10,
-            border: `1.5px solid ${direction === "long" ? UP_COLOR : "rgba(255,255,255,0.08)"}`,
-            background: direction === "long" ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.03)",
-            color: direction === "long" ? UP_COLOR : "rgba(255,255,255,0.35)",
+        {(["long", "short"] as Direction[]).map(dir => (
+          <button key={dir} onClick={() => setDirection(dir)} style={{
+            padding: "10px 0", borderRadius: 10,
+            border: `1.5px solid ${direction === dir ? (dir === "long" ? UP_COLOR : DOWN_COLOR) : "rgba(255,255,255,0.08)"}`,
+            background: direction === dir ? (dir === "long" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)") : "rgba(255,255,255,0.03)",
+            color: direction === dir ? (dir === "long" ? UP_COLOR : DOWN_COLOR) : "rgba(255,255,255,0.35)",
             fontWeight: 700, fontSize: 13, cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
             transition: "all 0.15s",
-          }}
-        >
-          <TrendingUp style={{ width: 14, height: 14 }} /> 롱 (매수)
-        </button>
-        <button
-          onClick={() => setDirection("short")}
-          style={{
-            padding: "10px 0",
-            borderRadius: 10,
-            border: `1.5px solid ${direction === "short" ? DOWN_COLOR : "rgba(255,255,255,0.08)"}`,
-            background: direction === "short" ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.03)",
-            color: direction === "short" ? DOWN_COLOR : "rgba(255,255,255,0.35)",
-            fontWeight: 700, fontSize: 13, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-            transition: "all 0.15s",
-          }}
-        >
-          <TrendingDown style={{ width: 14, height: 14 }} /> 숏 (매도)
-        </button>
+          }}>
+            {dir === "long"
+              ? <><TrendingUp style={{ width: 14, height: 14 }} /> 롱 (매수)</>
+              : <><TrendingDown style={{ width: 14, height: 14 }} /> 숏 (매도)</>
+            }
+          </button>
+        ))}
       </div>
 
-      {/* 금액 입력 */}
+      {/* 투자 금액 슬라이더 */}
       <div>
-        <label style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em", display: "block", marginBottom: 5 }}>투자 금액 (USDT)</label>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <label style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>투자 금액</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontVariantNumeric: "tabular-nums" }}>
+              ₩{amount.toLocaleString("ko-KR")}
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: GOLD }}>{amountPct}%</span>
+          </div>
+        </div>
         <input
-          type="number"
-          value={amount}
-          onChange={e => setAmount(e.target.value)}
-          style={{
-            width: "100%", padding: "9px 12px",
-            borderRadius: 10, border: "1px solid rgba(212,175,55,0.2)",
-            background: "rgba(255,255,255,0.04)", color: "#fff",
-            fontSize: 14, fontVariantNumeric: "tabular-nums",
-            outline: "none", boxSizing: "border-box",
-          }}
-          placeholder="0"
+          type="range" min={1} max={100} step={1} value={amountPct}
+          onChange={e => setAmountPct(Number(e.target.value))}
+          className="trade-slider"
+          style={{ width: "100%", accentColor: GOLD, cursor: "pointer" }}
         />
-        {/* 빠른 선택 */}
-        <div style={{ display: "flex", gap: 5, marginTop: 6 }}>
-          {[10000, 50000, 100000, 500000].map(v => (
-            <button key={v} onClick={() => setAmount(String(v))}
-              style={{
-                flex: 1, padding: "4px 0", borderRadius: 6,
-                border: "1px solid rgba(212,175,55,0.15)",
-                background: "rgba(212,175,55,0.06)",
-                color: "rgba(212,175,55,0.6)", fontSize: 10, cursor: "pointer",
-              }}>
-              {v >= 10000 ? `${v / 10000}만` : v}
-            </button>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+          {[10, 25, 50, 75, 100].map(v => (
+            <button key={v} onClick={() => setAmountPct(v)} style={{
+              padding: "2px 7px", borderRadius: 5,
+              border: `1px solid ${amountPct === v ? GOLD : "rgba(212,175,55,0.12)"}`,
+              background: amountPct === v ? "rgba(212,175,55,0.15)" : "transparent",
+              color: amountPct === v ? GOLD : "rgba(255,255,255,0.3)",
+              fontSize: 10, cursor: "pointer",
+            }}>{v}%</button>
           ))}
         </div>
       </div>
 
-      {/* 레버리지 */}
+      {/* 레버리지 슬라이더 */}
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
           <label style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>레버리지</label>
           <span style={{ fontSize: 12, fontWeight: 700, color: GOLD }}>{leverage}x</span>
         </div>
         <input
-          type="range" min={1} max={50} value={leverage}
+          type="range" min={1} max={100} step={1} value={leverage}
           onChange={e => setLeverage(Number(e.target.value))}
-          style={{ width: "100%", accentColor: GOLD }}
+          className="trade-slider"
+          style={{ width: "100%", accentColor: GOLD, cursor: "pointer" }}
         />
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
-          {[1, 5, 10, 25, 50].map(v => (
-            <button key={v} onClick={() => setLeverage(v)}
-              style={{
-                padding: "2px 6px", borderRadius: 5,
-                border: `1px solid ${leverage === v ? GOLD : "rgba(212,175,55,0.12)"}`,
-                background: leverage === v ? "rgba(212,175,55,0.15)" : "transparent",
-                color: leverage === v ? GOLD : "rgba(255,255,255,0.3)",
-                fontSize: 10, cursor: "pointer",
-              }}>{v}x</button>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+          {[1, 10, 25, 50, 100].map(v => (
+            <button key={v} onClick={() => setLeverage(v)} style={{
+              padding: "2px 6px", borderRadius: 5,
+              border: `1px solid ${leverage === v ? GOLD : "rgba(212,175,55,0.12)"}`,
+              background: leverage === v ? "rgba(212,175,55,0.15)" : "transparent",
+              color: leverage === v ? GOLD : "rgba(255,255,255,0.3)",
+              fontSize: 10, cursor: "pointer",
+            }}>{v}x</button>
           ))}
         </div>
       </div>
 
-      {/* 예상 포지션 크기 */}
+      {/* 포지션 정보 요약 */}
       <div style={{
         background: "rgba(212,175,55,0.05)", border: "1px solid rgba(212,175,55,0.1)",
         borderRadius: 10, padding: "8px 12px",
-        display: "flex", justifyContent: "space-between", alignItems: "center",
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px",
       }}>
-        <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)" }}>포지션 크기</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(212,175,55,0.8)", fontVariantNumeric: "tabular-nums" }}>
-          ${fmt(parseFloat(amount || "0") * leverage)}
-        </span>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 10, color: "rgba(212,175,55,0.45)" }}>투자금</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(212,175,55,0.75)", fontVariantNumeric: "tabular-nums" }}>
+            ₩{amount.toLocaleString("ko-KR")}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 10, color: "rgba(212,175,55,0.45)" }}>포지션</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(212,175,55,0.75)", fontVariantNumeric: "tabular-nums" }}>
+            ₩{(amount * leverage).toLocaleString("ko-KR")}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 10, color: "rgba(212,175,55,0.45)" }}>청산가</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: direction === "long" ? DOWN_COLOR : UP_COLOR, fontVariantNumeric: "tabular-nums" }}>
+            {leverage > 1 ? `${direction === "long" ? "-" : "+"}${(100 / leverage).toFixed(1)}%` : "없음"}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 10, color: "rgba(212,175,55,0.45)" }}>1% 수익</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: UP_COLOR, fontVariantNumeric: "tabular-nums" }}>
+            ₩{Math.floor(amount * leverage * 0.01).toLocaleString("ko-KR")}
+          </span>
+        </div>
       </div>
 
       {/* 진입 버튼 */}
       <button
         onClick={handleOpen}
-        disabled={isOpening}
+        disabled={isOpening || !amount}
         style={{
-          width: "100%", padding: "12px 0",
-          borderRadius: 12,
-          border: "none",
-          background: isOpening
+          width: "100%", padding: "13px 0",
+          borderRadius: 12, border: "none",
+          background: isOpening || !amount
             ? "rgba(255,255,255,0.08)"
             : direction === "long"
               ? "linear-gradient(135deg, #16a34a, #22c55e)"
               : "linear-gradient(135deg, #dc2626, #ef4444)",
-          color: isOpening ? "rgba(255,255,255,0.3)" : "#fff",
+          color: isOpening || !amount ? "rgba(255,255,255,0.3)" : "#fff",
           fontWeight: 800, fontSize: 14,
-          cursor: isOpening ? "not-allowed" : "pointer",
-          boxShadow: isOpening ? "none" : direction === "long"
-            ? "0 4px 16px rgba(34,197,94,0.25)"
-            : "0 4px 16px rgba(239,68,68,0.25)",
+          cursor: isOpening || !amount ? "not-allowed" : "pointer",
+          boxShadow: isOpening || !amount ? "none" : direction === "long"
+            ? "0 4px 16px rgba(34,197,94,0.3)"
+            : "0 4px 16px rgba(239,68,68,0.3)",
           transition: "all 0.15s",
         }}
       >
