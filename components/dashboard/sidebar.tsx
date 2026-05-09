@@ -250,34 +250,54 @@ export function Sidebar() {
           )}
 
           {/* ② 게임 카드 */}
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">게임</p>
-            <Link href="/baka" onClick={() => setMobileOpen(false)}>
-              <div className={cn(
-                "rounded-xl border border-border p-3.5 flex items-center justify-between cursor-pointer transition-all duration-200 hover:bg-secondary/60",
-                pathname === "/baka" && "border-primary/50 bg-secondary/40"
-              )}>
-                <div className="flex flex-col gap-0.5">
-                  <p className="text-sm font-semibold text-foreground">바카라</p>
-                  <p className="text-[11px] text-muted-foreground">비트코인 30초 바카라</p>
-                  <p className="text-[10px] text-muted-foreground/60 tabular-nums mt-0.5">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} 라운드</p>
+            <div className="grid grid-cols-2 gap-2">
+              {/* 바카라 */}
+              <Link href="/baka" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/baka" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">바카라</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">비트코인 30초 바카라</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} R</p>
                 </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-              </div>
-            </Link>
-            <Link href="/race" onClick={() => setMobileOpen(false)}>
-              <div className={cn(
-                "rounded-xl border border-border p-3.5 flex items-center justify-between cursor-pointer transition-all duration-200 hover:bg-secondary/60",
-                pathname === "/race" && "border-primary/50 bg-secondary/40"
-              )}>
-                <div className="flex flex-col gap-0.5">
-                  <p className="text-sm font-semibold text-foreground">차트차트</p>
-                  <p className="text-[11px] text-muted-foreground">비트코인 3분 레이스</p>
-                  <p className="text-[10px] text-muted-foreground/60 tabular-nums mt-0.5">#{Math.floor(Date.now() / 1000 / 180).toLocaleString()} 라운드</p>
+              </Link>
+              {/* 차트차트 */}
+              <Link href="/race" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/race" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">차트차트</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">비트코인 3분 레이스</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 180).toLocaleString()} R</p>
                 </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-              </div>
-            </Link>
+              </Link>
+              {/* 모의 매매 */}
+              <Link href="/trade" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/trade" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">모의 매매</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">비트코인 모의 투자</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">준비중</p>
+                </div>
+              </Link>
+              {/* 마켓 */}
+              <Link href="/market" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/market" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">마켓</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">아이템 거래소</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">준비중</p>
+                </div>
+              </Link>
+            </div>
           </div>
 
           {/* ③ 왜 우리를 선택할까요 */}
