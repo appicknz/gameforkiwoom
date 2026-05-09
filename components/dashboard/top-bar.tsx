@@ -434,17 +434,18 @@ export function TopBar() {
           })}
         </nav>
 
-        {/* 중앙 잔고 */}
-        <div className="flex-1 flex justify-center">
-          {isLoggedIn && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border">
-              <Wallet className="w-3.5 h-3.5 text-primary shrink-0" />
-              <span className="text-sm font-semibold text-primary tabular-nums">
-                ₩{balance.toLocaleString()}
-              </span>
-            </div>
-          )}
-        </div>
+        {/* 중앙 스페이서 */}
+        <div className="flex-1" />
+
+        {/* 우측: 잔고 + 로그인/아바타 */}
+        {isLoggedIn && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border">
+            <Wallet className="w-3.5 h-3.5 text-primary shrink-0" />
+            <span className="text-sm font-semibold text-primary tabular-nums">
+              ₩{balance.toLocaleString()}
+            </span>
+          </div>
+        )}
 
         <div className="flex items-center gap-2" ref={dropdownRef}>
           {isLoggedIn ? (
