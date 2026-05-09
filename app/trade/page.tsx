@@ -382,13 +382,13 @@ export default function TradePage() {
   const [closingId, setClosingId] = useState<string | null>(null)
   const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT")
   const [selectedPrice, setSelectedPrice] = useState<number | null>(null)
-  const currentPriceRef = useRef<number | null>(null)
+  // 심볼별 최신 가격 저장 (BTC 가격이 다른 종목을 덮어쓰지 않도록 Map으로 관리)
+  const priceMapRef = useRef<Map<string, number>>(new Map())
 
   const handleSelectSymbol = useCallback((symbol: string, price: number) => {
     setSelectedSymbol(symbol)
     setSelectedPrice(price)
-    // 심볼이 바뀌면 이전 심볼의 실시간 가격을 초기화
-    currentPriceRef.current = price
+    priceMapRef.current.set(symbol, price)
   }, [])
 
   // 실시간 표시 잔고 = DB 잔고 + 열린 포지션 PnL 합산
@@ -407,15 +407,18 @@ export default function TradePage() {
       .catch(() => {})
   }, [])
 
+  // baka:price 이벤트는 BTC 가격 전용 — priceMap에 BTCUSDT 가격만 저장
   useEffect(() => {
     const onPrice = (e: Event) => {
       const price = (e as CustomEvent<{ price: number }>).detail.price
-      currentPriceRef.current = price
+      priceMapRef.current.set("BTCUSDT", price)
+      // BTC 포지션만 해당 가격으로 PnL 업데이트
       setPositions(prev => prev.map(pos => {
+        if (pos.symbol !== "BTCUSDT") return pos
         const priceDiff = pos.direction === "long"
           ? price - pos.entryPrice
           : pos.entryPrice - price
-        const pnl = (priceDiff / pos.entryPrice) * pos.amount * pos.leverage
+        const pnl    = (priceDiff / pos.entryPrice) * pos.amount * pos.leverage
         const pnlPct = (priceDiff / pos.entryPrice) * pos.leverage * 100
         return { ...pos, pnl, pnlPct }
       }))
@@ -428,7 +431,7 @@ export default function TradePage() {
     if (balance === null) return
     if (amount <= 0 || amount > balance) { alert("잔고가 부족합니다."); return }
 
-    const price = currentPriceRef.current ?? 0
+    const price = priceMapRef.current.get(selectedSymbol) ?? 0
     const tempId = Date.now().toString()
     setOpeningId(tempId)
     try {
@@ -464,7 +467,7 @@ export default function TradePage() {
 
     // pos.pnl / pos.pnlPct 는 baka:price 이벤트로 이미 최신 상태
     const pnl = pos.pnl
-    const exitPrice = currentPriceRef.current ?? pos.entryPrice
+    const exitPrice = priceMapRef.current.get(pos.symbol) ?? pos.entryPrice
     // 청산 시 받을 금액: 투자금 + 손익 (최소 0, 즉 전액 손실)
     const payout = Math.max(0, pos.amount + pnl)
 
@@ -528,8 +531,18 @@ export default function TradePage() {
                 height={260}
                 positions={positions.filter(p => p.symbol === selectedSymbol)}
                 onPrice={(p) => {
-                  currentPriceRef.current = p
+                  priceMapRef.current.set(selectedSymbol, p)
                   setSelectedPrice(p)
+                  // 선택 심볼 포지션 PnL 실시간 업데이트
+                  setPositions(prev => prev.map(pos => {
+                    if (pos.symbol !== selectedSymbol) return pos
+                    const priceDiff = pos.direction === "long"
+                      ? p - pos.entryPrice
+                      : pos.entryPrice - p
+                    const pnl    = (priceDiff / pos.entryPrice) * pos.amount * pos.leverage
+                    const pnlPct = (priceDiff / pos.entryPrice) * pos.leverage * 100
+                    return { ...pos, pnl, pnlPct }
+                  }))
                 }}
               />
             </div>
