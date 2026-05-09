@@ -232,9 +232,7 @@ function getToken(): string | null { try { return localStorage.getItem(STORAGE_K
 function clearToken() { try { localStorage.removeItem(STORAGE_KEY) } catch {} }
 
 const features = [
-  { icon: Zap,        title: "즉시 거래",      desc: "하루 평균 20조원 규모 거래소의 101% 실시간 가격" },
-  { icon: TrendingUp, title: "투명한 결과",     desc: "블록체인 기반 공정한 결과 판정" },
-  { icon: Dice6,      title: "낮은 하우스 엣지", desc: "업계 최고의 배팅 배당률 제공" },
+  { icon: Zap, title: "오늘의 비트", desc: "비트코인으로 할 수 있는 다양한 일을 합니다. 현금거래는 지원하지 않습니다." },
 ]
 
 export function Sidebar() {
@@ -506,7 +504,7 @@ export function Sidebar() {
 
           {/* ③ 왜 우리를 선택할까요 */}
           <div className="space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">서비스 특징</p>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">오늘의 비트</p>
             {features.map((f) => (
               <div key={f.title} className="rounded-xl border border-border p-3 flex items-start gap-3">
                 <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
