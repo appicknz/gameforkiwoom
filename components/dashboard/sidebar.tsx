@@ -22,6 +22,7 @@ import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import SidebarOrders from "@/components/market/sidebar-orders"
 
 // ─── 모의매매 거래 통계 (소형) ────────────────────────────────────
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"]
@@ -523,7 +524,12 @@ export function Sidebar() {
             ))}
           </div>
 
-          {/* ⑤ 외부 링크 */}
+          {/* ⑤ 내 구매현황 */}
+          <div className="border-t border-border pt-3">
+            <SidebarOrders />
+          </div>
+
+          {/* ⑥ 외부 링크 */}
           <div className="shrink-0">
             <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">외부링크</p>
             <Link
