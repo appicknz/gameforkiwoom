@@ -397,39 +397,65 @@ export function TopBar() {
       </div>
     )}
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
-      <div className="flex h-14 items-center justify-between px-4">
-        {/* 좌측 홈 버튼 */}
+      <div className="flex h-12 items-center gap-2 px-4">
+
+        {/* 좌측: 홈 버튼 */}
         <Link
           href="/"
-          className="w-10 h-10 rounded-full bg-green-700 hover:bg-green-800 transition-all duration-300 flex items-center justify-center hover:scale-110"
+          className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center hover:bg-primary/80 transition-colors shrink-0"
           aria-label="홈으로 이동"
         >
-          <Home className="w-5 h-5 text-white" />
+          <Home className="w-4 h-4 text-black" />
         </Link>
 
-        {/* 중앙 잔고 */}
-        <button className="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full hover:bg-primary/20 transition-colors">
-          <Wallet className="w-4 h-4 text-primary" />
-          <span className="text-sm font-semibold text-primary">₩ {balance.toLocaleString()}</span>
-        </button>
+        {/* 중앙: 잔고 */}
+        <div className="flex-1 flex justify-center">
+          {isLoggedIn && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border">
+              <Wallet className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-sm font-semibold text-primary tabular-nums">
+                ₩{balance.toLocaleString()}
+              </span>
+            </div>
+          )}
+        </div>
 
-        {/* 우측 프로필 */}
-        <div className="flex items-center gap-2" ref={dropdownRef}>
-          <button
-            onClick={() => setDropdownOpen(v => !v)}
-            className="flex items-center gap-2 rounded-full hover:scale-110 transition-all duration-300"
-            aria-label="프로필"
-          >
-            <Avatar className="w-10 h-10 bg-green-700">
-              <AvatarFallback className="bg-green-700 text-white text-xs font-bold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-          </button>
+        {/* 우측: 로그인/아바타 */}
+        <div className="flex items-center gap-2 shrink-0" ref={dropdownRef}>
+          {isLoggedIn ? (
+            <button
+              onClick={() => setDropdownOpen(v => !v)}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-secondary transition-colors"
+              aria-label="프로필"
+            >
+              <Avatar className="w-7 h-7">
+                <AvatarFallback className="bg-primary text-black text-xs font-bold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium text-foreground hidden sm:block">{profile?.username}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => { setAuthTab("login"); setDropdownOpen(true) }}
+                className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                로그인
+              </button>
+              <button
+                onClick={() => { setAuthTab("register"); setDropdownOpen(true) }}
+                className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-primary text-black hover:bg-primary/90 transition-colors"
+              >
+                회원가입
+              </button>
+            </div>
+          )}
 
           {/* 드롭다운 */}
           {dropdownOpen && (
-            <div className="absolute top-14 right-4 w-72 bg-background border border-border rounded-xl shadow-lg overflow-hidden z-50">
+            <div className="absolute top-12 right-4 w-72 bg-background border border-border rounded-xl shadow-lg overflow-hidden z-50">
 
               {isLoggedIn ? (
                 <>
