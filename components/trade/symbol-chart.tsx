@@ -69,7 +69,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
       },
       rightPriceScale: {
         borderVisible: false,
-        scaleMargins: { top: 0.1, bottom: 0.1 },
+        autoScale: true,
         textColor: TEXT,
       },
       timeScale: {
@@ -95,12 +95,11 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
     })
     seriesRef.current = series
 
-    // 현재가 표시용 흰색 가격 라인 (lastValueVisible 대체)
+    // 수평선 없이 축 라벨만 표시 — color를 투명으로, lineWidth를 0으로
     const currentPriceLine = series.createPriceLine({
       price:            0,
-      color:            "rgba(255,255,255,0.5)",
-      lineWidth:        1,
-      lineStyle:        1,
+      color:            "transparent",
+      lineWidth:        0,
       axisLabelVisible: true,
       title:            "",
     })
