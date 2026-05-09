@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab from "@/components/trade/live-prices-tab"
 import SymbolChart from "@/components/trade/symbol-chart"
-import TradeHistoryPanel from "@/components/trade/trade-history-panel"
 import { TrendingUp, TrendingDown, ArrowUpDown, BarChart2, Clock, Wallet } from "lucide-react"
 
 const GOLD = "#d4af37"
@@ -578,9 +577,6 @@ export default function TradePage() {
 
             {/* 포지션 목록 */}
             <PositionList positions={positions} onClose={handleClose} closingId={closingId} />
-
-            {/* 거래 내역 캘린더 */}
-            <TradeHistoryPanel getToken={getToken} />
 
             {/* 거래 내역 */}
             <TradeHistory logs={logs} />

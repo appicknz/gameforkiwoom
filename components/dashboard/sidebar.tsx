@@ -6,7 +6,6 @@ import {
   LogIn,
   UserPlus,
   X,
-  ArrowRight,
   User,
   Lock,
   Eye,
@@ -14,12 +13,220 @@ import {
   Zap,
   TrendingUp,
   Dice6,
+  ChevronLeft,
+  ChevronRight,
+  BarChart2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+
+// ─── 모의매매 거래 통계 (소형) ────────────────────────────────────
+const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"]
+
+function toKSTDateStr(d: Date) {
+  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+}
+
+function getMonthDays(year: number, month: number) {
+  return {
+    firstDay: new Date(year, month, 1).getDay(),
+    daysInMonth: new Date(year, month + 1, 0).getDate(),
+  }
+}
+
+interface DayStat { count: number; pnl: number; bet: number }
+
+function TradeStatsMini() {
+  const todayKST = toKSTDateStr(new Date())
+  const [viewYear, setViewYear]   = useState(() => parseInt(todayKST.slice(0, 4)))
+  const [viewMonth, setViewMonth] = useState(() => parseInt(todayKST.slice(5, 7)) - 1)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [byDate, setByDate] = useState<Record<string, DayStat>>({})
+  const [open, setOpen] = useState(false)
+
+  const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
+
+  const fetchAll = useCallback(async () => {
+    const token = getToken()
+    if (!token) return
+    try {
+      const res = await fetch("/api/user/trade/history", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      setByDate(data.byDate ?? {})
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    const onLogin = () => fetchAll()
+    window.addEventListener("auth:login", onLogin)
+    fetchAll()
+    return () => window.removeEventListener("auth:login", onLogin)
+  }, [fetchAll])
+
+  // 전체 통계 집계
+  const allDays = Object.values(byDate)
+  const totalCount = allDays.reduce((s, d) => s + d.count, 0)
+  const totalPnl   = allDays.reduce((s, d) => s + d.pnl, 0)
+  const totalBet   = allDays.reduce((s, d) => s + d.bet, 0)
+  const winDays    = allDays.filter(d => d.pnl >= 0).length
+  const totalPnlPct = totalBet > 0 ? (totalPnl / totalBet) * 100 : 0
+  const winDayPct   = allDays.length > 0 ? (winDays / allDays.length) * 100 : 0
+
+  const selectedStat = selectedDate ? byDate[selectedDate] : null
+  const selectedPnlPct = selectedStat && selectedStat.bet > 0
+    ? (selectedStat.pnl / selectedStat.bet) * 100 : 0
+
+  const { firstDay, daysInMonth } = getMonthDays(viewYear, viewMonth)
+  const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
+  const UP   = "#00e676"
+  const DOWN = "#ff3d57"
+  const GOLD = "#d4af37"
+
+  if (totalCount === 0 && !open) {
+    return (
+      <div className="px-1">
+        <button
+          onClick={() => { setOpen(true); fetchAll() }}
+          className="w-full flex items-center gap-1.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <BarChart2 className="w-3 h-3 shrink-0" />
+          <span className="text-[10px]">매매 통계</span>
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2 px-1">
+      {/* 헤더 */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between"
+      >
+        <div className="flex items-center gap-1.5">
+          <BarChart2 className="w-3 h-3 text-primary shrink-0" />
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">매매 통계</span>
+        </div>
+        <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform", open && "rotate-90")} />
+      </button>
+
+      {open && (
+        <div className="space-y-2">
+          {/* 요약 4칸 */}
+          <div className="grid grid-cols-2 gap-1">
+            {[
+              { label: "총 매매", value: `${totalCount}회` },
+              { label: "총 수익", value: `${totalPnl >= 0 ? "+" : ""}${Math.floor(totalPnl).toLocaleString("ko-KR")}`, color: totalPnl >= 0 ? UP : DOWN },
+              { label: "수익률", value: `${totalPnlPct >= 0 ? "+" : ""}${totalPnlPct.toFixed(1)}%`, color: totalPnlPct >= 0 ? UP : DOWN },
+              { label: "승률(일)", value: `${winDayPct.toFixed(0)}%`, color: winDayPct >= 50 ? UP : DOWN },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="rounded-lg border border-border bg-background/40 p-1.5">
+                <p className="text-[9px] text-muted-foreground mb-0.5">{label}</p>
+                <p className="text-[10px] font-bold tabular-nums" style={{ color: color ?? "var(--foreground)" }}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 캘린더 */}
+          <div className="rounded-lg border border-border bg-background/40 p-2 space-y-1.5">
+            {/* 월 헤더 */}
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-foreground">{viewYear}년 {viewMonth + 1}월</span>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => {
+                    if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11) }
+                    else setViewMonth(m => m - 1)
+                    setSelectedDate(null)
+                  }}
+                  className="w-4 h-4 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                >
+                  <ChevronLeft className="w-2.5 h-2.5" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0) }
+                    else setViewMonth(m => m + 1)
+                    setSelectedDate(null)
+                  }}
+                  className="w-4 h-4 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                >
+                  <ChevronRight className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* 요일 헤더 */}
+            <div className="grid grid-cols-7 text-center">
+              {DAY_LABELS.map((d, i) => (
+                <div key={d} className="text-[8px] font-medium" style={{ color: i === 0 ? DOWN : i === 6 ? "#4a9eff" : "var(--muted-foreground)" }}>{d}</div>
+              ))}
+            </div>
+
+            {/* 날짜 격자 */}
+            <div className="grid grid-cols-7 gap-px">
+              {cells.map((day, idx) => {
+                if (!day) return <div key={`e-${idx}`} />
+                const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+                const stat = byDate[dateStr]
+                const isToday = dateStr === todayKST
+                const isSel   = dateStr === selectedDate
+                const dotColor = stat ? (stat.pnl >= 0 ? UP : DOWN) : null
+
+                return (
+                  <button
+                    key={dateStr}
+                    onClick={() => setSelectedDate(isSel ? null : dateStr)}
+                    className={cn(
+                      "relative flex flex-col items-center justify-center h-5 rounded text-[9px] font-medium transition-colors",
+                      isToday ? "ring-1 ring-primary text-primary" : "text-foreground hover:bg-secondary",
+                      isSel && "bg-primary/15",
+                      !stat && "text-muted-foreground/50",
+                    )}
+                  >
+                    {day}
+                    {dotColor && (
+                      <span className="absolute bottom-0.5 w-1 h-1 rounded-full" style={{ background: dotColor }} />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* 선택일 상세 */}
+          {selectedDate && selectedStat && (
+            <div className="rounded-lg border border-border bg-background/40 p-2 space-y-1">
+              <p className="text-[9px] text-muted-foreground">{selectedDate}</p>
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] text-muted-foreground">매매 횟수</span>
+                <span className="text-[10px] font-bold text-foreground">{selectedStat.count}회</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] text-muted-foreground">당일 손익</span>
+                <span className="text-[10px] font-bold tabular-nums" style={{ color: selectedStat.pnl >= 0 ? UP : DOWN }}>
+                  {selectedStat.pnl >= 0 ? "+" : ""}{Math.floor(selectedStat.pnl).toLocaleString("ko-KR")}원
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] text-muted-foreground">당일 수익률</span>
+                <span className="text-[10px] font-bold tabular-nums" style={{ color: selectedPnlPct >= 0 ? UP : DOWN }}>
+                  {selectedPnlPct >= 0 ? "+" : ""}{selectedPnlPct.toFixed(2)}%
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 // import { ChatPanel } from "@/components/dashboard/chat-panel"
 
 const STORAGE_KEY = "app_token"
@@ -316,7 +523,7 @@ export function Sidebar() {
             ))}
           </div>
 
-          {/* ④ 외부 링크 (가장 아래) */}
+          {/* ④ 외부 링크 */}
           <div className="shrink-0">
             <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">외부링크</p>
             <Link
@@ -328,6 +535,11 @@ export function Sidebar() {
               <span className="text-sm">바이낸스</span>
               <ExternalLink className="w-3 h-3 ml-auto opacity-40" />
             </Link>
+          </div>
+
+          {/* ⑤ 모의매매 거래 통계 */}
+          <div className="border-t border-border pt-3">
+            <TradeStatsMini />
           </div>
         </div>
       </aside>
