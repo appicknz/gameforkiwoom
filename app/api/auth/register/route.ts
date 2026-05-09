@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   const { data: existing } = await adminSupabase
     .from("profiles")
     .select("id")
-    .ilike("username", username)
+    .eq("username", username)
     .single()
 
   if (existing) {
