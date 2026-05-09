@@ -76,7 +76,16 @@ export async function PATCH(req: Request) {
   const { userId } = auth
 
   // payout = 투자금 + PnL (음수면 손실) — bigint RPC이므로 반드시 정수로 변환
-  const { payout: rawPayout, note } = await req.json()
+  const {
+    payout: rawPayout,
+    note,
+    symbol: tradeSymbol,
+    direction: tradeDirection,
+    leverage: tradeLeverage,
+    entry_price: tradeEntryPrice,
+    exit_price: tradeExitPrice,
+    bet_amount: tradeBetAmount,
+  } = await req.json()
   if (rawPayout === undefined) {
     return NextResponse.json({ error: "payout 필요" }, { status: 400 })
   }
@@ -111,6 +120,22 @@ export async function PATCH(req: Request) {
     balance_after: newBalance,
     note: note ?? "모의매매 청산",
   })
+
+  // bet_history에 모의매매 거래 기록 저장
+  if (tradeBetAmount !== undefined) {
+    const pnl = payout - Math.round(tradeBetAmount)
+    await adminSupabase.from("bet_history").insert({
+      user_id: userId,
+      branch_id: profile?.branch_id ?? null,
+      round_id: null,
+      bet_direction: tradeDirection ?? null,
+      bet_digit: `trade:${tradeSymbol ?? "BTCUSDT"}:${tradeDirection ?? "long"}:${tradeLeverage ?? 1}x:${tradeEntryPrice ?? 0}:${tradeExitPrice ?? 0}`,
+      bet_parity: null,
+      bet_amount: Math.round(tradeBetAmount),
+      payout: payout,
+      result: pnl >= 0 ? "win" : "lose",
+    }).catch(() => {})
+  }
 
   await Promise.all([
     redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),

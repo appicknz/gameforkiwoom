@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab from "@/components/trade/live-prices-tab"
 import SymbolChart from "@/components/trade/symbol-chart"
+import TradeHistoryPanel from "@/components/trade/trade-history-panel"
 import { TrendingUp, TrendingDown, ArrowUpDown, BarChart2, Clock, Wallet } from "lucide-react"
 
 const GOLD = "#d4af37"
@@ -474,6 +475,13 @@ export default function TradePage() {
         body: JSON.stringify({
           payout,
           note: `모의매매 청산 (${pos.direction === "long" ? "롱" : "숏"} ${pos.leverage}x, PnL: ${pnl >= 0 ? "+" : ""}${Math.floor(pnl).toLocaleString("ko-KR")}원)`,
+          // bet_history 저장용 필드
+          symbol:       pos.symbol,
+          direction:    pos.direction,
+          leverage:     pos.leverage,
+          entry_price:  pos.entryPrice,
+          exit_price:   exitPrice,
+          bet_amount:   pos.amount,
         }),
       })
       const data = await res.json()
@@ -507,7 +515,7 @@ export default function TradePage() {
             {/* 심볼 헤더 */}
             <SymbolHeader symbol={selectedSymbol} livePrice={selectedPrice} />
 
-            {/* 실시간 차트 */}
+            {/* 실시��� 차트 */}
             <div style={{
               background: "rgba(5,13,10,0.95)",
               border: "1px solid rgba(212,175,55,0.15)",
@@ -551,6 +559,9 @@ export default function TradePage() {
 
             {/* 포지션 목록 */}
             <PositionList positions={positions} onClose={handleClose} closingId={closingId} />
+
+            {/* 거래 내역 캘린더 */}
+            <TradeHistoryPanel getToken={getToken} />
 
             {/* 거래 내역 */}
             <TradeHistory logs={logs} />
