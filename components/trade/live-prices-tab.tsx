@@ -17,10 +17,12 @@ const CHUNK_SIZE = 100
 
 function formatPrice(price: number): string {
   if (price === 0) return "-"
-  if (price >= 10000) return price.toLocaleString("en-US", { maximumFractionDigits: 0 })
-  if (price >= 1) return price.toFixed(4)
-  if (price >= 0.001) return price.toFixed(5)
-  return price.toFixed(8)
+  if (price >= 10000) return price.toLocaleString("en-US", { maximumFractionDigits: 2 })
+  if (price >= 1000)  return price.toLocaleString("en-US", { maximumFractionDigits: 2 })
+  if (price >= 1)     return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+  if (price >= 0.01)  return price.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 6 })
+  if (price >= 0.001) return price.toLocaleString("en-US", { minimumFractionDigits: 5, maximumFractionDigits: 7 })
+  return price.toLocaleString("en-US", { minimumFractionDigits: 6, maximumFractionDigits: 10 })
 }
 
 function formatVolume(vol: number): string {
@@ -42,9 +44,8 @@ export default function LivePricesTab({ onSelect, selectedSymbol }: LivePricesTa
   const [connectedCount, setConnectedCount] = useState(0)
   const [totalChunks, setTotalChunks] = useState(0)
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortKey, setSortKey] = useState<"symbol" | "price" | "change24h" | "volume24h">("change24h")
+  const [sortKey, setSortKey] = useState<"symbol" | "price" | "change24h" | "volume24h">("volume24h")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
-  const autoSelectedRef = useRef(false)
 
   const tickersRef = useRef<Map<string, TickerData>>(new Map())
   const socketsRef = useRef<WebSocket[]>([])
@@ -129,17 +130,7 @@ export default function LivePricesTab({ onSelect, selectedSymbol }: LivePricesTa
     chunks.forEach((chunk, idx) => openChunk(chunk, idx))
 
     const flush = setInterval(() => {
-      const snap = new Map(tickersRef.current)
-      setTickers(snap)
-
-      // 데이터가 처음 들어오면 정렬 기준 1위 심볼을 자동 선택
-      if (!autoSelectedRef.current && snap.size > 0 && onSelect && !selectedSymbol) {
-        const sorted = Array.from(snap.values()).sort((a, b) => b.change24h - a.change24h)
-        if (sorted.length > 0) {
-          autoSelectedRef.current = true
-          onSelect(sorted[0].symbol, sorted[0].price)
-        }
-      }
+      setTickers(new Map(tickersRef.current))
     }, 500)
 
     return () => {
@@ -182,22 +173,19 @@ export default function LivePricesTab({ onSelect, selectedSymbol }: LivePricesTa
       return sortDir === "asc" ? diff : -diff
     })
 
-  const SortBtn = ({ label, k }: { label: string; k: typeof sortKey }) => {
-    const isActive = sortKey === k
-    return (
-      <button
-        onClick={() => handleSort(k)}
-        className={`text-[11px] flex items-center gap-0.5 transition-colors select-none ${
-          isActive ? "text-[#d4af37]" : "text-gray-500 hover:text-gray-300"
-        }`}
-      >
-        {label}
-        <span className={`text-[9px] transition-opacity ${isActive ? "opacity-100" : "opacity-30"}`}>
-          {isActive ? (sortDir === "asc" ? "▲" : "▼") : "▼"}
-        </span>
-      </button>
-    )
-  }
+  const SortBtn = ({ label, k }: { label: string; k: typeof sortKey }) => (
+    <button
+      onClick={() => handleSort(k)}
+      className={`text-[11px] flex items-center gap-0.5 transition-colors ${
+        sortKey === k ? "text-gray-200" : "text-gray-500 hover:text-gray-300"
+      }`}
+    >
+      {label}
+      {sortKey === k && (
+        <span className="text-[9px]">{sortDir === "asc" ? "▲" : "▼"}</span>
+      )}
+    </button>
+  )
 
   const isConnected = connectedCount === totalChunks && totalChunks > 0
 
