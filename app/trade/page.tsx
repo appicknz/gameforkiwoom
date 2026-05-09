@@ -258,26 +258,26 @@ function TradingPanel({
       {/* 진입 버튼 */}
       <button
         onClick={handleOpen}
-        disabled={isOpening || balance === null}
+        disabled={isOpening}
         style={{
           width: "100%", padding: "12px 0",
           borderRadius: 12,
           border: "none",
-          background: isOpening || balance === null
+          background: isOpening
             ? "rgba(255,255,255,0.08)"
             : direction === "long"
               ? "linear-gradient(135deg, #16a34a, #22c55e)"
               : "linear-gradient(135deg, #dc2626, #ef4444)",
-          color: isOpening || balance === null ? "rgba(255,255,255,0.3)" : "#fff",
+          color: isOpening ? "rgba(255,255,255,0.3)" : "#fff",
           fontWeight: 800, fontSize: 14,
-          cursor: isOpening || balance === null ? "not-allowed" : "pointer",
+          cursor: isOpening ? "not-allowed" : "pointer",
           boxShadow: isOpening ? "none" : direction === "long"
             ? "0 4px 16px rgba(34,197,94,0.25)"
             : "0 4px 16px rgba(239,68,68,0.25)",
           transition: "all 0.15s",
         }}
       >
-        {isOpening ? "처리중..." : direction === "long" ? "롱 진입" : "숏 진입"}
+        {isOpening ? "처리중..." : balance === null ? "잔고 로딩중..." : direction === "long" ? "롱 진입" : "숏 진입"}
       </button>
     </div>
   )
@@ -436,8 +436,9 @@ export default function TradePage() {
   }, [])
 
   const handleOpen = useCallback(async (dir: Direction, amount: number, leverage: number) => {
-    const price = currentPriceRef.current
-    if (!price || balance === null) return
+    // WebSocket 연결 전이면 전역 캐시 fallback 사용
+    const price = currentPriceRef.current ?? (typeof window !== "undefined" ? (window as any).__bitcoinCurrentPrice ?? null : null)
+    if (balance === null) return
     if (amount > balance) return
 
     const tempId = Date.now().toString()
@@ -446,7 +447,7 @@ export default function TradePage() {
       const token = getToken()
       const res = await fetch("/api/user/trade", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
         body: JSON.stringify({ amount }),
       })
       const data = await res.json()
