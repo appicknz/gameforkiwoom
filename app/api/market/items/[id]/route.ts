@@ -14,27 +14,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     .select(`
       id, title, description, image_url, link_url,
       price_krw, stripe_price_id, view_count, order_count, created_at,
-      category_id, publisher_id,
-      market_categories(name, icon)
+      category_id,
+      market_categories(name, icon),
+      profiles:publisher_id(id, username, role)
     `)
     .eq("id", id)
     .eq("is_active", true)
     .single()
 
-  if (error || !data) return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 })
-
-  // publisher 프로필 별도 조회
-  let profiles = null
-  if (data.publisher_id) {
-    const { data: p } = await adminSupabase
-      .from("profiles")
-      .select("id, username, role")
-      .eq("id", data.publisher_id)
-      .single()
-    profiles = p ?? null
-  }
-
-  return NextResponse.json({ item: { ...data, profiles } })
+  if (error) return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 })
+  return NextResponse.json({ item: data })
 }
 
 // PATCH: 상품 수정 (master 전용)
