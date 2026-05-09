@@ -7,15 +7,28 @@ const BG   = "#0a0e1a"
 const GRID = "rgba(255,255,255,0.04)"
 const TEXT = "rgba(255,255,255,0.35)"
 
-interface SymbolChartProps {
-  symbol: string      // e.g. "BTCUSDT", "ETHUSDT"
-  height?: number
-  onPrice?: (price: number) => void
+interface PositionLine {
+  id: string
+  symbol: string
+  direction: "long" | "short"
+  entryPrice: number
+  leverage: number
 }
 
-export default function SymbolChart({ symbol, height = 240, onPrice }: SymbolChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const onPriceRef   = useRef(onPrice)
+interface SymbolChartProps {
+  symbol: string
+  height?: number
+  onPrice?: (price: number) => void
+  positions?: PositionLine[]
+}
+
+export default function SymbolChart({ symbol, height = 240, onPrice, positions = [] }: SymbolChartProps) {
+  const containerRef  = useRef<HTMLDivElement>(null)
+  const seriesRef     = useRef<any>(null)
+  const onPriceRef    = useRef(onPrice)
+  // id → priceLine 인스턴스
+  const linesRef      = useRef<Map<string, any>>(new Map())
+
   useEffect(() => { onPriceRef.current = onPrice }, [onPrice])
 
   useEffect(() => {
@@ -62,6 +75,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice }: SymbolCha
       wickUpColor:    "#00e676",
       wickDownColor:  "#ff3d57",
     })
+    seriesRef.current = series
 
     // ResizeObserver
     const ro = new ResizeObserver(() => {
@@ -112,10 +126,60 @@ export default function SymbolChart({ symbol, height = 240, onPrice }: SymbolCha
       cancelled = true
       ws?.close()
       ro.disconnect()
+      linesRef.current.clear()
+      seriesRef.current = null
       chart.remove()
     }
   // symbol이 바뀔 때마다 차트 전체 재생성
   }, [symbol, height])
+
+  // ── 포지션 진입가 라인 동기화 ────────────────────────────────
+  useEffect(() => {
+    const series = seriesRef.current
+    if (!series) return
+
+    const currentIds = new Set(positions.map(p => p.id))
+
+    // 제거된 포지션 라인 삭제
+    linesRef.current.forEach((line, id) => {
+      if (!currentIds.has(id)) {
+        try { series.removePriceLine(line) } catch {}
+        linesRef.current.delete(id)
+      }
+    })
+
+    // 새 포지션 라인 추가
+    positions.forEach(pos => {
+      if (linesRef.current.has(pos.id)) return
+      const isLong = pos.direction === "long"
+      const liqPrice = isLong
+        ? pos.entryPrice * (1 - 1 / pos.leverage)
+        : pos.entryPrice * (1 + 1 / pos.leverage)
+      const base = pos.symbol.replace("USDT", "")
+
+      // 진입가 라인
+      const entryLine = series.createPriceLine({
+        price:      pos.entryPrice,
+        color:      isLong ? "#00e676" : "#ff3d57",
+        lineWidth:  1,
+        lineStyle:  1, // Dashed
+        axisLabelVisible: true,
+        title:      `${isLong ? "L" : "S"} ${base} ×${pos.leverage}`,
+      })
+
+      // 청산가 라인 (연한 색)
+      series.createPriceLine({
+        price:      liqPrice,
+        color:      isLong ? "rgba(239,68,68,0.5)" : "rgba(34,197,94,0.5)",
+        lineWidth:  1,
+        lineStyle:  2, // Dotted
+        axisLabelVisible: true,
+        title:      `청산가`,
+      })
+
+      linesRef.current.set(pos.id, entryLine)
+    })
+  }, [positions])
 
   return <div ref={containerRef} style={{ width: "100%", height }} />
 }

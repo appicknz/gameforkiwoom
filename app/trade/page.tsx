@@ -513,7 +513,11 @@ export default function TradePage() {
               border: "1px solid rgba(212,175,55,0.15)",
               borderRadius: 16, overflow: "hidden",
             }}>
-              <SymbolChart symbol={selectedSymbol} height={240} />
+              <SymbolChart
+                symbol={selectedSymbol}
+                height={260}
+                positions={positions.filter(p => p.symbol === selectedSymbol)}
+              />
             </div>
 
             {/* 평가 잔고 */}
