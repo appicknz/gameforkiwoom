@@ -20,6 +20,7 @@ interface Deposit {
 
 export default function DepositPage() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
+  const [walletError,   setWalletError]   = useState<string | null>(null)
   const [deposits,      setDeposits]      = useState<Deposit[]>([])
   const [loading,       setLoading]       = useState(true)
   const [copied,        setCopied]        = useState(false)
@@ -34,6 +35,9 @@ export default function DepositPage() {
     if (res.ok) {
       const data = await res.json()
       setWalletAddress(data.walletAddress)
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setWalletError(data.error ?? "지갑 주소를 불러오지 못했습니다.")
     }
   }, [])
 
@@ -107,8 +111,11 @@ export default function DepositPage() {
 
         {/* 주소 텍스트 */}
         <div className="flex items-center gap-2 rounded-xl bg-secondary/30 border border-border px-3 py-2.5">
-          <span className="flex-1 text-[11px] font-mono text-foreground break-all leading-relaxed">
-            {walletAddress ?? "주소를 불러오는 중..."}
+          <span className={cn(
+            "flex-1 text-[11px] font-mono break-all leading-relaxed",
+            walletError ? "text-destructive" : "text-foreground"
+          )}>
+            {walletAddress ?? walletError ?? "주소를 불러오는 중..."}
           </span>
           <button
             onClick={handleCopy}
