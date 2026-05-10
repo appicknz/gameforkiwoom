@@ -409,12 +409,12 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     available?: boolean; mode?: "seeded" | "decay" | "natural" | "pending"
   } | null>(null)
 
-  // Railway WS 게이트웨이로 race odds 구독
+  // Railway WS 게이트웨이로 race odds 구독 — available=true면 항상 state 반영
   useGatewayOdds("race", (data: unknown) => {
     const d = data as { odds?: typeof liveOddsRef.current }
     if (d.odds) {
       liveOddsRef.current = d.odds
-      if (canBetRef.current) setLiveOdds(d.odds)
+      if (d.odds.available !== false) setLiveOdds(d.odds)
     }
   })
 
@@ -456,6 +456,44 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   }, [])
 
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
+
+  // 마운트 시 race odds 즉시 조회 — WS 연결 전 버튼 배당 채움
+  useEffect(() => {
+    const token = getToken()
+    fetch("/api/game/odds?type=race", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.odds && !liveOddsRef.current) {
+          liveOddsRef.current = data.odds
+          setLiveOdds(data.odds)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // canBet false→true 전환(새 배팅 구간 시작) 시 liveOdds 초기화 후 즉시 재조회
+  useEffect(() => {
+    const was = prevCanBetRef.current
+    prevCanBetRef.current = canBet
+    if (!canBet || was) return
+    autoBetFiredRef.current = false
+    setLiveOdds(null)
+    liveOddsRef.current = null
+    const token = getToken()
+    fetch("/api/game/odds?type=race", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.odds) {
+          liveOddsRef.current = data.odds
+          setLiveOdds(data.odds)
+        }
+      })
+      .catch(() => {})
+  }, [canBet])
 
   // 3분(180초) 타이머. 라운드: Math.floor(now/180)
   // 페이즈: 0~9초=정산, 10~59초=배팅, 60~179초=게임중
@@ -507,13 +545,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     }
   }, [canBet])
 
-  // 배팅 가능 구간 전환 시 자동배팅 플래그 초기화
-  useEffect(() => {
-    const was = prevCanBetRef.current
-    prevCanBetRef.current = canBet
-    if (!canBet || was) return
-    autoBetFiredRef.current = false
-  }, [canBet])
+
 
   // isDealing / onScoreChange를 ref로 관리 → 이벤트 핸들러 마운트 시 1회만 등록
   const isDealingRef = useRef(isDealing)

@@ -472,12 +472,12 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         return { username: p.username, gameType, side, amount, success: false, error: deductErr.message, balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
       }
 
+      // pool 업데이트 — odds_version incr은 odds:current 캐시 갱신 후 수행
       await Promise.all([
         redis.hincrby(poolKey, side, amount),
         redis.sadd(userSetKey, p.id),
         redis.expire(poolKey, ttl),
         redis.expire(userSetKey, ttl),
-        redis.incr(`odds_version:${gameType}`),
       ])
 
       const betPayload = gameType === "baccarat"
@@ -526,11 +526,13 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         redis.set(`balance:${p.id}`, newBal as number, { ex: 3600 }),
         redis.incr(`balance_version:${p.id}`),
         redis.set(oddsSnapKey, JSON.stringify(oddsSnapNow), { ex: ttl }),
-        // 공유 odds 캐시 갱신 (라운드 모니터 + 배팅 버튼에 즉시 반영)
+        // odds:current 캐시 갱신 먼저 → 그 다음 version incr (Railway poll이 최신 캐시를 읽음)
         oddsCurrentPayload
           ? redis.set(currentKey, JSON.stringify(oddsCurrentPayload), { ex: roundSec + 30 })
           : Promise.resolve(),
       ])
+      // 캐시 갱신 완료 후 version incr — Railway 2초 폴링이 새 캐시를 읽어 WS push
+      await redis.incr(`odds_version:${gameType}`)
 
       const betOdds = oddsSnapNow[side] ?? null
       return { username: p.username, gameType, side, amount, success: true, balance: newBal as number, round: roundNumber, odds: betOdds, fee: Math.floor(amount * 0.2) }

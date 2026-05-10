@@ -1033,23 +1033,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       setLiveOdds(liveOddsRef.current)
     }
 
-    // ── LOG 2: 배팅 마감 (true→false 전환 = 게임중 시작) ──────
-    if (wasBetting && !canBet && dbgBetRef.current) {
-      const dbg = dbgBetRef.current
-      // 마감 순간의 현재 odds (frozenOdds 또는 liveOdds)
-      const snapNow = frozenOddsRef.current ?? liveOddsRef.current
-      const oddsNow = dbg.side === "player" ? snapNow?.player : dbg.side === "banker" ? snapNow?.banker : snapNow?.tie
-      const oddsMatch = dbg.oddsAtBet != null && oddsNow != null
-        ? Math.abs(dbg.oddsAtBet - oddsNow) < 0.01 : null
-      console.log(`%c[배당확정] 라운드#${dbg.round} 배팅마감`, "color:#ffb74d;font-weight:bold", {
-        side: dbg.side,
-        amount: dbg.amount,
-        "① 배팅시점odds": dbg.oddsAtBet,
-        "② 마감시점odds": oddsNow,
-        "③ oddsMatch": oddsMatch,
-        note: "서버는 odds:final(SSE저장값)으로 정산",
-      })
-    }
+
   }, [canBet])
 
   // autoBet state → ref 초기화
