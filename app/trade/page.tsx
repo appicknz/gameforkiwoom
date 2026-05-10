@@ -403,7 +403,7 @@ export default function TradePage() {
       const res   = await fetch("/api/user/trade/positions", {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ symbol: dialogSymbol, direction: dir, leverage, amount }),
+        body:    JSON.stringify({ symbol: selectedSymbol, direction: dir, leverage, amount, current_price: priceMapRef.current.get(selectedSymbol) ?? 0 }),
       })
       const data = await res.json()
       if (!res.ok) { alert(data.error ?? "진입 실패"); return }
@@ -425,7 +425,7 @@ export default function TradePage() {
       const res   = await fetch("/api/user/trade/positions", {
         method:  "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ position_id: id }),
+        body:    JSON.stringify({ position_id: id, current_price: priceMapRef.current.get(pos.symbol) ?? 0 }),
       })
       const data = await res.json()
       if (!res.ok) { alert(data.error ?? "청산 실패"); return }
