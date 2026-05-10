@@ -48,23 +48,10 @@ function calcPnl(
 
 // ──────────────────────────────────────────────
 // GET: 내 오픈 포지션 목록 + 실시간 손익
-// 현재가는 클라이언트가 쿼리파라미터로 전달: ?prices=INXUSDT:0.018488,BTCUSDT:80642
-// 서버에서 Binance 조회 없음 — 가격 0이면 PnL만 0으로 반환하고 강제청산 안 함
 // ──────────────────────────────────────────────
 export async function GET(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
-
-  // 클라이언트가 보낸 실시간 가격 파싱
-  const url    = new URL(req.url)
-  const pricesParam = url.searchParams.get("prices") ?? ""
-  const clientPrices: Record<string, number> = {}
-  if (pricesParam) {
-    pricesParam.split(",").forEach(part => {
-      const [sym, val] = part.split(":")
-      if (sym && val) clientPrices[sym] = parseFloat(val)
-    })
-  }
 
   const { data: rows, error } = await adminSupabase
     .from("trade_positions")
@@ -76,50 +63,73 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!rows || rows.length === 0) return NextResponse.json({ positions: [] })
 
-  const positions = rows.map(row => {
-    const cur = clientPrices[row.symbol] ?? 0
+  // 심볼별로 묶어서 한 번씩만 Binance 조회
+  const symbols = [...new Set(rows.map(r => r.symbol))]
+  const prices: Record<string, number> = {}
+  await Promise.all(
+    symbols.map(async sym => {
+      try { prices[sym] = await fetchBinancePrice(sym) }
+      catch { prices[sym] = 0 }
+    })
+  )
 
-    // 가격이 없으면 PnL 0 반환 — 절대 강제청산 하지 않음
-    if (!cur || cur <= 0) {
-      return {
-        ...row,
-        current_price:      Number(row.entry_price),
-        unrealized_pnl:     0,
-        unrealized_pnl_pct: 0,
-        liquidated:         false,
-      }
-    }
+  const positions = []
 
+  for (const row of rows) {
+    const cur = prices[row.symbol] ?? 0
     const { pnl, pnlPct, liquidated } = calcPnl(
       row.direction, Number(row.entry_price), cur, row.leverage, Number(row.margin)
     )
 
-    // 강제청산: pnlPct <= -100 이고 현재가가 실제로 있을 때만
+    // 강제 청산 조건: pnlPct <= -100 (증거금 전액 손실)
     if (liquidated) {
-      // fire-and-forget — 응답은 기다리지 않음
-      adminSupabase.from("trade_positions").update({
-        status: "liquidated", exit_price: cur,
-        pnl: -Number(row.margin), pnl_pct: -100,
-        closed_at: new Date().toISOString(),
-      }).eq("id", row.id).then(() => {})
+      // 포지션 DB 상태 업데이트
+      await adminSupabase
+        .from("trade_positions")
+        .update({
+          status:     "liquidated",
+          exit_price: cur,
+          pnl:        -Number(row.margin),   // 마진 전액 손실
+          pnl_pct:    -100,
+          closed_at:  new Date().toISOString(),
+        })
+        .eq("id", row.id)
 
-      return {
+      const { data: profile } = await adminSupabase
+        .from("profiles").select("branch_id").eq("id", auth.userId).single()
+
+      // 거래 기록
+      try {
+        await adminSupabase.from("balance_transactions").insert({
+          user_id:        auth.userId,
+          branch_id:      profile?.branch_id ?? null,
+          type:           "lose",
+          amount:         0,
+          balance_before: 0,
+          balance_after:  0,
+          note:           `강제청산 ${row.symbol} ${row.direction} ${row.leverage}x`,
+        })
+      } catch { /* 기록 실패 무시 */ }
+
+      // 프론트에 청산된 포지션 전달 (다음 폴링에선 안 나옴)
+      positions.push({
         ...row,
-        current_price:      cur,
-        unrealized_pnl:     -Number(row.margin),
-        unrealized_pnl_pct: -100,
-        liquidated:         true,
-      }
+        current_price:       cur,
+        unrealized_pnl:      -Number(row.margin),
+        unrealized_pnl_pct:  -100,
+        liquidated:          true,
+      })
+      continue
     }
 
-    return {
+    positions.push({
       ...row,
-      current_price:      cur,
-      unrealized_pnl:     pnl,
-      unrealized_pnl_pct: pnlPct,
-      liquidated:         false,
-    }
-  })
+      current_price:       cur,
+      unrealized_pnl:      pnl,
+      unrealized_pnl_pct:  pnlPct,
+      liquidated:          false,
+    })
+  }
 
   return NextResponse.json({ positions })
 }
@@ -255,21 +265,33 @@ export async function DELETE(req: Request) {
     })
     .eq("id", position_id)
 
-  // 5) 잔고 반환
+  // 5) 잔고 반환 및 기록
+  const { data: profile } = await adminSupabase
+    .from("profiles").select("branch_id, balance").eq("id", userId).single()
+
   let newBalance = 0
   if (payout > 0) {
-    const { data: bal } = await adminSupabase
+    const { data: bal, error: payErr } = await adminSupabase
       .rpc("add_balance_for_payout", { p_user_id: userId, p_amount: payout })
-    newBalance = bal as number
+    if (payErr || bal === null) {
+      // RPC 실패 시 직접 profiles 잔고 사용
+      newBalance = Number(profile?.balance ?? 0)
+    } else {
+      newBalance = bal as number
+    }
   } else {
+    // payout=0 (손실 청산): 현재 잔고 조회
     const cached = await redis.get(`balance:${userId}`)
-    newBalance = cached !== null ? Number(cached) : 0
+    newBalance = cached !== null ? Number(cached) : Number(profile?.balance ?? 0)
   }
 
-  const { data: profile } = await adminSupabase
-    .from("profiles").select("branch_id").eq("id", userId).single()
+  // Redis 최신화
+  await Promise.all([
+    redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),
+    redis.incr(`balance_version:${userId}`),
+  ])
 
-  const balBefore = Math.round(newBalance - payout)
+  const balBefore = payout > 0 ? Math.round(newBalance - payout) : newBalance
   await adminSupabase.from("balance_transactions").insert({
     user_id: userId,
     branch_id: profile?.branch_id ?? null,
@@ -278,10 +300,10 @@ export async function DELETE(req: Request) {
     balance_before: balBefore,
     balance_after: newBalance,
     note: `모의매매 청산 ${pos.symbol} ${pos.direction} ${pos.leverage}x PnL:${pnl >= 0 ? "+" : ""}${pnl}`,
-  })
+  }).then(() => {}).catch(() => {})
 
-  // 6) bet_history 기록
-  await adminSupabase.from("bet_history").insert({
+  // 6) bet_history 기록 (fire-and-forget)
+  adminSupabase.from("bet_history").insert({
     user_id: userId,
     branch_id: profile?.branch_id ?? null,
     round_id: null,
@@ -291,12 +313,7 @@ export async function DELETE(req: Request) {
     bet_amount: Math.round(Number(pos.margin)),
     payout,
     result: pnl >= 0 ? "win" : "lose",
-  }).catch(() => {})
-
-  await Promise.all([
-    redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),
-    redis.incr(`balance_version:${userId}`),
-  ])
+  }).then(() => {}).catch(() => {})
 
   return NextResponse.json({
     success: true,
