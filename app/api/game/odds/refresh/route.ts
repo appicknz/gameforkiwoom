@@ -29,10 +29,26 @@ export async function POST(request: Request) {
 
   const roundSec    = gameType === "race" ? 180 : 30
   const roundNumber = Math.floor(Math.floor(Date.now() / 1000) / roundSec)
+  const prevRound   = roundNumber - 1
   const poolKey     = `pool:${gameType}:${roundNumber}`
   const userSetKey  = `users:${gameType}:${roundNumber}`
   const currentKey  = `odds:current:${gameType}:${roundNumber}`
   const versionKey  = `odds_version:${gameType}`
+
+  // 직전 라운드의 odds:current를 odds:final로 복사 — settle이 확정 배당으로 정산하도록
+  // (settle보다 먼저 실행되므로 타이밍 안전)
+  const prevCurrentKey = `odds:current:${gameType}:${prevRound}`
+  const finalKey       = `odds:final:${gameType}:${prevRound}`
+  const prevCached = await redis.get<string>(prevCurrentKey)
+  if (prevCached) {
+    try {
+      const parsed = typeof prevCached === "string" ? JSON.parse(prevCached) : prevCached
+      const oddsOnly = parsed?.odds
+      if (oddsOnly) {
+        await redis.set(finalKey, JSON.stringify(oddsOnly), { ex: roundSec * 10 })
+      }
+    } catch {}
+  }
 
   // 공유 캐시용 LP 설정: 기본 LP 활성 상태로 초기 배당 표시
   // 브랜치별 정확한 배당은 pari/bet에서 배팅마다 갱신

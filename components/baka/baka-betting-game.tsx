@@ -528,7 +528,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 interface BakaBettingGameProps {
   /** 30초(라운드 전환) 시점: 카드 리셋 트리거 — BaccaratGame에 새 라운드 준비 요청 */
   onResetCards?: () => void
-  /** 25초 시���: 카드 공개 + 배팅 오픈 트리거 */
+  /** 25초 시�����: 카드 공개 + 배팅 오픈 트리거 */
   onStartDealTrigger?: () => void
   /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 (끝자리 가격 전체를 전달) */
   onFinalDigitTrigger?: (closingPrice: number) => void
@@ -589,7 +589,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     }
   })
 
-  // 마운트 시 HTTP로 현재 odds 즉시 조회 — WS 연결 전 버튼 `-` 방지
+  // 마운트 시 현재 odds 즉시 조회 (canBet 상태와 무관하게 초기값 채움)
   useEffect(() => {
     const token = getToken()
     fetch("/api/game/odds?type=baccarat", {
@@ -597,10 +597,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data?.odds) {
-          const odds = data.odds as typeof liveOddsRef.current
-          liveOddsRef.current = odds
-          setLiveOdds(odds)
+        if (data?.odds && !liveOddsRef.current) {
+          liveOddsRef.current = data.odds
+          setLiveOdds(data.odds)
         }
       })
       .catch(() => {})
@@ -975,7 +974,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     }, []),
   })
 
-  // baka:closing 이벤트 구독 �� bitcoin-chart.tsx k.x===true 공식 종가 = 패널과 동일 소스
+  // baka:closing 이벤트 구독 �� bitcoin-chart.tsx k.x===true 공식 종가 = ���널과 동일 소스
   useEffect(() => {
     const handler = (e: Event) => {
       const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
@@ -1056,13 +1055,32 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // autoBet state → ref 초기화
   useEffect(() => { autoBetRef.current = autoBet }, [autoBet])
 
-  // 자동 배팅: canBet false→true 전환 시 새 라운드 플래그 초기화
+  // canBet false→true 전환 = 정산 끝, 새 배팅 구간 시작
   const prevCanBetRef = useRef(false)
   useEffect(() => {
     const was = prevCanBetRef.current
     prevCanBetRef.current = canBet
     if (!canBet || was) return
+
+    // 1) 자동배팅 플래그 초기화
     autoBetFiredRef.current = false
+
+    // 2) liveOdds 초기화 → 새 라운드 odds를 즉시 HTTP로 조회
+    setLiveOdds(null)
+    liveOddsRef.current = null
+
+    const token = getToken()
+    fetch("/api/game/odds?type=baccarat", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.odds) {
+          liveOddsRef.current = data.odds
+          setLiveOdds(data.odds)
+        }
+      })
+      .catch(() => {})
   }, [canBet])
 
   // 자동 배팅 실행
@@ -1311,8 +1329,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const priceDiff = currentPrice !== null && basePrice !== null ? currentPrice - basePrice : null
   const isUp = priceDiff !== null && priceDiff >= 0
 
-  // 페이즈별 타이머 계산
-  // 정산(5s): rem 30→25, 배팅(10s): rem 25→15, 게임중(15s): rem 15→0
+  // 페이즈별 타이머 계산 (서버 기준: s=now%30)
+  // 정산(5s):  s=0~4   → rem=30~26 → timeLeft>25
+  // 배팅(15s): s=5~19  → rem=25~11 → timeLeft>10 && <=25
+  // 게임중(10s): s=20~29 → rem=10~1  → timeLeft<=10
     const currentPhaseLabel = timeLeft > 25 ? "정산 중"
       : timeLeft > 10 ? "배팅 가능"
       : "게임 중"
