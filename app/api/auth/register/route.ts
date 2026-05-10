@@ -48,16 +48,24 @@ export async function POST(req: Request) {
 
   const userId = authData.user.id
 
-  // HD 지갑 주소 발급 — 현재 가입된 유저 수로 인덱스 결정
-  const { count: userCount } = await adminSupabase
-    .from("profiles")
-    .select("id", { count: "exact", head: true })
-  const walletIndex = userCount ?? 0
-  const walletAddress = deriveWalletAddress(walletIndex)
+  // HD 지갑 주소 발급 — SOLANA_HD_SEED가 없으면 null로 가입 진행
+  let walletIndex: number | null = null
+  let walletAddress: string | null = null
+  if (process.env.SOLANA_HD_SEED) {
+    const { count: userCount } = await adminSupabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+    walletIndex = userCount ?? 0
+    walletAddress = deriveWalletAddress(walletIndex)
+  }
+
+  const profileData: Record<string, unknown> = { id: userId, username, role: "user" }
+  if (walletIndex !== null) profileData.wallet_index = walletIndex
+  if (walletAddress !== null) profileData.wallet_address = walletAddress
 
   const { error: profileError } = await adminSupabase
     .from("profiles")
-    .upsert({ id: userId, username, role: "user", wallet_index: walletIndex, wallet_address: walletAddress })
+    .upsert(profileData)
 
   if (profileError) {
     await adminSupabase.auth.admin.deleteUser(userId)
