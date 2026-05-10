@@ -147,12 +147,11 @@ export async function POST(req: Request) {
   const margin = Math.round(rawAmount)
   if (margin <= 0) return NextResponse.json({ error: "금액 오류" }, { status: 400 })
 
-  // 1) 서버에서 진입가 확정
-  let entryPrice: number
-  try {
-    entryPrice = await fetchBinancePrice(symbol)
-  } catch {
-    return NextResponse.json({ error: "가격 조회 실패" }, { status: 503 })
+  // 1) 진입가 확정 — 클라이언트 WebSocket 가격 우선, 없으면 Binance REST fallback
+  let entryPrice: number = current_price ? parseFloat(String(current_price)) : 0
+  if (!entryPrice || entryPrice <= 0) {
+    try { entryPrice = await fetchBinancePrice(symbol) }
+    catch { return NextResponse.json({ error: "가격 조회 실패" }, { status: 503 }) }
   }
 
   // 2) 잔고 차감 (atomic RPC)
@@ -214,7 +213,7 @@ export async function POST(req: Request) {
   })
 }
 
-// ──────────────────────────────────────────────
+// ───────────────��──────────────────────────────
 // DELETE: 포지션 청산 (서버에서 청산가 확정 + 손익 계산)
 // ──────────────────────────────────────────────
 export async function DELETE(req: Request) {
@@ -222,7 +221,8 @@ export async function DELETE(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
   const { userId } = auth
 
-  const { position_id } = await req.json()
+  const body = await req.json().catch(() => ({}))
+  const { position_id, current_price: clientExitPrice } = body
   if (!position_id) return NextResponse.json({ error: "position_id 필요" }, { status: 400 })
 
   // 1) 본인 포지션 확인
@@ -236,12 +236,11 @@ export async function DELETE(req: Request) {
 
   if (fetchErr || !pos) return NextResponse.json({ error: "포지션 없음" }, { status: 404 })
 
-  // 2) 서버에서 청산가 확정
-  let exitPrice: number
-  try {
-    exitPrice = await fetchBinancePrice(pos.symbol)
-  } catch {
-    return NextResponse.json({ error: "청산 가격 조회 실패" }, { status: 503 })
+  // 2) 청산가 확정 — 클라이언트 WebSocket 가격 우선, 없으면 Binance REST fallback
+  let exitPrice: number = clientExitPrice ? parseFloat(String(clientExitPrice)) : 0
+  if (!exitPrice || exitPrice <= 0) {
+    try { exitPrice = await fetchBinancePrice(pos.symbol) }
+    catch { return NextResponse.json({ error: "청산 가격 조회 실패" }, { status: 503 }) }
   }
 
   // 3) 서버사이드 손익 계산

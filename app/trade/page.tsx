@@ -489,7 +489,7 @@ export default function TradePage() {
             <div style={{ background: "rgba(5,13,10,0.9)", border: `1px solid rgba(212,175,55,0.15)`, borderRadius: 12, padding: "8px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Wallet style={{ width: 13, height: 13, color: GOLD, opacity: 0.6 }} />
-                <span style={{ fontSize: 11, color: "rgba(212,175,55,0.5)" }}>평가 잔고</span>
+                <span style={{ fontSize: 11, color: "rgba(212,175,55,0.5)" }}>미실현 잔고</span>
                 {positions.length > 0 && (
                   <span style={{ fontSize: 10, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR, fontVariantNumeric: "tabular-nums" }}>
                     ({totalPnl >= 0 ? "+" : ""}₩{Math.floor(totalPnl).toLocaleString("ko-KR")} 미실현)
