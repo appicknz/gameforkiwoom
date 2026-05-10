@@ -140,7 +140,7 @@ export async function POST(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
   const { userId } = auth
 
-  const { symbol, direction, leverage, amount: rawAmount } = await req.json()
+  const { symbol, direction, leverage, amount: rawAmount, current_price } = await req.json()
   if (!symbol || !direction || !leverage || !rawAmount) {
     return NextResponse.json({ error: "필수 항목 누락" }, { status: 400 })
   }

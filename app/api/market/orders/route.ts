@@ -20,9 +20,8 @@ export async function GET(req: Request) {
     .from("market_orders")
     .select(`
       id, status, price_krw, paid_at, approved_at, rejected_at, reject_reason, created_at,
-      market_items(id, title, image_url),
-      buyer:buyer_id(username),
-      publisher:publisher_id(username)
+      buyer_id, publisher_id,
+      market_items(id, title, image_url)
     `)
     .order("created_at", { ascending: false })
 
@@ -34,5 +33,22 @@ export async function GET(req: Request) {
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ orders: data ?? [] })
+
+  const rows = data ?? []
+
+  // buyer/publisher username 별도 조회 (FK 조인 대신)
+  const ids = [...new Set([...rows.map((r: any) => r.buyer_id), ...rows.map((r: any) => r.publisher_id)].filter(Boolean))]
+  const profileMap: Record<string, string> = {}
+  if (ids.length > 0) {
+    const { data: profiles } = await adminSupabase.from("profiles").select("id, username").in("id", ids)
+    profiles?.forEach((p: any) => { profileMap[p.id] = p.username })
+  }
+
+  const orders = rows.map((r: any) => ({
+    ...r,
+    buyer:     { username: profileMap[r.buyer_id] ?? null },
+    publisher: { username: profileMap[r.publisher_id] ?? null },
+  }))
+
+  return NextResponse.json({ orders })
 }
