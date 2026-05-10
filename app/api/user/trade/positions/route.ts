@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import { redis } from "@/lib/redis"
 import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"

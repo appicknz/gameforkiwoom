@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import { put, del, list } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"

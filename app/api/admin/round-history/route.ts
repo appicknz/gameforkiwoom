@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 /**
  * GET /api/admin/round-history
  * ?gameType=baccarat|race&limit=20&offset=0

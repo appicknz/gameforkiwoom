@@ -1,14 +1,6 @@
-import "server-only"
-import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-const admin = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
-
 export const dynamic = "force-dynamic"
+import { NextResponse } from "next/server"
+import { adminSupabase as admin } from "@/lib/supabase-admin"
 
 export async function GET() {
   try {

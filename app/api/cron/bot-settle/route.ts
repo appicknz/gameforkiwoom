@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import { redis } from "@/lib/redis"
 /**
  * /api/cron/bot-settle

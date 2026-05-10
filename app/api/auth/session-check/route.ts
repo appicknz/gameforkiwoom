@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import "server-only"
 import { verifySession } from "@/lib/auth"
 import { NextResponse } from "next/server"

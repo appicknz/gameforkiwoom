@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import { get } from "@vercel/blob"
 import { type NextRequest, NextResponse } from "next/server"
 

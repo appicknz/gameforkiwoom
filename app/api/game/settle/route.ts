@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import { redis } from "@/lib/redis"
 /**
  * /api/game/settle — 서버 주도 일괄 정산 엔진

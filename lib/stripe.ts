@@ -3,10 +3,17 @@ import Stripe from "stripe"
 
 const globalForStripe = globalThis as unknown as { _stripe?: Stripe }
 
-if (!globalForStripe._stripe) {
-  globalForStripe._stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2025-04-30.basil",
-  })
+function getStripe(): Stripe {
+  if (!globalForStripe._stripe) {
+    const key = process.env.STRIPE_SECRET_KEY
+    if (!key) throw new Error("STRIPE_SECRET_KEY is missing")
+    globalForStripe._stripe = new Stripe(key, { apiVersion: "2025-04-30.basil" })
+  }
+  return globalForStripe._stripe
 }
 
-export const stripe = globalForStripe._stripe!
+export const stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    return (getStripe() as any)[prop]
+  },
+})

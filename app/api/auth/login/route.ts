@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { redis } from "@/lib/redis"

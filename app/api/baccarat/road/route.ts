@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { NextRequest, NextResponse } from "next/server"
 

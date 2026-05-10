@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import { redis } from "@/lib/redis"
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { getUserIdFromToken } from "@/lib/auth"

@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 /**
  * POST /api/deposit/webhook
  * Railway Solana indexer에서 호출 — 토큰 입금 감지 시 잔고 적립

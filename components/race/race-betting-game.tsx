@@ -473,28 +473,6 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       .catch(() => {})
   }, [])
 
-  // canBet false→true 전환(새 배팅 구간 시작) 시 liveOdds 초기화 후 즉시 재조회
-  useEffect(() => {
-    const was = prevCanBetRef.current
-    prevCanBetRef.current = canBet
-    if (!canBet || was) return
-    autoBetFiredRef.current = false
-    setLiveOdds(null)
-    liveOddsRef.current = null
-    const token = getToken()
-    fetch("/api/game/odds?type=race", {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.odds) {
-          liveOddsRef.current = data.odds
-          setLiveOdds(data.odds)
-        }
-      })
-      .catch(() => {})
-  }, [canBet])
-
   // 3분(180초) 타이머. 라운드: Math.floor(now/180)
   // 페이즈: 0~9초=정산, 10~59초=배팅, 60~179초=게임중
   const prevRoundRef = useRef<number>(-1)
@@ -537,12 +515,29 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   // 딜링 중: 60초 이후 ~ 라운드 끝
   const isDealing = !canBet && timeLeft > 0
 
-  // canBetRef 동기화 + 배팅 시작 시 최신 odds 즉시 반영
+  // canBetRef 동기화 + 배팅 구간 시작 시 liveOdds 초기화 후 즉시 재조회
   useEffect(() => {
+    const was = prevCanBetRef.current
+    prevCanBetRef.current = canBet
     canBetRef.current = canBet
-    if (canBet && liveOddsRef.current) {
-      setLiveOdds(liveOddsRef.current)
-    }
+
+    if (!canBet || was) return
+    // false→true 전환: 새 배팅 구간 시작
+    autoBetFiredRef.current = false
+    setLiveOdds(null)
+    liveOddsRef.current = null
+    const token = getToken()
+    fetch("/api/game/odds?type=race", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.odds) {
+          liveOddsRef.current = data.odds
+          setLiveOdds(data.odds)
+        }
+      })
+      .catch(() => {})
   }, [canBet])
 
 

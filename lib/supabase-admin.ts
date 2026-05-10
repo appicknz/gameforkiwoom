@@ -3,32 +3,30 @@
 import "server-only"
 import { createClient } from "@supabase/supabase-js"
 
-// 서버 프로세스당 싱글톤 (API Route / Server Component 전용)
-const globalForSupabase = globalThis as unknown as { _adminSupabase?: ReturnType<typeof createClient> }
+type SupabaseAdminClient = ReturnType<typeof createClient>
 
-if (!globalForSupabase._adminSupabase) {
-  globalForSupabase._adminSupabase = createClient(
-    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-      db: {
-        // Supabase Pro PgBouncer(connection pooler) 활성화
-        // POSTGRES_URL_NON_POOLING 대신 POSTGRES_PRISMA_URL(pooling) 사용
-        // → Vercel Serverless 동시 실행 수백 개에도 DB 연결 60개 제한 안 걸림
-        schema: "public",
-      },
-      global: {
-        headers: {
-          // PgBouncer transaction mode 호환 — prepared statements 비활성
-          "x-connection-encrypted": "1",
-        },
-      },
+// 서버 프로세스당 싱글톤 — 빌드(SSG) 시점에는 초기화하지 않고 첫 호출 시 lazy 생성
+const globalForSupabase = globalThis as unknown as { _adminSupabase?: SupabaseAdminClient }
+
+function getAdminSupabase(): SupabaseAdminClient {
+  if (!globalForSupabase._adminSupabase) {
+    const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) {
+      throw new Error("Supabase admin env vars (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) are missing")
     }
-  )
+    globalForSupabase._adminSupabase = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      db: { schema: "public" },
+      global: { headers: { "x-connection-encrypted": "1" } },
+    })
+  }
+  return globalForSupabase._adminSupabase
 }
 
-export const adminSupabase = globalForSupabase._adminSupabase!
+// Proxy를 사용해 기존 코드(`adminSupabase.from(...)`)를 변경 없이 유지하면서 lazy 초기화
+export const adminSupabase = new Proxy({} as SupabaseAdminClient, {
+  get(_target, prop) {
+    return (getAdminSupabase() as any)[prop]
+  },
+})

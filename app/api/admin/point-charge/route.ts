@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 // @ts-nocheck
 import "server-only"
 import { redis } from "@/lib/redis"

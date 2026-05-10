@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 /**
  * 하우스 손익 통계 API (마스터 전용)
  * GET  /api/admin/house-stats  - 전체/지점별 하우스 손익 조회

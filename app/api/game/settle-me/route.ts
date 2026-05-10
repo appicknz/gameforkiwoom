@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import { redis } from "@/lib/redis"
 /**
  * /api/game/settle-me  — 클라이언트가 직접 호출하는 개인 정산 API
