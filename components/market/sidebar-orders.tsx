@@ -66,7 +66,7 @@ export default function SidebarOrders() {
 
   if (!loggedIn) return null
 
-  // 최근 5개만 표시
+  // 최근 5개만 표시 (중첩 button 없음 — span role="button" 사용)
   const recent = orders.slice(0, 5)
   const pendingCount = orders.filter(o => o.status === "pending").length
 
@@ -89,12 +89,15 @@ export default function SidebarOrders() {
           )}
         </div>
         <div className="flex items-center gap-1">
-          <button
+          <span
+            role="button"
+            tabIndex={0}
             onClick={e => { e.stopPropagation(); fetchOrders() }}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); fetchOrders() } }}
+            className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             <RefreshCw className={cn("w-2.5 h-2.5", loading && "animate-spin")} />
-          </button>
+          </span>
           <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform", open && "rotate-90")} />
         </div>
       </button>
