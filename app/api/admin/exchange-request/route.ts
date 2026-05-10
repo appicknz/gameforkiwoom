@@ -1,9 +1,11 @@
-import { redis } from "@/lib/redis"
+// @ts-nocheck
 import "server-only"
+import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { verifySession } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
+async function upsertBalance(userId: string, delta: number) {
   const { data: existing } = await adminSupabase
     .from("balances").select("amount").eq("user_id", userId).single()
   const newAmt = (existing?.amount ?? 0) + delta

@@ -69,55 +69,6 @@ async function computeFreshOdds(gameType: string, branchId: string | null) {
   return payload
 }
 
-  // 실시간 풀 + 역대 평균 기반 자동 시드를 병렬로 조회
-  const poolKey    = `pool:${gameType}:${roundNumber}`
-  const userSetKey = `users:${gameType}:${roundNumber}`
-  const [poolData, userCount] = await Promise.all([
-    redis.hgetall(poolKey).catch(() => null),
-    redis.scard(userSetKey).catch(() => 0),
-  ])
-
-  const safeCount = (userCount as number) ?? 0
-
-  let payload: object
-
-  if (gameType === "baccarat") {
-    const userPools = {
-      player: parseInt((poolData?.player as string) ?? "0") || 0,
-      banker: parseInt((poolData?.banker as string) ?? "0") || 0,
-      tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
-    }
-    const result = calcBaccaratOdds(userPools, lpConfig, safeCount)
-    payload = {
-      gameType, roundNumber, userCount: safeCount, pools: userPools,
-      odds: {
-        player: result.playerOdds, banker: result.bankerOdds, tie: result.tieOdds,
-        lpWeight: result.lpWeight, mode: result.mode, available: result.available,
-      },
-    }
-  } else {
-    const userPools = {
-      bit:  parseInt((poolData?.bit  as string) ?? "0") || 0,
-      coin: parseInt((poolData?.coin as string) ?? "0") || 0,
-      tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
-    }
-    const result = calcRaceOdds(userPools, lpConfig, safeCount)
-    payload = {
-      gameType, roundNumber, userCount: safeCount, pools: userPools,
-      odds: {
-        bit: result.bitOdds, coin: result.coinOdds, tie: result.tieOdds,
-        lpWeight: result.lpWeight, mode: result.mode, available: result.available,
-      },
-    }
-  }
-
-  // 계산된 배당을 Redis에 캐시 — 단일 키, 모든 클라이언트·관리자가 동일 값 읽음
-  const currentKey = `odds:current:${gameType}:${roundNumber}`
-  await redis.set(currentKey, JSON.stringify(payload), { ex: roundSec + 10 }).catch(() => {})
-
-  return payload
-}
-
 export async function GET(request: Request) {
   const url      = new URL(request.url)
   const gameType = url.searchParams.get("type") ?? "baccarat"
