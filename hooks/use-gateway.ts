@@ -22,6 +22,8 @@ let gWs: WebSocket | null = null
 let gToken: string | null = null
 let gReconnectTimer: ReturnType<typeof setTimeout> | null = null
 const gListeners = new Map<string, Set<(data: unknown) => void>>()
+// 등록된 모든 채널을 추적 — 재연결 시 전체 재구독, CONNECTING 중 버퍼링
+const gRegisteredChannels = new Set<string>()
 
 function emit(channel: string, data: unknown) {
   const subs = gListeners.get(channel)
@@ -38,18 +40,26 @@ function getToken(): string | null {
   try { return localStorage.getItem("auth_token") } catch { return null }
 }
 
+function sendAllChannels(ws: WebSocket) {
+  const all = Array.from(gRegisteredChannels)
+  if (all.length > 0) ws.send(JSON.stringify({ action: "subscribe", channels: all }))
+}
+
 function openGateway(channels: string[]) {
   if (!RAILWAY_WS_URL) return
   const token = getToken()
   if (!token) return
 
-  // 이미 연결된 상태면 구독만 추가
+  // 요청 채널을 전역 집합에 등록
+  channels.forEach(ch => gRegisteredChannels.add(ch))
+
+  // 이미 연결된 상태면 새 채널만 추가 구독
   if (gWs && gWs.readyState === WebSocket.OPEN) {
     gWs.send(JSON.stringify({ action: "subscribe", channels }))
     return
   }
 
-  // 연결 중이면 대기
+  // 연결 중이면 채널만 등록하고 대기 (onopen에서 일괄 구독)
   if (gWs && gWs.readyState === WebSocket.CONNECTING) return
 
   gToken = token
@@ -59,7 +69,8 @@ function openGateway(channels: string[]) {
 
   ws.onopen = () => {
     if (gReconnectTimer) { clearTimeout(gReconnectTimer); gReconnectTimer = null }
-    ws.send(JSON.stringify({ action: "subscribe", channels }))
+    // 등록된 모든 채널을 한번에 구독 (CONNECTING 중 누락된 채널 포함)
+    sendAllChannels(ws)
   }
 
   ws.onmessage = (e) => {
@@ -78,8 +89,8 @@ function openGateway(channels: string[]) {
 
   ws.onclose = () => {
     gWs = null
-    // 3초 후 재연결
-    gReconnectTimer = setTimeout(() => openGateway(channels), 3_000)
+    // 3초 후 재연결 — 등록된 전체 채널로 재구독
+    gReconnectTimer = setTimeout(() => openGateway([]), 3_000)
   }
 
   ws.onerror = () => ws.close()

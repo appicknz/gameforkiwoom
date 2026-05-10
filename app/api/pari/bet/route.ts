@@ -4,6 +4,33 @@ import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
+// Railway HTTP notify server — 배팅 후 즉시 odds push (2초 폴링 대기 없이)
+// NOTIFY_URL 환경변수 우선, 없으면 PRICE_SERVER_URL 기반으로 구성
+async function notifyOdds(gameType: string) {
+  // 명시적 notify URL 우선 (Railway에서 HTTP_PORT를 별도 공개 URL로 매핑한 경우)
+  const notifyUrl = process.env.NOTIFY_URL
+    ?? (() => {
+      const base = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
+      if (!base) return null
+      // 포트가 명시된 경우 +1, 없으면 동일 도메인 /notify 사용
+      return base.replace(/:(\d+)$/, (_, p) => `:${parseInt(p) + 1}`) + "/notify"
+    })()
+  if (!notifyUrl) return
+  try {
+    await fetch(notifyUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": process.env.INTERNAL_SECRET ?? "tasko-internal",
+      },
+      body: JSON.stringify({ channel: "odds", gameType }),
+      signal: AbortSignal.timeout(2000),
+    })
+  } catch {
+    // fire-and-forget: 실패해도 무시 (2초 폴링이 백업으로 작동)
+  }
+}
+
 
 // POST /api/pari/bet
 // 배팅: 잔고 차감 + Redis pool 추가 + lp-system으로 배당 계산 반환
@@ -94,9 +121,11 @@ export async function POST(req: Request) {
         odds: { player: result.playerOdds, banker: result.bankerOdds, tie: result.tieOdds,
           lpWeight: result.lpWeight, mode: result.mode, available: result.available },
       }
-      // 캐시 갱신 후 version incr → Railway WS가 최신 캐시를 읽음
+      // 캐시 갱신 후 version incr → Railway 폴링이 최신 캐시를 읽음
       await redis.set(currentKey, JSON.stringify(payload), { ex: roundSec + 30 })
       await redis.incr(`odds_version:${poolType}`)
+      // Railway에 즉시 push 트리거 (2초 폴링 대기 없이 실시간 반영)
+      notifyOdds(poolType)
     } else {
       const pools = {
         bit:  toInt(poolRaw?.bit),
@@ -115,6 +144,7 @@ export async function POST(req: Request) {
       }
       await redis.set(currentKey, JSON.stringify(payload), { ex: roundSec + 30 })
       await redis.incr(`odds_version:${poolType}`)
+      notifyOdds(poolType)
     }
 
     // 잔고 트랜잭션 기록

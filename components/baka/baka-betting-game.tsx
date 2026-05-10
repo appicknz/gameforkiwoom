@@ -528,7 +528,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 interface BakaBettingGameProps {
   /** 30초(라운드 전환) 시점: 카드 리셋 트리거 — BaccaratGame에 새 라운드 준비 요청 */
   onResetCards?: () => void
-  /** 25초 시점: 카드 공개 + 배팅 오픈 트리거 */
+  /** 25초 시���: 카드 공개 + 배팅 오픈 트리거 */
   onStartDealTrigger?: () => void
   /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 (끝자리 가격 전체를 전달) */
   onFinalDigitTrigger?: (closingPrice: number) => void
@@ -579,11 +579,13 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const canBetRef = useRef(false)
 
   // Railway WS 게이트웨이로 baccarat odds 구독
+  // available인 odds는 배팅 구간 여부에 관계없이 항상 state 반영
   useGatewayOdds("baccarat", (data: unknown) => {
     const d = data as { odds?: typeof liveOddsRef.current }
     if (d.odds) {
       liveOddsRef.current = d.odds
-      if (canBetRef.current) setLiveOdds(d.odds)
+      // available=true인 odds는 항상 표시 (배팅 구간 외에도 직전 배당 유지)
+      if (d.odds.available !== false) setLiveOdds(d.odds)
     }
   })
 
