@@ -589,6 +589,23 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     }
   })
 
+  // 마운트 시 HTTP로 현재 odds 즉시 조회 — WS 연결 전 버튼 `-` 방지
+  useEffect(() => {
+    const token = getToken()
+    fetch("/api/game/odds?type=baccarat", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.odds) {
+          const odds = data.odds as typeof liveOddsRef.current
+          liveOddsRef.current = odds
+          setLiveOdds(odds)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   // ── 마운트 시 활성 배팅 복원 (새로고침 대응) ─────────────────
   useEffect(() => {
     const token = getToken()
@@ -647,7 +664,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const betRoundNumberRef     = useRef(0)   // 배팅 시점 roundNumber 보존 (정산 시 라운드 경계 문제 방지)
   const liveOddsSnapshotRef   = useRef<typeof liveOdds>(null)  // 배팅 ���점 odds 스냅샷 (라운드 종료 후 초기화되기 전 값)
   const liveOddsRef           = useRef<typeof liveOdds>(null)  // 항상 최신 liveOdds를 가리키는 ref (클로저 stale 방지)
-  const frozenOddsRef         = useRef<typeof liveOdds>(null)  // 배팅 마감 순간 확정 배당 스냅샷
+  const frozenOddsRef         = useRef<typeof liveOdds>(null)  // 배팅 마감 순간 확정 배�� 스냅샷
   // 디버그용: 배팅 완료 시점에 저장, LOG 2/3에서 재사용
   const dbgBetRef = useRef<{ round: number; side: BetBaccarat; amount: number; oddsAtBet: number | null | undefined; oddsSnap: typeof liveOdds } | null>(null)
   const basePriceRef = useRef<number | null>(null)
@@ -971,7 +988,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // 30초: 카드 리셋 중복 방지 ref
   const resetTriggeredRoundRef = useRef<number>(-1)
 
-  // 타이머 + rem===30 카드 리셋 + rem===15 딜 시작 트리거
+  // 타이머 + rem===30 카드 리셋 + rem===15 딜 시작 트리��
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Math.floor(Date.now() / 1000)
