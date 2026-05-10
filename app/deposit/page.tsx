@@ -28,16 +28,27 @@ export default function DepositPage() {
 
   const fetchWallet = useCallback(async () => {
     const token = getToken()
-    if (!token) return
-    const res = await fetch("/api/deposit/wallet", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (res.ok) {
-      const data = await res.json()
-      setWalletAddress(data.walletAddress)
-    } else {
+    console.log("[v0] fetchWallet: token exists?", !!token)
+    if (!token) {
+      setWalletError("로그인이 필요합니다.")
+      return
+    }
+    try {
+      const res = await fetch("/api/deposit/wallet", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      console.log("[v0] wallet API status:", res.status)
       const data = await res.json().catch(() => ({}))
-      setWalletError(data.error ?? "지갑 주소를 불러오지 못했습니다.")
+      console.log("[v0] wallet API data:", data)
+      if (res.ok) {
+        setWalletAddress(data.walletAddress ?? null)
+        if (!data.walletAddress) setWalletError("주소가 반환되지 않았습니다.")
+      } else {
+        setWalletError(data.error ?? `오류 (${res.status})`)
+      }
+    } catch (e) {
+      console.error("[v0] wallet fetch error:", e)
+      setWalletError("네트워크 오류")
     }
   }, [])
 
