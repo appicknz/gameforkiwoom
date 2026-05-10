@@ -11,6 +11,7 @@ const nextConfig = {
   // webpack 환경에서 아래 패키지들이 클라이언트 번들에서 완전히 제외됨
   // → 브라우저에서 GoTrueClient 생성 구조적으로 불가
   serverExternalPackages: [
+    "stripe",
     "@supabase/supabase-js",
     "@supabase/auth-js",
     "@supabase/gotrue-js",
