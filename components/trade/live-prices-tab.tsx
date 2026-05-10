@@ -129,6 +129,8 @@ async function initCache() {
   }, 500)
 }
 
+import { cn } from "@/lib/utils"
+
 interface PositionRow {
   id:         string
   symbol:     string
@@ -137,7 +139,7 @@ interface PositionRow {
   leverage:   number
   pnl:        number
   pnlPct:     number
-  openedAt:   number   // ms timestamp
+  openedAt:   number
 }
 
 // ─── 컴포넌트 ─────────────────────────────────────────────────────
@@ -302,15 +304,17 @@ export default function LivePricesTab({ onSelect, onPriceUpdate, onClose, closin
                 {/* 종목 행 */}
                 <div
                   onClick={() => onSelect?.(item.symbol, item.price)}
-                  className={`flex items-center justify-between px-4 h-[52px] border-b border-gray-800/20 transition-colors cursor-pointer ${
-                    isSelected ? "bg-[#d4af37]/10 border-l-2 border-l-[#d4af37]" : "hover:bg-gray-800/30"
-                  } ${myPositions.length > 0 ? "border-b-0" : ""}`}
+                  className={cn(
+                    "flex items-center justify-between px-4 h-[52px] border-b border-gray-800/20 transition-colors cursor-pointer",
+                    isSelected ? "bg-[#d4af37]/10 border-l-2 border-l-[#d4af37]" : "hover:bg-gray-800/30",
+                    myPositions.length > 0 && "border-b-0"
+                  )}
                 >
                   <div className="flex items-center gap-2 min-w-[100px]">
                     {hasData ? (
                       isPositive
                         ? <TrendingUp  className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
-                        : <TrendingDown className="h-3.5 w-3.5 text-red-500   flex-shrink-0" />
+                        : <TrendingDown className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
                     ) : (
                       <div className="h-3.5 w-3.5 flex-shrink-0" />
                     )}
@@ -334,44 +338,46 @@ export default function LivePricesTab({ onSelect, onPriceUpdate, onClose, closin
                   </span>
                 </div>
 
-                {/* 인라인 포지션 패널 — 해당 종목에 포지션이 있을 때만 */}
+                {/* 인라인 포지션 패널 */}
                 {myPositions.map(pos => {
-                  const isLong   = pos.direction === "long"
-                  const pnlColor = pos.pnlPct >= 0 ? "#22c55e" : "#ef4444"
-                  const elapsed  = (() => {
-                    const s = Math.floor((Date.now() - pos.openedAt) / 1000)
-                    if (s < 60)   return `${s}초`
-                    if (s < 3600) return `${Math.floor(s / 60)}분`
-                    return `${Math.floor(s / 3600)}시간`
-                  })()
+                  const isLong    = pos.direction === "long"
+                  const accent    = isLong ? "#22c55e" : "#ef4444"
+                  const pnlColor  = pos.pnlPct >= 0 ? "#22c55e" : "#ef4444"
                   const isClosing = closingId === pos.id
                   return (
-                    <div key={pos.id} className="border-b border-gray-800/20"
-                      style={{ background: isLong ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)", borderLeft: `2px solid ${isLong ? "#22c55e" : "#ef4444"}` }}>
+                    <div
+                      key={pos.id}
+                      className="border-b border-gray-800/20"
+                      style={{ background: isLong ? "rgba(34,197,94,0.05)" : "rgba(239,68,68,0.05)", borderLeft: `2px solid ${accent}` }}
+                    >
                       <div className="flex items-center justify-between px-4 py-2">
-                        {/* 좌: 방향 + 레버리지 + 경과 */}
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: isLong ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", color: isLong ? "#22c55e" : "#ef4444" }}>
+                          <span
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                            style={{ background: isLong ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", color: accent }}
+                          >
                             {isLong ? "LONG" : "SHORT"} {pos.leverage}x
                           </span>
-                          <span className="text-[10px] text-gray-500">{elapsed}</span>
                         </div>
-                        {/* 우: ROI + 청산 버튼 */}
                         <div className="flex items-center gap-3">
                           <div className="text-right">
                             <div className="text-[11px] font-bold tabular-nums" style={{ color: pnlColor }}>
                               {pos.pnlPct >= 0 ? "+" : ""}{pos.pnlPct.toFixed(2)}%
                             </div>
-                            <div className="text-[10px] tabular-nums" style={{ color: pnlColor, opacity: 0.7 }}>
-                              {pos.pnl >= 0 ? "+" : ""}₩{Math.floor(pos.pnl).toLocaleString("ko-KR")}
+                            <div className="text-[10px] tabular-nums" style={{ color: pnlColor, opacity: 0.75 }}>
+                              {pos.pnl >= 0 ? "+" : ""}₩{Math.floor(Math.abs(pos.pnl)).toLocaleString("ko-KR")}
                             </div>
                           </div>
                           <button
                             onClick={e => { e.stopPropagation(); onClose?.(pos.id) }}
                             disabled={isClosing}
                             className="text-[10px] font-semibold px-2.5 py-1 rounded transition-colors"
-                            style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.12)", cursor: isClosing ? "not-allowed" : "pointer" }}
+                            style={{
+                              background: "rgba(255,255,255,0.07)",
+                              color: "rgba(255,255,255,0.5)",
+                              border: "1px solid rgba(255,255,255,0.12)",
+                              cursor: isClosing ? "not-allowed" : "pointer",
+                            }}
                           >
                             {isClosing ? "청산중" : "청산"}
                           </button>
