@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2 } from "lucide-react"
-import Link from "next/link"
+import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2 } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
@@ -46,9 +45,32 @@ export default function MarketPage() {
   const [showAdmin, setShowAdmin]     = useState(false)
   const [editItem, setEditItem]       = useState<EditItem | null>(null)
   const [role, setRole]               = useState<string | null>(null)
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null)
+  const [buying, setBuying]           = useState(false)
+  const [buyErr, setBuyErr]           = useState("")
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { setRole(parseRole()) }, [])
+
+  const handleBuy = useCallback(async () => {
+    if (!selectedItem) return
+    if (!getToken()) { setBuyErr("로그인이 필요합니다."); return }
+    setBuying(true); setBuyErr("")
+    try {
+      const res  = await fetch("/api/market/checkout", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body:    JSON.stringify({ itemId: selectedItem.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setBuyErr(data.error ?? "오류가 발생했습니다."); return }
+      window.location.href = data.url
+    } catch {
+      setBuyErr("결제 오류가 발생했습니다.")
+    } finally {
+      setBuying(false)
+    }
+  }, [selectedItem])
 
   // 카테고리 로드
   useEffect(() => {
@@ -77,6 +99,72 @@ export default function MarketPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+
+      {/* 상품 상세 다이얼로그 */}
+      {selectedItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.75)" }}
+          onClick={() => { setSelectedItem(null); setBuyErr("") }}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-2xl border border-border bg-background overflow-hidden shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { setSelectedItem(null); setBuyErr("") }}
+              className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="relative aspect-video w-full bg-secondary">
+              {selectedItem.image_url ? (
+                <Image src={selectedItem.image_url} alt={selectedItem.title} fill className="object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-6xl">
+                  {selectedItem.market_categories?.icon ?? "📦"}
+                </div>
+              )}
+              {selectedItem.market_categories && (
+                <span className="absolute top-3 left-3 px-2 py-1 rounded-lg bg-black/60 backdrop-blur text-xs text-white font-medium">
+                  {selectedItem.market_categories.icon} {selectedItem.market_categories.name}
+                </span>
+              )}
+            </div>
+
+            <div className="p-5 space-y-3">
+              <div>
+                <h2 className="text-base font-bold text-foreground">{selectedItem.title}</h2>
+                {selectedItem.profiles && (
+                  <p className="text-xs text-muted-foreground mt-0.5">by {selectedItem.profiles.username}</p>
+                )}
+              </div>
+              {selectedItem.description && (
+                <p className="text-sm text-muted-foreground leading-relaxed">{selectedItem.description}</p>
+              )}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-lg font-extrabold text-primary">
+                  {selectedItem.price_krw.toLocaleString("ko-KR")}원
+                </span>
+                <span className="text-xs text-muted-foreground">{selectedItem.order_count.toLocaleString()}명 구매</span>
+              </div>
+
+              {buyErr && <p className="text-xs text-destructive">{buyErr}</p>}
+
+              <button
+                onClick={handleBuy}
+                disabled={buying}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+                {buying ? "결제 중..." : "구매하기"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 상단 검색 + 필터 바 */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-3 space-y-3">
@@ -189,6 +277,7 @@ export default function MarketPage() {
                 key={item.id}
                 item={item}
                 isAdmin={role === "master"}
+                onSelect={() => { setSelectedItem(item); setBuyErr("") }}
                 onEdit={() => {
                   setEditItem({
                     id:           item.id,
@@ -214,10 +303,11 @@ export default function MarketPage() {
 }
 
 function MarketItemCard({
-  item, isAdmin, onEdit,
+  item, isAdmin, onSelect, onEdit,
 }: {
   item: Item
   isAdmin: boolean
+  onSelect: () => void
   onEdit: () => void
 }) {
   return (
@@ -225,7 +315,7 @@ function MarketItemCard({
       {/* 관리자 수정 버튼 */}
       {isAdmin && (
         <button
-          onClick={e => { e.preventDefault(); onEdit() }}
+          onClick={e => { e.stopPropagation(); onEdit() }}
           className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-black/70 backdrop-blur-sm text-white hover:bg-primary hover:text-black transition-colors opacity-0 group-hover:opacity-100"
           title="수정"
         >
@@ -233,7 +323,7 @@ function MarketItemCard({
         </button>
       )}
 
-      <Link href={`/market/${item.id}`} className="block">
+      <button onClick={onSelect} className="block w-full text-left cursor-pointer">
         {/* 이미지 영역 */}
         <div className="relative aspect-square bg-secondary overflow-hidden">
           {item.image_url ? (
@@ -268,7 +358,7 @@ function MarketItemCard({
             <span>{item.order_count.toLocaleString()}명 구매</span>
           </div>
         </div>
-      </Link>
+        </button>
     </div>
   )
 }
