@@ -145,7 +145,7 @@ export function TopBar() {
             saveToken(d.token)
           }
         } else if (res.status === 401) {
-          // 진짜 세션 만료 — 로그아웃 처리
+          // 진짜 세션 만료 — ���그아웃 처리
           clearToken()
           setIsLoggedIn(false)
           setProfile(null)
@@ -525,6 +525,19 @@ export function TopBar() {
                     </button>
                   )}
 
+                  {/* 토큰 입금 */}
+                  {profile?.role === "user" && (
+                    <Link
+                      href="/deposit"
+                      onClick={() => setDropdownOpen(false)}
+                      className="flex items-center gap-2 w-full px-4 py-3 text-sm text-foreground hover:bg-muted transition-colors border-t border-border"
+                    >
+                      <Wallet className="w-3.5 h-3.5 text-primary" />
+                      <span>CHIPS 입금</span>
+                      <span className="ml-auto text-[10px] text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded">충전</span>
+                    </Link>
+                  )}
+
                   {/* 로그아웃 */}
                   <button
                     onClick={handleLogout}
@@ -624,7 +637,7 @@ export function TopBar() {
       </div>
     </header>
 
-    {/* ── 유저 계정 생성 요청 모달 (admin 전용) ── */}
+    {/* ── 유저 계��� 생성 요청 모달 (admin 전용) ── */}
     {showCreateUserModal && (
       <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
         {/* 백드롭 */}
