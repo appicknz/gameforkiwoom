@@ -2,7 +2,7 @@ import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
-import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
+import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
 
 // POST /api/pari/bet
@@ -36,20 +36,14 @@ export async function POST(req: Request) {
       .single()
     const branchId = profile?.branch_id ?? null
 
-    let lpConfig = { enabled: true, lpAmountBaccarat: 50000, lpAmountRace: 50000 }
+    let lpConfig = { ...DEFAULT_LP_CONFIG }
     if (branchId) {
       const { data: branch } = await adminSupabase
         .from("branches")
-        .select("lp_enabled, lp_amount_baccarat, lp_amount_race")
+        .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
         .eq("id", branchId)
         .single()
-      if (branch) {
-        lpConfig = {
-          enabled: branch.lp_enabled ?? true,
-          lpAmountBaccarat: branch.lp_amount_baccarat ?? 50000,
-          lpAmountRace: branch.lp_amount_race ?? 50000,
-        }
-      }
+      if (branch) lpConfig = branchToLpConfig(branch)
     }
 
     // Atomic 잔고 차감
@@ -63,12 +57,12 @@ export async function POST(req: Request) {
     const roundNum = parseInt(roundTime)
     const poolKey = `pool:${poolType}:${roundNum}`
     const userSetKey = `users:${poolType}:${roundNum}`
+    // pool 업데이트 (odds_version incr은 캐시 갱신 후 아래에서 수행)
     await Promise.all([
       redis.hincrby(poolKey, side, betAmount),
       redis.sadd(userSetKey, userId),
       redis.expire(poolKey, 120),
       redis.expire(userSetKey, 120),
-      redis.incr(`odds_version:${poolType}`),
     ])
 
     // 최신 풀 조회 후 lp-system으로 배당 계산
@@ -80,6 +74,9 @@ export async function POST(req: Request) {
     const toInt = (v: unknown) => parseInt((v as string) ?? "0") || 0
 
     let odds = 1.6
+    const currentKey = `odds:current:${poolType}:${roundNum}`
+    const roundSec   = poolType === "race" ? 180 : 30
+
     if (poolType === "baccarat") {
       const pools = {
         player: toInt(poolRaw?.player),
@@ -90,6 +87,16 @@ export async function POST(req: Request) {
       odds = side === "player" ? result.playerOdds
            : side === "banker" ? result.bankerOdds
            : result.tieOdds
+
+      // 배팅마다 공유 odds 캐시 갱신 → Railway WS가 버전 변화 감지 후 최신 배당 push
+      const payload = {
+        gameType: poolType, roundNumber: roundNum, userCount: userCount ?? 1, pools,
+        odds: { player: result.playerOdds, banker: result.bankerOdds, tie: result.tieOdds,
+          lpWeight: result.lpWeight, mode: result.mode, available: result.available },
+      }
+      // 캐시 갱신 후 version incr → Railway WS가 최신 캐시를 읽음
+      await redis.set(currentKey, JSON.stringify(payload), { ex: roundSec + 30 })
+      await redis.incr(`odds_version:${poolType}`)
     } else {
       const pools = {
         bit:  toInt(poolRaw?.bit),
@@ -100,6 +107,14 @@ export async function POST(req: Request) {
       odds = side === "bit"  ? result.bitOdds
            : side === "coin" ? result.coinOdds
            : result.tieOdds
+
+      const payload = {
+        gameType: poolType, roundNumber: roundNum, userCount: userCount ?? 1, pools,
+        odds: { bit: result.bitOdds, coin: result.coinOdds, tie: result.tieOdds,
+          lpWeight: result.lpWeight, mode: result.mode, available: result.available },
+      }
+      await redis.set(currentKey, JSON.stringify(payload), { ex: roundSec + 30 })
+      await redis.incr(`odds_version:${poolType}`)
     }
 
     // 잔고 트랜잭션 기록

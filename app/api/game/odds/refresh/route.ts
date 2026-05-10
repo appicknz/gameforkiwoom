@@ -34,9 +34,9 @@ export async function POST(request: Request) {
   const currentKey  = `odds:current:${gameType}:${roundNumber}`
   const versionKey  = `odds_version:${gameType}`
 
-  // LP 설정: 브랜치별이지만 공유 캐시는 LP 비활성 기본값 사용
-  // 브랜치별 LP는 bet route에서 유저별 스냅샷으로 처리
-  const lpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
+  // 공유 캐시용 LP 설정: 기본 LP 활성 상태로 초기 배당 표시
+  // 브랜치별 정확한 배당은 pari/bet에서 배팅마다 갱신
+  const lpConfig = { ...DEFAULT_LP_CONFIG, enabled: true }
 
   const [poolData, userCount] = await Promise.all([
     redis.hgetall(poolKey).catch(() => null),
