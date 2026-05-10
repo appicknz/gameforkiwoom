@@ -460,7 +460,7 @@ export function Sidebar() {
               <Link href="/market" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
                   "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  pathname === "/market" && "border-primary/50 bg-secondary/40"
+                  (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
                 )}>
                   <p className="text-[11px] font-bold text-foreground leading-tight">마켓</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">아이템 거래소</p>
