@@ -1,7 +1,7 @@
 import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { NextResponse } from "next/server"
-import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
+import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 import { cookies } from "next/headers"
 
 
@@ -428,6 +428,22 @@ async function runBetForGame(gameType: "baccarat" | "race") {
 
   const poolKey    = `pool:${gameType}:${roundNumber}`
   const userSetKey = `users:${gameType}:${roundNumber}`
+  const roundSec   = gameType === "race" ? 180 : 30
+  const currentKey = `odds:current:${gameType}:${roundNumber}`
+
+  // 브랜치 LP 설정 조회 (첫 번째 유저의 branch 기준)
+  let lpConfig = DEFAULT_LP_CONFIG
+  const firstId = userIds[0]
+  if (firstId) {
+    const { data: pf } = await adminSupabase.from("profiles").select("branch_id").eq("id", firstId).single()
+    if (pf?.branch_id) {
+      const { data: br } = await adminSupabase
+        .from("branches")
+        .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+        .eq("id", pf.branch_id).single()
+      if (br) lpConfig = branchToLpConfig(br)
+    }
+  }
 
   // ── 단일 유저 배팅 실행 함수 ─────────────────────────────────
   const betOne = async (p: { id: string; username: string }) => {
@@ -473,22 +489,34 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         redis.scard(userSetKey).catch(() => 0),
       ])
       let oddsSnapNow: Record<string, number> = {}
+      let oddsCurrentPayload: object | null = null
       if (gameType === "baccarat") {
         const pool = {
           player: parseInt((poolDataNow?.player as string) ?? "0") || 0,
           banker: parseInt((poolDataNow?.banker as string) ?? "0") || 0,
           tie:    parseInt((poolDataNow?.tie    as string) ?? "0") || 0,
         }
-        const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, (userCountNow as number) ?? 0)
+        const r = calcBaccaratOdds(pool, lpConfig, (userCountNow as number) ?? 0)
         oddsSnapNow = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+        // 공유 캐시 갱신 → Railway WS가 폴링 시 최신 배당 push
+        oddsCurrentPayload = {
+          gameType, roundNumber, userCount: (userCountNow as number) ?? 0, pools: pool,
+          odds: { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds,
+            lpWeight: r.lpWeight, mode: r.mode, available: r.available },
+        }
       } else {
         const pool = {
           bit:  parseInt((poolDataNow?.bit  as string) ?? "0") || 0,
           coin: parseInt((poolDataNow?.coin as string) ?? "0") || 0,
           tie:  parseInt((poolDataNow?.tie  as string) ?? "0") || 0,
         }
-        const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, (userCountNow as number) ?? 0)
+        const r = calcRaceOdds(pool, lpConfig, (userCountNow as number) ?? 0)
         oddsSnapNow = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+        oddsCurrentPayload = {
+          gameType, roundNumber, userCount: (userCountNow as number) ?? 0, pools: pool,
+          odds: { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds,
+            lpWeight: r.lpWeight, mode: r.mode, available: r.available },
+        }
       }
       const oddsSnapKey = `odds:snap:${gameType}:${roundNumber}:${p.id}`
 
@@ -498,6 +526,10 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         redis.set(`balance:${p.id}`, newBal as number, { ex: 3600 }),
         redis.incr(`balance_version:${p.id}`),
         redis.set(oddsSnapKey, JSON.stringify(oddsSnapNow), { ex: ttl }),
+        // 공유 odds 캐시 갱신 (라운드 모니터 + 배팅 버튼에 즉시 반영)
+        oddsCurrentPayload
+          ? redis.set(currentKey, JSON.stringify(oddsCurrentPayload), { ex: roundSec + 30 })
+          : Promise.resolve(),
       ])
 
       const betOdds = oddsSnapNow[side] ?? null
