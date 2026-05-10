@@ -9,9 +9,9 @@ export async function GET(req: Request) {
 
   const { data: deposits } = await adminSupabase
     .from("token_deposits")
-    .select("signature, token_amount, r_amount, confirmed_at, tx_url")
+    .select("tx_signature, token_amount, amount, created_at, wallet_address, status")
     .eq("user_id", auth.userId)
-    .order("confirmed_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(20)
 
   return NextResponse.json({ deposits: deposits ?? [] })

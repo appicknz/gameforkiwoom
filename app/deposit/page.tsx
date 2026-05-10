@@ -12,11 +12,12 @@ function getToken(): string | null {
 }
 
 interface Deposit {
-  signature:    string
-  token_amount: number
-  r_amount:     number
-  confirmed_at: string
-  tx_url:       string | null
+  tx_signature:   string
+  token_amount:   number
+  amount:         number   // R 적립량
+  created_at:     string
+  wallet_address: string
+  status:         string
 }
 
 export default function DepositPage() {
@@ -191,32 +192,30 @@ export default function DepositPage() {
           <div className="space-y-2">
             {deposits.map((d) => (
               <div
-                key={d.signature}
+                key={d.tx_signature}
                 className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between gap-3"
               >
                 <div className="space-y-0.5 min-w-0">
                   <p className="text-sm font-semibold text-green-400">
-                    +{d.r_amount.toLocaleString("ko-KR")} R
+                    +{d.amount.toLocaleString("ko-KR")} R
                   </p>
                   <p className="text-[11px] text-muted-foreground">
                     {d.token_amount} {tokenSymbol} &nbsp;·&nbsp;
-                    {new Date(d.confirmed_at).toLocaleString("ko-KR", {
+                    {new Date(d.created_at).toLocaleString("ko-KR", {
                       month: "2-digit", day: "2-digit",
                       hour: "2-digit", minute: "2-digit",
                     })}
                   </p>
                 </div>
-                {d.tx_url && (
-                  <a
-                    href={d.tx_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 p-1.5 rounded-lg hover:bg-secondary transition-colors"
-                    aria-label="Solscan에서 확인"
-                  >
-                    <ExternalLink className="w-4 h-4 text-muted-foreground" />
-                  </a>
-                )}
+                <a
+                  href={`https://solscan.io/tx/${d.tx_signature}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 p-1.5 rounded-lg hover:bg-secondary transition-colors"
+                  aria-label="Solscan에서 확인"
+                >
+                  <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                </a>
               </div>
             ))}
           </div>
