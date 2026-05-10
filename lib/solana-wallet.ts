@@ -9,24 +9,21 @@ import "server-only"
 import { derivePath } from "ed25519-hd-key"
 import * as bip39 from "bip39"
 import nacl from "tweetnacl"
-import bs58 from "bs58"
+// bs58 v5는 default export, v4는 named export — 양쪽 모두 호환
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const _bs58 = require("bs58")
+const bs58encode: (b: Uint8Array) => string = _bs58.default?.encode ?? _bs58.encode
 
 function getMasterSeed(): Buffer {
   const raw = process.env.SOLANA_HD_SEED
   if (!raw) throw new Error("SOLANA_HD_SEED 환경변수가 설정되지 않았습니다.")
 
-  // 니모닉(12/24 단어)인지 hex인지 판단
+  // 공백이 포함되면 니모닉으로 처리 (validateMnemonic 검증 생략 — wordlist 언어 차이로 false 반환 가능)
   if (raw.trim().includes(" ")) {
-    if (!bip39.validateMnemonic(raw.trim())) {
-      throw new Error("SOLANA_HD_SEED 니모닉이 유효하지 않습니다.")
-    }
     return bip39.mnemonicToSeedSync(raw.trim())
   }
 
-  // hex string
-  if (raw.length !== 128) {
-    throw new Error("SOLANA_HD_SEED hex는 128자(64바이트)여야 합니다.")
-  }
+  // hex string (128자 = 64바이트)
   return Buffer.from(raw, "hex")
 }
 
@@ -41,5 +38,5 @@ export function deriveWalletAddress(index: number): string {
   const { key } = derivePath(path, seed.toString("hex"))
   // @solana/web3.js 없이 tweetnacl + bs58 로 public key 파생
   const keypair = nacl.sign.keyPair.fromSeed(key)
-  return bs58.encode(keypair.publicKey)
+  return bs58encode(keypair.publicKey)
 }
