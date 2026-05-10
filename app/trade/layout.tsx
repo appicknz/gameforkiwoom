@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { TopBar } from "@/components/dashboard/top-bar"
 

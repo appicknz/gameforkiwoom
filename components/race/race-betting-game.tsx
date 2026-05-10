@@ -515,29 +515,33 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   // 딜링 중: 60초 이후 ~ 라운드 끝
   const isDealing = !canBet && timeLeft > 0
 
-  // canBetRef 동기화 + 배팅 구간 시작 시 liveOdds 초기화 후 즉시 재조회
+  // canBetRef 동기화 + 배팅 구간 시작 시 자동배팅 플래그 초기화
   useEffect(() => {
     const was = prevCanBetRef.current
     prevCanBetRef.current = canBet
     canBetRef.current = canBet
-
     if (!canBet || was) return
-    // false→true 전환: 새 배팅 구간 시작
+    // false→true 전환: liveOdds 리셋 없이 플래그만 초기화(폴링으로 갱신)
     autoBetFiredRef.current = false
-    setLiveOdds(null)
-    liveOddsRef.current = null
-    const token = getToken()
-    fetch("/api/game/odds?type=race", {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.odds) {
-          liveOddsRef.current = data.odds
-          setLiveOdds(data.odds)
-        }
-      })
-      .catch(() => {})
+  }, [canBet])
+
+  // 배팅 구간에서 3초마다 odds 폴링
+  useEffect(() => {
+    if (!canBet) return
+    const poll = () => {
+      fetch("/api/game/odds?type=race")
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.odds) {
+            liveOddsRef.current = data.odds
+            setLiveOdds(data.odds)
+          }
+        })
+        .catch(() => {})
+    }
+    poll()
+    const id = setInterval(poll, 3000)
+    return () => clearInterval(id)
   }, [canBet])
 
 
@@ -548,7 +552,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   useEffect(() => { isDealingRef.current = isDealing }, [isDealing])
   useEffect(() => { onScoreChangeRef.current = onScoreChange }, [onScoreChange])
 
-  // 매 초 baka:price 구독 → 딜링 중에만 스코어 누적
+  // ��� 초 baka:price 구독 → 딜링 중에만 스코어 누적
   useEffect(() => {
     const handler = (e: Event) => {
       if (!isDealingRef.current) return

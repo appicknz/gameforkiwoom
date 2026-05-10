@@ -528,7 +528,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 interface BakaBettingGameProps {
   /** 30초(라운드 전환) 시점: 카드 리셋 트리거 — BaccaratGame에 새 라운드 준비 요청 */
   onResetCards?: () => void
-  /** 25초 시�����: 카드 공개 + 배팅 오픈 트리거 */
+  /** 25초 시�������: 카드 공개 + 배팅 오픈 트리거 */
   onStartDealTrigger?: () => void
   /** 0초 시점: page가 주입해 준 applyFinalDigit 트리거 (끝자리 가격 전체를 전달) */
   onFinalDigitTrigger?: (closingPrice: number) => void
@@ -974,7 +974,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     }, []),
   })
 
-  // baka:closing 이벤트 구독 �� bitcoin-chart.tsx k.x===true 공식 종가 = ���널과 동일 소스
+  // baka:closing 이벤트 구독 �� bitcoin-chart.tsx k.x===true 공식 종가 = ���널과 동��� 소스
   useEffect(() => {
     const handler = (e: Event) => {
       const { price, time } = (e as CustomEvent<{ price: number; time: number }>).detail
@@ -1045,26 +1045,27 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     const was = prevCanBetRef.current
     prevCanBetRef.current = canBet
     if (!canBet || was) return
-
-    // 1) 자동배팅 플래그 초기화
+    // 자동배팅 플래그만 초기화 — liveOdds는 리셋하지 않음(WS/폴링으로 덮어씀)
     autoBetFiredRef.current = false
+  }, [canBet])
 
-    // 2) liveOdds 초기화 → 새 라운드 odds를 즉시 HTTP로 조회
-    setLiveOdds(null)
-    liveOddsRef.current = null
-
-    const token = getToken()
-    fetch("/api/game/odds?type=baccarat", {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.odds) {
-          liveOddsRef.current = data.odds
-          setLiveOdds(data.odds)
-        }
-      })
-      .catch(() => {})
+  // 배팅 구간에서 3초마다 odds 폴링 — WS 지연 보완 + 배당 불일치 방지
+  useEffect(() => {
+    if (!canBet) return
+    const poll = () => {
+      fetch("/api/game/odds?type=baccarat")
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.odds) {
+            liveOddsRef.current = data.odds
+            setLiveOdds(data.odds)
+          }
+        })
+        .catch(() => {})
+    }
+    poll() // 즉시 1회
+    const id = setInterval(poll, 3000)
+    return () => clearInterval(id)
   }, [canBet])
 
   // 자동 배팅 실행
