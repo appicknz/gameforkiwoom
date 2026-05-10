@@ -267,8 +267,8 @@ export function TopBar() {
       setLoginUsername("")
       setLoginPw("")
 
-      // admin(지점) / branch_admin(총판) / super_admin / master 는 패널로 바로 이동
-      if (ADMIN_ROLES.includes(role)) {
+      // admin(지점) / branch_admin(총판) / super_admin 은 패널로 바로 이동 (master 제외)
+      if (ADMIN_ROLES.includes(role) && role !== "master") {
         router.push("/panel")
         return
       }
