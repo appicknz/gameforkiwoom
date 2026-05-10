@@ -4,7 +4,6 @@ import { verifySession } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
-})
 
 /** 현재 라운드 활성 배팅 조회 — 새로고침 복원용 */
 export async function GET(req: Request) {

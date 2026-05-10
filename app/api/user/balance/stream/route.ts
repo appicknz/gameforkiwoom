@@ -2,7 +2,6 @@ import { redis } from "@/lib/redis"
 import { adminSupabase as supabase } from "@/lib/supabase-admin"
 import { verifySessionFromUrl } from "@/lib/auth"
 
-})
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"

@@ -3,7 +3,6 @@ import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
-})
 
 export async function POST(request: Request) {
   try {

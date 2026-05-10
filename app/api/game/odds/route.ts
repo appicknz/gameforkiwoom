@@ -10,7 +10,6 @@ import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 import { calcAutoLpSeed } from "@/lib/lp-auto-seed"
 
-})
 
 export async function GET(request: Request) {
   try {

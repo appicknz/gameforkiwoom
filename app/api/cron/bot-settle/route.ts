@@ -21,7 +21,6 @@ import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-syst
 export const runtime = "nodejs"
 export const maxDuration = 55
 
-})
 
 const AUTO_BET_USERNAMES = Array.from({ length: 29 }, (_, i) => `사용자${i + 2}`)
 const roundTo100 = (v: number) => Math.floor(v / 100) * 100

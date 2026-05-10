@@ -3,7 +3,6 @@ import { adminSupabase } from "@/lib/supabase-admin"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-})
 
 // POST /api/pari/play
 // 파리뮤추얼 정산: 서버에서 승패 계산 + 실시간 배당으로 지급

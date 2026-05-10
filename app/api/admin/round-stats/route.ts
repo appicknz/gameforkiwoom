@@ -16,7 +16,6 @@ async function getUserFromToken(token: string) {
   return data.user
 }
 
-})
 
 // 한 게임 타입의 라운드 현황 계산
 // odds:current 캐시(odds/stream이 계산한 값)를 우선 사용 → 단일 소스

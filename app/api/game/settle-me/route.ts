@@ -12,7 +12,6 @@ import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG, branchToLpConfig } f
 
 export const runtime = "nodejs"
 
-})
 
 const FIXED_ODDS = 1.6  // 방향/숫자/홀짝 고정 배당 (수수료 20% 적용)
 

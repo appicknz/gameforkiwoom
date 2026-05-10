@@ -3,7 +3,6 @@ import { adminSupabase } from "@/lib/supabase-admin"
 import { verifySession } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
-})
 
 // GET: 잔고 조회
 export async function GET(req: Request) {

@@ -18,7 +18,6 @@ import { NextResponse } from "next/server"
 
 export const runtime = "nodejs"
 
-})
 
 export async function GET(request: Request) {
   // Vercel Cron 인증 (CRON_SECRET 또는 Authorization 헤더)

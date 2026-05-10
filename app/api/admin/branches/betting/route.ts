@@ -4,7 +4,6 @@ import { adminSupabase } from "@/lib/supabase-admin"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 
-})
 
 async function getUserFromToken(token: string) {
   const anonClient = createClient(

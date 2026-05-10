@@ -4,7 +4,6 @@ import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 import { cookies } from "next/headers"
 
-})
 
 /** JWT 로컬 디코딩 — 외부 HTTP 없이 즉시 userId 반환 */
 function decodeJwtUserId(token: string): string | null {

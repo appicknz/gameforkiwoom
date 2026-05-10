@@ -4,7 +4,6 @@ import { adminSupabase } from "@/lib/supabase-admin"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from 'next/server'
 
-})
 
 // 토큰으로 user 검증하는 헬퍼
 async function getUserFromToken(token: string) {

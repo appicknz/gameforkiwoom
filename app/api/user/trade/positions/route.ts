@@ -3,7 +3,6 @@ import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { verifySession } from "@/lib/auth"
 
-})
 
 // Binance에서 현재가 조회 (서버사이드 전용)
 async function fetchBinancePrice(symbol: string): Promise<number> {

@@ -3,7 +3,6 @@ import { adminSupabase } from "@/lib/supabase-admin"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
 
-})
 
 // POST /api/pari/bet
 // 배팅: 잔고 차감 + Redis pool 추가 + lp-system으로 배당 계산 반환
