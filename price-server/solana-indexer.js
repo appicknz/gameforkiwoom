@@ -23,7 +23,11 @@ const { WebSocket } = require("ws")
 const SOLANA_RPC_WS   = process.env.SOLANA_RPC_WS   || "wss://api.mainnet-beta.solana.com"
 const SOLANA_RPC_HTTP = process.env.SOLANA_RPC_HTTP  || "https://api.mainnet-beta.solana.com"
 const TOKEN_MINT      = process.env.TOKEN_MINT_ADDRESS
-const VERCEL_URL      = process.env.VERCEL_URL
+// VERCEL_URL은 반드시 프로덕션 도메인으로 설정 (예: https://www.coinrace.live)
+// Railway 환경변수에서 VERCEL_URL=https://www.coinrace.live 으로 설정 필요
+const VERCEL_URL      = process.env.VERCEL_URL?.startsWith("https://")
+  ? process.env.VERCEL_URL
+  : process.env.PRODUCTION_URL ?? process.env.VERCEL_URL
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET  || "tasko-internal"
 const SUPABASE_URL    = process.env.SUPABASE_URL      || process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -96,6 +100,11 @@ async function parseTokenTransfer(signature, recipientAddress) {
 // ─── Vercel deposit webhook 호출 ─────────────────────────────────────
 async function callDepositWebhook(signature, walletAddress, tokenAmount) {
   if (!VERCEL_URL) { console.error("[solana] VERCEL_URL not set"); return }
+
+  // 프리뷰 URL이면 경고 (삭제된 배포라 404 발생)
+  if (VERCEL_URL.includes(".vercel.app") && !VERCEL_URL.startsWith("https://www.")) {
+    console.warn(`[solana] WARNING: VERCEL_URL is a preview URL (${VERCEL_URL}) — set to production domain!`)
+  }
 
   const body = JSON.stringify({ signature, walletAddress, tokenAmount })
   const url  = `${VERCEL_URL}/api/deposit/webhook`
