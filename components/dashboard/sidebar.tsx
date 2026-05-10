@@ -341,17 +341,8 @@ export function Sidebar() {
         mobileOpen && "flex -translate-x-0",
         !mobileOpen && "lg:flex -translate-x-full lg:translate-x-0"
       )}>
-        {/* 로��� 헤더 */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-border shrink-0">
-          <Link href="/" className="flex items-center gap-2 group" onClick={() => setMobileOpen(false)}>
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center transition-transform group-hover:scale-110 duration-300 relative shrink-0">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground absolute" style={{ top: "30%", left: "30%" }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground absolute" style={{ top: "30%", right: "30%" }} />
-              <div className="w-3 h-1.5 border-b-2 border-primary-foreground rounded-full absolute bottom-2.5" />
-            </div>
-            <span className="text-lg font-semibold text-foreground">BitBet</span>
-          </Link>
-        </div>
+        {/* 상단 top-bar 높이만큼 여백 */}
+        <div className="h-12 border-b border-border shrink-0" />
 
         {/* 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
