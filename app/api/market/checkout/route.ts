@@ -21,17 +21,18 @@ export async function POST(req: Request) {
   if (itemErr || !item?.is_active) {
     return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 })
   }
-  // 중복 주문 확인
+  // 중복 주문 확인: approved(승인완료) 또는 결제 완료된 pending(paid_at 있음)만 막기
   const { data: existing } = await adminSupabase
     .from("market_orders")
-    .select("id, status")
+    .select("id, status, paid_at")
     .eq("item_id", itemId)
     .eq("buyer_id", auth.userId)
     .in("status", ["pending", "approved"])
+    .not("paid_at", "is", null)  // paid_at 있는 것만 = 실제 결제된 주문
     .single()
 
   if (existing) {
-    return NextResponse.json({ error: "이미 구매했거나 대기 중인 주문이 있습니다." }, { status: 409 })
+    return NextResponse.json({ error: "이미 결제가 완료된 상품입니다." }, { status: 409 })
   }
 
   const origin = req.headers.get("origin") ?? process.env.VERCEL_URL ?? "http://localhost:3000"

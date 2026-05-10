@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { ShoppingBag, ChevronRight, CheckCircle, XCircle, Clock, RefreshCw } from "lucide-react"
+import { ShoppingBag, ChevronRight, CheckCircle, XCircle, Clock, RefreshCw, CreditCard } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
@@ -19,10 +19,11 @@ interface Order {
 }
 
 const STATUS_CONFIG = {
-  pending:   { label: "승인 대기", icon: Clock,       color: "text-amber-400",   bg: "bg-amber-400/10"  },
-  approved:  { label: "승인 완료", icon: CheckCircle, color: "text-green-400",   bg: "bg-green-400/10"  },
-  rejected:  { label: "거절됨",   icon: XCircle,     color: "text-red-400",     bg: "bg-red-400/10"    },
-  cancelled: { label: "취소됨",   icon: XCircle,     color: "text-gray-400",    bg: "bg-gray-400/10"   },
+  unpaid:    { label: "결제 미완료", icon: CreditCard,  color: "text-gray-400",    bg: "bg-gray-400/10"   },
+  pending:   { label: "승인 대기",   icon: Clock,       color: "text-amber-400",   bg: "bg-amber-400/10"  },
+  approved:  { label: "승인 완료",   icon: CheckCircle, color: "text-green-400",   bg: "bg-green-400/10"  },
+  rejected:  { label: "거절됨",     icon: XCircle,     color: "text-red-400",     bg: "bg-red-400/10"    },
+  cancelled: { label: "취소됨",     icon: XCircle,     color: "text-gray-400",    bg: "bg-gray-400/10"   },
 }
 
 function getToken() {
@@ -30,10 +31,28 @@ function getToken() {
 }
 
 export default function SidebarOrders() {
-  const [orders, setOrders]   = useState<Order[]>([])
-  const [open, setOpen]       = useState(true)
-  const [loading, setLoading] = useState(false)
+  const [orders, setOrders]     = useState<Order[]>([])
+  const [open, setOpen]         = useState(true)
+  const [loading, setLoading]   = useState(false)
   const [loggedIn, setLoggedIn] = useState(false)
+  const [repaying, setRepaying] = useState<string | null>(null)
+
+  const handleRepay = useCallback(async (order: Order) => {
+    if (!order.market_items) return
+    const token = getToken()
+    if (!token) return
+    setRepaying(order.id)
+    try {
+      const res  = await fetch("/api/market/checkout", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ itemId: order.market_items.id }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+    } catch {}
+    finally { setRepaying(null) }
+  }, [])
 
   const fetchOrders = useCallback(async () => {
     const token = getToken()
@@ -68,7 +87,8 @@ export default function SidebarOrders() {
 
   // 최근 5개만 표시
   const recent = orders.slice(0, 5)
-  const pendingCount = orders.filter(o => o.status === "pending").length
+  // paid_at 없는 pending = 결제 미완료, paid_at 있는 pending = 승인 대기
+  const pendingCount = orders.filter(o => o.status === "pending" && o.paid_at).length
 
   return (
     <div className="space-y-2 px-1">
@@ -105,8 +125,10 @@ export default function SidebarOrders() {
             <p className="text-[10px] text-muted-foreground text-center py-2">구매 내역이 없습니다.</p>
           ) : (
             recent.map(order => {
-              const cfg  = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.pending
-              const Icon = cfg.icon
+              const isUnpaid = order.status === "pending" && !order.paid_at
+              const cfgKey   = isUnpaid ? "unpaid" : order.status
+              const cfg      = STATUS_CONFIG[cfgKey as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending
+              const Icon     = cfg.icon
               return (
                 <div
                   key={order.id}
@@ -115,7 +137,7 @@ export default function SidebarOrders() {
                   <p className="text-[10px] font-medium text-foreground line-clamp-1">
                     {order.market_items?.title ?? "상품"}
                   </p>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-medium", cfg.bg, cfg.color)}>
                       <Icon className="w-2.5 h-2.5" />
                       {cfg.label}
@@ -124,6 +146,15 @@ export default function SidebarOrders() {
                       {order.price_krw.toLocaleString("ko-KR")}원
                     </span>
                   </div>
+                  {isUnpaid && (
+                    <button
+                      onClick={() => handleRepay(order)}
+                      disabled={repaying === order.id}
+                      className="w-full text-[9px] font-semibold py-1 rounded-md bg-primary/15 text-primary hover:bg-primary/25 transition-colors disabled:opacity-50"
+                    >
+                      {repaying === order.id ? "이동 중..." : "결제하기"}
+                    </button>
+                  )}
                   {order.status === "rejected" && order.reject_reason && (
                     <p className="text-[9px] text-red-400 line-clamp-1">{order.reject_reason}</p>
                   )}
