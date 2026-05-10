@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { QRCodeSVG } from "qrcode.react"
 import { Copy, Check, RefreshCw, ArrowDownToLine, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -19,12 +20,24 @@ interface Deposit {
 }
 
 export default function DepositPage() {
+  const router = useRouter()
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [walletError,   setWalletError]   = useState<string | null>(null)
   const [deposits,      setDeposits]      = useState<Deposit[]>([])
   const [loading,       setLoading]       = useState(true)
   const [copied,        setCopied]        = useState(false)
   const [refreshing,    setRefreshing]    = useState(false)
+
+  // 로그아웃 감지 — 데이터 초기화 후 홈으로 이동
+  useEffect(() => {
+    const onLogout = () => {
+      setWalletAddress(null)
+      setDeposits([])
+      router.push("/")
+    }
+    window.addEventListener("auth:logout", onLogout)
+    return () => window.removeEventListener("auth:logout", onLogout)
+  }, [router])
 
   const fetchWallet = useCallback(async () => {
     const token = getToken()
