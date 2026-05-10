@@ -185,10 +185,10 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
 
     const currentIds = new Set(positions.map(p => p.id))
 
-    // 제거된 포지션 라인 삭제
-    linesRef.current.forEach((line, id) => {
+    // 제거된 포지션 라인 삭제 (진입가 + 청산가 모두)
+    linesRef.current.forEach((lines, id) => {
       if (!currentIds.has(id)) {
-        try { series.removePriceLine(line) } catch {}
+        lines.forEach(l => { try { series.removePriceLine(l) } catch {} })
         linesRef.current.delete(id)
       }
     })
@@ -207,22 +207,23 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
         price:      pos.entryPrice,
         color:      isLong ? "#00e676" : "#ff3d57",
         lineWidth:  1,
-        lineStyle:  1, // Dashed
+        lineStyle:  1,
         axisLabelVisible: true,
         title:      `${isLong ? "L" : "S"} ${base} ×${pos.leverage}`,
       })
 
-      // 청산가 라인 (연한 색)
-      series.createPriceLine({
+      // 청산가 라인
+      const liqLine = series.createPriceLine({
         price:      liqPrice,
         color:      isLong ? "rgba(239,68,68,0.5)" : "rgba(34,197,94,0.5)",
         lineWidth:  1,
-        lineStyle:  2, // Dotted
+        lineStyle:  2,
         axisLabelVisible: true,
         title:      `청산가`,
       })
 
-      linesRef.current.set(pos.id, entryLine)
+      // 진입가 + 청산가 라인을 함께 저장해서 나중에 둘 다 제거
+      linesRef.current.set(pos.id, [entryLine, liqLine])
     })
   }, [positions])
 
