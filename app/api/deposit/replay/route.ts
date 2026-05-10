@@ -68,17 +68,15 @@ export async function POST(req: Request) {
     // 잔고 적립
     const { data: balance } = await adminSupabase
       .from("balances")
-      .select("amount, version")
+      .select("amount")
       .eq("user_id", profile.id)
       .maybeSingle()
 
-    const currentAmount  = balance?.amount  ?? 0
-    const currentVersion = balance?.version ?? 0
+    const currentAmount = balance?.amount ?? 0
 
     await adminSupabase.from("balances").upsert({
       user_id: profile.id,
       amount:  currentAmount + creditAmount,
-      version: currentVersion + 1,
     }, { onConflict: "user_id" })
 
     await adminSupabase.from("token_deposits").insert({

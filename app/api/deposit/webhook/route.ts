@@ -28,12 +28,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 })
   }
 
-  // 1) 중복 처리 여부 확인 (signature PRIMARY KEY)
+  // 1) 중복 처리 여부 확인 (tx_signature UNIQUE)
   const { data: existing } = await adminSupabase
     .from("token_deposits")
-    .select("signature")
-    .eq("signature", signature)
-    .single()
+    .select("id")
+    .eq("tx_signature", signature)
+    .maybeSingle()
 
   if (existing) {
     return NextResponse.json({ ok: true, duplicate: true })
@@ -73,14 +73,14 @@ export async function POST(req: Request) {
       .insert({ user_id: userId, amount: newBalance })
   }
 
-  // 4) 입금 내역 기록
+  // 4) 입금 내역 기록 (실제 DB 컬럼명: tx_signature, amount)
   await adminSupabase.from("token_deposits").insert({
-    signature,
-    user_id:       userId,
+    tx_signature:   signature,
+    user_id:        userId,
     wallet_address: walletAddress,
-    token_amount:  tokenAmount,
-    r_amount:      rAmount,
-    tx_url:        `https://solscan.io/tx/${signature}`,
+    token_amount:   tokenAmount,
+    amount:         rAmount,
+    status:         "confirmed",
   })
 
   // 5) Redis balance_version incr → 클라이언트 잔고 즉시 갱신
