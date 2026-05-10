@@ -233,7 +233,7 @@ function getToken(): string | null { try { return localStorage.getItem(STORAGE_K
 function clearToken() { try { localStorage.removeItem(STORAGE_KEY) } catch {} }
 
 const features = [
-  { icon: Zap, title: "오늘의 비트", desc: "비트코인으로 할 수 있는 다양한 일을 합니다. 현금거래는 지원하지 않습니다." },
+  { icon: Zap, title: "중요", desc: "우리는 환전 또는 출금을 지원하지 않습니다." },
 ]
 
 export function Sidebar() {
