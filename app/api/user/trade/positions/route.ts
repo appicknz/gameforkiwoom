@@ -99,15 +99,17 @@ export async function GET(req: Request) {
         .from("profiles").select("branch_id").eq("id", auth.userId).single()
 
       // 거래 기록
-      await adminSupabase.from("balance_transactions").insert({
-        user_id:        auth.userId,
-        branch_id:      profile?.branch_id ?? null,
-        type:           "lose",
-        amount:         0,
-        balance_before: 0,
-        balance_after:  0,
-        note:           `강제청산 ${row.symbol} ${row.direction} ${row.leverage}x`,
-      }).catch(() => {})
+      try {
+        await adminSupabase.from("balance_transactions").insert({
+          user_id:        auth.userId,
+          branch_id:      profile?.branch_id ?? null,
+          type:           "lose",
+          amount:         0,
+          balance_before: 0,
+          balance_after:  0,
+          note:           `강제청산 ${row.symbol} ${row.direction} ${row.leverage}x`,
+        })
+      } catch { /* 기록 실패 무시 */ }
 
       // 프론트에 청산된 포지션 전달 (다음 폴링에선 안 나옴)
       positions.push({
