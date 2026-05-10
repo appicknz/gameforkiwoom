@@ -110,7 +110,11 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? (isEdit ? "수정 실패" : "등록 실패")); return }
+      if (!res.ok) {
+        const errVal = data.error
+        setError(typeof errVal === "string" ? errVal : (errVal?.message ?? (isEdit ? "수정 실패" : "등록 실패")))
+        return
+      }
       onSuccess()
     } catch {
       setError("오류가 발생했습니다.")
