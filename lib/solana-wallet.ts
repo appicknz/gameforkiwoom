@@ -6,9 +6,10 @@
  */
 
 import "server-only"
-import { Keypair } from "@solana/web3.js"
 import { derivePath } from "ed25519-hd-key"
 import * as bip39 from "bip39"
+import nacl from "tweetnacl"
+import bs58 from "bs58"
 
 function getMasterSeed(): Buffer {
   const raw = process.env.SOLANA_HD_SEED
@@ -38,17 +39,7 @@ export function deriveWalletAddress(index: number): string {
   const seed = getMasterSeed()
   const path = `m/44'/501'/${index}'/0'`
   const { key } = derivePath(path, seed.toString("hex"))
-  const keypair = Keypair.fromSeed(key)
-  return keypair.publicKey.toBase58()
-}
-
-/**
- * Railway Solana indexer에서 서명 검증용으로 키페어를 파생합니다.
- * (Vercel 서버에서 입금 처리 시 사용 — 클라이언트에 절대 노출 금지)
- */
-export function deriveKeypair(index: number): Keypair {
-  const seed = getMasterSeed()
-  const path = `m/44'/501'/${index}'/0'`
-  const { key } = derivePath(path, seed.toString("hex"))
-  return Keypair.fromSeed(key)
+  // @solana/web3.js 없이 tweetnacl + bs58 로 public key 파생
+  const keypair = nacl.sign.keyPair.fromSeed(key)
+  return bs58.encode(keypair.publicKey)
 }
