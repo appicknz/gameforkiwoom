@@ -296,26 +296,49 @@ function PcPositionCard({ pos, onClose, isClosing }: {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-3" style={{ fontSize: 10 }}>
+      {/* 가격 3열 */}
+      <div className="grid grid-cols-3 gap-2 mb-2" style={{ fontSize: 10 }}>
         <div>
           <div style={{ color: "rgba(255,255,255,0.3)" }}>진입가</div>
           <div style={{ color: "rgba(255,255,255,0.7)" }} className="tabular-nums">${fmt(pos.entryPrice)}</div>
         </div>
         <div>
+          <div style={{ color: "rgba(255,255,255,0.3)" }}>현재가</div>
+          <div style={{ color: "rgba(255,255,255,0.85)" }} className="tabular-nums">${fmt(pos.current_price ?? pos.entryPrice)}</div>
+        </div>
+        <div>
           <div style={{ color: "rgba(255,255,255,0.3)" }}>청산가</div>
           <div style={{ color: DOWN_COLOR }} className="tabular-nums">${fmt(liqPrice)}</div>
         </div>
+      </div>
+
+      {/* 통계 4열 */}
+      <div className="grid grid-cols-4 gap-1.5 mb-3 px-3 py-2 rounded-lg" style={{ background: "rgba(0,0,0,0.25)", fontSize: 10 }}>
         <div>
-          <div style={{ color: "rgba(255,255,255,0.3)" }}>경과</div>
-          <div style={{ color: "rgba(255,255,255,0.5)" }}>{elapsedStr(pos.openedAt)}</div>
+          <div style={{ color: "rgba(255,255,255,0.25)" }}>투자금</div>
+          <div style={{ color: "rgba(255,255,255,0.65)" }} className="tabular-nums">₩{Math.floor(pos.amount).toLocaleString("ko-KR")}</div>
+        </div>
+        <div>
+          <div style={{ color: "rgba(255,255,255,0.25)" }}>포지션 크기</div>
+          <div style={{ color: GOLD, opacity: 0.85 }} className="tabular-nums">₩{Math.floor(pos.amount * pos.leverage).toLocaleString("ko-KR")}</div>
+        </div>
+        <div>
+          <div style={{ color: "rgba(255,255,255,0.25)" }}>{isLong ? "롱" : "숏"} 청산 기준</div>
+          <div style={{ color: DOWN_COLOR }} className="tabular-nums">
+            {isLong ? `-${(100 / pos.leverage).toFixed(1)}%` : `+${(100 / pos.leverage).toFixed(1)}%`}
+          </div>
+        </div>
+        <div>
+          <div style={{ color: "rgba(255,255,255,0.25)" }}>1% 수익 예상</div>
+          <div style={{ color: UP_COLOR }} className="tabular-nums">₩{Math.floor(pos.amount * pos.leverage * 0.01).toLocaleString("ko-KR")}</div>
         </div>
       </div>
 
       <button
         onClick={() => onClose(pos.id)}
         disabled={isClosing}
-        className="w-full py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}>
+        className="w-full rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", padding: "8px 0", minHeight: 32 }}>
         {isClosing ? "청산 처리중..." : "포지션 청산"}
       </button>
     </div>
@@ -560,23 +583,6 @@ export default function TradePage() {
               />
             </div>
 
-            {/* 미실현 잔고 */}
-            <div className="flex items-center justify-between px-4 py-2.5 rounded-xl"
-              style={{ background: "rgba(5,13,10,0.9)", border: `1px solid rgba(212,175,55,0.15)` }}>
-              <div className="flex items-center gap-2">
-                <Wallet className="w-3.5 h-3.5" style={{ color: GOLD, opacity: 0.6 }} />
-                <span style={{ fontSize: 11, color: "rgba(212,175,55,0.5)" }}>미실현 잔고</span>
-                {positions.length > 0 && (
-                  <span className="tabular-nums" style={{ fontSize: 10, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
-                    ({totalPnl >= 0 ? "+" : ""}₩{Math.floor(totalPnl).toLocaleString("ko-KR")} 미실현)
-                  </span>
-                )}
-              </div>
-              <span className="text-sm font-extrabold tabular-nums" style={{ color: GOLD }}>
-                {displayBalance === null ? "—" : `₩${displayBalance.toLocaleString("ko-KR")}`}
-              </span>
-            </div>
-
             {/* 투자 패널 */}
             <div className="rounded-2xl p-5" style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
               <TradeForm
@@ -591,12 +597,24 @@ export default function TradePage() {
             {/* 포지션 목록 */}
             {positions.length > 0 && (
               <div className="rounded-2xl overflow-hidden" style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
-                <div className="flex items-center gap-2 px-4 py-2.5"
+                <div className="flex items-center justify-between px-4 py-3"
                   style={{ borderBottom: `1px solid ${BORDER}` }}>
-                  <BarChart2 style={{ width: 13, height: 13, color: GOLD, opacity: 0.7 }} />
-                  <span style={{ fontSize: 11, color: "rgba(212,175,55,0.6)", fontWeight: 600 }}>
-                    보유 포지션 ({positions.length})
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <BarChart2 style={{ width: 13, height: 13, color: GOLD, opacity: 0.7 }} />
+                    <span style={{ fontSize: 11, color: "rgba(212,175,55,0.6)", fontWeight: 600 }}>
+                      보유 포지션 ({positions.length})
+                    </span>
+                    <span className="tabular-nums" style={{ fontSize: 10, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+                      {totalPnl >= 0 ? "+" : ""}₩{Math.floor(totalPnl).toLocaleString("ko-KR")} 미실현
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Wallet style={{ width: 11, height: 11, color: GOLD, opacity: 0.5 }} />
+                    <span style={{ fontSize: 11, color: "rgba(212,175,55,0.5)" }}>잔고</span>
+                    <span className="text-xs font-extrabold tabular-nums" style={{ color: GOLD }}>
+                      {displayBalance === null ? "—" : `₩${displayBalance.toLocaleString("ko-KR")}`}
+                    </span>
+                  </div>
                 </div>
                 {positions.map(pos => (
                   <PcPositionCard key={pos.id} pos={pos} onClose={handleClose} isClosing={closingId === pos.id} />
