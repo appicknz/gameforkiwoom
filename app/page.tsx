@@ -1,10 +1,5 @@
-import MarketLayout from "@/app/market/layout"
-import MarketPage from "@/app/market/page"
+import { redirect } from "next/navigation"
 
 export default function RootPage() {
-  return (
-    <MarketLayout>
-      <MarketPage />
-    </MarketLayout>
-  )
+  redirect("/market")
 }
