@@ -335,7 +335,7 @@ export default function TradePage() {
   const fetchPositions = useCallback(async () => {
     const token = getToken()
     if (!token) return
-    // 잔고
+    // 잔���
     fetch("/api/user/trade", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.balance !== undefined) setBalance(d.balance) })
@@ -592,35 +592,28 @@ export default function TradePage() {
               {/* 시세 리스트 */}
               <div className="flex-1 overflow-hidden">
                 <LivePricesTab
-                  onSelect={handleSelectSymbol}
-            onPriceUpdate={(sym, price) => {
-              priceMapRef.current.set(sym, price)
-              if (dialogSymbol === sym) setDialogPrice(price)
-            }}
-                  selectedSymbol={selectedSymbol}
-                />
+                onSelect={handleSelectSymbol}
+                onPriceUpdate={(sym, price) => {
+                  priceMapRef.current.set(sym, price)
+                  if (dialogSymbol === sym) setDialogPrice(price)
+                }}
+                onClose={handleClose}
+                closingId={closingId}
+                selectedSymbol={selectedSymbol}
+                positions={positions.map(p => ({
+                  id:         p.id,
+                  symbol:     p.symbol,
+                  direction:  p.direction,
+                  entryPrice: p.entryPrice,
+                  leverage:   p.leverage,
+                  pnl:        p.pnl,
+                  pnlPct:     p.pnlPct,
+                  openedAt:   p.openedAt,
+                }))}
+              />
               </div>
 
-              {/* 보유 포지션 미니카드 (모바일/데스크탑 공통) */}
-              {positions.length > 0 && (
-                <div className="border-t shrink-0" style={{ borderColor: "rgba(212,175,55,0.12)", maxHeight: "35%" , overflowY: "auto" }}>
-                  <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: "1px solid rgba(212,175,55,0.08)" }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: UP_COLOR }} />
-                    <span className="text-xs font-semibold" style={{ color: "rgba(212,175,55,0.6)" }}>
-                      보유 포지션 ({positions.length})
-                    </span>
-                  </div>
-                  {positions.map(pos => (
-                    <PositionMiniCard
-                      key={pos.id}
-                      pos={pos}
-                      livePrice={priceMapRef.current.get(pos.symbol) ?? null}
-                      onClose={handleClose}
-                      isClosing={closingId === pos.id}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* 포지션은 LivePricesTab 내 인라인으로 표시됨 */}
             </div>
           </div>
 
