@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+import { useGatewayOdds } from "@/hooks/use-gateway"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type BetDirection = "long" | "short" | null
@@ -408,41 +409,14 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     available?: boolean; mode?: "seeded" | "decay" | "natural" | "pending"
   } | null>(null)
 
-  useEffect(() => {
-    let es: EventSource | null = null
-    let retryTimer: ReturnType<typeof setTimeout> | null = null
-    let destroyed = false
-
-    const connect = () => {
-      if (destroyed) return
-      const token = getToken()
-      const url = `/api/game/odds/stream?type=race${token ? `&token=${token}` : ""}`
-      es = new EventSource(url)
-      es.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data)
-          // odds가 있을 때만 갱신 — 배팅 구간이 아니면(게임중) 갱신 차단해 확정 배당 유지
-          if (data.odds) {
-            liveOddsRef.current = data.odds
-            if (canBetRef.current) {
-              setLiveOdds(data.odds)
-            }
-          }
-        } catch {}
-      }
-      es.onerror = () => {
-        es?.close()
-        if (!destroyed) retryTimer = setTimeout(connect, 2000)
-      }
+  // Railway WS 게이트웨이로 race odds 구독
+  useGatewayOdds("race", (data: unknown) => {
+    const d = data as { odds?: typeof liveOddsRef.current }
+    if (d.odds) {
+      liveOddsRef.current = d.odds
+      if (canBetRef.current) setLiveOdds(d.odds)
     }
-
-    connect()
-    return () => {
-      destroyed = true
-      if (retryTimer) clearTimeout(retryTimer)
-      es?.close()
-    }
-  }, [])
+  })
 
   const betRef = useRef<BetDirection>(null)
   const betDigitRef = useRef<BetDigit>(null)

@@ -12,6 +12,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState, useEffect, useRef } from "react"
+import { useGatewayBalance } from "@/hooks/use-gateway"
 import { useRouter } from "next/navigation"
 
 const STORAGE_KEY = "app_token"
@@ -175,58 +176,11 @@ export function TopBar() {
   }, [])
 
   // ── SSE 잔고 스트림: 서버에서 push (다기기 실시간 동기화, 폴링 없음) ──
-  useEffect(() => {
-    const token = getToken()
-    if (!token) return
-
-    let es: EventSource | null = null
-    let retry: ReturnType<typeof setTimeout> | null = null
-
-    const connect = () => {
-      // EventSource는 헤더를 지원 안 하므로 토큰을 쿼리 파라미터로 전달
-      es = new EventSource(`/api/user/balance/stream?token=${encodeURIComponent(token)}`)
-      es.onmessage = (e) => {
-        try {
-          const d = JSON.parse(e.data)
-          if (typeof d.balance === "number") {
-            setBalance(d.balance)
-            window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
-          }
-          // 중복 로그인 감지: 서버가 kick 신호 전송
-          if (d.kick || d.reason === "DUPLICATE_LOGIN") {
-            es?.close()
-            if (retry) clearTimeout(retry)
-            clearToken()
-            setIsLoggedIn(false)
-            setProfile(null)
-            setBalance(0)
-            setKickMsg("다른 기기에서 로그인되어 자동으로 로그아웃되었습니다.")
-          }
-        } catch {}
-      }
-      // kick SSE event (named event)
-      es.addEventListener("kick", () => {
-        es?.close()
-        if (retry) clearTimeout(retry)
-        clearToken()
-        setIsLoggedIn(false)
-        setProfile(null)
-        setBalance(0)
-        setKickMsg("다른 기기에서 로그인되어 자동으로 로그아웃되었습니다.")
-      })
-      es.onerror = () => {
-        es?.close()
-        // 연결 끊기면 5초 후 재연결
-        retry = setTimeout(connect, 5_000)
-      }
-    }
-
-    connect()
-    return () => {
-      es?.close()
-      if (retry) clearTimeout(retry)
-    }
-  }, [isLoggedIn])
+  // Railway WS 게이트웨이로 balance 구독 — Vercel SSE Function 제거
+  useGatewayBalance((bal) => {
+    setBalance(bal)
+    window.dispatchEvent(new CustomEvent("balance:update", { detail: bal }))
+  })
 
   // ── 외부 클릭 닫기 ──────────────────────────────────────────────
   useEffect(() => {

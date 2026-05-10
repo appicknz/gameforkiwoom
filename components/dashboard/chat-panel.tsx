@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { useGatewayChat } from "@/hooks/use-gateway"
 import { Send, MessageCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ChatMessage } from "@/app/api/chat/route"
@@ -28,7 +29,6 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastIdRef = useRef<string | null>(null)
-  const esRef = useRef<EventSource | null>(null)
   const isInitialLoad = useRef(true)
 
   // 닉네임 초기화 및 로드
@@ -55,30 +55,14 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
     loadNickname()
   }, [])
 
-  // SSE 연결 — 새 메시지 발생 시에만 서버가 push (2초 폴링 제거)
-  useEffect(() => {
-    const es = new EventSource("/api/chat/stream")
-    esRef.current = es
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data)
-        const msgs: ChatMessage[] = data.messages ?? []
-        setMessages((prev) => {
-          if (prev.length === msgs.length && prev[prev.length - 1]?.id === msgs[msgs.length - 1]?.id) return prev
-          return msgs
-        })
-      } catch {}
-    }
-    es.onerror = () => {
-      es.close()
-      // 재연결: 3초 후 재시도
-      setTimeout(() => {
-        const next = new EventSource("/api/chat/stream")
-        esRef.current = next
-      }, 3_000)
-    }
-    return () => { es.close() }
-  }, [])
+  // Railway WS 게이트웨이로 chat 구독
+  useGatewayChat((msgs: unknown[]) => {
+    const typedMsgs = msgs as ChatMessage[]
+    setMessages((prev) => {
+      if (prev.length === typedMsgs.length && prev[prev.length - 1]?.id === typedMsgs[typedMsgs.length - 1]?.id) return prev
+      return typedMsgs
+    })
+  })
 
   // 새 메시지 오면 스크롤 (초기: 즉시, 이후: smooth)
   useEffect(() => {

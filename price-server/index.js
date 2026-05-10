@@ -9,6 +9,60 @@ const { WebSocket, WebSocketServer } = require("ws");
 const https = require("https");
 const http  = require("http");
 
+// ─── Upstash Redis (HTTP) ────────────────────────────────────────────
+// balance/chat/odds 구독에 사용
+const REDIS_URL   = process.env.KV_REST_API_URL
+const REDIS_TOKEN = process.env.KV_REST_API_TOKEN
+
+async function redisGet(key) {
+  if (!REDIS_URL || !REDIS_TOKEN) return null
+  const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+  }).catch(() => null)
+  if (!res || !res.ok) return null
+  const json = await res.json().catch(() => null)
+  return json?.result ?? null
+}
+
+async function redisMGet(keys) {
+  if (!REDIS_URL || !REDIS_TOKEN || !keys.length) return []
+  const body = JSON.stringify(["MGET", ...keys])
+  const res = await fetch(`${REDIS_URL}/pipeline`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(keys.map(k => ["GET", k])),
+  }).catch(() => null)
+  if (!res || !res.ok) return keys.map(() => null)
+  const arr = await res.json().catch(() => [])
+  return arr.map(r => r?.result ?? null)
+}
+
+async function redisLRange(key, start, stop) {
+  if (!REDIS_URL || !REDIS_TOKEN) return []
+  const res = await fetch(`${REDIS_URL}/lrange/${encodeURIComponent(key)}/${start}/${stop}`, {
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+  }).catch(() => null)
+  if (!res || !res.ok) return []
+  const json = await res.json().catch(() => null)
+  return json?.result ?? []
+}
+
+// ─── Supabase JWT 검증 (토큰 → userId) ─────────────────────────────
+async function verifyToken(token) {
+  if (!token || !SUPABASE_URL || !SUPABASE_KEY) return null
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_KEY,
+      },
+    })
+    if (!res.ok) return null
+    const user = await res.json()
+    return user?.id ?? null
+  } catch { return null }
+}
+
 const PORT = process.env.PORT || 8080;
 const BINANCE_TRADE_URL = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade";
 
@@ -57,6 +111,44 @@ function fetchRecentClosingPrices() {
 }
 
 const clients = new Set();
+
+// ─── WS 게이트웨이 구독자 맵 ───────────────────────────────────────
+// price 클라이언트와 게이트웨이 클라이언트를 분리 관리
+// Map<userId, Set<ws>>  — 인증된 클라이언트
+const balanceSubs = new Map()  // userId → Set<ws>
+const chatSubs    = new Set()  // 모든 로그인 유저
+const oddsSubs    = new Map()  // "baccarat"|"race" → Set<ws>
+
+let latestChatVersion = 0
+
+function gwSend(ws, data) {
+  if (ws.readyState === WebSocket.OPEN) {
+    try { ws.send(JSON.stringify(data)) } catch {}
+  }
+}
+
+// balance: 해당 userId 구독자에게만 push
+function pushBalance(userId, balance) {
+  const subs = balanceSubs.get(userId)
+  if (!subs) return
+  for (const ws of subs) gwSend(ws, { type: "balance", balance })
+}
+
+// chat: 전체 구독자에게 push
+async function pushChat() {
+  if (!chatSubs.size) return
+  const msgs = await redisLRange("bitbet:chat:messages", 0, 199)
+  const data = { type: "chat", messages: [...msgs].reverse() }
+  for (const ws of chatSubs) gwSend(ws, data)
+}
+
+// odds: 해당 gameType 구독자에게 push
+function pushOdds(gameType, payload) {
+  const subs = oddsSubs.get(gameType)
+  if (!subs) return
+  for (const ws of subs) gwSend(ws, { type: "odds", gameType, ...payload })
+}
+
 const closingPrices = []; // 최근 100개
 let latestPrice = null;
 let lastBucket = null;
@@ -118,7 +210,89 @@ wss.on("listening", () => {
   console.log(`[server] WebSocket server listening on port ${PORT}`);
 });
 
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, req) => {
+  // ── URL 파라미터로 클라이언트 타입 구분 ──────────────────────────
+  // ?mode=gateway  → 게이트웨이 클라이언트 (balance/chat/odds 구독)
+  // (기본)          → 기존 price/closing 브로드캐스트 클라이언트
+  const url    = new URL(req.url, "http://localhost")
+  const mode   = url.searchParams.get("mode")
+  const token  = url.searchParams.get("token")
+
+  if (mode === "gateway") {
+    // ── 게이트웨이 모드: 인증 후 채널 구독 ────────────────────────
+    let userId = null
+    const subscribed = new Set()
+
+    // 인증
+    verifyToken(token).then(async (uid) => {
+      userId = uid
+      if (!uid) {
+        ws.send(JSON.stringify({ type: "error", code: "UNAUTHORIZED" }))
+        ws.close()
+        return
+      }
+
+      // 연결 즉시: 잔고 push
+      const balKey = `balance:${uid}`
+      const bal = await redisGet(balKey)
+      if (bal !== null) gwSend(ws, { type: "balance", balance: Number(bal) })
+
+      // 연결 즉시: 최근 채팅 push
+      const msgs = await redisLRange("bitbet:chat:messages", 0, 199)
+      gwSend(ws, { type: "chat", messages: [...msgs].reverse() })
+
+      gwSend(ws, { type: "connected", userId: uid })
+      console.log(`[gw] connected uid=${uid} (gw total: ${countGwClients()})`)
+    })
+
+    ws.on("message", (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString())
+
+        // subscribe: { action: "subscribe", channels: ["balance","chat","odds:baccarat"] }
+        if (msg.action === "subscribe" && Array.isArray(msg.channels)) {
+          for (const ch of msg.channels) {
+            subscribed.add(ch)
+            if (ch === "balance" && userId) {
+              if (!balanceSubs.has(userId)) balanceSubs.set(userId, new Set())
+              balanceSubs.get(userId).add(ws)
+            } else if (ch === "chat") {
+              chatSubs.add(ws)
+            } else if (ch === "odds:baccarat" || ch === "odds:race") {
+              const gt = ch.split(":")[1]
+              if (!oddsSubs.has(gt)) oddsSubs.set(gt, new Set())
+              oddsSubs.get(gt).add(ws)
+              // 현재 캐시된 odds 즉시 전송
+              const roundSec = gt === "race" ? 180 : 30
+              const rn = Math.floor(Math.floor(Date.now() / 1000) / roundSec)
+              redisGet(`odds:current:${gt}:${rn}`).then(cached => {
+                if (cached) {
+                  const parsed = typeof cached === "string" ? JSON.parse(cached) : cached
+                  gwSend(ws, { type: "odds", gameType: gt, ...parsed })
+                }
+              })
+            }
+          }
+        }
+      } catch {}
+    })
+
+    ws.on("close", () => {
+      // 구독 해제
+      if (userId && balanceSubs.has(userId)) {
+        balanceSubs.get(userId).delete(ws)
+        if (balanceSubs.get(userId).size === 0) balanceSubs.delete(userId)
+      }
+      chatSubs.delete(ws)
+      for (const subs of oddsSubs.values()) subs.delete(ws)
+      console.log(`[gw] disconnected uid=${userId} (gw total: ${countGwClients()})`)
+    })
+
+    ws.on("error", () => ws.terminate())
+    return
+  }
+
+  // ── 기존 price/closing 브로드캐스트 클라이언트 ────────────────────
   clients.add(ws);
   console.log(`[server] client connected (total: ${clients.size})`);
 
@@ -149,6 +323,12 @@ wss.on("connection", (ws) => {
 
   ws.on("error", () => clients.delete(ws));
 });
+
+function countGwClients() {
+  let n = chatSubs.size
+  for (const s of balanceSubs.values()) n += s.size
+  return n
+}
 
 // ─── 브로드캐스트 ──────────────────────────────────────────────────
 function broadcast(data) {
@@ -510,10 +690,131 @@ function connectTrade() {
   });
 }
 
+// ─── 게이트웨이 폴링 루프 ────────────────────────────────────────────
+// Vercel SSE 대체: Railway가 Redis를 직접 폴링 → 구독 WS 클라이언트에 push
+// 유저 수천 명 = WS 연결만 증가, Vercel Function 0개 추가
+
+// balance: 각 userId의 balance_version 카운터 감지
+const lastBalanceVersions = new Map()   // userId → version
+const lastChatVersion     = { v: 0 }
+const lastOddsVersions    = { baccarat: 0, race: 0 }
+
+async function gatewayPoll() {
+  try {
+    // ── 1) balance 구독자 버전 체크 ──────────────────────────────
+    if (balanceSubs.size > 0) {
+      const userIds   = [...balanceSubs.keys()]
+      const versionKeys = userIds.map(id => `balance_version:${id}`)
+      const balKeys     = userIds.map(id => `balance:${id}`)
+
+      // pipeline: 버전 + 잔고 한번에 가져오기
+      const allKeys = [...versionKeys, ...balKeys]
+      const results = await Promise.all(allKeys.map(k => redisGet(k)))
+      const versions = results.slice(0, userIds.length)
+      const balances  = results.slice(userIds.length)
+
+      for (let i = 0; i < userIds.length; i++) {
+        const uid = userIds[i]
+        const ver = Number(versions[i] ?? 0)
+        const bal = Number(balances[i] ?? 0)
+        const last = lastBalanceVersions.get(uid) ?? -1
+        if (ver !== last) {
+          lastBalanceVersions.set(uid, ver)
+          pushBalance(uid, bal)
+        }
+      }
+    }
+
+    // ── 2) chat 버전 체크 ──────────────────────────────────────
+    if (chatSubs.size > 0) {
+      const ver = Number(await redisGet("bitbet:chat:version") ?? 0)
+      if (ver !== lastChatVersion.v) {
+        lastChatVersion.v = ver
+        await pushChat()
+      }
+    }
+
+    // ── 3) odds 버전 체크 ─────────────────────────────────────
+    for (const gt of ["baccarat", "race"]) {
+      const subs = oddsSubs.get(gt)
+      if (!subs || subs.size === 0) continue
+      const ver = Number(await redisGet(`odds_version:${gt}`) ?? 0)
+      if (ver !== lastOddsVersions[gt]) {
+        lastOddsVersions[gt] = ver
+        const roundSec = gt === "race" ? 180 : 30
+        const rn       = Math.floor(Math.floor(Date.now() / 1000) / roundSec)
+        const cached   = await redisGet(`odds:current:${gt}:${rn}`)
+        if (cached) {
+          const parsed = typeof cached === "string" ? JSON.parse(cached) : cached
+          pushOdds(gt, parsed)
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[gw-poll] error:", e.message)
+  }
+}
+
+// 2초마다 폴링 — 유저 5,000명이 연결해도 Redis 요청은 고정 (유저 수 무관)
+setInterval(gatewayPoll, 2_000)
+
 // ─── heartbeat ──────────────────────────────────────────────────────
 setInterval(() => {
   if (tradeWs?.readyState === WebSocket.OPEN) tradeWs.pong();
 }, 30000);
+
+// ─── HTTP notify 서버 ─────────────────────────────────────────────────
+// Vercel이 잔고/채팅/odds 변경 시 POST /notify 호출 → 즉시 WS push
+// 폴링 2초 대기 없이 실시간 반응
+const INTERNAL_SECRET = process.env.INTERNAL_SECRET || "tasko-internal"
+
+const httpServer = http.createServer(async (req, res) => {
+  if (req.method !== "POST" || req.url !== "/notify") {
+    res.writeHead(404)
+    res.end()
+    return
+  }
+
+  const secret = req.headers["x-internal-secret"]
+  if (secret !== INTERNAL_SECRET) {
+    res.writeHead(401)
+    res.end()
+    return
+  }
+
+  let body = ""
+  req.on("data", d => body += d)
+  req.on("end", async () => {
+    try {
+      const { channel, userId, balance, gameType } = JSON.parse(body)
+
+      if (channel === "balance" && userId !== undefined && balance !== undefined) {
+        pushBalance(userId, Number(balance))
+      } else if (channel === "chat") {
+        await pushChat()
+      } else if (channel === "odds" && gameType) {
+        const roundSec = gameType === "race" ? 180 : 30
+        const rn       = Math.floor(Math.floor(Date.now() / 1000) / roundSec)
+        const cached   = await redisGet(`odds:current:${gameType}:${rn}`)
+        if (cached) {
+          const parsed = typeof cached === "string" ? JSON.parse(cached) : cached
+          pushOdds(gameType, parsed)
+        }
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" })
+      res.end(JSON.stringify({ ok: true }))
+    } catch (e) {
+      res.writeHead(400)
+      res.end(e.message)
+    }
+  })
+})
+
+const HTTP_PORT = process.env.HTTP_PORT || 8081
+httpServer.listen(HTTP_PORT, () => {
+  console.log(`[http] notify server listening on port ${HTTP_PORT}`)
+})
 
 // ─── 시작: DB에서 closing 복원 후 Binance 연결 ───────────────────────
 (async () => {

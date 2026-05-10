@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp, Shuffle } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+import { useGatewayOdds } from "@/hooks/use-gateway"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type BetDirection = "long" | "short" | null
@@ -577,41 +578,14 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // canBet 상태를 ref로 추적 — SSE 클로저 안에서 최신 값 참조용
   const canBetRef = useRef(false)
 
-  useEffect(() => {
-    let es: EventSource | null = null
-    let retryTimer: ReturnType<typeof setTimeout> | null = null
-    let destroyed = false
-
-    const connect = () => {
-      if (destroyed) return
-      const token = getToken()
-      const url = `/api/game/odds/stream?type=baccarat${token ? `&token=${token}` : ""}`
-      es = new EventSource(url)
-      es.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data)
-          // odds가 있을 때만 갱신 — 배팅 구간이 아니면(게임중) 갱신 차단해 확정 배당 유지
-          if (data.odds) {
-            liveOddsRef.current = data.odds
-            if (canBetRef.current) {
-              setLiveOdds(data.odds)
-            }
-          }
-        } catch { }
-      }
-      es.onerror = () => {
-        es?.close()
-        if (!destroyed) retryTimer = setTimeout(connect, 2000)
-      }
+  // Railway WS 게이트웨이로 baccarat odds 구독
+  useGatewayOdds("baccarat", (data: unknown) => {
+    const d = data as { odds?: typeof liveOddsRef.current }
+    if (d.odds) {
+      liveOddsRef.current = d.odds
+      if (canBetRef.current) setLiveOdds(d.odds)
     }
-
-    connect()
-    return () => {
-      destroyed = true
-      if (retryTimer) clearTimeout(retryTimer)
-      es?.close()
-    }
-  }, [])
+  })
 
   // ── 마운트 시 활성 배팅 복원 (새로고침 대응) ─────────────────
   useEffect(() => {
@@ -1344,11 +1318,11 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
       }}>
 
-        {/* ── 헤더: 배팅 + 라운드 + 자동배팅 버튼 (한 줄) ── */}
+        {/* ── 헤더: ��팅 + 라운드 + 자동배팅 버튼 (한 줄) ── */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           {/* 좌: 타이틀 + 라운드 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>배팅</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>��팅</h3>
             <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 5, background: G.goldFaint, color: G.goldDim, fontWeight: 600 }}>
               #{roundNumber}
             </span>
