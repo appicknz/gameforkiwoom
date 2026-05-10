@@ -816,7 +816,9 @@ httpServer.listen(HTTP_PORT, () => {
   console.log(`[http] notify server listening on port ${HTTP_PORT}`)
 })
 
-// ─── 시작: DB에서 closing 복원 후 Binance 연결 ───────────────────────
+// ─── 시작: DB에서 closing 복원 후 Binance 연결 + Solana indexer ──────
+const { startSolanaIndexer } = require("./solana-indexer");
+
 (async () => {
   const restored = await fetchRecentClosingPrices();
   if (restored.length > 0) {
@@ -825,4 +827,7 @@ httpServer.listen(HTTP_PORT, () => {
     console.log(`[restore] Seeded ${closingPrices.length} closing prices into memory`);
   }
   connectTrade();
+
+  // Solana 토큰 입금 감지 시작
+  startSolanaIndexer();
 })();

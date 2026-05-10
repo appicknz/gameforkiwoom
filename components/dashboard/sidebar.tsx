@@ -419,7 +419,29 @@ export function Sidebar() {
             ))}
           </div>
 
-          {/* ⑤ 내 구매현황 */}
+          {/* ⑤ 토큰 입금 */}
+          <div className="border-t border-border pt-3">
+            <Link
+              href="/deposit"
+              onClick={() => setMobileOpen(false)}
+              className={cn(
+                "flex items-center gap-2.5 rounded-xl border border-border px-3 py-2.5 transition-all hover:bg-secondary/60 hover:border-primary/30",
+                pathname === "/deposit" && "border-primary/50 bg-secondary/40"
+              )}
+            >
+              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v10m0 0-3-3m3 3 3-3"/><rect width="20" height="8" x="2" y="14" rx="2"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-foreground leading-tight">토큰 입금</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">잔고 충전</p>
+              </div>
+            </Link>
+          </div>
+
+          {/* ⑥ 내 구매현황 */}
           <div className="border-t border-border pt-3">
             <SidebarOrders />
           </div>

@@ -1,5 +1,6 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
+import { deriveWalletAddress } from "@/lib/solana-wallet"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import { randomUUID } from "crypto"
@@ -47,9 +48,16 @@ export async function POST(req: Request) {
 
   const userId = authData.user.id
 
+  // HD 지갑 주소 발급 — 현재 가입된 유저 수로 인덱스 결정
+  const { count: userCount } = await adminSupabase
+    .from("profiles")
+    .select("id", { count: "exact", head: true })
+  const walletIndex = userCount ?? 0
+  const walletAddress = deriveWalletAddress(walletIndex)
+
   const { error: profileError } = await adminSupabase
     .from("profiles")
-    .upsert({ id: userId, username, role: "user" })
+    .upsert({ id: userId, username, role: "user", wallet_index: walletIndex, wallet_address: walletAddress })
 
   if (profileError) {
     await adminSupabase.auth.admin.deleteUser(userId)
