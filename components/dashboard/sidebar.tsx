@@ -356,103 +356,7 @@ export function Sidebar() {
         {/* 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
 
-          {/* ① 로그인 폼 / 로그인된 경우 사용자 정보 */}
-          {isLoggedIn ? (
-            <div className="rounded-xl border border-border p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-                  <span className="text-[10px] font-bold text-primary">{(username ?? "U").slice(0, 2).toUpperCase()}</span>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{username}</p>
-                  <p className="text-[10px] text-muted-foreground">로그인됨</p>
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors border border-destructive/20"
-              >
-                <LogOut className="w-3.5 h-3.5" /> 로그아웃
-              </button>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-border overflow-hidden">
-              {/* 탭 */}
-              <div className="flex border-b border-border">
-                <button
-                  onClick={() => { setAuthTab("login"); setLoginMsg(null) }}
-                  className={cn("flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors",
-                    authTab === "login" ? "text-primary border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground")}
-                >
-                  <LogIn className="w-3.5 h-3.5" /> 로그인
-                </button>
-                <button
-                  onClick={() => { setAuthTab("register"); setRegMsg(null) }}
-                  className={cn("flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors",
-                    authTab === "register" ? "text-primary border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground")}
-                >
-                  <UserPlus className="w-3.5 h-3.5" /> 회원가입
-                </button>
-              </div>
-
-              {/* 폼 영역 */}
-              <div className="p-3 space-y-2">
-                {authTab === "login" ? (
-                  <>
-                    <div className="relative">
-                      <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                      <input type="text" placeholder="아이디" value={loginId} onChange={e => setLoginId(e.target.value)}
-                        className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60" />
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                      <input type={showLoginPw ? "text" : "password"} placeholder="비밀번호" value={loginPw}
-                        onChange={e => setLoginPw(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()}
-                        className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60" />
-                      <button type="button" onClick={() => setShowLoginPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        {showLoginPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    {loginMsg && <p className={cn("text-xs", loginMsg.ok ? "text-primary" : "text-destructive")}>{loginMsg.text}</p>}
-                    <Button className="w-full h-9 text-sm" onClick={handleLogin} disabled={loginLoading}>
-                      {loginLoading ? "로그인 중..." : "로그인"}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <div className="relative">
-                      <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                      <input type="text" placeholder="아이디" value={regId} onChange={e => setRegId(e.target.value)}
-                        className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60" />
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                      <input type={showRegPw ? "text" : "password"} placeholder="비밀번호" value={regPw} onChange={e => setRegPw(e.target.value)}
-                        className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60" />
-                      <button type="button" onClick={() => setShowRegPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        {showRegPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                      <input type={showRegConfirm ? "text" : "password"} placeholder="비밀번호 확인" value={regConfirm}
-                        onChange={e => setRegConfirm(e.target.value)} onKeyDown={e => e.key === "Enter" && handleRegister()}
-                        className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60" />
-                      <button type="button" onClick={() => setShowRegConfirm(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        {showRegConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    {regMsg && <p className={cn("text-xs", regMsg.ok ? "text-primary" : "text-destructive")}>{regMsg.text}</p>}
-                    <Button className="w-full h-9 text-sm" onClick={handleRegister} disabled={regLoading}>
-                      {regLoading ? "가입 중..." : "회원가입"}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ② 게임 카드 */}
+          {/* ① 게임 카드 */}
           <div className="space-y-2.5">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">게임</p>
             <div className="grid grid-cols-2 gap-2">
@@ -460,7 +364,7 @@ export function Sidebar() {
               <Link href="/market" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
                   "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  pathname === "/market" && "border-primary/50 bg-secondary/40"
+                  (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
                 )}>
                   <p className="text-[11px] font-bold text-foreground leading-tight">마켓</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">아이템 거래소</p>

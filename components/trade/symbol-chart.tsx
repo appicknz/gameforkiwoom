@@ -83,6 +83,16 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
       handleScale: true,
     })
 
+    // 심볼 가격 범위에 따라 소수점 자릿수 동적 계산
+    function calcPriceFormat(price: number) {
+      if (!price || price <= 0) return { type: "price" as const, precision: 8, minMove: 0.00000001 }
+      if (price >= 1000)  return { type: "price" as const, precision: 2, minMove: 0.01 }
+      if (price >= 1)     return { type: "price" as const, precision: 4, minMove: 0.0001 }
+      if (price >= 0.01)  return { type: "price" as const, precision: 6, minMove: 0.000001 }
+      if (price >= 0.001) return { type: "price" as const, precision: 7, minMove: 0.0000001 }
+      return { type: "price" as const, precision: 8, minMove: 0.00000001 }
+    }
+
     const series = chart.addCandlestickSeries({
       upColor:          "#00e676",
       downColor:        "#ff3d57",
@@ -90,8 +100,9 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
       borderDownColor:  "#ff3d57",
       wickUpColor:      "#00e676",
       wickDownColor:    "#ff3d57",
-      lastValueVisible: false,  // 기본 초록/빨강 라벨 숨김
+      lastValueVisible: false,
       priceLineVisible: false,
+      priceFormat:      { type: "price", precision: 8, minMove: 0.00000001 }, // 초기값 최대 정밀도
     })
     seriesRef.current = series
 
@@ -126,9 +137,11 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
         }))
         series.setData(candles)
         chart.timeScale().fitContent()
-        // 히스토리 로드 직후 현재가 라인 초기값 세팅
         if (candles.length > 0) {
-          currentPriceLine.applyOptions({ price: candles[candles.length - 1].close })
+          const lastClose = candles[candles.length - 1].close
+          // 실제 가격 기준으로 소수점 정밀도 재설정
+          series.applyOptions({ priceFormat: calcPriceFormat(lastClose) })
+          currentPriceLine.applyOptions({ price: lastClose })
         }
       })
       .catch(() => {})
@@ -172,10 +185,10 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
 
     const currentIds = new Set(positions.map(p => p.id))
 
-    // 제거된 포지션 라인 삭제
-    linesRef.current.forEach((line, id) => {
+    // 제거된 포지션 라인 삭제 (진입가 + 청산가 모두)
+    linesRef.current.forEach((lines, id) => {
       if (!currentIds.has(id)) {
-        try { series.removePriceLine(line) } catch {}
+        lines.forEach(l => { try { series.removePriceLine(l) } catch {} })
         linesRef.current.delete(id)
       }
     })
@@ -194,22 +207,23 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
         price:      pos.entryPrice,
         color:      isLong ? "#00e676" : "#ff3d57",
         lineWidth:  1,
-        lineStyle:  1, // Dashed
+        lineStyle:  1,
         axisLabelVisible: true,
         title:      `${isLong ? "L" : "S"} ${base} ×${pos.leverage}`,
       })
 
-      // 청산가 라인 (연한 색)
-      series.createPriceLine({
+      // 청산가 라인
+      const liqLine = series.createPriceLine({
         price:      liqPrice,
         color:      isLong ? "rgba(239,68,68,0.5)" : "rgba(34,197,94,0.5)",
         lineWidth:  1,
-        lineStyle:  2, // Dotted
+        lineStyle:  2,
         axisLabelVisible: true,
         title:      `청산가`,
       })
 
-      linesRef.current.set(pos.id, entryLine)
+      // 진입가 + 청산가 라인을 함께 저장해서 나중에 둘 다 제거
+      linesRef.current.set(pos.id, [entryLine, liqLine])
     })
   }, [positions])
 
