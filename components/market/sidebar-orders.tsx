@@ -89,15 +89,12 @@ export default function SidebarOrders() {
           )}
         </div>
         <div className="flex items-center gap-1">
-          <span
-            role="button"
-            tabIndex={0}
+          <button
             onClick={e => { e.stopPropagation(); fetchOrders() }}
-            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); fetchOrders() } }}
-            className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <RefreshCw className={cn("w-2.5 h-2.5", loading && "animate-spin")} />
-          </span>
+          </button>
           <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform", open && "rotate-90")} />
         </div>
       </button>
