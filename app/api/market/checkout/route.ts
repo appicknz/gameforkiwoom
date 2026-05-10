@@ -7,7 +7,8 @@ export async function POST(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
 
-  const { itemId } = await req.json()
+  const body = await req.json()
+  const { itemId, tvId } = body as { itemId?: string; tvId?: string }
   if (!itemId) return NextResponse.json({ error: "상품 ID가 없습니다." }, { status: 400 })
 
   // 상품 조회
@@ -20,11 +21,7 @@ export async function POST(req: Request) {
   if (itemErr || !item?.is_active) {
     return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 })
   }
-  if (!item.stripe_price_id) {
-    return NextResponse.json({ error: "결제 정보가 준비되지 않았습니다." }, { status: 400 })
-  }
-
-  // 중복 주문 확인 (paid 또는 pending 상태)
+  // 중복 주문 확인
   const { data: existing } = await adminSupabase
     .from("market_orders")
     .select("id, status")
@@ -39,19 +36,28 @@ export async function POST(req: Request) {
 
   const origin = req.headers.get("origin") ?? process.env.VERCEL_URL ?? "http://localhost:3000"
 
-  // Stripe Checkout 세션 생성
+  // stripe_price_id 있으면 기존 Price 사용, 없으면 price_data로 직접 생성
+  const lineItem = item.stripe_price_id
+    ? { price: item.stripe_price_id, quantity: 1 }
+    : {
+        quantity: 1,
+        price_data: {
+          currency:     "krw",
+          unit_amount:  item.price_krw,
+          product_data: { name: item.title },
+        },
+      }
+
   const session = await stripe.checkout.sessions.create({
-    mode:                "payment",
-    line_items: [
-      { price: item.stripe_price_id, quantity: 1 },
-    ],
-    currency:            "krw",
-    success_url:         `${origin}/market/order/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url:          `${origin}/market/${itemId}`,
+    mode:        "payment",
+    line_items:  [lineItem],
+    success_url: `${origin}/market/order/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url:  `${origin}/market`,
     metadata: {
       item_id:      itemId,
       buyer_id:     auth.userId,
-      publisher_id: item.publisher_id,
+      publisher_id: item.publisher_id ?? "",
+      tv_id:        tvId ?? "",
     },
   })
 

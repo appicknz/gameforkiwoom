@@ -48,6 +48,7 @@ export default function MarketPage() {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [buying, setBuying]           = useState(false)
   const [buyErr, setBuyErr]           = useState("")
+  const [tvId, setTvId]               = useState("")
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { setRole(parseRole()) }, [])
@@ -60,7 +61,7 @@ export default function MarketPage() {
       const res  = await fetch("/api/market/checkout", {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ itemId: selectedItem.id }),
+        body:    JSON.stringify({ itemId: selectedItem.id, tvId: tvId.trim() }),
       })
       const data = await res.json()
       if (!res.ok) { setBuyErr(data.error ?? "오류가 발생했습니다."); return }
@@ -105,14 +106,14 @@ export default function MarketPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: "rgba(0,0,0,0.75)" }}
-          onClick={() => { setSelectedItem(null); setBuyErr("") }}
+          onClick={() => { setSelectedItem(null); setBuyErr(""); setTvId("") }}
         >
           <div
             className="relative w-full max-w-lg rounded-2xl border border-border bg-background overflow-hidden shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
             <button
-              onClick={() => { setSelectedItem(null); setBuyErr("") }}
+              onClick={() => { setSelectedItem(null); setBuyErr(""); setTvId("") }}
               className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
             >
               <X className="w-4 h-4" />
@@ -148,6 +149,19 @@ export default function MarketPage() {
                   {selectedItem.price_krw.toLocaleString("ko-KR")}원
                 </span>
                 <span className="text-xs text-muted-foreground">{selectedItem.order_count.toLocaleString()}명 구매</span>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">
+                  트레이딩뷰 아이디 <span className="text-muted-foreground/50">(선택)</span>
+                </label>
+                <input
+                  type="text"
+                  value={tvId}
+                  onChange={e => setTvId(e.target.value)}
+                  placeholder="TradingView 아이디를 입력하세요"
+                  className="w-full h-9 px-3 text-sm bg-secondary/40 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/50"
+                />
               </div>
 
               {buyErr && <p className="text-xs text-destructive">{buyErr}</p>}
