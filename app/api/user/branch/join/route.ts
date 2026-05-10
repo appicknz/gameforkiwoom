@@ -1,5 +1,6 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
@@ -7,9 +8,8 @@ export async function POST(req: Request) {
   const token = authHeader?.replace("Bearer ", "")
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  // JWT 검증 (서버에서만 - 위변조 방지)
-  const { data: { user }, error: authError } = await adminSupabase.auth.getUser(token)
-  if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const userId = await getUserIdFromToken(token)
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await req.json()
   const { branchCode } = body
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   const { error: updateError } = await adminSupabase
     .from("profiles")
     .update({ branch_code: branch.code })
-    .eq("id", user.id)
+    .eq("id", userId)
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
 

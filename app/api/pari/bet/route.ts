@@ -1,5 +1,6 @@
 import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
 
@@ -12,8 +13,8 @@ export async function POST(req: Request) {
     const token = req.headers.get("authorization")?.replace("Bearer ", "")
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const { data: { user }, error: authErr } = await adminSupabase.auth.getUser(token)
-    if (authErr || !user) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    const userId = await getUserIdFromToken(token)
+    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
     const body = await req.json()
     const { roundTime, betAmount, poolType, side } = body
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
     const { data: profile } = await adminSupabase
       .from("profiles")
       .select("branch_id")
-      .eq("id", user.id)
+      .eq("id", userId)
       .single()
     const branchId = profile?.branch_id ?? null
 
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
 
     // Atomic 잔고 차감
     const { data: newBalance, error: rpcErr } = await adminSupabase
-      .rpc("atomic_deduct_balance", { p_user_id: user.id, p_amount: betAmount })
+      .rpc("atomic_deduct_balance", { p_user_id: userId, p_amount: betAmount })
     if (rpcErr) return NextResponse.json({ error: "Balance update failed" }, { status: 500 })
     if ((newBalance as number) === -1) return NextResponse.json({ error: "Insufficient balance" }, { status: 400 })
     const balanceBefore = (newBalance as number) + betAmount
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
     const userSetKey = `users:${poolType}:${roundNum}`
     await Promise.all([
       redis.hincrby(poolKey, side, betAmount),
-      redis.sadd(userSetKey, user.id),
+      redis.sadd(userSetKey, userId),
       redis.expire(poolKey, 120),
       redis.expire(userSetKey, 120),
       redis.incr(`odds_version:${poolType}`),
@@ -103,7 +104,7 @@ export async function POST(req: Request) {
 
     // 잔고 트랜잭션 기록
     await adminSupabase.from("balance_transactions").insert({
-      user_id: user.id,
+      user_id: userId,
       branch_id: branchId,
       type: "bet",
       amount: -betAmount,
@@ -114,8 +115,8 @@ export async function POST(req: Request) {
 
     // Redis 잔고 갱신 + balance SSE 트리거
     await Promise.all([
-      redis.set(`balance:${user.id}`, newBalance as number, { ex: 3600 }),
-      redis.incr(`balance_version:${user.id}`),
+      redis.set(`balance:${userId}`, newBalance as number, { ex: 3600 }),
+      redis.incr(`balance_version:${userId}`),
     ])
 
     return NextResponse.json({

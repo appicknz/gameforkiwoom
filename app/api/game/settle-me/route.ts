@@ -19,9 +19,9 @@ export async function POST(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "")
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: { user } } = await admin.auth.getUser(token)
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const userId = user.id
+  const { getUserIdFromToken } = await import("@/lib/auth")
+  const userId = await getUserIdFromToken(token)
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
     const { closePrice, basePrice, roundNumber, gameType = "baccarat", bitScore: clientBitScore, coinScore: clientCoinScore, baccaratResult: clientBaccaratResult, pScore: clientPScore, bScore: clientBScore } = await request.json()

@@ -1,7 +1,7 @@
 import { put, del, list } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 import { adminSupabase } from "@/lib/supabase-admin"
+import { getUserIdFromToken } from "@/lib/auth"
 
 const SUPER_ROLES = ["master", "super_admin"]
 
@@ -10,15 +10,10 @@ async function checkAuth(req: NextRequest): Promise<boolean> {
   const authHeader = req.headers.get("authorization")
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7)
-    const anonClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-    const { data } = await anonClient.auth.getUser(token)
-    if (!data.user) return false
+    const userId = await getUserIdFromToken(token)
+    if (!userId) return false
     const { data: profile } = await adminSupabase
-      .from("profiles").select("role").eq("id", data.user.id).single()
+      .from("profiles").select("role").eq("id", userId).single()
     return SUPER_ROLES.includes(profile?.role ?? "")
   }
   // 레거시 ?pw= 방식 (mas 페이지)

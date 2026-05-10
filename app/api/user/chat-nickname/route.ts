@@ -1,22 +1,21 @@
 import { adminSupabase } from "@/lib/supabase-admin"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
-async function getUserFromToken(req: Request) {
+function extractToken(req: Request): string | null {
   const auth = req.headers.get("authorization")
-  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null
-  if (!token) return null
-  const { data: { user } } = await adminSupabase.auth.getUser(token)
-  return user ?? null
+  return auth?.startsWith("Bearer ") ? auth.slice(7) : null
 }
 
 export async function GET(req: Request) {
-  const user = await getUserFromToken(req)
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const token = extractToken(req)
+  const userId = token ? await getUserIdFromToken(token) : null
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { data, error } = await adminSupabase
     .from("profiles")
     .select("chat_nickname")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -24,8 +23,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const user = await getUserFromToken(req)
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const token = extractToken(req)
+  const userId = token ? await getUserIdFromToken(token) : null
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { chat_nickname } = await req.json()
 
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   const { error } = await adminSupabase
     .from("profiles")
     .update({ chat_nickname })
-    .eq("id", user.id)
+    .eq("id", userId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true, chat_nickname })

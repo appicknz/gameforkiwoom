@@ -6,6 +6,7 @@
  * 각 라운드의 참여 회원 목록도 포함
  */
 import { adminSupabase as admin } from "@/lib/supabase-admin"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
 export const runtime = "nodejs"
@@ -14,10 +15,10 @@ export async function GET(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "")
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: { user } } = await admin.auth.getUser(token)
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const userId = await getUserIdFromToken(token)
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single()
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", userId).single()
   const role = profile?.role ?? ""
   if (!["master", "super_admin", "branch_admin"].includes(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })

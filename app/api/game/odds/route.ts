@@ -24,13 +24,10 @@ export async function GET(request: Request) {
     const token = request.headers.get("authorization")?.replace("Bearer ", "")
     let branchId: string | null = null
     if (token) {
-      const { data: { user } } = await admin.auth.getUser(token)
-      if (user) {
-        const { data: profile } = await admin
-          .from("profiles")
-          .select("branch_id")
-          .eq("id", user.id)
-          .single()
+      const { getUserIdFromToken } = await import("@/lib/auth")
+      const uid = await getUserIdFromToken(token)
+      if (uid) {
+        const { data: profile } = await admin.from("profiles").select("branch_id").eq("id", uid).single()
         branchId = profile?.branch_id ?? null
       }
     }

@@ -1,5 +1,6 @@
 import { redis } from "@/lib/redis"
 import { adminSupabase as admin } from "@/lib/supabase-admin"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
@@ -9,8 +10,8 @@ export async function POST(request: Request) {
     const token = request.headers.get("authorization")?.replace("Bearer ", "")
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const { data: { user }, error: authError } = await admin.auth.getUser(token)
-    if (authError || !user) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    const userId = await getUserIdFromToken(token)
+    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
     const body = await request.json()
     const { bets, roundNumber: clientRoundNumber } = body
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
     const { data: profileData } = await admin
       .from("profiles")
       .select("branch_id")
-      .eq("id", user.id)
+      .eq("id", userId)
       .single()
     const branchId = profileData?.branch_id ?? null
 
@@ -141,14 +142,14 @@ export async function POST(request: Request) {
     let newBalance: number
     if (totalPayout > 0) {
       const { data: afterPayout, error: payoutError } = await admin
-        .rpc("add_balance_for_payout", { p_user_id: user.id, p_amount: totalPayout })
+        .rpc("add_balance_for_payout", { p_user_id: userId, p_amount: totalPayout })
       if (payoutError) {
         console.error("[game/play] add_balance_for_payout error:", payoutError)
         return NextResponse.json({ error: "Payout failed" }, { status: 500 })
       }
       newBalance = afterPayout as number
       await admin.from("balance_transactions").insert({
-        user_id: user.id,
+        user_id: userId,
         branch_id: branchId,
         type: "win",
         amount: totalPayout,
@@ -159,14 +160,14 @@ export async function POST(request: Request) {
     } else {
       // 패배: DB에서 현재 잔고를 읽어 Redis 동기화
       const { data: balanceData } = await admin
-        .from("balances").select("amount").eq("user_id", user.id).single()
+        .from("balances").select("amount").eq("user_id", userId).single()
       newBalance = balanceData?.amount ?? 0
     }
 
     // 항상 Redis 잔고 갱신 + SSE 트리거
     await Promise.all([
-      redis.set(`balance:${user.id}`, newBalance, { ex: 3600 }),
-      redis.incr(`balance_version:${user.id}`),
+      redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),
+      redis.incr(`balance_version:${userId}`),
     ])
 
     // ── house_stats 업데이��� (atomic upsert RPC — 레이스 컨디션 없음) ──
@@ -209,7 +210,7 @@ export async function POST(request: Request) {
     if (bets.direction && bets.directionAmount > 0) {
       const won = bets.direction === wonDirection
       betHistoryRows.push({
-        user_id: user.id, branch_id: branchId, round_id: roundId,
+        user_id: userId, branch_id: branchId, round_id: roundId,
         bet_direction: bets.direction, bet_digit: null, bet_parity: null,
         bet_amount: bets.directionAmount,
         payout: won ? Math.floor(bets.directionAmount * FIXED_ODDS) : 0,
@@ -219,7 +220,7 @@ export async function POST(request: Request) {
     if (bets.digit && bets.digitAmount > 0) {
       const won = bets.digit === wonDigit
       betHistoryRows.push({
-        user_id: user.id, branch_id: branchId, round_id: roundId,
+        user_id: userId, branch_id: branchId, round_id: roundId,
         bet_direction: null, bet_digit: bets.digit, bet_parity: null,
         bet_amount: bets.digitAmount,
         payout: won ? Math.floor(bets.digitAmount * FIXED_ODDS) : 0,
@@ -229,7 +230,7 @@ export async function POST(request: Request) {
     if (bets.parity && bets.parityAmount > 0) {
       const won = bets.parity === wonParity
       betHistoryRows.push({
-        user_id: user.id, branch_id: branchId, round_id: roundId,
+        user_id: userId, branch_id: branchId, round_id: roundId,
         bet_direction: null, bet_digit: null, bet_parity: bets.parity,
         bet_amount: bets.parityAmount,
         payout: won ? Math.floor(bets.parityAmount * FIXED_ODDS) : 0,
@@ -239,7 +240,7 @@ export async function POST(request: Request) {
     if (bets.baccaratSide && bets.baccaratAmount > 0) {
       const won = bets.baccaratSide === baccaratResult
       betHistoryRows.push({
-        user_id: user.id, branch_id: branchId, round_id: roundId,
+        user_id: userId, branch_id: branchId, round_id: roundId,
         bet_direction: `baccarat_${bets.baccaratSide}`, bet_digit: null, bet_parity: null,
         bet_amount: bets.baccaratAmount,
         payout: baccaratPayout,

@@ -1,21 +1,8 @@
 import { redis } from "@/lib/redis"
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { createClient } from "@supabase/supabase-js"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from 'next/server'
-
-
-// 토큰으로 user 검증하는 헬퍼
-async function getUserFromToken(token: string) {
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-  const { data, error } = await anonClient.auth.getUser(token)
-  if (error || !data.user) return null
-  return data.user
-}
 
 export async function POST(req: Request) {
   const authHeader = req.headers.get('authorization')
@@ -24,13 +11,13 @@ export async function POST(req: Request) {
   }
 
   const token = authHeader.slice(7)
-  const authUser = await getUserFromToken(token)
-  if (!authUser) return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
+  const userId = await getUserIdFromToken(token)
+  if (!userId) return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
 
   const { data: requester } = await adminSupabase
     .from('profiles')
     .select('id, role, branch_code')
-    .eq('id', authUser.id)
+    .eq('id', userId)
     .single()
 
   if (!requester || !['master', 'super_admin', 'branch_admin'].includes(requester.role)) {

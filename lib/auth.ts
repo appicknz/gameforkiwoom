@@ -53,6 +53,15 @@ async function verifyToken(token: string): Promise<{ userId: string } | null> {
   return { userId }
 }
 
+/**
+ * 헤더의 Bearer 토큰에서 userId만 추출 — route handler 내 직접 사용용
+ * Supabase anonClient.auth.getUser() 대체
+ */
+export async function getUserIdFromToken(token: string): Promise<string | null> {
+  const result = await verifyToken(token)
+  return result?.userId ?? null
+}
+
 export async function verifySession(req: Request): Promise<AuthResult> {
   const cookieStore = await cookies()
   const token = extractToken(req, cookieStore)

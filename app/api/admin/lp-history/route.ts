@@ -1,25 +1,20 @@
 import { adminSupabase } from "@/lib/supabase-admin"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 
 // GET /api/admin/lp-history?branchId=xxx&limit=50
 export async function GET(req: Request) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-  const { data: { user }, error: authErr } = await anonClient.auth.getUser(token)
-  if (authErr || !user) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+  const userId = await getUserIdFromToken(token)
+  if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
   // 권한 확인
   const { data: profile } = await adminSupabase
     .from("profiles")
     .select("role, branch_id")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single()
 
   if (!profile || !["master", "super_admin", "branch_admin"].includes(profile.role)) {

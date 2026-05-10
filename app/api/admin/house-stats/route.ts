@@ -4,39 +4,17 @@
  * POST /api/admin/house-stats  - 수금 처리 (수수료 초기화)
  */
 import { adminSupabase as admin } from "@/lib/supabase-admin"
-import { createClient } from "@supabase/supabase-js"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
-async function getUserFromToken(token: string) {
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-  const { data, error } = await anonClient.auth.getUser(token)
-  if (error || !data.user) return null
-  return data.user
-}
-
 async function getMasterBranchId(userId: string): Promise<string | null> {
-  const { data } = await admin
-    .from("profiles")
-    .select("branch_id, branches(name)")
-    .eq("id", userId)
-    .single()
+  const { data } = await admin.from("profiles").select("branch_id").eq("id", userId).single()
   return data?.branch_id ?? null
 }
 
 async function isMaster(userId: string): Promise<boolean> {
-  const { data } = await admin
-    .from("profiles")
-    .select("role, branch_id, branches(parent_id)")
-    .eq("id", userId)
-    .single()
-  // 슈퍼어드민이거나 parent_id가 없는 최상위 지점 어드민
-  if (data?.role === "superadmin") return true
-  if (data?.role === "admin" && !(data?.branches as any)?.parent_id) return true
-  return false
+  const { data } = await admin.from("profiles").select("role").eq("id", userId).single()
+  return ["master", "super_admin"].includes(data?.role ?? "")
 }
 
 // GET: 하우스 통계 조회
@@ -45,14 +23,14 @@ export async function GET(request: Request) {
     const token = request.headers.get("authorization")?.replace("Bearer ", "")
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const user = await getUserFromToken(token)
-    if (!user) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    const userId = await getUserIdFromToken(token)
+    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
     const branchFilter = searchParams.get("branch_id")
 
-    const master = await isMaster(user.id)
-    const myBranchId = await getMasterBranchId(user.id)
+    const master = await isMaster(userId)
+    const myBranchId = await getMasterBranchId(userId)
 
     let query = admin
       .from("house_stats")
@@ -163,10 +141,10 @@ export async function POST(request: Request) {
     const token = request.headers.get("authorization")?.replace("Bearer ", "")
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const user = await getUserFromToken(token)
-    if (!user) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    const userId = await getUserIdFromToken(token)
+    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
-    const master = await isMaster(user.id)
+    const master = await isMaster(userId)
     if (!master) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
     const body = await request.json()
@@ -196,7 +174,7 @@ export async function POST(request: Request) {
       branch_id,
       game_type,
       collected_amount: pendingAmount,
-      collected_by: user.id,
+      collected_by: userId,
       note: note ?? "수금 처리",
     })
 

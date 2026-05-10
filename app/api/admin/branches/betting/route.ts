@@ -1,20 +1,8 @@
 import { redis } from "@/lib/redis"
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { createClient } from "@supabase/supabase-js"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
-
-
-async function getUserFromToken(token: string) {
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-  const { data, error } = await anonClient.auth.getUser(token)
-  if (error || !data.user) return null
-  return data.user
-}
 
 // PATCH /api/admin/branches/betting
 // 마스터 관리자가 지점의 배팅 모드 + LP 설정을 변경
@@ -26,13 +14,13 @@ export async function PATCH(req: Request) {
   }
 
   const token = authHeader.slice(7)
-  const authUser = await getUserFromToken(token)
-  if (!authUser) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+  const userId = await getUserIdFromToken(token)
+  if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
   const { data: requester } = await adminSupabase
     .from("profiles")
     .select("role")
-    .eq("id", authUser.id)
+    .eq("id", userId)
     .single()
 
   if (!requester || !["master", "super_admin"].includes(requester.role)) {

@@ -1,7 +1,7 @@
 import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 
 
 // POST /api/pari/play
@@ -12,13 +12,8 @@ export async function POST(req: Request) {
     const token = req.headers.get("authorization")?.replace("Bearer ", "")
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const anonClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-    const { data: { user }, error: authErr } = await anonClient.auth.getUser(token)
-    if (authErr || !user) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    const userId = await getUserIdFromToken(token)
+    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
     const body = await req.json()
     const {
@@ -117,7 +112,7 @@ export async function POST(req: Request) {
     const { data: profileData } = await adminSupabase
       .from("profiles")
       .select("branch_id")
-      .eq("id", user.id)
+      .eq("id", userId)
       .single()
     const userBranchId = profileData?.branch_id ?? null
 
@@ -127,7 +122,7 @@ export async function POST(req: Request) {
       const won  = betDirection === wonDirection
       const odds = betDirection === "long" ? poolMap["long_short"].oddsA : poolMap["long_short"].oddsB
       betHistoryRows.push({
-        user_id: user.id, branch_id: userBranchId, round_id: null,
+        user_id: userId, branch_id: userBranchId, round_id: null,
         bet_direction: betDirection, bet_digit: null, bet_parity: null,
         bet_amount: directionAmount,
         payout: won ? Math.floor(directionAmount * odds) : 0,
@@ -138,7 +133,7 @@ export async function POST(req: Request) {
       const won  = betDigit === wonDigit
       const odds = betDigit === "under" ? poolMap["under_over"].oddsA : poolMap["under_over"].oddsB
       betHistoryRows.push({
-        user_id: user.id, branch_id: userBranchId, round_id: null,
+        user_id: userId, branch_id: userBranchId, round_id: null,
         bet_direction: null, bet_digit: betDigit, bet_parity: null,
         bet_amount: digitAmount,
         payout: won ? Math.floor(digitAmount * odds) : 0,
@@ -149,7 +144,7 @@ export async function POST(req: Request) {
       const won  = betParity === wonParity
       const odds = betParity === "odd" ? poolMap["odd_even"].oddsA : poolMap["odd_even"].oddsB
       betHistoryRows.push({
-        user_id: user.id, branch_id: userBranchId, round_id: null,
+        user_id: userId, branch_id: userBranchId, round_id: null,
         bet_direction: null, bet_digit: null, bet_parity: betParity,
         bet_amount: parityAmount,
         payout: won ? Math.floor(parityAmount * odds) : 0,
@@ -164,22 +159,22 @@ export async function POST(req: Request) {
     let newBalance: number | null = null
     if (totalPayout > 0) {
       const { data: rpcData, error: rpcErr } = await adminSupabase
-        .rpc("atomic_add_balance", { p_user_id: user.id, p_amount: totalPayout })
+        .rpc("atomic_add_balance", { p_user_id: userId, p_amount: totalPayout })
 
       if (!rpcErr) {
         newBalance = rpcData as number
         const balanceBefore = newBalance - totalPayout
 
         await adminSupabase.from("balance_transactions").insert({
-          user_id: user.id, branch_id: userBranchId,
+          user_id: userId, branch_id: userBranchId,
           type: "win", amount: totalPayout,
           balance_before: balanceBefore, balance_after: newBalance,
           note: "파리뮤추얼 당첨 수익",
         })
 
         await Promise.all([
-          redis.set(`balance:${user.id}`, newBalance, { ex: 3600 }),
-          redis.incr(`balance_version:${user.id}`),
+          redis.set(`balance:${userId}`, newBalance, { ex: 3600 }),
+          redis.incr(`balance_version:${userId}`),
         ])
       }
     }

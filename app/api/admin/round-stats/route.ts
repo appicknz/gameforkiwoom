@@ -1,20 +1,8 @@
 import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { createClient } from "@supabase/supabase-js"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, LpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
-
-// anon 클라이언트로 사용자 토큰 검증 (service role 클라이언트는 토큰 검증 불가)
-async function getUserFromToken(token: string) {
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-  const { data, error } = await anonClient.auth.getUser(token)
-  if (error || !data.user) return null
-  return data.user
-}
 
 
 // 한 게임 타입의 라운드 현황 계산
@@ -132,11 +120,11 @@ export async function GET(request: Request) {
     const token = request.headers.get("Authorization")?.replace("Bearer ", "")
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const authUser = await getUserFromToken(token)
-    if (!authUser) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    const userId = await getUserIdFromToken(token)
+    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
     const { data: profile } = await adminSupabase
-      .from("profiles").select("role, branch_id").eq("id", authUser.id).single()
+      .from("profiles").select("role, branch_id").eq("id", userId).single()
     if (!profile || !["master", "super_admin", "branch_admin"].includes(profile.role))
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 

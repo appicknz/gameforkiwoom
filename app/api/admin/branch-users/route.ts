@@ -1,21 +1,16 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { createClient } from "@supabase/supabase-js"
+import { getUserIdFromToken } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
 async function verifyAdmin(req: Request) {
   const header = req.headers.get("authorization") ?? ""
   if (!header.startsWith("Bearer ")) return null
   const token = header.slice(7)
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-  const { data, error } = await anonClient.auth.getUser(token)
-  if (error || !data.user) return null
+  const userId = await getUserIdFromToken(token)
+  if (!userId) return null
   const { data: profile } = await adminSupabase
-    .from("profiles").select("id, role, branch_id, branch_code").eq("id", data.user.id).single()
+    .from("profiles").select("id, role, branch_id, branch_code").eq("id", userId).single()
   if (!profile || !["admin", "branch_admin", "super_admin", "master"].includes(profile.role)) return null
   return profile
 }
