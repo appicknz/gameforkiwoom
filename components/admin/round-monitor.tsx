@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
+import { useGatewayOdds } from "@/hooks/use-gateway"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -608,64 +609,37 @@ export function RoundMonitor({
     }
   }, [loadRoundStats, loadHouseStats, loadLpHistory, loadLpState, loadAbUsers, loadAbLogs, isSuperAdmin])
 
-  // SSE 구독 — /baka·/race와 동일한 odds/stream을 받아 배당 실시간 동기화
-  // 2초 폴링 대신 이벤트 기반으로 즉시 반영 (단일 소스)
-  useEffect(() => {
-    const token = getToken()
-    if (!token) return
-    let closed = false
+  // Railway WS 게이트웨이 구독 — SSE 2개(Vercel Function 2개 점유) 제거
+  const applyOddsPayload = useCallback((
+    gameType: "baccarat" | "race",
+    data: { roundNumber: number; userCount: number; pools: Record<string, number>; odds: Record<string, number> }
+  ) => {
+    if (gameType === "baccarat" && baccaratPhaseRef.current === "게임중") return
+    if (gameType === "race"     && racePhaseRef.current     === "게임중") return
 
-    const applyOddsPayload = (
-      gameType: "baccarat" | "race",
-      data: { roundNumber: number; userCount: number; pools: Record<string, number>; odds: Record<string, number> }
-    ) => {
-      // 게임중 페이즈엔 배당 고정 — 이벤트가 와도 state 갱신 안 함
-      if (gameType === "baccarat" && baccaratPhaseRef.current === "게임중") return
-      if (gameType === "race"     && racePhaseRef.current     === "게임중") return
-
-      const totalBet = Object.values(data.pools ?? {}).reduce((a, b) => a + b, 0)
-      const stat: RoundStats = {
-        round:     String(data.roundNumber),
-        gameType,
-        timestamp: new Date().toISOString(),
-        pools:     data.pools ?? {},
-        userCount: data.userCount ?? 0,
-        totalBet,
-        lpAmount:  0,
-        fee:       Math.floor(totalBet * 0.2),
-        feeRate:   0.2,
-        mode:      (data.odds?.mode as string) ?? "pari",
-        odds:      data.odds ?? null,
-        prediction: {},
-      }
-      setCombined(prev => prev
-        ? { ...prev, [gameType]: stat }
-        : { baccarat: stat, race: stat }
-      )
+    const totalBet = Object.values(data.pools ?? {}).reduce((a, b) => a + b, 0)
+    const stat: RoundStats = {
+      round:      String(data.roundNumber),
+      gameType,
+      timestamp:  new Date().toISOString(),
+      pools:      data.pools ?? {},
+      userCount:  data.userCount ?? 0,
+      totalBet,
+      lpAmount:   0,
+      fee:        Math.floor(totalBet * 0.2),
+      feeRate:    0.2,
+      mode:       (data.odds?.mode as string) ?? "pari",
+      odds:       data.odds ?? null,
+      prediction: {},
     }
-
-    const connectSSE = (type: "baccarat" | "race") => {
-      const es = new EventSource(`/api/game/odds/stream?type=${type}&token=${token}`)
-      es.onmessage = (e) => {
-        if (closed) return
-        try { applyOddsPayload(type, JSON.parse(e.data)) } catch {}
-      }
-      es.onerror = () => {
-        es.close()
-        if (!closed) setTimeout(() => connectSSE(type), 3000)
-      }
-      return es
-    }
-
-    const bakaEs = connectSSE("baccarat")
-    const raceEs = connectSSE("race")
-
-    return () => {
-      closed = true
-      bakaEs.close()
-      raceEs.close()
-    }
+    setCombined(prev => prev
+      ? { ...prev, [gameType]: stat }
+      : { baccarat: stat, race: stat }
+    )
   }, [])
+
+  useGatewayOdds("baccarat", (data) => applyOddsPayload("baccarat", data as Parameters<typeof applyOddsPayload>[1]))
+  useGatewayOdds("race",     (data) => applyOddsPayload("race",     data as Parameters<typeof applyOddsPayload>[1]))
 
   // 카운트다운 ticker (200ms) — 페이즈 및 남은 시간 실시간 업데이트
   useEffect(() => {
@@ -1500,12 +1474,12 @@ export function RoundMonitor({
         )}
       </div></>}
 
-      {/* ════════════════════════════════════���════���══════════════
+      {/* ═══════════════��════════════════════���════���══════════════
           섹션 5 — 지점별 LP 설정 (superadmin 전용)
       ══════════��═════════════════��═══════════════════════════ */}
 
 
-      {/* ��═══════════════════════════════════════════════════════
+      {/* ��═══════��═══════════════════════════════════════════════
           전체 초기화 다이얼로그
       ══════════���══════���═���════════════════════════════════════ */}
       {showResetDialog && (
