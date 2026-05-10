@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null
-  return localStorage.getItem("auth_token")
+  return localStorage.getItem("app_token")
 }
 
 interface Deposit {
