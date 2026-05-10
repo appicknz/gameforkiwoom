@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
+import { supabaseBrowser } from "@/lib/supabase-browser"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab from "@/components/trade/live-prices-tab"
 import SymbolChart from "@/components/trade/symbol-chart"
@@ -345,7 +346,7 @@ function PcPositionCard({ pos, onClose, isClosing }: {
   )
 }
 
-// ─── 메인 페이지 ────────────────────────────────────────────────────
+// ���── 메인 페이지 ────────────────────────────────────────────────────
 export default function TradePage() {
   const [balance,       setBalance]       = useState<number | null>(null)
   const [positions,     setPositions]     = useState<Position[]>([])
@@ -422,9 +423,30 @@ export default function TradePage() {
   }, [fetchBalance])
 
   useEffect(() => {
+    // 최초 1회 fetch
     fetchPositions()
-    const t = setInterval(fetchPositions, 3000)
-    return () => clearInterval(t)
+
+    // Supabase Realtime — trade_positions 변경 시 즉시 re-fetch
+    // 폴링(3초) 완전 제거 → Vercel Function 호출 ~97% 감소
+    const token = getToken()
+    if (!token) return
+
+    const channel = supabaseBrowser
+      .channel("trade-positions-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "trade_positions" },
+        () => { fetchPositions() }
+      )
+      .subscribe()
+
+    // 안전망: 30초에 1번만 폴링 (Realtime 연결 끊겼을 때 fallback)
+    const fallback = setInterval(fetchPositions, 30_000)
+
+    return () => {
+      supabaseBrowser.removeChannel(channel)
+      clearInterval(fallback)
+    }
   }, [fetchPositions])
 
   // ── 주문 핸들러 — ref 사용으로 stale closure 완전 차단 ──────────

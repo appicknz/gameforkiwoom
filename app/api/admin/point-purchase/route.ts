@@ -1,13 +1,10 @@
+import { redis } from "@/lib/redis"
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { verifySession } from "@/lib/auth"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 
-const redis = new Redis({ url: process.env.KV_REST_API_URL!, token: process.env.KV_REST_API_TOKEN! })
-
-// 현금 잔고 upsert 헬퍼
 async function upsertCashBalance(userId: string, delta: number) {
   const { data: existing } = await adminSupabase
     .from("cash_balances").select("amount").eq("user_id", userId).single()

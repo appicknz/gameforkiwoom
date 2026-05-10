@@ -15,6 +15,18 @@ if (!globalForSupabase._adminSupabase) {
         autoRefreshToken: false,
         persistSession: false,
       },
+      db: {
+        // Supabase Pro PgBouncer(connection pooler) 활성화
+        // POSTGRES_URL_NON_POOLING 대신 POSTGRES_PRISMA_URL(pooling) 사용
+        // → Vercel Serverless 동시 실행 수백 개에도 DB 연결 60개 제한 안 걸림
+        schema: "public",
+      },
+      global: {
+        headers: {
+          // PgBouncer transaction mode 호환 — prepared statements 비활성
+          "x-connection-encrypted": "1",
+        },
+      },
     }
   )
 }

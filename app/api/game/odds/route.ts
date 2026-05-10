@@ -1,3 +1,4 @@
+import { redis } from "@/lib/redis"
 /**
  * 실시간 배당률 조회 API
  * GET /api/game/odds?type=baccarat|race&round=<roundNumber>
@@ -5,14 +6,10 @@
  * 현재 라운드의 유저 배팅 풀 + LP 설정으로 파리뮤추얼 배당률 계산 반환
  */
 import { adminSupabase as admin } from "@/lib/supabase-admin"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 import { calcAutoLpSeed } from "@/lib/lp-auto-seed"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 export async function GET(request: Request) {

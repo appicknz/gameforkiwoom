@@ -1,12 +1,8 @@
-import { Redis } from "@upstash/redis"
+import { redis } from "@/lib/redis"
 import { NextRequest, NextResponse } from "next/server"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
-
-const CHAT_KEY = "bitbet:chat:messages"
+const CHAT_KEY    = "bitbet:chat:messages"
+const VERSION_KEY = "bitbet:chat:version"
 const MAX_MESSAGES = 200
 
 export interface ChatMessage {
@@ -37,7 +33,11 @@ export async function POST(req: NextRequest) {
       text: text.trim().slice(0, 300),
       createdAt: Date.now(),
     }
-    await redis.lpush(CHAT_KEY, msg)
+    // 메시지 저장 + 버전 카운터 incr (SSE 클라이언트 깨우기)
+    await Promise.all([
+      redis.lpush(CHAT_KEY, msg),
+      redis.incr(VERSION_KEY),
+    ])
     await redis.ltrim(CHAT_KEY, 0, MAX_MESSAGES - 1)
     return NextResponse.json({ message: msg })
   } catch {

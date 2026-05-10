@@ -7,6 +7,7 @@
 
 const { WebSocket, WebSocketServer } = require("ws");
 const https = require("https");
+const http  = require("http");
 
 const PORT = process.env.PORT || 8080;
 const BINANCE_TRADE_URL = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade";
@@ -410,6 +411,33 @@ function triggerSettlement(closePrice, closeTime) {
   console.log(`[engine] settlement triggered: closePrice=${closePrice}, time=${closeTime}`);
 }
 
+// ─── odds 캐시 갱신 트리거 — 라운드 전환 시 Vercel /api/game/odds/refresh 호출 ────
+// Vercel stream은 이 캐시만 읽음 → Supabase 쿼리 없이 전 클라이언트에 동일한 배당 제공
+function triggerOddsRefresh(gameType) {
+  if (!VERCEL_URL) return;
+  const url = `${VERCEL_URL}/api/game/odds/refresh`;
+  const body = JSON.stringify({ gameType });
+  const options = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
+      "x-internal-secret": process.env.INTERNAL_SECRET || "tasko-internal",
+    },
+  };
+  const proto = VERCEL_URL.startsWith("https") ? require("https") : require("http");
+  const req = proto.request(url, options, (res) => {
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      console.error(`[odds-refresh] ${gameType} failed: ${res.statusCode}`);
+    } else {
+      console.log(`[odds-refresh] ${gameType} refreshed`);
+    }
+  });
+  req.on("error", (e) => console.error(`[odds-refresh] ${gameType} error:`, e.message));
+  req.write(body);
+  req.end();
+}
+
 // ─── aggTrade (실시간 현재가 + 30초 버킷 기반 closing 판정) ─────────
 let tradeWs = null;
 
@@ -444,6 +472,11 @@ function connectTrade() {
 
         // 게임 엔진: 매 30초마다 Vercel game/settle 호출
         triggerSettlement(closePrice, closeTime);
+
+        // odds 캐시 갱신: 라운드 전환 시 Railway에서 직접 Vercel odds refresh 호출
+        // → 모든 클라이언트가 공유하는 odds:current Redis 키 갱신
+        triggerOddsRefresh("baccarat");
+        triggerOddsRefresh("race");
 
         // 새 버킷으로 전환: 이전 버킷의 마지막 가격 초기화
         prevBucketLastPrice = null;

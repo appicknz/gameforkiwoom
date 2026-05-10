@@ -1,3 +1,4 @@
+import { redis } from "@/lib/redis"
 /**
  * /api/cron/bot-settle
  *
@@ -14,16 +15,12 @@
  */
 
 import { adminSupabase as admin } from "@/lib/supabase-admin"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
 export const runtime = "nodejs"
 export const maxDuration = 55
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 const AUTO_BET_USERNAMES = Array.from({ length: 29 }, (_, i) => `사용자${i + 2}`)

@@ -1,3 +1,4 @@
+import { redis } from "@/lib/redis"
 /**
  * /api/game/settle — 서버 주도 일괄 정산 엔진
  *
@@ -13,15 +14,11 @@
  */
 
 import { adminSupabase as admin } from "@/lib/supabase-admin"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
 export const runtime = "nodejs"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET || "tasko-internal"

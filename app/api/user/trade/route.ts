@@ -1,11 +1,8 @@
+import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { verifySession } from "@/lib/auth"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 // GET: 잔고 조회

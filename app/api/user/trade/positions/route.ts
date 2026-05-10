@@ -1,11 +1,8 @@
+import { redis } from "@/lib/redis"
 import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { verifySession } from "@/lib/auth"
-import { Redis } from "@upstash/redis"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 // Binance에서 현재가 조회 (서버사이드 전용)

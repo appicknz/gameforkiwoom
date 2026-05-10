@@ -1,12 +1,9 @@
+import { redis } from "@/lib/redis"
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { verifySession } from "@/lib/auth"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 
-const redis = new Redis({ url: process.env.KV_REST_API_URL!, token: process.env.KV_REST_API_TOKEN! })
-
-async function upsertBalance(userId: string, delta: number) {
   const { data: existing } = await adminSupabase
     .from("balances").select("amount").eq("user_id", userId).single()
   const newAmt = (existing?.amount ?? 0) + delta

@@ -1,11 +1,8 @@
+import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 // POST /api/pari/play

@@ -1,12 +1,9 @@
+import { redis } from "@/lib/redis"
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { createClient } from "@supabase/supabase-js"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from 'next/server'
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 // 토큰으로 user 검증하는 헬퍼

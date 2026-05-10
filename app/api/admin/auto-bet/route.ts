@@ -1,12 +1,9 @@
+import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 import { cookies } from "next/headers"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 /** JWT 로컬 디코딩 — 외부 HTTP 없이 즉시 userId 반환 */

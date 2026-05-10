@@ -1,10 +1,7 @@
+import { redis } from "@/lib/redis"
 import { adminSupabase as supabase } from "@/lib/supabase-admin"
 import { verifySessionFromUrl } from "@/lib/auth"
-import { Redis } from "@upstash/redis"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 export const dynamic = "force-dynamic"

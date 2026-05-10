@@ -1,3 +1,4 @@
+import { redis } from "@/lib/redis"
 /**
  * /api/cron/race-settle
  *
@@ -13,14 +14,10 @@
  */
 
 import { adminSupabase as admin } from "@/lib/supabase-admin"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 
 export const runtime = "nodejs"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 export async function GET(request: Request) {

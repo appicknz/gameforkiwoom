@@ -1,3 +1,4 @@
+import { redis } from "@/lib/redis"
 /**
  * /api/game/settle-me  — 클라이언트가 직접 호출하는 개인 정산 API
  *
@@ -6,15 +7,11 @@
  * Authorization: Bearer <token>
  */
 import { adminSupabase as admin } from "@/lib/supabase-admin"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, DEFAULT_LP_CONFIG, branchToLpConfig } from "@/lib/lp-system"
 
 export const runtime = "nodejs"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 const FIXED_ODDS = 1.6  // 방향/숫자/홀짝 고정 배당 (수수료 20% 적용)

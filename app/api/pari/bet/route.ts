@@ -1,11 +1,8 @@
+import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds } from "@/lib/lp-system"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 // POST /api/pari/bet

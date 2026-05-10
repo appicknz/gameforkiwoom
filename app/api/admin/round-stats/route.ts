@@ -1,6 +1,6 @@
+import { redis } from "@/lib/redis"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { createClient } from "@supabase/supabase-js"
-import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, LpConfig, DEFAULT_LP_CONFIG } from "@/lib/lp-system"
 
@@ -16,9 +16,6 @@ async function getUserFromToken(token: string) {
   return data.user
 }
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
 })
 
 // 한 게임 타입의 라운드 현황 계산
