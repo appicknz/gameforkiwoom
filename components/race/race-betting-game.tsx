@@ -409,12 +409,12 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     available?: boolean; mode?: "seeded" | "decay" | "natural" | "pending"
   } | null>(null)
 
-  // Railway WS 게이트웨이로 race odds 구독 — available=true면 항상 state 반영
+  // Railway WS 게이트웨이로 race odds 구독 — available:false 포함 항상 반영
   useGatewayOdds("race", (data: unknown) => {
     const d = data as { odds?: typeof liveOddsRef.current }
     if (d.odds) {
       liveOddsRef.current = d.odds
-      if (d.odds.available !== false) setLiveOdds(d.odds)
+      setLiveOdds(d.odds)
     }
   })
 

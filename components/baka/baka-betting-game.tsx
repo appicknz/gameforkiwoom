@@ -578,26 +578,21 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // canBet 상태를 ref로 추적 — SSE 클로저 안에서 최신 값 참조용
   const canBetRef = useRef(false)
 
-  // Railway WS 게이트웨이로 baccarat odds 구독
-  // available인 odds는 배팅 구간 여부에 관계없이 항상 state 반영
+  // Railway WS 게이트웨이로 baccarat odds 구독 — available:false 포함 항상 반영
   useGatewayOdds("baccarat", (data: unknown) => {
     const d = data as { odds?: typeof liveOddsRef.current }
     if (d.odds) {
       liveOddsRef.current = d.odds
-      // available=true인 odds는 항상 표시 (배팅 구간 외에도 직전 배당 유지)
-      if (d.odds.available !== false) setLiveOdds(d.odds)
+      setLiveOdds(d.odds)  // available:false면 버튼에 "-" 표시
     }
   })
 
-  // 마운트 시 현재 odds 즉시 조회 (canBet 상태와 무관하게 초기값 채움)
+  // 마운트 시 현재 odds 즉시 조회
   useEffect(() => {
-    const token = getToken()
-    fetch("/api/game/odds?type=baccarat", {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
+    fetch("/api/game/odds?type=baccarat")
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data?.odds && !liveOddsRef.current) {
+        if (data?.odds) {
           liveOddsRef.current = data.odds
           setLiveOdds(data.odds)
         }
@@ -984,7 +979,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     return () => window.removeEventListener("baka:closing", handler)
   }, [handleClosingPrice])
 
-  // 30초: 카드 리셋 중복 방지 ref
+  // 30초: 카드 리셋 중복 방��� ref
   const resetTriggeredRoundRef = useRef<number>(-1)
 
   // 타이머 + rem===30 카드 리셋 + rem===15 딜 시작 트리��
