@@ -381,7 +381,7 @@ export function Sidebar() {
                 )}>
                   <p className="text-[11px] font-bold text-foreground leading-tight">바카라</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">비트코인 30초 바카라</p>
-                  <p suppressHydrationWarning className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} R</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} R</p>
                 </div>
               </Link>
               {/* 차트차트 */}
@@ -392,7 +392,7 @@ export function Sidebar() {
                 )}>
                   <p className="text-[11px] font-bold text-foreground leading-tight">차트차트</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">비트코인 3분 레이스</p>
-                  <p suppressHydrationWarning className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 180).toLocaleString()} R</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 180).toLocaleString()} R</p>
                 </div>
               </Link>
             </div>
