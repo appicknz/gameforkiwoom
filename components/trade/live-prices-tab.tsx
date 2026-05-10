@@ -129,55 +129,27 @@ async function initCache() {
   }, 500)
 }
 
-import { cn } from "@/lib/utils"
-
-interface PositionRow {
-  id:         string
-  symbol:     string
-  direction:  "long" | "short"
-  entryPrice: number
-  leverage:   number
-  pnl:        number
-  pnlPct:     number
-  openedAt:   number
-}
-
 // ─── 컴포넌트 ─────────────────────────────────────────────────────
 interface LivePricesTabProps {
   onSelect?:       (symbol: string, price: number) => void
-  onPriceUpdate?:  (symbol: string, price: number) => void
-  onClose?:        (id: string) => void
-  closingId?:      string | null
   selectedSymbol?: string
-  positions?:      PositionRow[]
 }
 
-export default function LivePricesTab({ onSelect, onPriceUpdate, onClose, closingId, selectedSymbol, positions = [] }: LivePricesTabProps) {
+export default function LivePricesTab({ onSelect, selectedSymbol }: LivePricesTabProps) {
   const [, forceUpdate]   = useState(0)
   const [searchTerm, setSearchTerm] = useState("")
   const [sortKey, setSortKey] = useState<"symbol" | "price" | "change24h" | "volume24h">("change24h")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
-  const autoSelectedRef    = useRef(false)
-  const onPriceUpdateRef   = useRef(onPriceUpdate)
-  const selectedSymbolRef  = useRef(selectedSymbol)
-
-  useEffect(() => { onPriceUpdateRef.current = onPriceUpdate }, [onPriceUpdate])
-  useEffect(() => { selectedSymbolRef.current = selectedSymbol }, [selectedSymbol])
+  const autoSelectedRef = useRef(false)
 
   // 싱글톤 초기화 (최초 1회만 실행)
   useEffect(() => {
     initCache()
   }, [])
 
-  // 리스너 등록 — flush마다 선택된 심볼 가격을 onPriceUpdate로 전달
+  // 리스너 등록 — 컴포넌트가 마운트된 동안만 re-render 수신
   useEffect(() => {
-    const listener = () => {
-      forceUpdate((n) => n + 1)
-      if (selectedSymbolRef.current && onPriceUpdateRef.current) {
-        const ticker = _cache.tickers.get(selectedSymbolRef.current)
-        if (ticker) onPriceUpdateRef.current(ticker.symbol, ticker.price)
-      }
-    }
+    const listener = () => forceUpdate((n) => n + 1)
     _cache.listeners.add(listener)
     return () => { _cache.listeners.delete(listener) }
   }, [])
@@ -294,98 +266,44 @@ export default function LivePricesTab({ onSelect, onPriceUpdate, onClose, closin
       {!symbolsLoading && (
         <div className="flex-1 overflow-y-auto">
           {displayList.map((item) => {
-            const isPositive  = item.change24h >= 0
-            const hasData     = item.price > 0
-            const isSelected  = item.symbol === selectedSymbol
-            const myPositions = positions.filter(p => p.symbol === item.symbol)
+            const isPositive = item.change24h >= 0
+            const hasData    = item.price > 0
+            const isSelected = item.symbol === selectedSymbol
 
             return (
-              <div key={item.symbol}>
-                {/* 종목 행 */}
-                <div
-                  onClick={() => onSelect?.(item.symbol, item.price)}
-                  className={cn(
-                    "flex items-center justify-between px-4 h-[52px] border-b border-gray-800/20 transition-colors cursor-pointer",
-                    isSelected ? "bg-[#d4af37]/10 border-l-2 border-l-[#d4af37]" : "hover:bg-gray-800/30",
-                    myPositions.length > 0 && "border-b-0"
+              <div
+                key={item.symbol}
+                onClick={() => onSelect?.(item.symbol, item.price)}
+                className={`flex items-center justify-between px-4 h-[52px] border-b border-gray-800/20 transition-colors cursor-pointer ${
+                  isSelected ? "bg-[#d4af37]/10 border-l-2 border-l-[#d4af37]" : "hover:bg-gray-800/30"
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-[100px]">
+                  {hasData ? (
+                    isPositive
+                      ? <TrendingUp  className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+                      : <TrendingDown className="h-3.5 w-3.5 text-red-500   flex-shrink-0" />
+                  ) : (
+                    <div className="h-3.5 w-3.5 flex-shrink-0" />
                   )}
-                >
-                  <div className="flex items-center gap-2 min-w-[100px]">
-                    {hasData ? (
-                      isPositive
-                        ? <TrendingUp  className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
-                        : <TrendingDown className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
-                    ) : (
-                      <div className="h-3.5 w-3.5 flex-shrink-0" />
-                    )}
-                    <span className="text-sm font-medium text-gray-200">
-                      {item.symbol.replace("USDT", "")}
-                    </span>
-                  </div>
-
-                  <span className={`text-sm font-mono tabular-nums w-[90px] text-right ${hasData ? "text-gray-100" : "text-gray-600"}`}>
-                    {hasData ? `$${formatPrice(item.price)}` : "-"}
-                  </span>
-
-                  <span className={`text-sm font-medium tabular-nums w-[72px] text-right ${
-                    !hasData ? "text-gray-600" : isPositive ? "text-green-400" : "text-red-400"
-                  }`}>
-                    {hasData ? `${isPositive ? "+" : ""}${item.change24h.toFixed(2)}%` : "-"}
-                  </span>
-
-                  <span className={`text-xs tabular-nums w-[60px] text-right ${hasData ? "text-gray-400" : "text-gray-700"}`}>
-                    {hasData ? formatVolume(item.volume24h) : "-"}
+                  <span className="text-sm font-medium text-gray-200">
+                    {item.symbol.replace("USDT", "")}
                   </span>
                 </div>
 
-                {/* 인라인 포지션 패널 */}
-                {myPositions.map(pos => {
-                  const isLong    = pos.direction === "long"
-                  const accent    = isLong ? "#22c55e" : "#ef4444"
-                  const pnlColor  = pos.pnlPct >= 0 ? "#22c55e" : "#ef4444"
-                  const isClosing = closingId === pos.id
-                  return (
-                    <div
-                      key={pos.id}
-                      className="border-b border-gray-800/20"
-                      style={{ background: isLong ? "rgba(34,197,94,0.05)" : "rgba(239,68,68,0.05)", borderLeft: `2px solid ${accent}` }}
-                    >
-                      <div className="flex items-center justify-between px-4 py-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: isLong ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", color: accent }}
-                          >
-                            {isLong ? "LONG" : "SHORT"} {pos.leverage}x
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <div className="text-[11px] font-bold tabular-nums" style={{ color: pnlColor }}>
-                              {pos.pnlPct >= 0 ? "+" : ""}{pos.pnlPct.toFixed(2)}%
-                            </div>
-                            <div className="text-[10px] tabular-nums" style={{ color: pnlColor, opacity: 0.75 }}>
-                              {pos.pnl >= 0 ? "+" : ""}₩{Math.floor(Math.abs(pos.pnl)).toLocaleString("ko-KR")}
-                            </div>
-                          </div>
-                          <button
-                            onClick={e => { e.stopPropagation(); onClose?.(pos.id) }}
-                            disabled={isClosing}
-                            className="text-[10px] font-semibold px-2.5 py-1 rounded transition-colors"
-                            style={{
-                              background: "rgba(255,255,255,0.07)",
-                              color: "rgba(255,255,255,0.5)",
-                              border: "1px solid rgba(255,255,255,0.12)",
-                              cursor: isClosing ? "not-allowed" : "pointer",
-                            }}
-                          >
-                            {isClosing ? "청산중" : "청산"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+                <span className={`text-sm font-mono tabular-nums w-[90px] text-right ${hasData ? "text-gray-100" : "text-gray-600"}`}>
+                  {hasData ? `$${formatPrice(item.price)}` : "-"}
+                </span>
+
+                <span className={`text-sm font-medium tabular-nums w-[72px] text-right ${
+                  !hasData ? "text-gray-600" : isPositive ? "text-green-400" : "text-red-400"
+                }`}>
+                  {hasData ? `${isPositive ? "+" : ""}${item.change24h.toFixed(2)}%` : "-"}
+                </span>
+
+                <span className={`text-xs tabular-nums w-[60px] text-right ${hasData ? "text-gray-400" : "text-gray-700"}`}>
+                  {hasData ? formatVolume(item.volume24h) : "-"}
+                </span>
               </div>
             )
           })}
