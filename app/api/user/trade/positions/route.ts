@@ -48,10 +48,23 @@ function calcPnl(
 
 // ──────────────────────────────────────────────
 // GET: 내 오픈 포지션 목록 + 실시간 손익
+// 현재가는 클라이언트가 쿼리파라미터로 전달: ?prices=INXUSDT:0.018488,BTCUSDT:80642
+// 서버에서 Binance 조회 없음 — 가격 0이면 PnL만 0으로 반환하고 강제청산 안 함
 // ──────────────────────────────────────────────
 export async function GET(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
+
+  // 클라이언트가 보낸 실시간 가격 파싱
+  const url    = new URL(req.url)
+  const pricesParam = url.searchParams.get("prices") ?? ""
+  const clientPrices: Record<string, number> = {}
+  if (pricesParam) {
+    pricesParam.split(",").forEach(part => {
+      const [sym, val] = part.split(":")
+      if (sym && val) clientPrices[sym] = parseFloat(val)
+    })
+  }
 
   const { data: rows, error } = await adminSupabase
     .from("trade_positions")
@@ -63,73 +76,50 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!rows || rows.length === 0) return NextResponse.json({ positions: [] })
 
-  // 심볼별로 묶어서 한 번씩만 Binance 조회
-  const symbols = [...new Set(rows.map(r => r.symbol))]
-  const prices: Record<string, number> = {}
-  await Promise.all(
-    symbols.map(async sym => {
-      try { prices[sym] = await fetchBinancePrice(sym) }
-      catch { prices[sym] = 0 }
-    })
-  )
+  const positions = rows.map(row => {
+    const cur = clientPrices[row.symbol] ?? 0
 
-  const positions = []
+    // 가격이 없으면 PnL 0 반환 — 절대 강제청산 하지 않음
+    if (!cur || cur <= 0) {
+      return {
+        ...row,
+        current_price:      Number(row.entry_price),
+        unrealized_pnl:     0,
+        unrealized_pnl_pct: 0,
+        liquidated:         false,
+      }
+    }
 
-  for (const row of rows) {
-    const cur = prices[row.symbol] ?? 0
     const { pnl, pnlPct, liquidated } = calcPnl(
       row.direction, Number(row.entry_price), cur, row.leverage, Number(row.margin)
     )
 
-    // 강제 청산 조건: pnlPct <= -100 (증거금 전액 손실)
+    // 강제청산: pnlPct <= -100 이고 현재가가 실제로 있을 때만
     if (liquidated) {
-      // 포지션 DB 상태 업데이트
-      await adminSupabase
-        .from("trade_positions")
-        .update({
-          status:     "liquidated",
-          exit_price: cur,
-          pnl:        -Number(row.margin),   // 마진 전액 손실
-          pnl_pct:    -100,
-          closed_at:  new Date().toISOString(),
-        })
-        .eq("id", row.id)
+      // fire-and-forget — 응답은 기다리지 않음
+      adminSupabase.from("trade_positions").update({
+        status: "liquidated", exit_price: cur,
+        pnl: -Number(row.margin), pnl_pct: -100,
+        closed_at: new Date().toISOString(),
+      }).eq("id", row.id).then(() => {})
 
-      const { data: profile } = await adminSupabase
-        .from("profiles").select("branch_id").eq("id", auth.userId).single()
-
-      // 거래 기록
-      try {
-        await adminSupabase.from("balance_transactions").insert({
-          user_id:        auth.userId,
-          branch_id:      profile?.branch_id ?? null,
-          type:           "lose",
-          amount:         0,
-          balance_before: 0,
-          balance_after:  0,
-          note:           `강제청산 ${row.symbol} ${row.direction} ${row.leverage}x`,
-        })
-      } catch { /* 기록 실패 무시 */ }
-
-      // 프론트에 청산된 포지션 전달 (다음 폴링에선 안 나옴)
-      positions.push({
+      return {
         ...row,
-        current_price:       cur,
-        unrealized_pnl:      -Number(row.margin),
-        unrealized_pnl_pct:  -100,
-        liquidated:          true,
-      })
-      continue
+        current_price:      cur,
+        unrealized_pnl:     -Number(row.margin),
+        unrealized_pnl_pct: -100,
+        liquidated:         true,
+      }
     }
 
-    positions.push({
+    return {
       ...row,
-      current_price:       cur,
-      unrealized_pnl:      pnl,
-      unrealized_pnl_pct:  pnlPct,
-      liquidated:          false,
-    })
-  }
+      current_price:      cur,
+      unrealized_pnl:     pnl,
+      unrealized_pnl_pct: pnlPct,
+      liquidated:         false,
+    }
+  })
 
   return NextResponse.json({ positions })
 }
