@@ -1,7 +1,12 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
+import { redis } from "@/lib/redis"
+import { sessionVersionKey } from "@/lib/auth"
+import jwt from "jsonwebtoken"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
+
+const JWT_SECRET = process.env.SUPABASE_JWT_SECRET ?? process.env.INTERNAL_SECRET ?? "fallback-secret"
 
 // anon client: signInWithPassword 전용 (일반 유저 — 이메일 확인 불필요)
 function getAnonClient() {
@@ -64,19 +69,31 @@ export async function POST(req: Request) {
     }
   }
 
+  // session_version 증가 — 기존 세션 무효화 (중복 로그인 방지)
+  const sv = await redis.incr(sessionVersionKey(profile.id))
+  // 30일 후 자동 만료
+  await redis.expire(sessionVersionKey(profile.id), 60 * 60 * 24 * 30)
+
+  // 30일짜리 자체 JWT 발행 (sv 클레임 포함)
+  const appToken = jwt.sign(
+    { sub: profile.id, sv, role: (profile as Record<string, unknown>).role ?? "user" },
+    JWT_SECRET,
+    { expiresIn: "30d" }
+  )
+
   const response = NextResponse.json({
-    token: accessToken,
+    token: appToken,
     username: profile.username,
-    role: (profile as any).role ?? "user",
+    role: (profile as Record<string, unknown>).role ?? "user",
   })
 
-  // HTTP-only 쿠키에도 저장
-  response.cookies.set("app_token", accessToken, {
+  // HTTP-only 쿠키에도 저장 (30일)
+  response.cookies.set("app_token", appToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 86400, // 24시간
+    maxAge: 60 * 60 * 24 * 30,
   })
 
   return response

@@ -314,7 +314,30 @@ export function TopBar() {
     setProfile(null)
     setBalance(0)
     setDropdownOpen(false)
+    window.dispatchEvent(new Event("auth:logout"))
   }
+
+  // ── 중복 로그인 감지 폴링 (60초마다) ────────────────────────────
+  useEffect(() => {
+    const check = async () => {
+      const token = getToken()
+      if (!token) return
+      try {
+        const res = await fetch("/api/auth/session-check", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.status === 401) {
+          handleLogout()
+          alert("다른 기기에서 로그인되어 자동 로그아웃되었습니다.")
+        }
+      } catch {
+        // 네트워크 오류 무시
+      }
+    }
+    const id = setInterval(check, 60_000)
+    return () => clearInterval(id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleBranchJoin = async () => {
     setBranchLoading(true)
