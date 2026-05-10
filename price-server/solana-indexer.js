@@ -18,9 +18,6 @@
  *   SUPABASE_SERVICE_ROLE_KEY - Supabase 서비스 롤 키
  */
 
-const { WebSocket } = require("ws")
-
-const SOLANA_RPC_WS   = process.env.SOLANA_RPC_WS   || "wss://api.mainnet-beta.solana.com"
 const SOLANA_RPC_HTTP = process.env.SOLANA_RPC_HTTP  || "https://api.mainnet-beta.solana.com"
 const TOKEN_MINT      = process.env.TOKEN_MINT_ADDRESS
 // VERCEL_URL은 반드시 프로덕션 도메인으로 설정 (예: https://www.coinrace.live)
@@ -32,13 +29,8 @@ const INTERNAL_SECRET = process.env.INTERNAL_SECRET  || "tasko-internal"
 const SUPABASE_URL    = process.env.SUPABASE_URL      || process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-// 감시 중인 지갑 주소 Set (userId 매핑은 webhook에서 처리)
-const walletSet = new Set()   // walletAddress
-let   solanaWs  = null
-let   wsReady   = false
-const pendingSubs = []
-let   mintSubId = null  // TOKEN_MINT logsSubscribe id
-let   requestId = 1
+// 감시 중인 지갑 주소 Set
+const walletSet = new Set()
 
 // ─── Supabase: 전체 유저 지갑 목록 조회 ──────────────────────────────
 async function fetchWallets() {
@@ -129,108 +121,83 @@ async function callDepositWebhook(signature, walletAddress, tokenAmount) {
   }
 }
 
-// ─── 로그 이벤트 처리: MINT mentions 구독으로 모든 CHIPS 전송 수신 ──
-const processedSigs = new Set()  // 중복 처리 방지
+// ─── 처리 완료 signature 중복 방지 ───────────────────────────────────
+const processedSigs = new Set()
 
-async function onMintLog(log) {
-  const signature = log.signature
-  if (!signature || processedSigs.has(signature)) return
-  processedSigs.add(signature)
-  // 1만개 이상 쌓이면 오래된 것 제거
-  if (processedSigs.size > 10000) {
-    const first = processedSigs.values().next().value
-    processedSigs.delete(first)
-  }
+// ─── 단일 지갑의 최근 트랜잭션 폴링 ─────────────────────────────────
+async function pollWallet(walletAddress) {
+  // 1) 해당 지갑의 CHIPS token account 조회 (Token2022)
+  const tokenAccRes = await solanaRpc("getTokenAccountsByOwner", [
+    walletAddress,
+    { mint: TOKEN_MINT },
+    { encoding: "jsonParsed", programId: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" },
+  ])
 
-  console.log(`[solana] CHIPS tx detected: ${signature}`)
+  // Token2022가 없으면 표준 SPL로 재시도
+  const accounts = tokenAccRes?.value?.length
+    ? tokenAccRes.value
+    : (await solanaRpc("getTokenAccountsByOwner", [
+        walletAddress,
+        { mint: TOKEN_MINT },
+        { encoding: "jsonParsed" },
+      ]))?.value ?? []
 
-  // 3초 대기 후 트랜잭션 파싱 (confirmed 보장)
-  setTimeout(async () => {
+  if (!accounts.length) return
+
+  const tokenAccountPubkey = accounts[0].pubkey
+
+  // 2) 최근 10개 트랜잭션 signature 조회
+  const sigs = await solanaRpc("getSignaturesForAddress", [
+    tokenAccountPubkey,
+    { limit: 10, commitment: "confirmed" },
+  ])
+  if (!sigs?.length) return
+
+  for (const { signature, err } of sigs) {
+    if (err || processedSigs.has(signature)) continue
+
+    // 3) 트랜잭션 파싱
     const tx = await solanaRpc("getTransaction", [
       signature,
       { encoding: "jsonParsed", commitment: "confirmed", maxSupportedTransactionVersion: 0 },
     ])
-    if (!tx) return
+    if (!tx) continue
 
-    const postBalances = tx.meta?.postTokenBalances ?? []
-    const preBalances  = tx.meta?.preTokenBalances  ?? []
+    const pre  = tx.meta?.preTokenBalances  ?? []
+    const post = tx.meta?.postTokenBalances ?? []
 
-    // CHIPS mint의 모든 수신 token account 찾기
-    for (const post of postBalances) {
-      if (post.mint !== TOKEN_MINT) continue
-      const owner = post.owner
-      if (!owner || !walletSet.has(owner)) continue  // 우리 유저가 아님
-
-      const pre = preBalances.find(b => b.owner === owner && b.mint === TOKEN_MINT)
-      const preAmt  = Number(pre?.uiTokenAmount?.uiAmount ?? 0)
-      const postAmt = Number(post.uiTokenAmount?.uiAmount ?? 0)
-      const delta   = postAmt - preAmt
-      if (delta <= 0) continue  // 송신자
-
-      console.log(`[solana] deposit: ${owner} +${delta} CHIPS (${signature})`)
-      await callDepositWebhook(signature, owner, delta)
+    const recipientPost = post.find(b => b.owner === walletAddress && b.mint === TOKEN_MINT)
+    if (!recipientPost) {
+      processedSigs.add(signature)
+      continue
     }
-  }, 3000)
-}
+    const recipientPre = pre.find(b => b.owner === walletAddress && b.mint === TOKEN_MINT)
 
-// ─── Solana WebSocket 연결 ────────────────────────────────────────────
-function sendWs(payload) {
-  if (wsReady && solanaWs?.readyState === WebSocket.OPEN) {
-    solanaWs.send(JSON.stringify(payload))
-  } else {
-    pendingSubs.push(payload)
+    const preAmt  = Number(recipientPre?.uiTokenAmount?.uiAmount  ?? 0)
+    const postAmt = Number(recipientPost.uiTokenAmount?.uiAmount  ?? 0)
+    const delta   = postAmt - preAmt
+
+    processedSigs.add(signature)
+    if (delta <= 0) continue
+
+    console.log(`[solana] deposit detected: ${walletAddress} +${delta} CHIPS (${signature})`)
+    await callDepositWebhook(signature, walletAddress, delta)
+  }
+
+  // set이 너무 커지면 오래된 것 제거
+  if (processedSigs.size > 50000) {
+    const iter = processedSigs.values()
+    for (let i = 0; i < 10000; i++) processedSigs.delete(iter.next().value)
   }
 }
 
-function subscribeMint() {
-  if (mintSubId) return
-  mintSubId = requestId++
-  sendWs({
-    jsonrpc: "2.0",
-    id:      mintSubId,
-    method:  "logsSubscribe",
-    params:  [
-      { mentions: [TOKEN_MINT] },  // CHIPS 민트 주소 언급 트랜잭션 전부 수신
-      { commitment: "confirmed" },
-    ],
-  })
-  console.log(`[solana] subscribed to mint logs: ${TOKEN_MINT}`)
-}
-
-function connectSolana() {
-  console.log(`[solana] connecting to ${SOLANA_RPC_WS}`)
-  solanaWs = new WebSocket(SOLANA_RPC_WS)
-
-  solanaWs.on("open", () => {
-    wsReady = true
-    console.log("[solana] WebSocket connected")
-    for (const payload of pendingSubs) {
-      solanaWs.send(JSON.stringify(payload))
-    }
-    pendingSubs.length = 0
-    mintSubId = null
-    subscribeMint()
-  })
-
-  solanaWs.on("message", (raw) => {
-    try {
-      const msg = JSON.parse(raw.toString())
-      if (msg.method === "logsNotification") {
-        onMintLog(msg.params.result.value)
-      }
-    } catch {}
-  })
-
-  solanaWs.on("close", () => {
-    wsReady = false
-    mintSubId = null
-    console.log("[solana] WebSocket disconnected, reconnecting in 5s...")
-    setTimeout(connectSolana, 5000)
-  })
-
-  solanaWs.on("error", (e) => {
-    console.error("[solana] WebSocket error:", e.message)
-  })
+// ─── 전체 지갑 폴링 루프 ─────────────────────────────────────────────
+async function pollAllWallets() {
+  if (walletSet.size === 0) return
+  console.log(`[solana] polling ${walletSet.size} wallets...`)
+  for (const addr of walletSet) {
+    await pollWallet(addr).catch(e => console.error(`[solana] poll error ${addr}:`, e.message))
+  }
 }
 
 // ─── 지갑 목록 동기화 (5분마다) ──────────────────────────────────────
@@ -252,13 +219,16 @@ async function startSolanaIndexer() {
     return
   }
 
-  console.log(`[solana] starting indexer for mint: ${TOKEN_MINT}`)
+  console.log(`[solana] starting indexer (polling mode) for mint: ${TOKEN_MINT}`)
 
   // 최초 지갑 목록 로드
   await syncWallets()
 
-  // Solana WebSocket 연결
-  connectSolana()
+  // 최초 폴링 (기존 미처리 트랜잭션 처리)
+  await pollAllWallets()
+
+  // 20초마다 폴링
+  setInterval(pollAllWallets, 20 * 1000)
 
   // 5분마다 신규 가입 유저 지갑 동기화
   setInterval(syncWallets, 5 * 60 * 1000)
