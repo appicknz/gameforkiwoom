@@ -10,7 +10,7 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Zap,
+
   TrendingUp,
   Dice6,
   ChevronLeft,
@@ -232,9 +232,7 @@ function saveToken(t: string) { try { localStorage.setItem(STORAGE_KEY, t) } cat
 function getToken(): string | null { try { return localStorage.getItem(STORAGE_KEY) } catch { return null } }
 function clearToken() { try { localStorage.removeItem(STORAGE_KEY) } catch {} }
 
-const features = [
-  { icon: Zap, title: "중요", desc: "우리는 환전 또는 출금을 지원하지 않습니다." },
-]
+
 
 export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -403,23 +401,7 @@ export function Sidebar() {
             <TradeStatsMini />
           </div>
 
-          {/* ④ 오늘의 비트 */}
-          <div className="space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">오늘의 비트</p>
-            {features.map((f) => (
-              <div key={f.title} className="rounded-xl border border-border p-3 flex items-start gap-3">
-                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <f.icon className="w-3.5 h-3.5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-foreground">{f.title}</p>
-                  <p className="text-[10px] text-muted-foreground leading-relaxed mt-0.5">{f.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* ⑤ 토큰 입금 */}
+          {/* ④ 토큰 입금 */}
           <div className="border-t border-border pt-3">
             <Link
               href="/deposit"
