@@ -322,7 +322,7 @@ export function TopBar() {
           alert("다른 기기에서 로그인되어 자동 로그아웃되었습니다.")
         }
       } catch {
-        // 네트워크 오류 무시
+        // 네트��크 오류 무시
       }
     }
     const id = setInterval(check, 60_000)
@@ -387,7 +387,7 @@ export function TopBar() {
             </div>
           ) : (
             <span className="text-[10px] text-muted-foreground/50 select-none">
-              환전 또는 출금 기���은 제공되지 않습니다.
+              환전 또는 출금 기능은 제공되지 않습니다.
             </span>
           )}
         </div>

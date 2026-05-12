@@ -1,7 +1,6 @@
 "use client"
 
 import {
-  ExternalLink,
   LogOut,
   LogIn,
   UserPlus,
@@ -494,19 +493,7 @@ export function Sidebar() {
             <SidebarOrders />
           </div>
 
-          {/* ⑥ 외부 링크 */}
-          <div className="shrink-0">
-            <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">{t("nav.externalLinks")}</p>
-            <Link
-              href="https://www.binance.com/en/trade/BTC_USDT?type=spot"
-              target="_blank" rel="noopener noreferrer"
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-all duration-200"
-            >
-              <ExternalLink className="w-4 h-4 shrink-0" />
-              <span className="text-sm">바이낸스</span>
-              <ExternalLink className="w-3 h-3 ml-auto opacity-40" />
-            </Link>
-          </div>
+
         </div>
       </aside>
 
