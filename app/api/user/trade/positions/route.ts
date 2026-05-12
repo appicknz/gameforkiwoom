@@ -274,17 +274,19 @@ export async function DELETE(req: Request) {
     .from("profiles").select("branch_id").eq("id", userId).single()
 
   // bet_history INSERT — 응답 전에 await하여 통계 집계에 즉시 반영
-  await adminSupabase.from("bet_history").insert({
-    user_id:       userId,
-    branch_id:     profile?.branch_id ?? null,
-    round_id:      null,
-    bet_direction: pos.direction,
-    bet_digit:     `trade:${pos.symbol}:${pos.direction}:${pos.leverage}x:${pos.entry_price}:${exitPrice}`,
-    bet_parity:    null,
-    bet_amount:    Math.round(Number(pos.margin)),
-    payout,
-    result:        pnl >= 0 ? "win" : "lose",
-  }).catch(() => {})
+  try {
+    await adminSupabase.from("bet_history").insert({
+      user_id:       userId,
+      branch_id:     profile?.branch_id ?? null,
+      round_id:      null,
+      bet_direction: pos.direction,
+      bet_digit:     `trade:${pos.symbol}:${pos.direction}:${pos.leverage}x:${pos.entry_price}:${exitPrice}`,
+      bet_parity:    null,
+      bet_amount:    Math.round(Number(pos.margin)),
+      payout,
+      result:        pnl >= 0 ? "win" : "lose",
+    })
+  } catch { /* 기록 실패 무시 */ }
 
   // balance_transactions + DB 잔고는 fire-and-forget
   ;(async () => {
@@ -300,7 +302,7 @@ export async function DELETE(req: Request) {
         balance_before: currentBalance,
         balance_after:  newBalance,
         note:           `모의매매 청산 ${pos.symbol} ${pos.direction} ${pos.leverage}x PnL:${pnl >= 0 ? "+" : ""}${pnl}`,
-      }).catch(() => {})
+      })
     } catch { /* 기록 실패 무시 */ }
   })()
 
