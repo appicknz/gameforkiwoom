@@ -5,6 +5,7 @@ import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, Shopping
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
+import DepositDialog from "@/components/deposit-dialog"
 
 interface Category { id: string; name: string; icon: string }
 interface Item {
@@ -56,6 +57,7 @@ export default function MarketPage() {
   // 글쓰기 권한 신청 상태: null=미조회, 'none'=신청없음, 'pending'=대기중, 'approved'=승인됨, 'rejected'=거절됨
   const [writePermStatus, setWritePermStatus] = useState<string | null>(null)
   const [showRequestModal, setShowRequestModal] = useState(false)
+  const [showDeposit, setShowDeposit]         = useState(false)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -109,7 +111,6 @@ export default function MarketPage() {
     if (query)           params.set("q", query)
     const res  = await fetch(`/api/market/items?${params}`).catch(() => null)
     const data = res ? await res.json() : {}
-    console.log("[v0] market items response:", data)
     setItems(data.items ?? [])
     setLoading(false)
   }, [])
@@ -121,6 +122,8 @@ export default function MarketPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+
+      <DepositDialog open={showDeposit} onClose={() => setShowDeposit(false)} />
 
       {/* 글쓰기 권한 신청 모달 */}
       {showRequestModal && (
@@ -246,15 +249,15 @@ export default function MarketPage() {
               )
             })()}
 
-            {/* 토큰 입금 버튼 — 사이드바와 동일하게 /deposit 이동 */}
-            <a
-              href="/deposit"
+            {/* 토큰 입금 버튼 — 다이얼로그로 열기 */}
+            <button
+              onClick={() => setShowDeposit(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors shrink-0"
               title="토큰 입금"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">입금</span>
-            </a>
+            </button>
 
             {/* + 글쓰기 버튼 — 모두에게 표시, 권한 없으면 신청 모달 */}
             <button
