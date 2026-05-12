@@ -360,7 +360,7 @@ export function Sidebar() {
 
   const handleLogin = async () => {
     setLoginMsg(null)
-    if (!loginId.trim()) return setLoginMsg({ text: "아이디를 입력해주세요.", ok: false })
+    if (!loginId.trim()) return setLoginMsg({ text: "아이디를 입력해��세요.", ok: false })
     if (!loginPw)        return setLoginMsg({ text: "비밀번호를 입력해주세요.", ok: false })
     setLoginLoading(true)
     try {
@@ -403,10 +403,7 @@ export function Sidebar() {
   const handleLogout = () => {
     clearToken()
     try { localStorage.removeItem("app_profile") } catch {}
-    setIsLoggedIn(false); setUsername(null)
-    router.push("/")
-    window.dispatchEvent(new Event("auth:logout"))
-    window.dispatchEvent(new StorageEvent("storage"))
+    window.location.href = "/"
   }
 
   return (

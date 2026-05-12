@@ -302,11 +302,7 @@ export function TopBar() {
   // ── 로그���웃 ─────────────────────────────────────────────────────
   const handleLogout = () => {
     clearToken()
-    setIsLoggedIn(false)
-    setProfile(null)
-    setBalance(0)
-    setDropdownOpen(false)
-    window.dispatchEvent(new Event("auth:logout"))
+    window.location.reload()
   }
 
   // ── 중복 로그인 감지 폴링 (60초마다) ────────────────────────────
