@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Copy, Check, Download } from "lucide-react"
+import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Check, Download, PenLine, AlertCircle } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
@@ -56,6 +56,9 @@ export default function MarketPage() {
   // 토큰 입금 주소 복사
   const [walletAddr, setWalletAddr]   = useState<string | null>(null)
   const [copied, setCopied]           = useState(false)
+  // 글쓰기 권한 신청 상태: null=미조회, 'none'=신청없음, 'pending'=대기중, 'approved'=승인됨, 'rejected'=거절됨
+  const [writePermStatus, setWritePermStatus] = useState<string | null>(null)
+  const [showRequestModal, setShowRequestModal] = useState(false)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -72,6 +75,16 @@ export default function MarketPage() {
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.walletAddress) setWalletAddr(d.walletAddress) })
       .catch(() => {})
+  }, [])
+
+  // 글쓰기 권한 신청 상태 로드
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch("/api/market/write-permission", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setWritePermStatus(d?.request?.status ?? "none"))
+      .catch(() => setWritePermStatus("none"))
   }, [])
 
   const handleBuy = useCallback(async () => {
@@ -121,6 +134,15 @@ export default function MarketPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+
+      {/* 글쓰기 권한 신청 모달 */}
+      {showRequestModal && (
+        <WritePermissionModal
+          currentStatus={writePermStatus}
+          onClose={() => setShowRequestModal(false)}
+          onSubmitted={() => { setWritePermStatus("pending"); setShowRequestModal(false) }}
+        />
+      )}
 
       {/* 상품 상세 다이얼로그 */}
       {selectedItem && (
@@ -260,21 +282,31 @@ export default function MarketPage() {
               <span className="hidden sm:inline">{copied ? "복사됨" : "입금"}</span>
             </button>
 
-            {/* 글쓰기 권한 역할에게만 + 버튼 표시 */}
-            {role && WRITE_ROLES.includes(role) && (
-              <button
-                onClick={() => { setEditItem(null); setShowAdmin(v => !v) }}
-                className={cn(
-                  "flex items-center justify-center w-9 h-9 rounded-lg border text-sm font-bold transition-colors shrink-0",
-                  showAdmin
-                    ? "bg-primary/15 border-primary/40 text-primary"
-                    : "bg-secondary border-border text-foreground hover:border-primary/40 hover:text-primary"
-                )}
-                title="상품 등록"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
+            {/* + 글쓰기 버튼 — 모두에게 표시, 권한 없으면 신청 모달 */}
+            <button
+              onClick={() => {
+                if (role && WRITE_ROLES.includes(role)) {
+                  setEditItem(null); setShowAdmin(v => !v)
+                } else {
+                  setShowRequestModal(true)
+                }
+              }}
+              className={cn(
+                "flex items-center justify-center w-9 h-9 rounded-lg border transition-colors shrink-0",
+                showAdmin && role && WRITE_ROLES.includes(role)
+                  ? "bg-primary/15 border-primary/40 text-primary"
+                  : writePermStatus === "pending"
+                  ? "bg-amber-500/10 border-amber-500/40 text-amber-500"
+                  : "bg-secondary border-border text-foreground hover:border-primary/40 hover:text-primary"
+              )}
+              title={
+                role && WRITE_ROLES.includes(role) ? "상품 등록" :
+                writePermStatus === "pending" ? "신청 심사 중" :
+                "글쓰기 권한 신청"
+              }
+            >
+              <PenLine className="w-4 h-4" />
+            </button>
           </div>
 
           {/* 카테고리 탭 */}
@@ -349,7 +381,7 @@ export default function MarketPage() {
                     link_url:     null,
                     price_krw:    item.price_krw,
                     category_id:  item.category_id,
-                    publisher_id: "", // 패널 내에서 publishers 로드 후 표시
+                    publisher_id: "", // ���널 내에서 publishers 로드 후 표시
                     image_url:    item.image_url,
                     is_active:    true,
                   })
@@ -359,6 +391,110 @@ export default function MarketPage() {
               />
             ))}
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// 글쓰기 권한 신청 모달
+function WritePermissionModal({
+  currentStatus,
+  onClose,
+  onSubmitted,
+}: {
+  currentStatus: string | null
+  onClose: () => void
+  onSubmitted: () => void
+}) {
+  const [reason, setReason]     = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError]       = useState("")
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setSubmitting(true)
+    try {
+      const token = getToken()
+      const res = await fetch("/api/market/write-permission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ reason: reason.trim() || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? "신청 실패"); return }
+      onSubmitted()
+    } catch {
+      setError("오류가 발생했습니다.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.7)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl border border-border bg-background shadow-2xl p-6 space-y-4"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <PenLine className="w-5 h-5 text-primary shrink-0" />
+            <h3 className="text-sm font-bold text-foreground">글쓰기 권한 신청</h3>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {currentStatus === "pending" ? (
+          <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-amber-500">심사 중</p>
+              <p className="text-xs text-muted-foreground">마스터가 신청을 검토하고 있습니다. 승인되면 상품을 등록할 수 있습니다.</p>
+            </div>
+          </div>
+        ) : currentStatus === "rejected" ? (
+          <div className="flex items-start gap-3 rounded-xl bg-destructive/10 border border-destructive/20 p-4">
+            <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-destructive">이전 신청 거절됨</p>
+              <p className="text-xs text-muted-foreground">다시 신청할 수 있습니다.</p>
+            </div>
+          </div>
+        ) : null}
+
+        {currentStatus !== "pending" && (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              마켓에 상품을 등록하려면 글쓰기 권한이 필요합니다. 마스터의 승인 후 등록할 수 있습니다.
+            </p>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">신청 사유 <span className="opacity-50">(선택)</span></label>
+              <textarea
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                placeholder="간단한 소개나 신청 사유를 입력하세요"
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              />
+            </div>
+            {error && <p className="text-xs text-destructive">{error}</p>}
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full py-2 rounded-lg bg-primary text-black text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {submitting ? "신청 중..." : "권한 신청하기"}
+            </button>
+          </form>
         )}
       </div>
     </div>

@@ -179,7 +179,7 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "write_requests">("users")
   // 수수료 설정 (마스터 전용)
   const [commRates, setCommRates]         = useState<{ role: string; rate: number }[]>([])
   const [commEditing, setCommEditing]     = useState<Record<string, string>>({}) // role → 입력 중인 % 문자열
@@ -1512,6 +1512,7 @@ export default function PanelPage() {
             <button onClick={() => setActiveTab("accounts")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "accounts" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Shield className="w-4 h-4" /> 계정생성</button>
             <button onClick={() => { setActiveTab("cards"); fetchCardImages() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><ImageIcon className="w-4 h-4" /> 카드관리</button>
             <button onClick={() => { setActiveTab("commission"); loadCommRates() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "commission" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Percent className="w-4 h-4" /> 수수료 설정</button>
+            <button onClick={() => setActiveTab("write_requests")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "write_requests" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><UserCheck className="w-4 h-4" /> 글쓰기 신청</button>
           </>)}
 
           {/* ── 대총판 전용 탭 ── */}
@@ -3163,7 +3164,7 @@ export default function PanelPage() {
                               onClick={() => { setBranchChargeUserId(`-${member.id}`); setBranchChargeAmt(""); setBranchChargeMsg(null) }}>
                               회수
                             </Button>
-                            {/* 환전 버튼 — 환전 요청 탭으로 이동 */}
+                            {/* 환전 버튼 — 환전 요청 탭으�� 이동 */}
                             <Button size="sm" variant="outline" className="h-7 px-2.5 text-[11px]"
                               onClick={() => { setExTargetId(member.username); setBranchTab("members") }}>
                               환전
@@ -3857,7 +3858,7 @@ export default function PanelPage() {
                   <h2 className="text-sm font-semibold text-foreground mb-1">카드 이미지 관리</h2>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     업로드한 이미지는 순번 순서대로 카드 배경으로 사용됩니다.<br />
-                    각 라운드에서 순번 기반으로 하나가 선택되어 카��에 오버레이됩니다.<br />
+                    각 라운드에서 순번 기반으로 하나가 ��택되어 카��에 오버레이됩니다.<br />
                     JPG, PNG, WebP 파일을 지원합니다.
                   </p>
                 </div>
@@ -4132,7 +4133,167 @@ export default function PanelPage() {
           )
         })()}
 
+        {/* ── 글쓰기 신청 탭 (master 전용) ── */}
+        {activeTab === "write_requests" && myRole === "master" && (
+          <WriteRequestsPanel token={adminPw} />
+        )}
+
       </main>
+    </div>
+  )
+}
+
+// ── 글쓰기 권한 신청 관리 패널 ──────────────────────────────────────
+interface WriteRequest {
+  id: string
+  status: string
+  reason: string | null
+  created_at: string
+  reviewed_at: string | null
+  profiles: { id: string; username: string; role: string } | null
+}
+
+function WriteRequestsPanel({ token }: { token: string }) {
+  const [requests, setRequests]   = useState<WriteRequest[]>([])
+  const [filter, setFilter]       = useState<"pending" | "approved" | "rejected" | "all">("pending")
+  const [loading, setLoading]     = useState(false)
+  const [processing, setProcessing] = useState<string | null>(null)
+  const [msg, setMsg]             = useState<{ id: string; ok: boolean; text: string } | null>(null)
+
+  const load = useCallback(async (f: typeof filter) => {
+    setLoading(true)
+    try {
+      const appToken = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
+      const res = await fetch(`/api/market/write-permission/review?status=${f}`, {
+        headers: appToken ? { Authorization: `Bearer ${appToken}` } : {},
+      })
+      const data = await res.json()
+      setRequests(data.requests ?? [])
+    } catch {}
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load(filter) }, [filter, load])
+
+  const handleAction = async (requestId: string, action: "approve" | "reject") => {
+    setProcessing(requestId)
+    setMsg(null)
+    try {
+      const appToken = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
+      const res = await fetch("/api/market/write-permission/review", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(appToken ? { Authorization: `Bearer ${appToken}` } : {}) },
+        body: JSON.stringify({ requestId, action }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setMsg({ id: requestId, ok: false, text: data.error ?? "처리 실패" }); return }
+      setMsg({ id: requestId, ok: true, text: action === "approve" ? "승인 완료" : "거절 완료" })
+      // 목록 갱신
+      setRequests(prev => prev.filter(r => r.id !== requestId))
+    } catch {
+      setMsg({ id: requestId, ok: false, text: "오류 발생" })
+    } finally {
+      setProcessing(null)
+    }
+  }
+
+  const FILTER_OPTS: { key: typeof filter; label: string }[] = [
+    { key: "pending",  label: "대기중" },
+    { key: "approved", label: "승인됨" },
+    { key: "rejected", label: "거절됨" },
+    { key: "all",      label: "전체" },
+  ]
+
+  const ROLE_LABEL: Record<string, string> = { user: "일반", member: "멤버", admin: "지점", branch_admin: "총판", super_admin: "대총판", master: "마스터" }
+
+  return (
+    <div className="p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-bold text-foreground">글쓰기 권한 신청 관리</h2>
+        <Button variant="ghost" size="sm" onClick={() => load(filter)} className="h-8 w-8 p-0">
+          <RefreshCw className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+
+      {/* 필터 탭 */}
+      <div className="flex items-center gap-1 border-b border-border">
+        {FILTER_OPTS.map(o => (
+          <button
+            key={o.key}
+            onClick={() => setFilter(o.key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${filter === o.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">불러오는 중...</div>
+      ) : requests.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+          <UserCheck className="w-8 h-8 opacity-30" />
+          <p className="text-sm">신청이 없습니다.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {requests.map(r => (
+            <div key={r.id} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-card">
+              {/* 유저 정보 */}
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground">{r.profiles?.username ?? "알수없음"}</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-secondary text-muted-foreground">
+                    {ROLE_LABEL[r.profiles?.role ?? ""] ?? r.profiles?.role ?? "-"}
+                  </span>
+                  {r.status === "pending" && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-500">대기중</span>
+                  )}
+                  {r.status === "approved" && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/15 text-primary">승인됨</span>
+                  )}
+                  {r.status === "rejected" && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-destructive/15 text-destructive">거절됨</span>
+                  )}
+                </div>
+                {r.reason && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">{r.reason}</p>
+                )}
+                <p className="text-[10px] text-muted-foreground/60">
+                  신청일: {new Date(r.created_at).toLocaleDateString("ko-KR")}
+                  {r.reviewed_at && ` · 처리일: ${new Date(r.reviewed_at).toLocaleDateString("ko-KR")}`}
+                </p>
+                {msg?.id === r.id && (
+                  <p className={`text-xs font-medium ${msg.ok ? "text-primary" : "text-destructive"}`}>{msg.text}</p>
+                )}
+              </div>
+
+              {/* 승인/거절 버튼 (pending 상태에만) */}
+              {r.status === "pending" && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    onClick={() => handleAction(r.id, "approve")}
+                    disabled={processing === r.id}
+                    className="h-8 px-3 text-xs bg-primary text-black hover:bg-primary/90"
+                  >
+                    {processing === r.id ? "처리중..." : "승인"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAction(r.id, "reject")}
+                    disabled={processing === r.id}
+                    className="h-8 px-3 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                  >
+                    거절
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
