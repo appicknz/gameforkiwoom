@@ -1,10 +1,16 @@
 {
   "nav": {
+    "games": "게임",
     "market": "마켓",
+    "marketSub": "아이템 거래소",
     "trade": "모의 매매",
+    "tradeSub": "비트코인 모의 투자",
     "baccarat": "바카라",
+    "baccaratSub": "비트코인 30초 바카라",
     "race": "차트차트",
+    "raceSub": "비트코인 3분 레이스",
     "deposit": "토큰 입금",
+    "externalLinks": "외부링크",
     "settings": "설정",
     "help": "도움말",
     "logout": "로그아웃",
@@ -115,6 +121,7 @@
     "back": "뒤로",
     "home": "홈으로 이동",
     "noData": "데이터가 없습니다.",
-    "currency": "₩"
+    "currency": "₩",
+    "comingSoon": "준비중"
   }
 }

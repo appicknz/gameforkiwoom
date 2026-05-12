@@ -1,10 +1,16 @@
 {
   "nav": {
+    "games": "Games",
     "market": "Market",
+    "marketSub": "Item Exchange",
     "trade": "Paper Trade",
+    "tradeSub": "Bitcoin Paper Trading",
     "baccarat": "Baccarat",
+    "baccaratSub": "Bitcoin 30s Baccarat",
     "race": "Chart Race",
+    "raceSub": "Bitcoin 3min Race",
     "deposit": "Token Deposit",
+    "externalLinks": "External Links",
     "settings": "Settings",
     "help": "Help",
     "logout": "Logout",
@@ -115,6 +121,7 @@
     "back": "Back",
     "home": "Go to Home",
     "noData": "No data available.",
-    "currency": "₩"
+    "currency": "₩",
+    "comingSoon": "Coming Soon"
   }
 }

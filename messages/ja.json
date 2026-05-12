@@ -1,10 +1,16 @@
 {
   "nav": {
+    "games": "ゲーム",
     "market": "マーケット",
+    "marketSub": "アイテム取引所",
     "trade": "模擬取引",
+    "tradeSub": "ビットコイン模擬投資",
     "baccarat": "バカラ",
+    "baccaratSub": "ビットコイン30秒バカラ",
     "race": "チャートレース",
+    "raceSub": "ビットコイン3分レース",
     "deposit": "トークン入金",
+    "externalLinks": "外部リンク",
     "settings": "設定",
     "help": "ヘルプ",
     "logout": "ログアウト",
@@ -115,6 +121,7 @@
     "back": "戻る",
     "home": "ホームへ",
     "noData": "データがありません。",
-    "currency": "₩"
+    "currency": "₩",
+    "comingSoon": "準備中"
   }
 }

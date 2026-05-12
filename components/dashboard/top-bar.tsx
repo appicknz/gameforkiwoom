@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState, useEffect, useRef } from "react"
 import { useGatewayBalance } from "@/hooks/use-gateway"
 import LangSwitcher from "@/components/lang-switcher"
+import { useTranslation } from "@/lib/i18n"
 import { useRouter } from "next/navigation"
 
 const STORAGE_KEY = "app_token"
@@ -34,6 +35,7 @@ function clearToken() {
 
 export function TopBar() {
   const router = useRouter()
+  const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [balance, setBalance] = useState(0)
@@ -151,7 +153,7 @@ export function TopBar() {
           setIsLoggedIn(false)
           setProfile(null)
           setBalance(0)
-          setKickMsg("세션이 만료되었습니다. 다시 로그인해주세요.")
+          setKickMsg(t("auth.sessionExpired"))
         }
       } catch {}
     }
@@ -183,7 +185,7 @@ export function TopBar() {
     window.dispatchEvent(new CustomEvent("balance:update", { detail: bal }))
   })
 
-  // ── 외부 클릭 닫기 ──────────────────────────────────────────────
+  // ── 외부 ��릭 닫기 ──────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -197,8 +199,8 @@ export function TopBar() {
   // ── 로그인: 서버 API가 토큰 반환 ─────────────────────────────────
   const handleLogin = async () => {
     setLoginMsg(null)
-    if (!loginUsername.trim()) return setLoginMsg({ text: "아이디를 입력해주세요.", ok: false })
-    if (!loginPw) return setLoginMsg({ text: "비밀번호를 입력해주세요.", ok: false })
+    if (!loginUsername.trim()) return setLoginMsg({ text: t("auth.errorUsernameRequired"), ok: false })
+    if (!loginPw) return setLoginMsg({ text: t("auth.errorPasswordRequired"), ok: false })
 
     setLoginLoading(true)
     try {
@@ -210,7 +212,7 @@ export function TopBar() {
       const data = await res.json()
       setLoginLoading(false)
 
-      if (!res.ok) return setLoginMsg({ text: data.error ?? "로그인 실패", ok: false })
+      if (!res.ok) return setLoginMsg({ text: data.error ?? t("auth.errorLoginFailed"), ok: false })
 
       // 서버가 발급한 토큰 저장 (localStorage["app_token"] 전용)
       saveToken(data.token)
@@ -231,18 +233,18 @@ export function TopBar() {
         .then(r => r.json()).then(d => setBalance(d.balance ?? 0))
     } catch {
       setLoginLoading(false)
-      setLoginMsg({ text: "네트워크 오류가 발생했습니다.", ok: false })
+      setLoginMsg({ text: t("auth.errorNetwork"), ok: false })
     }
   }
 
   // ── 가입: 서버 API가 토큰 반환 ───────────────────────────────────
   const handleRegister = async () => {
     setRegMsg(null)
-    if (!regUsername.trim()) return setRegMsg({ text: "아이디를 입력해주세요.", ok: false })
-    if (regUsername.length < 2) return setRegMsg({ text: "아이디는 2자 이상이어야 합니다.", ok: false })
-    if (!regPw) return setRegMsg({ text: "비밀번호를 입력해주세요.", ok: false })
-    if (regPw.length < 4) return setRegMsg({ text: "비밀번호는 4자 이��이어야 합니다.", ok: false })
-    if (regPw !== regConfirmPw) return setRegMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false })
+    if (!regUsername.trim()) return setRegMsg({ text: t("auth.errorUsernameRequired"), ok: false })
+    if (regUsername.length < 2) return setRegMsg({ text: t("auth.errorUsernameTooShort"), ok: false })
+    if (!regPw) return setRegMsg({ text: t("auth.errorPasswordRequired"), ok: false })
+    if (regPw.length < 4) return setRegMsg({ text: t("auth.errorPasswordTooShort"), ok: false })
+    if (regPw !== regConfirmPw) return setRegMsg({ text: t("auth.errorPasswordMismatch"), ok: false })
 
     setRegLoading(true)
     try {
@@ -254,10 +256,10 @@ export function TopBar() {
       const data = await res.json()
       setRegLoading(false)
 
-      if (!res.ok) return setRegMsg({ text: data.error ?? "가입 실패", ok: false })
+      if (!res.ok) return setRegMsg({ text: data.error ?? t("auth.errorRegisterFailed"), ok: false })
 
       if (data.needsLogin) {
-        setRegMsg({ text: "가입 완료! 로그인해주세요.", ok: true })
+        setRegMsg({ text: t("auth.registerSuccess"), ok: true })
         setAuthTab("login")
         return
       }
@@ -268,16 +270,16 @@ export function TopBar() {
       return
     } catch {
       setRegLoading(false)
-      setRegMsg({ text: "네트워크 오류가 발생했습니다.", ok: false })
+      setRegMsg({ text: t("auth.errorNetwork"), ok: false })
     }
   }
 
   // ── 비밀번호 변경 ─────────────────────────────────────────────────
   const handlePwChange = async () => {
     setPwMsg(null)
-    if (!newPw) return setPwMsg({ text: "새 비밀번호를 입력해주세요.", ok: false })
-    if (newPw.length < 4) return setPwMsg({ text: "비밀번호는 4자 이상이어야 합니다.", ok: false })
-    if (newPw !== confirmPw) return setPwMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false })
+    if (!newPw) return setPwMsg({ text: t("auth.errorPasswordRequired"), ok: false })
+    if (newPw.length < 4) return setPwMsg({ text: t("auth.errorPasswordTooShort"), ok: false })
+    if (newPw !== confirmPw) return setPwMsg({ text: t("auth.errorPasswordMismatch"), ok: false })
 
     setPwLoading(true)
     const token = getToken()
@@ -293,10 +295,10 @@ export function TopBar() {
     setPwLoading(false)
 
     if (res.ok) {
-      setPwMsg({ text: "비밀번호가 변경되었습니다.", ok: true })
+      setPwMsg({ text: t("auth.changePasswordSuccess"), ok: true })
       setNewPw(""); setConfirmPw(""); setShowPwForm(false)
     } else {
-      setPwMsg({ text: d.error ?? "오류가 발생했습니다.", ok: false })
+      setPwMsg({ text: d.error ?? t("common.error"), ok: false })
     }
   }
 
@@ -413,13 +415,13 @@ export function TopBar() {
                 onClick={() => { setAuthTab("login"); setDropdownOpen(true) }}
                 className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
-                로그인
+                {t("auth.login")}
               </button>
               <button
                 onClick={() => { setAuthTab("register"); setDropdownOpen(true) }}
                 className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-primary text-black hover:bg-primary/90 transition-colors"
               >
-                회원가입
+                {t("auth.register")}
               </button>
             </div>
           )}
@@ -431,7 +433,7 @@ export function TopBar() {
               {isLoggedIn ? (
                 <>
                   <div className="px-4 py-3 border-b border-border">
-                    <p className="text-xs text-muted-foreground mb-1">아이디</p>
+                    <p className="text-xs text-muted-foreground mb-1">{t("auth.username")}</p>
                     <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
                       <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <span className="text-sm font-medium text-foreground">{profile?.username ?? "-"}</span>
@@ -446,7 +448,7 @@ export function TopBar() {
                     >
                       <div className="flex items-center gap-2 text-sm text-foreground">
                         <Lock className="w-3.5 h-3.5 text-muted-foreground" />
-                        비밀번호 변경
+                        {t("auth.changePassword")}
                       </div>
                       <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showPwForm ? "rotate-180" : ""}`} />
                     </button>
@@ -457,7 +459,7 @@ export function TopBar() {
                           <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                           <input
                             type={showNew ? "text" : "password"}
-                            placeholder="새 비밀번호"
+                            placeholder={t("auth.newPasswordPlaceholder")}
                             value={newPw}
                             onChange={e => setNewPw(e.target.value)}
                             className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
@@ -470,7 +472,7 @@ export function TopBar() {
                           <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                           <input
                             type={showConfirm ? "text" : "password"}
-                            placeholder="비밀번호 확인"
+                            placeholder={t("auth.confirmPasswordPlaceholder")}
                             value={confirmPw}
                             onChange={e => setConfirmPw(e.target.value)}
                             onKeyDown={e => e.key === "Enter" && handlePwChange()}
@@ -482,7 +484,7 @@ export function TopBar() {
                         </div>
                         {pwMsg && <p className={`text-xs ${pwMsg.ok ? "text-primary" : "text-destructive"}`}>{pwMsg.text}</p>}
                         <Button className="w-full h-9 text-sm" onClick={handlePwChange} disabled={pwLoading}>
-                          {pwLoading ? "변경 중..." : "변경하기"}
+                          {pwLoading ? t("auth.changePasswordLoading") : t("auth.changePasswordSubmit")}
                         </Button>
                       </div>
                     )}
@@ -571,13 +573,13 @@ export function TopBar() {
                       onClick={() => { setAuthTab("login"); setLoginMsg(null) }}
                       className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-colors ${authTab === "login" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
                     >
-                      <LogIn className="w-3.5 h-3.5" /> 로그인
+                      <LogIn className="w-3.5 h-3.5" /> {t("auth.login")}
                     </button>
                     <button
                       onClick={() => { setAuthTab("register"); setRegMsg(null) }}
                       className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-colors ${authTab === "register" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
                     >
-                      <UserPlus className="w-3.5 h-3.5" /> 회원가입
+                      <UserPlus className="w-3.5 h-3.5" /> {t("auth.register")}
                     </button>
                   </div>
 
@@ -586,14 +588,14 @@ export function TopBar() {
                       <>
                         <div className="relative">
                           <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                          <input type="text" placeholder="아이디" value={loginUsername}
+                          <input type="text" placeholder={t("auth.usernamePlaceholder")} value={loginUsername}
                             onChange={e => setLoginUsername(e.target.value)}
                             className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
                           />
                         </div>
                         <div className="relative">
                           <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                          <input type={showLoginPw ? "text" : "password"} placeholder="비밀번호"
+                          <input type={showLoginPw ? "text" : "password"} placeholder={t("auth.passwordPlaceholder")}
                             value={loginPw} onChange={e => setLoginPw(e.target.value)}
                             onKeyDown={e => e.key === "Enter" && handleLogin()}
                             className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
@@ -604,7 +606,7 @@ export function TopBar() {
                         </div>
                         {loginMsg && <p className={`text-xs ${loginMsg.ok ? "text-primary" : "text-destructive"}`}>{loginMsg.text}</p>}
                         <Button className="w-full h-9 text-sm" onClick={handleLogin} disabled={loginLoading}>
-                          {loginLoading ? "로그인 중..." : "로그인"}
+                          {loginLoading ? t("auth.loginLoading") : t("auth.login")}
                         </Button>
                       </>
                     )}
@@ -613,14 +615,14 @@ export function TopBar() {
                       <>
                         <div className="relative">
                           <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                          <input type="text" placeholder="아이디" value={regUsername}
+                          <input type="text" placeholder={t("auth.usernamePlaceholder")} value={regUsername}
                             onChange={e => setRegUsername(e.target.value)}
                             className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
                           />
                         </div>
                         <div className="relative">
                           <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                          <input type={showRegPw ? "text" : "password"} placeholder="비밀번호"
+                          <input type={showRegPw ? "text" : "password"} placeholder={t("auth.passwordPlaceholder")}
                             value={regPw} onChange={e => setRegPw(e.target.value)}
                             className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
                           />
@@ -630,7 +632,7 @@ export function TopBar() {
                         </div>
                         <div className="relative">
                           <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                          <input type={showRegConfirm ? "text" : "password"} placeholder="비밀번호 확인"
+                          <input type={showRegConfirm ? "text" : "password"} placeholder={t("auth.confirmPasswordPlaceholder")}
                             value={regConfirmPw} onChange={e => setRegConfirmPw(e.target.value)}
                             onKeyDown={e => e.key === "Enter" && handleRegister()}
                             className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
@@ -641,7 +643,7 @@ export function TopBar() {
                         </div>
                         {regMsg && <p className={`text-xs ${regMsg.ok ? "text-primary" : "text-destructive"}`}>{regMsg.text}</p>}
                         <Button className="w-full h-9 text-sm" onClick={handleRegister} disabled={regLoading}>
-                          {regLoading ? "가입 중..." : "회원가입"}
+                          {regLoading ? t("auth.registerLoading") : t("auth.register")}
                         </Button>
                       </>
                     )}

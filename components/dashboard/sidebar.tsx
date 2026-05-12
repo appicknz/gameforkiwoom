@@ -319,6 +319,7 @@ function clearToken() { try { localStorage.removeItem(STORAGE_KEY) } catch {} }
 
 
 export function Sidebar() {
+  const { t } = useTranslation()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
@@ -364,44 +365,44 @@ export function Sidebar() {
 
   const handleLogin = async () => {
     setLoginMsg(null)
-    if (!loginId.trim()) return setLoginMsg({ text: "아이디를 입력해���세요.", ok: false })
-    if (!loginPw)        return setLoginMsg({ text: "비밀번호를 입력해주세요.", ok: false })
+    if (!loginId.trim()) return setLoginMsg({ text: t("auth.errorUsernameRequired"), ok: false })
+    if (!loginPw)        return setLoginMsg({ text: t("auth.errorPasswordRequired"), ok: false })
     setLoginLoading(true)
     try {
       const res  = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: loginId, password: loginPw }) })
       const data = await res.json()
       setLoginLoading(false)
-      if (!res.ok) return setLoginMsg({ text: data.error ?? "로그인 실패", ok: false })
+      if (!res.ok) return setLoginMsg({ text: data.error ?? t("auth.errorLoginFailed"), ok: false })
       saveToken(data.token)
       try { localStorage.setItem("app_profile", JSON.stringify({ username: data.username, role: data.role })) } catch {}
       setIsLoggedIn(true); setUsername(data.username)
       setLoginId(""); setLoginPw("")
       window.dispatchEvent(new Event("auth:login"))
       window.dispatchEvent(new StorageEvent("storage"))
-    } catch { setLoginLoading(false); setLoginMsg({ text: "네트워크 오류", ok: false }) }
+    } catch { setLoginLoading(false); setLoginMsg({ text: t("auth.errorNetwork"), ok: false }) }
   }
 
   const handleRegister = async () => {
     setRegMsg(null)
-    if (!regId.trim())          return setRegMsg({ text: "아이디를 입력해주세요.", ok: false })
-    if (regId.length < 2)       return setRegMsg({ text: "아이디는 2자 이상이어야 합니다.", ok: false })
-    if (!regPw)                 return setRegMsg({ text: "비밀번호를 입력해주세요.", ok: false })
-    if (regPw.length < 4)       return setRegMsg({ text: "비밀번호는 4자 이상이어야 합니다.", ok: false })
-    if (regPw !== regConfirm)   return setRegMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false })
+    if (!regId.trim())          return setRegMsg({ text: t("auth.errorUsernameRequired"), ok: false })
+    if (regId.length < 2)       return setRegMsg({ text: t("auth.errorUsernameTooShort"), ok: false })
+    if (!regPw)                 return setRegMsg({ text: t("auth.errorPasswordRequired"), ok: false })
+    if (regPw.length < 4)       return setRegMsg({ text: t("auth.errorPasswordTooShort"), ok: false })
+    if (regPw !== regConfirm)   return setRegMsg({ text: t("auth.errorPasswordMismatch"), ok: false })
     setRegLoading(true)
     try {
       const res  = await fetch("/api/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: regId, password: regPw }) })
       const data = await res.json()
       setRegLoading(false)
-      if (!res.ok) return setRegMsg({ text: data.error ?? "가입 실패", ok: false })
-      if (data.needsLogin) { setRegMsg({ text: "가입 완료! 로그인해주세요.", ok: true }); setAuthTab("login"); return }
+      if (!res.ok) return setRegMsg({ text: data.error ?? t("auth.errorRegisterFailed"), ok: false })
+      if (data.needsLogin) { setRegMsg({ text: t("auth.registerSuccess"), ok: true }); setAuthTab("login"); return }
       saveToken(data.token)
       try { localStorage.setItem("app_profile", JSON.stringify({ username: data.username, role: data.role })) } catch {}
       setIsLoggedIn(true); setUsername(data.username)
       setRegId(""); setRegPw(""); setRegConfirm("")
       window.dispatchEvent(new Event("auth:login"))
       window.dispatchEvent(new StorageEvent("storage"))
-    } catch { setRegLoading(false); setRegMsg({ text: "네트워크 오류", ok: false }) }
+    } catch { setRegLoading(false); setRegMsg({ text: t("auth.errorNetwork"), ok: false }) }
   }
 
   const handleLogout = () => {
@@ -428,7 +429,7 @@ export function Sidebar() {
 
           {/* ① 게임 카드 */}
           <div className="space-y-2.5">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">게임</p>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("nav.games")}</p>
             <div className="grid grid-cols-2 gap-2">
               {/* 마켓 */}
               <Link href="/market" onClick={() => setMobileOpen(false)}>
@@ -436,9 +437,9 @@ export function Sidebar() {
                   "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
                   (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
                 )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">마켓</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">아이템 거래소</p>
-                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">준비중</p>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.market")}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
                 </div>
               </Link>
               {/* 모의 매매 */}
@@ -447,9 +448,9 @@ export function Sidebar() {
                   "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
                   pathname === "/trade" && "border-primary/50 bg-secondary/40"
                 )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">모의 매매</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">비트코인 모의 투자</p>
-                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">준비중</p>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.trade")}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
                 </div>
               </Link>
               {/* 바카라 */}
@@ -458,8 +459,8 @@ export function Sidebar() {
                   "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
                   pathname === "/baka" && "border-primary/50 bg-secondary/40"
                 )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">바카라</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">비트코인 30초 바카라</p>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.baccarat")}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.baccaratSub")}</p>
                   <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} R</p>
                 </div>
               </Link>
@@ -469,8 +470,8 @@ export function Sidebar() {
                   "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
                   pathname === "/race" && "border-primary/50 bg-secondary/40"
                 )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">차트차트</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">비트코인 3분 레이스</p>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.race")}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.raceSub")}</p>
                   <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 180).toLocaleString()} R</p>
                 </div>
               </Link>
@@ -494,7 +495,7 @@ export function Sidebar() {
 
           {/* ⑥ 외부 링크 */}
           <div className="shrink-0">
-            <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">외부링크</p>
+            <p className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">{t("nav.externalLinks")}</p>
             <Link
               href="https://www.binance.com/en/trade/BTC_USDT?type=spot"
               target="_blank" rel="noopener noreferrer"
