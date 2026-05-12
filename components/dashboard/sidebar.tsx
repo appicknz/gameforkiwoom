@@ -26,7 +26,6 @@ import { Button } from "@/components/ui/button"
 import SidebarOrders from "@/components/market/sidebar-orders"
 
 // ─── 모의매매 거래 통계 (소형) ────────────────────────────────────
-const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"]
 
 function toKSTDateStr(d: Date) {
   return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
@@ -73,10 +72,14 @@ function TradeStatsMini() {
   }, [])
 
   useEffect(() => {
-    const onLogin = () => fetchAll()
-    window.addEventListener("auth:login", onLogin)
+    const refresh = () => fetchAll()
+    window.addEventListener("auth:login", refresh)
+    window.addEventListener("trade:refresh", refresh)
     fetchAll()
-    return () => window.removeEventListener("auth:login", onLogin)
+    return () => {
+      window.removeEventListener("auth:login", refresh)
+      window.removeEventListener("trade:refresh", refresh)
+    }
   }, [fetchAll])
 
   // 전체 통계 집계
@@ -139,7 +142,11 @@ function TradeStatsMini() {
           <div className="rounded-lg border border-border bg-background/40 p-2 space-y-1.5">
             {/* 월 헤더 */}
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-foreground">{viewYear}년 {viewMonth + 1}월</span>
+              <span className="text-[10px] font-semibold text-foreground">
+                {t("calendar.yearMonthFormat")
+                  .replace("{year}", String(viewYear))
+                  .replace("{month}", (t("calendar.months") as unknown as string[])[viewMonth] ?? String(viewMonth + 1))}
+              </span>
               <div className="flex items-center gap-0.5">
                 <button
                   onClick={() => {
@@ -166,8 +173,8 @@ function TradeStatsMini() {
 
             {/* 요일 헤더 */}
             <div className="grid grid-cols-7 text-center">
-              {DAY_LABELS.map((d, i) => (
-                <div key={d} className="text-[8px] font-medium" style={{ color: i === 0 ? DOWN : i === 6 ? "#4a9eff" : "var(--muted-foreground)" }}>{d}</div>
+              {((t("calendar.days") as unknown as string[]) ?? ["S","M","T","W","T","F","S"]).map((d: string, i: number) => (
+                <div key={i} className="text-[8px] font-medium" style={{ color: i === 0 ? DOWN : i === 6 ? "#4a9eff" : "var(--muted-foreground)" }}>{d}</div>
               ))}
             </div>
 
@@ -207,17 +214,17 @@ function TradeStatsMini() {
             <div className="rounded-lg border border-border bg-background/40 p-2 space-y-1">
               <p className="text-[9px] text-muted-foreground">{selectedDate}</p>
               <div className="flex justify-between items-center">
-                <span className="text-[9px] text-muted-foreground">매매 횟수</span>
-                <span className="text-[10px] font-bold text-foreground">{selectedStat.count}회</span>
+                <span className="text-[9px] text-muted-foreground">{t("stats.tradeCount")}</span>
+                <span className="text-[10px] font-bold text-foreground">{selectedStat.count}{t("stats.times")}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[9px] text-muted-foreground">당일 손익</span>
+                <span className="text-[9px] text-muted-foreground">{t("stats.dailyPnl")}</span>
                 <span className="text-[10px] font-bold tabular-nums" style={{ color: selectedStat.pnl >= 0 ? UP : DOWN }}>
                   {selectedStat.pnl >= 0 ? "+" : ""}{Math.floor(selectedStat.pnl).toLocaleString("ko-KR")}원
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[9px] text-muted-foreground">당일 수익률</span>
+                <span className="text-[9px] text-muted-foreground">{t("stats.dailyReturn")}</span>
                 <span className="text-[10px] font-bold tabular-nums" style={{ color: selectedPnlPct >= 0 ? UP : DOWN }}>
                   {selectedPnlPct >= 0 ? "+" : ""}{selectedPnlPct.toFixed(2)}%
                 </span>

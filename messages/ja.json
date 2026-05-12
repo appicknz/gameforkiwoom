@@ -56,7 +56,15 @@
     "totalPnl": "総損益",
     "winRate": "収益率",
     "dailyWinRate": "勝率(日)",
-    "times": "回"
+    "times": "回",
+    "tradeCount": "取引回数",
+    "dailyPnl": "当日損益",
+    "dailyReturn": "当日収益率"
+  },
+  "calendar": {
+    "yearMonthFormat": "{year}年{month}月",
+    "days": ["日", "月", "火", "水", "木", "金", "土"],
+    "months": ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"]
   },
   "deposit": {
     "title": "トークン入金",

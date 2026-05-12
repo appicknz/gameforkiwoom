@@ -56,7 +56,15 @@
     "totalPnl": "총 수익",
     "winRate": "수익률",
     "dailyWinRate": "승률(일)",
-    "times": "회"
+    "times": "회",
+    "tradeCount": "매매 횟수",
+    "dailyPnl": "당일 손익",
+    "dailyReturn": "당일 수익률"
+  },
+  "calendar": {
+    "yearMonthFormat": "{year}년 {month}월",
+    "days": ["일", "월", "화", "수", "목", "금", "토"],
+    "months": ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"]
   },
   "deposit": {
     "title": "토큰 입금",

@@ -412,14 +412,31 @@ export default function TradePage() {
     }
 
     const open = d.positions.filter((p: any) => !p.liquidated)
-    setPositions(open.map((p: any) => ({
-      ...p,
-      entryPrice: Number(p.entry_price),
-      amount:     Number(p.margin),
-      pnl:        p.unrealized_pnl     ?? 0,
-      pnlPct:     p.unrealized_pnl_pct ?? 0,
-      openedAt:   new Date(p.opened_at).getTime(),
-    })))
+    setPositions(open.map((p: any) => {
+      const entry   = Number(p.entry_price)
+      const margin  = Number(p.margin)
+      const lev     = Number(p.leverage)
+      // 서버가 PnL 0을 반환하면 클라이언트 가격으로 직접 계산
+      let pnl    = p.unrealized_pnl     ?? 0
+      let pnlPct = p.unrealized_pnl_pct ?? 0
+      const cur = priceMapRef.current.get(p.symbol) ?? 0
+      if (cur > 0 && entry > 0) {
+        const delta = p.direction === "long"
+          ? (cur - entry) / entry
+          : (entry - cur) / entry
+        pnlPct = delta * lev * 100
+        pnl    = Math.round(margin * delta * lev)
+      }
+      return {
+        ...p,
+        entryPrice:    entry,
+        amount:        margin,
+        pnl,
+        pnlPct,
+        current_price: cur > 0 ? cur : entry,
+        openedAt:      new Date(p.opened_at).getTime(),
+      }
+    }))
   }, [fetchBalance])
 
   useEffect(() => {
@@ -504,6 +521,8 @@ export default function TradePage() {
         entryPrice: Number(pos.entry_price),
         exitPrice:  data.exit_price,
       }, ...l])
+      // 사이드바 통계 갱신
+      window.dispatchEvent(new Event("trade:refresh"))
     } finally {
       setClosingId(null)
     }
@@ -556,6 +575,14 @@ export default function TradePage() {
           onPriceUpdate={(sym, price) => {
             priceMapRef.current.set(sym, price)
             if (sym === dialogSymbolRef.current) setDialogPrice(price)
+            // 해당 심볼 포지션 손익 즉시 재계산
+            setPositions(prev => prev.map(p => {
+              if (p.symbol !== sym || !p.entryPrice) return p
+              const delta = p.direction === "long"
+                ? (price - p.entryPrice) / p.entryPrice
+                : (p.entryPrice - price) / p.entryPrice
+              return { ...p, current_price: price, pnl: Math.round(p.amount * delta * p.leverage), pnlPct: delta * p.leverage * 100 }
+            }))
           }}
           onClose={handleClose}
           closingId={closingId}
@@ -680,6 +707,14 @@ export default function TradePage() {
               onPriceUpdate={(sym, price) => {
                 priceMapRef.current.set(sym, price)
                 if (sym === selectedSymbol) setSelectedPrice(price)
+                // 해당 심볼 포지션 손익 즉시 재계산
+                setPositions(prev => prev.map(p => {
+                  if (p.symbol !== sym || !p.entryPrice) return p
+                  const delta = p.direction === "long"
+                    ? (price - p.entryPrice) / p.entryPrice
+                    : (p.entryPrice - price) / p.entryPrice
+                  return { ...p, current_price: price, pnl: Math.round(p.amount * delta * p.leverage), pnlPct: delta * p.leverage * 100 }
+                }))
               }}
               onClose={handleClose}
               closingId={closingId}
