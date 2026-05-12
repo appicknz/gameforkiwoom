@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useCallback } from "react"
 import { QRCodeSVG } from "qrcode.react"
+import { useTranslation } from "@/lib/i18n"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -101,6 +102,8 @@ function TradeStatsMini() {
   const DOWN = "#ff3d57"
   const GOLD = "#d4af37"
 
+  const { t } = useTranslation()
+
   return (
     <div className="space-y-2 px-1">
       {/* 헤더 */}
@@ -110,7 +113,7 @@ function TradeStatsMini() {
       >
         <div className="flex items-center gap-1.5">
           <BarChart2 className="w-3 h-3 text-primary shrink-0" />
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">매매 통계</span>
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t("nav.trade")}</span>
         </div>
         <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform", open && "rotate-90")} />
       </button>
@@ -120,10 +123,10 @@ function TradeStatsMini() {
           {/* 요약 4칸 */}
           <div className="grid grid-cols-2 gap-1">
             {[
-              { label: "총 매매", value: `${totalCount}회` },
-              { label: "총 수익", value: `${totalPnl >= 0 ? "+" : ""}${Math.floor(totalPnl).toLocaleString("ko-KR")}`, color: totalPnl >= 0 ? UP : DOWN },
-              { label: "수익률", value: `${totalPnlPct >= 0 ? "+" : ""}${totalPnlPct.toFixed(1)}%`, color: totalPnlPct >= 0 ? UP : DOWN },
-              { label: "승률(일)", value: `${winDayPct.toFixed(0)}%`, color: winDayPct >= 50 ? UP : DOWN },
+              { label: t("stats.totalTrades"), value: `${totalCount}${t("stats.times")}` },
+              { label: t("stats.totalPnl"), value: `${totalPnl >= 0 ? "+" : ""}${Math.floor(totalPnl).toLocaleString("ko-KR")}`, color: totalPnl >= 0 ? UP : DOWN },
+              { label: t("stats.winRate"), value: `${totalPnlPct >= 0 ? "+" : ""}${totalPnlPct.toFixed(1)}%`, color: totalPnlPct >= 0 ? UP : DOWN },
+              { label: t("stats.dailyWinRate"), value: `${winDayPct.toFixed(0)}%`, color: winDayPct >= 50 ? UP : DOWN },
             ].map(({ label, value, color }) => (
               <div key={label} className="rounded-lg border border-border bg-background/40 p-1.5">
                 <p className="text-[9px] text-muted-foreground mb-0.5">{label}</p>
@@ -230,6 +233,7 @@ function TradeStatsMini() {
 function DepositQRWidget({ isLoggedIn: _unused }: { isLoggedIn: boolean }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [open, setOpen] = useState(true)
+  const { t } = useTranslation()
 
   // 로그인 후 새로고침으로 진입하므로 마운트 시 한 번만 fetch
   useEffect(() => {
@@ -254,7 +258,7 @@ function DepositQRWidget({ isLoggedIn: _unused }: { isLoggedIn: boolean }) {
           <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2v10m0 0-3-3m3 3 3-3"/><rect width="20" height="8" x="2" y="14" rx="2"/>
           </svg>
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">토큰 입금</span>
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t("deposit.title")}</span>
         </div>
         <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform", open && "rotate-90")} />
       </button>
@@ -280,7 +284,7 @@ function DepositQRWidget({ isLoggedIn: _unused }: { isLoggedIn: boolean }) {
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-muted-foreground/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                 </svg>
-                <span className="text-[9px] text-muted-foreground/70 font-medium">로그인 후 확인</span>
+                <span className="text-[9px] text-muted-foreground/70 font-medium">{t("deposit.loginRequired")}</span>
               </div>
             )}
           </div>
@@ -360,7 +364,7 @@ export function Sidebar() {
 
   const handleLogin = async () => {
     setLoginMsg(null)
-    if (!loginId.trim()) return setLoginMsg({ text: "아이디를 입력해��세요.", ok: false })
+    if (!loginId.trim()) return setLoginMsg({ text: "아이디를 입력해���세요.", ok: false })
     if (!loginPw)        return setLoginMsg({ text: "비밀번호를 입력해주세요.", ok: false })
     setLoginLoading(true)
     try {

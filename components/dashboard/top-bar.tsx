@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState, useEffect, useRef } from "react"
 import { useGatewayBalance } from "@/hooks/use-gateway"
+import LangSwitcher from "@/components/lang-switcher"
 import { useRouter } from "next/navigation"
 
 const STORAGE_KEY = "app_token"
@@ -384,13 +385,14 @@ export function TopBar() {
             </div>
           ) : (
             <span className="text-[10px] text-muted-foreground/50 select-none">
-              환전 또는 출금 기능은 제공되지 않습니다.
+              환전 또는 출금 기���은 제공되지 않습니다.
             </span>
           )}
         </div>
 
-        {/* 우측: 로그인/아바타 */}
+        {/* 우측: 언어 전환 + 로그인/아바타 */}
         <div className="flex items-center gap-2 shrink-0" ref={dropdownRef}>
+          <LangSwitcher />
           {isLoggedIn ? (
             <button
               onClick={() => setDropdownOpen(v => !v)}
