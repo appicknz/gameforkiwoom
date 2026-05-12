@@ -213,6 +213,7 @@ export function TopBar() {
 
       // 서버가 발급한 토큰 저장 (localStorage["app_token"] 전용)
       saveToken(data.token)
+      window.dispatchEvent(new Event("auth:login"))
 
       const role = data.role ?? "user"
       setProfile({ username: data.username, role })
@@ -265,6 +266,7 @@ export function TopBar() {
 
       // 서버가 발급한 토큰 저장 (localStorage["app_token"] 전용)
       saveToken(data.token)
+      window.dispatchEvent(new Event("auth:login"))
 
       setProfile({ username: data.username, role: data.role ?? "user" })
       setIsLoggedIn(true)
