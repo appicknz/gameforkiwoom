@@ -213,20 +213,17 @@ export function TopBar() {
 
       // 서버가 발급한 토큰 저장 (localStorage["app_token"] 전용)
       saveToken(data.token)
-      window.dispatchEvent(new Event("auth:login"))
 
       const role = data.role ?? "user"
-      setProfile({ username: data.username, role })
-      setIsLoggedIn(true)
-      setDropdownOpen(false)
-      setLoginUsername("")
-      setLoginPw("")
 
-      // admin(지점) / branch_admin(총판) / super_admin 은 패널로 바로 이동 (master 제외)
+      // admin 계열은 패널로 이동, 일반 유저는 새로고침
       if (ADMIN_ROLES.includes(role) && role !== "master") {
         router.push("/panel")
         return
       }
+
+      window.location.reload()
+      return
 
       // 잔고 로드
       fetch("/api/user/balance", { headers: { Authorization: `Bearer ${data.token}` } })
@@ -266,15 +263,8 @@ export function TopBar() {
 
       // 서버가 발급한 토큰 저장 (localStorage["app_token"] 전용)
       saveToken(data.token)
-      window.dispatchEvent(new Event("auth:login"))
-
-      setProfile({ username: data.username, role: data.role ?? "user" })
-      setIsLoggedIn(true)
-      setDropdownOpen(false)
-      setRegUsername(""); setRegPw(""); setRegConfirmPw("")
-
-      fetch("/api/user/balance", { headers: { Authorization: `Bearer ${data.token}` } })
-        .then(r => r.json()).then(d => setBalance(d.balance ?? 0))
+      window.location.reload()
+      return
     } catch {
       setRegLoading(false)
       setRegMsg({ text: "네트워크 오류가 발생했습니다.", ok: false })

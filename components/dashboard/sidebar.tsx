@@ -227,37 +227,19 @@ function TradeStatsMini() {
   )
 }
 // ─── 토큰 입금 QR 위젯 ───────────────────────────────────────────
-// prop에 의존하지 않고 내부에서 직접 localStorage를 감지 —
-// walletAddress fetch 완료 후에만 블러 해제하여 새로고침 없이 즉시 반영
 function DepositQRWidget({ isLoggedIn: _unused }: { isLoggedIn: boolean }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [open, setOpen] = useState(true)
 
-  const sync = useCallback(() => {
+  // 로그인 후 새로고침으로 진입하므로 마운트 시 한 번만 fetch
+  useEffect(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
-    if (!token) { setWalletAddress(null); return }
+    if (!token) return
     fetch("/api/deposit/wallet", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.walletAddress) setWalletAddress(d.walletAddress) })
       .catch(() => {})
   }, [])
-
-  useEffect(() => {
-    sync()
-    // 이벤트: 같은 탭 로그인/아웃
-    window.addEventListener("auth:login", sync)
-    window.addEventListener("auth:logout", sync)
-    // 폴링: 이미 로그인된 상태로 마운트 or top-bar 로그인처럼 이벤트 없이 토큰 저장되는 경우
-    const interval = setInterval(() => {
-      const token = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
-      if (token && !walletAddress) sync()  // 토큰은 있는데 아직 미조회 상태면 재시도
-    }, 1000)
-    return () => {
-      window.removeEventListener("auth:login", sync)
-      window.removeEventListener("auth:logout", sync)
-      clearInterval(interval)
-    }
-  }, [sync, walletAddress])
 
   // walletAddress가 있을 때만 로그인 상태로 간주 — fetch 완료 전엔 블러 유지
   const revealed = !!walletAddress
