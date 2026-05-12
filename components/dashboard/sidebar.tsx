@@ -143,9 +143,13 @@ function TradeStatsMini() {
             {/* 월 헤더 */}
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-semibold text-foreground">
-                {t("calendar.yearMonthFormat")
-                  .replace("{year}", String(viewYear))
-                  .replace("{month}", (t("calendar.months") as unknown as string[])[viewMonth] ?? String(viewMonth + 1))}
+                {(() => {
+                  const months = t("calendar.months")
+                  const monthName = Array.isArray(months) ? months[viewMonth] : String(viewMonth + 1)
+                  return (t("calendar.yearMonthFormat") as string)
+                    .replace("{year}", String(viewYear))
+                    .replace("{month}", monthName)
+                })()}
               </span>
               <div className="flex items-center gap-0.5">
                 <button
@@ -173,7 +177,7 @@ function TradeStatsMini() {
 
             {/* 요일 헤더 */}
             <div className="grid grid-cols-7 text-center">
-              {((t("calendar.days") as unknown as string[]) ?? ["S","M","T","W","T","F","S"]).map((d: string, i: number) => (
+              {(Array.isArray(t("calendar.days")) ? t("calendar.days") as string[] : ["S","M","T","W","T","F","S"]).map((d: string, i: number) => (
                 <div key={i} className="text-[8px] font-medium" style={{ color: i === 0 ? DOWN : i === 6 ? "#4a9eff" : "var(--muted-foreground)" }}>{d}</div>
               ))}
             </div>

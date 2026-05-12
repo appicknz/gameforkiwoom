@@ -33,14 +33,16 @@ type DeepValue<T, K extends string> =
     ? A extends keyof T ? DeepValue<T[A], B> : string
     : K extends keyof T ? T[K] : string
 
-function get(obj: Record<string, unknown>, path: string): string {
+function get(obj: Record<string, unknown>, path: string): string | string[] {
   const keys = path.split(".")
   let cur: unknown = obj
   for (const k of keys) {
     if (cur == null || typeof cur !== "object") return path
     cur = (cur as Record<string, unknown>)[k]
   }
-  return typeof cur === "string" ? cur : path
+  if (typeof cur === "string") return cur
+  if (Array.isArray(cur) && cur.every(v => typeof v === "string")) return cur as string[]
+  return path
 }
 
 // ── useTranslation 훅 ─────────────────────────────────────────
@@ -55,11 +57,14 @@ export function useTranslation() {
   }, [])
 
   const t = useCallback(
-    (key: string, vars?: Record<string, string | number>): string => {
+    (key: string, vars?: Record<string, string | number>): string | string[] => {
       const messages = MESSAGES[locale] as Record<string, unknown>
-      let str = get(messages, key)
+      let val = get(messages, key)
       // 폴백: 현재 언어에 없으면 ko로
-      if (str === key) str = get(MESSAGES.ko as Record<string, unknown>, key)
+      if (val === key) val = get(MESSAGES.ko as Record<string, unknown>, key)
+      // 배열이면 그대로 반환
+      if (Array.isArray(val)) return val
+      const str = val as string
       if (!vars) return str
       return str.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? `{${k}}`))
     },
