@@ -6,6 +6,7 @@ import Image from "next/image"
 import { cn } from "@/lib/utils"
 import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
 import DepositDialog from "@/components/deposit-dialog"
+import { useTranslation } from "@/lib/i18n"
 
 interface Category { id: string; name: string; icon: string }
 interface Item {
@@ -18,10 +19,10 @@ interface Item {
 }
 
 const SORT_CYCLE = [
-  { key: "popular",    label: "인기순",   icon: Flame },
-  { key: "newest",     label: "최신순",   icon: Clock },
-  { key: "price_asc",  label: "낮은가격", icon: ArrowUpDown },
-  { key: "price_desc", label: "높은가격", icon: TrendingUp },
+  { key: "popular",    tKey: "market.sortPopular",   icon: Flame },
+  { key: "newest",     tKey: "market.sortNewest",    icon: Clock },
+  { key: "price_asc",  tKey: "market.sortPriceLow",  icon: ArrowUpDown },
+  { key: "price_desc", tKey: "market.sortPriceHigh", icon: TrendingUp },
 ] as const
 
 // 글쓰기(상품 등록) 권한 역할
@@ -39,6 +40,7 @@ function parseJwt() {
 }
 
 export default function MarketPage() {
+  const { t } = useTranslation()
   const [categories, setCategories]   = useState<Category[]>([])
   const [items, setItems]             = useState<Item[]>([])
   const [activeCat, setActiveCat]     = useState<string>("all")
@@ -78,7 +80,7 @@ export default function MarketPage() {
 
   const handleBuy = useCallback(async () => {
     if (!selectedItem) return
-    if (!getToken()) { setBuyErr("로그인이 필요합니다."); return }
+    if (!getToken()) { setBuyErr(t("auth.loginRequired")); return }
     setBuying(true); setBuyErr("")
     try {
       const res  = await fetch("/api/market/checkout", {
@@ -87,10 +89,10 @@ export default function MarketPage() {
         body:    JSON.stringify({ itemId: selectedItem.id, tvId: tvId.trim() }),
       })
       const data = await res.json()
-      if (!res.ok) { setBuyErr(data.error ?? "오류가 발생했습니다."); return }
+      if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
       window.location.href = data.url
     } catch {
-      setBuyErr("결제 오류가 발생했습니다.")
+      setBuyErr(t("common.error"))
     } finally {
       setBuying(false)
     }
@@ -205,7 +207,7 @@ export default function MarketPage() {
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
               >
                 {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
-                {buying ? "결제 중..." : "구매하기"}
+                {buying ? t("market.buyingButton") : t("market.buyButton")}
               </button>
             </div>
           </div>
@@ -221,7 +223,7 @@ export default function MarketPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="상품 검색..."
+                placeholder={t("market.searchPlaceholder")}
                 value={q}
                 onChange={e => setQ(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -241,10 +243,10 @@ export default function MarketPage() {
                 <button
                   onClick={() => setSortIdx(i => (i + 1) % SORT_CYCLE.length)}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-xs font-medium text-foreground hover:border-primary/40 hover:text-primary transition-colors shrink-0"
-                  title="정렬 변경"
+                  title={t("market.sortPopular")}
                 >
                   <Icon className="w-3.5 h-3.5 text-primary" />
-                  <span className="hidden sm:inline">{cur.label}</span>
+                  <span className="hidden sm:inline">{t(cur.tKey)}</span>
                 </button>
               )
             })()}
@@ -253,10 +255,10 @@ export default function MarketPage() {
             <button
               onClick={() => setShowDeposit(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors shrink-0"
-              title="토큰 입금"
+              title={t("nav.deposit")}
             >
               <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">입금</span>
+              <span className="hidden sm:inline">{t("market.depositButton")}</span>
             </button>
 
             {/* + 글쓰기 버튼 — 모두에게 표시, 권한 없으면 신청 모달 */}
@@ -277,9 +279,9 @@ export default function MarketPage() {
                   : "bg-secondary border-border text-foreground hover:border-primary/40 hover:text-primary"
               )}
               title={
-                role && WRITE_ROLES.includes(role) ? "상품 등록" :
-                writePermStatus === "pending" ? "신청 심사 중" :
-                "글쓰기 권한 신청"
+                role && WRITE_ROLES.includes(role) ? t("market.registerProduct") :
+                writePermStatus === "pending" ? t("market.pendingReview") :
+                t("market.requestWrite")
               }
             >
               <PenLine className="w-4 h-4" />
@@ -297,7 +299,7 @@ export default function MarketPage() {
                   : "bg-secondary text-muted-foreground hover:text-foreground"
               )}
             >
-              <span>🏪</span> 전체
+              <span>🏪</span> {t("market.all")}
             </button>
             {categories.filter(c => c.name !== "전체").map(cat => (
               <button
@@ -384,6 +386,7 @@ function WritePermissionModal({
   onClose: () => void
   onSubmitted: () => void
 }) {
+  const { t } = useTranslation()
   const [reason, setReason]     = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]       = useState("")
@@ -400,10 +403,10 @@ function WritePermissionModal({
         body: JSON.stringify({ reason: reason.trim() || null }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? "신청 실패"); return }
+      if (!res.ok) { setError(data.error ?? t("market.errorRequestFailed")); return }
       onSubmitted()
     } catch {
-      setError("오류가 발생했습니다.")
+      setError(t("common.error"))
     } finally {
       setSubmitting(false)
     }
@@ -422,7 +425,7 @@ function WritePermissionModal({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
             <PenLine className="w-5 h-5 text-primary shrink-0" />
-            <h3 className="text-sm font-bold text-foreground">글쓰기 권한 신청</h3>
+            <h3 className="text-sm font-bold text-foreground">{t("market.writePermTitle")}</h3>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="w-4 h-4" />
@@ -433,16 +436,16 @@ function WritePermissionModal({
           <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
             <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="text-xs font-semibold text-amber-500">심사 중</p>
-              <p className="text-xs text-muted-foreground">마스터가 신청을 검토하고 있습니다. 승인되면 상품을 등록할 수 있습니다.</p>
+              <p className="text-xs font-semibold text-amber-500">{t("market.writePermPendingTitle")}</p>
+              <p className="text-xs text-muted-foreground">{t("market.writePermPendingDesc")}</p>
             </div>
           </div>
         ) : currentStatus === "rejected" ? (
           <div className="flex items-start gap-3 rounded-xl bg-destructive/10 border border-destructive/20 p-4">
             <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="text-xs font-semibold text-destructive">이전 신청 거절됨</p>
-              <p className="text-xs text-muted-foreground">다시 신청할 수 있습니다.</p>
+              <p className="text-xs font-semibold text-destructive">{t("market.writePermRejectedTitle")}</p>
+              <p className="text-xs text-muted-foreground">{t("market.writePermRejectedDesc")}</p>
             </div>
           </div>
         ) : null}
@@ -450,14 +453,14 @@ function WritePermissionModal({
         {currentStatus !== "pending" && (
           <form onSubmit={handleSubmit} className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              마켓에 상품을 등록하려면 글쓰기 권한이 필요합니다. 마스터의 승인 후 등록할 수 있습니다.
+              {t("market.writePermDesc")}
             </p>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">신청 사유 <span className="opacity-50">(선택)</span></label>
+              <label className="text-xs text-muted-foreground">{t("market.writePermReasonLabel")} <span className="opacity-50">{t("market.writePermReasonOptional")}</span></label>
               <textarea
                 value={reason}
                 onChange={e => setReason(e.target.value)}
-                placeholder="간단한 소개나 신청 사유를 입력하세요"
+                placeholder={t("market.writePermReasonPlaceholder")}
                 rows={3}
                 className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
               />
@@ -469,7 +472,7 @@ function WritePermissionModal({
               className="w-full py-2 rounded-lg bg-primary text-black text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
               {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {submitting ? "신청 중..." : "권한 신청하기"}
+              {submitting ? t("market.writePermSubmitting") : t("market.writePermSubmit")}
             </button>
           </form>
         )}

@@ -33,6 +33,7 @@
     "errorPasswordRequired": "비밀번호를 입력해주세요.",
     "errorPasswordTooShort": "비밀번호는 4자 이상이어야 합니다.",
     "errorPasswordMismatch": "비밀번호가 일치하지 않습니다.",
+    "loginRequired": "로그인이 필요합니다.",
     "errorLoginFailed": "로그인 실패",
     "errorRegisterFailed": "가입 실패",
     "errorNetwork": "네트워크 오류가 발생했습니다.",

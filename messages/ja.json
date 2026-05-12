@@ -33,6 +33,7 @@
     "errorPasswordRequired": "パスワードを入力してください。",
     "errorPasswordTooShort": "パスワードは4文字以上にしてください。",
     "errorPasswordMismatch": "パスワードが一致しません。",
+    "loginRequired": "ログインが必要です。",
     "errorLoginFailed": "ログイン失敗",
     "errorRegisterFailed": "登録失敗",
     "errorNetwork": "ネットワークエラーが発生しました。",
