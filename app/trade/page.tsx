@@ -340,7 +340,7 @@ function PcPositionCard({ pos, onClose, isClosing }: {
         disabled={isClosing}
         className="w-full rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
         style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", padding: "8px 0", minHeight: 32 }}>
-        {isClosing ? "청산 처리중..." : "포지션 청산"}
+        {isClosing ? "청산 처리중..." : "포���션 청산"}
       </button>
     </div>
   )
@@ -521,8 +521,8 @@ export default function TradePage() {
         entryPrice: Number(pos.entry_price),
         exitPrice:  data.exit_price,
       }, ...l])
-      // 사이드바 통계 갱신
-      window.dispatchEvent(new Event("trade:refresh"))
+      // 사이드바 통계 갱신 — bet_history DB 반영 후 fetch하도록 300ms 대기
+      setTimeout(() => window.dispatchEvent(new Event("trade:refresh")), 300)
     } finally {
       setClosingId(null)
     }

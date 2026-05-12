@@ -269,14 +269,29 @@ export async function DELETE(req: Request) {
     redis.incr(`balance_version:${userId}`),
   ])
 
-  // DB 잔고 + 기록은 fire-and-forget (응답 블로킹 안 함)
+  // profile 조회 (branch_id 용)
+  const { data: profile } = await adminSupabase
+    .from("profiles").select("branch_id").eq("id", userId).single()
+
+  // bet_history INSERT — 응답 전에 await하여 통계 집계에 즉시 반영
+  await adminSupabase.from("bet_history").insert({
+    user_id:       userId,
+    branch_id:     profile?.branch_id ?? null,
+    round_id:      null,
+    bet_direction: pos.direction,
+    bet_digit:     `trade:${pos.symbol}:${pos.direction}:${pos.leverage}x:${pos.entry_price}:${exitPrice}`,
+    bet_parity:    null,
+    bet_amount:    Math.round(Number(pos.margin)),
+    payout,
+    result:        pnl >= 0 ? "win" : "lose",
+  }).catch(() => {})
+
+  // balance_transactions + DB 잔고는 fire-and-forget
   ;(async () => {
     try {
       if (payout > 0) {
         await adminSupabase.rpc("add_balance_for_payout", { p_user_id: userId, p_amount: payout })
       }
-      const { data: profile } = await adminSupabase
-        .from("profiles").select("branch_id").eq("id", userId).single()
       await adminSupabase.from("balance_transactions").insert({
         user_id:        userId,
         branch_id:      profile?.branch_id ?? null,
@@ -285,18 +300,7 @@ export async function DELETE(req: Request) {
         balance_before: currentBalance,
         balance_after:  newBalance,
         note:           `모의매매 청산 ${pos.symbol} ${pos.direction} ${pos.leverage}x PnL:${pnl >= 0 ? "+" : ""}${pnl}`,
-      }).then(() => {}).catch(() => {})
-      adminSupabase.from("bet_history").insert({
-        user_id:       userId,
-        branch_id:     profile?.branch_id ?? null,
-        round_id:      null,
-        bet_direction: pos.direction,
-        bet_digit:     `trade:${pos.symbol}:${pos.direction}:${pos.leverage}x:${pos.entry_price}:${exitPrice}`,
-        bet_parity:    null,
-        bet_amount:    Math.round(Number(pos.margin)),
-        payout,
-        result:        pnl >= 0 ? "win" : "lose",
-      }).then(() => {}).catch(() => {})
+      }).catch(() => {})
     } catch { /* 기록 실패 무시 */ }
   })()
 
