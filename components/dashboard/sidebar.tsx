@@ -227,37 +227,41 @@ function TradeStatsMini() {
   )
 }
 // ─── 토큰 입금 QR 위젯 ───────────────────────────────────────────
-function DepositQRWidget({ isLoggedIn }: { isLoggedIn: boolean }) {
+// prop에 의존하지 않고 내부에서 직접 localStorage를 감지 —
+// walletAddress fetch 완료 후에만 블러 해제하여 새로고침 없이 즉시 반영
+function DepositQRWidget({ isLoggedIn: _unused }: { isLoggedIn: boolean }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [open, setOpen] = useState(true)
 
-  useEffect(() => {
-    if (!isLoggedIn) { setWalletAddress(null); return }
+  const sync = useCallback(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
-    if (!token) return
+    if (!token) {
+      setWalletAddress(null)
+      return
+    }
     fetch("/api/deposit/wallet", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.walletAddress) setWalletAddress(d.walletAddress) })
       .catch(() => {})
-  }, [isLoggedIn])
-
-  // 로그인 이벤트 시 재조회
-  useEffect(() => {
-    const onLogin = () => {
-      const token = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
-      if (!token) return
-      fetch("/api/deposit/wallet", { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d?.walletAddress) setWalletAddress(d.walletAddress) })
-        .catch(() => {})
-    }
-    window.addEventListener("auth:login", onLogin)
-    return () => window.removeEventListener("auth:login", onLogin)
   }, [])
+
+  useEffect(() => {
+    sync()
+    window.addEventListener("auth:login", sync)
+    window.addEventListener("auth:logout", sync)
+    window.addEventListener("storage", sync)
+    return () => {
+      window.removeEventListener("auth:login", sync)
+      window.removeEventListener("auth:logout", sync)
+      window.removeEventListener("storage", sync)
+    }
+  }, [sync])
+
+  // walletAddress가 있을 때만 로그인 상태로 간주 — fetch 완료 전엔 블러 유지
+  const revealed = !!walletAddress
 
   return (
     <div className="space-y-2 px-1">
-      {/* 헤더 */}
       <button
         onClick={() => setOpen(v => !v)}
         className="w-full flex items-center justify-between"
@@ -273,12 +277,11 @@ function DepositQRWidget({ isLoggedIn }: { isLoggedIn: boolean }) {
 
       {open && (
         <div className="rounded-xl border border-border bg-background/40 p-3 flex flex-col items-center gap-2">
-          {/* QR 코드 영역 */}
           <div className="relative">
-            {/* 항상 QR 렌더링 — 비로그인 시 블러 */}
+            {/* 블러 해제 조건: walletAddress fetch 완료 후 */}
             <div className={cn(
               "p-2 bg-white rounded-lg transition-all duration-300",
-              !isLoggedIn && "blur-sm pointer-events-none select-none"
+              !revealed && "blur-sm pointer-events-none select-none"
             )}>
               <QRCodeSVG
                 value={walletAddress ?? "https://placeholder.local"}
@@ -288,8 +291,7 @@ function DepositQRWidget({ isLoggedIn }: { isLoggedIn: boolean }) {
               />
             </div>
 
-            {/* 비로그인 오버레이 */}
-            {!isLoggedIn && (
+            {!revealed && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-muted-foreground/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -299,18 +301,14 @@ function DepositQRWidget({ isLoggedIn }: { isLoggedIn: boolean }) {
             )}
           </div>
 
-          {/* 주소 텍스트 */}
-          {isLoggedIn && walletAddress ? (
+          {revealed ? (
             <p className="text-[9px] font-mono text-muted-foreground text-center break-all leading-relaxed px-1">
               {walletAddress}
             </p>
-          ) : isLoggedIn ? (
-            <p className="text-[9px] text-muted-foreground/50">주소 로딩 중...</p>
           ) : (
             <p className="text-[9px] text-muted-foreground/40 text-center">로그인하면 입금 주소가 표시됩니다</p>
           )}
 
-          {/* 전체 페이지 이동 링크 */}
           <Link
             href="/deposit"
             className="text-[9px] text-primary/70 hover:text-primary underline underline-offset-2 transition-colors"
