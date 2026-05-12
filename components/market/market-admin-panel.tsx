@@ -22,7 +22,9 @@ interface Props {
   categories: Category[]
   onClose: () => void
   onSuccess: () => void
-  editItem?: EditItem | null   // 수정 모드일 때 전달
+  editItem?: EditItem | null     // 수정 모드일 때 전달
+  isMaster?: boolean             // true면 발행자 선택 표시
+  selfPublisherId?: string | null // isMaster=false일 때 자동 설정
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -36,7 +38,7 @@ function getToken() {
   try { return localStorage.getItem("app_token") } catch { return null }
 }
 
-export default function MarketAdminPanel({ categories, onClose, onSuccess, editItem }: Props) {
+export default function MarketAdminPanel({ categories, onClose, onSuccess, editItem, isMaster = false, selfPublisherId }: Props) {
   const isEdit = !!editItem
 
   const [publishers, setPublishers] = useState<Publisher[]>([])
@@ -46,7 +48,8 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
     link_url:     editItem?.link_url     ?? "",
     price_krw:    editItem?.price_krw    ? String(editItem.price_krw) : "",
     category_id:  editItem?.category_id  ?? "",
-    publisher_id: editItem?.publisher_id ?? "",
+    // master가 아니면 selfPublisherId 자동 설정, master면 선택
+    publisher_id: editItem?.publisher_id ?? (!isMaster && selfPublisherId ? selfPublisherId : ""),
     is_active:    editItem?.is_active    ?? true,
   })
   const [imageFile, setImageFile]       = useState<File | null>(null)
@@ -221,18 +224,21 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
             ))}
           </select>
 
-          <select
-            value={form.publisher_id}
-            onChange={e => setForm(f => ({ ...f, publisher_id: e.target.value }))}
-            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            <option value="">발행자 선택 *</option>
-            {publishers.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.username} ({ROLE_LABEL[p.role] ?? p.role})
-              </option>
-            ))}
-          </select>
+          {/* master만 발행자 선택 가능, 일반 글쓰기 권한자는 본인으로 자동 설정 */}
+          {isMaster && (
+            <select
+              value={form.publisher_id}
+              onChange={e => setForm(f => ({ ...f, publisher_id: e.target.value }))}
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">발행자 선택 *</option>
+              {publishers.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.username} ({ROLE_LABEL[p.role] ?? p.role})
+                </option>
+              ))}
+            </select>
+          )}
 
           {error && <p className="text-xs text-red-400">{error}</p>}
 

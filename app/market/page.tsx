@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2 } from "lucide-react"
+import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Copy, Check, Download } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
@@ -16,22 +16,24 @@ interface Item {
   profiles: { username: string; role: string } | null
 }
 
-const SORT_OPTIONS = [
+const SORT_CYCLE = [
   { key: "popular",    label: "인기순",   icon: Flame },
   { key: "newest",     label: "최신순",   icon: Clock },
-  { key: "price_asc",  label: "낮은 가격", icon: ArrowUpDown },
-  { key: "price_desc", label: "높은 가격", icon: TrendingUp },
+  { key: "price_asc",  label: "낮은가격", icon: ArrowUpDown },
+  { key: "price_desc", label: "높은가격", icon: TrendingUp },
 ] as const
+
+// 글쓰기(상품 등록) 권한 역할
+const WRITE_ROLES = ["master", "super_admin", "branch_admin", "admin"]
 
 function getToken() {
   try { return localStorage.getItem("app_token") } catch { return null }
 }
-function parseRole() {
+function parseJwt() {
   try {
     const t = localStorage.getItem("app_token")
     if (!t) return null
-    const p = JSON.parse(atob(t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")))
-    return p.role ?? null
+    return JSON.parse(atob(t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")))
   } catch { return null }
 }
 
@@ -39,19 +41,38 @@ export default function MarketPage() {
   const [categories, setCategories]   = useState<Category[]>([])
   const [items, setItems]             = useState<Item[]>([])
   const [activeCat, setActiveCat]     = useState<string>("all")
-  const [sort, setSort]               = useState<string>("popular")
+  const [sortIdx, setSortIdx]         = useState<number>(0)
+  const sort = SORT_CYCLE[sortIdx].key
   const [q, setQ]                     = useState("")
   const [loading, setLoading]         = useState(true)
   const [showAdmin, setShowAdmin]     = useState(false)
   const [editItem, setEditItem]       = useState<EditItem | null>(null)
   const [role, setRole]               = useState<string | null>(null)
+  const [userId, setUserId]           = useState<string | null>(null)
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [buying, setBuying]           = useState(false)
   const [buyErr, setBuyErr]           = useState("")
   const [tvId, setTvId]               = useState("")
+  // 토큰 입금 주소 복사
+  const [walletAddr, setWalletAddr]   = useState<string | null>(null)
+  const [copied, setCopied]           = useState(false)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => { setRole(parseRole()) }, [])
+  useEffect(() => {
+    const jwt = parseJwt()
+    setRole(jwt?.role ?? null)
+    setUserId(jwt?.sub ?? jwt?.userId ?? null)
+  }, [])
+
+  // 지갑 주소 로드
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch("/api/deposit/wallet", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.walletAddress) setWalletAddr(d.walletAddress) })
+      .catch(() => {})
+  }, [])
 
   const handleBuy = useCallback(async () => {
     if (!selectedItem) return
@@ -182,9 +203,9 @@ export default function MarketPage() {
       {/* 상단 검색 + 필터 바 */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-3 space-y-3">
-          {/* 검색 + 관리자 버튼 */}
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-md">
+          {/* 검색 + 액션 버튼 */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
@@ -200,32 +221,58 @@ export default function MarketPage() {
               )}
             </div>
 
-            {/* 정렬 버튼 */}
-            <div className="flex items-center gap-1">
-              {SORT_OPTIONS.map(({ key, label, icon: Icon }) => (
+            {/* 정렬 사이클 버튼 — 누를 때마다 순환 */}
+            {(() => {
+              const cur = SORT_CYCLE[sortIdx]
+              const Icon = cur.icon
+              return (
                 <button
-                  key={key}
-                  onClick={() => setSort(key)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    sort === key
-                      ? "bg-primary/15 text-primary border border-primary/30"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary border border-transparent"
-                  )}
+                  onClick={() => setSortIdx(i => (i + 1) % SORT_CYCLE.length)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-xs font-medium text-foreground hover:border-primary/40 hover:text-primary transition-colors shrink-0"
+                  title="정렬 변경"
                 >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <Icon className="w-3.5 h-3.5 text-primary" />
+                  <span className="hidden sm:inline">{cur.label}</span>
                 </button>
-              ))}
-            </div>
+              )
+            })()}
 
-            {role === "master" && (
+            {/* 토큰 입금 주소 복사 버튼 */}
+            <button
+              onClick={async () => {
+                if (!walletAddr) return
+                try {
+                  await navigator.clipboard.writeText(walletAddr)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                } catch {}
+              }}
+              disabled={!walletAddr}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors shrink-0",
+                copied
+                  ? "bg-primary/15 border-primary/40 text-primary"
+                  : "bg-secondary border-border text-muted-foreground hover:text-foreground hover:border-primary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              )}
+              title={walletAddr ? `입금 주소 복사: ${walletAddr}` : "주소 로딩 중..."}
+            >
+              {copied ? <Check className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{copied ? "복사됨" : "입금"}</span>
+            </button>
+
+            {/* 글쓰기 권한 역할에게만 + 버튼 표시 */}
+            {role && WRITE_ROLES.includes(role) && (
               <button
                 onClick={() => { setEditItem(null); setShowAdmin(v => !v) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors"
+                className={cn(
+                  "flex items-center justify-center w-9 h-9 rounded-lg border text-sm font-bold transition-colors shrink-0",
+                  showAdmin
+                    ? "bg-primary/15 border-primary/40 text-primary"
+                    : "bg-secondary border-border text-foreground hover:border-primary/40 hover:text-primary"
+                )}
+                title="상품 등록"
               >
-                <Plus className="w-3.5 h-3.5" />
-                상품 등록
+                <Plus className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -262,11 +309,13 @@ export default function MarketPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* 마스터 상품 등록 패널 */}
-        {showAdmin && role === "master" && (
+        {/* 글쓰기 권한 상품 등록 패널 */}
+        {showAdmin && role && WRITE_ROLES.includes(role) && (
           <MarketAdminPanel
             categories={categories.filter(c => c.name !== "전체")}
             editItem={editItem}
+            isMaster={role === "master"}
+            selfPublisherId={userId}
             onClose={() => { setShowAdmin(false); setEditItem(null) }}
             onSuccess={() => { setShowAdmin(false); setEditItem(null); fetchItems(activeCat, sort, q) }}
           />

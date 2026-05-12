@@ -62,21 +62,27 @@ export async function POST(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
 
-  // master 권한 확인
+  // 글쓰기 권한 확인: master / super_admin / branch_admin / admin
+  const WRITE_ROLES = ["master", "super_admin", "branch_admin", "admin"]
   const { data: profile } = await adminSupabase
     .from("profiles")
-    .select("role")
+    .select("role, username")
     .eq("id", auth.userId)
     .single()
 
-  if (profile?.role !== "master") {
+  if (!profile || !WRITE_ROLES.includes(profile.role)) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
   }
 
   const body = await req.json()
-  const { title, description, image_url, link_url, price_krw, category_id, publisher_id } = body
+  const { title, description, image_url, link_url, price_krw, category_id } = body
 
-  if (!title || !price_krw || !publisher_id) {
+  // master가 아니면 publisher_id는 본인으로 강제
+  const publisher_id = profile.role === "master"
+    ? (body.publisher_id ?? auth.userId)
+    : auth.userId
+
+  if (!title || !price_krw) {
     return NextResponse.json({ error: "필수 항목을 입력해주세요." }, { status: 400 })
   }
 
