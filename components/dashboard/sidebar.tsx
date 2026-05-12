@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useCallback } from "react"
+import { QRCodeSVG } from "qrcode.react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -225,6 +226,103 @@ function TradeStatsMini() {
     </div>
   )
 }
+// ─── 토큰 입금 QR 위젯 ───────────────────────────────────────────
+function DepositQRWidget({ isLoggedIn }: { isLoggedIn: boolean }) {
+  const [walletAddress, setWalletAddress] = useState<string | null>(null)
+  const [open, setOpen] = useState(true)
+
+  useEffect(() => {
+    if (!isLoggedIn) { setWalletAddress(null); return }
+    const token = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
+    if (!token) return
+    fetch("/api/deposit/wallet", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.walletAddress) setWalletAddress(d.walletAddress) })
+      .catch(() => {})
+  }, [isLoggedIn])
+
+  // 로그인 이벤트 시 재조회
+  useEffect(() => {
+    const onLogin = () => {
+      const token = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
+      if (!token) return
+      fetch("/api/deposit/wallet", { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.walletAddress) setWalletAddress(d.walletAddress) })
+        .catch(() => {})
+    }
+    window.addEventListener("auth:login", onLogin)
+    return () => window.removeEventListener("auth:login", onLogin)
+  }, [])
+
+  return (
+    <div className="space-y-2 px-1">
+      {/* 헤더 */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between"
+      >
+        <div className="flex items-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2v10m0 0-3-3m3 3 3-3"/><rect width="20" height="8" x="2" y="14" rx="2"/>
+          </svg>
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">토큰 입금</span>
+        </div>
+        <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform", open && "rotate-90")} />
+      </button>
+
+      {open && (
+        <div className="rounded-xl border border-border bg-background/40 p-3 flex flex-col items-center gap-2">
+          {/* QR 코드 영역 */}
+          <div className="relative">
+            {/* 항상 QR 렌더링 — 비로그인 시 블러 */}
+            <div className={cn(
+              "p-2 bg-white rounded-lg transition-all duration-300",
+              !isLoggedIn && "blur-sm pointer-events-none select-none"
+            )}>
+              <QRCodeSVG
+                value={walletAddress ?? "https://placeholder.local"}
+                size={112}
+                bgColor="#ffffff"
+                fgColor="#000000"
+              />
+            </div>
+
+            {/* 비로그인 오버레이 */}
+            {!isLoggedIn && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-muted-foreground/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span className="text-[9px] text-muted-foreground/70 font-medium">로그인 후 확인</span>
+              </div>
+            )}
+          </div>
+
+          {/* 주소 텍스트 */}
+          {isLoggedIn && walletAddress ? (
+            <p className="text-[9px] font-mono text-muted-foreground text-center break-all leading-relaxed px-1">
+              {walletAddress}
+            </p>
+          ) : isLoggedIn ? (
+            <p className="text-[9px] text-muted-foreground/50">주소 로딩 중...</p>
+          ) : (
+            <p className="text-[9px] text-muted-foreground/40 text-center">로그인하면 입금 주소가 표시됩니다</p>
+          )}
+
+          {/* 전체 페이지 이동 링크 */}
+          <Link
+            href="/deposit"
+            className="text-[9px] text-primary/70 hover:text-primary underline underline-offset-2 transition-colors"
+          >
+            자세히 보기
+          </Link>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // import { ChatPanel } from "@/components/dashboard/chat-panel"
 
 const STORAGE_KEY = "app_token"
@@ -396,31 +494,14 @@ export function Sidebar() {
             </div>
           </div>
 
-          {/* ③ 모의매매 거래 통계 */}
+          {/* ③ 토큰 입금 QR — 매매 통계 위 */}
           <div className="border-t border-border pt-3">
-            <TradeStatsMini />
+            <DepositQRWidget isLoggedIn={isLoggedIn} />
           </div>
 
-          {/* ④ 토큰 입금 */}
+          {/* ④ 모의매매 거래 통계 */}
           <div className="border-t border-border pt-3">
-            <Link
-              href="/deposit"
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                "flex items-center gap-2.5 rounded-xl border border-border px-3 py-2.5 transition-all hover:bg-secondary/60 hover:border-primary/30",
-                pathname === "/deposit" && "border-primary/50 bg-secondary/40"
-              )}
-            >
-              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2v10m0 0-3-3m3 3 3-3"/><rect width="20" height="8" x="2" y="14" rx="2"/>
-                </svg>
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold text-foreground leading-tight">토큰 입금</p>
-                <p className="text-[10px] text-muted-foreground leading-tight">잔고 충전</p>
-              </div>
-            </Link>
+            <TradeStatsMini />
           </div>
 
           {/* ⑥ 내 구매현황 */}
