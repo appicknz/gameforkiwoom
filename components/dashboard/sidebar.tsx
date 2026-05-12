@@ -93,6 +93,9 @@ function TradeStatsMini() {
   const selectedPnlPct = selectedStat && selectedStat.bet > 0
     ? (selectedStat.pnl / selectedStat.bet) * 100 : 0
 
+  // Hook은 조건부 return 전에 반드시 호출해야 함
+  const { t } = useTranslation()
+
   // 날짜 초기화 전 렌더링 방지
   if (viewYear === 0) return null
 
@@ -101,8 +104,6 @@ function TradeStatsMini() {
   const UP   = "#00e676"
   const DOWN = "#ff3d57"
   const GOLD = "#d4af37"
-
-  const { t } = useTranslation()
 
   return (
     <div className="space-y-2 px-1">
