@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Check, Download, PenLine, AlertCircle } from "lucide-react"
+import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Download, PenLine, AlertCircle } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
@@ -53,9 +53,6 @@ export default function MarketPage() {
   const [buying, setBuying]           = useState(false)
   const [buyErr, setBuyErr]           = useState("")
   const [tvId, setTvId]               = useState("")
-  // 토큰 입금 주소 복사
-  const [walletAddr, setWalletAddr]   = useState<string | null>(null)
-  const [copied, setCopied]           = useState(false)
   // 글쓰기 권한 신청 상태: null=미조회, 'none'=신청없음, 'pending'=대기중, 'approved'=승인됨, 'rejected'=거절됨
   const [writePermStatus, setWritePermStatus] = useState<string | null>(null)
   const [showRequestModal, setShowRequestModal] = useState(false)
@@ -65,16 +62,6 @@ export default function MarketPage() {
     const jwt = parseJwt()
     setRole(jwt?.role ?? null)
     setUserId(jwt?.sub ?? jwt?.userId ?? null)
-  }, [])
-
-  // 지갑 주소 로드
-  useEffect(() => {
-    const token = getToken()
-    if (!token) return
-    fetch("/api/deposit/wallet", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.walletAddress) setWalletAddr(d.walletAddress) })
-      .catch(() => {})
   }, [])
 
   // 글쓰기 권한 신청 상태 로드
@@ -259,28 +246,15 @@ export default function MarketPage() {
               )
             })()}
 
-            {/* 토큰 입금 주소 복사 버튼 */}
-            <button
-              onClick={async () => {
-                if (!walletAddr) return
-                try {
-                  await navigator.clipboard.writeText(walletAddr)
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 2000)
-                } catch {}
-              }}
-              disabled={!walletAddr}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors shrink-0",
-                copied
-                  ? "bg-primary/15 border-primary/40 text-primary"
-                  : "bg-secondary border-border text-muted-foreground hover:text-foreground hover:border-primary/40 disabled:opacity-40 disabled:cursor-not-allowed"
-              )}
-              title={walletAddr ? `입금 주소 복사: ${walletAddr}` : "주소 로딩 중..."}
+            {/* 토큰 입금 버튼 — 사이드바와 동일하게 /deposit 이동 */}
+            <a
+              href="/deposit"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors shrink-0"
+              title="토큰 입금"
             >
-              {copied ? <Check className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{copied ? "복사됨" : "입금"}</span>
-            </button>
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">입금</span>
+            </a>
 
             {/* + 글쓰기 버튼 — 모두에게 표시, 권한 없으면 신청 모달 */}
             <button
