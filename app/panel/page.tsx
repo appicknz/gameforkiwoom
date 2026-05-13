@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 import { RoundMonitor } from "@/components/admin/round-monitor"
 import { RoundHistory } from "@/components/admin/round-history"
+import MarketItemUploadModal from "@/components/market/market-item-upload-modal"
 
 const SUPER_ROLES = ["master"] // master 전용 권한 (지점관리, 라운드모니터 등)
-const ADMIN_ROLES = ["master", "super_admin", "branch_admin", "admin"]
+const ADMIN_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
 
 // 역할별 기본 탭
 const DEFAULT_TAB: Record<string, "users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts"> = {
@@ -806,6 +807,8 @@ export default function PanelPage() {
   const [baChargeRequests, setBaChargeRequests] = useState<any[]>([])
   const [baChargeLoading, setBaChargeLoading] = useState(false)
   const [baChargeExpanded, setBaChargeExpanded] = useState(false)
+  // 마켓 상품 등록 모달
+  const [showUploadModal, setShowUploadModal]   = useState(false)
   // 총판 전용: 지점이 올린 충전 요청 목록
   const [branchChargeReqs, setBranchChargeReqs]         = useState<any[]>([])
   const [baBranchChargeLoading, setBaBranchChargeLoading] = useState(false)
@@ -2964,8 +2967,16 @@ export default function PanelPage() {
           <div className="space-y-6">
 
             {/* ── 지점 전용 요약 카드 + 회원/배팅 ── */}
-            {myRole === "admin" && (
+            {(myRole === "admin" || myRole === "seller") && (
               <div className="space-y-4">
+                {/* 마켓 상품 등록 모달 */}
+                {showUploadModal && (
+                  <MarketItemUploadModal
+                    onClose={() => setShowUploadModal(false)}
+                    onSuccess={() => setShowUploadModal(false)}
+                  />
+                )}
+
                 {/* 요약 카드 3개 */}
                 <div className="grid grid-cols-3 gap-3">
                   {/* 유저 수 */}
@@ -2988,12 +2999,21 @@ export default function PanelPage() {
                   </div>
                 </div>
 
+                {/* 마켓 상품 등록 버튼 */}
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="w-full flex items-center justify-center gap-2 h-11 rounded-xl border border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 hover:border-primary/60 text-primary text-sm font-semibold transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  마켓 상품 등록
+                </button>
+
                 {/* 충전 요청 */}
                 <div className="bg-card border border-border rounded-xl p-5 space-y-3">
                   <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <Wallet className="w-4 h-4 text-primary" /> 충전 요청
                   </h2>
-                  <p className="text-xs text-muted-foreground">버튼을 눌러 금액을 누적한 뒤 요청하세요. 총판이 승인하면 포인트가 지급됩니다.</p>
+                  <p className="text-xs text-muted-foreground">버튼을 눌러 금액을 누적한 뒤 요청하세요. 총판�� 승인하면 포인트가 지급됩니다.</p>
 
                   {/* 금액 프리셋 버튼 */}
                   <div className="flex flex-wrap gap-2">

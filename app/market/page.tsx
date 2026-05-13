@@ -26,7 +26,7 @@ const SORT_CYCLE = [
 ] as const
 
 // 글쓰기(상품 등록) 권한 역할
-const WRITE_ROLES = ["master", "super_admin", "branch_admin", "admin"]
+const WRITE_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
 
 function getToken() {
   try { return localStorage.getItem("app_token") } catch { return null }

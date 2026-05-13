@@ -63,7 +63,7 @@ export async function POST(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   // 글쓰기 권한 확인: master / super_admin / branch_admin / admin
-  const WRITE_ROLES = ["master", "super_admin", "branch_admin", "admin"]
+  const WRITE_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
   const { data: profile } = await adminSupabase
     .from("profiles")
     .select("role, username")

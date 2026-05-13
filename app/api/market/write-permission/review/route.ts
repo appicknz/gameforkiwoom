@@ -71,7 +71,7 @@ export async function PATCH(req: Request) {
 
   if (error || !updated) return NextResponse.json({ error: "처리 실패" }, { status: 500 })
 
-  // 승인 시 profiles.role을 'admin'으로 업그레이드
+  // 승인 시 profiles.role을 'seller'로 설정 (마켓 판매 전용 역할)
   if (action === "approve") {
     const { data: targetProfile } = await adminSupabase
       .from("profiles")
@@ -79,12 +79,12 @@ export async function PATCH(req: Request) {
       .eq("id", updated.user_id)
       .single()
 
-    // user/member 등 기본 역할만 업그레이드 (이미 admin 이상이면 건드리지 않음)
+    // user/member 등 기본 역할만 seller로 변경 (admin 이상은 건드리지 않음)
     const LOW_ROLES = ["user", "member", null, undefined, ""]
     if (LOW_ROLES.includes(targetProfile?.role)) {
       await adminSupabase
         .from("profiles")
-        .update({ role: "admin" })
+        .update({ role: "seller" })
         .eq("id", updated.user_id)
     }
   }
