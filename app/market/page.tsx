@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Download, PenLine, AlertCircle } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
+import { blobImageUrl } from "@/lib/blob-image"
 import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
 import DepositDialog from "@/components/deposit-dialog"
 import { useTranslation } from "@/lib/i18n"
@@ -156,7 +157,7 @@ export default function MarketPage() {
 
             <div className="relative aspect-video w-full bg-secondary">
               {selectedItem.image_url ? (
-                <Image src={selectedItem.image_url} alt={selectedItem.title} fill className="object-cover" />
+                <Image src={blobImageUrl(selectedItem.image_url)!} alt={selectedItem.title} fill className="object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-6xl">
                   {selectedItem.market_categories?.icon ?? "📦"}
@@ -507,7 +508,7 @@ function MarketItemCard({
         <div className="relative aspect-square bg-secondary overflow-hidden">
           {item.image_url ? (
             <Image
-              src={item.image_url}
+              src={blobImageUrl(item.image_url)!}
               alt={item.title}
               fill
               className="object-cover group-hover:scale-105 transition-transform duration-300"

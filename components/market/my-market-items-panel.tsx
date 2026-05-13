@@ -7,6 +7,7 @@ import {
   ImageIcon, Loader2, CheckCircle, AlertCircle,
   ChevronDown, Eye, EyeOff, Package,
 } from "lucide-react"
+import { blobImageUrl } from "@/lib/blob-image"
 
 interface Category { id: string; name: string; icon: string }
 interface MarketItem {
@@ -310,7 +311,7 @@ export default function MyMarketItemsPanel({ onUploadNew }: { onUploadNew: () =>
                 {/* 썸네일 */}
                 <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-secondary">
                   {item.image_url ? (
-                    <Image src={item.image_url} alt={item.title} width={48} height={48} className="object-cover w-full h-full" />
+                    <Image src={blobImageUrl(item.image_url)!} alt={item.title} width={48} height={48} className="object-cover w-full h-full" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <ImageIcon className="w-4 h-4 text-muted-foreground/40" />

@@ -20,10 +20,13 @@ export async function POST(req: Request) {
     const ext      = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
     const filename = `market/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
+    // private store이므로 access: "private" 사용
     const blob = await put(filename, file, {
-      access:      "public",
+      access:      "private",
       contentType: file.type,
     })
+
+    // blob.url은 내부 경로 — 프록시 URL로 변환하여 반환
     return NextResponse.json({ url: blob.url })
   } catch (e: any) {
     console.error("[upload] error:", e)

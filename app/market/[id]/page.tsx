@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
+import { blobImageUrl } from "@/lib/blob-image"
 import {
   ArrowLeft, ExternalLink, ShoppingCart, Eye, Users,
   Loader2, CheckCircle, XCircle, Clock
@@ -90,7 +91,7 @@ export default function MarketItemPage() {
           {/* 이미지 */}
           <div className="rounded-2xl overflow-hidden border border-border bg-secondary/20 aspect-square relative">
             {item.image_url ? (
-              <Image src={item.image_url} alt={item.title} fill className="object-cover" />
+              <Image src={blobImageUrl(item.image_url)!} alt={item.title} fill className="object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-6xl">
                 {item.market_categories?.icon ?? "📦"}
