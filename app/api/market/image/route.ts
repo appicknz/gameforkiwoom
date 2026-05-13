@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
-import { get } from "@vercel/blob"
+import { head } from "@vercel/blob"
 
 // GET /api/market/image?url=<blob_url>
-// private Blob 이미지를 서버 프록시로 스트리밍
+// private Blob → head()로 서명된 downloadUrl을 얻어 스트리밍
 export async function GET(req: Request) {
   try {
     const blobUrl = new URL(req.url).searchParams.get("url")
@@ -14,17 +14,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "유효하지 않은 이미지 URL" }, { status: 400 })
     }
 
-    // private blob 내용 조회
-    const blob = await get(blobUrl, { token: process.env.BLOB_READ_WRITE_TOKEN })
-    if (!blob) return NextResponse.json({ error: "이미지를 찾을 수 없습니다." }, { status: 404 })
+    // head()로 메타데이터 + downloadUrl 획득
+    const meta = await head(blobUrl, { token: process.env.BLOB_READ_WRITE_TOKEN })
 
-    // blob.url에 직접 인증 토큰을 붙여 fetch
-    const upstream = await fetch(blob.downloadUrl ?? blob.url, {
+    // private blob: Authorization 헤더와 함께 fetch
+    const upstream = await fetch(meta.downloadUrl, {
       headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
     })
     if (!upstream.ok) return NextResponse.json({ error: "이미지 로드 실패" }, { status: 404 })
 
-    const contentType = upstream.headers.get("content-type") ?? blob.contentType ?? "image/jpeg"
+    const contentType = upstream.headers.get("content-type") ?? meta.contentType ?? "image/jpeg"
     const buffer      = await upstream.arrayBuffer()
 
     return new NextResponse(buffer, {

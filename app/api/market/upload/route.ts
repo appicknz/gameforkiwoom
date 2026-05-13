@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
-import { put } from "@vercel/blob"
 import { verifySession } from "@/lib/auth"
+import { adminSupabase } from "@/lib/supabase-admin"
+
+const BUCKET = "market-images"
 
 export async function POST(req: Request) {
   try {
@@ -18,16 +20,17 @@ export async function POST(req: Request) {
     }
 
     const ext      = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
-    const filename = `market/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const path     = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const buffer   = await file.arrayBuffer()
 
-    // private store이므로 access: "private" 사용
-    const blob = await put(filename, file, {
-      access:      "private",
-      contentType: file.type,
-    })
+    const { data, error } = await adminSupabase.storage
+      .from(BUCKET)
+      .upload(path, buffer, { contentType: file.type, cacheControl: "31536000", upsert: false })
 
-    // blob.url은 내부 경로 — 프록시 URL로 변환하여 반환
-    return NextResponse.json({ url: blob.url })
+    if (error) throw new Error(error.message)
+
+    const { data: { publicUrl } } = adminSupabase.storage.from(BUCKET).getPublicUrl(data.path)
+    return NextResponse.json({ url: publicUrl })
   } catch (e: any) {
     console.error("[upload] error:", e)
     return NextResponse.json({ error: e?.message ?? "업로드 실패" }, { status: 500 })

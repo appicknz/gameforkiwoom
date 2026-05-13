@@ -1,11 +1,15 @@
 /**
- * private Vercel Blob URL을 서버 프록시 경로로 변환합니다.
- * blob URL이 아닌 경우(예: https://외부 이미지) 그대로 반환합니다.
+ * 이미지 URL을 표시 가능한 URL로 변환합니다.
+ * - private Vercel Blob URL → 서버 프록시 경로
+ * - Supabase Storage URL (supabase.co/storage) → 그대로 반환 (public bucket)
+ * - 그 외 → 그대로 반환
  */
 export function blobImageUrl(url: string | null | undefined): string | null {
   if (!url) return null
-  if (url.includes("blob.vercel-storage.com")) {
+  // private Vercel Blob: 프록시 경유
+  if (url.includes(".private.blob.vercel-storage.com")) {
     return `/api/market/image?url=${encodeURIComponent(url)}`
   }
+  // Supabase public storage 또는 기타 URL: 직접 사용
   return url
 }

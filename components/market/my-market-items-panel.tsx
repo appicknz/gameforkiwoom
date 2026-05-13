@@ -45,7 +45,7 @@ function EditItemForm({
   const [price, setPrice]           = useState(item.price_krw.toLocaleString("ko-KR"))
   const [categoryId, setCategoryId] = useState(item.category_id ?? "")
   const [imageUrl, setImageUrl]     = useState<string | null>(item.image_url)
-  const [imagePreview, setPreview]  = useState<string | null>(item.image_url)
+  const [imagePreview, setPreview]  = useState<string | null>(blobImageUrl(item.image_url))
   const [uploading, setUploading]   = useState(false)
   const [saving, setSaving]         = useState(false)
   const [error, setError]           = useState("")
@@ -70,7 +70,7 @@ function EditItemForm({
       setImageUrl(data.url)
     } catch (e: any) {
       setError(e.message)
-      setPreview(item.image_url)
+      setPreview(blobImageUrl(item.image_url))
       setImageUrl(item.image_url)
     } finally {
       setUploading(false)
