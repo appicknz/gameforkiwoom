@@ -38,7 +38,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   return NextResponse.json({ item: { ...data, profiles } })
 }
 
-// PATCH: 상품 수정 (master 전용)
+// PATCH: 상품 수정 (master 전체 / seller·admin·branch_admin은 자신의 상품만)
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await verifySession(req)
@@ -47,21 +47,61 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { data: profile } = await adminSupabase
     .from("profiles").select("role").eq("id", auth.userId).single()
 
-  if (profile?.role !== "master") {
+  const WRITE_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
+  if (!profile || !WRITE_ROLES.includes(profile.role)) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
   }
 
+  // master·super_admin이 아니면 본인 상품인지 확인
+  const isSuperUser = ["master", "super_admin"].includes(profile.role)
+  if (!isSuperUser) {
+    const { data: item } = await adminSupabase
+      .from("market_items").select("publisher_id").eq("id", id).single()
+    if (!item || item.publisher_id !== auth.userId) {
+      return NextResponse.json({ error: "본인의 상품만 수정할 수 있습니다." }, { status: 403 })
+    }
+  }
+
   const body = await req.json()
-  const { title, description, link_url, price_krw, category_id, publisher_id, image_url, is_active } = body
+  const { title, description, link_url, price_krw, category_id, image_url, is_active } = body
+
+  // 가격이 변경된 경우 Stripe price 재생성
+  const { data: existingItem } = await adminSupabase
+    .from("market_items").select("price_krw, stripe_price_id").eq("id", id).single()
+
+  let stripe_price_id = existingItem?.stripe_price_id
+  if (price_krw && price_krw !== existingItem?.price_krw) {
+    const { stripe } = await import("@/lib/stripe")
+    // 기존 price 비활성화
+    if (stripe_price_id) {
+      await stripe.prices.update(stripe_price_id, { active: false }).catch(() => {})
+    }
+    // 새 price 생성
+    const { data: fullItem } = await adminSupabase
+      .from("market_items").select("stripe_price_id").eq("id", id).single()
+    const product = await stripe.products.retrieve(
+      // product_id가 없으면 새로 생성
+      "unknown"
+    ).catch(async () => stripe.products.create({ name: title ?? "상품" }))
+    const newPrice = await stripe.prices.create({
+      product:     product.id,
+      unit_amount: price_krw,
+      currency:    "krw",
+    })
+    stripe_price_id = newPrice.id
+  }
 
   const { data, error } = await adminSupabase
     .from("market_items")
     .update({
-      title, description, link_url, price_krw,
-      category_id: category_id || null,
-      publisher_id, image_url,
-      is_active: is_active ?? true,
-      stripe_price_id: null, // 가격 변경 시 stripe price 재생성 필요
+      title,
+      description,
+      link_url:        link_url   ?? null,
+      price_krw:       price_krw  ?? existingItem?.price_krw,
+      category_id:     category_id || null,
+      image_url:       image_url  ?? null,
+      is_active:       is_active  ?? true,
+      stripe_price_id,
     })
     .eq("id", id)
     .select()
@@ -71,20 +111,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   return NextResponse.json({ item: data })
 }
 
-// DELETE: 상품 비활성화 (master 전용)
+// DELETE: 상품 삭제 (master 전체 / seller·admin은 자신의 상품만)
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const { data: profile } = await adminSupabase
-    .from("profiles")
-    .select("role")
-    .eq("id", auth.userId)
-    .single()
+    .from("profiles").select("role").eq("id", auth.userId).single()
 
-  if (profile?.role !== "master") {
+  const WRITE_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
+  if (!profile || !WRITE_ROLES.includes(profile.role)) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
+  }
+
+  // master·super_admin이 아니면 본인 상품인지 확인
+  const isSuperUser = ["master", "super_admin"].includes(profile.role)
+  if (!isSuperUser) {
+    const { data: item } = await adminSupabase
+      .from("market_items").select("publisher_id").eq("id", id).single()
+    if (!item || item.publisher_id !== auth.userId) {
+      return NextResponse.json({ error: "본인의 상품만 삭제할 수 있습니다." }, { status: 403 })
+    }
   }
 
   await adminSupabase.from("market_items").update({ is_active: false }).eq("id", id)

@@ -3,22 +3,31 @@ import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { verifySession } from "@/lib/auth"
 
-// GET: 상품 목록 (공개)
+// GET: 상품 목록 (공개) — ?mine=true 시 인증된 사용자의 상품만
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const categoryId = url.searchParams.get("category")
-  const sort       = url.searchParams.get("sort") ?? "popular"   // popular | price_asc | price_desc | newest
+  const sort       = url.searchParams.get("sort") ?? "popular"
   const q          = url.searchParams.get("q") ?? ""
+  const mine       = url.searchParams.get("mine") === "true"
 
   let query = adminSupabase
     .from("market_items")
     .select(`
       id, title, description, image_url, link_url,
-      price_krw, view_count, order_count, created_at,
+      price_krw, view_count, order_count, created_at, is_active,
       category_id, publisher_id,
       market_categories(name, icon)
     `)
-    .eq("is_active", true)
+
+  if (mine) {
+    // mine=true: 인증 필요, 본인 상품 전체 (비활성 포함)
+    const auth = await verifySession(req)
+    if (!auth.ok) return NextResponse.json({ items: [] })
+    query = query.eq("publisher_id", auth.userId)
+  } else {
+    query = query.eq("is_active", true)
+  }
 
   if (categoryId && categoryId !== "all") {
     query = query.eq("category_id", categoryId)

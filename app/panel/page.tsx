@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { RoundMonitor } from "@/components/admin/round-monitor"
 import { RoundHistory } from "@/components/admin/round-history"
 import MarketItemUploadModal from "@/components/market/market-item-upload-modal"
+import MyMarketItemsPanel from "@/components/market/my-market-items-panel"
 
 const SUPER_ROLES = ["master"] // master 전용 권한 (지점관리, 라운드모니터 등)
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
@@ -2973,7 +2974,11 @@ export default function PanelPage() {
                 {showUploadModal && (
                   <MarketItemUploadModal
                     onClose={() => setShowUploadModal(false)}
-                    onSuccess={() => setShowUploadModal(false)}
+                    onSuccess={() => {
+                      setShowUploadModal(false)
+                      // MyMarketItemsPanel이 리스너를 통해 목록을 갱신하도록 이벤트 발생
+                      window.dispatchEvent(new Event("market:item:created"))
+                    }}
                   />
                 )}
 
@@ -3007,6 +3012,9 @@ export default function PanelPage() {
                   <Upload className="w-4 h-4" />
                   마켓 상품 등록
                 </button>
+
+                {/* 내 상품 관리 */}
+                <MyMarketItemsPanel onUploadNew={() => setShowUploadModal(true)} />
 
                 {/* 충전 요청 */}
                 <div className="bg-card border border-border rounded-xl p-5 space-y-3">
@@ -3831,7 +3839,7 @@ export default function PanelPage() {
               </div>
               <div className="divide-y divide-border">
                 {users.filter(u => ["super_admin", "branch_admin", "admin"].includes(u.role)).length === 0 ? (
-                  <p className="py-10 text-center text-sm text-muted-foreground">생성된 관리자 계정이 없습니다.</p>
+                  <p className="py-10 text-center text-sm text-muted-foreground">생성�� 관리자 계정이 없습니다.</p>
                 ) : (
                   users
                     .filter(u => ["super_admin", "branch_admin", "admin"].includes(u.role))
