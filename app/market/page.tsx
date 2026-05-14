@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Download, PenLine, AlertCircle } from "lucide-react"
-import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { blobImageUrl } from "@/lib/blob-image"
 import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
@@ -157,7 +156,14 @@ export default function MarketPage() {
 
             <div className="relative aspect-video w-full bg-secondary">
               {selectedItem.image_url ? (
-                <Image src={blobImageUrl(selectedItem.image_url)!} alt={selectedItem.title} fill className="object-cover" />
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={blobImageUrl(selectedItem.image_url)!}
+                  alt={selectedItem.title}
+                  loading="eager"
+                  decoding="async"
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-6xl">
                   {selectedItem.market_categories?.icon ?? "📦"}
@@ -347,10 +353,11 @@ export default function MarketPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {items.map(item => (
+            {items.map((item, idx) => (
               <MarketItemCard
                 key={item.id}
                 item={item}
+                index={idx}
                 isAdmin={role === "master"}
                 onSelect={() => { setSelectedItem(item); setBuyErr("") }}
                 onEdit={() => {
@@ -483,9 +490,10 @@ function WritePermissionModal({
 }
 
 function MarketItemCard({
-  item, isAdmin, onSelect, onEdit,
+  item, index, isAdmin, onSelect, onEdit,
 }: {
   item: Item
+  index: number
   isAdmin: boolean
   onSelect: () => void
   onEdit: () => void
@@ -507,11 +515,13 @@ function MarketItemCard({
         {/* 이미지 영역 */}
         <div className="relative aspect-square bg-secondary overflow-hidden">
           {item.image_url ? (
-            <Image
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
               src={blobImageUrl(item.image_url)!}
               alt={item.title}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
+              loading={index < 6 ? "eager" : "lazy"}
+              decoding="async"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-4xl">

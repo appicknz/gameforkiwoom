@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useEffect } from "react"
 import { X, Upload, ImageIcon, Loader2, CheckCircle, AlertCircle, ChevronDown } from "lucide-react"
-import Image from "next/image"
 
 interface Category { id: string; name: string; icon: string }
 
@@ -163,7 +162,8 @@ export default function MarketItemUploadModal({ onClose, onSuccess }: Props) {
                 >
                   {imagePreview ? (
                     <>
-                      <Image src={imagePreview} alt="preview" fill className="object-cover" />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imagePreview} alt="preview" className="absolute inset-0 w-full h-full object-cover" />
                       {/* 업로드 중 오버레이 */}
                       {uploading && (
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">

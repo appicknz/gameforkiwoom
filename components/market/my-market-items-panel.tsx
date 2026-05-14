@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import Image from "next/image"
 import {
   RefreshCw, Plus, Pencil, Trash2, X, Upload,
   ImageIcon, Loader2, CheckCircle, AlertCircle,
@@ -117,7 +116,8 @@ function EditItemForm({
           onClick={() => fileRef.current?.click()}
         >
           {imagePreview ? (
-            <Image src={imagePreview} alt="preview" fill className="object-cover" />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imagePreview} alt="preview" className="absolute inset-0 w-full h-full object-cover" />
           ) : (
             <div className="flex items-center justify-center h-full">
               <ImageIcon className="w-5 h-5 text-muted-foreground" />
@@ -311,7 +311,8 @@ export default function MyMarketItemsPanel({ onUploadNew }: { onUploadNew: () =>
                 {/* 썸네일 */}
                 <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-secondary">
                   {item.image_url ? (
-                    <Image src={blobImageUrl(item.image_url)!} alt={item.title} width={48} height={48} className="object-cover w-full h-full" />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={blobImageUrl(item.image_url)!} alt={item.title} loading="lazy" decoding="async" className="object-cover w-full h-full" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
