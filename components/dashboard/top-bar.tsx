@@ -104,11 +104,6 @@ export function TopBar() {
             const role = d.profile.role
             setProfile({ username: d.profile.username, role, branch_code: d.profile.branch_code ?? null })
             setIsLoggedIn(true)
-            // 관리자 계열 역할이고 현재 게임 화면(/)에 있으면 패널로 이동
-            if (ADMIN_ROLES.includes(role) && window.location.pathname === "/") {
-              router.push("/panel")
-              return
-            }
           }
         }
         if (br.ok) {
@@ -216,14 +211,6 @@ export function TopBar() {
 
       // 서버가 발급한 토큰 저장 (localStorage["app_token"] 전용)
       saveToken(data.token)
-
-      const role = data.role ?? "user"
-
-      // admin 계열은 패널로 이동, 일반 유저는 새로고침
-      if (ADMIN_ROLES.includes(role) && role !== "master") {
-        router.push("/panel")
-        return
-      }
 
       window.location.reload()
       return
