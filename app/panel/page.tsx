@@ -4389,23 +4389,34 @@ function GameAccessToggle({
   token: string
   onChanged: (val: boolean) => void
 }) {
+  const [localEnabled, setLocalEnabled] = useState(enabled)
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
+  // 부모에서 enabled prop이 바뀌면 동기화
+  useEffect(() => { setLocalEnabled(enabled) }, [enabled])
+
   const toggle = async () => {
+    const next = !localEnabled
+    setLocalEnabled(next)   // 낙관적 업데이트 (즉시 UI 반영)
     setLoading(true); setMsg(null)
     try {
       const res = await fetch("/api/admin/set-game-enabled", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ userId, game_enabled: !enabled }),
+        body: JSON.stringify({ userId, game_enabled: next }),
       })
       const data = await res.json()
-      if (!res.ok) { setMsg(data.error ?? "실패"); return }
-      onChanged(!enabled)
-      setMsg(!enabled ? "게임 활성화됨" : "게임 비활성화됨")
+      if (!res.ok) {
+        setLocalEnabled(!next)   // 실패 시 롤백
+        setMsg(data.error ?? "실패")
+        return
+      }
+      onChanged(next)
+      setMsg(next ? "게임 활성화됨" : "게임 비활성화됨")
       setTimeout(() => setMsg(null), 2000)
     } catch {
+      setLocalEnabled(!next)   // 실패 시 롤백
       setMsg("네트워크 오류")
     } finally {
       setLoading(false)
@@ -4422,9 +4433,9 @@ function GameAccessToggle({
         <button
           onClick={toggle}
           disabled={loading}
-          className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${enabled ? "bg-primary" : "bg-muted-foreground/30"} disabled:opacity-50`}
+          className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${localEnabled ? "bg-primary" : "bg-muted-foreground/30"} disabled:opacity-50`}
         >
-          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-5" : "translate-x-0.5"}`} />
+          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${localEnabled ? "translate-x-5" : "translate-x-0.5"}`} />
         </button>
       </div>
       {msg && <p className={`text-[10px] mt-1 ${msg.includes("활성화됨") ? "text-primary" : "text-muted-foreground"}`}>{msg}</p>}
