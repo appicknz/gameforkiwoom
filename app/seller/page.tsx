@@ -134,14 +134,14 @@ export default function SellerPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex items-center justify-center py-32">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="text-foreground">
       {/* 상품 등록/수정 패널 */}
       {(showPanel || editItem) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}>
