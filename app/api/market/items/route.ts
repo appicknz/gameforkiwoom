@@ -18,7 +18,7 @@ export async function GET(req: Request) {
       id, title, description, image_url, link_url,
       price_krw, view_count, order_count, game_bonus_rate, created_at, is_active,
       category_id, publisher_id,
-      market_categories(name, icon)
+      market_categories(name, icon, balance_only)
     `)
 
   if (all) {

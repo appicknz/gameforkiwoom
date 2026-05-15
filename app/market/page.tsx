@@ -14,7 +14,7 @@ interface Item {
   image_url: string | null; price_krw: number
   view_count: number; order_count: number; game_bonus_rate: number; created_at: string
   category_id: string | null
-  market_categories: { name: string; icon: string } | null
+  market_categories: { name: string; icon: string; balance_only: boolean } | null
   profiles: { username: string; role: string } | null
 }
 
@@ -56,6 +56,7 @@ export default function MarketPage() {
   const [buying, setBuying]           = useState(false)
   const [buyErr, setBuyErr]           = useState("")
   const [tvId, setTvId]               = useState("")
+  const [userBalance, setUserBalance] = useState<number | null>(null)
   // 글쓰기 권한 신청 상태: null=미조회, 'none'=신청없음, 'pending'=대기중, 'approved'=승인됨, 'rejected'=거절됨
   const [writePermStatus, setWritePermStatus] = useState<string | null>(null)
   const [showRequestModal, setShowRequestModal] = useState(false)
@@ -96,6 +97,40 @@ export default function MarketPage() {
     } finally {
       setBuying(false)
     }
+  }, [selectedItem])
+
+  const handleBalanceBuy = useCallback(async () => {
+    if (!selectedItem) return
+    const token = getToken()
+    if (!token) { setBuyErr(t("auth.loginRequired")); return }
+    setBuying(true); setBuyErr("")
+    try {
+      const res  = await fetch("/api/market/balance-purchase", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ itemId: selectedItem.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
+      setUserBalance(data.newBalance)
+      setSelectedItem(null)
+      fetchItems(activeCat, sort, q)
+    } catch {
+      setBuyErr(t("common.error"))
+    } finally {
+      setBuying(false)
+    }
+  }, [selectedItem, activeCat, sort, q, fetchItems])
+
+  // 모달이 열릴 때 잔고 로드 (포인트 전용 아이템)
+  useEffect(() => {
+    if (!selectedItem?.market_categories?.balance_only) return
+    const token = getToken()
+    if (!token) return
+    fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setUserBalance(d.balance ?? 0))
+      .catch(() => {})
   }, [selectedItem])
 
   // 카테고리 로드
@@ -209,29 +244,53 @@ export default function MarketPage() {
                 </p>
               )}
 
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">
-                  트레이딩뷰 아이디 <span className="text-muted-foreground/50">(선택)</span>
-                </label>
-                <input
-                  type="text"
-                  value={tvId}
-                  onChange={e => setTvId(e.target.value)}
-                  placeholder="TradingView 아이디를 입력하세요"
-                  className="w-full h-9 px-3 text-sm bg-secondary/40 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/50"
-                />
-              </div>
+              {/* 포인트 전용 카테고리가 아닐 때만 트레이딩뷰 ID 입력 */}
+              {!selectedItem.market_categories?.balance_only && (
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">
+                    트레이딩뷰 아이디 <span className="text-muted-foreground/50">(선택)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={tvId}
+                    onChange={e => setTvId(e.target.value)}
+                    placeholder="TradingView 아이디를 입력하세요"
+                    className="w-full h-9 px-3 text-sm bg-secondary/40 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/50"
+                  />
+                </div>
+              )}
+
+              {/* 포인트 전용: 잔고 표시 */}
+              {selectedItem.market_categories?.balance_only && (
+                <div className="rounded-lg border border-border bg-secondary/30 px-3 py-2.5 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">내 잔고</span>
+                  <span className={`text-sm font-bold ${userBalance !== null && userBalance < selectedItem.price_krw ? "text-destructive" : "text-foreground"}`}>
+                    {userBalance !== null ? `${userBalance.toLocaleString("ko-KR")}원` : "조회 중..."}
+                  </span>
+                </div>
+              )}
 
               {buyErr && <p className="text-xs text-destructive">{buyErr}</p>}
 
-              <button
-                onClick={handleBuy}
-                disabled={buying}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
-              >
-                {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
-                {buying ? t("market.buyingButton") : t("market.buyButton")}
-              </button>
+              {selectedItem.market_categories?.balance_only ? (
+                <button
+                  onClick={handleBalanceBuy}
+                  disabled={buying || (userBalance !== null && userBalance < selectedItem.price_krw)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
+                >
+                  {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+                  {buying ? "처리 중..." : "잔고로 구매"}
+                </button>
+              ) : (
+                <button
+                  onClick={handleBuy}
+                  disabled={buying}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
+                >
+                  {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+                  {buying ? t("market.buyingButton") : t("market.buyButton")}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -615,6 +674,11 @@ function MarketItemCard({
           </p>
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
             <span>{(item.view_count ?? 0).toLocaleString()}명 조회</span>
+            {item.market_categories?.balance_only && (
+              <span className="px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 font-semibold text-[9px]">
+                잔고 전용
+              </span>
+            )}
             {(item.game_bonus_rate ?? 0) > 0 && (
               <span className="px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-semibold text-[9px]">
                 보너스 게임 +{item.game_bonus_rate}%
