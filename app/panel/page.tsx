@@ -3172,7 +3172,7 @@ export default function PanelPage() {
                     <button
                       onClick={() => setBranchTab("members")}
                       className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${branchTab === "members" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                    >회원 목록 ({adminMembers.length}명)</button>
+                    >회원 목�� ({adminMembers.length}명)</button>
                     <button
                       onClick={() => { setBranchTab("bets"); if (branchBets.length === 0) loadBranchBets(selectedMember?.id) }}
                       className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${branchTab === "bets" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
@@ -3625,7 +3625,7 @@ export default function PanelPage() {
               return (
                 <div className="bg-card border border-border rounded-xl overflow-hidden">
                   <div className="grid grid-cols-7 border-b border-border">
-                    {["일", "월", "화", "수", "목", "금", "토"].map(d => (
+                    {["��", "월", "화", "수", "목", "금", "토"].map(d => (
                       <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
                     ))}
                   </div>
@@ -4249,9 +4249,9 @@ function WriteRequestsPanel({ token }: { token: string }) {
       })
       const data = await res.json()
       if (!res.ok) { setMsg({ id: requestId, ok: false, text: data.error ?? "처리 실패" }); return }
-      setMsg({ id: requestId, ok: true, text: action === "approve" ? "승인 완료" : "거절 완료" })
-      // 목록 갱신
-      setRequests(prev => prev.filter(r => r.id !== requestId))
+      setMsg({ id: requestId, ok: true, text: action === "approve" ? "승인 완료 (셀러 역할 적용됨)" : "거절 완료" })
+      // 목록 새로고침 (역할 변경 반영)
+      await load(filter)
     } catch {
       setMsg({ id: requestId, ok: false, text: "오류 발생" })
     } finally {
@@ -4330,7 +4330,19 @@ function WriteRequestsPanel({ token }: { token: string }) {
                 )}
               </div>
 
-              {/* 승인/거절 버튼 (pending 상태에만) */}
+              {/* 승인/거절 버튼 (pending) + 역할 재적용 (approved이지만 role이 seller 아닌 경우) */}
+              {r.status === "approved" && r.profiles?.role !== "seller" && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    onClick={() => handleAction(r.id, "approve")}
+                    disabled={processing === r.id}
+                    className="h-8 px-3 text-xs bg-secondary text-foreground border border-border hover:border-primary/40"
+                  >
+                    {processing === r.id ? "처리중..." : "역할 적용"}
+                  </Button>
+                </div>
+              )}
               {r.status === "pending" && (
                 <div className="flex items-center gap-2 shrink-0">
                   <Button
