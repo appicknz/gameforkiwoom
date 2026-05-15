@@ -62,6 +62,7 @@ export default function MarketPage() {
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [showDeposit, setShowDeposit]         = useState(false)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fetchItemsRef                 = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const jwt = parseJwt()
@@ -114,13 +115,13 @@ export default function MarketPage() {
       if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
       setUserBalance(data.newBalance)
       setSelectedItem(null)
-      fetchItems(activeCat, sort, q)
+      fetchItemsRef.current?.()
     } catch {
       setBuyErr(t("common.error"))
     } finally {
       setBuying(false)
     }
-  }, [selectedItem, activeCat, sort, q, fetchItems])
+  }, [selectedItem])
 
   // 모달이 열릴 때 잔고 로드 (포인트 전용 아이템)
   useEffect(() => {
@@ -151,6 +152,11 @@ export default function MarketPage() {
     setItems(data.items ?? [])
     setLoading(false)
   }, [])
+
+  // ref를 항상 최신 fetchItems로 유지 (handleBalanceBuy에서 TDZ 없이 참조)
+  useEffect(() => {
+    fetchItemsRef.current = () => fetchItems(activeCat, sort, q)
+  }, [fetchItems, activeCat, sort, q])
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
