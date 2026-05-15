@@ -10,6 +10,7 @@ export async function GET(req: Request) {
   const sort       = url.searchParams.get("sort") ?? "popular"
   const q          = url.searchParams.get("q") ?? ""
   const mine       = url.searchParams.get("mine") === "true"
+  const all        = url.searchParams.get("all")  === "true"   // master 전용: 비활성 포함 전체
 
   let query = adminSupabase
     .from("market_items")
@@ -20,7 +21,14 @@ export async function GET(req: Request) {
       market_categories(name, icon)
     `)
 
-  if (mine) {
+  if (all) {
+    // all=true: master 전용, 비활성 포함 전체 — 인증 및 role 검증
+    const auth = await verifySession(req)
+    if (!auth.ok) return NextResponse.json({ items: [] })
+    const { data: p } = await adminSupabase.from("profiles").select("role").eq("id", auth.userId).single()
+    if (!p || !["master", "super_admin"].includes(p.role)) return NextResponse.json({ items: [] })
+    // is_active 필터 없음 → 전체
+  } else if (mine) {
     // mine=true: 인증 필요, 본인 상품 전체 (비활성 포함)
     const auth = await verifySession(req)
     if (!auth.ok) return NextResponse.json({ items: [] })

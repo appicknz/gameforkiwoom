@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, TrendingUp, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy, ImageIcon, Upload, Percent, Eye, EyeOff } from "lucide-react"
+import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, TrendingUp, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy, ImageIcon, Upload, Percent, Eye, EyeOff, ShoppingBag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
@@ -9,6 +9,7 @@ import { RoundMonitor } from "@/components/admin/round-monitor"
 import { RoundHistory } from "@/components/admin/round-history"
 import MarketItemUploadModal from "@/components/market/market-item-upload-modal"
 import MyMarketItemsPanel from "@/components/market/my-market-items-panel"
+import MarketMasterPanel from "@/components/market/market-master-panel"
 
 const SUPER_ROLES = ["master"] // master 전용 권한 (지점관리, 라운드모니터 등)
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
@@ -181,7 +182,7 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "write_requests">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "write_requests" | "market">("users")
   // 수수료 설정 (마스터 전용)
   const [commRates, setCommRates]         = useState<{ role: string; rate: number }[]>([])
   const [commEditing, setCommEditing]     = useState<Record<string, string>>({}) // role → 입력 중인 % 문자열
@@ -1517,6 +1518,7 @@ export default function PanelPage() {
             <button onClick={() => { setActiveTab("cards"); fetchCardImages() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><ImageIcon className="w-4 h-4" /> 카드관리</button>
             <button onClick={() => { setActiveTab("commission"); loadCommRates() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "commission" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Percent className="w-4 h-4" /> 수수료 설정</button>
             <button onClick={() => setActiveTab("write_requests")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "write_requests" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><UserCheck className="w-4 h-4" /> 글쓰기 신청</button>
+            <button onClick={() => setActiveTab("market")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "market" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><ShoppingBag className="w-4 h-4" /> 마켓 관리</button>
           </>)}
 
           {/* ── 대총판 전용 탭 ── */}
@@ -2025,7 +2027,7 @@ export default function PanelPage() {
                                     const token = getToken()
                                     await fetch("/api/admin/exchange-request", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ requestId: r.id, action: "reject" }) })
                                     loadBaExRequests()
-                                  }}>거절</Button>
+                                  }}>거��</Button>
                                 <Button size="sm" className="h-7 px-3 text-[11px]"
                                   onClick={async () => {
                                     const token = getToken()
@@ -2934,7 +2936,7 @@ export default function PanelPage() {
             {pcActivateId && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                 <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
-                  <h3 className="text-sm font-semibold text-foreground">계정 비밀번호 설정</h3>
+                  <h3 className="text-sm font-semibold text-foreground">계정 비��번호 설정</h3>
                   <p className="text-xs text-muted-foreground">사용자에게 전달할 비밀번호를 두 번 입력해 검증합니다.</p>
                   <div className="space-y-2">
                     <Input type="password" placeholder="새 비밀번호" value={pcActivatePw1} onChange={e => setPcActivatePw1(e.target.value)} className="h-9 text-sm" />
@@ -3168,7 +3170,7 @@ export default function PanelPage() {
                       {/* 헤더 */}
                       {adminMembers.length > 0 && (
                         <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-5 py-2 bg-muted/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                          <span>회원 ID</span><span className="text-right">잔고</span><span className="text-right">관리</span>
+                          <span>회원 ID</span><span className="text-right">잔��</span><span className="text-right">관리</span>
                         </div>
                       )}
                       {adminMembers.map(member => (
@@ -3366,7 +3368,7 @@ export default function PanelPage() {
             {/* 환전 요청 생성 */}
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-primary" /> 환전 요청</h2>
-              <p className="text-xs text-muted-foreground">유�� 아이디와 환전할 포인트를 입력하면 대총판/마스��가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
+              <p className="text-xs text-muted-foreground">유�� 아이디와 환전할 포인트를 입력하면 대총판/마스��가 ���인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
               <div className="flex gap-2 flex-wrap">
                 <Input placeholder="유저 아이디" value={exTargetId} onChange={e => setExTargetId(e.target.value)} className="h-9 text-sm w-40" />
                 <Input placeholder="포인트 금액" type="number" value={exPointAmt} onChange={e => setExPointAmt(e.target.value)} className="h-9 text-sm w-36" />
@@ -3467,7 +3469,7 @@ export default function PanelPage() {
                   </Button>
                 </div>
                 <div className="divide-y divide-border">
-                  {prRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
+                  {prRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습��다.</p>}
                   {prRequests.map((r: any) => (
                     <div key={r.id} className="px-5 py-4 flex items-center justify-between gap-4">
                       <div className="flex-1">
@@ -4164,6 +4166,12 @@ export default function PanelPage() {
         {/* ── 글쓰기 신청 탭 (master 전용) ── */}
         {activeTab === "write_requests" && myRole === "master" && (
           <WriteRequestsPanel token={adminPw} />
+        )}
+
+        {activeTab === "market" && myRole === "master" && (
+          <div className="p-4">
+            <MarketMasterPanel />
+          </div>
         )}
 
       </main>
