@@ -77,7 +77,21 @@ export default function SellerPage() {
     const r = jwt?.role ?? null
     setRole(r)
     setUserId(jwt?.sub ?? jwt?.userId ?? null)
-    if (!r || !SELLER_ROLES.includes(r)) { router.push("/"); return }
+
+    // role이 SELLER_ROLES에 없으면 write_permission_requests approved 여부 추가 확인
+    if (!r || !SELLER_ROLES.includes(r)) {
+      try {
+        const permRes = await fetch("/api/market/write-permission", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const permData = await permRes.json()
+        if (permData?.request?.status !== "approved") { router.push("/"); return }
+        // approved면 seller로 간주하고 진행
+        setRole("seller")
+      } catch {
+        router.push("/"); return
+      }
+    }
 
     // 카테고리 로드
     fetch("/api/market/categories")
