@@ -57,6 +57,7 @@ export default function MarketPage() {
   const [buyErr, setBuyErr]           = useState("")
   const [tvId, setTvId]               = useState("")
   const [userBalance, setUserBalance] = useState<number | null>(null)
+  const [balanceMemo, setBalanceMemo] = useState("")
   // 글쓰기 권한 신청 상태: null=미조회, 'none'=신청없음, 'pending'=대기중, 'approved'=승인됨, 'rejected'=거절됨
   const [writePermStatus, setWritePermStatus] = useState<string | null>(null)
   const [showRequestModal, setShowRequestModal] = useState(false)
@@ -109,11 +110,12 @@ export default function MarketPage() {
       const res  = await fetch("/api/market/balance-purchase", {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ itemId: selectedItem.id }),
+        body:    JSON.stringify({ itemId: selectedItem.id, memo: balanceMemo }),
       })
       const data = await res.json()
       if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
       setUserBalance(data.newBalance)
+      setBalanceMemo("")
       setSelectedItem(null)
       fetchItemsRef.current?.()
     } catch {
@@ -189,7 +191,8 @@ export default function MarketPage() {
             onClick={e => e.stopPropagation()}
           >
             <button
-              onClick={() => { setSelectedItem(null); setBuyErr(""); setTvId("") }}
+          onClick={() => { setSelectedItem(null); setBuyErr(""); setTvId(""); setBalanceMemo("") }}
+
               className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
             >
               <X className="w-4 h-4" />
@@ -266,14 +269,30 @@ export default function MarketPage() {
                 </div>
               )}
 
-              {/* 포인트 전용: 잔고 표시 */}
+              {/* 포인트 전용: 잔고 표시 + 메모 입력 */}
               {selectedItem.market_categories?.balance_only && (
-                <div className="rounded-lg border border-border bg-secondary/30 px-3 py-2.5 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">내 잔고</span>
-                  <span className={`text-sm font-bold ${userBalance !== null && userBalance < selectedItem.price_krw ? "text-destructive" : "text-foreground"}`}>
-                    {userBalance !== null ? `${userBalance.toLocaleString("ko-KR")}원` : "조회 중..."}
-                  </span>
-                </div>
+                <>
+                  <div className="rounded-lg border border-border bg-secondary/30 px-3 py-2.5 flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">내 잔고</span>
+                    <span className={`text-sm font-bold ${userBalance !== null && userBalance < selectedItem.price_krw ? "text-destructive" : "text-foreground"}`}>
+                      {userBalance !== null ? `${userBalance.toLocaleString("ko-KR")}원` : "조회 중..."}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">
+                      메모 <span className="text-muted-foreground/50">(선택, 최대 500자)</span>
+                    </label>
+                    <textarea
+                      value={balanceMemo}
+                      onChange={e => setBalanceMemo(e.target.value)}
+                      maxLength={500}
+                      rows={3}
+                      placeholder="판매자에게 전달할 내용을 입력하세요"
+                      className="w-full px-3 py-2 text-sm bg-secondary/40 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/50 resize-none"
+                    />
+                    <p className="text-[10px] text-muted-foreground/60 text-right">{balanceMemo.length} / 500</p>
+                  </div>
+                </>
               )}
 
               {buyErr && <p className="text-xs text-destructive">{buyErr}</p>}
@@ -682,7 +701,7 @@ function MarketItemCard({
             <span>{(item.view_count ?? 0).toLocaleString()}명 조회</span>
             {item.market_categories?.balance_only && (
               <span className="px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 font-semibold text-[9px]">
-                잔고 전용
+                잔��� 전용
               </span>
             )}
             {(item.game_bonus_rate ?? 0) > 0 && (

@@ -9,8 +9,9 @@ export async function POST(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
 
   const body = await req.json()
-  const { itemId } = body as { itemId?: string }
+  const { itemId, memo } = body as { itemId?: string; memo?: string }
   if (!itemId) return NextResponse.json({ error: "상품 ID가 없습니다." }, { status: 400 })
+  const cleanMemo = memo?.trim().slice(0, 500) || null
 
   // 상품 조회 — 카테고리 balance_only 여부도 함께 확인
   const { data: item, error: itemErr } = await adminSupabase
@@ -79,13 +80,14 @@ export async function POST(req: Request) {
   // 주문 생성 (즉시 approved + paid_at 설정)
   const now = new Date().toISOString()
   await adminSupabase.from("market_orders").insert({
-    item_id:      itemId,
-    buyer_id:     auth.userId,
-    publisher_id: item.publisher_id,
-    price_krw:    item.price_krw,
-    status:       "approved",
-    paid_at:      now,
+    item_id:        itemId,
+    buyer_id:       auth.userId,
+    publisher_id:   item.publisher_id,
+    price_krw:      item.price_krw,
+    status:         "approved",
+    paid_at:        now,
     bonus_credited: false,
+    memo:           cleanMemo,
   })
 
   // order_count 증가
