@@ -275,11 +275,10 @@ export default function MarketPage() {
               return (
             <button
               onClick={() => {
-                if (canWrite) {
-                  setEditItem(null); setShowAdmin(v => !v)
-                } else {
-                  setShowRequestModal(true)
-                }
+                if (!getToken()) { setShowRequestModal(true); return }
+                // 권한 없음: 신청 모달 바로 오픈 (폼 절대 표시 안 함)
+                if (!canWrite) { setShowRequestModal(true); return }
+                setEditItem(null); setShowAdmin(v => !v)
               }}
               className={cn(
                 "flex items-center justify-center w-9 h-9 rounded-lg border transition-colors shrink-0",
@@ -333,17 +332,61 @@ export default function MarketPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* 글쓰기 권한 상품 등록 패널 */}
-        {showAdmin && ((role && WRITE_ROLES.includes(role)) || writePermStatus === "approved") && (
-          <MarketAdminPanel
-            categories={categories.filter(c => c.name !== "전체")}
-            editItem={editItem}
-            isMaster={role === "master"}
-            selfPublisherId={userId}
-            onClose={() => { setShowAdmin(false); setEditItem(null) }}
-            onSuccess={() => { setShowAdmin(false); setEditItem(null); fetchItems(activeCat, sort, q) }}
-          />
-        )}
+        {/* 글쓰기 패널 — 권한 게이트 */}
+        {showAdmin && (() => {
+          const canWrite = (role && WRITE_ROLES.includes(role)) || writePermStatus === "approved"
+
+          // 권한 없음 → 양식 대신 신청 안내 표시
+          if (!canWrite) {
+            return (
+              <div className="rounded-xl border border-border bg-secondary/30 p-6 flex flex-col items-center gap-4 text-center">
+                <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center border border-border">
+                  <svg className="w-6 h-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75A4.5 4.5 0 0 0 7.5 6.75v3.75m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5v-6a1.5 1.5 0 0 1 1.5-1.5Z" />
+                  </svg>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground">상품 등록 권한이 필요합니다</p>
+                  {writePermStatus === "pending" ? (
+                    <p className="text-xs text-amber-500">권한 신청이 검토 중입니다. 승인 후 등록이 가능합니다.</p>
+                  ) : writePermStatus === "rejected" ? (
+                    <p className="text-xs text-destructive">권한 신청이 거절되었습니다. 다시 신청하거나 관리자에게 문의하세요.</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">글쓰기 권한을 신청하면 관리자 승인 후 상품을 등록할 수 있습니다.</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {writePermStatus !== "pending" && (
+                    <button
+                      onClick={() => { setShowAdmin(false); setShowRequestModal(true) }}
+                      className="h-8 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors"
+                    >
+                      권한 신청하기
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowAdmin(false)}
+                    className="h-8 px-4 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            )
+          }
+
+          // 권한 있음 → 등록 폼
+          return (
+            <MarketAdminPanel
+              categories={categories.filter(c => c.name !== "전체")}
+              editItem={editItem}
+              isMaster={role === "master"}
+              selfPublisherId={userId}
+              onClose={() => { setShowAdmin(false); setEditItem(null) }}
+              onSuccess={() => { setShowAdmin(false); setEditItem(null); fetchItems(activeCat, sort, q) }}
+            />
+          )
+        })()}
 
         {/* 상품 그리드 */}
         {loading ? (
