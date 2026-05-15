@@ -64,6 +64,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const body = await req.json()
   const { title, description, link_url, price_krw, category_id, image_url, is_active } = body
+  const game_bonus_rate = body.game_bonus_rate != null
+    ? Math.min(100, Math.max(0, parseInt(body.game_bonus_rate, 10) || 0))
+    : undefined
 
   // 가격이 변경된 경우 Stripe price 재생성
   const { data: existingItem } = await adminSupabase
@@ -91,18 +94,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     stripe_price_id = newPrice.id
   }
 
+  const updatePayload: Record<string, unknown> = {
+    title,
+    description,
+    link_url:        link_url    ?? null,
+    price_krw:       price_krw   ?? existingItem?.price_krw,
+    category_id:     category_id || null,
+    image_url:       image_url   ?? null,
+    is_active:       is_active   ?? true,
+    stripe_price_id,
+  }
+  if (game_bonus_rate !== undefined) updatePayload.game_bonus_rate = game_bonus_rate
+
   const { data, error } = await adminSupabase
     .from("market_items")
-    .update({
-      title,
-      description,
-      link_url:        link_url   ?? null,
-      price_krw:       price_krw  ?? existingItem?.price_krw,
-      category_id:     category_id || null,
-      image_url:       image_url  ?? null,
-      is_active:       is_active  ?? true,
-      stripe_price_id,
-    })
+    .update(updatePayload)
     .eq("id", id)
     .select()
     .single()

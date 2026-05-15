@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     .from("market_items")
     .select(`
       id, title, description, image_url, link_url,
-      price_krw, view_count, order_count, created_at, is_active,
+      price_krw, view_count, order_count, game_bonus_rate, created_at, is_active,
       category_id, publisher_id,
       market_categories(name, icon)
     `)
@@ -107,9 +107,10 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { title, description, image_url, link_url, price_krw, category_id } = body
+  const game_bonus_rate = Math.min(100, Math.max(0, parseInt(body.game_bonus_rate ?? "0", 10) || 0))
 
   // master가 아니면 publisher_id는 본인으로 강제
-  const publisher_id = profile.role === "master"
+  const publisher_id = profile?.role === "master"
     ? (body.publisher_id ?? auth.userId)
     : auth.userId
 
@@ -130,13 +131,14 @@ export async function POST(req: Request) {
     .from("market_items")
     .insert({
       title,
-      description: description ?? "",
-      image_url:   image_url  ?? null,
-      link_url:    link_url   ?? null,
+      description:      description ?? "",
+      image_url:        image_url   ?? null,
+      link_url:         link_url    ?? null,
       price_krw,
-      category_id: category_id ?? null,
+      category_id:      category_id ?? null,
       publisher_id,
-      stripe_price_id: stripePrice.id,
+      stripe_price_id:  stripePrice.id,
+      game_bonus_rate,
     })
     .select()
     .single()

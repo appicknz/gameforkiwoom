@@ -16,6 +16,7 @@ export interface EditItem {
   publisher_id: string
   image_url: string | null
   is_active: boolean
+  game_bonus_rate: number
 }
 
 interface Props {
@@ -43,14 +44,15 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
 
   const [publishers, setPublishers] = useState<Publisher[]>([])
   const [form, setForm] = useState({
-    title:        editItem?.title        ?? "",
-    description:  editItem?.description  ?? "",
-    link_url:     editItem?.link_url     ?? "",
-    price_krw:    editItem?.price_krw    ? String(editItem.price_krw) : "",
-    category_id:  editItem?.category_id  ?? "",
+    title:            editItem?.title            ?? "",
+    description:      editItem?.description      ?? "",
+    link_url:         editItem?.link_url          ?? "",
+    price_krw:        editItem?.price_krw        ? String(editItem.price_krw) : "",
+    category_id:      editItem?.category_id      ?? "",
     // master가 아니면 selfPublisherId 자동 설정, master면 선택
-    publisher_id: editItem?.publisher_id ?? (!isMaster && selfPublisherId ? selfPublisherId : ""),
-    is_active:    editItem?.is_active    ?? true,
+    publisher_id:     editItem?.publisher_id     ?? (!isMaster && selfPublisherId ? selfPublisherId : ""),
+    is_active:        editItem?.is_active        ?? true,
+    game_bonus_rate:  editItem?.game_bonus_rate  != null ? String(editItem.game_bonus_rate) : "0",
   })
   const [imageFile, setImageFile]       = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(editItem?.image_url ?? null)
@@ -98,18 +100,20 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
       const url    = isEdit ? `/api/market/items/${editItem!.id}` : "/api/market/items"
       const method = isEdit ? "PATCH" : "POST"
 
+      const bonusRate = Math.min(100, Math.max(0, parseInt(form.game_bonus_rate, 10) || 0))
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          title:        form.title,
-          description:  form.description,
-          link_url:     form.link_url || null,
-          price_krw:    parseInt(form.price_krw, 10),
-          category_id:  form.category_id || null,
-          publisher_id: form.publisher_id,
-          is_active:    form.is_active,
+          title:            form.title,
+          description:      form.description,
+          link_url:         form.link_url || null,
+          price_krw:        parseInt(form.price_krw, 10),
+          category_id:      form.category_id || null,
+          publisher_id:     form.publisher_id,
+          is_active:        form.is_active,
           image_url,
+          game_bonus_rate:  bonusRate,
         }),
       })
       const data = await res.json()
@@ -211,6 +215,25 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
               onChange={e => setForm(f => ({ ...f, price_krw: e.target.value }))}
               className="w-full pl-7 pr-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
+          </div>
+
+          {/* 보너스 게임 적립 비율 */}
+          <div className="space-y-1">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+              <input
+                type="number" placeholder="보너스 게임 적립률 (0~100)" min={0} max={100}
+                value={form.game_bonus_rate}
+                onChange={e => setForm(f => ({ ...f, game_bonus_rate: e.target.value }))}
+                className="w-full pl-7 pr-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            {parseInt(form.game_bonus_rate || "0", 10) > 0 && (
+              <p className="text-[10px] text-primary/80">
+                구매 시 가격의 {form.game_bonus_rate}%가 보너스 게임 잔고로 자동 적립됩니다.
+                {form.price_krw ? ` (₩${Math.floor(parseInt(form.price_krw,10) * parseInt(form.game_bonus_rate,10) / 100).toLocaleString()} 적립)` : ""}
+              </p>
+            )}
           </div>
 
           <select

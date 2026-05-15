@@ -12,7 +12,7 @@ interface Category { id: string; name: string; icon: string }
 interface Item {
   id: string; title: string; description: string
   image_url: string | null; price_krw: number
-  view_count: number; order_count: number; created_at: string
+  view_count: number; order_count: number; game_bonus_rate: number; created_at: string
   category_id: string | null
   market_categories: { name: string; icon: string } | null
   profiles: { username: string; role: string } | null
@@ -186,12 +186,28 @@ export default function MarketPage() {
               {selectedItem.description && (
                 <p className="text-sm text-muted-foreground leading-relaxed">{selectedItem.description}</p>
               )}
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
                 <span className="text-lg font-extrabold text-primary">
                   {selectedItem.price_krw.toLocaleString("ko-KR")}원
                 </span>
-                <span className="text-xs text-muted-foreground">{selectedItem.order_count.toLocaleString()}명 구매</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{(selectedItem.view_count ?? 0).toLocaleString()}명 조회</span>
+                  {(selectedItem.game_bonus_rate ?? 0) > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-primary/15 text-primary font-semibold text-xs">
+                      보너스 게임 +{selectedItem.game_bonus_rate}%
+                    </span>
+                  )}
+                </div>
               </div>
+              {(selectedItem.game_bonus_rate ?? 0) > 0 && (
+                <p className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+                  이 컨텐츠 구매 시 결제 금액의 <span className="text-primary font-semibold">{selectedItem.game_bonus_rate}%</span>인{" "}
+                  <span className="text-primary font-semibold">
+                    {Math.floor(selectedItem.price_krw * selectedItem.game_bonus_rate / 100).toLocaleString("ko-KR")}원
+                  </span>
+                  이 보너스 게임 잔고로 자동 적립됩니다.
+                </p>
+              )}
 
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">
@@ -408,7 +424,11 @@ export default function MarketPage() {
                 item={item}
                 index={idx}
                 isAdmin={role === "master"}
-                onSelect={() => { setSelectedItem(item); setBuyErr("") }}
+                onSelect={() => {
+                  setSelectedItem(item); setBuyErr("")
+                  // 조회수 서버 증가 (fire-and-forget)
+                  fetch(`/api/market/items/${item.id}/view`, { method: "POST" }).catch(() => {})
+                }}
                 onEdit={() => {
                   setEditItem({
                     id:           item.id,
@@ -593,8 +613,13 @@ function MarketItemCard({
           <p className="text-xs font-bold text-primary">
             {item.price_krw.toLocaleString("ko-KR")}원
           </p>
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            <span>{item.order_count.toLocaleString()}명 구매</span>
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+            <span>{(item.view_count ?? 0).toLocaleString()}명 조회</span>
+            {(item.game_bonus_rate ?? 0) > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-semibold text-[9px]">
+                보너스 게임 +{item.game_bonus_rate}%
+              </span>
+            )}
           </div>
         </div>
         </button>
