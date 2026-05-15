@@ -371,12 +371,31 @@ export function Sidebar() {
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 4000) }
 
   useEffect(() => {
-    const check = () => {
+    const check = async () => {
       const token = getToken()
       setIsLoggedIn(!!token)
       if (token) {
         try { setUsername(localStorage.getItem("app_profile") ? JSON.parse(localStorage.getItem("app_profile")!).username : null) } catch {}
-        setSellerRole(getJwtRole())
+        const role = getJwtRole()
+        if (role && SELLER_ROLES.includes(role)) {
+          // role 자체가 판매 권한 있음
+          setSellerRole(role)
+        } else {
+          // role이 user여도 write_permission_requests approved면 seller로 간주
+          try {
+            const res = await fetch("/api/market/write-permission", {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            const data = await res.json()
+            if (data?.request?.status === "approved") {
+              setSellerRole("seller")
+            } else {
+              setSellerRole(role)
+            }
+          } catch {
+            setSellerRole(role)
+          }
+        }
       } else {
         setUsername(null)
         setSellerRole(null)
