@@ -135,12 +135,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
   }
 
-  // master: ?hard=true 이면 완전 삭제, 그 외 비활성화
-  const hard = new URL(req.url).searchParams.get("hard") === "true"
-  if (hard && isSuperUser) {
-    await adminSupabase.from("market_items").delete().eq("id", id)
-  } else {
-    await adminSupabase.from("market_items").update({ is_active: false }).eq("id", id)
-  }
+  await adminSupabase.from("market_items").update({ is_active: false }).eq("id", id)
   return NextResponse.json({ ok: true })
 }
