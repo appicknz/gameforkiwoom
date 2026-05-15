@@ -89,15 +89,15 @@ export async function POST(req: Request) {
 
   const hasRolePermission = profile && WRITE_ROLES.includes(profile.role)
 
-  // role이 없더라도 write_permissions 테이블에 approved 상태면 허용
+  // role이 없더라도 write_permission_requests 테이블에 approved 상태면 허용
   let hasApprovedPermission = false
   if (!hasRolePermission) {
     const { data: perm } = await adminSupabase
-      .from("write_permissions")
+      .from("write_permission_requests" as never)
       .select("status")
       .eq("user_id", auth.userId)
       .eq("status", "approved")
-      .maybeSingle()
+      .maybeSingle() as { data: { status: string } | null; error: unknown }
     hasApprovedPermission = !!perm
   }
 

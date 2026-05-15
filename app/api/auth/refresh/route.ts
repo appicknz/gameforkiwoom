@@ -83,12 +83,12 @@ export async function POST(req: Request) {
   const response = NextResponse.json({ token: newToken })
 
   // HTTP-only 쿠키 갱신
-  response.cookies.set("app_token", session.access_token, {
+  response.cookies.set("app_token", newToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 86400 * 60, // 60일 — Supabase refresh_token 수명과 동일
+    maxAge: 86400 * 60,
   })
 
   return response
