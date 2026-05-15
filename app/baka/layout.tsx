@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { TopBar } from "@/components/dashboard/top-bar"
+import { GameAccessGate } from "@/components/dashboard/game-access-gate"
 
 export default function BakaLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,7 +9,9 @@ export default function BakaLayout({ children }: { children: React.ReactNode }) 
       <div className="flex flex-1 min-h-0">
         <Sidebar />
         <main className="flex-1 overflow-y-auto lg:ml-64">
-          {children}
+          <GameAccessGate>
+            {children}
+          </GameAccessGate>
         </main>
       </div>
     </div>

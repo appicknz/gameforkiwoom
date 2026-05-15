@@ -46,6 +46,7 @@ interface User {
   created_at: string
   balance: number
   branch_code: string | null
+  game_enabled: boolean
 }
 
 interface Branch {
@@ -1646,6 +1647,13 @@ export default function PanelPage() {
                               </div>
                               {chargeMsg && <p className={`text-xs mt-2 ${chargeMsg.ok ? "text-primary" : "text-destructive"}`}>{chargeMsg.text}</p>}
                             </div>
+                            {/* 게임 카테고리 활성화 토글 */}
+                            <GameAccessToggle
+                              userId={user.id}
+                              enabled={!!user.game_enabled}
+                              token={adminPw}
+                              onChanged={(val) => setUsers(prev => prev.map(u => u.id === user.id ? { ...u, game_enabled: val } : u))}
+                            />
                             {/* 역할 변경 (master만) */}
                             {myRole === "master" && user.role !== "master" && (
                               <RoleChanger
@@ -2438,7 +2446,7 @@ export default function PanelPage() {
             {masterSummary && (
               <div className="bg-card border border-border rounded-2xl p-5">
                 <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <TrendingDown className="w-4 h-4 text-primary" /> 전체 지점 합산
+                  <TrendingDown className="w-4 h-4 text-primary" /> ���체 지점 합산
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
@@ -3172,7 +3180,7 @@ export default function PanelPage() {
                     <button
                       onClick={() => setBranchTab("members")}
                       className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${branchTab === "members" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                    >회원 목�� ({adminMembers.length}명)</button>
+                    >회원 목��� ({adminMembers.length}명)</button>
                     <button
                       onClick={() => { setBranchTab("bets"); if (branchBets.length === 0) loadBranchBets(selectedMember?.id) }}
                       className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${branchTab === "bets" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
@@ -4368,6 +4376,58 @@ function WriteRequestsPanel({ token }: { token: string }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── 게임 접근 토글 컴포넌트 ───────────────────────────────────────
+function GameAccessToggle({
+  userId, enabled, token, onChanged,
+}: {
+  userId: string
+  enabled: boolean
+  token: string
+  onChanged: (val: boolean) => void
+}) {
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const toggle = async () => {
+    setLoading(true); setMsg(null)
+    try {
+      const res = await fetch("/api/admin/set-game-enabled", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId, game_enabled: !enabled }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setMsg(data.error ?? "실패"); return }
+      onChanged(!enabled)
+      setMsg(!enabled ? "게임 활성화됨" : "게임 비활성화됨")
+      setTimeout(() => setMsg(null), 2000)
+    } catch {
+      setMsg("네트워크 오류")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="pt-2 border-t border-border/50">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-foreground">게임 카테고리 활성화</p>
+          <p className="text-[10px] text-muted-foreground">바카라 · 차트차트 접근 허용</p>
+        </div>
+        <button
+          onClick={toggle}
+          disabled={loading}
+          className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${enabled ? "bg-primary" : "bg-muted-foreground/30"} disabled:opacity-50`}
+        >
+          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-5" : "translate-x-0.5"}`} />
+        </button>
+      </div>
+      {msg && <p className={`text-[10px] mt-1 ${msg.includes("활성화됨") ? "text-primary" : "text-muted-foreground"}`}>{msg}</p>}
     </div>
   )
 }

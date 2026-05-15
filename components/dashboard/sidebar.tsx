@@ -15,7 +15,6 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart2,
-  ShoppingBag,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useCallback } from "react"
@@ -471,32 +470,10 @@ export function Sidebar() {
         {/* 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
 
-          {/* ① 게임 카드 */}
-          <div className="space-y-2.5">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("nav.games")}</p>
+          {/* ① 보너스 게임 */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">보너스 게임</p>
             <div className="grid grid-cols-2 gap-2">
-              {/* 마켓 */}
-              <Link href="/market" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.market")}</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
-                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
-                </div>
-              </Link>
-              {/* 모의 매매 */}
-              <Link href="/trade" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  pathname === "/trade" && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.trade")}</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
-                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
-                </div>
-              </Link>
               {/* 바카라 */}
               <Link href="/baka" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
@@ -522,24 +499,58 @@ export function Sidebar() {
             </div>
           </div>
 
-          {/* 판매관리 — seller 이상 권한 보유 시 표시 */}
-          {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) && (
-            <div className="border-t border-border pt-3">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">판매</p>
-              <Link href="/seller" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-xl border border-border px-3 py-2.5 flex items-center gap-2.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30",
-                  pathname === "/seller" && "border-primary/50 bg-secondary/40"
-                )}>
-                  <ShoppingBag className="w-4 h-4 text-primary shrink-0" />
-                  <div>
+          {/* ② 판매 — 2x2 그리드 */}
+          <div className="border-t border-border pt-3 space-y-2">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">판매</p>
+            <div className="grid grid-cols-2 gap-2">
+              {/* 판매관리 — seller 이상만 */}
+              {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) ? (
+                <Link href="/seller" onClick={() => setMobileOpen(false)}>
+                  <div className={cn(
+                    "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                    pathname === "/seller" && "border-primary/50 bg-secondary/40"
+                  )}>
                     <p className="text-[11px] font-bold text-foreground leading-tight">판매관리</p>
-                    <p className="text-[10px] text-muted-foreground leading-tight">내 컨텐츠 통계 · 상품관리</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">내 컨텐츠 통계</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">상품관리</p>
                   </div>
+                </Link>
+              ) : (
+                <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-1 opacity-40 cursor-not-allowed h-full">
+                  <p className="text-[11px] font-bold text-foreground leading-tight">판매관리</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">셀러 권한 필요</p>
+                </div>
+              )}
+              {/* 모의매매 */}
+              <Link href="/trade" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/trade" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.trade")}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
                 </div>
               </Link>
+              {/* 마켓 */}
+              <Link href="/market" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.market")}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
+                </div>
+              </Link>
+              {/* 정산관리 */}
+              <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-1 opacity-40 cursor-not-allowed h-full">
+                <p className="text-[11px] font-bold text-foreground leading-tight">정산관리</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">수익 정산</p>
+                <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
+              </div>
             </div>
-          )}
+          </div>
 
           {/* ③ 토큰 입금 QR — 매매 통계 위 */}
           <div className="border-t border-border pt-3">
