@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart2,
+  ShoppingBag,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useCallback } from "react"
@@ -329,12 +330,23 @@ function clearToken() { try { localStorage.removeItem(STORAGE_KEY) } catch {} }
 
 
 
+const SELLER_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
+
+function getJwtRole(): string | null {
+  try {
+    const token = localStorage.getItem("app_token")
+    if (!token) return null
+    return JSON.parse(atob(token.split(".")[1]))?.role ?? null
+  } catch { return null }
+}
+
 export function Sidebar() {
   const { t } = useTranslation()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [sellerRole, setSellerRole] = useState<string | null>(null)
 
   // 로그인 폼
   const [authTab, setAuthTab]           = useState<"login" | "register">("login")
@@ -364,8 +376,10 @@ export function Sidebar() {
       setIsLoggedIn(!!token)
       if (token) {
         try { setUsername(localStorage.getItem("app_profile") ? JSON.parse(localStorage.getItem("app_profile")!).username : null) } catch {}
+        setSellerRole(getJwtRole())
       } else {
         setUsername(null)
+        setSellerRole(null)
       }
     }
     check()
@@ -488,6 +502,25 @@ export function Sidebar() {
               </Link>
             </div>
           </div>
+
+          {/* 판매관리 — seller 이상 권한 보유 시 표시 */}
+          {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) && (
+            <div className="border-t border-border pt-3">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">판매</p>
+              <Link href="/seller" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-xl border border-border px-3 py-2.5 flex items-center gap-2.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30",
+                  pathname === "/seller" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <ShoppingBag className="w-4 h-4 text-primary shrink-0" />
+                  <div>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">판매관리</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">내 컨텐츠 통계 · 상품관리</p>
+                  </div>
+                </div>
+              </Link>
+            </div>
+          )}
 
           {/* ③ 토큰 입금 QR — 매매 통계 위 */}
           <div className="border-t border-border pt-3">

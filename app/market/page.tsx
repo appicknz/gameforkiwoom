@@ -269,9 +269,13 @@ export default function MarketPage() {
             </button>
 
             {/* + 글쓰기 버튼 — 모두에게 표시, 권한 없으면 신청 모달 */}
+            {/* canWrite: role이 WRITE_ROLES에 있거나, 승인된 write-permission이 있는 경우 */}
+            {(() => {
+              const canWrite = (role && WRITE_ROLES.includes(role)) || writePermStatus === "approved"
+              return (
             <button
               onClick={() => {
-                if (role && WRITE_ROLES.includes(role)) {
+                if (canWrite) {
                   setEditItem(null); setShowAdmin(v => !v)
                 } else {
                   setShowRequestModal(true)
@@ -279,20 +283,22 @@ export default function MarketPage() {
               }}
               className={cn(
                 "flex items-center justify-center w-9 h-9 rounded-lg border transition-colors shrink-0",
-                showAdmin && role && WRITE_ROLES.includes(role)
+                showAdmin && canWrite
                   ? "bg-primary/15 border-primary/40 text-primary"
                   : writePermStatus === "pending"
                   ? "bg-amber-500/10 border-amber-500/40 text-amber-500"
                   : "bg-secondary border-border text-foreground hover:border-primary/40 hover:text-primary"
               )}
               title={
-                role && WRITE_ROLES.includes(role) ? t("market.registerProduct") :
+                canWrite ? t("market.registerProduct") :
                 writePermStatus === "pending" ? t("market.pendingReview") :
                 t("market.requestWrite")
               }
             >
               <PenLine className="w-4 h-4" />
             </button>
+              )
+            })()}
           </div>
 
           {/* 카테고리 탭 */}
@@ -328,7 +334,7 @@ export default function MarketPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* 글쓰기 권한 상품 등록 패널 */}
-        {showAdmin && role && WRITE_ROLES.includes(role) && (
+        {showAdmin && ((role && WRITE_ROLES.includes(role)) || writePermStatus === "approved") && (
           <MarketAdminPanel
             categories={categories.filter(c => c.name !== "전체")}
             editItem={editItem}

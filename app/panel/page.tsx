@@ -781,11 +781,12 @@ export default function PanelPage() {
   const formatDate = (s: string) => new Date(s).toLocaleDateString("ko-KR")
 
   const roleLabel: Record<string, { label: string; color: string }> = {
-    master:       { label: "마스터",   color: "bg-purple-100 text-purple-700" },
-    super_admin:  { label: "대총판",   color: "bg-red-100 text-red-700" },
-    branch_admin: { label: "총판",     color: "bg-blue-100 text-blue-700" },
-    admin:        { label: "지점",     color: "bg-orange-100 text-orange-700" },
-    user:         { label: "일반회원", color: "bg-gray-100 text-gray-600" },
+    master:       { label: "마스터",      color: "bg-purple-100 text-purple-700" },
+    super_admin:  { label: "대총판",      color: "bg-red-100 text-red-700" },
+    branch_admin: { label: "총판",        color: "bg-blue-100 text-blue-700" },
+    admin:        { label: "지점관리자",  color: "bg-orange-100 text-orange-700" },
+    seller:       { label: "셀러",        color: "bg-green-100 text-green-700" },
+    user:         { label: "일반회원",    color: "bg-gray-100 text-gray-600" },
   }
 
   // ─��� 총판 전용: 지점 드릴다운 + 유저 생성 ──
@@ -1630,18 +1631,33 @@ export default function PanelPage() {
                           </div>
                         </div>
                         {isCharging && (
-                          <div className="mt-3 p-3 bg-muted rounded-lg">
-                            <p className="text-xs font-medium text-foreground mb-2">잔고 충전 / 차감</p>
-                            <div className="flex gap-2">
-                              <Input type="number" placeholder="금액 입력" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} className="h-8 text-sm" />
-                              <Button size="sm" className="gap-1 h-8 text-xs" onClick={() => handleCharge(user.id, 1)} disabled={chargeLoading}>
-                                <Plus className="w-3 h-3" /> 충전
-                              </Button>
-                              <Button size="sm" variant="outline" className="gap-1 h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleCharge(user.id, -1)} disabled={chargeLoading}>
-                                <Minus className="w-3 h-3" /> 차감
-                              </Button>
+                          <div className="mt-3 p-3 bg-muted rounded-lg space-y-3">
+                            {/* 잔고 충전/차감 */}
+                            <div>
+                              <p className="text-xs font-medium text-foreground mb-2">잔고 충전 / 차감</p>
+                              <div className="flex gap-2">
+                                <Input type="number" placeholder="금액 입력" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} className="h-8 text-sm" />
+                                <Button size="sm" className="gap-1 h-8 text-xs" onClick={() => handleCharge(user.id, 1)} disabled={chargeLoading}>
+                                  <Plus className="w-3 h-3" /> 충전
+                                </Button>
+                                <Button size="sm" variant="outline" className="gap-1 h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleCharge(user.id, -1)} disabled={chargeLoading}>
+                                  <Minus className="w-3 h-3" /> 차감
+                                </Button>
+                              </div>
+                              {chargeMsg && <p className={`text-xs mt-2 ${chargeMsg.ok ? "text-primary" : "text-destructive"}`}>{chargeMsg.text}</p>}
                             </div>
-                            {chargeMsg && <p className={`text-xs mt-2 ${chargeMsg.ok ? "text-primary" : "text-destructive"}`}>{chargeMsg.text}</p>}
+                            {/* 역할 변경 (master만) */}
+                            {myRole === "master" && user.role !== "master" && (
+                              <RoleChanger
+                                userId={user.id}
+                                currentRole={user.role}
+                                token={adminPw}
+                                roleLabel={roleLabel}
+                                onChanged={(newRole) => {
+                                  setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role: newRole } : u))
+                                }}
+                              />
+                            )}
                           </div>
                         )}
                       </div>
@@ -2337,11 +2353,21 @@ export default function PanelPage() {
                               </div>
                             </button>
                             {expandedMember === u.id && (
-                              <div className="px-5 pb-4 bg-muted/30 space-y-1">
+                              <div className="px-5 pb-4 bg-muted/30 space-y-2">
                                 <p className="text-xs text-muted-foreground pt-2">ID: <span className="text-foreground font-mono text-[11px]">{u.id}</span></p>
                                 <p className="text-xs text-muted-foreground">가입일: {new Date(u.created_at).toLocaleString("ko-KR")}</p>
-                                <p className="text-xs text-muted-foreground">역할: {roleLabel[u.role]?.label ?? u.role}</p>
-                                <p className="text-xs text-muted-foreground">지점�������드: {u.branch_code ?? "-"}</p>
+                                <p className="text-xs text-muted-foreground">지점코드: {u.branch_code ?? "-"}</p>
+                                {myRole === "master" && u.role !== "master" && (
+                                  <RoleChanger
+                                    userId={u.id}
+                                    currentRole={u.role}
+                                    token={adminPw}
+                                    roleLabel={roleLabel}
+                                    onChanged={(newRole) => {
+                                      setBranchMembers(prev => prev.map(m => m.id === u.id ? { ...m, role: newRole } : m))
+                                    }}
+                                  />
+                                )}
                               </div>
                             )}
                           </div>
@@ -4330,6 +4356,80 @@ function WriteRequestsPanel({ token }: { token: string }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── 역할 변경 컴포넌트 ─────────────────────────────────────────────
+function RoleChanger({
+  userId, currentRole, token, roleLabel, onChanged,
+}: {
+  userId: string
+  currentRole: string
+  token: string
+  roleLabel: Record<string, { label: string; color: string }>
+  onChanged: (newRole: string) => void
+}) {
+  const [selected, setSelected] = useState(currentRole)
+  const [loading,  setLoading]  = useState(false)
+  const [msg,      setMsg]      = useState<{ text: string; ok: boolean } | null>(null)
+
+  const ROLE_OPTIONS = [
+    { value: "user",         label: "일반회원" },
+    { value: "seller",       label: "셀러" },
+    { value: "admin",        label: "지점관리자" },
+    { value: "branch_admin", label: "총판" },
+    { value: "super_admin",  label: "대총판" },
+  ]
+
+  const handleSave = async () => {
+    if (selected === currentRole) return
+    setLoading(true); setMsg(null)
+    try {
+      const res  = await fetch("/api/admin/set-role", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ userId, role: selected }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setMsg({ text: data.error ?? "실패", ok: false }); return }
+      setMsg({ text: `역할이 ${roleLabel[selected]?.label ?? selected}(으)로 변경됐습니다.`, ok: true })
+      onChanged(selected)
+    } catch {
+      setMsg({ text: "네트워크 오류", ok: false })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="pt-2 border-t border-border/50">
+      <p className="text-xs font-medium text-foreground mb-2">역할 변경</p>
+      <div className="flex gap-2 flex-wrap">
+        {ROLE_OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => setSelected(opt.value)}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+              selected === opt.value
+                ? "bg-primary text-black border-primary"
+                : "bg-background border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 mt-2">
+        <button
+          onClick={handleSave}
+          disabled={loading || selected === currentRole}
+          className="h-7 px-3 text-xs rounded-lg bg-primary text-black font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"
+        >
+          {loading ? "저장중..." : "저장"}
+        </button>
+        {msg && <p className={`text-xs ${msg.ok ? "text-primary" : "text-destructive"}`}>{msg.text}</p>}
+      </div>
     </div>
   )
 }
