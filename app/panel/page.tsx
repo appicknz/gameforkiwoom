@@ -1651,7 +1651,7 @@ export default function PanelPage() {
                             <GameAccessToggle
                               userId={user.id}
                               enabled={!!user.game_enabled}
-                              token={adminPw}
+                              token={getToken() ?? ""}
                               onChanged={(val) => setUsers(prev => prev.map(u => u.id === user.id ? { ...u, game_enabled: val } : u))}
                             />
                             {/* 역할 변경 (master만) */}
@@ -1697,7 +1697,7 @@ export default function PanelPage() {
                   value={newBranchCode}
                   onChange={e => setNewBranchCode(e.target.value.toUpperCase())}
                 />
-                {/* 총판 검색 (필수) */}
+                {/* 총판 검색 (필��) */}
                 <div className="relative">
                   <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
                   <Input
