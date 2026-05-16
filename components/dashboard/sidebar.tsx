@@ -497,7 +497,7 @@ export function Sidebar() {
                   <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} R</p>
                 </div>
               </Link>
-              {/* 차트차트 */}
+              {/* ��트차트 */}
               <Link href="/race" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
                   "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
@@ -556,11 +556,16 @@ export function Sidebar() {
                 </div>
               </Link>
               {/* 정산관리 */}
-              <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-1 opacity-40 cursor-not-allowed h-full">
-                <p className="text-[11px] font-bold text-foreground leading-tight">정산관리</p>
-                <p className="text-[10px] text-muted-foreground leading-tight">수익 정산</p>
-                <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
-              </div>
+              <Link href="/seller?tab=settlement" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/seller" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">정산관리</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">수익 정산</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">정산수단 관리</p>
+                </div>
+              </Link>
             </div>
           </div>
 

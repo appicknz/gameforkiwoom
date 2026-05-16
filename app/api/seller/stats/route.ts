@@ -45,11 +45,18 @@ export async function GET(req: Request) {
   if (itemIds.length > 0) {
     const { data: orderRows } = await adminSupabase
       .from("market_orders")
-      .select("id, item_id, amount_krw, status, created_at")
+      .select("id, item_id, amount_krw, price_krw, bonus_amount, status, paid_at, created_at")
       .in("item_id", itemIds)
       .order("created_at", { ascending: false })
     orders = orderRows ?? []
   }
+
+  // 정산수단 목록
+  const { data: settlementMethods } = await adminSupabase
+    .from("settlement_methods")
+    .select("id, item, info, created_at")
+    .eq("user_id", auth.userId)
+    .order("created_at", { ascending: false })
 
   // 집계
   const totalRevenue   = orders.filter((o: any) => o.status === "paid").reduce((s: number, o: any) => s + (o.amount_krw ?? 0), 0)
@@ -72,9 +79,10 @@ export async function GET(req: Request) {
   const dailySales = Object.entries(dailyMap).map(([date, revenue]) => ({ date, revenue }))
 
   return NextResponse.json({
-    items:        safeItems,
+    items:             safeItems,
     orders,
-    stats: { totalRevenue, totalOrders, totalViews, activeItems, totalItems: safeItems.length },
+    stats:             { totalRevenue, totalOrders, totalViews, activeItems, totalItems: safeItems.length },
     dailySales,
+    settlementMethods: settlementMethods ?? [],
   })
 }
