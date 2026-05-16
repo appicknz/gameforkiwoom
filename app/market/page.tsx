@@ -257,13 +257,13 @@ export default function MarketPage() {
               {!selectedItem.market_categories?.balance_only && (
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">
-                    트레이딩뷰 아이디 <span className="text-muted-foreground/50">(선택)</span>
+                    계정 정보 입력 <span className="text-muted-foreground/50">(선택)</span>
                   </label>
                   <input
                     type="text"
                     value={tvId}
                     onChange={e => setTvId(e.target.value)}
-                    placeholder="TradingView 아이디를 입력하세요"
+                    placeholder="트레이딩뷰, 텔레그램 등 구독할 계정을 입력해주세요."
                     className="w-full h-9 px-3 text-sm bg-secondary/40 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/50"
                   />
                 </div>
