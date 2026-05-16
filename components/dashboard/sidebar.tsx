@@ -14,7 +14,6 @@ import {
   Dice6,
   ChevronLeft,
   ChevronRight,
-  BarChart2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useCallback } from "react"
@@ -108,16 +107,17 @@ function TradeStatsMini() {
 
   return (
     <div className="space-y-2 px-1">
-      {/* 헤더 */}
-      <div className="w-full flex items-center justify-between">
-        <Link href="/trade" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
-          <BarChart2 className="w-3 h-3 text-primary shrink-0" />
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t("nav.trade")}</span>
-        </Link>
-        <button onClick={() => setOpen(v => !v)} className="p-0.5">
-          <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform", open && "rotate-90")} />
-        </button>
-      </div>
+      {/* 헤더 — 그리드 카드 버튼 스타일 */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full rounded-2xl border border-border p-3 flex items-center justify-between hover:bg-secondary/60 hover:border-primary/30 transition-all duration-200"
+      >
+        <div className="flex flex-col gap-0.5 items-start">
+          <p className="text-[11px] font-bold text-foreground leading-tight">📈 {t("nav.trade")}</p>
+          <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
+        </div>
+        <ChevronRight className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0", open && "rotate-90")} />
+      </button>
 
       {open && (
         <div className="space-y-2">
@@ -519,7 +519,7 @@ export function Sidebar() {
                   "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
                   (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
                 )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.market")}</p>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">🛒 {t("nav.market")}</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
                   <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
                 </div>
@@ -530,7 +530,7 @@ export function Sidebar() {
                   "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
                   pathname === "/purchases" && "border-primary/50 bg-secondary/40"
                 )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">구매내역</p>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">📦 구매내역</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">내 구매 상품</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">상세 확인</p>
                 </div>
@@ -542,14 +542,14 @@ export function Sidebar() {
                     "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
                     pathname === "/seller" && "border-primary/50 bg-secondary/40"
                   )}>
-                    <p className="text-[11px] font-bold text-foreground leading-tight">판매관리</p>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">📊 판매관리</p>
                     <p className="text-[10px] text-muted-foreground leading-tight">내 컨텐츠 통계</p>
                     <p className="text-[10px] text-muted-foreground leading-tight">상품관리</p>
                   </div>
                 </Link>
               ) : (
                 <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-1 opacity-40 cursor-not-allowed h-full">
-                  <p className="text-[11px] font-bold text-foreground leading-tight">판매관리</p>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">📊 판매관리</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">셀러 권한 필요</p>
                 </div>
               )}
@@ -559,7 +559,7 @@ export function Sidebar() {
                   "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
                   pathname === "/settlement" && "border-primary/50 bg-secondary/40"
                 )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">정산관리</p>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">💰 정산관리</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">수익 정산</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">정산수단 관리</p>
                 </div>
