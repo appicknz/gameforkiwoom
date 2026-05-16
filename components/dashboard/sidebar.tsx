@@ -533,6 +533,17 @@ export function Sidebar() {
                   <p className="text-[10px] text-muted-foreground leading-tight">셀러 권한 필요</p>
                 </div>
               )}
+              {/* 모의매매 */}
+              <Link href="/trade" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/trade" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.trade")}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
+                </div>
+              </Link>
               {/* 마켓 */}
               <Link href="/market" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
@@ -555,30 +566,26 @@ export function Sidebar() {
                   <p className="text-[10px] text-muted-foreground leading-tight">정산수단 관리</p>
                 </div>
               </Link>
+              {/* 구매내역 */}
+              <Link href="/purchases" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/purchases" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">구매내역</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">내 구매 상품</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">상세 확인</p>
+                </div>
+              </Link>
             </div>
           </div>
 
-          {/* ③ 토큰 입금 QR */}
+          {/* ③ 토큰 입금 QR — 매매 통계 위 */}
           <div className="border-t border-border pt-3">
             <DepositQRWidget isLoggedIn={isLoggedIn} />
           </div>
 
-          {/* ④ 모의매매 */}
-          <div className="border-t border-border pt-3 space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">모의 매매</p>
-            <Link href="/trade" onClick={() => setMobileOpen(false)}>
-              <div className={cn(
-                "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30",
-                pathname === "/trade" && "border-primary/50 bg-secondary/40"
-              )}>
-                <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.trade")}</p>
-                <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
-                <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-1">{t("common.comingSoon")}</p>
-              </div>
-            </Link>
-          </div>
-
-          {/* ⑤ 모의매매 거래 통계 */}
+          {/* ④ 모의매매 거래 통계 */}
           <div className="border-t border-border pt-3">
             <TradeStatsMini />
           </div>
