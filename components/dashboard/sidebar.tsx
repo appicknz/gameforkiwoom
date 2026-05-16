@@ -556,10 +556,10 @@ export function Sidebar() {
                 </div>
               </Link>
               {/* 정산관리 */}
-              <Link href="/seller?tab=settlement" onClick={() => setMobileOpen(false)}>
+              <Link href="/settlement" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
                   "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  pathname === "/seller" && "border-primary/50 bg-secondary/40"
+                  pathname === "/settlement" && "border-primary/50 bg-secondary/40"
                 )}>
                   <p className="text-[11px] font-bold text-foreground leading-tight">정산관리</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">수익 정산</p>
