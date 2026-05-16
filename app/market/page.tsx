@@ -424,7 +424,7 @@ export default function MarketPage() {
                     : "bg-secondary text-muted-foreground hover:text-foreground"
                 )}
               >
-                <span>{cat.icon}</span> {cat.name}
+                <span>{cat.icon}</span> {(t(`categories.${cat.name}`) !== `categories.${cat.name}` ? t(`categories.${cat.name}`) : cat.name) as string}
               </button>
             ))}
           </div>

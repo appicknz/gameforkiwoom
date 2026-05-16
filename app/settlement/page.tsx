@@ -6,6 +6,7 @@ import {
   Banknote, TrendingUp, ShoppingBag, Gift,
   Plus, RefreshCw, X, AlertCircle, CreditCard,
 } from "lucide-react"
+import { useTranslation } from "@/lib/i18n"
 
 function getToken() { try { return localStorage.getItem("app_token") } catch { return null } }
 function parseJwt(token: string) {
@@ -31,6 +32,7 @@ function StatCard({ label, value, sub, icon }: { label: string; value: string; s
 
 export default function SettlementPage() {
   const router = useRouter()
+  const { t } = useTranslation()
 
   const [loading,           setLoading]           = useState(true)
   const [orders,            setOrders]            = useState<any[]>([])
@@ -129,9 +131,9 @@ export default function SettlementPage() {
           <div>
             <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
               <Banknote className="w-5 h-5 text-primary" />
-              정산 관리
+              {t("settlement.title")}
             </h1>
-            <p className="text-xs text-muted-foreground mt-1">판매 수익 정산 내역과 정산수단을 관리합니다.</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("settlement.desc")}</p>
           </div>
           <button
             onClick={() => load()}
@@ -144,19 +146,19 @@ export default function SettlementPage() {
         {/* 통계 카드 */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <StatCard
-            label="총 정산 금액"
+            label={t("settlement.totalRevenue") as string}
             value={`₩${totalRevenue.toLocaleString()}`}
             icon={<TrendingUp className="w-4 h-4" />}
           />
           <StatCard
-            label="총 판매 건수"
-            value={`${totalOrders}건`}
+            label={t("settlement.totalSales") as string}
+            value={`${totalOrders}${t("settlement.salesUnit")}`}
             icon={<ShoppingBag className="w-4 h-4" />}
           />
           <StatCard
-            label="총 보너스 지급액"
+            label={t("settlement.totalBonus") as string}
             value={`₩${totalBonus.toLocaleString()}`}
-            sub="구매자 적립 합계"
+            sub={t("settlement.buyerAccum") as string}
             icon={<Gift className="w-4 h-4" />}
           />
         </div>
@@ -171,7 +173,7 @@ export default function SettlementPage() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            정산 내역 ({totalOrders})
+            {t("settlement.tabHistory")} ({totalOrders})
           </button>
           <button
             onClick={() => setTab("methods")}
@@ -181,7 +183,7 @@ export default function SettlementPage() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            정산수단 ({settlementMethods.length})
+            {t("settlement.tabMethods")} ({settlementMethods.length})
           </button>
         </div>
 
@@ -191,16 +193,16 @@ export default function SettlementPage() {
             {paidOrders.length === 0 ? (
               <div className="py-16 flex flex-col items-center gap-2 text-muted-foreground">
                 <AlertCircle className="w-8 h-8 opacity-30" />
-                <p className="text-sm">정산 내역이 없습니다.</p>
+                <p className="text-sm">{t("settlement.noHistory")}</p>
               </div>
             ) : (
               <>
                 {/* 테이블 헤더 */}
                 <div className="grid grid-cols-4 px-4 py-2.5 bg-secondary/40 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                  <span>일자</span>
-                  <span className="text-right">판매 금액</span>
-                  <span className="text-right">보너스 지급액</span>
-                  <span className="text-right">상품명</span>
+                  <span>{t("settlement.colDate")}</span>
+                  <span className="text-right">{t("settlement.colAmount")}</span>
+                  <span className="text-right">{t("settlement.colBonus")}</span>
+                  <span className="text-right">{t("settlement.colItem")}</span>
                 </div>
 
                 {/* 테이블 바디 */}
@@ -232,7 +234,7 @@ export default function SettlementPage() {
 
                 {/* 합계 행 */}
                 <div className="grid grid-cols-4 px-4 py-3 border-t border-border bg-secondary/30">
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">합계</span>
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">{t("settlement.total")}</span>
                   <span className="text-right text-sm font-bold text-foreground tabular-nums">
                     ₩{totalRevenue.toLocaleString()}
                   </span>
@@ -253,13 +255,13 @@ export default function SettlementPage() {
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-primary" />
-                <p className="text-sm font-semibold text-foreground">정산수단 목록</p>
+                <p className="text-sm font-semibold text-foreground">{t("settlement.methodList")}</p>
               </div>
               <button
                 onClick={() => { setShowMethodForm(true); setMethodErr(null) }}
                 className="flex items-center gap-1.5 h-7 px-3 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors"
               >
-                <Plus className="w-3 h-3" /> 정산수단 등록
+                <Plus className="w-3 h-3" /> {t("settlement.addMethod")}
               </button>
             </div>
 
@@ -268,20 +270,20 @@ export default function SettlementPage() {
               <div className="px-4 py-4 border-b border-border bg-secondary/20 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs text-muted-foreground font-medium">항목</label>
+                    <label className="text-xs text-muted-foreground font-medium">{t("settlement.fieldItem")}</label>
                     <input
                       type="text"
-                      placeholder="예: 카카오페이, 토스, 계좌이체"
+                      placeholder={t("settlement.fieldItemPlaceholder") as string}
                       value={methodForm.item}
                       onChange={e => setMethodForm(f => ({ ...f, item: e.target.value }))}
                       className="w-full h-9 px-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/50"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs text-muted-foreground font-medium">정보</label>
+                    <label className="text-xs text-muted-foreground font-medium">{t("settlement.fieldInfo")}</label>
                     <input
                       type="text"
-                      placeholder="예: 010-0000-0000, 계좌번호"
+                      placeholder={t("settlement.fieldInfoPlaceholder") as string}
                       value={methodForm.info}
                       onChange={e => setMethodForm(f => ({ ...f, info: e.target.value }))}
                       className="w-full h-9 px-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/50"
@@ -298,14 +300,14 @@ export default function SettlementPage() {
                     onClick={() => { setShowMethodForm(false); setMethodErr(null); setMethodForm({ item: "", info: "" }) }}
                     className="h-8 px-4 text-xs rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    취소
+                    {t("settlement.cancel")}
                   </button>
                   <button
                     onClick={handleSaveMethod}
                     disabled={methodSaving || !methodForm.item.trim() || !methodForm.info.trim()}
                     className="h-8 px-4 text-xs rounded-lg bg-primary text-black font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
                   >
-                    {methodSaving ? "저장 중..." : "저장"}
+                    {methodSaving ? t("settlement.saving") : t("settlement.save")}
                   </button>
                 </div>
               </div>
@@ -315,12 +317,12 @@ export default function SettlementPage() {
             {settlementMethods.length === 0 && !showMethodForm ? (
               <div className="py-14 flex flex-col items-center gap-2 text-muted-foreground">
                 <CreditCard className="w-7 h-7 opacity-30" />
-                <p className="text-sm">등록된 정산수단이 없습니다.</p>
+                <p className="text-sm">{t("settlement.noMethods")}</p>
                 <button
                   onClick={() => setShowMethodForm(true)}
                   className="mt-2 flex items-center gap-1.5 h-7 px-3 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
                 >
-                  <Plus className="w-3 h-3" /> 정산수단 등록하기
+                  <Plus className="w-3 h-3" /> {t("settlement.addMethodEmpty")}
                 </button>
               </div>
             ) : (

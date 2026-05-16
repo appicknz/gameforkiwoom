@@ -310,7 +310,7 @@ function DepositQRWidget({ isLoggedIn: _unused }: { isLoggedIn: boolean }) {
             href="/deposit"
             className="text-[9px] text-primary/70 hover:text-primary underline underline-offset-2 transition-colors"
           >
-            자세히 보기
+            {t("deposit.detail")}
           </Link>
         </div>
       )}
