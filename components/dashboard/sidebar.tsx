@@ -9,11 +9,14 @@ import {
   Lock,
   Eye,
   EyeOff,
-
   TrendingUp,
   Dice6,
   ChevronLeft,
   ChevronRight,
+  ShoppingCart,
+  ShoppingBag,
+  BarChart2,
+  Wallet,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useCallback } from "react"
@@ -110,11 +113,16 @@ function TradeStatsMini() {
       {/* 헤더 — 그리드 카드 버튼 스타일 */}
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full rounded-2xl border border-border p-3 flex items-center justify-between hover:bg-secondary/60 hover:border-primary/30 transition-all duration-200"
+        className="w-full rounded-2xl border border-border p-3 flex items-center justify-between hover:bg-secondary/60 hover:border-primary/40 transition-all duration-200"
       >
-        <div className="flex flex-col gap-0.5 items-start">
-          <p className="text-[11px] font-bold text-foreground leading-tight">📈 {t("nav.trade")}</p>
-          <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center shrink-0" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
+            <TrendingUp className="w-3.5 h-3.5 text-primary" />
+          </div>
+          <div className="flex flex-col gap-0.5 items-start">
+            <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.trade")}</p>
+            <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
+          </div>
         </div>
         <ChevronRight className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0", open && "rotate-90")} />
       </button>
@@ -376,7 +384,7 @@ export function Sidebar() {
         try { setUsername(localStorage.getItem("app_profile") ? JSON.parse(localStorage.getItem("app_profile")!).username : null) } catch {}
         const role = getJwtRole()
         if (role && SELLER_ROLES.includes(role)) {
-          // role 자체가 판매 권한 있음
+          // role 자���가 판매 권한 있음
           setSellerRole(role)
         } else {
           // role이 user여도 write_permission_requests approved면 seller로 간주
@@ -516,52 +524,73 @@ export function Sidebar() {
               {/* 마켓 */}
               <Link href="/market" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  "rounded-2xl border border-border p-3 flex flex-col gap-2 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
                   (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
                 )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">🛒 {t("nav.market")}</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
-                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
+                  <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
+                    <ShoppingCart className="w-3.5 h-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.market")}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{t("nav.marketSub")}</p>
+                  </div>
                 </div>
               </Link>
               {/* 구매내역 */}
               <Link href="/purchases" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  "rounded-2xl border border-border p-3 flex flex-col gap-2 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
                   pathname === "/purchases" && "border-primary/50 bg-secondary/40"
                 )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">📦 구매내역</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">내 구매 상품</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">상세 확인</p>
+                  <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
+                    <ShoppingBag className="w-3.5 h-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">구매내역</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">내 구매 상품</p>
+                  </div>
                 </div>
               </Link>
               {/* 판매관리 — seller 이상만 */}
               {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) ? (
                 <Link href="/seller" onClick={() => setMobileOpen(false)}>
                   <div className={cn(
-                    "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                    "rounded-2xl border border-border p-3 flex flex-col gap-2 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
                     pathname === "/seller" && "border-primary/50 bg-secondary/40"
                   )}>
-                    <p className="text-[11px] font-bold text-foreground leading-tight">📊 판매관리</p>
-                    <p className="text-[10px] text-muted-foreground leading-tight">내 컨텐츠 통계</p>
-                    <p className="text-[10px] text-muted-foreground leading-tight">상품관리</p>
+                    <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
+                      <BarChart2 className="w-3.5 h-3.5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-foreground leading-tight">판매관리</p>
+                      <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">내 컨텐츠 통계</p>
+                    </div>
                   </div>
                 </Link>
               ) : (
-                <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-1 opacity-40 cursor-not-allowed h-full">
-                  <p className="text-[11px] font-bold text-foreground leading-tight">📊 판매관리</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">셀러 권한 필요</p>
+                <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-2 opacity-40 cursor-not-allowed h-full">
+                  <div className="w-7 h-7 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-center">
+                    <BarChart2 className="w-3.5 h-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">판매관리</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">셀러 권한 필요</p>
+                  </div>
                 </div>
               )}
               {/* 정산관리 */}
               <Link href="/settlement" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  "rounded-2xl border border-border p-3 flex flex-col gap-2 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
                   pathname === "/settlement" && "border-primary/50 bg-secondary/40"
                 )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">💰 정산관리</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">수익 정산</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">정산수단 관리</p>
+                  <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
+                    <Wallet className="w-3.5 h-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">정산관리</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">수익 정산</p>
+                  </div>
                 </div>
               </Link>
             </div>
