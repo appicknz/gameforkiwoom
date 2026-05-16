@@ -20,9 +20,9 @@ export async function GET(req: Request) {
   let query = adminSupabase
     .from("market_orders")
     .select(`
-      id, status, price_krw, paid_at, approved_at, rejected_at, reject_reason, created_at,
+      id, status, price_krw, bonus_amount, memo, paid_at, approved_at, rejected_at, reject_reason, created_at,
       buyer_id, publisher_id,
-      market_items(id, title, image_url)
+      market_items(id, title, image_url, link_url)
     `)
     .order("created_at", { ascending: false })
 

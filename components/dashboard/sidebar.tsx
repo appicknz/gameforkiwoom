@@ -566,6 +566,17 @@ export function Sidebar() {
                   <p className="text-[10px] text-muted-foreground leading-tight">정산수단 관리</p>
                 </div>
               </Link>
+              {/* 구매내역 */}
+              <Link href="/purchases" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/purchases" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">구매내역</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">내 구매 상품</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">상세 확인</p>
+                </div>
+              </Link>
             </div>
           </div>
 
