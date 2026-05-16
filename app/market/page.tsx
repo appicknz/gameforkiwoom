@@ -424,7 +424,13 @@ export default function MarketPage() {
                     : "bg-secondary text-muted-foreground hover:text-foreground"
                 )}
               >
-                <span>{cat.icon}</span> {(t(`categories.${cat.name}`) !== `categories.${cat.name}` ? t(`categories.${cat.name}`) : cat.name) as string}
+                <span>{cat.icon}</span> {((): string => {
+                  if (cat.balance_only) return t("categories.pointsOnly") as string
+                  const lower = cat.name.toLowerCase()
+                  if (lower.includes("채널") || lower.includes("channel")) return t("categories.channel") as string
+                  if (lower.includes("지표") || lower.includes("indicator")) return t("categories.indicator") as string
+                  return cat.name
+                })()}
               </button>
             ))}
           </div>

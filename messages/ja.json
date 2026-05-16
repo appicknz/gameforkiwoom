@@ -184,9 +184,9 @@
     "statusRejected": "拒否"
   },
   "categories": {
-    "채널": "チャンネル",
-    "지표": "インジケーター",
-    "포인��� 전용": "ポイント専用"
+    "channel": "チャンネル",
+    "indicator": "インジケーター",
+    "pointsOnly": "ポイント専用"
   },
   "sidebar": {
     "bonusGames": "ボーナスゲーム",

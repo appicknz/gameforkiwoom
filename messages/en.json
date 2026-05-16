@@ -184,9 +184,9 @@
     "statusRejected": "Rejected"
   },
   "categories": {
-    "채널": "Channel",
-    "지표": "Indicators",
-    "포인트 전용": "Points Only"
+    "channel": "Channel",
+    "indicator": "Indicators",
+    "pointsOnly": "Points Only"
   },
   "sidebar": {
     "bonusGames": "Bonus Games",

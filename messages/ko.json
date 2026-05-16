@@ -184,9 +184,9 @@
     "statusRejected": "거절"
   },
   "categories": {
-    "채널": "채널",
-    "지표": "지표",
-    "포인트 전용": "포인트 전용"
+    "channel": "채널",
+    "indicator": "지표",
+    "pointsOnly": "포인트 전용"
   },
   "sidebar": {
     "bonusGames": "보너스 게임",
