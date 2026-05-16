@@ -23,7 +23,6 @@ import { useTranslation } from "@/lib/i18n"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import SidebarOrders from "@/components/market/sidebar-orders"
 
 // ─── 모의매매 거래 통계 (소형) ────────────────────────────────────
 
@@ -589,12 +588,6 @@ export function Sidebar() {
           <div className="border-t border-border pt-3">
             <TradeStatsMini />
           </div>
-
-          {/* ⑥ 내 구매현황 */}
-          <div className="border-t border-border pt-3">
-            <SidebarOrders />
-          </div>
-
 
         </div>
       </aside>
