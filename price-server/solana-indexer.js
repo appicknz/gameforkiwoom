@@ -184,7 +184,7 @@ async function pollWallet(walletAddress) {
     await callDepositWebhook(signature, walletAddress, delta)
   }
 
-  // set이 너무 커지면 오래된 것 제거
+  // set이 너무 커지면 오래된 �� 제거
   if (processedSigs.size > 50000) {
     const iter = processedSigs.values()
     for (let i = 0; i < 10000; i++) processedSigs.delete(iter.next().value)
@@ -200,16 +200,22 @@ async function pollAllWallets() {
   }
 }
 
-// ─── 지갑 목록 동기화 (5분마다) ──────────────────────────────────────
+// ─── 지갑 목록 동기화 ────────────────────────────────────────────────
 async function syncWallets() {
   const wallets = await fetchWallets()
-  let added = 0
+  const newAddrs = []
   for (const { wallet_address } of wallets) {
     if (!wallet_address || walletSet.has(wallet_address)) continue
     walletSet.add(wallet_address)
-    added++
+    newAddrs.push(wallet_address)
   }
-  if (added > 0) console.log(`[solana] synced ${added} new wallets (total: ${walletSet.size})`)
+  if (newAddrs.length > 0) {
+    console.log(`[solana] synced ${newAddrs.length} new wallets (total: ${walletSet.size})`)
+    // 신규 지갑은 즉시 폴링 — 동기화 전에 입금된 트랜잭션도 놓치지 않도록
+    for (const addr of newAddrs) {
+      await pollWallet(addr).catch(e => console.error(`[solana] initial poll error ${addr}:`, e.message))
+    }
+  }
 }
 
 // ─── 초기화 ───────────────────────────────────────────────────────────
@@ -230,8 +236,8 @@ async function startSolanaIndexer() {
   // 20초마다 폴링
   setInterval(pollAllWallets, 20 * 1000)
 
-  // 5분마다 신규 가입 유저 지갑 동기화
-  setInterval(syncWallets, 5 * 60 * 1000)
+  // 30초마다 신규 가입 유저 지갑 동기화 (신규 지갑 감지 즉시 첫 폴링 수행)
+  setInterval(syncWallets, 30 * 1000)
 }
 
 module.exports = { startSolanaIndexer }

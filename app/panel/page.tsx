@@ -188,6 +188,11 @@ export default function PanelPage() {
   const [walletRepairLoading, setWalletRepairLoading] = useState(false)
   const [walletRepairResult, setWalletRepairResult]   = useState<{ repairedCount: number; skippedCount: number; repaired: { id: string; username: string; oldAddress: string | null; newAddress: string }[] } | null>(null)
   const [walletRepairError, setWalletRepairError]     = useState<string | null>(null)
+  // 미반영 입금 수동 재처리 (master 전용)
+  const [replaySig, setReplaySig]         = useState("")
+  const [replayLoading, setReplayLoading] = useState(false)
+  const [replayResult, setReplayResult]   = useState<{ replayed: { owner: string; delta: number; creditAmount: number }[] } | null>(null)
+  const [replayError, setReplayError]     = useState<string | null>(null)
   // 수수료 설정 (마스터 전용)
   const [commRates, setCommRates]         = useState<{ role: string; rate: number }[]>([])
   const [commEditing, setCommEditing]     = useState<Record<string, string>>({}) // role → 입력 중인 % 문자열
@@ -1434,7 +1439,7 @@ export default function PanelPage() {
               </div>
               {ppApproveMsg && <p className={`text-xs mb-3 ${ppApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{ppApproveMsg.text}</p>}
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => { setPpApproveId(null); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }}>취소</Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => { setPpApproveId(null); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }}>��소</Button>
                 <Button
                   data-confirm
                   size="sm"
@@ -3386,7 +3391,7 @@ export default function PanelPage() {
             {isSuperAdmin && subBalances.length > 0 && (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-foreground">하위 계정 잔고 현황</h2>
+                  <h2 className="text-sm font-semibold text-foreground">하위 계정 ��고 현황</h2>
                   <Button variant="ghost" size="sm" onClick={loadCash} disabled={cashLoading} className="text-xs gap-1.5">
                     <RefreshCw className={`w-3.5 h-3.5 ${cashLoading ? "animate-spin" : ""}`} /> 새로고침
                   </Button>
@@ -3601,7 +3606,7 @@ export default function PanelPage() {
           </div>
         )}
 
-        {/* ───────────── 매출 달력 탭 ───────────── */}
+        {/* ────��──────── 매출 달력 탭 ───────────── */}
         {activeTab === "calendar" && (
           <div className="space-y-6">
 
@@ -4282,6 +4287,74 @@ export default function PanelPage() {
                 )}
               </div>
             )}
+
+            {/* 미반영 입금 수동 재처리 */}
+            <div className="border-t border-border pt-6 space-y-3">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">미반영 입금 수동 처리</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  인덱서가 놓친 트랜잭션의 Solana signature를 입력하면 즉시 잔고를 반영합니다.
+                  이미 처리된 signature는 중복 적립되지 않습니다.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={replaySig}
+                  onChange={e => { setReplaySig(e.target.value); setReplayResult(null); setReplayError(null) }}
+                  placeholder="트랜잭션 Signature 입력..."
+                  className="flex-1 h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary font-mono"
+                />
+                <button
+                  onClick={async () => {
+                    if (!replaySig.trim()) return
+                    setReplayLoading(true)
+                    setReplayResult(null)
+                    setReplayError(null)
+                    try {
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      const res = await fetch("/api/admin/replay-deposit", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type":  "application/json",
+                          "Authorization": `Bearer ${tok}`,
+                        },
+                        body: JSON.stringify({ signature: replaySig.trim() }),
+                      })
+                      const data = await res.json()
+                      if (!res.ok) setReplayError(data.error ?? "오류 발생")
+                      else setReplayResult(data)
+                    } catch (e) {
+                      setReplayError(String(e))
+                    } finally {
+                      setReplayLoading(false)
+                    }
+                  }}
+                  disabled={replayLoading || !replaySig.trim()}
+                  className="h-9 px-4 rounded-lg bg-primary text-black text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  {replayLoading ? "처리 중..." : "재처리"}
+                </button>
+              </div>
+              {replayError && <p className="text-sm text-destructive">{replayError}</p>}
+              {replayResult && (
+                replayResult.replayed.length === 0
+                  ? <p className="text-sm text-muted-foreground">이미 처리된 트랜잭션이거나 해당 지갑의 유저가 없습니다.</p>
+                  : <div className="rounded-xl border border-border overflow-hidden">
+                      <div className="grid grid-cols-[2fr_1fr_1fr] text-[11px] font-semibold text-muted-foreground bg-secondary/40 px-4 py-2">
+                        <span>지갑 주소</span>
+                        <span>CHIPS</span>
+                        <span>적립 R</span>
+                      </div>
+                      {replayResult.replayed.map((r, i) => (
+                        <div key={i} className="grid grid-cols-[2fr_1fr_1fr] px-4 py-2.5 border-t border-border text-xs">
+                          <span className="font-mono text-muted-foreground truncate">{r.owner}</span>
+                          <span className="text-foreground">+{r.delta}</span>
+                          <span className="text-primary font-semibold">+{r.creditAmount} R</span>
+                        </div>
+                      ))}
+                    </div>
+              )}
+            </div>
           </div>
         )}
 
