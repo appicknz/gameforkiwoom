@@ -524,73 +524,63 @@ export function Sidebar() {
               {/* 마켓 */}
               <Link href="/market" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-2 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
                   (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
                 )}>
-                  <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
-                    <ShoppingCart className="w-3.5 h-3.5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.market")}</p>
-                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{t("nav.marketSub")}</p>
-                  </div>
+                  <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                    <ShoppingCart className="w-3 h-3 text-primary shrink-0" />
+                    {t("nav.market")}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
                 </div>
               </Link>
               {/* 구매내역 */}
               <Link href="/purchases" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-2 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
                   pathname === "/purchases" && "border-primary/50 bg-secondary/40"
                 )}>
-                  <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
-                    <ShoppingBag className="w-3.5 h-3.5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-foreground leading-tight">구매내역</p>
-                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">내 구매 상품</p>
-                  </div>
+                  <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                    <ShoppingBag className="w-3 h-3 text-primary shrink-0" />
+                    구매내역
+                  </p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">내 구매 상품</p>
                 </div>
               </Link>
               {/* 판매관리 — seller 이상만 */}
               {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) ? (
                 <Link href="/seller" onClick={() => setMobileOpen(false)}>
                   <div className={cn(
-                    "rounded-2xl border border-border p-3 flex flex-col gap-2 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
+                    "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
                     pathname === "/seller" && "border-primary/50 bg-secondary/40"
                   )}>
-                    <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
-                      <BarChart2 className="w-3.5 h-3.5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-bold text-foreground leading-tight">판매관리</p>
-                      <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">내 컨텐츠 통계</p>
-                    </div>
+                    <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                      <BarChart2 className="w-3 h-3 text-primary shrink-0" />
+                      판매관리
+                    </p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">내 컨텐츠 통계</p>
                   </div>
                 </Link>
               ) : (
-                <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-2 opacity-40 cursor-not-allowed h-full">
-                  <div className="w-7 h-7 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-center">
-                    <BarChart2 className="w-3.5 h-3.5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-foreground leading-tight">판매관리</p>
-                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">셀러 권한 필요</p>
-                  </div>
+                <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-1 opacity-40 cursor-not-allowed h-full">
+                  <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                    <BarChart2 className="w-3 h-3 text-primary shrink-0" />
+                    판매관리
+                  </p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">셀러 권한 필요</p>
                 </div>
               )}
               {/* 정산관리 */}
               <Link href="/settlement" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-2 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
                   pathname === "/settlement" && "border-primary/50 bg-secondary/40"
                 )}>
-                  <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
-                    <Wallet className="w-3.5 h-3.5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-foreground leading-tight">정산관리</p>
-                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">수익 정산</p>
-                  </div>
+                  <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                    <Wallet className="w-3 h-3 text-primary shrink-0" />
+                    정산관리
+                  </p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">수익 정산</p>
                 </div>
               </Link>
             </div>
