@@ -183,7 +183,11 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "write_requests" | "market">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "write_requests" | "market" | "wallets">("users")
+  // 지갑 복구 (master 전용)
+  const [walletRepairLoading, setWalletRepairLoading] = useState(false)
+  const [walletRepairResult, setWalletRepairResult]   = useState<{ repairedCount: number; skippedCount: number; repaired: { id: string; username: string; oldAddress: string | null; newAddress: string }[] } | null>(null)
+  const [walletRepairError, setWalletRepairError]     = useState<string | null>(null)
   // 수수료 설정 (마스터 전용)
   const [commRates, setCommRates]         = useState<{ role: string; rate: number }[]>([])
   const [commEditing, setCommEditing]     = useState<Record<string, string>>({}) // role → 입력 중인 % 문자열
@@ -1519,6 +1523,11 @@ export default function PanelPage() {
             <button onClick={() => setActiveTab("accounts")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "accounts" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Shield className="w-4 h-4" /> 계정생성</button>
             <button onClick={() => { setActiveTab("cards"); fetchCardImages() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "cards" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><ImageIcon className="w-4 h-4" /> 카드관리</button>
             <button onClick={() => { setActiveTab("commission"); loadCommRates() }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "commission" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Percent className="w-4 h-4" /> 수수료 설정</button>
+            {myRole === "master" && (
+              <button onClick={() => { setActiveTab("wallets"); setWalletRepairResult(null); setWalletRepairError(null) }} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "wallets" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                <Wallet className="w-4 h-4" /> 입금 주소 관리
+              </button>
+            )}
             <button onClick={() => setActiveTab("write_requests")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "write_requests" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><UserCheck className="w-4 h-4" /> 글쓰기 신청</button>
             <button onClick={() => setActiveTab("market")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "market" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><ShoppingBag className="w-4 h-4" /> 마켓 관리</button>
           </>)}
@@ -2456,7 +2465,7 @@ export default function PanelPage() {
                     { label: "총 LP 사용", value: masterSummary.totalLpUsed, color: "text-blue-500" },
                     { label: "누적 수수료", value: masterSummary.totalFee, color: "text-amber-500" },
                     { label: "수금 완료", value: masterSummary.totalCollected, color: "text-muted-foreground" },
-                    { label: "미수금", value: masterSummary.pendingFee, color: masterSummary.pendingFee > 0 ? "text-orange-500" : "text-muted-foreground" },
+                    { label: "미���금", value: masterSummary.pendingFee, color: masterSummary.pendingFee > 0 ? "text-orange-500" : "text-muted-foreground" },
                   ].map(item => (
                     <div key={item.label} className="bg-background rounded-xl p-3">
                       <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -4104,7 +4113,7 @@ export default function PanelPage() {
               loadCommRates()
               setCommEditing({})
             } else {
-              setCommMsg({ text: d.error ?? "저장 실패", ok: false })
+              setCommMsg({ text: d.error ?? "저장 ��패", ok: false })
             }
             setCommSaving(false)
           }
@@ -4208,6 +4217,74 @@ export default function PanelPage() {
           </div>
         )}
 
+        {/* ── 입금 주소 관리 탭 (master 전용) ── */}
+        {activeTab === "wallets" && myRole === "master" && (
+          <div className="p-6 max-w-3xl mx-auto space-y-6">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">입금 주소 일괄 복구</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                wallet_address가 없거나 중복된 사용자에게 새 고유 주소를 할당합니다.
+                기존에 올바른 주소를 가진 사용자는 변경되지 않습니다.
+              </p>
+            </div>
+
+            <button
+              onClick={async () => {
+                setWalletRepairLoading(true)
+                setWalletRepairResult(null)
+                setWalletRepairError(null)
+                try {
+                  const token = localStorage.getItem("app_token") ?? ""
+                  const res = await fetch("/api/admin/repair-wallets", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                  })
+                  const data = await res.json()
+                  if (!res.ok) setWalletRepairError(data.error ?? "오류 발생")
+                  else setWalletRepairResult(data)
+                } catch (e) {
+                  setWalletRepairError(String(e))
+                } finally {
+                  setWalletRepairLoading(false)
+                }
+              }}
+              disabled={walletRepairLoading}
+              className="h-9 px-5 rounded-lg bg-primary text-black text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {walletRepairLoading ? "복구 중..." : "주소 일괄 복구 실행"}
+            </button>
+
+            {walletRepairError && (
+              <p className="text-sm text-destructive">{walletRepairError}</p>
+            )}
+
+            {walletRepairResult && (
+              <div className="space-y-3">
+                <div className="flex gap-4 text-sm">
+                  <span className="text-primary font-semibold">복구됨: {walletRepairResult.repairedCount}명</span>
+                  <span className="text-muted-foreground">정상: {walletRepairResult.skippedCount}명</span>
+                </div>
+                {walletRepairResult.repaired.length > 0 && (
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    <div className="grid grid-cols-[1fr_2fr_2fr] gap-0 text-[11px] font-semibold text-muted-foreground bg-secondary/40 px-4 py-2">
+                      <span>유저명</span>
+                      <span>기존 주소</span>
+                      <span>새 주소</span>
+                    </div>
+                    {walletRepairResult.repaired.map((r) => (
+                      <div key={r.id} className="grid grid-cols-[1fr_2fr_2fr] gap-0 px-4 py-2.5 border-t border-border text-xs">
+                        <span className="font-medium text-foreground">{r.username}</span>
+                        <span className="text-muted-foreground font-mono truncate">{r.oldAddress ?? "없음"}</span>
+                        <span className="text-primary font-mono truncate">{r.newAddress}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
     </div>
   )
@@ -4274,7 +4351,7 @@ function WriteRequestsPanel({ token }: { token: string }) {
     { key: "all",      label: "전체" },
   ]
 
-  const ROLE_LABEL: Record<string, string> = { user: "일반", member: "멤버", admin: "지점", branch_admin: "총판", super_admin: "대총판", master: "마스터" }
+  const ROLE_LABEL: Record<string, string> = { user: "일반", member: "멤버", admin: "���점", branch_admin: "총판", super_admin: "대총판", master: "마스터" }
 
   return (
     <div className="p-6 space-y-5">

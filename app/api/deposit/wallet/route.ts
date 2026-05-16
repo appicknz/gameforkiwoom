@@ -27,15 +27,34 @@ export async function GET(req: Request) {
 
   try {
     let walletIndex = profile?.wallet_index as number | null
+
     if (walletIndex === null || walletIndex === undefined) {
-      const { count } = await adminSupabase
+      // 기존 max wallet_index + 1 — count 기반이 아니므로 삭제/재가입 시 충돌 없음
+      const { data: maxRow } = await adminSupabase
         .from("profiles")
-        .select("id", { count: "exact", head: true })
+        .select("wallet_index")
         .not("wallet_index", "is", null)
-      walletIndex = count ?? 0
+        .order("wallet_index", { ascending: false })
+        .limit(1)
+        .single()
+
+      walletIndex = (maxRow?.wallet_index ?? -1) + 1
     }
 
-    const walletAddress = deriveWalletAddress(walletIndex)
+    let walletAddress = deriveWalletAddress(walletIndex)
+
+    // 주소 충돌 방어 (동일 주소가 다른 유저에게 이미 할당된 경우)
+    const { data: addrConflict } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("wallet_address", walletAddress)
+      .neq("id", userId)
+      .maybeSingle()
+
+    if (addrConflict) {
+      walletIndex += 1
+      walletAddress = deriveWalletAddress(walletIndex)
+    }
 
     await adminSupabase
       .from("profiles")

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { cookies } from "next/headers"
 import { randomUUID } from "crypto"
+import { deriveWalletAddress } from "@/lib/solana-wallet"
 
 function decodeJwtSub(token: string): string | null {
   try {
@@ -75,6 +76,33 @@ export async function POST(req: Request) {
 
   const userId = authUser.user.id
 
+  // HD 지갑 주소 할당 — max wallet_index + 1 방식으로 충돌 방지
+  let walletIndex: number | null = null
+  let walletAddress: string | null = null
+  if (process.env.SOLANA_HD_SEED) {
+    const { data: maxRow } = await adminSupabase
+      .from("profiles")
+      .select("wallet_index")
+      .not("wallet_index", "is", null)
+      .order("wallet_index", { ascending: false })
+      .limit(1)
+      .single()
+
+    walletIndex = (maxRow?.wallet_index ?? -1) + 1
+    walletAddress = deriveWalletAddress(walletIndex)
+
+    const { data: addrConflict } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("wallet_address", walletAddress)
+      .maybeSingle()
+
+    if (addrConflict) {
+      walletIndex += 1
+      walletAddress = deriveWalletAddress(walletIndex)
+    }
+  }
+
   // profiles 저장 — branch_id/branch_code 는 FK 이므로 반드시 null
   const { error: profileErr } = await adminSupabase.from("profiles").upsert({
     id: userId,
@@ -82,6 +110,8 @@ export async function POST(req: Request) {
     role,
     branch_id: null,
     branch_code: null,
+    ...(walletIndex !== null && { wallet_index: walletIndex }),
+    ...(walletAddress !== null && { wallet_address: walletAddress }),
   })
   if (profileErr) {
     await adminSupabase.auth.admin.deleteUser(userId)

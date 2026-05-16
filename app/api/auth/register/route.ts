@@ -53,11 +53,31 @@ export async function POST(req: Request) {
   let walletIndex: number | null = null
   let walletAddress: string | null = null
   if (process.env.SOLANA_HD_SEED) {
-    const { count: userCount } = await adminSupabase
+    // 현재 DB에 존재하는 최대 wallet_index + 1 사용
+    // count 기반이 아닌 max 기반 → 사용자 삭제/재가입 시에도 절대 충돌 없음
+    const { data: maxRow } = await adminSupabase
       .from("profiles")
-      .select("id", { count: "exact", head: true })
-    walletIndex = userCount ?? 0
+      .select("wallet_index")
+      .not("wallet_index", "is", null)
+      .order("wallet_index", { ascending: false })
+      .limit(1)
+      .single()
+
+    walletIndex = (maxRow?.wallet_index ?? -1) + 1
     walletAddress = deriveWalletAddress(walletIndex)
+
+    // 만약 동일한 주소가 이미 다른 사용자에게 할당된 경우를 방어
+    const { data: addrConflict } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("wallet_address", walletAddress)
+      .maybeSingle()
+
+    if (addrConflict) {
+      // 충돌 시 한 칸 더 올림 (중복이 연속으로 일어날 수 없으므로 +1 충분)
+      walletIndex += 1
+      walletAddress = deriveWalletAddress(walletIndex)
+    }
   }
 
   const profileData: Record<string, unknown> = { id: userId, username, role: "user" }
