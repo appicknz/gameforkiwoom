@@ -17,9 +17,9 @@ export const viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "비트벳 바이낸스 게임",
-  description: "30초 1라운드 롱/숏,홀/짝,언더/오버 미니게임",
-  generator: "BITBET",
+  title: "Trading Market",
+  description: "30-second round Long/Short, Odd/Even, Under/Over trading market",
+  generator: "Trading Market",
   icons: {
     icon: [
       {
