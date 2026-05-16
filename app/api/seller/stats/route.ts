@@ -45,7 +45,7 @@ export async function GET(req: Request) {
   if (itemIds.length > 0) {
     const { data: orderRows } = await adminSupabase
       .from("market_orders")
-      .select("id, item_id, price_krw, status, paid_at, created_at")
+      .select("id, item_id, amount_krw, status, created_at")
       .in("item_id", itemIds)
       .order("created_at", { ascending: false })
     orders = orderRows ?? []
