@@ -701,7 +701,7 @@ function MarketItemCard({
             <span>{(item.view_count ?? 0).toLocaleString()}명 조회</span>
             {item.market_categories?.balance_only && (
               <span className="px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 font-semibold text-[9px]">
-                잔��� 전용
+                잔고 전용
               </span>
             )}
             {(item.game_bonus_rate ?? 0) > 0 && (
