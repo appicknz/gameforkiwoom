@@ -346,6 +346,7 @@ export function Sidebar() {
   const [username, setUsername] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [sellerRole, setSellerRole] = useState<string | null>(null)
+  const [gameEnabled, setGameEnabled] = useState(false)
 
   // 로그인 폼
   const [authTab, setAuthTab]           = useState<"login" | "register">("login")
@@ -395,9 +396,20 @@ export function Sidebar() {
             setSellerRole(role)
           }
         }
+        // 게임 접근 권한 체크
+        try {
+          const gRes = await fetch("/api/user/game-access", {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const gData = await gRes.json()
+          setGameEnabled(!!gData?.hasAccess)
+        } catch {
+          setGameEnabled(false)
+        }
       } else {
         setUsername(null)
         setSellerRole(null)
+        setGameEnabled(false)
       }
     }
     check()
@@ -470,8 +482,8 @@ export function Sidebar() {
         {/* 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
 
-          {/* ① 보너스 게임 */}
-          <div className="space-y-2">
+          {/* ① 보너스 게임 — 접근 권한 있는 유저만 표시 */}
+          {gameEnabled && <div className="space-y-2">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">보너스 게임</p>
             <div className="grid grid-cols-2 gap-2">
               {/* 바카라 */}
@@ -497,7 +509,7 @@ export function Sidebar() {
                 </div>
               </Link>
             </div>
-          </div>
+          </div>}
 
           {/* ② 판매 — 2x2 그리드 */}
           <div className="border-t border-border pt-3 space-y-2">
