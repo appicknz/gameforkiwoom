@@ -562,19 +562,29 @@ export function Sidebar() {
                   <p className="text-[10px] text-muted-foreground leading-tight">{t("sidebar.sellerRequired")}</p>
                 </div>
               )}
-              {/* 정산관리 */}
-              <Link href="/settlement" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
-                  pathname === "/settlement" && "border-primary/50 bg-secondary/40"
-                )}>
+              {/* 정산관리 — seller 이상만 */}
+              {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) ? (
+                <Link href="/settlement" onClick={() => setMobileOpen(false)}>
+                  <div className={cn(
+                    "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
+                    pathname === "/settlement" && "border-primary/50 bg-secondary/40"
+                  )}>
+                    <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                      <Wallet className="w-3 h-3 text-primary shrink-0" />
+                      {t("nav.settlementNav")}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.settlementSub")}</p>
+                  </div>
+                </Link>
+              ) : (
+                <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-1 opacity-40 cursor-not-allowed h-full">
                   <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
                     <Wallet className="w-3 h-3 text-primary shrink-0" />
                     {t("nav.settlementNav")}
                   </p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.settlementSub")}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("sidebar.sellerRequired")}</p>
                 </div>
-              </Link>
+              )}
             </div>
           </div>
 
