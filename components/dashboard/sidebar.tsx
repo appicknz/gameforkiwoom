@@ -48,8 +48,6 @@ function TradeStatsMini() {
   const [viewMonth, setViewMonth] = useState(0)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [byDate, setByDate] = useState<Record<string, DayStat>>({})
-  const [open, setOpen] = useState(true)
-
   useEffect(() => {
     const kst = toKSTDateStr(new Date())
     setTodayKST(kst)
@@ -110,12 +108,9 @@ function TradeStatsMini() {
 
   return (
     <div className="space-y-2 px-1">
-      {/* 헤더 — 그리드 카드 버튼 스타일 */}
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full rounded-2xl border border-border p-3 flex items-center justify-between hover:bg-secondary/60 hover:border-primary/40 transition-all duration-200"
-      >
-        <div className="flex items-center gap-2.5">
+      {/* 헤더 — /trade 이동 버튼 */}
+      <Link href="/trade">
+        <div className="w-full rounded-2xl border border-border p-3 flex items-center gap-2.5 hover:bg-secondary/60 hover:border-primary/40 transition-all duration-200 cursor-pointer">
           <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center shrink-0" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
             <TrendingUp className="w-3.5 h-3.5 text-primary" />
           </div>
@@ -124,11 +119,9 @@ function TradeStatsMini() {
             <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
           </div>
         </div>
-        <ChevronRight className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0", open && "rotate-90")} />
-      </button>
+      </Link>
 
-      {open && (
-        <div className="space-y-2">
+      <div className="space-y-2">
           {/* 요약 4칸 */}
           <div className="grid grid-cols-2 gap-1">
             {[
@@ -242,7 +235,6 @@ function TradeStatsMini() {
             </div>
           )}
         </div>
-      )}
     </div>
   )
 }
