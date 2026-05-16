@@ -38,9 +38,10 @@ function StatCard({ label, value, sub, icon }: {
 // ─── OrderRow ─────────────────────────────────────────────────────────────────
 function OrderRow({ order }: { order: any }) {
   const [expanded, setExpanded] = useState(false)
-  const item   = order.market_items
-  const status = STATUS_MAP[order.status] ?? { label: order.status, className: "bg-secondary text-muted-foreground" }
-  const date   = order.paid_at ?? order.created_at
+  const item      = order.market_items
+  const status    = STATUS_MAP[order.status] ?? { label: order.status, className: "bg-secondary text-muted-foreground" }
+  const date      = order.paid_at ?? order.created_at
+  const isPoint   = !!(item?.market_categories?.balance_only)
 
   return (
     <div className="border-b border-border last:border-0">
@@ -61,10 +62,17 @@ function OrderRow({ order }: { order: any }) {
 
         {/* 상품명 + 날짜 */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-medium text-foreground truncate">{item?.title ?? "—"}</p>
             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${status.className}`}>
               {status.label}
+            </span>
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
+              isPoint
+                ? "bg-blue-500/15 text-blue-400"
+                : "bg-secondary text-muted-foreground"
+            }`}>
+              {isPoint ? "포인트" : "일반결제"}
             </span>
           </div>
           <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">

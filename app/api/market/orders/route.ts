@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     .select(`
       id, status, price_krw, bonus_amount, memo, paid_at, approved_at, rejected_at, reject_reason, created_at,
       buyer_id, publisher_id,
-      market_items(id, title, image_url, link_url)
+      market_items(id, title, image_url, link_url, market_categories(balance_only))
     `)
     .order("created_at", { ascending: false })
 
