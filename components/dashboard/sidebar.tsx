@@ -109,16 +109,15 @@ function TradeStatsMini() {
   return (
     <div className="space-y-2 px-1">
       {/* 헤더 */}
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between"
-      >
-        <div className="flex items-center gap-1.5">
+      <div className="w-full flex items-center justify-between">
+        <Link href="/trade" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
           <BarChart2 className="w-3 h-3 text-primary shrink-0" />
           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t("nav.trade")}</span>
-        </div>
-        <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform", open && "rotate-90")} />
-      </button>
+        </Link>
+        <button onClick={() => setOpen(v => !v)} className="p-0.5">
+          <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform", open && "rotate-90")} />
+        </button>
+      </div>
 
       {open && (
         <div className="space-y-2">
@@ -510,10 +509,32 @@ export function Sidebar() {
             </div>
           </div>}
 
-          {/* ② 판매 — 2x2 그리드 */}
+          {/* ② 관리 — 2x2 그리드 */}
           <div className="border-t border-border pt-3 space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">판매</p>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">관리</p>
             <div className="grid grid-cols-2 gap-2">
+              {/* 마켓 */}
+              <Link href="/market" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.market")}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
+                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
+                </div>
+              </Link>
+              {/* 구매내역 */}
+              <Link href="/purchases" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/purchases" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">구매내역</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">내 구매 상품</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">상세 확인</p>
+                </div>
+              </Link>
               {/* 판매관리 — seller 이상만 */}
               {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) ? (
                 <Link href="/seller" onClick={() => setMobileOpen(false)}>
@@ -532,28 +553,6 @@ export function Sidebar() {
                   <p className="text-[10px] text-muted-foreground leading-tight">셀러 권한 필요</p>
                 </div>
               )}
-              {/* 모의매매 */}
-              <Link href="/trade" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  pathname === "/trade" && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.trade")}</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
-                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
-                </div>
-              </Link>
-              {/* 마켓 */}
-              <Link href="/market" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.market")}</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
-                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">{t("common.comingSoon")}</p>
-                </div>
-              </Link>
               {/* 정산관리 */}
               <Link href="/settlement" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
@@ -565,26 +564,15 @@ export function Sidebar() {
                   <p className="text-[10px] text-muted-foreground leading-tight">정산수단 관리</p>
                 </div>
               </Link>
-              {/* 구매내역 */}
-              <Link href="/purchases" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  pathname === "/purchases" && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">구매내역</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">내 구매 상품</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">상세 확인</p>
-                </div>
-              </Link>
             </div>
           </div>
 
-          {/* ③ 토큰 입금 QR — 매매 통계 위 */}
+          {/* ③ 토큰 입금 QR */}
           <div className="border-t border-border pt-3">
             <DepositQRWidget isLoggedIn={isLoggedIn} />
           </div>
 
-          {/* ④ 모의매매 거래 통계 */}
+          {/* ④ 모의매매 — 버튼 + 통계 통합 */}
           <div className="border-t border-border pt-3">
             <TradeStatsMini />
           </div>
