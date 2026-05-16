@@ -74,10 +74,22 @@
   },
   "deposit": {
     "title": "토큰 입금",
+    "desc": "아래 주소로 {token} 토큰을 전송하면 자동으로 잔고에 반영됩니다.",
+    "myAddress": "내 입금 주소",
     "loginToView": "로그인하면 입금 주소가 표시됩니다",
     "loginRequired": "로그인 후 확인",
     "detail": "자세히 보기",
-    "addressLoading": "주소 로딩 중..."
+    "addressLoading": "주소를 불러오는 중...",
+    "addressError": "주소가 반환되지 않았습니다.",
+    "networkError": "네트워크 오류",
+    "copyAddress": "주소 복사",
+    "refresh": "새로고침",
+    "notice1": "이 주소는 나만의 고유 입금 주소입니다. 타인과 공유하지 마세요.",
+    "notice2": "{token} 토큰만 전송하세요. 다른 토큰은 잔고에 반영되지 않습니다.",
+    "notice3": "입금 후 약 5~30초 내 자동 반영됩니다.",
+    "notice4": "1 {token} = 1 R (고정 환율)",
+    "history": "입금 내역",
+    "noHistory": "아직 입금 내역이 없습니다."
   },
   "market": {
     "title": "마켓",

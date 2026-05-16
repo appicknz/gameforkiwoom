@@ -74,10 +74,22 @@
   },
   "deposit": {
     "title": "Token Deposit",
+    "desc": "Send {token} tokens to the address below and your balance will update automatically.",
+    "myAddress": "My Deposit Address",
     "loginToView": "Log in to view the deposit address",
     "loginRequired": "Login required",
     "detail": "View details",
-    "addressLoading": "Loading address..."
+    "addressLoading": "Loading address...",
+    "addressError": "Address could not be retrieved.",
+    "networkError": "Network error",
+    "copyAddress": "Copy address",
+    "refresh": "Refresh",
+    "notice1": "This is your unique deposit address. Do not share it with others.",
+    "notice2": "Only send {token} tokens. Other tokens will not be credited.",
+    "notice3": "Deposits are reflected automatically within 5–30 seconds.",
+    "notice4": "1 {token} = 1 R (fixed rate)",
+    "history": "Deposit History",
+    "noHistory": "No deposit history yet."
   },
   "market": {
     "title": "Market",

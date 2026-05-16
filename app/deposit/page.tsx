@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { QRCodeSVG } from "qrcode.react"
 import { Copy, Check, RefreshCw, ArrowDownToLine, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "@/lib/i18n"
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null
@@ -22,6 +23,7 @@ interface Deposit {
 
 export default function DepositPage() {
   const router = useRouter()
+  const { t }  = useTranslation()
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [walletError,   setWalletError]   = useState<string | null>(null)
   const [deposits,      setDeposits]      = useState<Deposit[]>([])
@@ -43,7 +45,7 @@ export default function DepositPage() {
   const fetchWallet = useCallback(async () => {
     const token = getToken()
     if (!token) {
-      setWalletError("로그인이 필요합니다.")
+      setWalletError(t("auth.loginRequired") as string)
       return
     }
     try {
@@ -53,12 +55,12 @@ export default function DepositPage() {
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setWalletAddress(data.walletAddress ?? null)
-        if (!data.walletAddress) setWalletError("주소가 반환되지 않았습니다.")
+        if (!data.walletAddress) setWalletError(t("deposit.addressError") as string)
       } else {
         setWalletError(data.error ?? `오류 (${res.status})`)
       }
     } catch {
-      setWalletError("네트워크 오류")
+      setWalletError(t("deposit.networkError") as string)
     }
   }, [])
 
@@ -107,17 +109,17 @@ export default function DepositPage() {
       <div className="space-y-1">
         <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
           <ArrowDownToLine className="w-5 h-5 text-primary" />
-          토큰 입금
+          {t("deposit.title")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          아래 주소로 {tokenSymbol} 토큰을 전송하면 자동으로 잔고에 반영됩니다.
+          {(t("deposit.desc") as string).replace("{token}", tokenSymbol)}
         </p>
       </div>
 
       {/* 지갑 주소 카드 */}
       <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">내 입금 주소</span>
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("deposit.myAddress")}</span>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Solana</span>
         </div>
 
@@ -136,12 +138,12 @@ export default function DepositPage() {
             "flex-1 text-[11px] font-mono break-all leading-relaxed",
             walletError ? "text-destructive" : "text-foreground"
           )}>
-            {walletAddress ?? walletError ?? "주소를 불러오는 중..."}
+            {walletAddress ?? walletError ?? t("deposit.addressLoading")}
           </span>
           <button
             onClick={handleCopy}
             className="shrink-0 p-1.5 rounded-lg hover:bg-secondary transition-colors"
-            aria-label="주소 복사"
+            aria-label={t("deposit.copyAddress") as string}
           >
             {copied
               ? <Check className="w-4 h-4 text-green-400" />
@@ -154,19 +156,19 @@ export default function DepositPage() {
         <div className="space-y-1.5 text-xs text-muted-foreground">
           <p className="flex items-start gap-1.5">
             <span className="text-primary mt-0.5">•</span>
-            이 주소는 나만의 고유 입금 주소입니다. 타인과 공유하지 마세요.
+            {t("deposit.notice1")}
           </p>
           <p className="flex items-start gap-1.5">
             <span className="text-primary mt-0.5">•</span>
-            {tokenSymbol} 토큰만 전송하세요. 다른 토큰은 잔고에 반영되지 않습니다.
+            {(t("deposit.notice2") as string).replace("{token}", tokenSymbol)}
           </p>
           <p className="flex items-start gap-1.5">
             <span className="text-primary mt-0.5">•</span>
-            입금 후 약 5~30초 내 자동 반영됩니다.
+            {t("deposit.notice3")}
           </p>
           <p className="flex items-start gap-1.5">
             <span className="text-amber-400 mt-0.5">•</span>
-            1 {tokenSymbol} = 1 R (고정 환율)
+            {(t("deposit.notice4") as string).replace("{token}", tokenSymbol)}
           </p>
         </div>
       </div>
@@ -174,11 +176,11 @@ export default function DepositPage() {
       {/* 입금 내역 */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">입금 내역</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t("deposit.history")}</h2>
           <button
             onClick={handleRefresh}
             className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
-            aria-label="새로고침"
+            aria-label={t("deposit.refresh") as string}
           >
             <RefreshCw className={cn("w-4 h-4 text-muted-foreground", refreshing && "animate-spin")} />
           </button>
@@ -186,7 +188,7 @@ export default function DepositPage() {
 
         {deposits.length === 0 ? (
           <div className="rounded-xl border border-border bg-card p-8 text-center">
-            <p className="text-sm text-muted-foreground">아직 입금 내역이 없습니다.</p>
+            <p className="text-sm text-muted-foreground">{t("deposit.noHistory")}</p>
           </div>
         ) : (
           <div className="space-y-2">
