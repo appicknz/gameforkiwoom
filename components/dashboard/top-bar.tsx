@@ -122,7 +122,7 @@ export function TopBar() {
       window.removeEventListener("auth:login", loadFromToken)
       window.removeEventListener("auth:logout", loadFromToken)
     }
-  }, [router])
+  }, [])
 
   // ── 토큰 자동 갱신: 45분마다 /api/auth/refresh 호출 ────────────────────
   // Supabase access_token은 1시간 만료 — 만료 전에 갱신해 세션 유지

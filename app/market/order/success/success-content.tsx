@@ -19,7 +19,7 @@ export default function SuccessContent() {
       })
     }, 1000)
     return () => clearInterval(t)
-  }, [router])
+  }, [])
 
   return (
     <div className="dark min-h-screen bg-background text-foreground flex items-center justify-center p-4">

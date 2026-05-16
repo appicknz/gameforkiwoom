@@ -38,7 +38,7 @@ export default function DepositPage() {
     }
     window.addEventListener("auth:logout", onLogout)
     return () => window.removeEventListener("auth:logout", onLogout)
-  }, [router])
+  }, [])
 
   const fetchWallet = useCallback(async () => {
     const token = getToken()

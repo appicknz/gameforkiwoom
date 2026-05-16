@@ -113,7 +113,7 @@ function SellerPageInner() {
     } finally {
       setLoading(false)
     }
-  }, [router])
+  }, [])
 
   useEffect(() => { load() }, [load])
 

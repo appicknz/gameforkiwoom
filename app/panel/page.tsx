@@ -528,7 +528,7 @@ export default function PanelPage() {
         }
       })
       .catch(() => router.replace("/"))
-  }, [router])
+  }, [])
 
   const [pwChecking, setPwChecking] = useState(false)
 

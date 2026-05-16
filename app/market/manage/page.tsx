@@ -47,7 +47,7 @@ export default function ManageOrdersPage() {
       if (res.status === 401) { router.push("/"); return }
       setOrders(data.orders ?? [])
     } finally { setLoading(false) }
-  }, [router])
+  }, [])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 

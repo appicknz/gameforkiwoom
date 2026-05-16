@@ -165,7 +165,7 @@ export default function PurchasesPage() {
     } finally {
       setLoading(false)
     }
-  }, [router])
+  }, [])
 
   useEffect(() => { load() }, [load])
 

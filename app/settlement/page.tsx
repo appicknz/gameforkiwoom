@@ -71,7 +71,7 @@ export default function SettlementPage() {
     } finally {
       setLoading(false)
     }
-  }, [router])
+  }, [])
 
   useEffect(() => { load() }, [load])
 

@@ -20,7 +20,7 @@ function SuccessContent() {
       })
     }, 1000)
     return () => clearInterval(t)
-  }, [router])
+  }, [])
 
   return (
     <div className="max-w-md w-full text-center space-y-6">
