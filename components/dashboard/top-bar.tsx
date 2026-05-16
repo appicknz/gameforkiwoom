@@ -331,7 +331,7 @@ export function TopBar() {
     if (!res.ok) {
       setBranchMsg({ text: data.error ?? "오류가 발생��습니다.", ok: false })
     } else {
-      setBranchMsg({ text: `${data.branchName} 지점에 가입됐습니다.`, ok: true })
+      setBranchMsg({ text: t("topbar.branchJoined").replace("{name}", data.branchName) as string, ok: true })
       setBranchCodeInput("")
       setProfile(prev => prev ? { ...prev, branch_code: branchCodeInput.trim().toUpperCase() } : prev)
     }
@@ -486,7 +486,7 @@ export function TopBar() {
                       >
                         <div className="flex items-center gap-2 text-sm text-foreground">
                           <GitBranch className="w-3.5 h-3.5 text-muted-foreground" />
-                          {profile.branch_code ? `지점: ${profile.branch_code}` : "지점코드 입력"}
+                          {profile.branch_code ? `${t("topbar.branchLabel")}: ${profile.branch_code}` : t("topbar.branchCode")}
                         </div>
                         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showBranchForm ? "rotate-180" : ""}`} />
                       </button>
@@ -494,7 +494,7 @@ export function TopBar() {
                         <div className="px-4 pb-3 space-y-2">
                           <input
                             type="text"
-                            placeholder="지점코드 입력 (예: YS001)"
+                            placeholder={t("auth.branchCodePlaceholder") as string}
                             value={branchCodeInput}
                             onChange={e => setBranchCodeInput(e.target.value.toUpperCase())}
                             onKeyDown={e => e.key === "Enter" && handleBranchJoin()}
@@ -502,7 +502,7 @@ export function TopBar() {
                           />
                           {branchMsg && <p className={`text-xs ${branchMsg.ok ? "text-primary" : "text-destructive"}`}>{branchMsg.text}</p>}
                           <Button className="w-full h-9 text-sm" onClick={handleBranchJoin} disabled={branchLoading || !branchCodeInput}>
-                            {branchLoading ? "처리 중..." : "확인"}
+                            {branchLoading ? t("auth.branchCodeLoading") : t("auth.branchCodeSubmit")}
                           </Button>
                         </div>
                       )}
@@ -516,7 +516,7 @@ export function TopBar() {
                       className="flex items-center gap-2 w-full px-4 py-3 text-sm text-foreground hover:bg-muted/50 transition-colors border-b border-border"
                     >
                       <UserPlus className="w-3.5 h-3.5" />
-                      유저 계정 생성
+                      {t("panel.createUserTitle")}
                     </button>
                   )}
 
@@ -527,7 +527,7 @@ export function TopBar() {
                       className="flex items-center gap-2 w-full px-4 py-3 text-sm text-primary hover:bg-primary/10 transition-colors border-b border-border"
                     >
                       <Shield className="w-3.5 h-3.5" />
-                      관리자 패널
+                      {t("nav.panel")}
                     </button>
                   )}
 
@@ -539,7 +539,7 @@ export function TopBar() {
                       className="flex items-center gap-2 w-full px-4 py-3 text-sm text-foreground hover:bg-muted transition-colors border-t border-border"
                     >
                       <Wallet className="w-3.5 h-3.5 text-primary" />
-                      <span>CHIPS 입금</span>
+                      <span>{t("topbar.chips")}</span>
                       <span className="ml-auto text-[10px] text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded">{t("sidebar.charge")}</span>
                     </Link>
                   )}

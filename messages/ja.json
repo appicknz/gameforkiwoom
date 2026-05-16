@@ -174,7 +174,7 @@
   "categories": {
     "채널": "チャンネル",
     "지표": "インジケーター",
-    "포인트 전용": "ポイント専用"
+    "포인�� 전용": "ポイント専用"
   },
   "sidebar": {
     "bonusGames": "ボーナスゲーム",
@@ -199,6 +199,44 @@
     "memoPlaceholder": "代理店へのメモ",
     "cancel": "キャンセル",
     "idPasswordRequired": "IDとパスワードを入力してください。"
+  },
+  "seller": {
+    "title": "販売管理",
+    "desc": "コンテンツの状況と商品を管理します。",
+    "addProduct": "商品登録",
+    "totalRevenue": "総売上",
+    "totalSales": "総販売",
+    "salesUnit": "件",
+    "totalViews": "総閲覧数",
+    "listedItems": "登録商品",
+    "activeTotal": "有効 / 全体",
+    "recentChart": "直近14日間の売上",
+    "tabMyItems": "マイ商品",
+    "tabSalesHistory": "販売履歴",
+    "noItems": "登録された商品がありません。",
+    "addFirstItem": "最初の商品を登録する",
+    "noSales": "販売履歴がありません。",
+    "statusActive": "販売中",
+    "statusInactive": "非アクティブ",
+    "actionDeactivate": "無効化",
+    "actionActivate": "有効化",
+    "actionEdit": "編集",
+    "actionDelete": "削除",
+    "itemDeleted": "商品が削除されました。",
+    "deleteTitle": "商品削除",
+    "deleteDesc": "この商品を無効化します。元に戻すことはできません。",
+    "deleteConfirm": "削除",
+    "deleteCancel": "キャンセル",
+    "statViews": "閲覧",
+    "statSales": "販売",
+    "chips": "CHIPS入金"
+  },
+  "topbar": {
+    "username": "ユーザー名",
+    "branchCode": "支店コードを入力",
+    "branchLabel": "支店",
+    "branchJoined": "{name}支店に加入しました。",
+    "chips": "CHIPS入金"
   },
   "common": {
     "loading": "読み込み中...",
