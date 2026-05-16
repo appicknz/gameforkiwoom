@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ShoppingBag, TrendingUp, Eye, Package, Plus, BarChart2, RefreshCw, ToggleLeft, ToggleRight, Pencil, Trash2, AlertTriangle, X } from "lucide-react"
 import { blobImageUrl } from "@/lib/blob-image"
@@ -53,7 +53,7 @@ function MiniBarChart({ data }: { data: { date: string; revenue: number }[] }) {
   )
 }
 
-export default function SellerPage() {
+function SellerPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const initialTab   = searchParams.get("tab") === "orders" ? "orders" : "items"
@@ -357,5 +357,13 @@ export default function SellerPage() {
 
       </div>
     </div>
+  )
+}
+
+export default function SellerPage() {
+  return (
+    <Suspense fallback={null}>
+      <SellerPageInner />
+    </Suspense>
   )
 }
