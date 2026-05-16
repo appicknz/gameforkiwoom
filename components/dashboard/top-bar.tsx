@@ -329,7 +329,7 @@ export function TopBar() {
     })
     const data = await res.json()
     if (!res.ok) {
-      setBranchMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
+      setBranchMsg({ text: data.error ?? "오류가 발생��습니다.", ok: false })
     } else {
       setBranchMsg({ text: `${data.branchName} 지점에 가입됐습니다.`, ok: true })
       setBranchCodeInput("")
@@ -540,7 +540,7 @@ export function TopBar() {
                     >
                       <Wallet className="w-3.5 h-3.5 text-primary" />
                       <span>CHIPS 입금</span>
-                      <span className="ml-auto text-[10px] text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded">충전</span>
+                      <span className="ml-auto text-[10px] text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded">{t("sidebar.charge")}</span>
                     </Link>
                   )}
 
@@ -550,7 +550,7 @@ export function TopBar() {
                     className="flex items-center gap-2 w-full px-4 py-3 text-sm text-destructive hover:bg-destructive/10 transition-colors"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    로그아웃
+                    {t("auth.logout")}
                   </button>
                 </>
               ) : (
@@ -653,25 +653,24 @@ export function TopBar() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <UserPlus className="w-4 h-4 text-primary" />
-              <h2 className="text-base font-semibold text-foreground">유저 계정 생성 요청</h2>
+              <h2 className="text-base font-semibold text-foreground">{t("panel.createUserTitle")}</h2>
             </div>
             <button onClick={() => setShowCreateUserModal(false)} className="text-muted-foreground hover:text-foreground transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            총판에게 요청이 전달되며, 승인 후 계정이 생성됩니다.<br />
-            수량이 2 이상이면 ID 뒤에 번호가 자동으로 붙습니다. (예: user01, user02)
+            {t("panel.createUserDesc")}
           </p>
 
           <div className="space-y-3">
             {/* ID */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">ID (아이디)</label>
+              <label className="text-xs font-medium text-foreground">{t("panel.idLabel")}</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <input
-                  type="text" placeholder="생성할 ID 입력"
+                  type="text" placeholder={t("panel.idPlaceholder") as string}
                   value={cuUsername} onChange={e => setCuUsername(e.target.value)}
                   className="w-full h-9 pl-9 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
                 />
@@ -680,11 +679,11 @@ export function TopBar() {
 
             {/* 비밀번호 */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">초기 비밀번호</label>
+              <label className="text-xs font-medium text-foreground">{t("panel.initialPassword")}</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <input
-                  type={showCuPw ? "text" : "password"} placeholder="초기 비밀번호"
+                  type={showCuPw ? "text" : "password"} placeholder={t("panel.initialPasswordPlaceholder") as string}
                   value={cuPassword} onChange={e => setCuPassword(e.target.value)}
                   className="w-full h-9 pl-9 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
                 />
@@ -696,7 +695,7 @@ export function TopBar() {
 
             {/* 수량 */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">수량</label>
+              <label className="text-xs font-medium text-foreground">{t("panel.quantity")}</label>
               <input
                 type="number" min="1" max="100" placeholder="1"
                 value={cuCount} onChange={e => setCuCount(e.target.value)}
@@ -706,9 +705,9 @@ export function TopBar() {
 
             {/* 메모 */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">메모 (선택)</label>
+              <label className="text-xs font-medium text-foreground">{t("panel.memoOptional")}</label>
               <textarea
-                placeholder="총판에게 전달할 메모"
+                placeholder={t("panel.memoPlaceholder") as string}
                 value={cuMemo} onChange={e => setCuMemo(e.target.value)}
                 rows={2}
                 className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60 resize-none"
@@ -721,13 +720,13 @@ export function TopBar() {
           )}
 
           <div className="flex gap-2 pt-1">
-            <Button variant="outline" className="flex-1 h-9" onClick={() => setShowCreateUserModal(false)}>취소</Button>
+            <Button variant="outline" className="flex-1 h-9" onClick={() => setShowCreateUserModal(false)}>{t("panel.cancel")}</Button>
             <Button
               className="flex-1 h-9"
               disabled={cuLoading}
               onClick={async () => {
                 if (!cuUsername.trim() || !cuPassword.trim()) {
-                  setCuMsg({ text: "ID와 비밀번호를 입력하세요.", ok: false }); return
+                  setCuMsg({ text: t("panel.idPasswordRequired") as string, ok: false }); return
                 }
                 setCuLoading(true); setCuMsg(null)
                 const token = getToken()

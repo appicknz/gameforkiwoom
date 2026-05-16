@@ -14,7 +14,13 @@
     "settings": "설정",
     "help": "도움말",
     "logout": "로그아웃",
-    "panel": "관리 패널"
+    "panel": "관리 패널",
+    "purchases": "구매내역",
+    "purchasesSub": "내 구매 상품",
+    "seller": "판매관리",
+    "sellerSub": "내 컨텐츠 통계",
+    "settlementNav": "정산관리",
+    "settlementSub": "수익 정산"
   },
   "auth": {
     "login": "로그인",
@@ -116,6 +122,30 @@
     "bit": "비트",
     "coin": "코인",
     "tie": "타이"
+  },
+  "sidebar": {
+    "bonusGames": "보너스 게임",
+    "manage": "관리",
+    "myPurchases": "내 구매 상품",
+    "myContentsStats": "내 컨텐츠 통계",
+    "sellerRequired": "셀러 권한 필요",
+    "settlement": "수익 정산",
+    "charge": "충전",
+    "loginToViewAddress": "로그인하면 입금 주소가 표시됩니다"
+  },
+  "panel": {
+    "createUserTitle": "유저 계정 생성 요청",
+    "createUserDesc": "총판에게 요청이 전달되며, 승인 후 계정이 생성됩니다. 수량이 2 이상이면 ID 뒤에 번호가 자동으로 붙습니다. (예: user01, user02)",
+    "idLabel": "ID (아이디)",
+    "idPlaceholder": "생성할 ID 입력",
+    "initialPassword": "초기 비밀번호",
+    "initialPasswordPlaceholder": "초기 비밀번호",
+    "quantity": "수량",
+    "memo": "메모",
+    "memoOptional": "메모 (선택)",
+    "memoPlaceholder": "총판에게 전달할 메모",
+    "cancel": "취소",
+    "idPasswordRequired": "ID와 비밀번호를 입력하세요."
   },
   "common": {
     "loading": "로딩 중...",

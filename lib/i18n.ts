@@ -6,8 +6,9 @@ import en from "@/messages/en.json"
 import ja from "@/messages/ja.json"
 
 export type Locale = "ko" | "en" | "ja"
-export const LOCALES: Locale[] = ["ko", "en", "ja"]
-export const LOCALE_LABELS: Record<Locale, string> = { ko: "한국어", en: "English", ja: "日本語" }
+export const LOCALES: Locale[] = ["ko", "ja", "en"]
+export const LOCALE_LABELS: Record<Locale, string> = { ko: "KR", en: "EN", ja: "JP" }
+export const LOCALE_NEXT: Record<Locale, Locale> = { ko: "ja", ja: "en", en: "ko" }
 
 const MESSAGES = { ko, en, ja } as const
 const COOKIE_KEY = "locale"

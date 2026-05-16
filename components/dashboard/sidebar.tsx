@@ -303,7 +303,7 @@ function DepositQRWidget({ isLoggedIn: _unused }: { isLoggedIn: boolean }) {
               {walletAddress}
             </p>
           ) : (
-            <p className="text-[9px] text-muted-foreground/40 text-center">로그인하면 입금 주소가 표시됩니다</p>
+            <p className="text-[9px] text-muted-foreground/40 text-center">{t("sidebar.loginToViewAddress")}</p>
           )}
 
           <Link
@@ -482,7 +482,7 @@ export function Sidebar() {
 
           {/* ① 보너스 게임 — 접근 권한 있는 유저만 표시 */}
           {gameEnabled && <div className="space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">보너스 게임</p>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("sidebar.bonusGames")}</p>
             <div className="grid grid-cols-2 gap-2">
               {/* 바카라 */}
               <Link href="/baka" onClick={() => setMobileOpen(false)}>
@@ -511,7 +511,7 @@ export function Sidebar() {
 
           {/* ② 관리 — 2x2 그리드 */}
           <div className="border-t border-border pt-3 space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">관리</p>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("sidebar.manage")}</p>
             <div className="grid grid-cols-2 gap-2">
               {/* 마켓 */}
               <Link href="/market" onClick={() => setMobileOpen(false)}>
@@ -534,9 +534,9 @@ export function Sidebar() {
                 )}>
                   <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
                     <ShoppingBag className="w-3 h-3 text-primary shrink-0" />
-                    구매내역
+                    {t("nav.purchases")}
                   </p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">내 구매 상품</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.purchasesSub")}</p>
                 </div>
               </Link>
               {/* 판매관리 — seller 이상만 */}
@@ -548,18 +548,18 @@ export function Sidebar() {
                   )}>
                     <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
                       <BarChart2 className="w-3 h-3 text-primary shrink-0" />
-                      판매관리
+                      {t("nav.seller")}
                     </p>
-                    <p className="text-[10px] text-muted-foreground leading-tight">내 컨텐츠 통계</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.sellerSub")}</p>
                   </div>
                 </Link>
               ) : (
                 <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-1 opacity-40 cursor-not-allowed h-full">
                   <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
                     <BarChart2 className="w-3 h-3 text-primary shrink-0" />
-                    판매관리
+                    {t("nav.seller")}
                   </p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">셀러 권한 필요</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("sidebar.sellerRequired")}</p>
                 </div>
               )}
               {/* 정산관리 */}
@@ -570,9 +570,9 @@ export function Sidebar() {
                 )}>
                   <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
                     <Wallet className="w-3 h-3 text-primary shrink-0" />
-                    정산관리
+                    {t("nav.settlementNav")}
                   </p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">수익 정산</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.settlementSub")}</p>
                 </div>
               </Link>
             </div>

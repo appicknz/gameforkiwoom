@@ -14,7 +14,13 @@
     "settings": "Settings",
     "help": "Help",
     "logout": "Logout",
-    "panel": "Admin Panel"
+    "panel": "Admin Panel",
+    "purchases": "Purchases",
+    "purchasesSub": "My Orders",
+    "seller": "Sales",
+    "sellerSub": "My Content Stats",
+    "settlementNav": "Settlement",
+    "settlementSub": "Revenue Settlement"
   },
   "auth": {
     "login": "Login",
@@ -116,6 +122,30 @@
     "bit": "Bit",
     "coin": "Coin",
     "tie": "Tie"
+  },
+  "sidebar": {
+    "bonusGames": "Bonus Games",
+    "manage": "Manage",
+    "myPurchases": "My Purchases",
+    "myContentsStats": "My Content Stats",
+    "sellerRequired": "Seller Access Required",
+    "settlement": "Revenue Settlement",
+    "charge": "Charge",
+    "loginToViewAddress": "Log in to view deposit address"
+  },
+  "panel": {
+    "createUserTitle": "Create User Account",
+    "createUserDesc": "The request will be sent to the distributor and the account will be created after approval. If quantity is 2 or more, numbers will be appended to the ID. (e.g. user01, user02)",
+    "idLabel": "ID (Username)",
+    "idPlaceholder": "Enter ID to create",
+    "initialPassword": "Initial Password",
+    "initialPasswordPlaceholder": "Initial Password",
+    "quantity": "Quantity",
+    "memo": "Memo",
+    "memoOptional": "Memo (optional)",
+    "memoPlaceholder": "Memo to send to distributor",
+    "cancel": "Cancel",
+    "idPasswordRequired": "Please enter ID and password."
   },
   "common": {
     "loading": "Loading...",

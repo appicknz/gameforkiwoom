@@ -14,7 +14,13 @@
     "settings": "設定",
     "help": "ヘルプ",
     "logout": "ログアウト",
-    "panel": "管理パネル"
+    "panel": "管理パネル",
+    "purchases": "購入履歴",
+    "purchasesSub": "購入商品一覧",
+    "seller": "販売管理",
+    "sellerSub": "コンテンツ統計",
+    "settlementNav": "精算管理",
+    "settlementSub": "収益精算"
   },
   "auth": {
     "login": "ログイン",
@@ -116,6 +122,30 @@
     "bit": "ビット",
     "coin": "コイン",
     "tie": "タイ"
+  },
+  "sidebar": {
+    "bonusGames": "ボーナスゲーム",
+    "manage": "管理",
+    "myPurchases": "購入商品",
+    "myContentsStats": "コンテンツ統計",
+    "sellerRequired": "セラー権限が必要",
+    "settlement": "収益精算",
+    "charge": "チャージ",
+    "loginToViewAddress": "ログインすると入金アドレスが表示されます"
+  },
+  "panel": {
+    "createUserTitle": "ユーザーアカウント作成リクエスト",
+    "createUserDesc": "リクエストは代理店に送信され、承認後にアカウントが作成されます。数量が2以上の場合、IDに番号が自動的に付きます。(例: user01, user02)",
+    "idLabel": "ID (ユーザー名)",
+    "idPlaceholder": "作成するIDを入力",
+    "initialPassword": "初期パスワード",
+    "initialPasswordPlaceholder": "初期パスワード",
+    "quantity": "数量",
+    "memo": "メモ",
+    "memoOptional": "メモ (任意)",
+    "memoPlaceholder": "代理店へのメモ",
+    "cancel": "キャンセル",
+    "idPasswordRequired": "IDとパスワードを入力してください。"
   },
   "common": {
     "loading": "読み込み中...",
