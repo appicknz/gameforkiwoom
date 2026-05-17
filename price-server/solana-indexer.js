@@ -80,13 +80,14 @@ async function getUserIdByWallet(walletAddress) {
     return cached
   }
 
-  // 3) Supabase DB 조회
+  // 3) Supabase DB 조회 — 실패 시 throw (호출자가 null 반환으로 재시도 결정)
   if (!SUPABASE_URL || !SUPABASE_KEY) return null
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/profiles?select=id&wallet_address=eq.${encodeURIComponent(walletAddress)}&limit=1`,
     { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
-  ).catch(() => null)
-  if (!res?.ok) return null
+  )
+  // 네트워크/서버 오류는 throw → processTx에서 재시도 처리
+  if (!res.ok) throw new Error(`Supabase profiles query failed: ${res.status}`)
   const rows = await res.json().catch(() => [])
   const userId = rows[0]?.id ?? null
 
@@ -111,12 +112,20 @@ async function solanaRpc(method, params) {
 }
 
 // ─── TX 파싱: 수신자와 토큰 delta 추출 ───────────────────────────────
+// 반환값:
+//   { walletAddress, delta, userId }  — 우리 유저의 입금 감지
+//   { skip: true }                    — 우리 유저가 아님 (처리 완료로 기록 OK)
+//   null                              — TX 조회 실패 또는 DB 오류 (재시도 필요)
 async function parseDepositTx(signature) {
   const tx = await solanaRpc("getTransaction", [
     signature,
     { encoding: "jsonParsed", commitment: "confirmed", maxSupportedTransactionVersion: 0 },
   ])
-  if (!tx?.meta) return null
+  if (!tx?.meta) {
+    // TX 아직 확정 안 됐거나 RPC 오류 → null 반환으로 재시도 유도
+    console.warn(`[solana] getTransaction returned null for ${signature} — will retry`)
+    return null
+  }
 
   const pre  = tx.meta.preTokenBalances  ?? []
   const post = tx.meta.postTokenBalances ?? []
@@ -128,7 +137,7 @@ async function parseDepositTx(signature) {
     const walletAddress = postBal.owner
     if (!walletAddress) continue
 
-    // preBalance 찾기 (없으면 0 — 신규 token account)
+    // preBalance 찾기 (없으면 0 — 신규 token account 첫 입금)
     const preBal = pre.find(b => b.owner === walletAddress && b.mint === TOKEN_MINT)
     const preAmt  = Number(preBal?.uiTokenAmount?.uiAmount  ?? 0)
     const postAmt = Number(postBal.uiTokenAmount?.uiAmount  ?? 0)
@@ -137,13 +146,25 @@ async function parseDepositTx(signature) {
     if (delta <= 0) continue  // 출금이거나 변화 없음 — 스킵
 
     // 우리 DB에 있는 지갑인지 확인
-    const userId = await getUserIdByWallet(walletAddress)
-    if (!userId) continue  // 우리 유저가 아님 — 스킵
+    let userId
+    try {
+      userId = await getUserIdByWallet(walletAddress)
+    } catch (e) {
+      // DB/네트워크 오류 → null 반환으로 재시도 유도 (처리 완료 기록 안 함)
+      console.error(`[solana] getUserIdByWallet error for ${walletAddress}:`, e.message)
+      return null
+    }
+
+    if (!userId) {
+      // 우리 서비스 유저가 아닌 지갑 — 스킵 표시 반환 (처리 완료 기록 OK)
+      console.log(`[solana] skip — unknown wallet: ${walletAddress} +${delta}`)
+      continue
+    }
 
     return { walletAddress, delta, userId }
   }
 
-  return null  // 우리 유저로의 입금 없음
+  return { skip: true }  // TOKEN_MINT 입금이지만 우리 유저 없음
 }
 
 // ─── Vercel deposit webhook 호출 ─────────────────────────────────────
@@ -183,14 +204,27 @@ async function processTx(signature) {
     if (await isSigProcessed(signature)) return
 
     const result = await parseDepositTx(signature)
-    if (!result) {
-      await markSigProcessed(signature)  // 우리 유저 아님도 기록 (재처리 방지)
+
+    if (result === null) {
+      // TX 조회 실패 또는 DB 오류 — 처리 완료 기록 안 함 (30분 후 재스캔에서 재시도)
+      console.warn(`[solana] processTx deferred (will retry): ${signature}`)
       return
     }
 
-    const { walletAddress, delta, userId } = result
+    if (result.skip) {
+      // 우리 서비스와 무관한 TX — 처리 완료로 기록해서 반복 조회 방지
+      await markSigProcessed(signature)
+      return
+    }
+
+    const { walletAddress, delta } = result
     const ok = await callDepositWebhook(signature, walletAddress, delta)
-    if (ok) await markSigProcessed(signature)
+    if (ok) {
+      await markSigProcessed(signature)
+    } else {
+      // webhook 호출 실패 — 처리 완료 기록 안 함 (재시도 가능)
+      console.warn(`[solana] webhook failed for ${signature} — will retry on next scan`)
+    }
   } finally {
     processingQueue.delete(signature)
   }
