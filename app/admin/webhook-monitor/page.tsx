@@ -129,7 +129,7 @@ export default function WebhookMonitorPage() {
       const parsed = JSON.parse(payload)
       const res = await fetch("/api/auto-signal/webhook", {
         method:  "POST",
-        headers: { "Content-Type": "application/json", "x-internal-secret": SECRET },
+        headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(parsed),
       })
       const data = await res.json()
