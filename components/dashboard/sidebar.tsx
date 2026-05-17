@@ -172,8 +172,8 @@ function TradeStatsMini() {
             <TrendingUp className="w-3.5 h-3.5 text-primary" />
           </div>
           <div className="flex flex-col gap-0.5 items-start">
-            <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.trade")}</p>
-            <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.tradeSub")}</p>
+            <p className="text-[11px] font-bold text-foreground leading-tight">오늘의 비트</p>
+            <p className="text-[10px] text-muted-foreground leading-tight">모의매매, 자동매매 시그널</p>
           </div>
         </div>
       </Link>
@@ -317,7 +317,6 @@ function TradeStatsMini() {
                     {day}
                     <span className="absolute bottom-0.5 flex items-center gap-px">
                       {dotColor && <span className="w-1 h-1 rounded-full" style={{ background: dotColor }} />}
-                      {showAutoDot && <span className="w-1 h-1 rounded-full" style={{ background: GOLD }} />}
                     </span>
                   </button>
                 )
@@ -622,7 +621,12 @@ export function Sidebar() {
             </div>
           </div>}
 
-          {/* ② 관리 — 2x2 그리드 */}
+          {/* ② 오늘의 비트 · 모의매매, 자동매매 시그널 */}
+          <div className="border-t border-border pt-3">
+            <TradeStatsMini />
+          </div>
+
+          {/* ③ 관리 — 2x2 그리드 */}
           <div className="border-t border-border pt-3 space-y-2">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("sidebar.manage")}</p>
             <div className="grid grid-cols-2 gap-2">
@@ -701,14 +705,9 @@ export function Sidebar() {
             </div>
           </div>
 
-          {/* ③ 토큰 입금 QR */}
+          {/* ④ 토큰 입금 QR */}
           <div className="border-t border-border pt-3">
             <DepositQRWidget isLoggedIn={isLoggedIn} />
-          </div>
-
-          {/* ④ 모의매매 — 버튼 + 통계 통합 */}
-          <div className="border-t border-border pt-3">
-            <TradeStatsMini />
           </div>
 
         </div>
