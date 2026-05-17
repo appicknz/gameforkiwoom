@@ -16,17 +16,18 @@ import { NextResponse } from "next/server"
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
 
 export async function POST(req: Request) {
-  // 인증
-  const secret = req.headers.get("x-internal-secret") ?? req.headers.get("x-webhook-secret")
-  if (secret !== INTERNAL_SECRET) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
-  }
-
   let body: Record<string, string>
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 })
+  }
+
+  // 인증: 헤더 OR body.secret (TradingView는 커스텀 헤더 불가)
+  const headerSecret = req.headers.get("x-internal-secret") ?? req.headers.get("x-webhook-secret")
+  const bodySecret   = body.secret ?? body.webhook_secret
+  if (headerSecret !== INTERNAL_SECRET && bodySecret !== INTERNAL_SECRET) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
   const {
