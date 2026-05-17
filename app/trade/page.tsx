@@ -888,10 +888,10 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* ══════ 모바일 (lg 미만): 시세 목록 + 날짜/자동매매 ══════ */}
-      <div className="lg:hidden flex flex-col" style={{ height: "calc(100dvh - 148px)" }}>
-        {/* 시세 목록 */}
-        <div style={{ flex: "0 0 50%", overflow: "hidden" }}>
+      {/* ══════ 모바일 (lg 미만) ══════ */}
+      <div className="lg:hidden" style={{ height: "calc(100dvh - 148px)", overflow: "hidden" }}>
+        {tradeMode === "mock" ? (
+          /* 모의매매: 시세 목록 전체 */
           <LivePricesTab
             onSelect={handleMobileSelect}
             onPriceUpdate={(sym, price) => {
@@ -910,136 +910,57 @@ export default function TradePage() {
             selectedSymbol={dialogSymbol}
             positions={positionRows}
           />
-        </div>
-        {/* 하단: 자동매매 or 모의매매 */}
-        <div className="flex flex-col" style={{ flex: "1 1 0", overflow: "hidden", background: PANEL_BG, borderTop: `1px solid ${BORDER}` }}>
-          {tradeMode === "auto" ? (
-            <>
+        ) : (
+          /* 자동매매: 날짜 스트립 + 포지션 전체 */
+          <div className="flex flex-col" style={{ height: "100%", background: PANEL_BG }}>
+            <div style={{ flexShrink: 0 }}>
+              <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+            </div>
+            <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
+              <AutoSignalPanel selectedDate={selectedDate} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ══════ PC (lg 이상) ══════ */}
+      <main className="hidden lg:block max-w-7xl mx-auto p-4">
+        <div style={{ height: "calc(100vh - 172px)" }}>
+          {tradeMode === "mock" ? (
+            /* 모의매매: 시세 목록 전체 너비 */
+            <div className="rounded-2xl overflow-hidden h-full"
+              style={{ background: "#0a0b0f", border: `1px solid rgba(212,175,55,0.15)` }}>
+              <LivePricesTab
+                onSelect={handleMobileSelect}
+                onPriceUpdate={(sym, price) => {
+                  priceMapRef.current.set(sym, price)
+                  if (sym === selectedSymbol) setSelectedPrice(price)
+                  setPositions(prev => prev.map(p => {
+                    if (p.symbol !== sym || !p.entryPrice) return p
+                    const delta = p.direction === "long"
+                      ? (price - p.entryPrice) / p.entryPrice
+                      : (p.entryPrice - price) / p.entryPrice
+                    return { ...p, current_price: price, pnl: Math.round(p.amount * delta * p.leverage), pnlPct: delta * p.leverage * 100 }
+                  }))
+                }}
+                onClose={handleClose}
+                closingId={closingId}
+                selectedSymbol={selectedSymbol}
+                positions={positionRows}
+              />
+            </div>
+          ) : (
+            /* 자동매매: 날짜 스트립 + 포지션 전체 너비 */
+            <div className="rounded-2xl flex flex-col h-full"
+              style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
               <div style={{ flexShrink: 0 }}>
                 <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
               </div>
               <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
                 <AutoSignalPanel selectedDate={selectedDate} />
               </div>
-            </>
-          ) : (
-            <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none", padding: "16px" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ fontSize: 11, color: "rgba(212,175,55,0.6)", fontWeight: 600, marginBottom: 4 }}>모의매매 포지션</div>
-                {positions.length === 0 ? (
-                  <div style={{ textAlign: "center", color: "rgba(255,255,255,0.2)", fontSize: 12, paddingTop: 32 }}>
-                    보유 포지션 없음
-                  </div>
-                ) : positions.map(pos => (
-                  <div key={pos.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}` }}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span style={{
-                          padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 800,
-                          background: pos.direction === "long" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-                          color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
-                        }}>{pos.direction === "long" ? "L" : "S"}</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>{pos.symbol.replace("USDT","")}/USDT</span>
-                        <span style={{ fontSize: 10, color: GOLD, opacity: 0.7 }}>{pos.leverage}x</span>
-                      </div>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: pos.pnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
-                        {pos.pnl >= 0 ? "+" : ""}₩{Math.floor(pos.pnl).toLocaleString("ko-KR")}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1" style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
-                      <span>진입 <span style={{ color: "rgba(255,255,255,0.55)" }}>₩{Math.floor(pos.entryPrice ?? 0).toLocaleString("ko-KR")}</span></span>
-                      <span style={{ color: pos.pnlPct >= 0 ? UP_COLOR : DOWN_COLOR }}>{pos.pnlPct >= 0 ? "+" : ""}{pos.pnlPct.toFixed(2)}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* ══════ PC (lg 이상): 시세 목록 | 날짜 + 자동매매/모의매매 ══════ */}
-      <main className="hidden lg:block max-w-7xl mx-auto p-4">
-        <div className="grid grid-cols-3 gap-4" style={{ height: "calc(100vh - 172px)" }}>
-
-          {/* 왼쪽 1/3: 실시간 시세 */}
-          <div className="rounded-2xl overflow-hidden"
-            style={{ background: "#0a0b0f", border: `1px solid rgba(212,175,55,0.15)`, height: "calc(100vh - 172px)" }}>
-            <LivePricesTab
-              onSelect={handleMobileSelect}
-              onPriceUpdate={(sym, price) => {
-                priceMapRef.current.set(sym, price)
-                if (sym === selectedSymbol) setSelectedPrice(price)
-                setPositions(prev => prev.map(p => {
-                  if (p.symbol !== sym || !p.entryPrice) return p
-                  const delta = p.direction === "long"
-                    ? (price - p.entryPrice) / p.entryPrice
-                    : (p.entryPrice - price) / p.entryPrice
-                  return { ...p, current_price: price, pnl: Math.round(p.amount * delta * p.leverage), pnlPct: delta * p.leverage * 100 }
-                }))
-              }}
-            onClose={handleClose}
-            closingId={closingId}
-            selectedSymbol={selectedSymbol}
-            positions={positionRows}
-          />
-          </div>
-
-          {/* 오른쪽 2/3: tradeMode에 따라 자동매매 or 모의매매 */}
-          <div className="col-span-2 rounded-2xl flex flex-col"
-            style={{ background: PANEL_BG, border: `1px solid ${BORDER}`, height: "calc(100vh - 172px)" }}>
-            {tradeMode === "auto" ? (
-              <>
-                {/* 날짜 스트립 고정 */}
-                <div style={{ flexShrink: 0 }}>
-                  <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
-                </div>
-                {/* 자동매매 포지션 스크롤 영역 */}
-                <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignalPanel selectedDate={selectedDate} />
-                </div>
-              </>
-            ) : (
-              /* 모의매매 패널 */
-              <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none", padding: "20px" }}>
-                <div style={{ fontSize: 12, color: "rgba(212,175,55,0.6)", fontWeight: 600, marginBottom: 12 }}>
-                  모의매매 포지션 ({positions.length})
-                </div>
-                {positions.length === 0 ? (
-                  <div style={{ textAlign: "center", color: "rgba(255,255,255,0.2)", fontSize: 13, paddingTop: 60 }}>
-                    보유 포지션 없음
-                  </div>
-                ) : positions.map(pos => (
-                  <div key={pos.id} className="rounded-xl p-4 mb-3" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}` }}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span style={{
-                          padding: "1px 7px", borderRadius: 4, fontSize: 10, fontWeight: 800,
-                          background: pos.direction === "long" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-                          color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
-                        }}>{pos.direction === "long" ? "LONG" : "SHORT"}</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>
-                          {pos.symbol.replace("USDT","")}/USDT
-                        </span>
-                        <span style={{ fontSize: 10, color: GOLD, opacity: 0.7 }}>{pos.leverage}x</span>
-                      </div>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: pos.pnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
-                        {pos.pnl >= 0 ? "+" : ""}₩{Math.floor(pos.pnl).toLocaleString("ko-KR")}
-                        <span style={{ fontSize: 10, marginLeft: 4, opacity: 0.7 }}>
-                          ({pos.pnlPct >= 0 ? "+" : ""}{pos.pnlPct.toFixed(2)}%)
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-4" style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                      <span>진입가 <span style={{ color: "rgba(255,255,255,0.6)" }}>₩{Math.floor(pos.entryPrice ?? 0).toLocaleString("ko-KR")}</span></span>
-                      <span>증거금 <span style={{ color: GOLD, opacity: 0.8 }}>₩{Math.floor(pos.amount ?? 0).toLocaleString("ko-KR")}</span></span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
         </div>
       </main>
 
