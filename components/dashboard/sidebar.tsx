@@ -25,6 +25,7 @@ import { useTranslation } from "@/lib/i18n"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { liveCache } from "@/components/trade/live-prices-tab"
 
 // ─── 모의매매 거래 통계 (소형) ────────────────────────────────────
 
@@ -40,6 +41,10 @@ function getMonthDays(year: number, month: number) {
 }
 
 interface DayStat { count: number; pnl: number; bet: number }
+interface AutoPos {
+  id: string; symbol: string; direction: string
+  entry_price: number; size_usd: number; leverage: number; signal_time: string
+}
 
 function TradeStatsMini() {
   // Date는 서버·클라이언트 시각 차이로 hydration mismatch 발생 → useEffect에서 초기화
@@ -48,6 +53,10 @@ function TradeStatsMini() {
   const [viewMonth, setViewMonth] = useState(0)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [byDate, setByDate] = useState<Record<string, DayStat>>({})
+  // 자동매매 포지션 (오늘치)
+  const [autoPositions, setAutoPositions] = useState<AutoPos[]>([])
+  const [, setTick] = useState(0) // 1초 tick — liveCache 가격 재계산용
+
   useEffect(() => {
     const kst = toKSTDateStr(new Date())
     setTodayKST(kst)
@@ -70,14 +79,32 @@ function TradeStatsMini() {
     } catch {}
   }, [])
 
+  // 자동매매 오늘치 fetch
+  const fetchAutoToday = useCallback(async () => {
+    try {
+      const today = toKSTDateStr(new Date())
+      const res = await fetch(`/api/auto-signal/positions?date=${today}`)
+      if (!res.ok) return
+      const data = await res.json()
+      setAutoPositions(data.positions ?? [])
+    } catch {}
+  }, [])
+
   useEffect(() => {
-    const refresh = () => fetchAll()
+    const refresh = () => { fetchAll(); fetchAutoToday() }
     window.addEventListener("auth:login", refresh)
     window.addEventListener("trade:refresh", refresh)
     fetchAll()
+    fetchAutoToday()
+    // 30초마다 자동매매 갱신
+    const autoInterval = setInterval(fetchAutoToday, 30_000)
+    // 1초 tick
+    const tickInterval = setInterval(() => setTick(n => n + 1), 1000)
     return () => {
       window.removeEventListener("auth:login", refresh)
       window.removeEventListener("trade:refresh", refresh)
+      clearInterval(autoInterval)
+      clearInterval(tickInterval)
     }
   }, [fetchAll])
 
@@ -89,6 +116,23 @@ function TradeStatsMini() {
   const winDays    = allDays.filter(d => d.pnl >= 0).length
   const totalPnlPct = totalBet > 0 ? (totalPnl / totalBet) * 100 : 0
   const winDayPct   = allDays.length > 0 ? (winDays / allDays.length) * 100 : 0
+
+  // 자동매매 실시간 통계 — liveCache에서 현재가 읽기
+  const normalize = (raw: string) => raw.replace(/\.P$/, "").replace(/\//g, "")
+  const autoCalc = autoPositions.map(pos => {
+    const sym    = normalize(pos.symbol)
+    const cur    = liveCache.tickers.get(sym)?.price ?? 0
+    const entry  = Number(pos.entry_price)
+    const hasCur = cur > 0 && entry > 0
+    const delta  = hasCur ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry) : 0
+    const roi = delta * pos.leverage * 100
+    const pnl = pos.size_usd * delta * pos.leverage
+    return { ...pos, cur, hasCur, roi, pnl }
+  })
+  const autoTotalPnl  = autoCalc.reduce((s, p) => s + p.pnl, 0)
+  const autoTotalRoi  = autoCalc.length > 0 ? autoCalc.reduce((s, p) => s + p.roi, 0) / autoCalc.length : 0
+  const autoProfit    = autoCalc.filter(p => p.roi > 0).length
+  const autoLoss      = autoCalc.filter(p => p.roi <= 0 && p.hasCur).length
 
   const selectedStat = selectedDate ? byDate[selectedDate] : null
   const selectedPnlPct = selectedStat && selectedStat.bet > 0
@@ -136,6 +180,69 @@ function TradeStatsMini() {
               </div>
             ))}
           </div>
+
+          {/* 자동매매 오늘 통계 */}
+          {autoPositions.length > 0 && (
+            <div className="rounded-lg border border-border bg-background/40 p-2 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <TrendingUp className="w-2.5 h-2.5 text-primary" />
+                  자동매매 (오늘)
+                </span>
+                <span className="text-[9px] text-muted-foreground">
+                  <span style={{ color: UP }}>+{autoProfit}</span>
+                  {" / "}
+                  <span style={{ color: DOWN }}>{autoLoss}</span>
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <div className="rounded bg-background/60 px-1.5 py-1">
+                  <p className="text-[8px] text-muted-foreground mb-0.5">ROI</p>
+                  <p className="text-[10px] font-bold tabular-nums" style={{ color: autoTotalRoi >= 0 ? UP : DOWN }}>
+                    {autoTotalRoi >= 0 ? "+" : ""}{autoTotalRoi.toFixed(2)}%
+                  </p>
+                </div>
+                <div className="rounded bg-background/60 px-1.5 py-1">
+                  <p className="text-[8px] text-muted-foreground mb-0.5">PNL</p>
+                  <p className="text-[10px] font-bold tabular-nums" style={{ color: autoTotalPnl >= 0 ? UP : DOWN }}>
+                    {autoTotalPnl >= 0 ? "+" : ""}${autoTotalPnl.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              {/* 포지션 목록 요약 */}
+              {autoCalc.map(pos => {
+                const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
+                const roiColor = pos.roi >= 0 ? UP : DOWN
+                return (
+                  <div key={pos.id} className="flex items-center justify-between py-0.5">
+                    <div className="flex items-center gap-1">
+                      <span style={{
+                        padding: "0px 4px", borderRadius: 3, fontSize: 8, fontWeight: 800,
+                        background: pos.direction === "long" ? "rgba(0,230,118,0.12)" : "rgba(255,61,87,0.12)",
+                        color: pos.direction === "long" ? UP : DOWN,
+                      }}>{pos.direction === "long" ? "L" : "S"}</span>
+                      <span className="text-[9px] font-semibold text-foreground">{baseSymbol}</span>
+                      <span className="text-[8px] text-muted-foreground">{pos.leverage}x</span>
+                    </div>
+                    <div className="text-right">
+                      {pos.hasCur ? (
+                        <>
+                          <span className="text-[9px] font-bold tabular-nums" style={{ color: roiColor }}>
+                            {pos.roi >= 0 ? "+" : ""}{pos.roi.toFixed(2)}%
+                          </span>
+                          <span className="text-[8px] text-muted-foreground ml-1 tabular-nums">
+                            {pos.pnl >= 0 ? "+" : ""}${pos.pnl.toFixed(2)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-[8px] text-muted-foreground/40">대기중</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* 캘린더 */}
           <div className="rounded-lg border border-border bg-background/40 p-2 space-y-1.5">
