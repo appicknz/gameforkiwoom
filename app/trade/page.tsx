@@ -440,13 +440,20 @@ function AutoSignalPanel({
     String(selectedDate.getDate()).padStart(2, "0"),
   ].join("-")
 
-  useEffect(() => {
-    setLoading(true)
+  const fetchPositions = useCallback(() => {
     fetch(`/api/auto-signal/positions?date=${dateKey}`)
       .then(r => r.ok ? r.json() : { positions: [] })
       .then(d => setPositions(d.positions ?? []))
       .finally(() => setLoading(false))
   }, [dateKey])
+
+  useEffect(() => {
+    setLoading(true)
+    fetchPositions()
+    // 30초마다 자동 갱신 — 새 웹훅 신호 자동 반영
+    const interval = setInterval(fetchPositions, 30_000)
+    return () => clearInterval(interval)
+  }, [fetchPositions])
 
   // 1초 tick — 클라이언트 가격으로 ROI 재계산
   const [, setTick] = useState(0)
@@ -778,27 +785,34 @@ export default function TradePage() {
     <div className="min-h-screen font-sans"
       style={{ background: "radial-gradient(ellipse at 50% 30%,#0a1a10 0%,#060d09 60%,#040a06 100%)" }}>
 
-      {/* ══════ 모바일 (lg 미만): 시세 목록만, 종목 클릭 → 다이얼로그 ══════ */}
-      <div className="lg:hidden" style={{ height: "calc(100dvh - 56px)", overflow: "hidden" }}>
-        <LivePricesTab
-          onSelect={handleMobileSelect}
-          onPriceUpdate={(sym, price) => {
-            priceMapRef.current.set(sym, price)
-            if (sym === dialogSymbolRef.current) setDialogPrice(price)
-            // 해당 심볼 포지션 손익 즉시 재계산
-            setPositions(prev => prev.map(p => {
-              if (p.symbol !== sym || !p.entryPrice) return p
-              const delta = p.direction === "long"
-                ? (price - p.entryPrice) / p.entryPrice
-                : (p.entryPrice - price) / p.entryPrice
-              return { ...p, current_price: price, pnl: Math.round(p.amount * delta * p.leverage), pnlPct: delta * p.leverage * 100 }
-            }))
-          }}
-          onClose={handleClose}
-          closingId={closingId}
-          selectedSymbol={dialogSymbol}
-          positions={positionRows}
-        />
+      {/* ══════ 모바일 (lg 미만): 시세 목록 + 날짜/자동매매 ══════ */}
+      <div className="lg:hidden flex flex-col" style={{ height: "calc(100dvh - 56px)" }}>
+        {/* 시세 목록 — flex-shrink 0으로 고정 높이, 나머지 스크롤 */}
+        <div style={{ flex: "0 0 55%", overflow: "hidden" }}>
+          <LivePricesTab
+            onSelect={handleMobileSelect}
+            onPriceUpdate={(sym, price) => {
+              priceMapRef.current.set(sym, price)
+              if (sym === dialogSymbolRef.current) setDialogPrice(price)
+              setPositions(prev => prev.map(p => {
+                if (p.symbol !== sym || !p.entryPrice) return p
+                const delta = p.direction === "long"
+                  ? (price - p.entryPrice) / p.entryPrice
+                  : (p.entryPrice - price) / p.entryPrice
+                return { ...p, current_price: price, pnl: Math.round(p.amount * delta * p.leverage), pnlPct: delta * p.leverage * 100 }
+              }))
+            }}
+            onClose={handleClose}
+            closingId={closingId}
+            selectedSymbol={dialogSymbol}
+            positions={positionRows}
+          />
+        </div>
+        {/* 날짜 스트립 + 자동매매 포지션 */}
+        <div style={{ flex: "1 1 0", overflow: "auto", background: PANEL_BG, borderTop: `1px solid ${BORDER}` }}>
+          <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+          <AutoSignalPanel selectedDate={selectedDate} priceMapRef={priceMapRef} />
+        </div>
       </div>
 
       {/* ══════ PC (lg 이상): 차트 + 투자패널 | 시세 목록 ══════ */}
