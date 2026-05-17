@@ -845,147 +845,11 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* ══════ PC (lg 이상): 차트 + 투자패널 | 시세 목록 ══════ */}
+      {/* ══════ PC (lg 이상): 시세 목록 | 날짜 + 자동매매 ══════ */}
       <main className="hidden lg:block max-w-7xl mx-auto p-4">
         <div className="grid grid-cols-3 gap-4" style={{ height: "calc(100vh - 80px)" }}>
 
-          {/* 왼쪽 2/3 */}
-          <div className="col-span-2 flex flex-col gap-3 overflow-y-auto pr-1" style={{ scrollbarWidth: "none" }}>
-            {/* 심볼 헤더 */}
-            <div className="flex items-center justify-between px-4 py-3 rounded-2xl"
-              style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
-              <div className="flex items-center gap-3">
-                <div style={{
-                  width: 34, height: 34, borderRadius: "50%",
-                  background: "radial-gradient(circle at 35% 35%,#627EEA,#3a4fc7)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 11, fontWeight: 900, color: "#fff",
-                }}>{selectedSymbol.replace("USDT","").slice(0,3)}</div>
-                <div>
-                  <div style={{ fontSize: 9, color: "rgba(212,175,55,0.45)", letterSpacing: "0.06em" }}>
-                    {selectedSymbol.replace("USDT","")} / USDT · 모의매매
-                  </div>
-                  <div className="text-lg font-extrabold tabular-nums" style={{ color: GOLD }}>
-                    {selectedPrice ? `$${fmt(selectedPrice)}` : "—"}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 차트 */}
-            <div className="rounded-2xl overflow-hidden"
-              style={{ background: PANEL_BG, border: `1px solid rgba(212,175,55,0.15)` }}>
-              <SymbolChart
-                symbol={selectedSymbol}
-                height={280}
-                positions={positions.filter(p => p.symbol === selectedSymbol)}
-                onPrice={p => {
-                  priceMapRef.current.set(selectedSymbol, p)
-                  setSelectedPrice(p)
-                }}
-              />
-            </div>
-
-            {/* 투자 패널 — 기본 접힘 */}
-            <div className="rounded-2xl overflow-hidden" style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
-              {/* 헤더 (항상 표시) */}
-              <button
-                onClick={() => setFormCollapsed(v => !v)}
-                className="w-full flex items-center justify-between px-5 py-3 transition-colors hover:bg-white/5"
-              >
-                <div className="flex items-center gap-2">
-                  <Wallet style={{ width: 13, height: 13, color: GOLD, opacity: 0.7 }} />
-                  <span style={{ fontSize: 11, color: "rgba(212,175,55,0.6)", fontWeight: 600 }}>주문</span>
-                  {balance !== null && (
-                    <span className="tabular-nums" style={{ fontSize: 10, color: "rgba(212,175,55,0.4)" }}>
-                      잔고 ₩{Math.floor(balance).toLocaleString("ko-KR")}
-                    </span>
-                  )}
-                </div>
-                {formCollapsed
-                  ? <ChevronDown style={{ width: 14, height: 14, color: "rgba(212,175,55,0.4)" }} />
-                  : <ChevronUp   style={{ width: 14, height: 14, color: "rgba(212,175,55,0.4)" }} />
-                }
-              </button>
-              {/* 폼 내용 */}
-              {!formCollapsed && (
-                <div className="px-5 pb-5">
-                  <TradeForm
-                    symbol={selectedSymbol}
-                    price={selectedPrice}
-                    balance={balance}
-                    onOpen={handleOpen}
-                    isOpening={openingId !== null}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* 날짜 스트립 + 자동매매 포지션 */}
-            <div className="rounded-2xl flex flex-col" style={{ background: PANEL_BG, border: `1px solid ${BORDER}`, maxHeight: "80dvh" }}>
-              <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
-              <div style={{ overflowY: "auto", flex: "1 1 0", scrollbarWidth: "none" }}>
-                <AutoSignalPanel selectedDate={selectedDate} />
-              </div>
-            </div>
-
-            {/* 포지션 목록 */}
-            {positions.length > 0 && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
-                <div className="flex items-center justify-between px-4 py-3"
-                  style={{ borderBottom: `1px solid ${BORDER}` }}>
-                  <div className="flex items-center gap-2">
-                    <BarChart2 style={{ width: 13, height: 13, color: GOLD, opacity: 0.7 }} />
-                    <span style={{ fontSize: 11, color: "rgba(212,175,55,0.6)", fontWeight: 600 }}>
-                      보유 포지션 ({positions.length})
-                    </span>
-                    <span className="tabular-nums" style={{ fontSize: 10, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
-                      {totalPnl >= 0 ? "+" : ""}₩{Math.floor(totalPnl).toLocaleString("ko-KR")} 미실현
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Wallet style={{ width: 11, height: 11, color: GOLD, opacity: 0.5 }} />
-                    <span style={{ fontSize: 11, color: "rgba(212,175,55,0.5)" }}>잔고</span>
-                    <span className="text-xs font-extrabold tabular-nums" style={{ color: GOLD }}>
-                      {displayBalance === null ? "—" : `₩${displayBalance.toLocaleString("ko-KR")}`}
-                    </span>
-                  </div>
-                </div>
-                {positions.map(pos => (
-                  <PcPositionCard key={pos.id} pos={pos} onClose={handleClose} isClosing={closingId === pos.id} />
-                ))}
-              </div>
-            )}
-
-            {/* 거래 내역 */}
-            {logs.length > 0 && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
-                <div className="px-4 py-2.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
-                  <span style={{ fontSize: 11, color: "rgba(212,175,55,0.6)", fontWeight: 600 }}>거래 내역</span>
-                </div>
-                {logs.slice(0, 10).map(log => (
-                  <div key={log.id} className="flex justify-between items-center px-4 py-2"
-                    style={{ borderBottom: `1px solid rgba(212,175,55,0.05)` }}>
-                    <div className="flex items-center gap-2">
-                      <span style={{
-                        padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 800,
-                        background: log.direction === "long" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
-                        color: log.direction === "long" ? UP_COLOR : DOWN_COLOR,
-                      }}>{log.direction === "long" ? "L" : "S"}</span>
-                      <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
-                        {new Date(log.closedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                      </span>
-                    </div>
-                    <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 700, color: log.pnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
-                      {log.pnl >= 0 ? "+" : ""}₩{Math.floor(log.pnl).toLocaleString("ko-KR")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 오른쪽 1/3: 실시간 시세 */}
+          {/* 왼쪽 1/3: 실시간 시세 */}
           <div className="rounded-2xl overflow-hidden"
             style={{ background: "#0a0b0f", border: `1px solid rgba(212,175,55,0.15)`, height: "calc(100vh - 80px)" }}>
             <LivePricesTab
@@ -993,7 +857,6 @@ export default function TradePage() {
               onPriceUpdate={(sym, price) => {
                 priceMapRef.current.set(sym, price)
                 if (sym === selectedSymbol) setSelectedPrice(price)
-                // 해당 심볼 포지션 손익 즉시 재계산
                 setPositions(prev => prev.map(p => {
                   if (p.symbol !== sym || !p.entryPrice) return p
                   const delta = p.direction === "long"
@@ -1007,6 +870,19 @@ export default function TradePage() {
               selectedSymbol={selectedSymbol}
               positions={positionRows}
             />
+          </div>
+
+          {/* 오른쪽 2/3: 날짜 스트립 + 자동매매 포지션 */}
+          <div className="col-span-2 rounded-2xl flex flex-col"
+            style={{ background: PANEL_BG, border: `1px solid ${BORDER}`, height: "calc(100vh - 80px)" }}>
+            {/* 날짜 스트립 고정 */}
+            <div style={{ flexShrink: 0 }}>
+              <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+            </div>
+            {/* 자동매매 포지션 스크롤 영역 */}
+            <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
+              <AutoSignalPanel selectedDate={selectedDate} />
+            </div>
           </div>
 
         </div>
