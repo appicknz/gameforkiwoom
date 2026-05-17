@@ -379,7 +379,7 @@ export function TopBar() {
           )}
         </div>
 
-        {/* 우측: 언어 전환 + 로그인/아바타 */}
+        {/* 우측: 언어 전환 + 로그인 버튼 또는 아바타 */}
         <div className="flex items-center gap-2 shrink-0" ref={dropdownRef}>
           <LangSwitcher />
           {isLoggedIn ? (
