@@ -79,16 +79,19 @@ function TradeStatsMini() {
     } catch {}
   }, [])
 
-  // 자동매매 오늘치 fetch
-  const fetchAutoToday = useCallback(async () => {
+  // 자동매매 — 선택 날짜 or 오늘 fetch
+  const fetchAutoForDate = useCallback(async (date: string) => {
     try {
-      const today = toKSTDateStr(new Date())
-      const res = await fetch(`/api/auto-signal/positions?date=${today}`)
+      const res = await fetch(`/api/auto-signal/positions?date=${date}`)
       if (!res.ok) return
       const data = await res.json()
       setAutoPositions(data.positions ?? [])
     } catch {}
   }, [])
+
+  const fetchAutoToday = useCallback(() => {
+    fetchAutoForDate(toKSTDateStr(new Date()))
+  }, [fetchAutoForDate])
 
   useEffect(() => {
     const refresh = () => { fetchAll(); fetchAutoToday() }
@@ -96,9 +99,7 @@ function TradeStatsMini() {
     window.addEventListener("trade:refresh", refresh)
     fetchAll()
     fetchAutoToday()
-    // 30초마다 자동매매 갱신
     const autoInterval = setInterval(fetchAutoToday, 30_000)
-    // 1초 tick
     const tickInterval = setInterval(() => setTick(n => n + 1), 1000)
     return () => {
       window.removeEventListener("auth:login", refresh)
@@ -106,7 +107,16 @@ function TradeStatsMini() {
       clearInterval(autoInterval)
       clearInterval(tickInterval)
     }
-  }, [fetchAll])
+  }, [fetchAll, fetchAutoToday])
+
+  // 달력에서 날짜 선택 시 해당 날짜 자동매매 포지션 fetch
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAutoForDate(selectedDate)
+    } else {
+      fetchAutoToday()
+    }
+  }, [selectedDate, fetchAutoForDate, fetchAutoToday])
 
   // 전체 통계 집계
   const allDays = Object.values(byDate)
@@ -166,83 +176,57 @@ function TradeStatsMini() {
       </Link>
 
       <div className="space-y-2">
-          {/* 요약 4칸 */}
-          <div className="grid grid-cols-2 gap-1">
-            {[
-              { label: t("stats.totalTrades"), value: `${totalCount}${t("stats.times")}` },
-              { label: t("stats.totalPnl"), value: `${totalPnl >= 0 ? "+" : ""}${Math.floor(totalPnl).toLocaleString("ko-KR")}`, color: totalPnl >= 0 ? UP : DOWN },
-              { label: t("stats.winRate"), value: `${totalPnlPct >= 0 ? "+" : ""}${totalPnlPct.toFixed(1)}%`, color: totalPnlPct >= 0 ? UP : DOWN },
-              { label: t("stats.dailyWinRate"), value: `${winDayPct.toFixed(0)}%`, color: winDayPct >= 50 ? UP : DOWN },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="rounded-lg border border-border bg-background/40 p-1.5">
-                <p className="text-[9px] text-muted-foreground mb-0.5">{label}</p>
-                <p className="text-[10px] font-bold tabular-nums" style={{ color: color ?? "var(--foreground)" }}>{value}</p>
-              </div>
-            ))}
-          </div>
+          {/* 요약 4칸 — 날짜 선택 시 해당 날짜 자동매매 기준, 미선택 시 전체 모의매매 합계 */}
+          {(() => {
+            const showingDate = selectedDate ?? todayKST
+            const isDateSelected = !!selectedDate
+            // 자동매매 기준 값
+            const autoCount   = autoCalc.length
+            const autoPnl$    = autoTotalPnl
+            const autoRoi     = autoTotalRoi
+            const autoWinPct  = autoCount > 0 ? (autoProfit / autoCount) * 100 : 0
 
-          {/* 자동매매 오늘 통계 */}
-          {autoPositions.length > 0 && (
-            <div className="rounded-lg border border-border bg-background/40 p-2 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <TrendingUp className="w-2.5 h-2.5 text-primary" />
-                  자동매매 (오늘)
-                </span>
-                <span className="text-[9px] text-muted-foreground">
-                  <span style={{ color: UP }}>+{autoProfit}</span>
-                  {" / "}
-                  <span style={{ color: DOWN }}>{autoLoss}</span>
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-1">
-                <div className="rounded bg-background/60 px-1.5 py-1">
-                  <p className="text-[8px] text-muted-foreground mb-0.5">ROI</p>
-                  <p className="text-[10px] font-bold tabular-nums" style={{ color: autoTotalRoi >= 0 ? UP : DOWN }}>
-                    {autoTotalRoi >= 0 ? "+" : ""}{autoTotalRoi.toFixed(2)}%
-                  </p>
-                </div>
-                <div className="rounded bg-background/60 px-1.5 py-1">
-                  <p className="text-[8px] text-muted-foreground mb-0.5">PNL</p>
-                  <p className="text-[10px] font-bold tabular-nums" style={{ color: autoTotalPnl >= 0 ? UP : DOWN }}>
-                    {autoTotalPnl >= 0 ? "+" : ""}${autoTotalPnl.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-              {/* 포지션 목록 요약 */}
-              {autoCalc.map(pos => {
-                const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
-                const roiColor = pos.roi >= 0 ? UP : DOWN
-                return (
-                  <div key={pos.id} className="flex items-center justify-between py-0.5">
-                    <div className="flex items-center gap-1">
-                      <span style={{
-                        padding: "0px 4px", borderRadius: 3, fontSize: 8, fontWeight: 800,
-                        background: pos.direction === "long" ? "rgba(0,230,118,0.12)" : "rgba(255,61,87,0.12)",
-                        color: pos.direction === "long" ? UP : DOWN,
-                      }}>{pos.direction === "long" ? "L" : "S"}</span>
-                      <span className="text-[9px] font-semibold text-foreground">{baseSymbol}</span>
-                      <span className="text-[8px] text-muted-foreground">{pos.leverage}x</span>
-                    </div>
-                    <div className="text-right">
-                      {pos.hasCur ? (
-                        <>
-                          <span className="text-[9px] font-bold tabular-nums" style={{ color: roiColor }}>
-                            {pos.roi >= 0 ? "+" : ""}{pos.roi.toFixed(2)}%
-                          </span>
-                          <span className="text-[8px] text-muted-foreground ml-1 tabular-nums">
-                            {pos.pnl >= 0 ? "+" : ""}${pos.pnl.toFixed(2)}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-[8px] text-muted-foreground/40">대기중</span>
-                      )}
-                    </div>
+            const boxes = isDateSelected || autoPositions.length > 0
+              ? [
+                  { label: "총 포지션",  value: `${autoCount}건`, color: undefined },
+                  { label: "총 손익($)", value: `${autoPnl$ >= 0 ? "+" : ""}$${autoPnl$.toFixed(2)}`, color: autoPnl$ >= 0 ? UP : DOWN },
+                  { label: "평균 ROI",   value: `${autoRoi >= 0 ? "+" : ""}${autoRoi.toFixed(2)}%`, color: autoRoi >= 0 ? UP : DOWN },
+                  { label: "수익 비율",  value: `${autoWinPct.toFixed(0)}%`, color: autoWinPct >= 50 ? UP : DOWN },
+                ]
+              : [
+                  { label: t("stats.totalTrades"),   value: `${totalCount}${t("stats.times")}`, color: undefined },
+                  { label: t("stats.totalPnl"),      value: `${totalPnl >= 0 ? "+" : ""}${Math.floor(totalPnl).toLocaleString("ko-KR")}`, color: totalPnl >= 0 ? UP : DOWN },
+                  { label: t("stats.winRate"),       value: `${totalPnlPct >= 0 ? "+" : ""}${totalPnlPct.toFixed(1)}%`, color: totalPnlPct >= 0 ? UP : DOWN },
+                  { label: t("stats.dailyWinRate"),  value: `${winDayPct.toFixed(0)}%`, color: winDayPct >= 50 ? UP : DOWN },
+                ]
+
+            return (
+              <>
+                {/* 날짜 선택됐을 때 어떤 날짜 통계인지 표시 */}
+                {(isDateSelected || autoPositions.length > 0) && (
+                  <div className="flex items-center justify-between px-0.5">
+                    <span className="text-[9px] font-semibold text-primary flex items-center gap-1">
+                      <TrendingUp className="w-2.5 h-2.5" />
+                      자동매매{isDateSelected ? ` · ${selectedDate}` : " · 오늘"}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground">
+                      <span style={{ color: UP }}>+{autoProfit}</span>
+                      {" / "}
+                      <span style={{ color: DOWN }}>{autoLoss}</span>
+                    </span>
                   </div>
-                )
-              })}
-            </div>
-          )}
+                )}
+                <div className="grid grid-cols-2 gap-1">
+                  {boxes.map(({ label, value, color }) => (
+                    <div key={String(label)} className="rounded-lg border border-border bg-background/40 p-1.5">
+                      <p className="text-[9px] text-muted-foreground mb-0.5">{label}</p>
+                      <p className="text-[10px] font-bold tabular-nums" style={{ color: color ?? "var(--foreground)" }}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )
+          })()}
 
           {/* 캘린더 */}
           <div className="rounded-lg border border-border bg-background/40 p-2 space-y-1.5">
@@ -297,6 +281,8 @@ function TradeStatsMini() {
                 const isToday = dateStr === todayKST
                 const isSel   = dateStr === selectedDate
                 const dotColor = stat ? (stat.pnl >= 0 ? UP : DOWN) : null
+                // 자동매매 dot: 선택된 날짜이고 포지션이 있으면 표시 (오늘도 포함)
+                const showAutoDot = (isSel || isToday) && autoPositions.length > 0
 
                 return (
                   <button
@@ -310,9 +296,10 @@ function TradeStatsMini() {
                     )}
                   >
                     {day}
-                    {dotColor && (
-                      <span className="absolute bottom-0.5 w-1 h-1 rounded-full" style={{ background: dotColor }} />
-                    )}
+                    <span className="absolute bottom-0.5 flex items-center gap-px">
+                      {dotColor && <span className="w-1 h-1 rounded-full" style={{ background: dotColor }} />}
+                      {showAutoDot && <span className="w-1 h-1 rounded-full" style={{ background: GOLD }} />}
+                    </span>
                   </button>
                 )
               })}
