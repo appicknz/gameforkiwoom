@@ -98,24 +98,27 @@ function TradeStatsMini() {
     window.addEventListener("auth:login", refresh)
     window.addEventListener("trade:refresh", refresh)
     fetchAll()
-    fetchAutoToday()
-    const autoInterval = setInterval(fetchAutoToday, 30_000)
+    // autoToday 초기 fetch는 selectedDate effect에서 처리됨
     const tickInterval = setInterval(() => setTick(n => n + 1), 1000)
     return () => {
       window.removeEventListener("auth:login", refresh)
       window.removeEventListener("trade:refresh", refresh)
-      clearInterval(autoInterval)
       clearInterval(tickInterval)
     }
   }, [fetchAll, fetchAutoToday])
 
   // 달력에서 날짜 선택 시 해당 날짜 자동매매 포지션 fetch
+  // 선택 없음(오늘) → 30초 실시간 갱신 / 과거 날짜 선택 → 1회 fetch 후 interval 없음
   useEffect(() => {
     if (selectedDate) {
+      // 과거 날짜: 1회만 fetch
       fetchAutoForDate(selectedDate)
-    } else {
-      fetchAutoToday()
+      return
     }
+    // 오늘(선택 없음): 즉시 fetch + 30초 interval
+    fetchAutoToday()
+    const id = setInterval(fetchAutoToday, 30_000)
+    return () => clearInterval(id)
   }, [selectedDate, fetchAutoForDate, fetchAutoToday])
 
   // 전체 통계 집계
@@ -207,7 +210,9 @@ function TradeStatsMini() {
                   <div className="flex items-center justify-between px-0.5">
                     <span className="text-[9px] font-semibold text-primary flex items-center gap-1">
                       <TrendingUp className="w-2.5 h-2.5" />
-                      자동매매{isDateSelected ? ` · ${selectedDate}` : " · 오늘"}
+                      {isDateSelected
+                        ? `자동매매 · ${parseInt(selectedDate!.slice(5,7))}월 ${parseInt(selectedDate!.slice(8,10))}일`
+                        : "자동매매 · 오늘 (실시간)"}
                     </span>
                     <span className="text-[9px] text-muted-foreground">
                       <span style={{ color: UP }}>+{autoProfit}</span>
@@ -232,16 +237,29 @@ function TradeStatsMini() {
           <div className="rounded-lg border border-border bg-background/40 p-2 space-y-1.5">
             {/* 월 헤더 */}
             <div className="flex items-center justify-between">
+              {/* 선택된 날짜 있으면 선택 날짜 표시, 없으면 현재 뷰 월 표시 */}
               <span className="text-[10px] font-semibold text-foreground">
-                {(() => {
-                  const months = t("calendar.months")
-                  const monthName = Array.isArray(months) ? months[viewMonth] : String(viewMonth + 1)
-                  return (t("calendar.yearMonthFormat") as string)
-                    .replace("{year}", String(viewYear))
-                    .replace("{month}", monthName)
-                })()}
+                {selectedDate
+                  ? (() => {
+                      const m = parseInt(selectedDate.slice(5, 7))
+                      const d = parseInt(selectedDate.slice(8, 10))
+                      return `${m}월 ${d}일`
+                    })()
+                  : `${viewYear}년 ${viewMonth + 1}월`}
               </span>
               <div className="flex items-center gap-0.5">
+                {/* 오늘 버튼 */}
+                <button
+                  onClick={() => {
+                    const kst = toKSTDateStr(new Date())
+                    setViewYear(parseInt(kst.slice(0, 4)))
+                    setViewMonth(parseInt(kst.slice(5, 7)) - 1)
+                    setSelectedDate(null)
+                  }}
+                  className="px-1.5 h-4 text-[8px] font-semibold rounded border border-primary/40 text-primary hover:bg-primary/10 transition-colors mr-1"
+                >
+                  오늘
+                </button>
                 <button
                   onClick={() => {
                     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11) }
@@ -290,9 +308,10 @@ function TradeStatsMini() {
                     onClick={() => setSelectedDate(isSel ? null : dateStr)}
                     className={cn(
                       "relative flex flex-col items-center justify-center h-5 rounded text-[9px] font-medium transition-colors",
-                      isToday ? "ring-1 ring-primary text-primary" : "text-foreground hover:bg-secondary",
-                      isSel && "bg-primary/15",
-                      !stat && "text-muted-foreground/50",
+                      isToday && !isSel  ? "ring-1 ring-primary text-primary" : "",
+                      isSel              ? "ring-1 ring-primary bg-primary/20 text-primary font-bold" : "hover:bg-secondary",
+                      !isSel && !isToday && !stat ? "text-muted-foreground/50" : "",
+                      !isSel && !isToday &&  stat ? "text-foreground" : "",
                     )}
                   >
                     {day}
