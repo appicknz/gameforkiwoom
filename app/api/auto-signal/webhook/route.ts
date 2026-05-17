@@ -91,15 +91,21 @@ export async function POST(req: Request) {
   const direction: string = rule?.direction ?? (type.toUpperCase().includes("DOWN") ? "short" : "long")
 
   // signal_time 파싱 KST → UTC
+  // date_label은 반드시 KST 기준 날짜로 저장 (UTC로 하면 자정 전후 1일 어긋남)
   let signalTime: string
+  let dateLabel: string
   try {
-    const raw = formatted_time_kst ?? new Date().toISOString()
-    signalTime = new Date(raw.replace(" ", "T") + "+09:00").toISOString()
+    const raw    = formatted_time_kst ?? new Date().toISOString()
+    const kstStr = raw.replace(" ", "T")
+    // KST 날짜 문자열에서 날짜 부분만 추출 (YYYY-MM-DD)
+    dateLabel  = kstStr.slice(0, 10)
+    // DB signal_time은 UTC ISO 문자열로 저장
+    signalTime = new Date(kstStr + "+09:00").toISOString()
   } catch {
     signalTime = new Date().toISOString()
+    // fallback: KST 기준 오늘 날짜
+    dateLabel  = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
   }
-
-  const dateLabel = signalTime.slice(0, 10)
 
   const { data, error } = await adminSupabase
     .from("auto_signal_positions")

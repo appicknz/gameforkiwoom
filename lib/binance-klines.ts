@@ -23,9 +23,9 @@ export async function getDayClose(
   symbol: string,
   dateLabel: string  // YYYY-MM-DD
 ): Promise<DayClose | null> {
-  // 날짜가 오늘이면 종가 없음
-  const todayUtc = new Date().toISOString().slice(0, 10)
-  if (dateLabel >= todayUtc) return null
+  // 날짜가 오늘(KST 기준)이면 아직 마감 전이므로 종가 없음
+  const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  if (dateLabel >= todayKST) return null
 
   // 해당 날짜의 KST 자정(= UTC 전날 15:00)을 startTime으로 사용
   // date_label은 KST 기준이므로: KST 날짜 00:00 = UTC 전날 15:00
