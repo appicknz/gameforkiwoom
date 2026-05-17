@@ -835,9 +835,13 @@ export default function TradePage() {
           />
         </div>
         {/* 날짜 스트립 + 자동매매 포지션 */}
-        <div style={{ flex: "1 1 0", overflow: "auto", background: PANEL_BG, borderTop: `1px solid ${BORDER}` }}>
-          <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
-          <AutoSignalPanel selectedDate={selectedDate} />
+        <div className="flex flex-col" style={{ flex: "1 1 0", overflow: "hidden", background: PANEL_BG, borderTop: `1px solid ${BORDER}` }}>
+          <div style={{ flexShrink: 0 }}>
+            <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+          </div>
+          <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
+            <AutoSignalPanel selectedDate={selectedDate} />
+          </div>
         </div>
       </div>
 
@@ -918,9 +922,11 @@ export default function TradePage() {
             </div>
 
             {/* 날짜 스트립 + 자동매매 포지션 */}
-            <div className="rounded-2xl overflow-hidden" style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
+            <div className="rounded-2xl flex flex-col" style={{ background: PANEL_BG, border: `1px solid ${BORDER}`, maxHeight: "80dvh" }}>
               <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
-              <AutoSignalPanel selectedDate={selectedDate} />
+              <div style={{ overflowY: "auto", flex: "1 1 0", scrollbarWidth: "none" }}>
+                <AutoSignalPanel selectedDate={selectedDate} />
+              </div>
             </div>
 
             {/* 포지션 목록 */}
