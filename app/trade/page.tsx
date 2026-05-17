@@ -5,7 +5,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab, { liveCache } from "@/components/trade/live-prices-tab"
 import SymbolChart from "@/components/trade/symbol-chart"
-import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Bot, LineChart } from "lucide-react"
+import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Bot, LineChart, Clock, ArrowUpDown, Bell } from "lucide-react"
 
 const GOLD       = "#d4af37"
 const UP_COLOR   = "#22c55e"
@@ -424,7 +424,10 @@ interface AutoPos {
   is_closed:   boolean
 }
 
-function AutoSignalPanel({ selectedDate }: { selectedDate: Date }) {
+function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
+  selectedDate: Date
+  sortOrder?: "time" | "roi_desc" | "roi_asc" | "signal"
+}) {
   const [positions, setPositions] = useState<AutoPos[]>([])
   const [loading,   setLoading]   = useState(true)
   // 1초마다 강제 리렌더 — liveCache에서 최신 가격 읽기
@@ -480,9 +483,16 @@ function AutoSignalPanel({ selectedDate }: { selectedDate: Date }) {
   const totalRoi   = posCalc.length > 0 ? posCalc.reduce((s, p) => s + p.roi, 0) / posCalc.length : 0
   const profitCnt  = posCalc.filter(p => p.roi > 0).length
   const lossCnt    = posCalc.filter(p => p.roi <= 0 && p.hasCur).length
-  // 포지션 1개당 $10 마진
   const margin     = posCalc.length * 10
   const estValue   = margin + totalPnl
+
+  const sortedCalc = [...posCalc].sort((a, b) => {
+    if (sortOrder === "roi_desc") return b.roi - a.roi
+    if (sortOrder === "roi_asc")  return a.roi - b.roi
+    if (sortOrder === "signal")   return (a.signal_type ?? "").localeCompare(b.signal_type ?? "")
+    // "time" — 기본: 수신 시각 내림차순 (id 기준)
+    return 0
+  })
 
   if (loading) return (
     <div className="flex items-center justify-center py-5"
@@ -546,7 +556,7 @@ function AutoSignalPanel({ selectedDate }: { selectedDate: Date }) {
         </div>
       )}
 
-      {posCalc.map(pos => {
+      {sortedCalc.map(pos => {
         const roiColor = pos.roi >= 0 ? UP_COLOR : DOWN_COLOR
         const inTime   = new Date(pos.signal_time).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
         const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
@@ -628,6 +638,14 @@ export default function TradePage() {
   const [selectedDate,  setSelectedDate]  = useState(new Date())
   const [tradeMode,     setTradeMode]     = useState<"auto" | "mock">("auto")
   const [searchQ,       setSearchQ]       = useState("")
+  type SortOrder = "time" | "roi_desc" | "roi_asc" | "signal"
+  const SORT_CYCLE: SortOrder[] = ["time", "roi_desc", "roi_asc", "signal"]
+  const SORT_LABEL: Record<SortOrder, string> = { time: "시간순", roi_desc: "수익↑", roi_asc: "수익↓", signal: "시그널" }
+  const [sortOrder,     setSortOrder]     = useState<SortOrder>("time")
+  const cycleSort = () => setSortOrder(prev => {
+    const idx = SORT_CYCLE.indexOf(prev)
+    return SORT_CYCLE[(idx + 1) % SORT_CYCLE.length]
+  })
 
   // refs — stale closure 방지
   const priceMapRef       = useRef<Map<string, number>>(new Map())
@@ -840,26 +858,64 @@ export default function TradePage() {
       {/* ══════ 공통 Sticky 검색 + 카테고리 헤더 ══════ */}
       <div className="sticky top-0 z-40 border-b" style={{ background: "rgba(4,10,6,0.97)", borderColor: BORDER, backdropFilter: "blur(12px)" }}>
         <div className="max-w-7xl mx-auto px-4 pt-3 pb-2 space-y-2.5">
-          {/* 검색바 */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-            <input
-              type="text"
-              placeholder="심볼 검색... (예: BTC, ETH)"
-              value={searchQ}
-              onChange={e => setSearchQ(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 rounded-lg text-sm focus:outline-none"
+          {/* 검색바 + 우측 버튼들 */}
+          <div className="flex items-center gap-2">
+            {/* 검색 입력 */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
+              <input
+                type="text"
+                placeholder="심볼 검색..."
+                value={searchQ}
+                onChange={e => setSearchQ(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 rounded-lg text-sm focus:outline-none"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: `1px solid ${BORDER}`,
+                  color: "rgba(255,255,255,0.8)",
+                }}
+              />
+              {searchQ && (
+                <button onClick={() => setSearchQ("")} className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <X className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.3)" }} />
+                </button>
+              )}
+            </div>
+
+            {/* 정렬 순환 버튼 — 자동매매 탭일 때만 */}
+            {tradeMode === "auto" && (
+              <button
+                onClick={cycleSort}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all shrink-0"
+                style={{
+                  background: sortOrder !== "time" ? `rgba(212,175,55,0.15)` : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${sortOrder !== "time" ? "rgba(212,175,55,0.4)" : BORDER}`,
+                  color: sortOrder !== "time" ? GOLD : "rgba(255,255,255,0.5)",
+                }}
+              >
+                {sortOrder === "time"     && <Clock        className="w-3.5 h-3.5" />}
+                {sortOrder === "roi_desc" && <TrendingUp   className="w-3.5 h-3.5" />}
+                {sortOrder === "roi_asc"  && <TrendingDown className="w-3.5 h-3.5" />}
+                {sortOrder === "signal"   && <ArrowUpDown  className="w-3.5 h-3.5" />}
+                {SORT_LABEL[sortOrder]}
+              </button>
+            )}
+
+            {/* 알림 버튼 — 텔레그램 */}
+            <a
+              href="https://t.me/+HHv5pyuGGAw5YTc1"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all"
               style={{
                 background: "rgba(255,255,255,0.05)",
                 border: `1px solid ${BORDER}`,
-                color: "rgba(255,255,255,0.8)",
+                color: "rgba(255,255,255,0.5)",
               }}
-            />
-            {searchQ && (
-              <button onClick={() => setSearchQ("")} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.3)" }} />
-              </button>
-            )}
+            >
+              <Bell className="w-3.5 h-3.5" />
+              알림
+            </a>
           </div>
           {/* 카테고리 탭 */}
           <div className="flex items-center gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
@@ -916,8 +972,8 @@ export default function TradePage() {
             <div style={{ flexShrink: 0 }}>
               <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
-            <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignalPanel selectedDate={selectedDate} />
+              <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
+              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} />
             </div>
           </div>
         )}
@@ -957,7 +1013,7 @@ export default function TradePage() {
                 <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
               </div>
               <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-                <AutoSignalPanel selectedDate={selectedDate} />
+                <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} />
               </div>
             </div>
           )}
