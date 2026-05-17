@@ -385,7 +385,7 @@ export function TopBar() {
           {isLoggedIn ? (
             <button
               onClick={() => setDropdownOpen(v => !v)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-secondary transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-secondary transition-colors"
               aria-label="프로필"
             >
               <Avatar className="w-7 h-7">
@@ -393,24 +393,15 @@ export function TopBar() {
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm font-medium text-foreground hidden sm:block">{profile?.username}</span>
               <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
             </button>
           ) : (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => { setAuthTab("login"); setDropdownOpen(true) }}
-                className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {t("auth.login")}
-              </button>
-              <button
-                onClick={() => { setAuthTab("register"); setDropdownOpen(true) }}
-                className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-primary text-black hover:bg-primary/90 transition-colors"
-              >
-                {t("auth.register")}
-              </button>
-            </div>
+            <button
+              onClick={() => { setAuthTab("login"); setDropdownOpen(true) }}
+              className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-primary text-black hover:bg-primary/90 transition-colors"
+            >
+              {t("auth.login")}
+            </button>
           )}
 
           {/* 드롭다운 */}
