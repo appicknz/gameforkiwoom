@@ -126,30 +126,37 @@ const processedSigs = new Set()
 
 // ─── 단일 지갑의 최근 트랜잭션 폴링 ─────────────────────────────────
 async function pollWallet(walletAddress) {
-  // 1) 해당 지갑의 CHIPS token account 조회 (Token2022)
-  const tokenAccRes = await solanaRpc("getTokenAccountsByOwner", [
+  // 1) Token Account 조회 (Token2022 우선, 없으면 표준 SPL)
+  //    encoding 파라미터는 별도 config 객체로 전달해야 함
+  let tokenAccountPubkey = null
+
+  const t22Res = await solanaRpc("getTokenAccountsByOwner", [
     walletAddress,
     { mint: TOKEN_MINT },
     { encoding: "jsonParsed", programId: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" },
   ])
+  if (t22Res?.value?.length) {
+    tokenAccountPubkey = t22Res.value[0].pubkey
+  } else {
+    // 표준 SPL Token 시도
+    const splRes = await solanaRpc("getTokenAccountsByOwner", [
+      walletAddress,
+      { mint: TOKEN_MINT },
+      { encoding: "jsonParsed" },
+    ])
+    if (splRes?.value?.length) {
+      tokenAccountPubkey = splRes.value[0].pubkey
+    }
+  }
 
-  // Token2022가 없으면 표준 SPL로 재시도
-  const accounts = tokenAccRes?.value?.length
-    ? tokenAccRes.value
-    : (await solanaRpc("getTokenAccountsByOwner", [
-        walletAddress,
-        { mint: TOKEN_MINT },
-        { encoding: "jsonParsed" },
-      ]))?.value ?? []
+  // Token Account가 없으면 → 지갑 주소 자체로 signatures 조회
+  // (token account가 아직 없는 신규 지갑도 처음 입금 TX를 찾을 수 있도록)
+  const queryAddress = tokenAccountPubkey ?? walletAddress
 
-  if (!accounts.length) return
-
-  const tokenAccountPubkey = accounts[0].pubkey
-
-  // 2) 최근 10개 트랜잭션 signature 조회
+  // 2) 최근 15개 트랜잭션 signature 조회
   const sigs = await solanaRpc("getSignaturesForAddress", [
-    tokenAccountPubkey,
-    { limit: 10, commitment: "confirmed" },
+    queryAddress,
+    { limit: 15, commitment: "confirmed" },
   ])
   if (!sigs?.length) return
 
@@ -166,11 +173,48 @@ async function pollWallet(walletAddress) {
     const pre  = tx.meta?.preTokenBalances  ?? []
     const post = tx.meta?.postTokenBalances ?? []
 
-    const recipientPost = post.find(b => b.owner === walletAddress && b.mint === TOKEN_MINT)
+    // postTokenBalances에서 수신자 탐색:
+    //   - owner === walletAddress (표준 SPL, Token2022 대부분)
+    //   - 또는 mint === TOKEN_MINT && token account가 walletAddress의 것
+    let recipientPost = post.find(b => b.owner === walletAddress && b.mint === TOKEN_MINT)
+
+    // owner 필드가 없거나 다른 경우 (일부 Token2022): 
+    // token account pubkey가 queryAddress인 항목으로 fallback
+    if (!recipientPost && tokenAccountPubkey) {
+      recipientPost = post.find(b => b.mint === TOKEN_MINT && b.accountIndex !== undefined)
+      // accountIndex 기반으로 해당 token account가 walletAddress 소유인지 확인
+      // postBalances의 accountIndex가 token account를 가리키는지 체크
+      if (recipientPost) {
+        // owner가 명시적으로 다른 주소면 제외
+        if (recipientPost.owner && recipientPost.owner !== walletAddress) {
+          recipientPost = null
+        }
+      }
+    }
+
     if (!recipientPost) {
       processedSigs.add(signature)
       continue
     }
+
+    const recipientPre = pre.find(b => b.owner === walletAddress && b.mint === TOKEN_MINT)
+    const preAmt  = Number(recipientPre?.uiTokenAmount?.uiAmount  ?? 0)
+    const postAmt = Number(recipientPost.uiTokenAmount?.uiAmount  ?? 0)
+    const delta   = postAmt - preAmt
+
+    processedSigs.add(signature)
+    if (delta <= 0) continue
+
+    console.log(`[solana] deposit detected: ${walletAddress} +${delta} CHIPS tx=${signature}`)
+    await callDepositWebhook(signature, walletAddress, delta)
+  }
+
+  // set이 너무 커지면 오래된 항목 제거
+  if (processedSigs.size > 50000) {
+    const iter = processedSigs.values()
+    for (let i = 0; i < 10000; i++) processedSigs.delete(iter.next().value)
+  }
+}
     const recipientPre = pre.find(b => b.owner === walletAddress && b.mint === TOKEN_MINT)
 
     const preAmt  = Number(recipientPre?.uiTokenAmount?.uiAmount  ?? 0)
