@@ -35,7 +35,9 @@ interface TickerData {
 
 const CHUNK_SIZE = 100
 
-const _cache: {
+export interface LiveTickerData extends TickerData {}
+
+export const liveCache: {
   symbols: string[]
   tickers: Map<string, TickerData>
   sockets: WebSocket[]
@@ -55,8 +57,10 @@ const _cache: {
   initialized: false,
 }
 
+const _cache = liveCache  // backward-compat alias
+
 function notifyListeners() {
-  _cache.listeners.forEach((fn) => fn())
+  liveCache.listeners.forEach((fn) => fn())
 }
 
 function openChunk(chunk: string[], idx: number) {
@@ -286,7 +290,7 @@ export default function LivePricesTab({ onSelect, onPriceUpdate, onClose, closin
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-6 h-6 border-2 border-gray-700 border-t-gray-400 rounded-full animate-spin" />
-            <p className="text-xs text-gray-500">바이낸스 심볼 로딩 중...</p>
+            <p className="text-xs text-gray-500">바이��스 심볼 로딩 중...</p>
           </div>
         </div>
       )}
