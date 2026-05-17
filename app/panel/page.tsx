@@ -191,9 +191,12 @@ export default function PanelPage() {
     signal_time: string; date_label: string; is_closed: boolean
     closed_price: number | null
   }
+  type SignalRule = { signal_type: string; direction: "long" | "short"; enabled: boolean }
   const [autoPositions,    setAutoPositions]    = useState<AutoSignalPos[]>([])
   const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean } | null>(null)
   const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean } | null>(null)
+  const [signalRules,      setSignalRules]      = useState<SignalRule[]>([])
+  const [rulesSaving,      setRulesSaving]      = useState<string | null>(null)  // 저장 중인 signal_type
   const [autoLoading,      setAutoLoading]      = useState(false)
   const [autoSaving,       setAutoSaving]       = useState(false)
   const [autoMsg,          setAutoMsg]          = useState<string | null>(null)
@@ -1554,15 +1557,18 @@ export default function PanelPage() {
                   setAutoLoading(true)
                   try {
                     const tok = localStorage.getItem("app_token") ?? ""
-                    const [posRes, setRes] = await Promise.all([
+                    const [posRes, setRes, rulesRes] = await Promise.all([
                       fetch("/api/auto-signal/positions", { headers: { Authorization: `Bearer ${tok}` } }),
                       fetch("/api/auto-signal/settings",  { headers: { Authorization: `Bearer ${tok}` } }),
+                      fetch("/api/auto-signal/rules"),
                     ])
-                    const posData = await posRes.json()
-                    const setData = await setRes.json()
+                    const posData   = await posRes.json()
+                    const setData   = await setRes.json()
+                    const rulesData = await rulesRes.json()
                     setAutoPositions(posData.positions ?? [])
                     setAutoSettings(setData)
                     setAutoSettingsEdit({ size_usd: String(setData.size_usd ?? 10), leverage: String(setData.leverage ?? 10), enabled: setData.enabled ?? true })
+                    setSignalRules(Array.isArray(rulesData) ? rulesData : [])
                     setWebhookUrl(`${window.location.origin}/api/auto-signal/webhook`)
                   } finally {
                     setAutoLoading(false)
@@ -4281,7 +4287,7 @@ export default function PanelPage() {
                   </button>
                 </div>
                 <p className="text-[10px] text-muted-foreground">
-                  헤더: <code className="bg-secondary px-1 rounded">x-internal-secret: {"{INTERNAL_SECRET}"}</code>
+                  헤���: <code className="bg-secondary px-1 rounded">x-internal-secret: {"{INTERNAL_SECRET}"}</code>
                 </p>
               </div>
 
@@ -4335,6 +4341,80 @@ export default function PanelPage() {
                 </button>
                 {autoMsg && <span className="text-xs text-muted-foreground">{autoMsg}</span>}
               </div>
+
+              {/* 시그널 타입별 방향 설정 */}
+              {signalRules.length > 0 && (
+                <div className="rounded-xl border border-border overflow-hidden mt-2">
+                  <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center gap-2">
+                    <ArrowLeftRight className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-semibold text-foreground">시그널 타입 설정</span>
+                    <span className="text-xs text-muted-foreground">— 방향(롱/숏) 및 활성화</span>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {signalRules.map(rule => (
+                      <div key={rule.signal_type} className="flex items-center justify-between px-5 py-3">
+                        <span className="text-sm font-mono text-foreground">{rule.signal_type}</span>
+                        <div className="flex items-center gap-2">
+                          {/* 방향 토글 */}
+                          <button
+                            disabled={rulesSaving === rule.signal_type}
+                            onClick={async () => {
+                              const next = rule.direction === "long" ? "short" : "long"
+                              setRulesSaving(rule.signal_type)
+                              try {
+                                const tok = localStorage.getItem("app_token") ?? ""
+                                const res = await fetch("/api/auto-signal/rules", {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                                  body: JSON.stringify({ signal_type: rule.signal_type, direction: next }),
+                                })
+                                if (res.ok) {
+                                  setSignalRules(prev => prev.map(r =>
+                                    r.signal_type === rule.signal_type ? { ...r, direction: next } : r
+                                  ))
+                                }
+                              } finally { setRulesSaving(null) }
+                            }}
+                            className={`h-7 px-3 rounded-lg text-xs font-bold border transition-colors disabled:opacity-50 ${
+                              rule.direction === "long"
+                                ? "bg-green-500/10 border-green-500/40 text-green-400"
+                                : "bg-red-500/10 border-red-500/40 text-red-400"
+                            }`}>
+                            {rulesSaving === rule.signal_type ? "..." : rule.direction === "long" ? "LONG" : "SHORT"}
+                          </button>
+                          {/* 활성/비활성 토글 */}
+                          <button
+                            disabled={rulesSaving === rule.signal_type}
+                            onClick={async () => {
+                              const next = !rule.enabled
+                              setRulesSaving(rule.signal_type)
+                              try {
+                                const tok = localStorage.getItem("app_token") ?? ""
+                                const res = await fetch("/api/auto-signal/rules", {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                                  body: JSON.stringify({ signal_type: rule.signal_type, enabled: next }),
+                                })
+                                if (res.ok) {
+                                  setSignalRules(prev => prev.map(r =>
+                                    r.signal_type === rule.signal_type ? { ...r, enabled: next } : r
+                                  ))
+                                }
+                              } finally { setRulesSaving(null) }
+                            }}
+                            className={`h-7 px-3 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${
+                              rule.enabled
+                                ? "bg-primary/20 border-primary text-primary"
+                                : "bg-secondary border-border text-muted-foreground"
+                            }`}>
+                            {rule.enabled ? "ON" : "OFF"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 포지션 목록 */}

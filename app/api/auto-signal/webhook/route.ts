@@ -72,19 +72,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 
-  const direction = type.toUpperCase().includes("DOWN") ? "short" : "long"
-
-  // 자동매매 설정 조회
-  const { data: settings } = await adminSupabase
-    .from("auto_signal_settings")
-    .select("size_usd, leverage, enabled")
-    .eq("id", 1)
-    .single()
+  // 자동매매 전역 설정 + 시그널 규칙 병렬 조회
+  const [{ data: settings }, { data: rule }] = await Promise.all([
+    adminSupabase.from("auto_signal_settings").select("size_usd, leverage, enabled").eq("id", 1).single(),
+    adminSupabase.from("auto_signal_rules").select("direction, enabled").eq("signal_type", type).single(),
+  ])
 
   if (!settings?.enabled) {
     await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "auto-signal disabled" })
     return NextResponse.json({ skipped: true, reason: "auto-signal disabled" })
   }
+
+  // 규칙이 있으면 규칙 방향 사용, 없으면 이름에서 추론
+  if (rule && !rule.enabled) {
+    await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "signal type disabled" })
+    return NextResponse.json({ skipped: true, reason: "signal type disabled" })
+  }
+  const direction: string = rule?.direction ?? (type.toUpperCase().includes("DOWN") ? "short" : "long")
 
   // signal_time 파싱 KST → UTC
   let signalTime: string
