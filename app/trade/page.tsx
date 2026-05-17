@@ -525,14 +525,14 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
   const posCalc = positions.map(pos => {
     const sym    = normalize(pos.symbol)
     const ticker = liveCache.tickers.get(sym)
-    const cur    = ticker?.price ?? 0
+    const cur    = ticker ? ticker.price : 0
     const entry  = Number(pos.entry_price)
     const hasCur = cur > 0 && entry > 0
     const delta  = hasCur
       ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
       : 0
-    const roi = delta * pos.leverage * 100
-    const pnl = pos.size_usd * delta * pos.leverage
+    const roi  = delta * (pos.leverage ?? 1) * 100
+    const pnl  = (pos.size_usd ?? 10) * delta * (pos.leverage ?? 1)
     return { ...pos, cur, hasCur, delta, roi, pnl, sym }
   })
 
@@ -644,11 +644,17 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
               </div>
               <div className="text-right">
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>IN:{inTime}</div>
-                {pos.hasCur && (
+                {pos.hasCur ? (
+                  /* 실시간 가격 수신 중 — 진입가 기준 PnL */
                   <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
                     {pos.pnl >= 0 ? "+" : ""}${pos.pnl.toFixed(3)}
                   </div>
-                )}
+                ) : Number(pos.entry_price) > 0 ? (
+                  /* 가격 대기 중 — 0 표시 */
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.2)" }}>
+                    $0.000
+                  </div>
+                ) : null}
               </div>
             </div>
             {/* 하단행: 진입가 | 현재가 | 시그널 */}
