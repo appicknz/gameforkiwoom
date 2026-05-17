@@ -480,6 +480,9 @@ function AutoSignalPanel({ selectedDate }: { selectedDate: Date }) {
   const totalRoi   = posCalc.length > 0 ? posCalc.reduce((s, p) => s + p.roi, 0) / posCalc.length : 0
   const profitCnt  = posCalc.filter(p => p.roi > 0).length
   const lossCnt    = posCalc.filter(p => p.roi <= 0 && p.hasCur).length
+  // 포지션 1개당 $10 마진
+  const margin     = posCalc.length * 10
+  const estValue   = margin + totalPnl
 
   if (loading) return (
     <div className="flex items-center justify-center py-5"
@@ -497,6 +500,27 @@ function AutoSignalPanel({ selectedDate }: { selectedDate: Date }) {
               수익 <span style={{ color: UP_COLOR, fontWeight: 700 }}>{profitCnt}</span>
               {" / "}손실 <span style={{ color: DOWN_COLOR, fontWeight: 700 }}>{lossCnt}</span>
             </span>
+          </div>
+        </div>
+        {/* MARGIN + EST. VALUE */}
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>MARGIN</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.75)" }}>
+              ${margin.toFixed(2)}
+            </div>
+            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+              {posCalc.length}건 × $10
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>EST. VALUE</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: estValue >= margin ? UP_COLOR : DOWN_COLOR }}>
+              ${estValue.toFixed(2)}
+            </div>
+            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+              MARGIN + PNL
+            </div>
           </div>
         </div>
         {/* TOTAL ROI + TOTAL PNL */}
