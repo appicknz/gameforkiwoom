@@ -46,10 +46,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 })
   }
 
-  // 인증: 헤더 OR body.secret (TradingView는 커스텀 헤더 불가)
+  // 인증: 헤더 OR body.secret 있으면 검증, 없으면 통과 (Flask/TradingView 호환)
   const headerSecret = req.headers.get("x-internal-secret") ?? req.headers.get("x-webhook-secret")
   const bodySecret   = body.secret ?? body.webhook_secret
-  if (headerSecret !== INTERNAL_SECRET && bodySecret !== INTERNAL_SECRET) {
+  const providedSecret = headerSecret ?? bodySecret
+  if (providedSecret && providedSecret !== INTERNAL_SECRET) {
     await logRequest("auth_fail", 401, body, { ip, errorMsg: "unauthorized" })
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }

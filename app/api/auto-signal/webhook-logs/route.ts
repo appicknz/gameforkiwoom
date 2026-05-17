@@ -13,12 +13,13 @@ import { NextResponse } from "next/server"
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
 
 export async function GET(req: Request) {
-  const secret = req.headers.get("x-internal-secret")
+  const url    = new URL(req.url)
+  // 헤더 OR 쿼리스트링으로 secret 전달 허용 (브라우저 모니터 페이지용)
+  const secret = req.headers.get("x-internal-secret") ?? url.searchParams.get("secret")
   if (secret !== INTERNAL_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const url   = new URL(req.url)
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "100"), 500)
   const since = url.searchParams.get("since") // ISO timestamp — 이것보다 최신만 반환
 

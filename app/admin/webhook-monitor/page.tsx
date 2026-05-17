@@ -36,13 +36,27 @@ const STATUS_META: Record<string, { label: string; color: string; Icon: React.El
   error:     { label: "ERROR",    color: DOWN,  Icon: XCircle      },
 }
 
-const DEFAULT_PAYLOAD = `{
-  "secret": "tasko-internal",
-  "signal_type": "TRIPLE_COMBO_UP3",
-  "symbol": "JCTUSDT.P",
-  "price": "0.003091",
-  "formatted_time_kst": "${new Date().toLocaleString("sv-SE", { timeZone: "Asia/Seoul" }).replace("T", " ").slice(0, 19)}"
-}`
+const DEFAULT_PAYLOAD = JSON.stringify({
+  alert_type:          "TRIPLE_COMBO_UP3",
+  exchange:            "BINANCE",
+  symbol:              "JCTUSDT.P",
+  price:               "0.003091",
+  prev_price:          "0.003088",
+  price_change_percent:"0.0971502591",
+  volume:              "1340059",
+  prev_volume:         "16218683",
+  volume_change:       "-91.737559702",
+  signal_timeframe:    "5",
+  formatted_time_kst:  new Date().toLocaleString("sv-SE", { timeZone: "Asia/Seoul" }).replace("T", " ").slice(0, 19),
+  current_time_kst:    new Date().toLocaleString("sv-SE", { timeZone: "Asia/Seoul" }).replace("T", " ").slice(0, 19),
+  interval:            "5",
+  signal_type:         "TRIPLE_COMBO_UP3",
+  combo:               "Signal_Up_2S+Signal_Up_1S",
+  detected_on_tf:      "1m",
+  confluence:          "2",
+  volume_spike:        "false",
+  first_occurrence:    "true",
+}, null, 2)
 
 export default function WebhookMonitorPage() {
   const [logs,        setLogs]        = useState<RequestLog[]>([])
@@ -64,10 +78,10 @@ export default function WebhookMonitorPage() {
 
   const fetchLogs = useCallback(async (since?: string) => {
     try {
-      const url = since
-        ? `/api/auto-signal/webhook-logs?limit=100&since=${encodeURIComponent(since)}`
-        : `/api/auto-signal/webhook-logs?limit=100`
-      const res = await fetch(url, { headers: { "x-internal-secret": SECRET } })
+      const base = since
+        ? `/api/auto-signal/webhook-logs?secret=${SECRET}&limit=100&since=${encodeURIComponent(since)}`
+        : `/api/auto-signal/webhook-logs?secret=${SECRET}&limit=100`
+      const res = await fetch(base, { headers: { "x-internal-secret": SECRET } })
       if (!res.ok) return
       const data = await res.json()
       const incoming: RequestLog[] = data.logs ?? []
@@ -113,9 +127,9 @@ export default function WebhookMonitorPage() {
     setSendResult(null)
     try {
       const parsed = JSON.parse(payload)
-      const res = await fetch("https://coinrace.live/api/auto-signal/webhook", {
+      const res = await fetch("/api/auto-signal/webhook", {
         method:  "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-internal-secret": SECRET },
         body:    JSON.stringify(parsed),
       })
       const data = await res.json()
