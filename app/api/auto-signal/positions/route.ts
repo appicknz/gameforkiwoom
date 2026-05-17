@@ -1,6 +1,10 @@
 export const dynamic = "force-dynamic"
 /**
  * GET  /api/auto-signal/positions?date=YYYY-MM-DD  — 날짜별 포지션 목록
+ *   - 오늘 날짜: is_historical=false, final_pnl/final_roi null → 클라이언트가 실시간 계산
+ *   - 과거 날짜: is_historical=true, Binance Klines로 KST 일봉 종가 조회 → final_pnl/final_roi 계산해서 반환
+ *     과거 응답은 Cache-Control: max-age=3600 → 동일 날짜 반복 조회 시 Binance 호출 0번
+ *
  * DELETE /api/auto-signal/positions  — 삭제 (master 전용)
  *   body: { id } 단건 삭제 | { all: true } 전체 초기화
  */
@@ -11,9 +15,10 @@ import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 const adminSupabase = _adminSupabase as any
 import { NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
+import { getDayCloseMap } from "@/lib/binance-klines"
 
-const JWT_SECRET    = process.env.SUPABASE_JWT_SECRET ?? ""
-const MASTER_ROLES  = ["master"]
+const JWT_SECRET   = process.env.SUPABASE_JWT_SECRET ?? ""
+const MASTER_ROLES = ["master"]
 
 function getCallerRole(req: Request): string | null {
   try {
@@ -27,9 +32,14 @@ function getCallerRole(req: Request): string | null {
   }
 }
 
+/** KST 기준 오늘 날짜 YYYY-MM-DD */
+function todayKST(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const date = searchParams.get("date") // YYYY-MM-DD
+  const date = searchParams.get("date") // YYYY-MM-DD (KST 기준)
 
   let query = adminSupabase
     .from("auto_signal_positions")
@@ -39,7 +49,6 @@ export async function GET(req: Request) {
   if (date) {
     query = query.eq("date_label", date)
   } else {
-    // 기본: 최근 14일
     const since = new Date()
     since.setDate(since.getDate() - 14)
     query = query.gte("date_label", since.toISOString().slice(0, 10))
@@ -48,7 +57,51 @@ export async function GET(req: Request) {
   const { data, error } = await query.limit(200)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ positions: data ?? [] })
+  const positions: Record<string, unknown>[] = data ?? []
+  const today = todayKST()
+  const isHistorical = !!date && date < today
+
+  if (!isHistorical || positions.length === 0) {
+    // 오늘 또는 날짜 미지정 → 클라이언트에서 실시간 가격으로 계산
+    return NextResponse.json({ positions, is_historical: false })
+  }
+
+  // ── 과거 날짜: Binance Klines로 KST 일봉 종가 조회 ──
+  const symbols = [...new Set(positions.map(p => String(p.symbol)))]
+  const closePriceMap = await getDayCloseMap(symbols, date)
+
+  // 각 포지션에 종가 기준 PnL/ROI 계산
+  const enriched = positions.map(pos => {
+    const sym        = String(pos.symbol).replace(/\.P$/, "").toUpperCase()
+    const closePrice = closePriceMap.get(sym) ?? null
+    const entryPrice = Number(pos.entry_price)
+    const sizeUsd    = Number(pos.size_usd ?? 10)
+    const leverage   = Number(pos.leverage ?? 1)
+
+    let finalPnl: number | null = null
+    let finalRoi: number | null = null
+
+    if (closePrice && entryPrice > 0) {
+      const delta = pos.direction === "long"
+        ? (closePrice - entryPrice) / entryPrice
+        : (entryPrice - closePrice) / entryPrice
+      finalPnl = sizeUsd * delta * leverage
+      finalRoi = delta * leverage * 100
+    }
+
+    return {
+      ...pos,
+      close_price: closePrice,
+      final_pnl:   finalPnl,
+      final_roi:   finalRoi,
+    }
+  })
+
+  // 과거 데이터는 1시간 캐시 (Binance 호출 최소화)
+  return NextResponse.json(
+    { positions: enriched, is_historical: true },
+    { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400" } }
+  )
 }
 
 export async function DELETE(req: Request) {
@@ -60,11 +113,10 @@ export async function DELETE(req: Request) {
   const body = await req.json().catch(() => ({}))
 
   if (body.all === true) {
-    // 전체 초기화
     const { error } = await adminSupabase
       .from("auto_signal_positions")
       .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000") // 전체 삭제 트릭
+      .neq("id", "00000000-0000-0000-0000-000000000000")
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true, deleted: "all" })
   }

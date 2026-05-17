@@ -486,9 +486,13 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
   selectedDate: Date
   sortOrder?: "time" | "roi_desc" | "roi_asc" | "signal"
 }) {
-  const [positions, setPositions] = useState<AutoPos[]>([])
-  const [loading,   setLoading]   = useState(true)
+  const [positions,     setPositions]     = useState<AutoPos[]>([])
+  const [isHistorical,  setIsHistorical]  = useState(false)
+  const [loading,       setLoading]       = useState(true)
   const [, setTick] = useState(0)
+
+  // KST 기준 오늘 날짜
+  const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   const dateKey = [
     selectedDate.getFullYear(),
@@ -496,25 +500,34 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
     String(selectedDate.getDate()).padStart(2, "0"),
   ].join("-")
 
+  const isToday = dateKey === todayKST
+
   const fetchPositions = useCallback(() => {
     fetch(`/api/auto-signal/positions?date=${dateKey}`)
-      .then(r => r.ok ? r.json() : { positions: [] })
-      .then(d => setPositions(d.positions ?? []))
+      .then(r => r.ok ? r.json() : { positions: [], is_historical: false })
+      .then(d => {
+        setPositions(d.positions ?? [])
+        setIsHistorical(d.is_historical ?? false)
+      })
       .finally(() => setLoading(false))
   }, [dateKey])
 
   useEffect(() => {
     setLoading(true)
     fetchPositions()
-    const refresh = setInterval(fetchPositions, 30_000)
-    return () => clearInterval(refresh)
-  }, [fetchPositions])
+    // 과거 날짜는 갱신 불필요, 오늘만 30초 주기로 갱신
+    if (isToday) {
+      const refresh = setInterval(fetchPositions, 30_000)
+      return () => clearInterval(refresh)
+    }
+  }, [fetchPositions, isToday])
 
-  // 1초 tick → liveCache.tickers에서 최신 가격 re-read
+  // 1초 tick → 오늘 날짜일 때만 liveCache 실시간 반영
   useEffect(() => {
+    if (!isToday) return
     const t = setInterval(() => setTick(n => n + 1), 1000)
     return () => clearInterval(t)
-  }, [])
+  }, [isToday])
 
   const dateLabel = `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일`
 
@@ -522,24 +535,46 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
   const normalize = (raw: string) => raw.replace(/\.P$/, "").replace(/\//g, "")
 
   // 통계 계산
+  // - 오늘: liveCache 실시간 가격으로 PnL 계산
+  // - 과거: API가 반환한 final_pnl / final_roi (Binance Klines 종가 기준)
   const posCalc = positions.map(pos => {
     const sym    = normalize(pos.symbol)
+    const entry  = Number(pos.entry_price)
+
+    if (isHistorical) {
+      // 과거 날짜 — API에서 이미 계산된 종가 기준 값 사용
+      const closePrice = Number(pos.close_price ?? 0)
+      const finalPnl   = pos.final_pnl !== null && pos.final_pnl !== undefined ? Number(pos.final_pnl) : null
+      const finalRoi   = pos.final_roi !== null && pos.final_roi !== undefined ? Number(pos.final_roi) : null
+      const hasCur     = finalPnl !== null
+      return {
+        ...pos,
+        sym,
+        cur:     closePrice,
+        hasCur,
+        pnl:     finalPnl ?? 0,
+        roi:     finalRoi ?? 0,
+        delta:   0,
+        isClose: true,  // 종가 기준 표시용
+      }
+    }
+
+    // 오늘 — liveCache 실시간 가격
     const ticker = liveCache.tickers.get(sym)
     const cur    = ticker ? ticker.price : 0
-    const entry  = Number(pos.entry_price)
     const hasCur = cur > 0 && entry > 0
     const delta  = hasCur
       ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
       : 0
     const roi  = delta * (pos.leverage ?? 1) * 100
     const pnl  = (pos.size_usd ?? 10) * delta * (pos.leverage ?? 1)
-    return { ...pos, cur, hasCur, delta, roi, pnl, sym }
+    return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
   })
 
   const totalPnl   = posCalc.reduce((s, p) => s + p.pnl, 0)
   const totalRoi   = posCalc.length > 0 ? posCalc.reduce((s, p) => s + p.roi, 0) / posCalc.length : 0
   const profitCnt  = posCalc.filter(p => p.roi > 0).length
-  const lossCnt    = posCalc.filter(p => p.roi <= 0 && p.hasCur).length
+  const lossCnt    = posCalc.filter(p => p.roi < 0 && p.hasCur).length
   const margin     = posCalc.length * 10
   const estValue   = margin + totalPnl
 
@@ -561,7 +596,15 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
       {/* 요약 헤더 */}
       <div className="px-4 py-3" style={{ borderBottom: `1px solid rgba(212,175,55,0.08)` }}>
         <div className="flex items-center justify-between mb-2">
-          <span style={{ fontSize: 12, fontWeight: 700, color: GOLD }}>{dateLabel} 자동매매</span>
+          <div className="flex items-center gap-1.5">
+            <span style={{ fontSize: 12, fontWeight: 700, color: GOLD }}>{dateLabel} 자동매매</span>
+            {isHistorical && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4,
+                background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)",
+              }}>종가 기준</span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
               수익 <span style={{ color: UP_COLOR, fontWeight: 700 }}>{profitCnt}</span>
@@ -657,7 +700,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
                 ) : null}
               </div>
             </div>
-            {/* 하단행: 진입가 | 현재가 | 시그널 */}
+            {/* 하단행: 진입가 | 현재가(오늘) 또는 종가(과거) | 시그널 */}
             <div className="flex items-center gap-3 mt-0.5" style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
               <span>
                 진입:{" "}
@@ -667,14 +710,17 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
               </span>
               {pos.hasCur && (
                 <span>
-                  현재:{" "}
+                  {pos.isClose ? "종가" : "현재"}:{" "}
                   <span className="tabular-nums" style={{ color: pos.roi >= 0 ? "rgba(34,197,94,0.8)" : "rgba(239,68,68,0.8)" }}>
                     ${fmt(pos.cur)}
                   </span>
                 </span>
               )}
-              {!pos.hasCur && (
+              {!pos.hasCur && !isHistorical && (
                 <span style={{ color: "rgba(255,255,255,0.2)" }}>가격 수신 대기중...</span>
+              )}
+              {!pos.hasCur && isHistorical && (
+                <span style={{ color: "rgba(255,255,255,0.2)" }}>종가 없음</span>
               )}
               <span style={{ color: "rgba(212,175,55,0.4)" }}>{pos.signal_type}</span>
             </div>
