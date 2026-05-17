@@ -183,7 +183,21 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "write_requests" | "market" | "wallets">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "write_requests" | "market" | "wallets" | "auto_trade">("users")
+  // 자동매매 탭 state
+  type AutoSignalPos = {
+    id: string; signal_type: string; symbol: string; direction: string
+    entry_price: number; size_usd: number; leverage: number
+    signal_time: string; date_label: string; is_closed: boolean
+    closed_price: number | null
+  }
+  const [autoPositions,    setAutoPositions]    = useState<AutoSignalPos[]>([])
+  const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean } | null>(null)
+  const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean } | null>(null)
+  const [autoLoading,      setAutoLoading]      = useState(false)
+  const [autoSaving,       setAutoSaving]       = useState(false)
+  const [autoMsg,          setAutoMsg]          = useState<string | null>(null)
+  const [webhookUrl,       setWebhookUrl]       = useState("")
   // 지갑 복구 (master 전용)
   const [walletRepairLoading, setWalletRepairLoading] = useState(false)
   const [walletRepairResult, setWalletRepairResult]   = useState<{ repairedCount: number; skippedCount: number; repaired: { id: string; username: string; oldAddress: string | null; newAddress: string }[] } | null>(null)
@@ -1533,6 +1547,31 @@ export default function PanelPage() {
                 <Wallet className="w-4 h-4" /> 입금 주소 관리
               </button>
             )}
+            {myRole === "master" && (
+              <button
+                onClick={async () => {
+                  setActiveTab("auto_trade")
+                  setAutoLoading(true)
+                  try {
+                    const tok = localStorage.getItem("app_token") ?? ""
+                    const [posRes, setRes] = await Promise.all([
+                      fetch("/api/auto-signal/positions", { headers: { Authorization: `Bearer ${tok}` } }),
+                      fetch("/api/auto-signal/settings",  { headers: { Authorization: `Bearer ${tok}` } }),
+                    ])
+                    const posData = await posRes.json()
+                    const setData = await setRes.json()
+                    setAutoPositions(posData.positions ?? [])
+                    setAutoSettings(setData)
+                    setAutoSettingsEdit({ size_usd: String(setData.size_usd ?? 10), leverage: String(setData.leverage ?? 10), enabled: setData.enabled ?? true })
+                    setWebhookUrl(`${window.location.origin}/api/auto-signal/webhook`)
+                  } finally {
+                    setAutoLoading(false)
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "auto_trade" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                <TrendingUp className="w-4 h-4" /> 자동매매
+              </button>
+            )}
             <button onClick={() => setActiveTab("write_requests")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "write_requests" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><UserCheck className="w-4 h-4" /> 글쓰기 신청</button>
             <button onClick={() => setActiveTab("market")} className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "market" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><ShoppingBag className="w-4 h-4" /> 마켓 관리</button>
           </>)}
@@ -2226,7 +2265,7 @@ export default function PanelPage() {
               </div>
             )}
 
-            {/* ══════ 공통: 지��� 목록 (총판은 카드형 클릭 가능) ══════ */}
+            {/* ══════ ���통: 지��� 목록 (총판은 카드형 클릭 가능) ══════ */}
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <h2 className="text-sm font-semibold text-foreground">지점 목록</h2>
@@ -3387,7 +3426,7 @@ export default function PanelPage() {
               </div>
             </div>
 
-            {/* 하위 역할 ��고 현황 (master/super_admin만) */}
+            {/* 하위 ��할 ��고 현황 (master/super_admin만) */}
             {isSuperAdmin && subBalances.length > 0 && (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="px-5 py-3 border-b border-border flex items-center justify-between">
@@ -4219,6 +4258,193 @@ export default function PanelPage() {
         {activeTab === "market" && myRole === "master" && (
           <div className="p-4">
             <MarketMasterPanel />
+          </div>
+        )}
+
+        {/* ── 자동매매 탭 (master 전용) ── */}
+        {activeTab === "auto_trade" && myRole === "master" && (
+          <div className="p-6 space-y-6 max-w-5xl mx-auto">
+
+            {/* 설정 카드 */}
+            <div className="rounded-xl border border-border p-5 space-y-4">
+              <h2 className="text-sm font-semibold text-foreground">자동매매 설정</h2>
+
+              {/* Webhook URL */}
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Webhook URL (외부 시그널 서비스에서 POST)</p>
+                <div className="flex gap-2">
+                  <input readOnly value={webhookUrl}
+                    className="flex-1 h-8 px-3 rounded-lg bg-secondary border border-border text-xs font-mono text-foreground" />
+                  <button onClick={() => navigator.clipboard.writeText(webhookUrl)}
+                    className="px-3 h-8 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    복사
+                  </button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  헤더: <code className="bg-secondary px-1 rounded">x-internal-secret: {"{INTERNAL_SECRET}"}</code>
+                </p>
+              </div>
+
+              {/* 설정 폼 */}
+              {autoSettingsEdit && (
+                <div className="grid grid-cols-3 gap-4 items-end">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">주문 금액 (USD)</label>
+                    <input type="number" min={1} value={autoSettingsEdit.size_usd}
+                      onChange={e => setAutoSettingsEdit(s => s ? { ...s, size_usd: e.target.value } : s)}
+                      className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">레버리지</label>
+                    <input type="number" min={1} max={100} value={autoSettingsEdit.leverage}
+                      onChange={e => setAutoSettingsEdit(s => s ? { ...s, leverage: e.target.value } : s)}
+                      className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">활성화</label>
+                    <button
+                      onClick={() => setAutoSettingsEdit(s => s ? { ...s, enabled: !s.enabled } : s)}
+                      className={`w-full h-8 rounded-lg text-xs font-semibold border transition-colors ${autoSettingsEdit.enabled ? "bg-primary/20 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"}`}>
+                      {autoSettingsEdit.enabled ? "ON" : "OFF"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <button
+                  disabled={autoSaving}
+                  onClick={async () => {
+                    if (!autoSettingsEdit) return
+                    setAutoSaving(true)
+                    setAutoMsg(null)
+                    try {
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      const res = await fetch("/api/auto-signal/settings", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                        body: JSON.stringify({ size_usd: Number(autoSettingsEdit.size_usd), leverage: Number(autoSettingsEdit.leverage), enabled: autoSettingsEdit.enabled }),
+                      })
+                      const d = await res.json()
+                      if (res.ok) { setAutoSettings(d); setAutoMsg("저장됐습니다.") }
+                      else setAutoMsg(d.error ?? "오류")
+                    } finally { setAutoSaving(false) }
+                  }}
+                  className="h-8 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
+                  {autoSaving ? "저장 중..." : "설정 저장"}
+                </button>
+                {autoMsg && <span className="text-xs text-muted-foreground">{autoMsg}</span>}
+              </div>
+            </div>
+
+            {/* 포지션 목록 */}
+            <div className="rounded-xl border border-border overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-secondary/30">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-primary" />
+                  <h2 className="text-sm font-semibold text-foreground">
+                    시그널 포지션 ({autoPositions.length})
+                  </h2>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      setAutoLoading(true)
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      const r = await fetch("/api/auto-signal/positions", { headers: { Authorization: `Bearer ${tok}` } })
+                      const d = await r.json()
+                      setAutoPositions(d.positions ?? [])
+                      setAutoLoading(false)
+                    }}
+                    className="h-7 px-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    새로고침
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("전체 포지션을 초기화합니까?")) return
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      await fetch("/api/auto-signal/positions", {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                        body: JSON.stringify({ all: true }),
+                      })
+                      setAutoPositions([])
+                    }}
+                    className="h-7 px-3 rounded-lg bg-destructive/10 border border-destructive/30 text-xs text-destructive hover:bg-destructive/20 transition-colors">
+                    전체 초기화
+                  </button>
+                </div>
+              </div>
+
+              {autoLoading && (
+                <div className="py-10 text-center text-xs text-muted-foreground">불러오는 중...</div>
+              )}
+
+              {!autoLoading && autoPositions.length === 0 && (
+                <div className="py-10 text-center text-xs text-muted-foreground">
+                  아직 수신된 시그널이 없습니다.<br />
+                  위 Webhook URL을 TradingView 알림에 연결하세요.
+                </div>
+              )}
+
+              {!autoLoading && autoPositions.length > 0 && (
+                <>
+                  {/* 헤더 */}
+                  <div className="grid grid-cols-[1fr_60px_60px_80px_90px_90px_90px_40px] gap-0 px-4 py-2 text-[10px] font-semibold text-muted-foreground bg-secondary/20">
+                    <span>심볼 / 시그널</span>
+                    <span>방향</span>
+                    <span>레버</span>
+                    <span>진입가</span>
+                    <span className="text-right">진입 시각</span>
+                    <span className="text-right">날짜</span>
+                    <span className="text-right">상태</span>
+                    <span></span>
+                  </div>
+                  {autoPositions.map(pos => (
+                    <div key={pos.id}
+                      className="grid grid-cols-[1fr_60px_60px_80px_90px_90px_90px_40px] gap-0 px-4 py-2.5 border-t border-border text-xs items-center hover:bg-secondary/10">
+                      <div>
+                        <span className="font-semibold text-foreground">{pos.symbol.replace("USDT","")}/USDT</span>
+                        <span className="ml-2 text-[10px] text-muted-foreground">{pos.signal_type}</span>
+                      </div>
+                      <span style={{
+                        padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700, display: "inline-block",
+                        background: pos.direction === "long" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                        color: pos.direction === "long" ? "#22c55e" : "#ef4444",
+                      }}>{pos.direction === "long" ? "LONG" : "SHORT"}</span>
+                      <span className="text-muted-foreground">{pos.leverage}x</span>
+                      <span className="font-mono tabular-nums text-foreground">${pos.entry_price}</span>
+                      <span className="text-right text-muted-foreground tabular-nums">
+                        {new Date(pos.signal_time).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className="text-right text-muted-foreground">{pos.date_label}</span>
+                      <span className="text-right">
+                        <span style={{
+                          padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600,
+                          background: pos.is_closed ? "rgba(255,255,255,0.05)" : "rgba(34,197,94,0.1)",
+                          color: pos.is_closed ? "rgba(255,255,255,0.3)" : "#22c55e",
+                        }}>{pos.is_closed ? "청산" : "보유"}</span>
+                      </span>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`${pos.symbol} 포지션을 삭제합니까?`)) return
+                          const tok = localStorage.getItem("app_token") ?? ""
+                          await fetch("/api/auto-signal/positions", {
+                            method: "DELETE",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                            body: JSON.stringify({ id: pos.id }),
+                          })
+                          setAutoPositions(prev => prev.filter(p => p.id !== pos.id))
+                        }}
+                        className="flex items-center justify-center w-6 h-6 rounded-md bg-secondary hover:bg-destructive/20 transition-colors ml-auto">
+                        <Trash2 className="w-3 h-3 text-muted-foreground" />
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
           </div>
         )}
 

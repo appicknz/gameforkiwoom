@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import React, { useEffect, useRef, useState, useCallback } from "react"
 import { supabaseBrowser } from "@/lib/supabase-browser"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab from "@/components/trade/live-prices-tab"
 import SymbolChart from "@/components/trade/symbol-chart"
-import { BarChart2, Wallet, X, TrendingUp, TrendingDown } from "lucide-react"
+import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react"
 
 const GOLD       = "#d4af37"
 const UP_COLOR   = "#22c55e"
@@ -66,6 +66,69 @@ function elapsedStr(ms: number): string {
   if (s < 60)   return `${s}초`
   if (s < 3600) return `${Math.floor(s / 60)}분`
   return `${Math.floor(s / 3600)}시간`
+}
+
+// ─── 날짜 스트립 ─────────────────────────────────────────────────────
+function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (d: Date) => void }) {
+  const today = new Date()
+  // 현재 주 월요일 기준 7일
+  const startOfWeek = new Date(today)
+  const dow = today.getDay() // 0=일
+  startOfWeek.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1))
+
+  const days: Date[] = []
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startOfWeek)
+    d.setDate(startOfWeek.getDate() + i)
+    days.push(d)
+  }
+
+  const DAY_KO = ["일", "월", "화", "수", "목", "금", "토"]
+  const isSame = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+
+  const year  = today.getFullYear()
+  const month = today.getMonth() + 1
+
+  return (
+    <div className="px-4 py-2" style={{ borderBottom: `1px solid rgba(212,175,55,0.08)` }}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span style={{ fontSize: 11, color: "rgba(212,175,55,0.5)", fontWeight: 600 }}>
+          {year}년 {month}월
+        </span>
+        <button style={{ fontSize: 10, color: "rgba(212,175,55,0.35)" }}>오늘</button>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5">
+        {days.map((d, i) => {
+          const isSun = d.getDay() === 0
+          const isSat = d.getDay() === 6
+          const isToday = isSame(d, today)
+          const isSel   = isSame(d, selectedDate)
+          return (
+            <button key={i} onClick={() => onSelect(d)}
+              className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-all"
+              style={{
+                background: isSel ? "rgba(212,175,55,0.15)" : "transparent",
+                border: `1px solid ${isSel ? "rgba(212,175,55,0.4)" : "transparent"}`,
+              }}>
+              <span style={{
+                fontSize: 9, fontWeight: 600,
+                color: isSat ? "#3b82f6" : isSun ? "#ef4444" : "rgba(255,255,255,0.3)",
+              }}>{DAY_KO[d.getDay()]}</span>
+              <span style={{
+                fontSize: 14, fontWeight: 700,
+                color: isToday ? GOLD : isSel ? "rgba(212,175,55,0.85)" : "rgba(255,255,255,0.7)",
+                width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
+                borderRadius: "50%",
+                background: isToday && !isSel ? "rgba(212,175,55,0.12)" : "transparent",
+                border: isToday ? `1.5px solid rgba(212,175,55,0.4)` : "1.5px solid transparent",
+              }}>{d.getDate()}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 // ─── 공통 투자 폼 ────────────────────────────────────────────────────
@@ -340,13 +403,158 @@ function PcPositionCard({ pos, onClose, isClosing }: {
         disabled={isClosing}
         className="w-full rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
         style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", padding: "8px 0", minHeight: 32 }}>
-        {isClosing ? "청산 처리중..." : "포���션 청산"}
+        {isClosing ? "청산 처리중..." : "포�����션 청산"}
       </button>
     </div>
   )
 }
 
 // ���── 메인 페이지 ────────────────────────────────────────────────────
+// ─── 자동매매 라이브 패널 ─────────────────────────────────────────────
+interface AutoPos {
+  id:          string
+  signal_type: string
+  symbol:      string
+  direction:   string
+  entry_price: number
+  size_usd:    number
+  leverage:    number
+  signal_time: string
+  date_label:  string
+  is_closed:   boolean
+}
+
+function AutoSignalPanel({
+  selectedDate,
+  priceMapRef,
+}: {
+  selectedDate: Date
+  priceMapRef:  React.RefObject<Map<string, number>>
+}) {
+  const [positions, setPositions] = useState<AutoPos[]>([])
+  const [loading,   setLoading]   = useState(true)
+
+  const dateKey = [
+    selectedDate.getFullYear(),
+    String(selectedDate.getMonth() + 1).padStart(2, "0"),
+    String(selectedDate.getDate()).padStart(2, "0"),
+  ].join("-")
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/auto-signal/positions?date=${dateKey}`)
+      .then(r => r.ok ? r.json() : { positions: [] })
+      .then(d => setPositions(d.positions ?? []))
+      .finally(() => setLoading(false))
+  }, [dateKey])
+
+  // 1초 tick — 클라이언트 가격으로 ROI 재계산
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  const dateLabel = `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일`
+
+  const stats = positions.reduce(
+    (acc, pos) => {
+      const sym   = pos.symbol.endsWith("USDT") ? pos.symbol : pos.symbol + "USDT"
+      const cur   = priceMapRef.current?.get(sym) ?? 0
+      const entry = pos.entry_price
+      if (cur > 0 && entry > 0) {
+        const delta = pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry
+        acc.totalPnl += pos.size_usd * delta * pos.leverage
+        if (delta >= 0) acc.profit++; else acc.loss++
+      }
+      return acc
+    },
+    { totalPnl: 0, profit: 0, loss: 0 }
+  )
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-6"
+      style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>로딩 중...</div>
+  )
+
+  return (
+    <div>
+      {/* 날짜 헤더 + 요약 */}
+      <div className="flex items-center justify-between px-4 py-3"
+        style={{ borderBottom: `1px solid rgba(212,175,55,0.06)` }}>
+        <div className="flex items-center gap-3">
+          <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>{dateLabel}</span>
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>자동매매</span>
+          <span style={{ fontSize: 10, color: UP_COLOR   }}>+{stats.profit}</span>
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>/</span>
+          <span style={{ fontSize: 10, color: DOWN_COLOR }}>{stats.loss}</span>
+        </div>
+        <span className="tabular-nums" style={{ fontSize: 11, fontWeight: 700, color: stats.totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+          {stats.totalPnl >= 0 ? "+" : ""}${stats.totalPnl.toFixed(2)}
+        </span>
+      </div>
+
+      {positions.length === 0 && (
+        <div className="py-6 text-center" style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>
+          이 날짜에 수신된 시그널이 없습니다.
+        </div>
+      )}
+
+      {positions.map(pos => {
+        const sym   = pos.symbol.endsWith("USDT") ? pos.symbol : pos.symbol + "USDT"
+        const cur   = priceMapRef.current?.get(sym) ?? 0
+        const entry = pos.entry_price
+        const hasCur = cur > 0 && entry > 0
+        const delta  = hasCur
+          ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
+          : 0
+        const roi      = delta * pos.leverage * 100
+        const pnl      = pos.size_usd * delta * pos.leverage
+        const roiColor = roi >= 0 ? UP_COLOR : DOWN_COLOR
+        const inTime   = new Date(pos.signal_time).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
+
+        return (
+          <div key={pos.id} style={{ padding: "10px 16px", borderBottom: `1px solid rgba(212,175,55,0.05)` }}>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <span style={{
+                  padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 800,
+                  background: pos.direction === "long" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                  color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
+                }}>{pos.direction === "long" ? "L" : "S"}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
+                  {pos.symbol.replace("USDT","")}/USDT
+                </span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: GOLD }}>{pos.leverage}x</span>
+                {hasCur && (
+                  <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 700, color: roiColor }}>
+                    {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
+                  </span>
+                )}
+              </div>
+              <div className="text-right">
+                {hasCur && (
+                  <div className="tabular-nums" style={{ fontSize: 12, fontWeight: 700, color: roiColor }}>
+                    {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>IN:{inTime}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3" style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+              <span>진입: <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.5)" }}>${entry}</span></span>
+              {hasCur && (
+                <span>현재: <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.6)" }}>${fmt(cur)}</span></span>
+              )}
+              <span style={{ color: "rgba(212,175,55,0.4)" }}>{pos.signal_type}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function TradePage() {
   const [balance,       setBalance]       = useState<number | null>(null)
   const [positions,     setPositions]     = useState<Position[]>([])
@@ -359,6 +567,8 @@ export default function TradePage() {
   const [dialogSymbol,  setDialogSymbol]  = useState("BTCUSDT")
   const [dialogPrice,   setDialogPrice]   = useState<number | null>(null)
   const [tick,          setTick]          = useState(0)
+  const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
+  const [selectedDate,  setSelectedDate]  = useState(new Date())
 
   // refs — stale closure 방지
   const priceMapRef       = useRef<Map<string, number>>(new Map())
@@ -632,15 +842,45 @@ export default function TradePage() {
               />
             </div>
 
-            {/* 투자 패널 */}
-            <div className="rounded-2xl p-5" style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
-              <TradeForm
-                symbol={selectedSymbol}
-                price={selectedPrice}
-                balance={balance}
-                onOpen={handleOpen}
-                isOpening={openingId !== null}
-              />
+            {/* 투자 패널 — 기본 접힘 */}
+            <div className="rounded-2xl overflow-hidden" style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
+              {/* 헤더 (항상 표시) */}
+              <button
+                onClick={() => setFormCollapsed(v => !v)}
+                className="w-full flex items-center justify-between px-5 py-3 transition-colors hover:bg-white/5"
+              >
+                <div className="flex items-center gap-2">
+                  <Wallet style={{ width: 13, height: 13, color: GOLD, opacity: 0.7 }} />
+                  <span style={{ fontSize: 11, color: "rgba(212,175,55,0.6)", fontWeight: 600 }}>주문</span>
+                  {balance !== null && (
+                    <span className="tabular-nums" style={{ fontSize: 10, color: "rgba(212,175,55,0.4)" }}>
+                      잔고 ₩{Math.floor(balance).toLocaleString("ko-KR")}
+                    </span>
+                  )}
+                </div>
+                {formCollapsed
+                  ? <ChevronDown style={{ width: 14, height: 14, color: "rgba(212,175,55,0.4)" }} />
+                  : <ChevronUp   style={{ width: 14, height: 14, color: "rgba(212,175,55,0.4)" }} />
+                }
+              </button>
+              {/* 폼 내용 */}
+              {!formCollapsed && (
+                <div className="px-5 pb-5">
+                  <TradeForm
+                    symbol={selectedSymbol}
+                    price={selectedPrice}
+                    balance={balance}
+                    onOpen={handleOpen}
+                    isOpening={openingId !== null}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 날짜 스트립 + 자동매매 포지션 */}
+            <div className="rounded-2xl overflow-hidden" style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
+              <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+              <AutoSignalPanel selectedDate={selectedDate} priceMapRef={priceMapRef} />
             </div>
 
             {/* 포지션 목록 */}
