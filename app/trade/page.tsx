@@ -69,11 +69,43 @@ function elapsedStr(ms: number): string {
 }
 
 // ─── 날짜 스트립 ─────────────────────────────────────────────────────
+function LiveClock() {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const h   = now.getHours()
+  const ampm = h < 12 ? "오전" : "오후"
+  const h12  = h % 12 === 0 ? 12 : h % 12
+  const mm   = String(now.getMinutes()).padStart(2, "0")
+  const ss   = String(now.getSeconds()).padStart(2, "0")
+
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      {/* 깜빡이는 초록 점 */}
+      <span className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+      </span>
+      <span style={{
+        fontSize: 13,
+        fontWeight: 600,
+        color: "rgba(255,255,255,0.75)",
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "0.03em",
+      }}>
+        {ampm} {String(h12).padStart(2, "0")}:{mm}:{ss}
+      </span>
+    </div>
+  )
+}
+
 function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (d: Date) => void }) {
   const today = new Date()
-  // 현재 주 월요일 기준 7일
   const startOfWeek = new Date(today)
-  const dow = today.getDay() // 0=일
+  const dow = today.getDay()
   startOfWeek.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1))
 
   const days: Date[] = []
@@ -87,42 +119,68 @@ function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (
   const isSame = (a: Date, b: Date) =>
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 
-  const year  = today.getFullYear()
-  const month = today.getMonth() + 1
-
   return (
-    <div className="px-4 py-2" style={{ borderBottom: `1px solid rgba(212,175,55,0.08)` }}>
-      <div className="flex items-center justify-between mb-1.5">
-        <span style={{ fontSize: 11, color: "rgba(212,175,55,0.5)", fontWeight: 600 }}>
-          {year}년 {month}월
-        </span>
-        <button style={{ fontSize: 10, color: "rgba(212,175,55,0.35)" }}>오늘</button>
-      </div>
-      <div className="grid grid-cols-7 gap-0.5">
+    <div style={{ borderBottom: `1px solid rgba(255,255,255,0.06)` }}>
+      <div className="grid grid-cols-7">
         {days.map((d, i) => {
-          const isSun = d.getDay() === 0
-          const isSat = d.getDay() === 6
+          const isSun   = d.getDay() === 0
+          const isSat   = d.getDay() === 6
           const isToday = isSame(d, today)
           const isSel   = isSame(d, selectedDate)
+
+          /* 요일 색상: 토=파랑, 일=빨강, 평일=흐린 흰색 */
+          const dayColor = isSat
+            ? "#4a90d9"
+            : isSun
+            ? "#e05555"
+            : "rgba(255,255,255,0.35)"
+
+          /* 날짜 숫자 색상 */
+          const numColor = isToday
+            ? "#fff"
+            : isSel
+            ? "rgba(255,255,255,0.9)"
+            : "rgba(255,255,255,0.75)"
+
           return (
-            <button key={i} onClick={() => onSelect(d)}
-              className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-all"
-              style={{
-                background: isSel ? "rgba(212,175,55,0.15)" : "transparent",
-                border: `1px solid ${isSel ? "rgba(212,175,55,0.4)" : "transparent"}`,
+            <button
+              key={i}
+              onClick={() => onSelect(d)}
+              className="flex flex-col items-center py-3 gap-2 transition-all"
+              style={{ background: "transparent" }}
+            >
+              {/* 요일 */}
+              <span style={{
+                fontSize: 10,
+                fontWeight: 500,
+                color: dayColor,
+                letterSpacing: "0.02em",
               }}>
+                {DAY_KO[d.getDay()]}
+              </span>
+
+              {/* 날짜 숫자 — 오늘은 초록 원형 테두리 */}
               <span style={{
-                fontSize: 9, fontWeight: 600,
-                color: isSat ? "#3b82f6" : isSun ? "#ef4444" : "rgba(255,255,255,0.3)",
-              }}>{DAY_KO[d.getDay()]}</span>
-              <span style={{
-                fontSize: 14, fontWeight: 700,
-                color: isToday ? GOLD : isSel ? "rgba(212,175,55,0.85)" : "rgba(255,255,255,0.7)",
-                width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
+                width: 32,
+                height: 32,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 borderRadius: "50%",
-                background: isToday && !isSel ? "rgba(212,175,55,0.12)" : "transparent",
-                border: isToday ? `1.5px solid rgba(212,175,55,0.4)` : "1.5px solid transparent",
-              }}>{d.getDate()}</span>
+                fontSize: 15,
+                fontWeight: 700,
+                color: numColor,
+                border: isToday
+                  ? "2px solid #22c55e"
+                  : isSel
+                  ? `2px solid rgba(212,175,55,0.6)`
+                  : "2px solid transparent",
+                background: isSel && !isToday
+                  ? "rgba(212,175,55,0.1)"
+                  : "transparent",
+              }}>
+                {d.getDate()}
+              </span>
             </button>
           )
         })}
@@ -917,29 +975,34 @@ export default function TradePage() {
               알림
             </a>
           </div>
-          {/* 카테고리 탭 */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
-            {([
-              { key: "auto", label: "자동매매", Icon: Bot },
-              { key: "mock", label: "모의매매", Icon: LineChart },
-            ] as const).map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                onClick={() => setTradeMode(key)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0"
-                style={tradeMode === key ? {
-                  background: GOLD,
-                  color: "#000",
-                } : {
-                  background: "rgba(255,255,255,0.06)",
-                  color: "rgba(255,255,255,0.5)",
-                  border: `1px solid ${BORDER}`,
-                }}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </button>
-            ))}
+          {/* 카테고리 탭 + 실시간 시계 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {([
+                { key: "auto", label: "자동매매", Icon: Bot },
+                { key: "mock", label: "모의매매", Icon: LineChart },
+              ] as const).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setTradeMode(key)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0"
+                  style={tradeMode === key ? {
+                    background: GOLD,
+                    color: "#000",
+                  } : {
+                    background: "rgba(255,255,255,0.06)",
+                    color: "rgba(255,255,255,0.5)",
+                    border: `1px solid ${BORDER}`,
+                  }}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* 실시간 시계 */}
+            <LiveClock />
           </div>
         </div>
       </div>
