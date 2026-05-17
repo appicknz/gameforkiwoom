@@ -488,7 +488,6 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
 }) {
   const [positions, setPositions] = useState<AutoPos[]>([])
   const [loading,   setLoading]   = useState(true)
-  // 1초마다 강제 리렌더 — liveCache에서 최신 가격 읽기
   const [, setTick] = useState(0)
 
   const dateKey = [
@@ -1008,9 +1007,9 @@ export default function TradePage() {
       </div>
 
       {/* ══════ 모바일 (lg 미만) ══════ */}
-      <div className="lg:hidden" style={{ height: "calc(100dvh - 148px)", overflow: "hidden" }}>
-        {tradeMode === "mock" ? (
-          /* 모의매매: 시세 목록 전체 */
+      <div className="lg:hidden" style={{ height: "calc(100dvh - 148px)", overflow: "hidden", position: "relative" }}>
+        {/* LivePricesTab — 항상 mount (소켓 유지), 자동매매 탭에서는 숨김 */}
+        <div style={{ position: "absolute", inset: 0, display: tradeMode === "mock" ? "block" : "none" }}>
           <LivePricesTab
             onSelect={handleMobileSelect}
             onPriceUpdate={(sym, price) => {
@@ -1029,57 +1028,59 @@ export default function TradePage() {
             selectedSymbol={dialogSymbol}
             positions={positionRows}
           />
-        ) : (
-          /* 자동매매: 날짜 스트립 + 포지션 전체 */
-          <div className="flex flex-col" style={{ height: "100%", background: PANEL_BG }}>
-            <div style={{ flexShrink: 0 }}>
-              <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
-            </div>
-              <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} />
-            </div>
+        </div>
+        {/* 자동매매: 날짜 스트립 + 포지션 */}
+        <div style={{ position: "absolute", inset: 0, display: tradeMode === "auto" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
+          <div style={{ flexShrink: 0 }}>
+            <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
-        )}
+          <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
+            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} />
+          </div>
+        </div>
       </div>
 
       {/* ══════ PC (lg 이상) ══════ */}
       <main className="hidden lg:block max-w-7xl mx-auto p-4">
-        <div style={{ height: "calc(100vh - 172px)" }}>
-          {tradeMode === "mock" ? (
-            /* 모의매매: 시세 목록 전체 너비 */
-            <div className="rounded-2xl overflow-hidden h-full"
-              style={{ background: "#0a0b0f", border: `1px solid rgba(212,175,55,0.15)` }}>
-              <LivePricesTab
-                onSelect={handleMobileSelect}
-                onPriceUpdate={(sym, price) => {
-                  priceMapRef.current.set(sym, price)
-                  if (sym === selectedSymbol) setSelectedPrice(price)
-                  setPositions(prev => prev.map(p => {
-                    if (p.symbol !== sym || !p.entryPrice) return p
-                    const delta = p.direction === "long"
-                      ? (price - p.entryPrice) / p.entryPrice
-                      : (p.entryPrice - price) / p.entryPrice
-                    return { ...p, current_price: price, pnl: Math.round(p.amount * delta * p.leverage), pnlPct: delta * p.leverage * 100 }
-                  }))
-                }}
-                onClose={handleClose}
-                closingId={closingId}
-                selectedSymbol={selectedSymbol}
-                positions={positionRows}
-              />
+        <div style={{ height: "calc(100vh - 172px)", position: "relative" }}>
+          {/* LivePricesTab — 항상 mount (소켓 유지), 자동매매 탭에서는 숨김 */}
+          <div className="rounded-2xl overflow-hidden h-full" style={{
+            background: "#0a0b0f",
+            border: `1px solid rgba(212,175,55,0.15)`,
+            display: tradeMode === "mock" ? "block" : "none",
+          }}>
+            <LivePricesTab
+              onSelect={handleMobileSelect}
+              onPriceUpdate={(sym, price) => {
+                priceMapRef.current.set(sym, price)
+                if (sym === selectedSymbol) setSelectedPrice(price)
+                setPositions(prev => prev.map(p => {
+                  if (p.symbol !== sym || !p.entryPrice) return p
+                  const delta = p.direction === "long"
+                    ? (price - p.entryPrice) / p.entryPrice
+                    : (p.entryPrice - price) / p.entryPrice
+                  return { ...p, current_price: price, pnl: Math.round(p.amount * delta * p.leverage), pnlPct: delta * p.leverage * 100 }
+                }))
+              }}
+              onClose={handleClose}
+              closingId={closingId}
+              selectedSymbol={selectedSymbol}
+              positions={positionRows}
+            />
+          </div>
+          {/* 자동매매: 날짜 스트립 + 포지션 전체 너비 */}
+          <div className="rounded-2xl flex flex-col h-full" style={{
+            background: PANEL_BG,
+            border: `1px solid ${BORDER}`,
+            display: tradeMode === "auto" ? "flex" : "none",
+          }}>
+            <div style={{ flexShrink: 0 }}>
+              <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
-          ) : (
-            /* 자동매매: 날짜 스트립 + 포지션 전체 너비 */
-            <div className="rounded-2xl flex flex-col h-full"
-              style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }}>
-              <div style={{ flexShrink: 0 }}>
-                <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
-              </div>
-              <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-                <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} />
-              </div>
+            <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
+              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} />
             </div>
-          )}
+          </div>
         </div>
       </main>
 
