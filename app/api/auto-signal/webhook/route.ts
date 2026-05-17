@@ -19,15 +19,20 @@ async function logRequest(
   payload: Record<string, unknown>,
   opts: { symbol?: string; signalType?: string; errorMsg?: string; ip?: string } = {}
 ) {
-  await adminSupabase.from("webhook_request_logs").insert({
-    status,
-    status_code: statusCode,
-    raw_payload: payload,
-    symbol:      opts.symbol,
-    signal_type: opts.signalType,
-    error_msg:   opts.errorMsg,
-    ip:          opts.ip,
-  })
+  try {
+    await adminSupabase.from("webhook_request_logs").insert({
+      status,
+      status_code: statusCode,
+      body_raw:    payload,       // DB 실제 컬럼명
+      symbol:      opts.symbol    ?? null,
+      signal_type: opts.signalType ?? null,
+      error_msg:   opts.errorMsg  ?? null,
+      ip:          opts.ip        ?? null,
+      method:      "POST",
+    })
+  } catch (e) {
+    console.error("[webhook] logRequest failed:", e)
+  }
 }
 
 export async function POST(req: Request) {

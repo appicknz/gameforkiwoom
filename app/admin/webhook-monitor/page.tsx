@@ -23,7 +23,7 @@ interface RequestLog {
   status_code: number
   symbol:      string | null
   signal_type: string | null
-  raw_payload: Record<string, unknown> | null
+  body_raw:    Record<string, unknown> | null
   error_msg:   string | null
   ip:          string | null
 }
@@ -388,9 +388,9 @@ export default function WebhookMonitorPage() {
                       <div className="flex items-center justify-between"
                         style={{ padding: "5px 10px", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
                         <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.25)", letterSpacing: 1 }}>RAW PAYLOAD</span>
-                        {log.raw_payload && (
+                        {log.body_raw && (
                           <button
-                            onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(JSON.stringify(log.raw_payload, null, 2)) }}
+                            onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(JSON.stringify(log.body_raw, null, 2)) }}
                             style={{ cursor: "pointer", color: "rgba(255,255,255,0.3)" }}>
                             <Copy className="w-3 h-3" />
                           </button>
@@ -402,8 +402,8 @@ export default function WebhookMonitorPage() {
                         color: "rgba(255,255,255,0.55)",
                         overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all",
                       }}>
-                        {log.raw_payload
-                          ? JSON.stringify(log.raw_payload, null, 2)
+                        {log.body_raw
+                          ? JSON.stringify(log.body_raw, null, 2)
                           : "(payload not captured)"}
                       </pre>
                     </div>

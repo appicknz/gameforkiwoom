@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
   let query = adminSupabase
     .from("webhook_request_logs")
-    .select("id, received_at, status, status_code, symbol, signal_type, raw_payload, error_msg, ip")
+    .select("id, received_at, status, status_code, symbol, signal_type, body_raw, error_msg, ip")
     .order("received_at", { ascending: false })
     .limit(limit)
 
