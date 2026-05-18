@@ -115,9 +115,16 @@ async function initCache() {
       .filter((s: any) => s.status === "TRADING" && s.quoteAsset === "USDT" && s.contractType === "PERPETUAL")
       .map((s: any) => s.symbol as string)
       .sort()
-  } catch {
-    _cache.symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]
+  } catch (e) {
+    // fetch 실패 — initialized 해제 후 3초 뒤 재시도
+    _cache.initialized = false
+    notifyListeners()
+    setTimeout(() => initCache(), 3000)
+    return
   }
+
+  // 심볼 로드 완료 즉시 리스너에게 알려서 로딩 화면을 바로 해제
+  notifyListeners()
 
   const chunks: string[][] = []
   for (let i = 0; i < _cache.symbols.length; i += CHUNK_SIZE) {
@@ -269,7 +276,7 @@ export default function LivePricesTab({ onSelect, onPriceUpdate, onClose, closin
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-6 h-6 border-2 border-gray-700 border-t-gray-400 rounded-full animate-spin" />
-            <p className="text-xs text-gray-500">바이��스 심볼 로딩 중...</p>
+            <p className="text-xs text-gray-500">로딩 중...</p>
           </div>
         </div>
       )}
