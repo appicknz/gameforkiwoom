@@ -48,7 +48,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className="bg-[oklch(0.12_0.01_155)]">
       <body className={`font-sans antialiased bg-[oklch(0.12_0.01_155)] ${_orbitron.variable}`}>
-        <ThemeProvider defaultTheme="dark" storageKey="tasko-theme">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="tasko-theme">
           {/* 모바일 하단 탭바 높이(60px)만큼 콘텐츠 밀어내기 */}
           <div className="md:pb-0 pb-[60px]">
             {children}
