@@ -164,7 +164,7 @@ function TradeStatsMini() {
   const GOLD = "#d4af37"
 
   return (
-    <div className="space-y-2 px-1">
+    <div className="space-y-3">
       {/* 헤더 — /trade 이동 버튼 */}
       <Link href="/trade">
         <div className="w-full rounded-2xl border border-border p-3 flex items-center gap-2.5 hover:bg-secondary/60 hover:border-primary/40 transition-all duration-200 cursor-pointer">
@@ -178,7 +178,7 @@ function TradeStatsMini() {
         </div>
       </Link>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
           {/* 요약 4칸 — 날짜 선택 시 해당 날짜 자동매매 기준, 미선택 시 전체 모의매매 합계 */}
           {(() => {
             const showingDate = selectedDate ?? todayKST
@@ -621,12 +621,7 @@ export function Sidebar() {
             </div>
           </div>}
 
-          {/* ② 오늘의 비트 · 모의매매, 자동매매 시그널 */}
-          <div className="border-t border-border pt-3">
-            <TradeStatsMini />
-          </div>
-
-          {/* ③ 관리 — 2x2 그리드 */}
+          {/* ② 관리 — 2x2 그리드 */}
           <div className="border-t border-border pt-3 space-y-2">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("sidebar.manage")}</p>
             <div className="grid grid-cols-2 gap-2">
@@ -703,6 +698,11 @@ export function Sidebar() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* ③ 오늘의 비트 · 모의매매, 자동매매 시그널 */}
+          <div className="border-t border-border pt-3">
+            <TradeStatsMini />
           </div>
 
           {/* ④ 토큰 입금 QR */}
