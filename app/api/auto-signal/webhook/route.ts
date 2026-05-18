@@ -107,11 +107,30 @@ export async function POST(req: Request) {
     dateLabel  = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
   }
 
+  const cleanSymbol = symbol.replace(".P", "")
+
+  // 코드 레벨 중복 체크 — 같은 날 같은 종목+방향이 이미 있으면 스킵
+  const { data: existing } = await adminSupabase
+    .from("auto_signal_positions")
+    .select("id, signal_time")
+    .eq("symbol",     cleanSymbol)
+    .eq("direction",  direction)
+    .eq("date_label", dateLabel)
+    .maybeSingle()
+
+  if (existing) {
+    await logRequest("skipped", 200, body, {
+      ip, symbol, signalType: type,
+      errorMsg: `duplicate: ${cleanSymbol} ${direction} already exists for ${dateLabel} (id: ${existing.id})`,
+    })
+    return NextResponse.json({ skipped: true, reason: "duplicate_symbol_date", existing_id: existing.id })
+  }
+
   const { data, error } = await adminSupabase
     .from("auto_signal_positions")
     .insert({
       signal_type:  type,
-      symbol:       symbol.replace(".P", ""),
+      symbol:       cleanSymbol,
       direction,
       entry_price:  parseFloat(price),
       size_usd:     settings.size_usd,
@@ -124,7 +143,12 @@ export async function POST(req: Request) {
     .select("id")
     .single()
 
+  // 23505 = unique constraint violation (race condition 대비)
   if (error) {
+    if (error.code === "23505") {
+      await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "duplicate (race)" })
+      return NextResponse.json({ skipped: true, reason: "duplicate_race" })
+    }
     await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: error.message })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
