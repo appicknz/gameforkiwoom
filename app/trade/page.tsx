@@ -480,9 +480,10 @@ interface AutoPos {
   is_closed:   boolean
 }
 
-function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
+function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
   selectedDate: Date
   sortOrder?: "time" | "roi_desc" | "roi_asc" | "signal"
+  searchQ?: string
 }) {
   const [positions,     setPositions]     = useState<AutoPos[]>([])
   const [isHistorical,  setIsHistorical]  = useState(false)
@@ -569,6 +570,10 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
     return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
   })
 
+  const filteredCalc = searchQ
+    ? posCalc.filter(p => p.sym.toLowerCase().includes(searchQ.toLowerCase()))
+    : posCalc
+
   const totalPnl   = posCalc.reduce((s, p) => s + p.pnl, 0)
   const totalRoi   = posCalc.length > 0 ? posCalc.reduce((s, p) => s + p.roi, 0) / posCalc.length : 0
   const profitCnt  = posCalc.filter(p => p.roi > 0).length
@@ -576,7 +581,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time" }: {
   const margin     = posCalc.length * 10
   const estValue   = margin + totalPnl
 
-  const sortedCalc = [...posCalc].sort((a, b) => {
+  const sortedCalc = [...filteredCalc].sort((a, b) => {
     if (sortOrder === "roi_desc") return b.roi - a.roi
     if (sortOrder === "roi_asc")  return a.roi - b.roi
     if (sortOrder === "signal")   return (a.signal_type ?? "").localeCompare(b.signal_type ?? "")
@@ -1061,6 +1066,7 @@ export default function TradePage() {
         {/* LivePricesTab — 항상 mount (소켓 유지), 자동매매 탭에서는 숨김 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "mock" ? "block" : "none" }}>
           <LivePricesTab
+            externalSearch={tradeMode === "mock" ? searchQ : ""}
             onSelect={handleMobileSelect}
             onPriceUpdate={(sym, price) => {
               priceMapRef.current.set(sym, price)
@@ -1085,7 +1091,7 @@ export default function TradePage() {
             <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} />
+            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} />
           </div>
         </div>
       </div>
@@ -1100,6 +1106,7 @@ export default function TradePage() {
             display: tradeMode === "mock" ? "block" : "none",
           }}>
             <LivePricesTab
+              externalSearch={tradeMode === "mock" ? searchQ : ""}
               onSelect={handleMobileSelect}
               onPriceUpdate={(sym, price) => {
                 priceMapRef.current.set(sym, price)
@@ -1128,7 +1135,7 @@ export default function TradePage() {
               <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} />
+              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} />
             </div>
           </div>
         </div>

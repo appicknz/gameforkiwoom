@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { TrendingUp, TrendingDown, Search, X } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { TrendingUp, TrendingDown } from "lucide-react"
 
 // ─── 숫자 포맷 ────────────────────────────────────────────────────
 function formatPrice(price: number): string {
@@ -156,9 +155,13 @@ interface LivePricesTabProps {
   positions?:      PositionRow[]
 }
 
-export default function LivePricesTab({ onSelect, onPriceUpdate, onClose, closingId, selectedSymbol, positions = [] }: LivePricesTabProps) {
+interface LivePricesTabProps2 extends LivePricesTabProps {
+  externalSearch?: string
+}
+
+export default function LivePricesTab({ onSelect, onPriceUpdate, onClose, closingId, selectedSymbol, positions = [], externalSearch = "" }: LivePricesTabProps2) {
   const [, forceUpdate]   = useState(0)
-  const [searchTerm, setSearchTerm] = useState("")
+  const searchTerm = externalSearch
   const [sortKey, setSortKey] = useState<"symbol" | "price" | "change24h" | "volume24h">("change24h")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
   const autoSelectedRef    = useRef(false)
@@ -240,40 +243,16 @@ export default function LivePricesTab({ onSelect, onPriceUpdate, onClose, closin
 
   return (
     <div className="flex flex-col h-full bg-[#0a0b0f]">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800/60 gap-3">
-        <div className="flex items-center gap-2 shrink-0">
-          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-            symbolsLoading ? "bg-gray-500 animate-pulse"
-            : isConnected  ? "bg-emerald-500"
-            : "bg-yellow-500 animate-pulse"
-          }`} />
-          <span className="text-xs text-gray-400 whitespace-nowrap">
-            {symbolsLoading
-              ? "심볼 로딩..."
-              : isConnected
-              ? `LIVE · ${_cache.symbols.length}개`
-              : `연결 중 ${_cache.connectedCount}/${_cache.totalChunks}`}
-          </span>
-          {!symbolsLoading && (
-            <span className="text-xs text-gray-600">{_cache.tickers.size}/{_cache.symbols.length}</span>
-          )}
-        </div>
-
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500 pointer-events-none" />
-          <Input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="심볼 검색..."
-            className="h-8 pl-8 pr-8 bg-gray-900 border-gray-700 text-sm text-gray-200 placeholder:text-gray-600"
-          />
-          {searchTerm && (
-            <button onClick={() => setSearchTerm("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
+      {/* 총 개수만 표시 */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800/60">
+        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+          symbolsLoading ? "bg-gray-500 animate-pulse"
+          : isConnected  ? "bg-emerald-500"
+          : "bg-yellow-500 animate-pulse"
+        }`} />
+        <span className="text-xs text-gray-400">
+          {symbolsLoading ? "로딩 중..." : `${_cache.symbols.length}개`}
+        </span>
       </div>
 
       {/* Column headers */}
