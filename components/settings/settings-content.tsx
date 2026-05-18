@@ -1,82 +1,145 @@
 "use client"
 
+import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useTheme } from "@/components/theme-provider"
+import { Lock, Eye, EyeOff, Moon } from "lucide-react"
+
+function getToken() {
+  if (typeof window === "undefined") return null
+  return localStorage.getItem("auth_token") ?? sessionStorage.getItem("auth_token")
+}
 
 export function SettingsContent() {
   const { theme, setTheme } = useTheme()
 
+  const [newPw, setNewPw]           = useState("")
+  const [confirmPw, setConfirmPw]   = useState("")
+  const [showNew, setShowNew]       = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [pwMsg, setPwMsg]           = useState<{ text: string; ok: boolean } | null>(null)
+  const [pwLoading, setPwLoading]   = useState(false)
+
+  const handlePwChange = async () => {
+    setPwMsg(null)
+    if (!newPw)           return setPwMsg({ text: "새 비밀번호를 입력하세요.", ok: false })
+    if (newPw.length < 4) return setPwMsg({ text: "비밀번호는 4자 이상이어야 합니다.", ok: false })
+    if (newPw !== confirmPw) return setPwMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false })
+
+    setPwLoading(true)
+    const token = getToken()
+    const res = await fetch("/api/user/profile", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ newPassword: newPw }),
+    })
+    const d = await res.json()
+    setPwLoading(false)
+
+    if (res.ok) {
+      setPwMsg({ text: "비밀번호가 변경되었습니다.", ok: true })
+      setNewPw("")
+      setConfirmPw("")
+    } else {
+      setPwMsg({ text: d.error ?? "오류가 발생했습니다.", ok: false })
+    }
+  }
+
   return (
-    <div className="space-y-6 animate-fade-in max-w-4xl">
-      <Card className="p-6">
-        <h3 className="font-semibold text-lg mb-6">Profile Information</h3>
-        <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <Avatar className="w-20 h-20">
-              <AvatarImage src="/profile.jpg" alt="Jessin Sam" />
-              <AvatarFallback>JS</AvatarFallback>
-            </Avatar>
+    <div className="space-y-4 max-w-lg">
+
+      {/* 다크모드 */}
+      <Card className="p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+              <Moon className="w-4 h-4 text-muted-foreground" />
+            </div>
             <div>
-              <Button variant="outline">Change Photo</Button>
-              <p className="text-xs text-muted-foreground mt-2">JPG, PNG or GIF. Max size 2MB</p>
+              <p className="text-sm font-semibold text-foreground">다크 모드</p>
+              <p className="text-xs text-muted-foreground mt-0.5">어두운 테마로 전환합니다</p>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input id="name" defaultValue="Jessin Sam" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" defaultValue="jessin@gmail.com" />
-            </div>
-          </div>
-
-          <Button className="bg-primary hover:bg-primary/90">Save Changes</Button>
+          <Switch
+            checked={theme === "dark"}
+            onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+          />
         </div>
       </Card>
 
-      <Card className="p-6">
-        <h3 className="font-semibold text-lg mb-6">Notifications</h3>
-        <div className="space-y-4">
-          {[
-            { label: "Email notifications", description: "Receive email about your account activity" },
-            { label: "Push notifications", description: "Receive push notifications in your browser" },
-            { label: "Task reminders", description: "Get reminded about upcoming task deadlines" },
-            { label: "Team updates", description: "Notifications about team member activities" },
-          ].map((item, index) => (
-            <div
-              key={item.label}
-              className="flex items-center justify-between py-3 border-b border-border last:border-0"
+      {/* 비밀번호 변경 */}
+      <Card className="p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+            <Lock className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">비밀번호 변경</p>
+            <p className="text-xs text-muted-foreground mt-0.5">새 비밀번호를 설정합니다</p>
+          </div>
+        </div>
+
+        <div className="space-y-2.5">
+          {/* 새 비밀번호 */}
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <input
+              type={showNew ? "text" : "password"}
+              placeholder="새 비밀번호"
+              value={newPw}
+              onChange={e => setNewPw(e.target.value)}
+              className="w-full h-10 pl-9 pr-10 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => setShowNew(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <div>
-                <p className="font-medium">{item.label}</p>
-                <p className="text-sm text-muted-foreground">{item.description}</p>
-              </div>
-              <Switch defaultChecked={index < 2} />
-            </div>
-          ))}
+              {showNew ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
+          {/* 비밀번호 확인 */}
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <input
+              type={showConfirm ? "text" : "password"}
+              placeholder="비밀번호 확인"
+              value={confirmPw}
+              onChange={e => setConfirmPw(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handlePwChange()}
+              className="w-full h-10 pl-9 pr-10 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirm(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
+          {pwMsg && (
+            <p className={`text-xs ${pwMsg.ok ? "text-primary" : "text-destructive"}`}>
+              {pwMsg.text}
+            </p>
+          )}
+
+          <Button
+            className="w-full h-10 text-sm font-semibold"
+            onClick={handlePwChange}
+            disabled={pwLoading}
+          >
+            {pwLoading ? "변경 중..." : "비밀번호 변경"}
+          </Button>
         </div>
       </Card>
 
-      <Card className="p-6">
-        <h3 className="font-semibold text-lg mb-6">Appearance</h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Dark Mode</p>
-              <p className="text-sm text-muted-foreground">Enable dark mode theme</p>
-            </div>
-            <Switch checked={theme === "dark"} onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")} />
-          </div>
-        </div>
-      </Card>
     </div>
   )
 }
