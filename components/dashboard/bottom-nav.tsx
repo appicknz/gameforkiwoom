@@ -50,10 +50,10 @@ export function BottomNav() {
       const y = window.scrollY
       // 최상단(60px 이하)이면 항상 표시
       if (y < 60) { setVisible(true); lastY.current = y; return }
-      // 손가락을 위로 올림(y 감소, 콘텐츠가 위로 이동) → 탭바 숨김
-      // 손가락을 아래로 내림(y 증가, 콘텐츠가 아래로 이동) → 탭바 표시
-      if (y < lastY.current) setVisible(false)
-      else if (y > lastY.current) setVisible(true)
+      // 스크롤 올림 = scrollY 증가 → 탭바 숨김
+      // 스크롤 내림 = scrollY 감소 → 탭바 표시
+      if (y > lastY.current) setVisible(false)
+      else if (y < lastY.current) setVisible(true)
       lastY.current = y
     }
     window.addEventListener("scroll", onScroll, { passive: true })
