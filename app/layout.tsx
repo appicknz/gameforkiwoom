@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono, Orbitron } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
+import { BottomNav } from "@/components/dashboard/bottom-nav"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -48,7 +49,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans antialiased ${_orbitron.variable}`}>
         <ThemeProvider defaultTheme="light" storageKey="tasko-theme">
-          {children}
+          {/* 모바일 하단 탭바 높이(60px)만큼 콘텐츠 밀어내기 */}
+          <div className="md:pb-0 pb-[60px]">
+            {children}
+          </div>
+          <BottomNav />
         </ThemeProvider>
       </body>
     </html>
