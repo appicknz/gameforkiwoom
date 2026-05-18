@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect, useRef } from "react"
-import { Home, BarChart2, Settings, ShoppingBag, Store, Landmark, X } from "lucide-react"
+import { Home, BarChart2, Settings, ShoppingBag, Store, Landmark } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS = [
@@ -79,13 +79,7 @@ export function BottomNav() {
           drawerOpen ? "translate-y-0 bottom-[60px]" : "translate-y-full bottom-[60px]",
         )}
       >
-        <div className="flex items-center justify-between px-5 pt-4 pb-2">
-          <span className="text-xs font-semibold text-muted-foreground">메뉴</span>
-          <button onClick={() => setDrawerOpen(false)} className="p-1 rounded-full hover:bg-secondary">
-            <X className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
-        <div className="flex flex-col gap-1 px-3 pb-4">
+        <div className="flex flex-col gap-1 px-3 py-4">
           {DRAWER_ITEMS.map(item => {
             const Icon = item.icon
             const active = pathname.startsWith(item.href)
