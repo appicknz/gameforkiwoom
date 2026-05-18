@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Home, BarChart2, Settings, ShoppingBag, Store, Landmark, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -40,8 +40,23 @@ const DRAWER_ITEMS = [
 ]
 
 export function BottomNav() {
-  const pathname = usePathname()
+  const pathname  = usePathname()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [visible,    setVisible]    = useState(true)
+  const lastY = useRef(0)
+
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY
+      // 최상단(100px 이하)이면 항상 표시
+      if (y < 100) { setVisible(true); lastY.current = y; return }
+      // 위로 스크롤 → 숨기기, 아래로 스크롤 → 표시
+      setVisible(y < lastY.current)
+      lastY.current = y
+    }
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
 
   const isActive = (match: string[]) =>
     match.some(m => m === "/" ? pathname === m : pathname.startsWith(m))
@@ -94,8 +109,14 @@ export function BottomNav() {
         </div>
       </div>
 
-      {/* 하단 탭 바 */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[oklch(0.12_0.01_155)] border-t border-border">
+      {/* 하단 탭 바 — 위로 스크롤 시 숨김, 아래로 스크롤 시 표시 */}
+      <nav
+        className={cn(
+          "fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[oklch(0.12_0.01_155)]",
+          "transition-transform duration-300 ease-in-out",
+          visible ? "translate-y-0" : "translate-y-full",
+        )}
+      >
         <div className="flex items-stretch h-[60px] pb-safe">
           {NAV_ITEMS.map(item => {
             const Icon = item.icon
