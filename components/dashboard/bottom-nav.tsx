@@ -50,8 +50,8 @@ export function BottomNav() {
       const y = window.scrollY
       // 최상단(100px 이하)이면 항상 표시
       if (y < 100) { setVisible(true); lastY.current = y; return }
-      // 위로 스크롤 → 숨기기, 아래로 스크롤 → 표시
-      setVisible(y < lastY.current)
+      // 아래로 스크롤(y 증가) → 표시, 위로 스크롤(y 감소) → 투명
+      setVisible(y > lastY.current)
       lastY.current = y
     }
     window.addEventListener("scroll", onScroll, { passive: true })
@@ -109,12 +109,14 @@ export function BottomNav() {
         </div>
       </div>
 
-      {/* 하단 탭 바 — 위로 스크롤 시 숨김, 아래로 스크롤 시 표시 */}
+      {/* 하단 탭 바 — 위로 스크롤 시 투명(콘텐츠 비침), 아래로 스크롤 시 불투명 */}
       <nav
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[oklch(0.12_0.01_155)]",
-          "transition-transform duration-300 ease-in-out",
-          visible ? "translate-y-0" : "translate-y-full",
+          "fixed bottom-0 left-0 right-0 z-50 md:hidden",
+          "transition-opacity duration-300 ease-in-out",
+          visible
+            ? "opacity-100 bg-[oklch(0.12_0.01_155)] pointer-events-auto"
+            : "opacity-0 bg-transparent pointer-events-none",
         )}
       >
         <div className="flex items-stretch h-[60px] pb-safe">
