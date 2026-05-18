@@ -48,10 +48,12 @@ export function BottomNav() {
   useEffect(() => {
     const onScroll = () => {
       const y = window.scrollY
-      // 최상단(100px 이하)이면 항상 표시
-      if (y < 100) { setVisible(true); lastY.current = y; return }
-      // 아래로 스크롤(y 증가) → 표시, 위로 스크롤(y 감소) → 투명
-      setVisible(y > lastY.current)
+      // 최상단(60px 이하)이면 항상 표시
+      if (y < 60) { setVisible(true); lastY.current = y; return }
+      // 손가락을 위로 올림(y 감소, 콘텐츠가 위로 이동) → 탭바 숨김
+      // 손가락을 아래로 내림(y 증가, 콘텐츠가 아래로 이동) → 탭바 표시
+      if (y < lastY.current) setVisible(false)
+      else if (y > lastY.current) setVisible(true)
       lastY.current = y
     }
     window.addEventListener("scroll", onScroll, { passive: true })
@@ -71,12 +73,12 @@ export function BottomNav() {
         />
       )}
 
-      {/* 드로어 시트 — 하단에서 올라옴 */}
+      {/* 드로어 시트 — 탭바 위로 올라옴, 탭바 숨김 시 함께 숨김 */}
       <div
         className={cn(
-          "fixed left-0 right-0 z-50 md:hidden transition-transform duration-300 ease-out",
-          "bg-[oklch(0.15_0.01_155)] border-t border-border rounded-t-2xl pb-safe",
-          drawerOpen ? "translate-y-0 bottom-[60px]" : "translate-y-full bottom-[60px]",
+          "fixed left-0 right-0 z-50 md:hidden rounded-t-2xl pb-safe",
+          "bg-[oklch(0.15_0.01_155)] transition-all duration-300 ease-out",
+          drawerOpen && visible ? "translate-y-0 bottom-[60px]" : "translate-y-full bottom-[60px]",
         )}
       >
         <div className="flex flex-col gap-1 px-3 py-4">
