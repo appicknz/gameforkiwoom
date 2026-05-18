@@ -104,14 +104,12 @@ function LiveClock() {
 
 function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (d: Date) => void }) {
   const today = new Date()
-  const startOfWeek = new Date(today)
-  const dow = today.getDay()
-  startOfWeek.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1))
 
+  // 오늘이 항상 맨 오른쪽(7번째)에 오도록 — 오늘 기준 6일 전부터 오늘까지
   const days: Date[] = []
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(startOfWeek)
-    d.setDate(startOfWeek.getDate() + i)
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(today.getDate() - i)
     days.push(d)
   }
 
