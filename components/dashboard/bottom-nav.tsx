@@ -73,37 +73,35 @@ export function BottomNav() {
         />
       )}
 
-      {/* 드로어 시트 — 탭바 위로 올라옴, 탭바 숨김 시 함께 숨김 */}
-      <div
-        className={cn(
-          "fixed left-0 right-0 z-50 md:hidden rounded-t-2xl pb-safe",
-          "bg-[oklch(0.15_0.01_155)] transition-all duration-300 ease-out",
-          drawerOpen && visible ? "translate-y-0 bottom-[60px]" : "translate-y-full bottom-[60px]",
-        )}
-      >
-        <div className="flex flex-col gap-1 px-3 py-4">
-          {DRAWER_ITEMS.map(item => {
-            const Icon = item.icon
-            const active = pathname.startsWith(item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setDrawerOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-                  active
-                    ? "bg-primary/10 text-primary"
-                    : "text-foreground hover:bg-secondary",
-                )}
-              >
-                <Icon className={cn("w-4 h-4", active ? "text-primary" : "text-muted-foreground")} />
-                {item.label}
-              </Link>
-            )
-          })}
+      {/* 드로어 시트 — drawerOpen 일 때만 렌더 */}
+      {drawerOpen && visible && (
+        <div
+          className="fixed left-0 right-0 bottom-[60px] z-50 md:hidden rounded-t-2xl bg-[oklch(0.15_0.01_155)] pb-safe"
+        >
+          <div className="flex flex-col gap-1 px-3 py-4">
+            {DRAWER_ITEMS.map(item => {
+              const Icon = item.icon
+              const active = pathname.startsWith(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setDrawerOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground hover:bg-secondary",
+                  )}
+                >
+                  <Icon className={cn("w-4 h-4", active ? "text-primary" : "text-muted-foreground")} />
+                  {item.label}
+                </Link>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 하단 탭 바 — 위로 스크롤 시 투명(콘텐츠 비침), 아래로 스크롤 시 불투명 */}
       <nav
