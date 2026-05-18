@@ -60,7 +60,7 @@ export function BottomNav() {
       <div
         className={cn(
           "fixed left-0 right-0 z-50 md:hidden transition-transform duration-300 ease-out",
-          "bg-background border-t border-border rounded-t-2xl pb-safe",
+          "bg-[oklch(0.15_0.01_155)] border-t border-border rounded-t-2xl pb-safe",
           drawerOpen ? "translate-y-0 bottom-[60px]" : "translate-y-full bottom-[60px]",
         )}
       >
@@ -95,7 +95,7 @@ export function BottomNav() {
       </div>
 
       {/* 하단 탭 바 */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background/95 backdrop-blur-sm border-t border-border">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[oklch(0.12_0.01_155)] border-t border-border">
         <div className="flex items-stretch h-[60px] pb-safe">
           {NAV_ITEMS.map(item => {
             const Icon = item.icon

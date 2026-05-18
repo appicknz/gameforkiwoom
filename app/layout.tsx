@@ -46,9 +46,9 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`font-sans antialiased ${_orbitron.variable}`}>
-        <ThemeProvider defaultTheme="light" storageKey="tasko-theme">
+    <html lang="en" suppressHydrationWarning className="bg-[oklch(0.12_0.01_155)]">
+      <body className={`font-sans antialiased bg-[oklch(0.12_0.01_155)] ${_orbitron.variable}`}>
+        <ThemeProvider defaultTheme="dark" storageKey="tasko-theme">
           {/* 모바일 하단 탭바 높이(60px)만큼 콘텐츠 밀어내기 */}
           <div className="md:pb-0 pb-[60px]">
             {children}
