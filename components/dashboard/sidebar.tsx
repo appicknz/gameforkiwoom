@@ -204,32 +204,38 @@ function TradeStatsMini() {
                 ]
 
             return (
-              <>
-                {/* 날짜 선택됐을 때 어떤 날짜 통계인지 표시 */}
-                {(isDateSelected || autoPositions.length > 0) && (
-                  <div className="flex items-center justify-between px-0.5">
-                    <span className="text-[9px] font-semibold text-primary flex items-center gap-1">
-                      <TrendingUp className="w-2.5 h-2.5" />
-                      {isDateSelected
-                        ? `자동매매 · ${parseInt(selectedDate!.slice(5,7))}월 ${parseInt(selectedDate!.slice(8,10))}일`
-                        : "자동매매 · 오늘 (실시간)"}
-                    </span>
-                    <span className="text-[9px] text-muted-foreground">
-                      <span style={{ color: UP }}>+{autoProfit}</span>
-                      {" / "}
-                      <span style={{ color: DOWN }}>{autoLoss}</span>
-                    </span>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-1">
-                  {boxes.map(({ label, value, color }) => (
-                    <div key={String(label)} className="rounded-lg border border-border bg-background/40 p-1.5">
+              <div className="rounded-xl border border-border bg-background/40 overflow-hidden">
+                {/* 헤더 행 */}
+                <div className="flex items-center justify-between px-2.5 py-2 border-b border-border">
+                  <span className="text-[9px] font-semibold text-primary flex items-center gap-1">
+                    <TrendingUp className="w-2.5 h-2.5" />
+                    {isDateSelected
+                      ? `자동매매 · ${parseInt(selectedDate!.slice(5,7))}월 ${parseInt(selectedDate!.slice(8,10))}일`
+                      : "자동매매 · 오늘 (실시간)"}
+                  </span>
+                  <span className="text-[9px] text-muted-foreground">
+                    <span style={{ color: UP }}>+{autoProfit}</span>
+                    {" / "}
+                    <span style={{ color: DOWN }}>{autoLoss}</span>
+                  </span>
+                </div>
+                {/* 2x2 스탯 그리드 — 구분선으로만 분리 */}
+                <div className="grid grid-cols-2">
+                  {boxes.map(({ label, value, color }, i) => (
+                    <div
+                      key={String(label)}
+                      className={cn(
+                        "px-2.5 py-2",
+                        i % 2 === 0 ? "border-r border-border" : "",
+                        i < 2      ? "border-b border-border" : "",
+                      )}
+                    >
                       <p className="text-[9px] text-muted-foreground mb-0.5">{label}</p>
                       <p className="text-[10px] font-bold tabular-nums" style={{ color: color ?? "var(--foreground)" }}>{value}</p>
                     </div>
                   ))}
                 </div>
-              </>
+              </div>
             )
           })()}
 
