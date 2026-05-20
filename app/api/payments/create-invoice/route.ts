@@ -37,11 +37,11 @@ export async function POST(req: NextRequest) {
       price_amount:    amountUsd,
       price_currency:  "usd",
       pay_currency:    "btc",       // 기본값, 결제 페이지에서 변경 가능
-      ipn_callback_url: `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://dissig.com"}/api/payments/webhook`,
+      ipn_callback_url: "https://dissig.com/api/payments/webhook",
       order_id:        `topup_${user.id}_${Date.now()}`,
       order_description: `Dissig 잔고 충전 $${amountUsd}`,
-      success_url:     `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://dissig.com"}/?payment=success`,
-      cancel_url:      `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://dissig.com"}/?payment=cancel`,
+      success_url:     "https://dissig.com/?payment=success",
+      cancel_url:      "https://dissig.com/?payment=cancel",
       is_fee_paid_by_user: false,
     }),
   })
