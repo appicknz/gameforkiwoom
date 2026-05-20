@@ -12,9 +12,6 @@ interface TopupModalProps {
 }
 
 export function TopupModal({ open, onClose }: TopupModalProps) {
-  const authToken = typeof window !== "undefined"
-    ? (localStorage.getItem("app_token") ?? "")
-    : ""
   const [selected, setSelected]   = useState<number | "custom">(100)
   const [customAmt, setCustomAmt] = useState("")
   const [loading, setLoading]     = useState(false)
@@ -31,6 +28,9 @@ export function TopupModal({ open, onClose }: TopupModalProps) {
     if (amountUsd < 1) { setError("최소 $1 이상 입력해주세요."); return }
     setError("")
     setLoading(true)
+    // 호출 시점에 토큰 읽기 (컴포넌트 마운트 시점보다 확실히 로그인된 이후)
+    const authToken = localStorage.getItem("app_token") ?? ""
+    if (!authToken) { setError("로그인이 필요합니다."); setLoading(false); return }
     try {
       const res = await fetch("/api/payments/create-invoice", {
         method: "POST",
