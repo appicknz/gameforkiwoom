@@ -34,9 +34,9 @@ export async function POST(req: NextRequest) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      price_amount:    amountUsd,
-      price_currency:  "usd",
-      pay_currency:    "btc",       // 기본값, 결제 페이지에서 변경 가능
+      price_amount:     amountUsd,
+      price_currency:   "usd",
+      // pay_currency 생략 → 결제 페이지에서 카드 포함 고객이 직접 선택
       ipn_callback_url: "https://dissig.com/api/payments/webhook",
       order_id:        `topup_${user.id}_${Date.now()}`,
       order_description: `Dissig 잔고 충전 $${amountUsd}`,
