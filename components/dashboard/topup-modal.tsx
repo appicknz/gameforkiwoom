@@ -29,11 +29,13 @@ export function TopupModal({ open, onClose }: TopupModalProps) {
     setError("")
     setLoading(true)
     try {
-      // 쿠키는 브라우저가 자동으로 전송 — localStorage 토큰 불필요
+      const token = localStorage.getItem("app_token") ?? ""
       const res = await fetch("/api/payments/create-invoice", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ amount_usd: amountUsd }),
       })
       const data = await res.json()
