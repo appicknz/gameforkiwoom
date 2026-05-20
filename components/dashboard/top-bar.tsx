@@ -752,7 +752,6 @@ export function TopBar() {
     <TopupModal
       open={topupOpen}
       onClose={() => setTopupOpen(false)}
-      authToken={typeof window !== "undefined" ? (localStorage.getItem("app_token") ?? "") : ""}
     />
     </>
   )

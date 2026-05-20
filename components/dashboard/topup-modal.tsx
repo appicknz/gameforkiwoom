@@ -9,10 +9,12 @@ const PRESETS = [30, 60, 100, 250, 500]
 interface TopupModalProps {
   open: boolean
   onClose: () => void
-  authToken: string
 }
 
-export function TopupModal({ open, onClose, authToken }: TopupModalProps) {
+export function TopupModal({ open, onClose }: TopupModalProps) {
+  const authToken = typeof window !== "undefined"
+    ? (localStorage.getItem("app_token") ?? "")
+    : ""
   const [selected, setSelected]   = useState<number | "custom">(100)
   const [customAmt, setCustomAmt] = useState("")
   const [loading, setLoading]     = useState(false)

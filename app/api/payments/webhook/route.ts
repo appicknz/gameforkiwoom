@@ -66,29 +66,30 @@ export async function POST(req: NextRequest) {
   }
   const userId = match[1]
 
-  // 중복 처리 방지: payment_id로 이미 처리된 건인지 확인
   const paymentId = String(data.payment_id ?? data.order_id)
+
+  // 중복 처리 방지: webhook_request_logs에서 동일 payment_id 처리 여부 확인
   const { data: existing } = await adminSupabase
-    .from("balance_transactions")
+    .from("webhook_request_logs")
     .select("id")
-    .eq("description", `nowpayments:${paymentId}`)
+    .eq("status", "nowpayments_processed")
+    .contains("body_raw", { payment_id: paymentId })
     .maybeSingle()
 
   if (existing) {
-    console.log("[v0] Already processed:", paymentId)
     return NextResponse.json({ ok: true, duplicate: true })
   }
 
   // 결제 금액(USD) → KRW 환산
-  const amountUsd  = Number(data.price_amount ?? data.actually_paid ?? 0)
-  const usdToKrw   = await getUsdToKrw()
-  const amountKrw  = Math.floor(amountUsd * usdToKrw)
+  const amountUsd = Number(data.price_amount ?? 0)
+  const usdToKrw  = await getUsdToKrw()
+  const amountKrw = Math.floor(amountUsd * usdToKrw)
 
   if (amountKrw <= 0) {
     return NextResponse.json({ error: "invalid amount" }, { status: 400 })
   }
 
-  // 잔고 충전 (add_balance_for_payout RPC 재사용)
+  // 잔고 충전: add_balance_for_payout(p_user_id uuid, p_amount bigint)
   const { error: rpcErr } = await adminSupabase.rpc("add_balance_for_payout", {
     p_user_id: userId,
     p_amount:  amountKrw,
@@ -96,25 +97,28 @@ export async function POST(req: NextRequest) {
 
   if (rpcErr) {
     console.log("[v0] add_balance_for_payout error:", rpcErr.message)
+    // 실패 이력 기록
+    await adminSupabase.from("webhook_request_logs").insert({
+      status:   "nowpayments_error",
+      method:   "POST",
+      body_raw: data,
+      error_msg: rpcErr.message,
+    }).catch(() => {})
     return NextResponse.json({ error: rpcErr.message }, { status: 500 })
   }
 
-  // 트랜잭션 이력 기록 (중복 방지용)
-  await adminSupabase.from("balance_transactions").insert({
-    user_id:     userId,
-    amount:      amountKrw,
-    type:        "deposit",
-    description: `nowpayments:${paymentId}`,
-  }).catch(() => {}) // 이력 기록 실패해도 충전은 완료 처리
+  // 성공 이력 기록 (중복 방지 겸용)
+  await adminSupabase.from("webhook_request_logs").insert({
+    status:   "nowpayments_processed",
+    method:   "POST",
+    body_raw: data,
+  }).catch(() => {})
 
-  // Redis 캐시 갱신 (top-bar 잔고 실시간 반영)
+  // Redis 캐시 삭제 → top-bar 잔고 즉시 반영
   try {
     const { Redis } = await import("@upstash/redis")
     const redis = Redis.fromEnv()
-    await Promise.all([
-      redis.del(`balance:${userId}`),
-      redis.incr(`balance_version:${userId}`),
-    ])
+    await redis.del(`balance:${userId}`)
   } catch (e) {
     console.log("[v0] Redis cache clear failed:", e)
   }
