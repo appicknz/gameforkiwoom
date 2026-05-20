@@ -1,17 +1,35 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { cookies } from "next/headers"
 
 const adminSupabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 )
 
-export async function POST(req: NextRequest) {
-  // 로그인 확인
-  const auth = req.headers.get("authorization") ?? ""
-  const token = auth.replace("Bearer ", "").trim()
-  if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+function decodeJwtSub(token: string): string | null {
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+    )
+    return payload.sub ?? null
+  } catch { return null }
+}
 
+export async function POST(req: NextRequest) {
+  // 쿠키 또는 Authorization 헤더 중 하나로 인증 (다른 API 라우트와 동일한 패턴)
+  const cookieStore = await cookies()
+  const token =
+    req.headers.get("authorization")?.replace("Bearer ", "").trim() ??
+    cookieStore.get("app_token")?.value ??
+    ""
+
+  const userId = decodeJwtSub(token)
+  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+
+  // JWT 유효성 서버에서 검증
   const { data: { user }, error: authErr } = await adminSupabase.auth.getUser(token)
   if (authErr || !user) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
 
