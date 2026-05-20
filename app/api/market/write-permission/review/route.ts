@@ -51,8 +51,19 @@ export async function PATCH(req: Request) {
   if (me?.role !== "master") return NextResponse.json({ error: "권한 없음" }, { status: 403 })
 
   const { requestId, action, allowPointCategory } = await req.json()
-  if (!requestId || !["approve", "reject"].includes(action)) {
+  if (!requestId || !["approve", "reject", "update_point"].includes(action)) {
     return NextResponse.json({ error: "잘못된 요청" }, { status: 400 })
+  }
+
+  // 이미 승인된 항목의 포인트 카테고리 권한만 업데이트
+  if (action === "update_point") {
+    const { error } = await adminSupabase
+      .from("write_permission_requests" as never)
+      .update({ allow_point_category: !!allowPointCategory })
+      .eq("id", requestId)
+      .eq("status", "approved")
+    if (error) return NextResponse.json({ error: "업데이트 실패" }, { status: 500 })
+    return NextResponse.json({ ok: true, action: "update_point" })
   }
 
   const newStatus = action === "approve" ? "approved" : "rejected"

@@ -1305,7 +1305,7 @@ export default function PanelPage() {
                     <div className="relative">
                       <Input
                         type={baNewBranchShowPw ? "text" : "password"}
-                        placeholder="지점 로그인 비밀번호"
+                        placeholder="���점 로그인 비밀번호"
                         value={baNewBranchPw}
                         onChange={e => setBaNewBranchPw(e.target.value)}
                         className="h-9 text-sm pr-9"
@@ -4714,6 +4714,23 @@ function WriteRequestsPanel({ token }: { token: string }) {
 
   useEffect(() => { load(filter) }, [filter, load])
 
+  const handleUpdatePoint = async (requestId: string) => {
+    setProcessing(requestId)
+    setMsg(null)
+    try {
+      const appToken = typeof window !== "undefined" ? localStorage.getItem("app_token") : null
+      const res = await fetch("/api/market/write-permission/review", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(appToken ? { Authorization: `Bearer ${appToken}` } : {}) },
+        body: JSON.stringify({ requestId, action: "update_point", allowPointCategory: pointChecks[requestId] ?? false }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setMsg({ id: requestId, ok: false, text: data.error ?? "저장 실패" }); return }
+      setMsg({ id: requestId, ok: true, text: `포인트 카테고리 권한 ${pointChecks[requestId] ? "허용" : "해제"} 저장됨` })
+    } catch { setMsg({ id: requestId, ok: false, text: "네트워크 오류" }) }
+    finally { setProcessing(null) }
+  }
+
   const handleAction = async (requestId: string, action: "approve" | "reject") => {
     setProcessing(requestId)
     setMsg(null)
@@ -4807,17 +4824,38 @@ function WriteRequestsPanel({ token }: { token: string }) {
                 )}
               </div>
 
-              {/* 승인/거절 버튼 (pending) + 역할 재적용 (approved이지만 role이 seller 아닌 경우) */}
-              {r.status === "approved" && r.profiles?.role !== "seller" && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    size="sm"
-                    onClick={() => handleAction(r.id, "approve")}
-                    disabled={processing === r.id}
-                    className="h-8 px-3 text-xs bg-secondary text-foreground border border-border hover:border-primary/40"
-                  >
-                    {processing === r.id ? "처리중..." : "역할 적용"}
-                  </Button>
+              {/* 승인됨: 포인트 카테고리 체크박스 + 저장 / 역할 재적용 */}
+              {r.status === "approved" && (
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={pointChecks[r.id] ?? false}
+                      onChange={e => setPointChecks(prev => ({ ...prev, [r.id]: e.target.checked }))}
+                      className="w-3.5 h-3.5 accent-primary rounded"
+                    />
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">포인트 카테고리 허용</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleUpdatePoint(r.id)}
+                      disabled={processing === r.id}
+                      className="h-8 px-3 text-xs bg-primary text-black hover:bg-primary/90"
+                    >
+                      {processing === r.id ? "저장중..." : "저장"}
+                    </Button>
+                    {r.profiles?.role !== "seller" && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleAction(r.id, "approve")}
+                        disabled={processing === r.id}
+                        className="h-8 px-3 text-xs bg-secondary text-foreground border border-border hover:border-primary/40"
+                      >
+                        역할 적용
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
               {r.status === "pending" && (
