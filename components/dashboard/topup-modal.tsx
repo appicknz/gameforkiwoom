@@ -68,7 +68,7 @@ export function TopupModal({ open, onClose }: TopupModalProps) {
           <div className="flex items-center justify-between px-5 pt-5 pb-1">
             <div className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold text-foreground">잔고 충전</span>
+              <span className="text-sm font-semibold text-foreground">포인트 충전</span>
             </div>
             <button onClick={onClose} className="p-1 rounded-full hover:bg-secondary transition-colors">
               <X className="w-4 h-4 text-muted-foreground" />
@@ -134,8 +134,7 @@ export function TopupModal({ open, onClose }: TopupModalProps) {
           {/* 안내 문구 */}
           <div className="mx-5 mb-4 px-3 py-2.5 rounded-xl bg-primary/5 border border-primary/20">
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              NOWPayments를 통해 카드 또는 암호화폐로 결제할 수 있습니다.
-              결제 완료 후 잔고에 자동으로 반영됩니다.
+              포인트 전용 제품을 구매하기 위한 충전입니다. 결제완료 후 자동으로 반영됩니다.
             </p>
           </div>
 
