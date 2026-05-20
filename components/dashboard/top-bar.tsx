@@ -16,6 +16,7 @@ import { useGatewayBalance } from "@/hooks/use-gateway"
 import LangSwitcher from "@/components/lang-switcher"
 import { useTranslation } from "@/lib/i18n"
 import { useRouter } from "next/navigation"
+import { TopupModal } from "@/components/dashboard/topup-modal"
 
 const STORAGE_KEY = "app_token"
 const PROFILE_KEY = "app_profile"
@@ -38,7 +39,8 @@ export function TopBar() {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [balance, setBalance] = useState(0)
+  const [balance, setBalance]     = useState(0)
+  const [topupOpen, setTopupOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -366,12 +368,15 @@ export function TopBar() {
         {/* 중앙: 잔고 / 비로그인 안내 */}
         <div className="flex-1 flex justify-center">
           {isLoggedIn ? (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border">
+            <button
+              onClick={() => setTopupOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border hover:border-primary/60 hover:bg-primary/5 transition-all"
+            >
               <Wallet className="w-3.5 h-3.5 text-primary shrink-0" />
               <span className="text-sm font-semibold text-primary tabular-nums">
                 ₩{balance.toLocaleString()}
               </span>
-            </div>
+            </button>
           ) : (
             <span className="text-[10px] text-muted-foreground/50 select-none">
               환전 또는 출금 기능은 제공되지 않습니다.
@@ -742,6 +747,13 @@ export function TopBar() {
         </div>
       </div>
     )}
+
+    {/* 충전 모달 */}
+    <TopupModal
+      open={topupOpen}
+      onClose={() => setTopupOpen(false)}
+      authToken={typeof window !== "undefined" ? (localStorage.getItem("app_token") ?? "") : ""}
+    />
     </>
   )
 }
