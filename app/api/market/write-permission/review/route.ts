@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   let query = adminSupabase
     .from("write_permission_requests" as never)
     .select(`
-      id, status, reason, created_at, reviewed_at,
+      id, status, reason, created_at, reviewed_at, allow_point_category,
       profiles!write_permission_requests_user_id_fkey(id, username, role)
     `)
     .order("created_at", { ascending: true })
@@ -50,20 +50,21 @@ export async function PATCH(req: Request) {
 
   if (me?.role !== "master") return NextResponse.json({ error: "권한 없음" }, { status: 403 })
 
-  const { requestId, action } = await req.json()
+  const { requestId, action, allowPointCategory } = await req.json()
   if (!requestId || !["approve", "reject"].includes(action)) {
     return NextResponse.json({ error: "잘못된 요청" }, { status: 400 })
   }
 
   const newStatus = action === "approve" ? "approved" : "rejected"
 
-  // 신청 상태 업데이트
+  // 신청 상태 업데이트 (승인 시 allow_point_category 함께 저장)
   const { data: updated, error } = await adminSupabase
     .from("write_permission_requests" as never)
     .update({
-      status:      newStatus,
-      reviewed_by: auth.userId,
-      reviewed_at: new Date().toISOString(),
+      status:               newStatus,
+      reviewed_by:          auth.userId,
+      reviewed_at:          new Date().toISOString(),
+      ...(action === "approve" ? { allow_point_category: !!allowPointCategory } : {}),
     })
     .eq("id", requestId)
     .select("user_id")

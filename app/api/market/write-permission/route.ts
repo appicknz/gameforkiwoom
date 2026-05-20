@@ -53,7 +53,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await adminSupabase
       .from("write_permission_requests" as never)
-      .select("id, status, reason, created_at, reviewed_at")
+      .select("id, status, reason, created_at, reviewed_at, allow_point_category")
       .eq("user_id", auth.userId)
       .order("created_at", { ascending: false })
       .limit(1)

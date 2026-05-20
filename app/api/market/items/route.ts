@@ -91,14 +91,19 @@ export async function POST(req: Request) {
 
   // role이 없더라도 write_permission_requests 테이블에 approved 상태면 허용
   let hasApprovedPermission = false
+  let hasPointCategoryPermission = false
   if (!hasRolePermission) {
     const { data: perm } = await adminSupabase
       .from("write_permission_requests" as never)
-      .select("status")
+      .select("status, allow_point_category")
       .eq("user_id", auth.userId)
       .eq("status", "approved")
-      .maybeSingle() as { data: { status: string } | null; error: unknown }
-    hasApprovedPermission = !!perm
+      .maybeSingle() as { data: { status: string; allow_point_category: boolean } | null; error: unknown }
+    hasApprovedPermission       = !!perm
+    hasPointCategoryPermission  = !!perm?.allow_point_category
+  } else {
+    // master/admin 등 role 권한자는 포인트 전용 카테고리도 허용
+    hasPointCategoryPermission = true
   }
 
   if (!hasRolePermission && !hasApprovedPermission) {
@@ -107,6 +112,18 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { title, description, image_url, link_url, price_krw, category_id } = body
+
+  // 포인트 전용 카테고리에 글쓰기 시 권한 검사
+  if (category_id) {
+    const { data: cat } = await adminSupabase
+      .from("market_categories")
+      .select("balance_only")
+      .eq("id", category_id)
+      .maybeSingle()
+    if (cat?.balance_only && !hasPointCategoryPermission) {
+      return NextResponse.json({ error: "포인트 전용 카테고리 글쓰기 권한이 없습니다." }, { status: 403 })
+    }
+  }
   const game_bonus_rate = Math.min(100, Math.max(0, parseInt(body.game_bonus_rate ?? "0", 10) || 0))
 
   // master가 아니면 publisher_id는 본인으로 강제

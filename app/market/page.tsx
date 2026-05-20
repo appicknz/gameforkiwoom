@@ -8,7 +8,7 @@ import MarketAdminPanel, { type EditItem } from "@/components/market/market-admi
 import DepositDialog from "@/components/deposit-dialog"
 import { useTranslation } from "@/lib/i18n"
 
-interface Category { id: string; name: string; icon: string }
+interface Category { id: string; name: string; icon: string; balance_only?: boolean }
 interface Item {
   id: string; title: string; description: string
   image_url: string | null; price_krw: number
@@ -59,7 +59,8 @@ export default function MarketPage() {
   const [userBalance, setUserBalance] = useState<number | null>(null)
   const [balanceMemo, setBalanceMemo] = useState("")
   // 글쓰기 권한 신청 상태: null=미조회, 'none'=신청없음, 'pending'=대기중, 'approved'=승인됨, 'rejected'=거절됨
-  const [writePermStatus, setWritePermStatus] = useState<string | null>(null)
+  const [writePermStatus, setWritePermStatus]         = useState<string | null>(null)
+  const [allowPointCategory, setAllowPointCategory]   = useState(false)
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [showDeposit, setShowDeposit]         = useState(false)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -77,7 +78,10 @@ export default function MarketPage() {
     if (!token) return
     fetch("/api/market/write-permission", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
-      .then(d => setWritePermStatus(d?.request?.status ?? "none"))
+      .then(d => {
+        setWritePermStatus(d?.request?.status ?? "none")
+        setAllowPointCategory(d?.request?.allow_point_category ?? false)
+      })
       .catch(() => setWritePermStatus("none"))
   }, [])
 
@@ -484,7 +488,11 @@ export default function MarketPage() {
           // 권한 있음 → 등록 폼
           return (
             <MarketAdminPanel
-              categories={categories.filter(c => c.name !== "전체")}
+              categories={categories.filter(c =>
+                c.name !== "전체" &&
+                // 포인트 전용 카테고리는 role 권한자 또는 allow_point_category 승인자만 표시
+                (!c.balance_only || role === "master" || (WRITE_ROLES.includes(role ?? "") && role !== "seller") || allowPointCategory)
+              )}
               editItem={editItem}
               isMaster={role === "master"}
               selfPublisherId={userId}

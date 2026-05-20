@@ -1171,7 +1171,7 @@ export default function PanelPage() {
   // admin(지점)은 로그인 인증 자체가 본인 확인 — 비밀번호 게이트 불필요
   if (!adminPw && myRole !== "admin") {
     const isBranchAdmin = myRole === "branch_admin"
-    const pwLabel = isBranchAdmin ? "본인 비밀번호" : "마스터 비밀번��"
+    const pwLabel = isBranchAdmin ? "본인 비밀번호" : "마스터 비밀번���"
     const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력���세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
 
     return (
@@ -2890,7 +2890,7 @@ export default function PanelPage() {
                           )
                         })}
                       </div>
-                      {/* 충전 요청 페이지네이션 */}
+                      {/* ��전 요청 페이지네이션 */}
                       {reqTotalPages > 1 && (
                         <div className="px-5 py-2.5 border-t border-border flex items-center justify-between shrink-0">
                           <button
@@ -4683,15 +4683,18 @@ interface WriteRequest {
   reason: string | null
   created_at: string
   reviewed_at: string | null
+  allow_point_category: boolean
   profiles: { id: string; username: string; role: string } | null
 }
 
 function WriteRequestsPanel({ token }: { token: string }) {
-  const [requests, setRequests]   = useState<WriteRequest[]>([])
-  const [filter, setFilter]       = useState<"pending" | "approved" | "rejected" | "all">("pending")
-  const [loading, setLoading]     = useState(false)
-  const [processing, setProcessing] = useState<string | null>(null)
-  const [msg, setMsg]             = useState<{ id: string; ok: boolean; text: string } | null>(null)
+  const [requests, setRequests]       = useState<WriteRequest[]>([])
+  const [filter, setFilter]           = useState<"pending" | "approved" | "rejected" | "all">("pending")
+  const [loading, setLoading]         = useState(false)
+  const [processing, setProcessing]   = useState<string | null>(null)
+  const [msg, setMsg]                 = useState<{ id: string; ok: boolean; text: string } | null>(null)
+  // 각 신청별 포인트 전용 카테고리 허용 여부 체크 상태
+  const [pointChecks, setPointChecks] = useState<Record<string, boolean>>({})
 
   const load = useCallback(async (f: typeof filter) => {
     setLoading(true)
@@ -4701,7 +4704,10 @@ function WriteRequestsPanel({ token }: { token: string }) {
         headers: appToken ? { Authorization: `Bearer ${appToken}` } : {},
       })
       const data = await res.json()
-      setRequests(data.requests ?? [])
+      const reqs: WriteRequest[] = data.requests ?? []
+      setRequests(reqs)
+      // 기존 approved 항목의 allow_point_category 값으로 체크 상태 초기화
+      setPointChecks(Object.fromEntries(reqs.map(r => [r.id, r.allow_point_category ?? false])))
     } catch {}
     setLoading(false)
   }, [])
@@ -4716,11 +4722,11 @@ function WriteRequestsPanel({ token }: { token: string }) {
       const res = await fetch("/api/market/write-permission/review", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...(appToken ? { Authorization: `Bearer ${appToken}` } : {}) },
-        body: JSON.stringify({ requestId, action }),
+        body: JSON.stringify({ requestId, action, allowPointCategory: pointChecks[requestId] ?? false }),
       })
       const data = await res.json()
       if (!res.ok) { setMsg({ id: requestId, ok: false, text: data.error ?? "처리 실패" }); return }
-      setMsg({ id: requestId, ok: true, text: action === "approve" ? "승인 완료 (셀러 역할 적용됨)" : "거절 완료" })
+      setMsg({ id: requestId, ok: true, text: action === "approve" ? `승인 완료${pointChecks[requestId] ? " (포인트 카테고리 포함)" : ""}` : "거절 완료" })
       // 목록 새로고침 (역할 변경 반영)
       await load(filter)
     } catch {
@@ -4815,24 +4821,36 @@ function WriteRequestsPanel({ token }: { token: string }) {
                 </div>
               )}
               {r.status === "pending" && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    size="sm"
-                    onClick={() => handleAction(r.id, "approve")}
-                    disabled={processing === r.id}
-                    className="h-8 px-3 text-xs bg-primary text-black hover:bg-primary/90"
-                  >
-                    {processing === r.id ? "처리중..." : "승인"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAction(r.id, "reject")}
-                    disabled={processing === r.id}
-                    className="h-8 px-3 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
-                  >
-                    거절
-                  </Button>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  {/* 포인트 전용 카테고리 허용 체크박스 */}
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={pointChecks[r.id] ?? false}
+                      onChange={e => setPointChecks(prev => ({ ...prev, [r.id]: e.target.checked }))}
+                      className="w-3.5 h-3.5 accent-primary rounded"
+                    />
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">포인트 전용 카테고리 허용</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleAction(r.id, "approve")}
+                      disabled={processing === r.id}
+                      className="h-8 px-3 text-xs bg-primary text-black hover:bg-primary/90"
+                    >
+                      {processing === r.id ? "처리중..." : "승인"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleAction(r.id, "reject")}
+                      disabled={processing === r.id}
+                      className="h-8 px-3 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                    >
+                      거절
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
