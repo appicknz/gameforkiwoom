@@ -159,72 +159,66 @@ function TradeStatsMini() {
 
   return (
     <div className="space-y-3">
-      {/* 헤더 — /trade 이동 버튼 */}
-      <Link href="/trade">
-        <div className="w-full rounded-2xl border border-border p-3 flex items-center gap-2.5 hover:bg-secondary/60 hover:border-primary/40 transition-all duration-200 cursor-pointer">
-          <div className="w-7 h-7 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center shrink-0" style={{ boxShadow: "0 0 8px rgba(var(--primary-rgb, 74,222,128), 0.3)" }}>
-            <TrendingUp className="w-3.5 h-3.5 text-primary" />
-          </div>
-          <div className="flex flex-col gap-0.5 items-start">
-            <p className="text-[11px] font-bold text-foreground leading-tight">오늘의 비트</p>
-            <p className="text-[10px] text-muted-foreground leading-tight">자동매매 시그널</p>
-          </div>
-        </div>
-      </Link>
+      {/* 오늘의 비트 — 헤더 + 스탯 통합 카드 */}
+      {(() => {
+        const isDateSelected = !!selectedDate
+        const autoCount  = autoCalc.length
+        const autoPnl$   = autoTotalPnl
+        const autoRoi    = autoTotalRoi
+        const autoWinPct = autoCount > 0 ? (autoProfit / autoCount) * 100 : 0
 
-      <div className="space-y-3">
-          {/* 요약 4칸 — 자동매매 기준 (날짜 선택 시 해당 날짜, 미선택 시 오늘 실시간) */}
-          {(() => {
-            const showingDate = selectedDate ?? todayKST
-            const isDateSelected = !!selectedDate
-            // 자동매매 기준 값
-            const autoCount   = autoCalc.length
-            const autoPnl$    = autoTotalPnl
-            const autoRoi     = autoTotalRoi
-            const autoWinPct  = autoCount > 0 ? (autoProfit / autoCount) * 100 : 0
+        const boxes = [
+          { label: "총 포지션",  value: `${autoCount}건`,                                              color: undefined },
+          { label: "총 손익($)", value: `${autoPnl$ >= 0 ? "+" : ""}$${autoPnl$.toFixed(2)}`,         color: autoPnl$ >= 0 ? UP : DOWN },
+          { label: "평균 ROI",   value: `${autoRoi >= 0 ? "+" : ""}${autoRoi.toFixed(2)}%`,            color: autoRoi >= 0 ? UP : DOWN },
+          { label: "수익 비율",  value: `${autoWinPct.toFixed(0)}%`,                                   color: autoWinPct >= 50 ? UP : DOWN },
+        ]
 
-            const boxes = [
-              { label: "총 포지션",  value: `${autoCount}건`, color: undefined },
-              { label: "총 손익($)", value: `${autoPnl$ >= 0 ? "+" : ""}$${autoPnl$.toFixed(2)}`, color: autoPnl$ >= 0 ? UP : DOWN },
-              { label: "평균 ROI",   value: `${autoRoi >= 0 ? "+" : ""}${autoRoi.toFixed(2)}%`, color: autoRoi >= 0 ? UP : DOWN },
-              { label: "수익 비율",  value: `${autoWinPct.toFixed(0)}%`, color: autoWinPct >= 50 ? UP : DOWN },
-            ]
-
-            return (
-              <div className="rounded-xl border border-border bg-background/40 overflow-hidden">
-                {/* 헤더 행 */}
-                <div className="flex items-center justify-between px-2.5 py-2 border-b border-border">
-                  <span className="text-[9px] font-semibold text-primary flex items-center gap-1">
-                    <TrendingUp className="w-2.5 h-2.5" />
-                    {isDateSelected
-                      ? `자동매매 · ${parseInt(selectedDate!.slice(5,7))}월 ${parseInt(selectedDate!.slice(8,10))}일`
-                      : "자동매매 · 오늘 (실시간)"}
-                  </span>
-                  <span className="text-[9px] text-muted-foreground">
-                    <span style={{ color: UP }}>+{autoProfit}</span>
-                    {" / "}
-                    <span style={{ color: DOWN }}>{autoLoss}</span>
-                  </span>
+        return (
+          <Link href="/trade">
+            <div className="w-full rounded-2xl border border-border bg-background/40 overflow-hidden hover:border-primary/40 transition-all duration-200 cursor-pointer">
+              {/* 상단 헤더 */}
+              <div className="flex items-center justify-between px-3 pt-3 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-base leading-none select-none">📈</span>
+                  <div>
+                    <p className="text-[11px] font-bold text-foreground leading-tight tracking-tight">오늘의 비트</p>
+                    <p className="text-[9px] text-muted-foreground leading-tight mt-0.5">
+                      {isDateSelected
+                        ? `자동매매 시그널 · ${parseInt(selectedDate!.slice(5,7))}월 ${parseInt(selectedDate!.slice(8,10))}일`
+                        : "자동매매 시그널 · 오늘 (실시간)"}
+                    </p>
+                  </div>
                 </div>
-                {/* 2x2 스탯 그리드 — 구분선으로만 분리 */}
-                <div className="grid grid-cols-2">
-                  {boxes.map(({ label, value, color }, i) => (
-                    <div
-                      key={String(label)}
-                      className={cn(
-                        "px-2.5 py-2",
-                        i % 2 === 0 ? "border-r border-border" : "",
-                        i < 2      ? "border-b border-border" : "",
-                      )}
-                    >
-                      <p className="text-[9px] text-muted-foreground mb-0.5">{label}</p>
-                      <p className="text-[10px] font-bold tabular-nums" style={{ color: color ?? "var(--foreground)" }}>{value}</p>
-                    </div>
-                  ))}
+                {/* 수익 / 손실 카운트 */}
+                <div className="flex items-center gap-1 bg-secondary/60 rounded-lg px-2 py-1">
+                  <span className="text-[9px] font-bold tabular-nums" style={{ color: UP }}>+{autoProfit}</span>
+                  <span className="text-[8px] text-muted-foreground">/</span>
+                  <span className="text-[9px] font-bold tabular-nums" style={{ color: DOWN }}>{autoLoss}</span>
                 </div>
               </div>
-            )
-          })()}
+              {/* 구분선 */}
+              <div className="mx-3 border-t border-border/60" />
+              {/* 2×2 스탯 그리드 */}
+              <div className="grid grid-cols-2">
+                {boxes.map(({ label, value, color }, i) => (
+                  <div
+                    key={String(label)}
+                    className={cn(
+                      "px-3 py-2.5",
+                      i % 2 === 0 ? "border-r border-border/60" : "",
+                      i < 2       ? "border-b border-border/60" : "",
+                    )}
+                  >
+                    <p className="text-[8px] text-muted-foreground mb-0.5 uppercase tracking-wide">{label}</p>
+                    <p className="text-[10px] font-bold tabular-nums" style={{ color: color ?? "var(--foreground)" }}>{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Link>
+        )
+      })()}
 
           {/* 캘린더 */}
           <div className="rounded-lg border border-border bg-background/40 p-2 space-y-1.5">
@@ -343,7 +337,7 @@ function TradeStatsMini() {
     </div>
   )
 }
-// ─── 토큰 입금 QR 위젯 ───────────────────────────────────────────
+// ─── 토큰 입금 QR 위젯 ────────────────────────────���──────────────
 function DepositQRWidget({ isLoggedIn: _unused }: { isLoggedIn: boolean }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [open, setOpen] = useState(true)
