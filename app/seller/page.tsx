@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ShoppingBag, TrendingUp, Eye, Package, Plus, BarChart2, RefreshCw, ToggleLeft, ToggleRight, Pencil, Trash2, AlertTriangle, X } from "lucide-react"
+import { ShoppingBag, TrendingUp, Eye, Package, Plus, BarChart2, RefreshCw, ToggleLeft, ToggleRight, Pencil, Trash2, AlertTriangle, X, Link2, Check } from "lucide-react"
 import { blobImageUrl } from "@/lib/blob-image"
 import MarketAdminPanel from "@/components/market/market-admin-panel"
 import { useTranslation } from "@/lib/i18n"
@@ -73,6 +73,7 @@ function SellerPageInner() {
   const [deleteId,  setDeleteId]  = useState<string | null>(null)
   const [toggling,  setToggling]  = useState<string | null>(null)
   const [actionMsg, setActionMsg] = useState<string | null>(null)
+  const [copiedId,  setCopiedId]  = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const token = getToken()
@@ -301,6 +302,22 @@ function SellerPageInner() {
 
                 {/* 액션 */}
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {/* 링크 복사 */}
+                  <button
+                    onClick={() => {
+                      const url = `${window.location.origin}/market/${item.id}`
+                      navigator.clipboard.writeText(url).then(() => {
+                        setCopiedId(item.id)
+                        setTimeout(() => setCopiedId(null), 2000)
+                      })
+                    }}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                    title="상품 링크 복사"
+                  >
+                    {copiedId === item.id
+                      ? <Check className="w-3.5 h-3.5 text-primary" />
+                      : <Link2 className="w-3.5 h-3.5" />}
+                  </button>
                   <button
                     onClick={() => handleToggle(item)}
                     disabled={toggling === item.id}
