@@ -180,7 +180,12 @@ function TradeStatsMini() {
               {/* 상단 헤더 */}
               <div className="flex items-center justify-between px-3 pt-3 pb-2.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-base leading-none select-none">📈</span>
+                  <div
+                    className="w-6 h-6 rounded-lg border border-primary/40 bg-primary/10 flex items-center justify-center shrink-0"
+                    style={{ boxShadow: "0 0 8px rgba(74,222,128,0.25)" }}
+                  >
+                    <TrendingUp className="w-3 h-3 text-primary" />
+                  </div>
                   <div>
                     <p className="text-[11px] font-bold text-foreground leading-tight tracking-tight">오늘의 비트</p>
                     <p className="text-[9px] text-muted-foreground leading-tight mt-0.5">
