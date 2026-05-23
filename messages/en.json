@@ -74,7 +74,7 @@
   },
   "deposit": {
     "title": "Token Deposit",
-    "desc": "Send {token} tokens to the address below and your balance will update automatically.",
+    "desc": "Send tokens to the address below and they will automatically be credited to your point balance. This token is for events only and supports deposits only — withdrawals are not supported, so please take note. This token has no value beyond its utility and is not guaranteed.",
     "myAddress": "My Deposit Address",
     "loginToView": "Log in to view the deposit address",
     "loginRequired": "Login required",
