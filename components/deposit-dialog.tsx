@@ -122,8 +122,8 @@ export default function DepositDialog({ open, onClose }: Props) {
 
         {/* 본문 */}
         <div className="overflow-y-auto px-5 py-4 space-y-4 flex-1">
-          <p className="text-xs text-muted-foreground">
-            아래 주소로 {tokenSymbol} 토큰을 전송하면 자동으로 잔고에 반영됩니다.
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            아래 주소로 토큰을 전송하면 자동으로 포인트 잔고에 반영됩니다. 이 토큰은 이벤트 전용으로 입금만 지원되며 출금은 지원되지 않으니 각별히 유의하여 주십시오. 본 토큰은 유틸리티 이외에 가치가 없으며 보증되지 않습니다.
           </p>
 
           {/* 지갑 주소 카드 */}
