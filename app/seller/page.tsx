@@ -304,12 +304,23 @@ function SellerPageInner() {
                 <div className="flex items-center gap-1.5 shrink-0">
                   {/* 링크 복사 */}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const url = `${window.location.origin}/market/${item.id}`
-                      navigator.clipboard.writeText(url).then(() => {
-                        setCopiedId(item.id)
-                        setTimeout(() => setCopiedId(null), 2000)
-                      })
+                      try {
+                        await navigator.clipboard.writeText(url)
+                      } catch {
+                        // fallback: textarea 방식
+                        const el = document.createElement("textarea")
+                        el.value = url
+                        el.style.position = "fixed"
+                        el.style.opacity = "0"
+                        document.body.appendChild(el)
+                        el.select()
+                        document.execCommand("copy")
+                        document.body.removeChild(el)
+                      }
+                      setCopiedId(item.id)
+                      setTimeout(() => setCopiedId(null), 2000)
                     }}
                     className="w-7 h-7 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
                     title="상품 링크 복사"

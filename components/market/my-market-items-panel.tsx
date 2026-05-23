@@ -349,8 +349,20 @@ export default function MyMarketItemsPanel({ onUploadNew }: { onUploadNew: () =>
                   {/* 활성/비활성 토글 */}
                   {/* 링크 복사 */}
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/market/${item.id}`)
+                    onClick={async () => {
+                      const url = `${window.location.origin}/market/${item.id}`
+                      try {
+                        await navigator.clipboard.writeText(url)
+                      } catch {
+                        const el = document.createElement("textarea")
+                        el.value = url
+                        el.style.position = "fixed"
+                        el.style.opacity = "0"
+                        document.body.appendChild(el)
+                        el.select()
+                        document.execCommand("copy")
+                        document.body.removeChild(el)
+                      }
                       setCopiedId(item.id)
                       setTimeout(() => setCopiedId(null), 2000)
                     }}
