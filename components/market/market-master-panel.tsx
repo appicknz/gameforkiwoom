@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import {
-  RefreshCw, Plus, Pencil, Trash2, X, Check,
+  RefreshCw, Plus, Pencil, Trash2, X, Check, Link2,
   ChevronDown, ChevronUp, Loader2, Package,
   Tag, Eye, EyeOff, Search, ShoppingBag,
 } from "lucide-react"
@@ -200,6 +200,7 @@ export default function MarketMasterPanel() {
   const [showCatManager, setShowCatManager] = useState(false)
   const [sortField, setSortField]       = useState<"created_at" | "price_krw" | "view_count" | "order_count">("created_at")
   const [sortDir, setSortDir]           = useState<"desc" | "asc">("desc")
+  const [copiedId,  setCopiedId]        = useState<string | null>(null)
 
   const loadCategories = useCallback(async () => {
     const res = await fetch("/api/market/categories")
@@ -426,6 +427,20 @@ export default function MarketMasterPanel() {
                       className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {item.is_active ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    </button>
+                    {/* 링크 복사 */}
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/market/${item.id}`)
+                        setCopiedId(item.id)
+                        setTimeout(() => setCopiedId(null), 2000)
+                      }}
+                      title="상품 링크 복사"
+                      className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      {copiedId === item.id
+                        ? <Check className="w-3.5 h-3.5 text-primary" />
+                        : <Link2 className="w-3.5 h-3.5" />}
                     </button>
                     <button
                       onClick={() => setEditItem({

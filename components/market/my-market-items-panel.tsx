@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import {
   RefreshCw, Plus, Pencil, Trash2, X, Upload,
   ImageIcon, Loader2, CheckCircle, AlertCircle,
-  ChevronDown, Eye, EyeOff, Package,
+  ChevronDown, Eye, EyeOff, Package, Link2, Check,
 } from "lucide-react"
 import { blobImageUrl } from "@/lib/blob-image"
 
@@ -172,7 +172,7 @@ function EditItemForm({
                   const v = e.target.value.replace(/[^0-9]/g, "")
                   setPrice(v ? Number(v).toLocaleString("ko-KR") : "")
                 }}
-                placeholder="가격"
+                placeholder="가��"
                 className="w-full h-9 pl-3 pr-6 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/50"
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">원</span>
@@ -216,6 +216,7 @@ export default function MyMarketItemsPanel({ onUploadNew }: { onUploadNew: () =>
   const [editingId, setEditingId]   = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmId, setConfirmId]   = useState<string | null>(null)
+  const [copiedId,  setCopiedId]    = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -346,6 +347,20 @@ export default function MyMarketItemsPanel({ onUploadNew }: { onUploadNew: () =>
                 {/* 액션 버튼 */}
                 <div className="flex items-center gap-1 shrink-0">
                   {/* 활성/비활성 토글 */}
+                  {/* 링크 복사 */}
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/market/${item.id}`)
+                      setCopiedId(item.id)
+                      setTimeout(() => setCopiedId(null), 2000)
+                    }}
+                    title="상품 링크 복사"
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-secondary transition-colors"
+                  >
+                    {copiedId === item.id
+                      ? <Check className="w-3.5 h-3.5 text-primary" />
+                      : <Link2 className="w-3.5 h-3.5" />}
+                  </button>
                   <button
                     onClick={() => handleToggleActive(item)}
                     title={item.is_active ? "비활성화" : "활성화"}
