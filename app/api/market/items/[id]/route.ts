@@ -141,6 +141,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
   }
 
-  await adminSupabase.from("market_items").update({ is_active: false }).eq("id", id)
+  const { error } = await adminSupabase.from("market_items").delete().eq("id", id)
+  if (error) return NextResponse.json({ error: "삭제 실패" }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
