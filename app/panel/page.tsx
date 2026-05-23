@@ -176,7 +176,7 @@ export default function PanelPage() {
   const [profile, setProfile] = useState<{ username: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [adminPw, setAdminPw] = useState<string>(() => {
-    // sessionStorage 캐시 우선, 없으면 admin 역할은 빈 문자열로 시작 (게이트 스킵)
+    // sessionStorage 캐시 우선, 없으면 admin 역할은 빈 문자열로 시작 (게이트 스���)
     if (typeof window !== "undefined") return getCachedPw() ?? ""
     return ""
   })
@@ -476,7 +476,7 @@ export default function PanelPage() {
         // 역할별 초기 데이터 로드
         const tok = getToken()
         if (!tok) return
-        // 내 잔고 즉시 로드 (모든 역할)
+        // 내 잔고 즉시 ��드 (모든 역할)
         fetch("/api/admin/my-balance", { headers: { Authorization: `Bearer ${tok}` } })
           .then(r => r.ok ? r.json() : null)
           .then(d => { if (d && typeof d.balance === "number") setMyBalance(d.balance) })
@@ -3123,7 +3123,7 @@ export default function PanelPage() {
                   <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <Wallet className="w-4 h-4 text-primary" /> 충전 요청
                   </h2>
-                  <p className="text-xs text-muted-foreground">버튼을 눌러 금액을 누적한 뒤 요청하세요. 총판�� 승인하면 포인트가 지급됩니다.</p>
+                  <p className="text-xs text-muted-foreground">버튼을 눌러 금액을 누적한 뒤 요청하세요. 총판 승인되면 포인트가 지급됩니다.</p>
 
                   {/* 금액 프리셋 버튼 */}
                   <div className="flex flex-wrap gap-2">
@@ -3246,7 +3246,7 @@ export default function PanelPage() {
                     <button
                       onClick={() => setBranchTab("members")}
                       className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${branchTab === "members" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                    >회원 목��� ({adminMembers.length}명)</button>
+                    >회원 목록 ({adminMembers.length}명)</button>
                     <button
                       onClick={() => { setBranchTab("bets"); if (branchBets.length === 0) loadBranchBets(selectedMember?.id) }}
                       className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${branchTab === "bets" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
