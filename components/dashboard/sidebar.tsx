@@ -121,14 +121,8 @@ function TradeStatsMini() {
     return () => clearInterval(id)
   }, [selectedDate, fetchAutoForDate, fetchAutoToday])
 
-  // 전체 통계 집계
+  // 달력 dot 표시용 집계만 유지 (모의매매 전체 합계 통계 제거)
   const allDays = Object.values(byDate)
-  const totalCount = allDays.reduce((s, d) => s + d.count, 0)
-  const totalPnl   = allDays.reduce((s, d) => s + d.pnl, 0)
-  const totalBet   = allDays.reduce((s, d) => s + d.bet, 0)
-  const winDays    = allDays.filter(d => d.pnl >= 0).length
-  const totalPnlPct = totalBet > 0 ? (totalPnl / totalBet) * 100 : 0
-  const winDayPct   = allDays.length > 0 ? (winDays / allDays.length) * 100 : 0
 
   // 자동매매 실시간 통계 — liveCache에서 현재가 읽기
   const normalize = (raw: string) => raw.replace(/\.P$/, "").replace(/\//g, "")
@@ -173,13 +167,13 @@ function TradeStatsMini() {
           </div>
           <div className="flex flex-col gap-0.5 items-start">
             <p className="text-[11px] font-bold text-foreground leading-tight">오늘의 비트</p>
-            <p className="text-[10px] text-muted-foreground leading-tight">모의매매, 자동매매 시그널</p>
+            <p className="text-[10px] text-muted-foreground leading-tight">자동매매 시그널</p>
           </div>
         </div>
       </Link>
 
       <div className="space-y-3">
-          {/* 요약 4칸 — 날짜 선택 시 해당 날짜 자동매매 기준, 미선택 시 전체 모의매매 합계 */}
+          {/* 요약 4칸 — 자동매매 기준 (날짜 선택 시 해당 날짜, 미선택 시 오늘 실시간) */}
           {(() => {
             const showingDate = selectedDate ?? todayKST
             const isDateSelected = !!selectedDate
@@ -189,19 +183,12 @@ function TradeStatsMini() {
             const autoRoi     = autoTotalRoi
             const autoWinPct  = autoCount > 0 ? (autoProfit / autoCount) * 100 : 0
 
-            const boxes = isDateSelected || autoPositions.length > 0
-              ? [
-                  { label: "총 포지션",  value: `${autoCount}건`, color: undefined },
-                  { label: "총 손익($)", value: `${autoPnl$ >= 0 ? "+" : ""}$${autoPnl$.toFixed(2)}`, color: autoPnl$ >= 0 ? UP : DOWN },
-                  { label: "평균 ROI",   value: `${autoRoi >= 0 ? "+" : ""}${autoRoi.toFixed(2)}%`, color: autoRoi >= 0 ? UP : DOWN },
-                  { label: "수익 비율",  value: `${autoWinPct.toFixed(0)}%`, color: autoWinPct >= 50 ? UP : DOWN },
-                ]
-              : [
-                  { label: t("stats.totalTrades"),   value: `${totalCount}${t("stats.times")}`, color: undefined },
-                  { label: t("stats.totalPnl"),      value: `${totalPnl >= 0 ? "+" : ""}${Math.floor(totalPnl).toLocaleString("ko-KR")}`, color: totalPnl >= 0 ? UP : DOWN },
-                  { label: t("stats.winRate"),       value: `${totalPnlPct >= 0 ? "+" : ""}${totalPnlPct.toFixed(1)}%`, color: totalPnlPct >= 0 ? UP : DOWN },
-                  { label: t("stats.dailyWinRate"),  value: `${winDayPct.toFixed(0)}%`, color: winDayPct >= 50 ? UP : DOWN },
-                ]
+            const boxes = [
+              { label: "총 포지션",  value: `${autoCount}건`, color: undefined },
+              { label: "총 손익($)", value: `${autoPnl$ >= 0 ? "+" : ""}$${autoPnl$.toFixed(2)}`, color: autoPnl$ >= 0 ? UP : DOWN },
+              { label: "평균 ROI",   value: `${autoRoi >= 0 ? "+" : ""}${autoRoi.toFixed(2)}%`, color: autoRoi >= 0 ? UP : DOWN },
+              { label: "수익 비율",  value: `${autoWinPct.toFixed(0)}%`, color: autoWinPct >= 50 ? UP : DOWN },
+            ]
 
             return (
               <div className="rounded-xl border border-border bg-background/40 overflow-hidden">
