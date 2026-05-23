@@ -749,6 +749,7 @@ export default function TradePage() {
   const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
   const [selectedDate,  setSelectedDate]  = useState(new Date())
   const [tradeMode,     setTradeMode]     = useState<"auto" | "mock">("auto")
+  const [allowMockTrade, setAllowMockTrade] = useState(false)
   const [searchQ,       setSearchQ]       = useState("")
   type SortOrder = "time" | "roi_desc" | "roi_asc" | "signal"
   const SORT_CYCLE: SortOrder[] = ["time", "roi_desc", "roi_asc", "signal"]
@@ -778,6 +779,20 @@ export default function TradePage() {
   }, [positions.length])
 
   usePriceWorker({})
+
+  // 모의매매 허용 여부 조회 (마운트 시 1회)
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const allowed = !!d?.profile?.allow_mock_trade
+        setAllowMockTrade(allowed)
+        if (!allowed) setTradeMode("auto")
+      })
+      .catch(() => {})
+  }, [])
 
   // ── 폴링 ────────────────────────────────────────────────────────
   const fetchBalance = useCallback(() => {
@@ -1034,7 +1049,7 @@ export default function TradePage() {
             <div className="flex items-center gap-2">
               {([
                 { key: "auto", label: "자동매매", Icon: Bot },
-                { key: "mock", label: "모의매매", Icon: LineChart },
+                ...(allowMockTrade ? [{ key: "mock" as const, label: "모의매매", Icon: LineChart }] : []),
               ] as const).map(({ key, label, Icon }) => (
                 <button
                   key={key}
@@ -1053,6 +1068,12 @@ export default function TradePage() {
                   {label}
                 </button>
               ))}
+              {/* 자동매매 안내 문구 */}
+              {tradeMode === "auto" && (
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", whiteSpace: "nowrap" }}>
+                  주문이나 출금 기능은 제공하지 않습니다.
+                </span>
+              )}
             </div>
 
             {/* 실시간 시계 */}

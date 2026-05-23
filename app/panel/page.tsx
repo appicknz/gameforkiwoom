@@ -47,6 +47,7 @@ interface User {
   balance: number
   branch_code: string | null
   game_enabled: boolean
+  allow_mock_trade: boolean
 }
 
 interface Branch {
@@ -438,6 +439,8 @@ export default function PanelPage() {
   const [users, setUsers] = useState<User[]>([])
   const [usersLoading, setUsersLoading] = useState(false)
   const [chargeUserId, setChargeUserId] = useState<string | null>(null)
+  const [mockChecks, setMockChecks] = useState<Record<string, boolean>>({})
+  const [mockSaving, setMockSaving] = useState<string | null>(null)
   const [chargeAmount, setChargeAmount] = useState("")
   const [chargeLoading, setChargeLoading] = useState(false)
   const [chargeMsg, setChargeMsg] = useState<{ text: string; ok: boolean } | null>(null)
@@ -604,7 +607,9 @@ export default function PanelPage() {
       setPwError("인증에 실패했습니다.")
       setAdminPw("")
     } else {
-      setUsers(data.users ?? [])
+      const loaded: User[] = data.users ?? []
+      setUsers(loaded)
+      setMockChecks(Object.fromEntries(loaded.map(u => [u.id, u.allow_mock_trade ?? false])))
     }
     setUsersLoading(false)
   }, [myUserId])
@@ -1688,6 +1693,36 @@ export default function PanelPage() {
                               <p className="text-xs text-muted-foreground">잔고</p>
                               <p className="text-sm font-semibold text-foreground">{formatBalance(user.balance)}</p>
                             </div>
+                            {/* 모의매매 허용 체크박스 */}
+                            {myRole === "master" && (
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={mockChecks[user.id] ?? false}
+                                    onChange={e => setMockChecks(prev => ({ ...prev, [user.id]: e.target.checked }))}
+                                    className="w-3.5 h-3.5 accent-primary rounded"
+                                  />
+                                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">모의매매</span>
+                                </label>
+                                <Button
+                                  size="sm" variant="outline" className="h-7 px-2 text-[10px]"
+                                  disabled={mockSaving === user.id}
+                                  onClick={async () => {
+                                    setMockSaving(user.id)
+                                    const token = getToken()
+                                    await fetch("/api/admin/allow-mock-trade", {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                      body: JSON.stringify({ userId: user.id, allow: mockChecks[user.id] ?? false }),
+                                    })
+                                    setMockSaving(null)
+                                  }}
+                                >
+                                  {mockSaving === user.id ? "..." : "저장"}
+                                </Button>
+                              </div>
+                            )}
                             <Button
                               size="sm" variant="outline" className="text-xs gap-1"
                               onClick={() => { setChargeUserId(isCharging ? null : user.id); setChargeAmount(""); setChargeMsg(null) }}
@@ -2949,7 +2984,7 @@ export default function PanelPage() {
 
 
 
-            {/* 포��트 ���전 요청 (임시계정 생성) — master 전용 */}
+            {/* 포��트 ���전 요청 (임시계정 생성) — master ��용 */}
             {myRole === "master" && <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Plus className="w-4 h-4 text-primary" /> 포인트 충전 요청 (유저 계정 생성)</h2>
               <p className="text-xs text-muted-foreground">승인되면 포인트가 충전된 임시 계정이 자동 생성됩니���.</p>
