@@ -90,7 +90,11 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
         setUploading(true)
         const fd = new FormData()
         fd.append("file", imageFile)
-        const res  = await fetch("/api/market/upload", { method: "POST", body: fd })
+        const res  = await fetch("/api/market/upload", {
+          method:  "POST",
+          headers: { Authorization: `Bearer ${getToken()}` },
+          body:    fd,
+        })
         const data = await res.json()
         image_url  = data.url ?? null
         setUploading(false)
