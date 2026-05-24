@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { blobImageUrl } from "@/lib/blob-image"
 import {
   ArrowLeft, ExternalLink, ShoppingCart, Eye, Users,
-  Loader2, XCircle, Clock, LogIn, UserPlus, ChevronRight,
+  Loader2, CheckCircle, XCircle, Clock
 } from "lucide-react"
 
 interface Item {
@@ -18,34 +18,21 @@ interface Item {
   profiles: { id: string; username: string; role: string } | null
 }
 
-type AuthMode = "idle" | "login" | "register"
-
 function getToken() {
   try { return localStorage.getItem("app_token") } catch { return null }
 }
-function setToken(t: string) {
-  try { localStorage.setItem("app_token", t) } catch {}
-}
 
 export default function MarketItemPage() {
-  const { id } = useParams<{ id: string }>()
-
-  const [item, setItem]         = useState<Item | null>(null)
-  const [loading, setLoading]   = useState(true)
-  const [buying, setBuying]     = useState(false)
-  const [buyErr, setBuyErr]     = useState("")
+  const { id }     = useParams<{ id: string }>()
+  const router     = useRouter()
+  const [item, setItem]           = useState<Item | null>(null)
+  const [loading, setLoading]     = useState(true)
+  const [buying, setBuying]       = useState(false)
+  const [buyErr, setBuyErr]       = useState("")
   const [isLoggedIn, setLoggedIn] = useState(false)
 
-  // 인증 폼 상태
-  const [authMode, setAuthMode]   = useState<AuthMode>("idle")
-  const [username, setUsername]   = useState("")
-  const [password, setPassword]   = useState("")
-  const [authLoading, setAuthLoading] = useState(false)
-  const [authErr, setAuthErr]     = useState("")
-
   useEffect(() => {
-    const loggedIn = !!getToken()
-    setLoggedIn(loggedIn)
+    setLoggedIn(!!getToken())
     fetch(`/api/market/items/${id}`)
       .then(r => r.json())
       .then(d => setItem(d.item ?? null))
@@ -53,53 +40,8 @@ export default function MarketItemPage() {
       .finally(() => setLoading(false))
   }, [id])
 
-  // 로그인
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setAuthLoading(true); setAuthErr("")
-    try {
-      const res  = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setAuthErr(data.error ?? "로그인 실패"); return }
-      setToken(data.token)
-      setLoggedIn(true)
-      setAuthMode("idle")
-    } catch { setAuthErr("네트워크 오류") }
-    finally { setAuthLoading(false) }
-  }
-
-  // 회원가입
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setAuthLoading(true); setAuthErr("")
-    try {
-      const res  = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setAuthErr(data.error ?? "회원가입 실패"); return }
-      if (data.token) {
-        setToken(data.token)
-        setLoggedIn(true)
-        setAuthMode("idle")
-      } else {
-        // needsLogin: true 케이스 → 자동으로 로그인 시도
-        setAuthMode("login")
-        setAuthErr("가입 완료! 로그인해주세요.")
-      }
-    } catch { setAuthErr("네트워크 오류") }
-    finally { setAuthLoading(false) }
-  }
-
-  // 결제
   const handleBuy = async () => {
-    if (!isLoggedIn) { setAuthMode("login"); return }
+    if (!isLoggedIn) { router.push("/"); return }
     setBuying(true); setBuyErr("")
     try {
       const res  = await fetch("/api/market/checkout", {
@@ -110,11 +52,13 @@ export default function MarketItemPage() {
       const data = await res.json()
       if (!res.ok) { setBuyErr(data.error ?? "오류가 발생했습니다."); return }
       window.location.href = data.url
-    } catch { setBuyErr("결제 오류가 발생했습니다.") }
-    finally { setBuying(false) }
+    } catch {
+      setBuyErr("결제 오류가 발생했습니다.")
+    } finally {
+      setBuying(false)
+    }
   }
 
-  /* ── 로딩 ── */
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -122,8 +66,6 @@ export default function MarketItemPage() {
       </div>
     )
   }
-
-  /* ── 상품 없음 ── */
   if (!item) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
@@ -132,10 +74,6 @@ export default function MarketItemPage() {
       </div>
     )
   }
-
-  /* ── 인증 폼 렌더 ── */
-  const isRegister = authMode === "register"
-  const showAuth   = authMode !== "idle"
 
   return (
     <div className="min-h-screen bg-background">
@@ -194,7 +132,7 @@ export default function MarketItemPage() {
               <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{item.order_count.toLocaleString()} 구매</span>
             </div>
 
-            {/* 외부 링크 */}
+            {/* 링크 */}
             {item.link_url && (
               <a
                 href={item.link_url} target="_blank" rel="noopener noreferrer"
@@ -204,7 +142,7 @@ export default function MarketItemPage() {
               </a>
             )}
 
-            {/* 가격 + 구매 영역 */}
+            {/* 가격 + 구매 */}
             <div className="rounded-xl border border-border bg-secondary/30 p-4 space-y-4">
               <div className="flex items-baseline gap-1.5">
                 <span className="text-3xl font-bold text-primary">
@@ -213,112 +151,23 @@ export default function MarketItemPage() {
                 <span className="text-lg text-primary">원</span>
               </div>
 
-              {/* ── 비로그인: 인증 폼 ── */}
-              {!isLoggedIn && (
-                <div className="space-y-3">
-                  {!showAuth ? (
-                    /* 로그인 / 회원가입 선택 버튼 */
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => { setAuthMode("login"); setAuthErr("") }}
-                        className="flex-1 py-2.5 rounded-xl border border-border bg-secondary/60 text-sm font-medium text-foreground hover:border-primary/40 transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <LogIn className="w-4 h-4" /> 로그인 후 구매
-                      </button>
-                      <button
-                        onClick={() => { setAuthMode("register"); setAuthErr("") }}
-                        className="flex-1 py-2.5 rounded-xl border border-border bg-secondary/60 text-sm font-medium text-foreground hover:border-primary/40 transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <UserPlus className="w-4 h-4" /> 회원가입
-                      </button>
-                    </div>
-                  ) : (
-                    /* 인증 폼 */
-                    <form onSubmit={isRegister ? handleRegister : handleLogin} className="space-y-2">
-                      {/* 탭 전환 */}
-                      <div className="flex rounded-lg overflow-hidden border border-border text-xs font-medium mb-3">
-                        <button
-                          type="button"
-                          onClick={() => { setAuthMode("login"); setAuthErr("") }}
-                          className={`flex-1 py-2 transition-colors ${!isRegister ? "bg-primary text-black" : "bg-secondary/60 text-muted-foreground hover:text-foreground"}`}
-                        >
-                          로그인
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setAuthMode("register"); setAuthErr("") }}
-                          className={`flex-1 py-2 transition-colors ${isRegister ? "bg-primary text-black" : "bg-secondary/60 text-muted-foreground hover:text-foreground"}`}
-                        >
-                          회원가입
-                        </button>
-                      </div>
-
-                      <input
-                        type="text"
-                        placeholder="아이디"
-                        value={username}
-                        onChange={e => setUsername(e.target.value)}
-                        required
-                        className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60 transition-colors"
-                      />
-                      <input
-                        type="password"
-                        placeholder={isRegister ? "비밀번호 (4자 이상)" : "비밀번호"}
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        required
-                        className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60 transition-colors"
-                      />
-
-                      {authErr && (
-                        <p className="text-xs text-red-400 flex items-center gap-1">
-                          <XCircle className="w-3.5 h-3.5 shrink-0" />{authErr}
-                        </p>
-                      )}
-
-                      <button
-                        type="submit"
-                        disabled={authLoading}
-                        className="w-full py-2.5 rounded-xl bg-primary text-black font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        {authLoading
-                          ? <Loader2 className="w-4 h-4 animate-spin" />
-                          : <><ChevronRight className="w-4 h-4" />{isRegister ? "가입 후 구매" : "로그인 후 구매"}</>
-                        }
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => { setAuthMode("idle"); setAuthErr("") }}
-                        className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
-                      >
-                        취소
-                      </button>
-                    </form>
-                  )}
+              {buyErr && (
+                <div className="flex items-center gap-2 text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2">
+                  <XCircle className="w-3.5 h-3.5 shrink-0" />
+                  {buyErr}
                 </div>
               )}
 
-              {/* ── 로그인: 구매 버튼 ── */}
-              {isLoggedIn && (
-                <>
-                  {buyErr && (
-                    <div className="flex items-center gap-2 text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2">
-                      <XCircle className="w-3.5 h-3.5 shrink-0" />{buyErr}
-                    </div>
-                  )}
-                  <button
-                    onClick={handleBuy}
-                    disabled={buying || !item.stripe_price_id}
-                    className="w-full py-3 rounded-xl bg-primary text-black font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                  >
-                    {buying
-                      ? <><Loader2 className="w-4 h-4 animate-spin" /> 결제 준비 중...</>
-                      : <><ShoppingCart className="w-4 h-4" /> 구매하기</>
-                    }
-                  </button>
-                </>
-              )}
+              <button
+                onClick={handleBuy}
+                disabled={buying || !item.stripe_price_id}
+                className="w-full py-3 rounded-xl bg-primary text-black font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              >
+                {buying
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> 결제 준비 중...</>
+                  : <><ShoppingCart className="w-4 h-4" /> 구매하기</>
+                }
+              </button>
 
               <div className="flex items-start gap-2 text-xs text-muted-foreground">
                 <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
