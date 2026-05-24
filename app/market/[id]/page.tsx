@@ -6,7 +6,7 @@ import Link from "next/link"
 import { blobImageUrl } from "@/lib/blob-image"
 import {
   ArrowLeft, ExternalLink, ShoppingCart, Eye, Users,
-  Loader2, XCircle, Clock, LogIn, UserPlus, ChevronRight,
+  Loader2, XCircle, Clock, LogIn, UserPlus, ChevronRight, Lock,
 } from "lucide-react"
 
 interface Item {
@@ -35,6 +35,7 @@ export default function MarketItemPage() {
   const [buying, setBuying]     = useState(false)
   const [buyErr, setBuyErr]     = useState("")
   const [isLoggedIn, setLoggedIn] = useState(false)
+  const [hasPurchased, setHasPurchased] = useState(false)
 
   // 인증 폼 상태
   const [authMode, setAuthMode]   = useState<AuthMode>("idle")
@@ -43,14 +44,30 @@ export default function MarketItemPage() {
   const [authLoading, setAuthLoading] = useState(false)
   const [authErr, setAuthErr]     = useState("")
 
+  const checkPurchased = (token: string) => {
+    fetch(`/api/market/items/${id}/purchased`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setHasPurchased(!!d.purchased))
+      .catch(() => {})
+  }
+
   useEffect(() => {
-    const loggedIn = !!getToken()
+    const token = getToken()
+    const loggedIn = !!token
     setLoggedIn(loggedIn)
+    if (loggedIn) checkPurchased(token!)
     fetch(`/api/market/items/${id}`)
       .then(r => r.json())
       .then(d => setItem(d.item ?? null))
       .catch(() => {})
       .finally(() => setLoading(false))
+    // Stripe 결제 완료 후 redirect 복귀 시 구매 여부 재확인
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get("success") === "1" && token) {
+        setTimeout(() => checkPurchased(token), 1500)
+      }
+    }
   }, [id])
 
   // 로그인
@@ -68,6 +85,7 @@ export default function MarketItemPage() {
       setToken(data.token)
       setLoggedIn(true)
       setAuthMode("idle")
+      checkPurchased(data.token)
     } catch { setAuthErr("네트워크 오류") }
     finally { setAuthLoading(false) }
   }
@@ -88,6 +106,7 @@ export default function MarketItemPage() {
         setToken(data.token)
         setLoggedIn(true)
         setAuthMode("idle")
+        checkPurchased(data.token)
       } else {
         // needsLogin: true 케이스 → 자동으로 로그인 시도
         setAuthMode("login")
@@ -194,14 +213,29 @@ export default function MarketItemPage() {
               <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{item.order_count.toLocaleString()} 구매</span>
             </div>
 
-            {/* 외부 링크 */}
+            {/* 링크 바로가기 — 구매 완료 시 활성화 */}
             {item.link_url && (
-              <a
-                href={item.link_url} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-              >
-                <ExternalLink className="w-3.5 h-3.5" /> 관련 링크
-              </a>
+              hasPurchased ? (
+                <a
+                  href={item.link_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/50 bg-primary/10 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  링크 바로가기
+                </a>
+              ) : (
+                <button
+                  disabled
+                  title="구매 후 이용 가능합니다"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-secondary/40 text-sm font-medium text-muted-foreground cursor-not-allowed select-none"
+                >
+                  <Lock className="w-4 h-4" />
+                  링크 바로가기
+                  <span className="text-[10px] font-normal opacity-70">(구매 후 이용 가능)</span>
+                </button>
+              )
             )}
 
             {/* 가격 + 구매 영역 */}
