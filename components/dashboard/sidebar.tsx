@@ -604,11 +604,12 @@ export function Sidebar() {
               </div>
 
               <div className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5 flex items-baseline gap-1.5">
-                <span className="text-3xl font-black text-primary tracking-tight leading-none">3.9%</span>
-                <span className="text-[10px] text-muted-foreground leading-tight">업계 최저 수수료를<br />자랑합니다.</span>
+                <span className="text-5xl font-black text-primary tracking-tight leading-none">3.9%</span>
               </div>
 
               <div className="space-y-0.5">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">업계 최저 수수료를</p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">자랑합니다.</p>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">채널을 운영하고 계신다면</p>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">유료로 구독자를 모아보세요.</p>
               </div>
