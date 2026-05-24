@@ -48,6 +48,7 @@ interface User {
   branch_code: string | null
   game_enabled: boolean
   allow_mock_trade: boolean
+  allow_token_deposit: boolean
 }
 
 interface Branch {
@@ -439,8 +440,10 @@ export default function PanelPage() {
   const [users, setUsers] = useState<User[]>([])
   const [usersLoading, setUsersLoading] = useState(false)
   const [chargeUserId, setChargeUserId] = useState<string | null>(null)
-  const [mockChecks, setMockChecks] = useState<Record<string, boolean>>({})
-  const [mockSaving, setMockSaving] = useState<string | null>(null)
+  const [mockChecks,    setMockChecks]    = useState<Record<string, boolean>>({})
+  const [mockSaving,    setMockSaving]    = useState<string | null>(null)
+  const [depositChecks, setDepositChecks] = useState<Record<string, boolean>>({})
+  const [depositSaving, setDepositSaving] = useState<string | null>(null)
   const [chargeAmount, setChargeAmount] = useState("")
   const [chargeLoading, setChargeLoading] = useState(false)
   const [chargeMsg, setChargeMsg] = useState<{ text: string; ok: boolean } | null>(null)
@@ -610,6 +613,7 @@ export default function PanelPage() {
       const loaded: User[] = data.users ?? []
       setUsers(loaded)
       setMockChecks(Object.fromEntries(loaded.map(u => [u.id, u.allow_mock_trade ?? false])))
+      setDepositChecks(Object.fromEntries(loaded.map(u => [u.id, u.allow_token_deposit ?? false])))
     }
     setUsersLoading(false)
   }, [myUserId])
@@ -853,7 +857,7 @@ export default function PanelPage() {
   const [baExLoading, setBaExLoading]         = useState(false)
   const [baExExpanded, setBaExExpanded]       = useState(false) // 환전 대기 펼침
   const [baStatExpanded, setBaStatExpanded]   = useState(false) // 누적 통계 펼침
-  // 총판 지점에 지급된 포인트 합계 (point_charge_requests 기준)
+  // 총판 지점에 지급�� 포인트 합계 (point_charge_requests 기준)
   const [baTotalCharged, setBaTotalCharged]   = useState(0)
 
   const loadBranchMembers = useCallback(async (branchCode: string) => {
@@ -1350,7 +1354,7 @@ export default function PanelPage() {
               </button>
             </div>
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              총판에게 요청이 전달되며, 승인 후 계정이 ��성됩니다.<br />
+              총판��게 요청이 전달되며, 승인 후 계정이 ��성됩니다.<br />
               수량이 2 이상이면 ID 뒤에 번호가 자동으로 붙습니다. (예: user01, user02)
             </p>
             <div className="space-y-3 mb-4">
@@ -1720,6 +1724,32 @@ export default function PanelPage() {
                                   }}
                                 >
                                   {mockSaving === user.id ? "..." : "저장"}
+                                </Button>
+                                {/* 토큰 입금 허용 체크박스 */}
+                                <label className="flex items-center gap-1.5 cursor-pointer select-none ml-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={depositChecks[user.id] ?? false}
+                                    onChange={e => setDepositChecks(prev => ({ ...prev, [user.id]: e.target.checked }))}
+                                    className="w-3.5 h-3.5 accent-primary rounded"
+                                  />
+                                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">토큰입금</span>
+                                </label>
+                                <Button
+                                  size="sm" variant="outline" className="h-7 px-2 text-[10px]"
+                                  disabled={depositSaving === user.id}
+                                  onClick={async () => {
+                                    setDepositSaving(user.id)
+                                    const token = getToken()
+                                    await fetch("/api/admin/allow-token-deposit", {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                      body: JSON.stringify({ userId: user.id, allow: depositChecks[user.id] ?? false }),
+                                    })
+                                    setDepositSaving(null)
+                                  }}
+                                >
+                                  {depositSaving === user.id ? "..." : "저장"}
                                 </Button>
                               </div>
                             )}

@@ -448,6 +448,7 @@ export function Sidebar() {
   const [toast, setToast] = useState<string | null>(null)
   const [sellerRole, setSellerRole] = useState<string | null>(null)
   const [gameEnabled, setGameEnabled] = useState(false)
+  const [allowTokenDeposit, setAllowTokenDeposit] = useState(false)
 
   // 로그인 폼
   const [authTab, setAuthTab]           = useState<"login" | "register">("login")
@@ -507,10 +508,21 @@ export function Sidebar() {
         } catch {
           setGameEnabled(false)
         }
+        // 토큰 입금 허용 여부
+        try {
+          const pRes = await fetch("/api/user/profile", {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const pData = await pRes.json()
+          setAllowTokenDeposit(!!pData?.profile?.allow_token_deposit)
+        } catch {
+          setAllowTokenDeposit(false)
+        }
       } else {
         setUsername(null)
         setSellerRole(null)
         setGameEnabled(false)
+        setAllowTokenDeposit(false)
       }
     }
     check()
@@ -691,15 +703,17 @@ export function Sidebar() {
             </div>
           </div>
 
-          {/* ③ 오늘의 비트 · 모의매매, 자동매매 시그널 */}
-          <div className="border-t border-border pt-3">
-            <TradeStatsMini />
-          </div>
-
-          {/* ④ 토큰 입금 QR */}
-          <div className="border-t border-border pt-3">
-            <DepositQRWidget isLoggedIn={isLoggedIn} />
-          </div>
+          {/* ③ 오늘의 비트 + 달력 + 토큰 입금 — 마스터가 허용한 회원만 */}
+          {isLoggedIn && allowTokenDeposit && (
+            <>
+              <div className="border-t border-border pt-3">
+                <TradeStatsMini />
+              </div>
+              <div className="border-t border-border pt-3">
+                <DepositQRWidget isLoggedIn={isLoggedIn} />
+              </div>
+            </>
+          )}
 
         </div>
       </aside>

@@ -63,6 +63,7 @@ export default function MarketPage() {
   const [allowPointCategory, setAllowPointCategory]   = useState(false)
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [showDeposit, setShowDeposit]         = useState(false)
+  const [allowTokenDeposit, setAllowTokenDeposit] = useState(false)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchItemsRef                 = useRef<(() => void) | null>(null)
 
@@ -72,7 +73,7 @@ export default function MarketPage() {
     setUserId(jwt?.sub ?? jwt?.userId ?? null)
   }, [])
 
-  // 글쓰기 권한 신청 상태 로드
+  // 글쓰기 권한 + 프로필(토큰입금 허용 여부) 로드
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -83,6 +84,10 @@ export default function MarketPage() {
         setAllowPointCategory(d?.request?.allow_point_category ?? false)
       })
       .catch(() => setWritePermStatus("none"))
+    fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setAllowTokenDeposit(!!d?.profile?.allow_token_deposit))
+      .catch(() => {})
   }, [])
 
   const handleBuy = useCallback(async () => {
@@ -362,15 +367,17 @@ export default function MarketPage() {
               )
             })()}
 
-            {/* 토큰 입금 버튼 — 다이얼로그로 열기 */}
-            <button
-              onClick={() => setShowDeposit(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors shrink-0"
-              title={t("nav.deposit")}
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{t("market.depositButton")}</span>
-            </button>
+            {/* 토큰 입금 버튼 — 마스터가 허용한 회원만 표시 */}
+            {allowTokenDeposit && (
+              <button
+                onClick={() => setShowDeposit(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors shrink-0"
+                title={t("nav.deposit")}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{t("market.depositButton")}</span>
+              </button>
+            )}
 
             {/* + 글쓰기 버튼 — 모두에게 표시, 권한 없으면 신청 모달 */}
             {/* canWrite: role이 WRITE_ROLES에 있거나, 승인된 write-permission이 있는 경우 */}
