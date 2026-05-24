@@ -193,33 +193,8 @@ function TradeStatsMini() {
                         ? `자동매매 시그널 · ${parseInt(selectedDate!.slice(5,7))}월 ${parseInt(selectedDate!.slice(8,10))}일`
                         : "자동매매 시그널 · 오늘 (실시간)"}
                     </p>
-            </div>
-          </div>
-
-          {/* 마켓 페이지 전용 홍보 카드 — 관리 섹션 아래 */}
-          {(pathname === "/market" || pathname.startsWith("/market")) && (
-            <div className="rounded-2xl border border-border bg-secondary/30 p-4 space-y-3">
-              <div className="space-y-0.5">
-                <p className="text-[11px] text-muted-foreground leading-relaxed">트레이딩을 위한 아이디어와</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">정보를 판매하세요.</p>
-              </div>
-
-              <div className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-4 flex flex-col items-center gap-2">
-                <span className="text-5xl font-black text-white leading-none">3.9%</span>
-                <p className="text-[10px] text-muted-foreground text-center leading-tight">업계 최저 수수료를<br />자랑합니다.</p>
-              </div>
-
-              <div className="space-y-0.5">
-                <p className="text-[11px] text-muted-foreground leading-relaxed">채널을 운영하고 계신다면</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">유료로 구독자를 모아보세요.</p>
-              </div>
-
-              <div className="space-y-0.5">
-                <p className="text-[11px] text-muted-foreground leading-relaxed">판매와 정산을 빠르고</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">쉽게 관리하세요.</p>
-              </div>
-            </div>
-          )}
+                  </div>
+                </div>
                 {/* 수익 / 손실 카운트 */}
                 <div className="flex items-center gap-1 bg-secondary/60 rounded-lg px-2 py-1">
                   <span className="text-[9px] font-bold tabular-nums" style={{ color: UP }}>+{autoProfit}</span>
@@ -619,6 +594,31 @@ export function Sidebar() {
 
         {/* 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
+
+          {/* 마켓 페이지 전용 홍보 카드 */}
+          {(pathname === "/market" || pathname.startsWith("/market")) && (
+            <div className="rounded-2xl border border-border bg-secondary/30 p-4 space-y-4">
+              <div className="space-y-0.5">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">트레이딩을 위한 아이디어와</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">정보를 판매하세요.</p>
+              </div>
+
+              <div className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5 flex items-baseline gap-1.5">
+                <span className="text-3xl font-black text-primary tracking-tight leading-none">3.9%</span>
+                <span className="text-[10px] text-muted-foreground leading-tight">업계 최저 수수료를<br />자랑합니다.</span>
+              </div>
+
+              <div className="space-y-0.5">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">채널을 운영하고 계신다면</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">유료로 구독자를 모아보세요.</p>
+              </div>
+
+              <div className="space-y-0.5">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">판매와 정산을 빠르고</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">쉽게 관리하세요.</p>
+              </div>
+            </div>
+          )}
 
           {/* ① 보너스 게임 — 접근 권한 있는 유저만 표시 */}
           {gameEnabled && <div className="space-y-2">
