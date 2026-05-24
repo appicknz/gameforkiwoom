@@ -1,9 +1,7 @@
 export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
+import { put } from "@vercel/blob"
 import { verifySession } from "@/lib/auth"
-import { adminSupabase } from "@/lib/supabase-admin"
-
-const BUCKET = "market-images"
 
 export async function POST(req: Request) {
   try {
@@ -18,21 +16,21 @@ export async function POST(req: Request) {
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json({ error: "지원하지 않는 이미지 형식입니다." }, { status: 400 })
     }
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: "파일 크기는 10MB 이하여야 합니다." }, { status: 400 })
+    }
 
     const ext      = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
-    const path     = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-    const buffer   = await file.arrayBuffer()
+    const pathname = `market-items/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
-    const { data, error } = await adminSupabase.storage
-      .from(BUCKET)
-      .upload(path, buffer, { contentType: file.type, cacheControl: "31536000", upsert: false })
+    const blob = await put(pathname, file, {
+      access: "private",
+      token:  process.env.BLOB_READ_WRITE_TOKEN,
+    })
 
-    if (error) throw new Error(error.message)
-
-    const { data: { publicUrl } } = adminSupabase.storage.from(BUCKET).getPublicUrl(data.path)
-    return NextResponse.json({ url: publicUrl })
+    return NextResponse.json({ url: blob.url })
   } catch (e: any) {
-    console.error("[upload] error:", e)
+    console.error("[market/upload] error:", e)
     return NextResponse.json({ error: e?.message ?? "업로드 실패" }, { status: 500 })
   }
 }
