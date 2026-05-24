@@ -5,37 +5,41 @@ import { verifySession } from "@/lib/auth"
 
 // GET: 상품 상세 + 조회수 증가
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  try {
+    const { id } = await params
 
-  // 조회수 증가 (에러 무시)
-  await adminSupabase.rpc("increment_view", { item_id: id }).catch(() => {})
+    // 조회수 증가 (에러 무시)
+    try { await adminSupabase.rpc("increment_view", { item_id: id }) } catch { /* ignore */ }
 
-  const { data, error } = await adminSupabase
-    .from("market_items")
-    .select(`
-      id, title, description, image_url, link_url,
-      price_krw, stripe_price_id, view_count, order_count, created_at,
-      category_id, publisher_id,
-      market_categories(name, icon)
-    `)
-    .eq("id", id)
-    .eq("is_active", true)
-    .single()
-
-  if (error || !data) return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 })
-
-  // publisher 프로필 별도 조회
-  let profiles = null
-  if (data.publisher_id) {
-    const { data: p } = await adminSupabase
-      .from("profiles")
-      .select("id, username, role")
-      .eq("id", data.publisher_id)
+    const { data, error } = await adminSupabase
+      .from("market_items")
+      .select(`
+        id, title, description, image_url, link_url,
+        price_krw, stripe_price_id, view_count, order_count, created_at,
+        category_id, publisher_id,
+        market_categories(name, icon)
+      `)
+      .eq("id", id)
+      .eq("is_active", true)
       .single()
-    profiles = p ?? null
-  }
 
-  return NextResponse.json({ item: { ...data, profiles } })
+    if (error || !data) return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 })
+
+    // publisher 프로필 별도 조회
+    let profiles = null
+    if (data.publisher_id) {
+      const { data: p } = await adminSupabase
+        .from("profiles")
+        .select("id, username, role")
+        .eq("id", data.publisher_id)
+        .single()
+      profiles = p ?? null
+    }
+
+    return NextResponse.json({ item: { ...data, profiles } })
+  } catch {
+    return NextResponse.json({ error: "서버 오류" }, { status: 500 })
+  }
 }
 
 // PATCH: 상품 수정 (master 전체 / seller·admin·branch_admin은 자신의 상품만)
