@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Download, PenLine, AlertCircle } from "lucide-react"
+import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Download, PenLine, AlertCircle, ExternalLink, Lock, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { blobImageUrl } from "@/lib/blob-image"
 import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
@@ -11,7 +11,7 @@ import { useTranslation } from "@/lib/i18n"
 interface Category { id: string; name: string; icon: string; balance_only?: boolean }
 interface Item {
   id: string; title: string; description: string
-  image_url: string | null; price_krw: number
+  image_url: string | null; link_url: string | null; price_krw: number
   view_count: number; order_count: number; game_bonus_rate: number; created_at: string
   category_id: string | null
   market_categories: { name: string; icon: string; balance_only: boolean } | null
@@ -64,6 +64,9 @@ export default function MarketPage() {
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [showDeposit, setShowDeposit]         = useState(false)
   const [allowTokenDeposit, setAllowTokenDeposit] = useState(false)
+  const [hasPurchased, setHasPurchased]       = useState(false)
+  const [purchasedIds, setPurchasedIds]       = useState<Set<string>>(new Set())
+  const [showPurchasedOnly, setShowPurchasedOnly] = useState(false)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchItemsRef                 = useRef<(() => void) | null>(null)
 
@@ -87,6 +90,14 @@ export default function MarketPage() {
     fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => setAllowTokenDeposit(!!d?.profile?.allow_token_deposit))
+      .catch(() => {})
+    // 구매한 아이템 ID 목록 로드
+    fetch("/api/market/orders?status=paid", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const ids = new Set<string>((d?.orders ?? []).map((o: any) => o.item_id as string))
+        setPurchasedIds(ids)
+      })
       .catch(() => {})
   }, [])
 
@@ -125,6 +136,7 @@ export default function MarketPage() {
       if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
       setUserBalance(data.newBalance)
       setBalanceMemo("")
+      setPurchasedIds(prev => new Set([...prev, selectedItem.id]))
       setSelectedItem(null)
       fetchItemsRef.current?.()
     } catch {
@@ -133,6 +145,24 @@ export default function MarketPage() {
       setBuying(false)
     }
   }, [selectedItem])
+
+  // 다이얼로그 열릴 때 구매 여부 반영
+  useEffect(() => {
+    if (!selectedItem) return
+    setHasPurchased(purchasedIds.has(selectedItem.id))
+    // 최신 구매 여부 서버에서 재확인
+    const token = getToken()
+    if (!token) return
+    fetch(`/api/market/items/${selectedItem.id}/purchased`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.purchased) {
+          setHasPurchased(true)
+          setPurchasedIds(prev => new Set([...prev, selectedItem.id]))
+        }
+      })
+      .catch(() => {})
+  }, [selectedItem?.id])
 
   // 모달이 열릴 때 잔고 로드 (포인트 전용 아이템)
   useEffect(() => {
@@ -306,25 +336,52 @@ export default function MarketPage() {
 
               {buyErr && <p className="text-xs text-destructive">{buyErr}</p>}
 
-              {selectedItem.market_categories?.balance_only ? (
-                <button
-                  onClick={handleBalanceBuy}
-                  disabled={buying || (userBalance !== null && userBalance < selectedItem.price_krw)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
-                >
-                  {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
-                  {buying ? "처리 중..." : "잔고로 구매"}
-                </button>
-              ) : (
-                <button
-                  onClick={handleBuy}
-                  disabled={buying}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
-                >
-                  {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
-                  {buying ? t("market.buyingButton") : t("market.buyButton")}
-                </button>
-              )}
+              <div className="flex gap-2">
+                {selectedItem.market_categories?.balance_only ? (
+                  <button
+                    onClick={handleBalanceBuy}
+                    disabled={buying || (userBalance !== null && userBalance < selectedItem.price_krw)}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
+                  >
+                    {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+                    {buying ? "처리 중..." : "잔고로 구매"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleBuy}
+                    disabled={buying}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
+                  >
+                    {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+                    {buying ? t("market.buyingButton") : t("market.buyButton")}
+                  </button>
+                )}
+
+                {/* 링크 바로가기 — link_url이 있을 때만 표시, 구매 전 비활성 */}
+                {selectedItem.link_url && (
+                  hasPurchased ? (
+                    <a
+                      href={selectedItem.link_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-primary/50 bg-primary/10 text-primary text-sm font-bold hover:bg-primary/20 transition-colors shrink-0"
+                      title="링크 바로가기"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span className="hidden sm:inline">링크</span>
+                    </a>
+                  ) : (
+                    <button
+                      disabled
+                      title="구매 후 이용 가능합니다"
+                      className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-border bg-secondary/40 text-muted-foreground text-sm font-bold cursor-not-allowed shrink-0"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span className="hidden sm:inline">링크</span>
+                    </button>
+                  )
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -414,16 +471,32 @@ export default function MarketPage() {
           {/* 카테고리 탭 */}
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
             <button
-              onClick={() => setActiveCat("all")}
+              onClick={() => { setActiveCat("all"); setShowPurchasedOnly(false) }}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors shrink-0",
-                activeCat === "all"
+                activeCat === "all" && !showPurchasedOnly
                   ? "bg-primary text-black"
                   : "bg-secondary text-muted-foreground hover:text-foreground"
               )}
             >
               <span>🏪</span> {t("market.all")}
             </button>
+            {/* 구매한 필터 — 로그인한 유저에게만 표시 */}
+            {purchasedIds.size > 0 && (
+              <button
+                onClick={() => { setShowPurchasedOnly(v => !v); setActiveCat("all") }}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors shrink-0",
+                  showPurchasedOnly
+                    ? "bg-primary text-black"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                구매한
+                <span className="ml-0.5 opacity-70">({purchasedIds.size})</span>
+              </button>
+            )}
             {categories.filter(c => c.name !== "전체").map(cat => (
               <button
                 key={cat.id}
@@ -516,14 +589,15 @@ export default function MarketPage() {
               <div key={i} className="rounded-xl bg-secondary/40 animate-pulse aspect-[3/4]" />
             ))}
           </div>
-        ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
-            <Search className="w-10 h-10 mb-3 opacity-30" />
-            <p className="text-sm">상품이 없습니다.</p>
-          </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {items.map((item, idx) => (
+            {(showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items).length === 0 ? (
+              <div className="col-span-full flex flex-col items-center justify-center py-24 text-muted-foreground">
+                <CheckCircle2 className="w-10 h-10 mb-3 opacity-30" />
+                <p className="text-sm">{showPurchasedOnly ? "구매한 상품이 없습니다." : "상품이 없습니다."}</p>
+              </div>
+            ) : null}
+            {(showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items).map((item, idx) => (
               <MarketItemCard
                 key={item.id}
                 item={item}
