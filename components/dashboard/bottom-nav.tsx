@@ -6,30 +6,39 @@ import { useState, useEffect, useRef } from "react"
 import { Home, BarChart2, Settings, ShoppingBag, Store, Landmark } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const NAV_ITEMS = [
+const getToken = () => {
+  if (typeof window === "undefined") return null
+  return localStorage.getItem("app_token")
+}
+
+const BASE_NAV_ITEMS = [
   {
     label: "홈",
     icon: Home,
     href: "/market",
     match: ["/market", "/"],
+    requireDeposit: false,
   },
   {
     label: "내역",
     icon: ShoppingBag,
-    href: null, // 드로어 오픈
+    href: null,
     match: ["/purchases", "/seller", "/settlement"],
+    requireDeposit: false,
   },
   {
     label: "시그널",
     icon: BarChart2,
     href: "/trade",
     match: ["/trade"],
+    requireDeposit: true,
   },
   {
     label: "설정",
     icon: Settings,
     href: "/settings",
     match: ["/settings"],
+    requireDeposit: false,
   },
 ]
 
@@ -41,9 +50,23 @@ const DRAWER_ITEMS = [
 
 export function BottomNav() {
   const pathname  = usePathname()
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [visible,    setVisible]    = useState(true)
+  const [drawerOpen,        setDrawerOpen]        = useState(false)
+  const [visible,           setVisible]           = useState(true)
+  const [allowTokenDeposit, setAllowTokenDeposit] = useState(false)
   const lastY = useRef(0)
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setAllowTokenDeposit(!!d?.profile?.allow_token_deposit))
+      .catch(() => {})
+  }, [])
+
+  const NAV_ITEMS = BASE_NAV_ITEMS.filter(
+    item => !item.requireDeposit || allowTokenDeposit
+  )
 
   useEffect(() => {
     const onScroll = () => {
