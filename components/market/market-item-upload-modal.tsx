@@ -14,20 +14,39 @@ function getToken() {
   try { return localStorage.getItem("app_token") } catch { return null }
 }
 
+const CONTENT_TYPES = [
+  { value: "ebook", label: "📖 전자책" },
+  { value: "line", label: "💬 라인커뮤니티" },
+  { value: "youtube", label: "🎥 유튜브" },
+  { value: "telegram", label: "✈️ 텔레그램" },
+  { value: "discord", label: "🎮 디스코드" },
+]
+
+const DATA_SOURCE_TYPES = [
+  { value: "individual", label: "개별연결" },
+  { value: "text", label: "텍스트" },
+  { value: "tradingview", label: "트뷰계정" },
+]
+
 export default function MarketItemUploadModal({ onClose, onSuccess }: Props) {
-  const [title, setTitle]           = useState("")
-  const [description, setDesc]      = useState("")
-  const [price, setPrice]           = useState("")
-  const [categoryId, setCategoryId] = useState("")
-  const [imageUrl, setImageUrl]     = useState<string | null>(null)
-  const [imageFile, setImageFile]   = useState<File | null>(null)
+  const [title, setTitle]             = useState("")
+  const [description, setDesc]        = useState("")
+  const [price, setPrice]             = useState("")
+  const [categoryId, setCategoryId]   = useState("")
+  const [contentType, setContentType] = useState("ebook")
+  const [dataSourceType, setDataSourceType] = useState<string | null>(null)
+  const [linkUrl, setLinkUrl]         = useState("")
+  const [imageUrl, setImageUrl]       = useState<string | null>(null)
+  const [imageFile, setImageFile]     = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [uploading, setUploading]   = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError]           = useState("")
-  const [done, setDone]             = useState(false)
-  const [catOpen, setCatOpen]       = useState(false)
+  const [categories, setCategories]   = useState<Category[]>([])
+  const [uploading, setUploading]     = useState(false)
+  const [submitting, setSubmitting]   = useState(false)
+  const [error, setError]             = useState("")
+  const [done, setDone]               = useState(false)
+  const [catOpen, setCatOpen]         = useState(false)
+  const [contentOpen, setContentOpen] = useState(false)
+  const [dataSourceOpen, setDataSourceOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const dropRef = useRef<HTMLDivElement>(null)
 
@@ -81,6 +100,7 @@ export default function MarketItemUploadModal({ onClose, onSuccess }: Props) {
     const priceNum = Number(price.replace(/,/g, ""))
     if (!title.trim())      { setError("제목을 입력해주세요."); return }
     if (!priceNum || priceNum < 100) { setError("가격을 100원 이상 입력해주세요."); return }
+    if (!linkUrl.trim())    { setError("링크를 입력해주세요."); return }
     if (uploading)           { setError("이미지 업로드 중입니다. 잠시 기다려주세요."); return }
 
     setSubmitting(true)
@@ -92,11 +112,14 @@ export default function MarketItemUploadModal({ onClose, onSuccess }: Props) {
           Authorization:  `Bearer ${getToken()}`,
         },
         body: JSON.stringify({
-          title:       title.trim(),
-          description: description.trim(),
-          price_krw:   priceNum,
-          category_id: categoryId || null,
-          image_url:   imageUrl ?? null,
+          title:           title.trim(),
+          description:     description.trim(),
+          price_krw:       priceNum,
+          category_id:     categoryId || null,
+          image_url:       imageUrl ?? null,
+          link_url:        linkUrl.trim(),
+          content_type:    contentType,
+          data_source_type: dataSourceType,
         }),
       })
       const data = await res.json()
@@ -111,6 +134,8 @@ export default function MarketItemUploadModal({ onClose, onSuccess }: Props) {
   }
 
   const selectedCat = categories.find(c => c.id === categoryId)
+  const selectedContent = CONTENT_TYPES.find(t => t.value === contentType)
+  const selectedDataSource = dataSourceType ? DATA_SOURCE_TYPES.find(t => t.value === dataSourceType) : null
 
   return (
     <div
@@ -164,6 +189,19 @@ export default function MarketItemUploadModal({ onClose, onSuccess }: Props) {
                     <>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={imagePreview} alt="preview" className="absolute inset-0 w-full h-full object-cover" />
+                      {/* 타입 배지 오버레이 */}
+                      <div className="absolute bottom-2 left-2 flex flex-wrap gap-1">
+                        {selectedContent && (
+                          <span className="px-2 py-1 rounded-md bg-primary/80 text-black text-[10px] font-semibold">
+                            {selectedContent.label.split(" ")[1]}
+                          </span>
+                        )}
+                        {selectedDataSource && (
+                          <span className="px-2 py-1 rounded-md bg-secondary/80 text-foreground text-[10px] font-semibold">
+                            {selectedDataSource.label}
+                          </span>
+                        )}
+                      </div>
                       {/* 업로드 중 오버레이 */}
                       {uploading && (
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
@@ -280,6 +318,99 @@ export default function MarketItemUploadModal({ onClose, onSuccess }: Props) {
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">원</span>
                   </div>
                 </div>
+              </div>
+
+              {/* 구분 드롭다운 (구분 1: 컨텐츠 타입) */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">구분</label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setContentOpen(v => !v)}
+                    className="w-full h-10 px-3 flex items-center justify-between text-sm bg-secondary/40 border border-border rounded-lg hover:border-primary/40 transition-colors text-foreground"
+                  >
+                    <span>{selectedContent?.label || "선택"}</span>
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  </button>
+                  {contentOpen && (
+                    <div className="absolute z-20 top-full mt-1 left-0 right-0 rounded-xl border border-border bg-background shadow-xl overflow-hidden">
+                      {CONTENT_TYPES.map(type => (
+                        <button
+                          key={type.value}
+                          type="button"
+                          onClick={() => { setContentType(type.value); setContentOpen(false) }}
+                          className={[
+                            "w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors",
+                            type.value === contentType
+                              ? "bg-primary/10 text-primary"
+                              : "hover:bg-secondary text-foreground",
+                          ].join(" ")}
+                        >
+                          {type.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 데이터 소스 타입 (지표용) */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  데이터 소스 <span className="opacity-50">(선택)</span>
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setDataSourceOpen(v => !v)}
+                    className="w-full h-10 px-3 flex items-center justify-between text-sm bg-secondary/40 border border-border rounded-lg hover:border-primary/40 transition-colors text-foreground"
+                  >
+                    <span className={dataSourceType ? "text-foreground" : "text-muted-foreground/50"}>
+                      {selectedDataSource?.label || "선택"}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  </button>
+                  {dataSourceOpen && (
+                    <div className="absolute z-20 top-full mt-1 left-0 right-0 rounded-xl border border-border bg-background shadow-xl overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => { setDataSourceType(null); setDataSourceOpen(false) }}
+                        className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-secondary transition-colors"
+                      >
+                        선택 안함
+                      </button>
+                      {DATA_SOURCE_TYPES.map(type => (
+                        <button
+                          key={type.value}
+                          type="button"
+                          onClick={() => { setDataSourceType(type.value); setDataSourceOpen(false) }}
+                          className={[
+                            "w-full text-left px-3 py-2 text-xs transition-colors",
+                            type.value === dataSourceType
+                              ? "bg-primary/10 text-primary"
+                              : "hover:bg-secondary text-foreground",
+                          ].join(" ")}
+                        >
+                          {type.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 링크 (필수) */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  링크 <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="url"
+                  value={linkUrl}
+                  onChange={e => setLinkUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full h-10 px-3 text-sm bg-secondary/40 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/50"
+                />
               </div>
 
               {/* 설명 */}

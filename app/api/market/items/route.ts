@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     .select(`
       id, title, description, image_url, link_url,
       price_krw, view_count, order_count, game_bonus_rate, created_at, is_active,
-      category_id, publisher_id,
+      category_id, publisher_id, content_type, data_source_type,
       market_categories(name, icon, balance_only)
     `)
 
@@ -111,7 +111,12 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json()
-  const { title, description, image_url, link_url, price_krw, category_id } = body
+  const { title, description, image_url, link_url, price_krw, category_id, content_type, data_source_type } = body
+
+  // 링크 필수 검증
+  if (!link_url || !link_url.trim()) {
+    return NextResponse.json({ error: "링크를 입력해주세요." }, { status: 400 })
+  }
 
   // 포인트 전용 카테고리에 글쓰기 시 권한 검사
   if (category_id) {
@@ -150,12 +155,14 @@ export async function POST(req: Request) {
       title,
       description:      description ?? "",
       image_url:        image_url   ?? null,
-      link_url:         link_url    ?? null,
+      link_url:         link_url.trim(),
       price_krw,
       category_id:      category_id ?? null,
       publisher_id,
       stripe_price_id:  stripePrice.id,
       game_bonus_rate,
+      content_type:     content_type ?? "ebook",
+      data_source_type: data_source_type ?? null,
     })
     .select()
     .single()

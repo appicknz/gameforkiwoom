@@ -14,6 +14,8 @@ interface Item {
   image_url: string | null; link_url: string | null; price_krw: number
   view_count: number; order_count: number; game_bonus_rate: number; created_at: string
   category_id: string | null
+  content_type: string
+  data_source_type: string | null
   market_categories: { name: string; icon: string; balance_only: boolean } | null
   profiles: { username: string; role: string } | null
 }
@@ -781,6 +783,25 @@ function MarketItemCard({
               {item.market_categories.icon} {item.market_categories.name}
             </span>
           )}
+          {/* 콘텐츠 타입 + 데이터 소스 배지 */}
+          <div className="absolute bottom-2 left-2 flex flex-wrap gap-1">
+            {item.content_type && (
+              <span className="px-1.5 py-0.5 rounded-md bg-primary/80 text-black text-[9px] font-semibold">
+                {item.content_type === "ebook" && "전자책"}
+                {item.content_type === "line" && "라인"}
+                {item.content_type === "youtube" && "유튜브"}
+                {item.content_type === "telegram" && "텔레그램"}
+                {item.content_type === "discord" && "디스코드"}
+              </span>
+            )}
+            {item.data_source_type && (
+              <span className="px-1.5 py-0.5 rounded-md bg-secondary/80 text-foreground text-[9px] font-semibold">
+                {item.data_source_type === "individual" && "개별연결"}
+                {item.data_source_type === "text" && "텍스트"}
+                {item.data_source_type === "tradingview" && "트뷰"}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* 정보 영역 */}
