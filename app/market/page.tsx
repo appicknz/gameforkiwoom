@@ -103,9 +103,35 @@ export default function MarketPage() {
       .catch(() => {})
   }, [])
 
+  const handleFreePurchase = useCallback(async () => {
+    if (!selectedItem) return
+    const token = getToken()
+    if (!token) { setBuyErr(t("auth.loginRequired")); return }
+    setBuying(true); setBuyErr("")
+    try {
+      const res  = await fetch("/api/market/free-purchase", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ itemId: selectedItem.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
+      // 즉시 링크 활성화
+      setHasPurchased(true)
+      setPurchasedIds(prev => new Set([...prev, selectedItem.id]))
+      fetchItemsRef.current?.()
+    } catch {
+      setBuyErr(t("common.error"))
+    } finally {
+      setBuying(false)
+    }
+  }, [selectedItem])
+
   const handleBuy = useCallback(async () => {
     if (!selectedItem) return
     if (!getToken()) { setBuyErr(t("auth.loginRequired")); return }
+    // 0원 상품은 Stripe 없이 즉시 처리
+    if (selectedItem.price_krw === 0) { await handleFreePurchase(); return }
     setBuying(true); setBuyErr("")
     try {
       const res  = await fetch("/api/market/checkout", {
@@ -121,12 +147,14 @@ export default function MarketPage() {
     } finally {
       setBuying(false)
     }
-  }, [selectedItem])
+  }, [selectedItem, handleFreePurchase])
 
   const handleBalanceBuy = useCallback(async () => {
     if (!selectedItem) return
     const token = getToken()
     if (!token) { setBuyErr(t("auth.loginRequired")); return }
+    // 0원 상품은 잔고 차감 없이 즉시 처리
+    if (selectedItem.price_krw === 0) { await handleFreePurchase(); return }
     setBuying(true); setBuyErr("")
     try {
       const res  = await fetch("/api/market/balance-purchase", {
@@ -146,7 +174,7 @@ export default function MarketPage() {
     } finally {
       setBuying(false)
     }
-  }, [selectedItem])
+  }, [selectedItem, handleFreePurchase])
 
   // 다이얼로그 열릴 때 구매 여부 반영
   useEffect(() => {
@@ -355,7 +383,7 @@ export default function MarketPage() {
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
                   >
                     {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
-                    {buying ? t("market.buyingButton") : t("market.buyButton")}
+                    {buying ? t("market.buyingButton") : selectedItem?.price_krw === 0 ? "무료 받기" : t("market.buyButton")}
                   </button>
                 )}
 
