@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
 
-  const { itemId } = (await req.json()) as { itemId?: string }
+  const { itemId, useBalance, balanceUsed } = (await req.json()) as { itemId?: string; useBalance?: boolean; balanceUsed?: number }
   if (!itemId) return NextResponse.json({ error: "상품 ID가 없습니다." }, { status: 400 })
 
   // 상품 조회 — 0원 확인

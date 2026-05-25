@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
 
   const body = await req.json()
-  const { itemId, tvId } = body as { itemId?: string; tvId?: string }
+  const { itemId, tvId, useBalance, balanceUsed } = body as { itemId?: string; tvId?: string; useBalance?: boolean; balanceUsed?: number }
   if (!itemId) return NextResponse.json({ error: "상품 ID가 없습니다." }, { status: 400 })
 
   // 상품 조회
@@ -38,6 +38,45 @@ export async function POST(req: Request) {
 
   const origin = req.headers.get("origin") ?? process.env.VERCEL_URL ?? "http://localhost:3000"
 
+  // 포인트 사용 시 balance 차감
+  if (useBalance && balanceUsed && balanceUsed > 0) {
+    const { data: profile } = await adminSupabase
+      .from("profiles")
+      .select("balance")
+      .eq("id", auth.userId)
+      .single()
+    
+    if (!profile || profile.balance < balanceUsed) {
+      return NextResponse.json({ error: "포인트가 부족합니다." }, { status: 400 })
+    }
+
+    const { error: deductErr } = await adminSupabase
+      .from("profiles")
+      .update({ balance: profile.balance - balanceUsed })
+      .eq("id", auth.userId)
+    if (deductErr) {
+      return NextResponse.json({ error: "포인트 차감에 실패했습니다." }, { status: 500 })
+    }
+  }
+
+  // 포인트로 전액 결제한 경우 Stripe 없이 즉시 approved 처리
+  const priceAfterBalance = Math.max(0, item.price_krw - (balanceUsed ?? 0))
+  if (priceAfterBalance === 0) {
+    const { error: orderErr } = await adminSupabase.from("market_orders").insert({
+      item_id:      itemId,
+      buyer_id:     auth.userId,
+      publisher_id: item.publisher_id,
+      price_krw:    item.price_krw,
+      balance_used: balanceUsed ?? 0,
+      status:       "approved",
+      paid_at:      new Date().toISOString(),
+    })
+    if (orderErr) {
+      return NextResponse.json({ error: "주문 생성 실패" }, { status: 500 })
+    }
+    return NextResponse.json({ url: null, completed: true })
+  }
+
   // stripe_price_id 있으면 기존 Price 사용, 없으면 price_data로 직접 생성
   const lineItem = item.stripe_price_id
     ? { price: item.stripe_price_id, quantity: 1 }
@@ -60,6 +99,7 @@ export async function POST(req: Request) {
       buyer_id:     auth.userId,
       publisher_id: item.publisher_id ?? "",
       tv_id:        tvId ?? "",
+      balance_used: (balanceUsed ?? 0).toString(),
     },
   })
 
@@ -69,6 +109,7 @@ export async function POST(req: Request) {
     buyer_id:          auth.userId,
     publisher_id:      item.publisher_id,
     price_krw:         item.price_krw,
+    balance_used:      balanceUsed ?? 0,
     stripe_session_id: session.id,
     status:            "pending",
   })
