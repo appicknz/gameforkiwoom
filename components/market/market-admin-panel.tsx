@@ -17,7 +17,23 @@ export interface EditItem {
   image_url: string | null
   is_active: boolean
   game_bonus_rate: number
+  content_type: string | null
+  data_source_type: string | null
 }
+
+const CONTENT_TYPES = [
+  { value: "ebook",    label: "전자책" },
+  { value: "line",     label: "라인커뮤니티" },
+  { value: "youtube",  label: "유튜브" },
+  { value: "telegram", label: "텔레그램" },
+  { value: "discord",  label: "디스코드" },
+]
+
+const DATA_SOURCE_TYPES = [
+  { value: "individual",   label: "개별연결" },
+  { value: "text",         label: "텍스트" },
+  { value: "tradingview",  label: "트뷰계정" },
+]
 
 interface Props {
   categories: Category[]
@@ -53,6 +69,8 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
     publisher_id:     editItem?.publisher_id     ?? (!isMaster && selfPublisherId ? selfPublisherId : ""),
     is_active:        editItem?.is_active        ?? true,
     game_bonus_rate:  editItem?.game_bonus_rate  != null ? String(editItem.game_bonus_rate) : "0",
+    content_type:     editItem?.content_type     ?? "ebook",
+    data_source_type: editItem?.data_source_type ?? "",
   })
   const [imageFile, setImageFile]       = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(editItem?.image_url ?? null)
@@ -118,6 +136,8 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
           is_active:        form.is_active,
           image_url,
           game_bonus_rate:  bonusRate,
+          content_type:     form.content_type || "ebook",
+          data_source_type: form.data_source_type || null,
         }),
       })
       const data = await res.json()
@@ -248,6 +268,30 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
             <option value="">카테고리 선택</option>
             {categories.map(c => (
               <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+            ))}
+          </select>
+
+          {/* 구분 — 컨텐츠 유형 */}
+          <select
+            value={form.content_type}
+            onChange={e => setForm(f => ({ ...f, content_type: e.target.value }))}
+            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="">구분 선택</option>
+            {CONTENT_TYPES.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+
+          {/* 데이터 소스 — 지표용 */}
+          <select
+            value={form.data_source_type}
+            onChange={e => setForm(f => ({ ...f, data_source_type: e.target.value }))}
+            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="">데이터 소스 선택 (선택)</option>
+            {DATA_SOURCE_TYPES.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
 
