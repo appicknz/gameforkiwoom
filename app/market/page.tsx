@@ -60,7 +60,6 @@ export default function MarketPage() {
   const [tvId, setTvId]               = useState("")
   const [userBalance, setUserBalance] = useState<number | null>(null)
   const [balanceMemo, setBalanceMemo] = useState("")
-  const [useBalance, setUseBalance]   = useState(false)
   // 글쓰기 권한 신청 상태: null=미조회, 'none'=신청없음, 'pending'=대기중, 'approved'=승인됨, 'rejected'=거절됨
   const [writePermStatus, setWritePermStatus]         = useState<string | null>(null)
   const [allowPointCategory, setAllowPointCategory]   = useState(false)
@@ -113,7 +112,7 @@ export default function MarketPage() {
       const res  = await fetch("/api/market/free-purchase", {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ itemId: selectedItem.id, useBalance, balanceUsed: useBalance ? (userBalance ?? 0) : 0 }),
+        body:    JSON.stringify({ itemId: selectedItem.id }),
       })
       const data = await res.json()
       if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
@@ -138,7 +137,7 @@ export default function MarketPage() {
       const res  = await fetch("/api/market/checkout", {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ itemId: selectedItem.id, tvId: tvId.trim(), useBalance, balanceUsed: useBalance ? Math.min(userBalance ?? 0, selectedItem.price_krw) : 0 }),
+        body:    JSON.stringify({ itemId: selectedItem.id, tvId: tvId.trim() }),
       })
       const data = await res.json()
       if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
@@ -161,7 +160,7 @@ export default function MarketPage() {
       const res  = await fetch("/api/market/balance-purchase", {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ itemId: selectedItem.id, memo: balanceMemo, useBalance, balanceUsed: useBalance ? Math.min(userBalance ?? 0, selectedItem.price_krw) : 0 }),
+        body:    JSON.stringify({ itemId: selectedItem.id, memo: balanceMemo }),
       })
       const data = await res.json()
       if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
@@ -254,14 +253,14 @@ export default function MarketPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: "rgba(0,0,0,0.75)" }}
-          onClick={() => { setSelectedItem(null); setBuyErr(""); setTvId(""); setUseBalance(false) }}
+          onClick={() => { setSelectedItem(null); setBuyErr(""); setTvId("") }}
         >
           <div
             className="relative w-full max-w-lg rounded-2xl border border-border bg-background overflow-hidden shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
             <button
-          onClick={() => { setSelectedItem(null); setBuyErr(""); setTvId(""); setBalanceMemo(""); setUseBalance(false) }}
+          onClick={() => { setSelectedItem(null); setBuyErr(""); setTvId(""); setBalanceMemo("") }}
 
               className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -301,16 +300,9 @@ export default function MarketPage() {
                 <p className="text-sm text-muted-foreground leading-relaxed">{selectedItem.description}</p>
               )}
               <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-lg font-extrabold text-primary">
-                    {useBalance ? Math.max(0, selectedItem.price_krw - (userBalance ?? 0)).toLocaleString("ko-KR") : selectedItem.price_krw.toLocaleString("ko-KR")}원
-                  </span>
-                  {useBalance && userBalance && userBalance > 0 && (
-                    <span className="text-xs text-muted-foreground line-through opacity-60">
-                      {selectedItem.price_krw.toLocaleString("ko-KR")}원
-                    </span>
-                  )}
-                </div>
+                <span className="text-lg font-extrabold text-primary">
+                  {selectedItem.price_krw.toLocaleString("ko-KR")}원
+                </span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">{(selectedItem.view_count ?? 0).toLocaleString()}명 조회</span>
                   {(selectedItem.game_bonus_rate ?? 0) > 0 && (
@@ -320,33 +312,6 @@ export default function MarketPage() {
                   )}
                 </div>
               </div>
-
-              {/* 포인트 사용 토글 */}
-              {userBalance !== null && userBalance > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setUseBalance(v => !v)}
-                  className={[
-                    "w-full flex items-center justify-between px-3 py-2.5 rounded-xl border-2 transition-all",
-                    useBalance
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-secondary/40 text-foreground hover:border-primary/40",
-                  ].join(" ")}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={[
-                      "w-4 h-4 rounded border transition-all flex items-center justify-center",
-                      useBalance ? "bg-primary border-primary" : "border-muted-foreground/50"
-                    ].join(" ")}>
-                      {useBalance && <span className="text-white text-xs font-bold">✓</span>}
-                    </div>
-                    <span className="text-sm font-medium">포인트 사용</span>
-                  </div>
-                  <span className="text-xs font-semibold">
-                    {userBalance.toLocaleString("ko-KR")}원 잔고
-                  </span>
-                </button>
-              )}
               {(selectedItem.game_bonus_rate ?? 0) > 0 && (
                 <p className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
                   이 컨텐츠 구매 시 결제 금액의 <span className="text-primary font-semibold">{selectedItem.game_bonus_rate}%</span>인{" "}

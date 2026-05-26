@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
 
   const body = await req.json()
-  const { itemId, memo, useBalance, balanceUsed } = body as { itemId?: string; memo?: string; useBalance?: boolean; balanceUsed?: number }
+  const { itemId, memo } = body as { itemId?: string; memo?: string }
   if (!itemId) return NextResponse.json({ error: "상품 ID가 없습니다." }, { status: 400 })
   const cleanMemo = memo?.trim().slice(0, 500) || null
 
@@ -55,17 +55,14 @@ export async function POST(req: Request) {
     .single()
 
   const currentBalance = balanceRow?.amount ?? 0
-  
-  // useBalance인 경우 balanceUsed만큼 추가 차감
-  const totalDeduction = item.price_krw + (useBalance && balanceUsed ? balanceUsed : 0)
-  if (currentBalance < totalDeduction) {
+  if (currentBalance < item.price_krw) {
     return NextResponse.json({
-      error: `잔고가 부족합니다. (현재 잔고: ${currentBalance.toLocaleString("ko-KR")}원, 필요: ${totalDeduction.toLocaleString("ko-KR")}원)`,
+      error: `잔고가 부족합니다. (현재 잔고: ${currentBalance.toLocaleString("ko-KR")}원)`,
     }, { status: 402 })
   }
 
   // 잔고 차감
-  const newBalance = currentBalance - totalDeduction
+  const newBalance = currentBalance - item.price_krw
 
   const { error: updateErr } = await adminSupabase
     .from("balances")
@@ -87,7 +84,6 @@ export async function POST(req: Request) {
     buyer_id:       auth.userId,
     publisher_id:   item.publisher_id,
     price_krw:      item.price_krw,
-    balance_used:   useBalance && balanceUsed ? balanceUsed : 0,
     status:         "approved",
     paid_at:        now,
     bonus_credited: false,
