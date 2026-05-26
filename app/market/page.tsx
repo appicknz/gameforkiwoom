@@ -69,6 +69,7 @@ export default function MarketPage() {
   const [hasPurchased, setHasPurchased]       = useState(false)
   const [purchasedIds, setPurchasedIds]       = useState<Set<string>>(new Set())
   const [showPurchasedOnly, setShowPurchasedOnly] = useState(false)
+  const [usePoint, setUsePoint]               = useState(false)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchItemsRef                 = useRef<(() => void) | null>(null)
 
@@ -129,15 +130,19 @@ export default function MarketPage() {
 
   const handleBuy = useCallback(async () => {
     if (!selectedItem) return
-    if (!getToken()) { setBuyErr(t("auth.loginRequired")); return }
-    // 0원 상품은 Stripe 없이 즉시 처리
-    if (selectedItem.price_krw === 0) { await handleFreePurchase(); return }
+    const token = getToken()
+    if (!token) { setBuyErr(t("auth.loginRequired")); return }
+    // 포인트 사용 시 차감 후 잔액 계산
+    const pointAmt  = usePoint ? Math.min(userBalance ?? 0, selectedItem.price_krw) : 0
+    const remaining = selectedItem.price_krw - pointAmt
+    // 0원이면 즉시 처리 (0원 상품 or 포인트로 전액 커버)
+    if (remaining === 0) { await handleFreePurchase(); return }
     setBuying(true); setBuyErr("")
     try {
       const res  = await fetch("/api/market/checkout", {
         method:  "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ itemId: selectedItem.id, tvId: tvId.trim() }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ itemId: selectedItem.id, tvId: tvId.trim(), pointAmount: pointAmt }),
       })
       const data = await res.json()
       if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
@@ -147,20 +152,22 @@ export default function MarketPage() {
     } finally {
       setBuying(false)
     }
-  }, [selectedItem, handleFreePurchase])
+  }, [selectedItem, handleFreePurchase, usePoint, userBalance])
 
   const handleBalanceBuy = useCallback(async () => {
     if (!selectedItem) return
     const token = getToken()
     if (!token) { setBuyErr(t("auth.loginRequired")); return }
-    // 0원 상품은 잔고 차감 없이 즉시 처리
-    if (selectedItem.price_krw === 0) { await handleFreePurchase(); return }
+    // 0원 상품 or 포인트로 전액 커버되면 즉시 처리
+    const pointAmt  = usePoint ? Math.min(userBalance ?? 0, selectedItem.price_krw) : 0
+    const remaining = selectedItem.price_krw - pointAmt
+    if (remaining === 0) { await handleFreePurchase(); return }
     setBuying(true); setBuyErr("")
     try {
       const res  = await fetch("/api/market/balance-purchase", {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ itemId: selectedItem.id, memo: balanceMemo }),
+        body:    JSON.stringify({ itemId: selectedItem.id, memo: balanceMemo, pointAmount: pointAmt }),
       })
       const data = await res.json()
       if (!res.ok) { setBuyErr(data.error ?? t("common.error")); return }
@@ -174,7 +181,7 @@ export default function MarketPage() {
     } finally {
       setBuying(false)
     }
-  }, [selectedItem, handleFreePurchase])
+  }, [selectedItem, handleFreePurchase, usePoint, userBalance])
 
   // 다이얼로그 열릴 때 구매 여부 반영
   useEffect(() => {
@@ -194,16 +201,17 @@ export default function MarketPage() {
       .catch(() => {})
   }, [selectedItem?.id])
 
-  // 모달이 열릴 때 잔고 로드 (포인트 전용 아이템)
+  // 모달이 열릴 때 잔고 로드 (로그인 유저 전체)
   useEffect(() => {
-    if (!selectedItem?.market_categories?.balance_only) return
+    if (!selectedItem) return
+    setUsePoint(false)
     const token = getToken()
     if (!token) return
     fetch("/api/user/balance", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => setUserBalance(d.balance ?? 0))
       .catch(() => {})
-  }, [selectedItem])
+  }, [selectedItem?.id])
 
   // 카테고리 로드
   useEffect(() => {
@@ -300,9 +308,30 @@ export default function MarketPage() {
                 <p className="text-sm text-muted-foreground leading-relaxed">{selectedItem.description}</p>
               )}
               <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
-                <span className="text-lg font-extrabold text-primary">
-                  {selectedItem.price_krw.toLocaleString("ko-KR")}원
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-lg font-extrabold ${usePoint && userBalance !== null && userBalance > 0 ? "line-through text-muted-foreground text-sm" : "text-primary"}`}>
+                    {selectedItem.price_krw.toLocaleString("ko-KR")}원
+                  </span>
+                  {usePoint && userBalance !== null && userBalance > 0 && selectedItem.price_krw > 0 && (
+                    <span className="text-lg font-extrabold text-primary">
+                      {Math.max(0, selectedItem.price_krw - Math.min(userBalance, selectedItem.price_krw)).toLocaleString("ko-KR")}원
+                    </span>
+                  )}
+                  {/* 포인트 사용 버튼 — 로그인 유저 + 잔고 있을 때만 */}
+                  {userBalance !== null && userBalance > 0 && selectedItem.price_krw > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setUsePoint(v => !v)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                        usePoint
+                          ? "bg-primary text-black border-primary"
+                          : "bg-transparent text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                      }`}
+                    >
+                      포인트 사용
+                    </button>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">{(selectedItem.view_count ?? 0).toLocaleString()}명 조회</span>
                   {(selectedItem.game_bonus_rate ?? 0) > 0 && (
@@ -312,6 +341,20 @@ export default function MarketPage() {
                   )}
                 </div>
               </div>
+              {/* 포인트 잔고 + 차감 안내 */}
+              {userBalance !== null && userBalance > 0 && selectedItem.price_krw > 0 && (
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-secondary/40 border border-border">
+                  <span className="text-xs text-muted-foreground">보유 포인트</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">{userBalance.toLocaleString("ko-KR")}원</span>
+                    {usePoint && (
+                      <span className="text-xs text-primary font-semibold">
+                        -{Math.min(userBalance, selectedItem.price_krw).toLocaleString("ko-KR")}원 차감
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               {(selectedItem.game_bonus_rate ?? 0) > 0 && (
                 <p className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
                   이 컨텐츠 구매 시 결제 금액의 <span className="text-primary font-semibold">{selectedItem.game_bonus_rate}%</span>인{" "}
@@ -338,15 +381,9 @@ export default function MarketPage() {
                 </div>
               )}
 
-              {/* 포인트 전용: 잔고 표시 + 메모 입력 */}
+              {/* 포인트 전용: 메모 입력 */}
               {selectedItem.market_categories?.balance_only && (
                 <>
-                  <div className="rounded-lg border border-border bg-secondary/30 px-3 py-2.5 flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">내 잔고</span>
-                    <span className={`text-sm font-bold ${userBalance !== null && userBalance < selectedItem.price_krw ? "text-destructive" : "text-foreground"}`}>
-                      {userBalance !== null ? `${userBalance.toLocaleString("ko-KR")}원` : "조회 중..."}
-                    </span>
-                  </div>
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">
                       메모 <span className="text-muted-foreground/50">(선택, 최대 500자)</span>
@@ -370,7 +407,7 @@ export default function MarketPage() {
                 {selectedItem.market_categories?.balance_only ? (
                   <button
                     onClick={handleBalanceBuy}
-                    disabled={buying || (userBalance !== null && userBalance < selectedItem.price_krw)}
+                    disabled={buying || (userBalance !== null && userBalance < (selectedItem.price_krw - (usePoint ? Math.min(userBalance ?? 0, selectedItem.price_krw) : 0)))}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
                   >
                     {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}

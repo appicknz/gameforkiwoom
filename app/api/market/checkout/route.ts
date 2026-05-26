@@ -9,8 +9,9 @@ export async function POST(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
 
   const body = await req.json()
-  const { itemId, tvId } = body as { itemId?: string; tvId?: string }
+  const { itemId, tvId, pointAmount = 0 } = body as { itemId?: string; tvId?: string; pointAmount?: number }
   if (!itemId) return NextResponse.json({ error: "상품 ID가 없습니다." }, { status: 400 })
+  const pointAmt = Math.max(0, Math.floor(pointAmount))
 
   // 상품 조회
   const { data: item, error: itemErr } = await adminSupabase
@@ -38,17 +39,40 @@ export async function POST(req: Request) {
 
   const origin = req.headers.get("origin") ?? process.env.VERCEL_URL ?? "http://localhost:3000"
 
-  // stripe_price_id 있으면 기존 Price 사용, 없으면 price_data로 직접 생성
-  const lineItem = item.stripe_price_id
-    ? { price: item.stripe_price_id, quantity: 1 }
-    : {
-        quantity: 1,
-        price_data: {
-          currency:     "krw",
-          unit_amount:  item.price_krw,
-          product_data: { name: item.title },
-        },
-      }
+  // 포인트 차감 처리
+  let usedPoint = 0
+  if (pointAmt > 0) {
+    const { data: balanceRow } = await adminSupabase
+      .from("balances")
+      .select("amount")
+      .eq("user_id", auth.userId)
+      .single()
+
+    const currentBalance = balanceRow?.amount ?? 0
+    usedPoint = Math.min(pointAmt, currentBalance, item.price_krw)
+
+    if (usedPoint > 0) {
+      const { redis } = await import("@/lib/redis")
+      const newBalance = currentBalance - usedPoint
+      await adminSupabase.from("balances").update({ amount: newBalance }).eq("user_id", auth.userId)
+      await Promise.all([
+        redis.set(`balance:${auth.userId}`, newBalance, { ex: 3600 }),
+        redis.incr(`balance_version:${auth.userId}`),
+      ])
+    }
+  }
+
+  const finalAmount = item.price_krw - usedPoint
+
+  // Stripe 결제 금액 = 포인트 차감 후 잔액
+  const lineItem = {
+    quantity: 1,
+    price_data: {
+      currency:     "krw",
+      unit_amount:  finalAmount,
+      product_data: { name: item.title + (usedPoint > 0 ? ` (포인트 ${usedPoint.toLocaleString("ko-KR")}원 적용)` : "") },
+    },
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode:        "payment",
@@ -60,6 +84,7 @@ export async function POST(req: Request) {
       buyer_id:     auth.userId,
       publisher_id: item.publisher_id ?? "",
       tv_id:        tvId ?? "",
+      used_point:   String(usedPoint),
     },
   })
 

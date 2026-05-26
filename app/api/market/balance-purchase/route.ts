@@ -9,9 +9,10 @@ export async function POST(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
 
   const body = await req.json()
-  const { itemId, memo } = body as { itemId?: string; memo?: string }
+  const { itemId, memo, pointAmount = 0 } = body as { itemId?: string; memo?: string; pointAmount?: number }
   if (!itemId) return NextResponse.json({ error: "상품 ID가 없습니다." }, { status: 400 })
   const cleanMemo = memo?.trim().slice(0, 500) || null
+  const pointAmt  = Math.max(0, Math.floor(pointAmount))
 
   // 상품 조회 — 카테고리 balance_only 여부도 함께 확인
   const { data: item, error: itemErr } = await adminSupabase
@@ -55,13 +56,17 @@ export async function POST(req: Request) {
     .single()
 
   const currentBalance = balanceRow?.amount ?? 0
-  if (currentBalance < item.price_krw) {
+  // 포인트 적용: 포인트로 최대 item.price_krw까지 차감, 나머지는 잔고에서
+  const usedPoint  = Math.min(pointAmt, currentBalance, item.price_krw)
+  const remaining  = item.price_krw - usedPoint
+
+  if (currentBalance - usedPoint < remaining) {
     return NextResponse.json({
       error: `잔고가 부족합니다. (현재 잔고: ${currentBalance.toLocaleString("ko-KR")}원)`,
     }, { status: 402 })
   }
 
-  // 잔고 차감
+  // 잔고 차감 (포인트 + 잔고 합산)
   const newBalance = currentBalance - item.price_krw
 
   const { error: updateErr } = await adminSupabase
