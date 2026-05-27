@@ -83,8 +83,8 @@ export async function POST(req: Request) {
     )
     const { data: authUser } = await adminClient.auth.admin.getUserById(auth.userId)
     customerEmail = authUser?.user?.email ?? "customer@unknown.com"
-  } catch (e) {
-    console.log("[v0] email lookup failed:", e)
+  } catch {
+    // 이메일 조회 실패 시 기본값 사용
   }
 
   // metadata: pipe-delimited (254자 제한)
