@@ -93,9 +93,12 @@ export async function POST(req: Request) {
     .join("|")
 
   // MALUM 헤더: {BUSINESS_ID}:{SECRET_KEY}
-  const malumMid    = process.env.MALUM_BUSINESS_ID    ?? "6A159B5789315"
-  const malumSecret = process.env.MALUM_SECRET_KEY     ?? "sec_9ce830ec8383b3e2cbda3d07b8ad5e656a159b578932a299688533"
-  const malumKey    = `${malumMid}:${malumSecret}`
+  const malumMid    = process.env.MALUM_BUSINESS_ID
+  const malumSecret = process.env.MALUM_SECRET_KEY
+  if (!malumMid || !malumSecret) {
+    return NextResponse.json({ error: "결제 설정 오류 (env)" }, { status: 500 })
+  }
+  const malumKey = `${malumMid}:${malumSecret}`
 
   const malumBody = {
     amount:          finalUsd,
