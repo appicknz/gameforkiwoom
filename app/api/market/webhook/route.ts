@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
   // Malum 웹훅 서명 검증: md5(txn + "|" + timestamp + "|" + webhook_key)
   const { txn, timestamp, signature, status, metadata } = event
-  const webhookKey = process.env.MALUM_WEBHOOK_KEY ?? ""
+  const webhookKey = process.env.MALUM_WEBHOOK_KEY ?? "whs_7b0e489b580e23c01047723lf04f91976a159b578932c734682999"
 
   if (webhookKey) {
     const expected = createHash("md5")
