@@ -1,8 +1,14 @@
 export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { stripe } from "@/lib/stripe"
 import { verifySession } from "@/lib/auth"
+
+// KRW → USD 환산율 (env에서 오버라이드 가능, 기본 1350)
+const KRW_PER_USD = Number(process.env.KRW_PER_USD ?? 1350)
+
+function krwToUsd(krw: number): number {
+  return Math.max(0.5, Math.round((krw / KRW_PER_USD) * 100) / 100)
+}
 
 export async function POST(req: Request) {
   const auth = await verifySession(req)
@@ -16,28 +22,29 @@ export async function POST(req: Request) {
   // 상품 조회
   const { data: item, error: itemErr } = await adminSupabase
     .from("market_items")
-    .select("id, title, price_krw, stripe_price_id, publisher_id, is_active")
+    .select("id, title, description, image_url, price_krw, publisher_id, is_active")
     .eq("id", itemId)
     .single()
 
   if (itemErr || !item?.is_active) {
     return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 })
   }
-  // 중복 주문 확인: approved(승인완료) 또는 결제 완료된 pending(paid_at 있음)만 막기
+
+  // 중복 주문 확인
   const { data: existing } = await adminSupabase
     .from("market_orders")
-    .select("id, status, paid_at")
+    .select("id")
     .eq("item_id", itemId)
     .eq("buyer_id", auth.userId)
     .in("status", ["pending", "approved"])
-    .not("paid_at", "is", null)  // paid_at 있는 것만 = 실제 결제된 주문
+    .not("paid_at", "is", null)
     .single()
 
   if (existing) {
     return NextResponse.json({ error: "이미 결제가 완료된 상품입니다." }, { status: 409 })
   }
 
-  const origin = req.headers.get("origin") ?? process.env.VERCEL_URL ?? "http://localhost:3000"
+  const origin = req.headers.get("origin") ?? `https://${process.env.VERCEL_URL}` ?? "http://localhost:3000"
 
   // 포인트 차감 처리
   let usedPoint = 0
@@ -62,41 +69,64 @@ export async function POST(req: Request) {
     }
   }
 
-  const finalAmount = item.price_krw - usedPoint
+  const finalKrw = item.price_krw - usedPoint
+  const finalUsd = krwToUsd(finalKrw)
 
-  // Stripe 결제 금액 = 포인트 차감 후 잔액
-  const lineItem = {
-    quantity: 1,
-    price_data: {
-      currency:     "krw",
-      unit_amount:  finalAmount,
-      product_data: { name: item.title + (usedPoint > 0 ? ` (포인트 ${usedPoint.toLocaleString("ko-KR")}원 적용)` : "") },
+  // 구매자 이메일 조회
+  const { data: profile } = await adminSupabase
+    .from("profiles")
+    .select("email")
+    .eq("id", auth.userId)
+    .single()
+
+  const customerEmail = profile?.email ?? "customer@unknown.com"
+
+  // metadata: pipe-delimited (254자 제한)
+  const metadata = [itemId, auth.userId, item.publisher_id ?? "", tvId ?? "", String(usedPoint)]
+    .map(s => s.replace(/\|/g, "_"))
+    .join("|")
+
+  const malumKey = `${process.env.MALUM_PUBLIC_KEY}:${process.env.MALUM_SECRET_KEY}`
+
+  const malumRes = await fetch("https://malum.co/api/v2/payment/create", {
+    method: "POST",
+    headers: {
+      "MALUM": malumKey,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({
+      amount:          finalUsd,
+      currency:        "USD",
+      customer_email:  customerEmail,
+      webhook_url:     `${origin}/api/market/webhook`,
+      success_url:     `${origin}/market/order/success`,
+      cancel_url:      `${origin}/market`,
+      buyer_pays_fees: false,
+      metadata,
+      product_title:       item.title,
+      product_description: item.description ?? undefined,
+      product_image:       item.image_url   ?? undefined,
+    }),
+  })
+
+  const malumData = await malumRes.json()
+
+  if (malumData.status !== "success" || !malumData.link) {
+    console.error("[v0] Malum payment create error:", malumData)
+    return NextResponse.json({ error: malumData.message ?? "결제 생성 실패" }, { status: 502 })
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode:        "payment",
-    line_items:  [lineItem],
-    success_url: `${origin}/market/order/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url:  `${origin}/market`,
-    metadata: {
-      item_id:      itemId,
-      buyer_id:     auth.userId,
-      publisher_id: item.publisher_id ?? "",
-      tv_id:        tvId ?? "",
-      used_point:   String(usedPoint),
-    },
-  })
+  const txnId = malumData.transaction_id as string
 
   // 주문 레코드 생성 (결제 완료 전 pending)
   await adminSupabase.from("market_orders").insert({
-    item_id:           itemId,
-    buyer_id:          auth.userId,
-    publisher_id:      item.publisher_id,
-    price_krw:         item.price_krw,
-    stripe_session_id: session.id,
-    status:            "pending",
+    item_id:      itemId,
+    buyer_id:     auth.userId,
+    publisher_id: item.publisher_id,
+    price_krw:    item.price_krw,
+    malum_txn_id: txnId,
+    status:       "pending",
   })
 
-  return NextResponse.json({ url: session.url })
+  return NextResponse.json({ url: malumData.link })
 }
