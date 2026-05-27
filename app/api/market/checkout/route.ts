@@ -72,47 +72,56 @@ export async function POST(req: Request) {
   const finalKrw = item.price_krw - usedPoint
   const finalUsd = krwToUsd(finalKrw)
 
-  // 구매자 이메일 조회
-  const { data: profile } = await adminSupabase
-    .from("profiles")
-    .select("email")
-    .eq("id", auth.userId)
-    .single()
-
-  const customerEmail = profile?.email ?? "customer@unknown.com"
+  // 구매자 이메일 조회 (auth.users RPC)
+  let customerEmail = "customer@unknown.com"
+  try {
+    const { createClient } = await import("@supabase/supabase-js")
+    const adminClient = createClient(
+      process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+      process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+    const { data: authUser } = await adminClient.auth.admin.getUserById(auth.userId)
+    customerEmail = authUser?.user?.email ?? "customer@unknown.com"
+  } catch (e) {
+    console.log("[v0] email lookup failed:", e)
+  }
 
   // metadata: pipe-delimited (254자 제한)
   const metadata = [itemId, auth.userId, item.publisher_id ?? "", tvId ?? "", String(usedPoint)]
     .map(s => s.replace(/\|/g, "_"))
     .join("|")
 
-  const malumKey = `${process.env.MALUM_PUBLIC_KEY}:${process.env.MALUM_SECRET_KEY}`
+  // MALUM 헤더: {BUSINESS_ID}:{SECRET_KEY}
+  const malumMid = process.env.MALUM_BUSINESS_ID ?? "6A159B5789315"
+  const malumKey = `${malumMid}:${process.env.MALUM_SECRET_KEY}`
+
+  const malumBody = {
+    amount:          finalUsd,
+    currency:        "USD",
+    customer_email:  customerEmail,
+    webhook_url:     `${origin}/api/market/webhook`,
+    success_url:     `${origin}/market/order/success`,
+    cancel_url:      `${origin}/market`,
+    buyer_pays_fees: false,
+    metadata,
+    product_title:   item.title,
+    ...(item.description ? { product_description: item.description } : {}),
+    ...(item.image_url   ? { product_image: item.image_url }         : {}),
+  }
 
   const malumRes = await fetch("https://malum.co/api/v2/payment/create", {
     method: "POST",
     headers: {
-      "MALUM": malumKey,
+      "MALUM":        malumKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      amount:          finalUsd,
-      currency:        "USD",
-      customer_email:  customerEmail,
-      webhook_url:     `${origin}/api/market/webhook`,
-      success_url:     `${origin}/market/order/success`,
-      cancel_url:      `${origin}/market`,
-      buyer_pays_fees: false,
-      metadata,
-      product_title:       item.title,
-      product_description: item.description ?? undefined,
-      product_image:       item.image_url   ?? undefined,
-    }),
+    body: JSON.stringify(malumBody),
   })
 
   const malumData = await malumRes.json()
 
   if (malumData.status !== "success" || !malumData.link) {
-    console.error("[v0] Malum payment create error:", malumData)
     return NextResponse.json({ error: malumData.message ?? "결제 생성 실패" }, { status: 502 })
   }
 
