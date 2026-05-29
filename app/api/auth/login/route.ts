@@ -33,15 +33,12 @@ export async function POST(req: Request) {
     .eq("username", username)
     .single()
 
-  console.log("[v0] step1 profile:", profile?.id, "error:", profileError?.message)
-
   if (profileError || !profile) {
     return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 })
   }
 
   // 2) auth.users에서 이메일 조회
   const { data: userData, error: userError } = await adminSupabase.auth.admin.getUserById(profile.id)
-  console.log("[v0] step2 hasEmail:", !!userData?.user?.email, "error:", userError?.message)
   if (userError || !userData.user?.email) {
     return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 })
   }
@@ -51,8 +48,6 @@ export async function POST(req: Request) {
     email: userData.user.email,
     password,
   })
-
-  console.log("[v0] step3 signIn:", !!signIn?.session, "error:", signInError?.message)
 
   let accessToken: string | null = signIn?.session?.access_token ?? null
 
@@ -77,9 +72,14 @@ export async function POST(req: Request) {
   }
 
   // session_version 증가 — 기존 세션 무효화 (중복 로그인 방지)
-  const sv = await redis.incr(sessionVersionKey(profile.id))
-  // 30일 후 자동 만료
-  await redis.expire(sessionVersionKey(profile.id), 60 * 60 * 24 * 30)
+  // Redis 없어도 로그인은 동작 (sv=0 으로 폴백)
+  let sv = 0
+  try {
+    sv = await redis.incr(sessionVersionKey(profile.id))
+    await redis.expire(sessionVersionKey(profile.id), 60 * 60 * 24 * 30)
+  } catch (redisErr) {
+    console.log("[v0] Redis error (non-fatal):", redisErr instanceof Error ? redisErr.message : redisErr)
+  }
 
   // 30일짜리 자체 JWT 발행 (sv 클레임 포함)
   const appToken = jwt.sign(
