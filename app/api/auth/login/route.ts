@@ -19,6 +19,7 @@ function getAnonClient() {
 }
 
 export async function POST(req: Request) {
+  try {
   const { username, password } = await req.json()
 
   if (!username || !password) {
@@ -32,12 +33,15 @@ export async function POST(req: Request) {
     .eq("username", username)
     .single()
 
+  console.log("[v0] step1 profile:", profile?.id, "error:", profileError?.message)
+
   if (profileError || !profile) {
     return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 })
   }
 
   // 2) auth.users에서 이메일 조회
   const { data: userData, error: userError } = await adminSupabase.auth.admin.getUserById(profile.id)
+  console.log("[v0] step2 hasEmail:", !!userData?.user?.email, "error:", userError?.message)
   if (userError || !userData.user?.email) {
     return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 })
   }
@@ -47,6 +51,8 @@ export async function POST(req: Request) {
     email: userData.user.email,
     password,
   })
+
+  console.log("[v0] step3 signIn:", !!signIn?.session, "error:", signInError?.message)
 
   let accessToken: string | null = signIn?.session?.access_token ?? null
 
@@ -98,4 +104,9 @@ export async function POST(req: Request) {
   })
 
   return response
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.log("[v0] login UNHANDLED ERROR:", msg)
+    return NextResponse.json({ error: "서버 오류: " + msg }, { status: 500 })
+  }
 }
