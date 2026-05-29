@@ -19,7 +19,6 @@ function getAnonClient() {
 }
 
 export async function POST(req: Request) {
-  try {
   const { username, password } = await req.json()
 
   if (!username || !password) {
@@ -72,14 +71,9 @@ export async function POST(req: Request) {
   }
 
   // session_version 증가 — 기존 세션 무효화 (중복 로그인 방지)
-  // Redis 없어도 로그인은 동작 (sv=0 으로 폴백)
-  let sv = 0
-  try {
-    sv = await redis.incr(sessionVersionKey(profile.id))
-    await redis.expire(sessionVersionKey(profile.id), 60 * 60 * 24 * 30)
-  } catch (redisErr) {
-    console.log("[v0] Redis error (non-fatal):", redisErr instanceof Error ? redisErr.message : redisErr)
-  }
+  const sv = await redis.incr(sessionVersionKey(profile.id))
+  // 30일 후 자동 만료
+  await redis.expire(sessionVersionKey(profile.id), 60 * 60 * 24 * 30)
 
   // 30일짜리 자체 JWT 발행 (sv 클레임 포함)
   const appToken = jwt.sign(
@@ -104,9 +98,4 @@ export async function POST(req: Request) {
   })
 
   return response
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
-    console.log("[v0] login UNHANDLED ERROR:", msg)
-    return NextResponse.json({ error: "서버 오류: " + msg }, { status: 500 })
-  }
 }
