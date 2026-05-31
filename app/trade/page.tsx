@@ -477,6 +477,8 @@ type ClosedPos = {
   signal_time: string
   closed_at: string | null
   close_reason: string | null
+  closed_roi: number | null
+  closed_price: number | null
 }
 
 function ClosedPositionsPanel() {
@@ -506,14 +508,38 @@ function ClosedPositionsPanel() {
   return (
     <div>
       {/* 헤더 */}
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "10px 14px 8px", borderBottom: `1px solid rgba(212,175,55,0.1)`,
-      }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
-          청산 기록 ({positions.length}건)
-        </span>
-      </div>
+      {(() => {
+        const totalPnl = positions.reduce((sum, p) => {
+          if (p.closed_roi == null) return sum
+          return sum + Number(p.size_usd ?? 10) * (Number(p.closed_roi) / 100)
+        }, 0)
+        const wins  = positions.filter(p => p.closed_roi != null && Number(p.closed_roi) > 0).length
+        const total = positions.filter(p => p.closed_roi != null).length
+        return (
+          <div style={{
+            padding: "10px 14px 8px", borderBottom: `1px solid rgba(212,175,55,0.1)`,
+          }}>
+            <div className="flex items-center justify-between">
+              <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
+                청산 기록 ({positions.length}건)
+              </span>
+              <div className="flex items-center gap-3">
+                {total > 0 && (
+                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+                    승률 {wins}/{total} ({Math.round(wins / total * 100)}%)
+                  </span>
+                )}
+                <span className="tabular-nums" style={{
+                  fontSize: 12, fontWeight: 800,
+                  color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR,
+                }}>
+                  {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
       {positions.map(pos => {
         const entry      = Number(pos.entry_price)
         const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
@@ -526,6 +552,11 @@ function ClosedPositionsPanel() {
           all:       "전체청산",
         }
         const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
+
+        const roi    = pos.closed_roi != null ? Number(pos.closed_roi) : null
+        const sizeUsd = Number(pos.size_usd ?? 10)
+        const pnl    = roi != null ? sizeUsd * (roi / 100) : null
+        const roiColor = roi == null ? "rgba(255,255,255,0.4)" : roi >= 0 ? UP_COLOR : DOWN_COLOR
 
         return (
           <div key={pos.id} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)` }}>
@@ -544,15 +575,31 @@ function ClosedPositionsPanel() {
                   padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
                   background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)",
                 }}>{pos.leverage}x</span>
+                {roi != null && (
+                  <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
+                    {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
+                  </span>
+                )}
                 <span style={{
                   padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
-                  background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.8)",
+                  background: roi == null || roi >= 0 ? "rgba(255,255,255,0.06)" : "rgba(239,68,68,0.12)",
+                  color: roi == null || roi >= 0 ? "rgba(255,255,255,0.4)" : "rgba(239,68,68,0.8)",
                 }}>{reason}</span>
               </div>
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>{closedAt}</span>
+              <div className="flex flex-col items-end gap-0.5">
+                {pnl != null && (
+                  <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 700, color: roiColor }}>
+                    {pnl >= 0 ? "+" : ""}${pnl.toFixed(3)}
+                  </span>
+                )}
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{closedAt}</span>
+              </div>
             </div>
             <div style={{ marginTop: 4, display: "flex", gap: 12, fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
               <span>진입: ${entry > 0 ? entry.toPrecision(5) : "-"}</span>
+              {pos.closed_price != null && (
+                <span>청산: ${Number(pos.closed_price).toPrecision(5)}</span>
+              )}
               <span style={{ color: "rgba(255,255,255,0.25)" }}>{pos.signal_type}</span>
             </div>
           </div>
