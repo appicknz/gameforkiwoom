@@ -760,17 +760,20 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
     ? posCalc.filter(p => p.sym.toLowerCase().includes(searchQ.toLowerCase()))
     : posCalc
 
-  const totalPnl   = posCalc.reduce((s, p) => s + p.pnl, 0)
+  const activePnl  = posCalc.reduce((s, p) => s + p.pnl, 0)
   const totalRoi   = posCalc.length > 0 ? posCalc.reduce((s, p) => s + p.roi, 0) / posCalc.length : 0
   const profitCnt  = posCalc.filter(p => p.roi > 0).length
   const lossCnt    = posCalc.filter(p => p.roi < 0 && p.hasCur).length
   const margin     = posCalc.length * 10
-  const estValue   = margin + totalPnl
 
   // 스탑로스 청산 누적 (is_closed=true, close_reason="stop_loss")
-  const slClosed     = positions.filter(p => p.is_closed && p.close_reason === "stop_loss" && p.closed_roi != null)
-  const slClosedCnt  = slClosed.length
-  const slClosedPnl  = slClosed.reduce((s, p) => s + Number(p.size_usd ?? 10) * (Number(p.closed_roi) / 100), 0)
+  const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss" && p.closed_roi != null)
+  const slClosedCnt = slClosed.length
+  const slClosedPnl = slClosed.reduce((s, p) => s + Number(p.size_usd ?? 10) * (Number(p.closed_roi) / 100), 0)
+
+  // TOTAL PNL = 활성 포지션 PNL + 청산 포지션 PNL (진짜 잔고)
+  const totalPnl   = activePnl + slClosedPnl
+  const estValue   = margin + activePnl  // EST. VALUE는 현재 활성 기준 유지
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
     if (sortOrder === "roi_desc") return b.roi - a.roi
@@ -843,6 +846,11 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
               {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
             </div>
+            {slClosedCnt > 0 && (
+              <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+                청산 포함
+              </div>
+            )}
           </div>
           <div style={{ background: slClosedCnt > 0 ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL CLOSE</div>
