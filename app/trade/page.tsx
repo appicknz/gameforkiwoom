@@ -485,6 +485,7 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const [positions,   setPositions]   = useState<ClosedPos[]>([])
   const [loading,     setLoading]     = useState(true)
   const [stopLossPct, setStopLossPct] = useState<number | null>(null)
+  const [sizeUsdCfg,  setSizeUsdCfg]  = useState<number>(10)
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -496,11 +497,15 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       .finally(() => setLoading(false))
   }, [refreshKey])
 
-  // SL% 조회
+  // 설정 조회 (SL%, size_usd)
   useEffect(() => {
     fetch("/api/auto-signal/settings")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.stop_loss_pct != null) setStopLossPct(Number(d.stop_loss_pct)) })
+      .then(d => {
+        if (!d) return
+        if (d.stop_loss_pct != null) setStopLossPct(Number(d.stop_loss_pct))
+        if (d.size_usd      != null) setSizeUsdCfg(Number(d.size_usd))
+      })
       .catch(() => {})
   }, [])
 
@@ -526,14 +531,13 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       {/* 헤더 */}
       {(() => {
         const totalPnl = positions.reduce((sum, p) => {
-          const sz  = Number(p.size_usd ?? 10)
-          const lv  = Number(p.leverage ?? 1)
-          if (p.close_reason === "stop_loss") {
-            const slRoi = stopLossPct != null ? -(stopLossPct * lv) : (p.closed_roi != null ? Number(p.closed_roi) : null)
-            return slRoi != null ? sum + sz * (slRoi / 100) : sum
+          const lv = Number(p.leverage ?? 1)
+          if (p.close_reason === "stop_loss" && stopLossPct != null) {
+            // 설정값 기준 고정: size_usd × (stop_loss_pct × leverage / 100)
+            return sum - (sizeUsdCfg * (stopLossPct * lv / 100))
           }
           if (p.closed_roi == null) return sum
-          return sum + sz * (Number(p.closed_roi) / 100)
+          return sum + Number(p.size_usd ?? sizeUsdCfg) * (Number(p.closed_roi) / 100)
         }, 0)
         const wins  = positions.filter(p => p.closed_roi != null && Number(p.closed_roi) > 0).length
         const total = positions.filter(p => p.closed_roi != null).length
@@ -590,14 +594,12 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
         // % 표시: 실시간 값 사용
         const roi = liveRoi
 
-        // PNL 금액: SL 청산이면 고정값 (-$5), 아니면 실시간 계산
+        // PNL 금액: SL 청산이면 설정값 기준 고정 (-$5), 아니면 실시간 계산
+        // size_usd × (stop_loss_pct × leverage / 100)
+        // 예) 10불 × (5% × 10배 / 100) = -$5 고정
         const pnl = (() => {
-          if (pos.close_reason === "stop_loss") {
-            // SL 고정값: stopLossPct 기준 또는 closed_roi 중 덜 손실인 값
-            const slRoi = stopLossPct != null
-              ? -(stopLossPct * lev)      // e.g. -50%
-              : pos.closed_roi != null ? Number(pos.closed_roi) : null
-            return slRoi != null ? sizeUsd * (slRoi / 100) : null
+          if (pos.close_reason === "stop_loss" && stopLossPct != null) {
+            return -(sizeUsdCfg * (stopLossPct * lev / 100))
           }
           return liveRoi != null ? sizeUsd * (liveRoi / 100) : null
         })()
@@ -683,6 +685,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const [loading,       setLoading]       = useState(true)
   const [, setTick]       = useState(0)
   const [stopLossPct,   setStopLossPct]  = useState<number | null>(null)
+  const [sizeUsdCfg,    setSizeUsdCfg]   = useState<number>(10)
   const closingRef = useRef<Set<string>>(new Set())
 
   // KST 기준 오늘 날짜
@@ -716,11 +719,15 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     }
   }, [fetchPositions, isToday])
 
-  // 스탑로스 설정 조회 (마운트 시 1회)
+  // 스탑로스 + 포지션당 금액 설정 조회 (마운트 시 1회)
   useEffect(() => {
     fetch("/api/auto-signal/settings")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.stop_loss_pct != null) setStopLossPct(Number(d.stop_loss_pct)) })
+      .then(d => {
+        if (!d) return
+        if (d.stop_loss_pct != null) setStopLossPct(Number(d.stop_loss_pct))
+        if (d.size_usd      != null) setSizeUsdCfg(Number(d.size_usd))
+      })
       .catch(() => {})
   }, [])
 
@@ -853,16 +860,28 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const totalRoi   = activeCalc.length > 0 ? activeCalc.reduce((s, p) => s + p.roi, 0) / activeCalc.length : 0
   const profitCnt  = activeCalc.filter(p => p.roi > 0).length
   const lossCnt    = activeCalc.filter(p => p.roi < 0 && p.hasCur).length
-  const margin     = activeCalc.length * 10
+  // 마진: 활성 포지션 수 × 설정상 포지션 금액
+  const margin     = activeCalc.length * sizeUsdCfg
 
-  // 스탑로스 청산 누적 (is_closed=true, close_reason="stop_loss")
-  const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss" && p.closed_roi != null)
+  // 스탑로스 청산 누적 — PNL은 반드시 설정값으로 계산 (DB closed_roi 무시)
+  // 예) size_usd=10, stop_loss_pct=5, leverage=10 → 손실 = 10 × (5×10/100) = -$5
+  const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss")
   const slClosedCnt = slClosed.length
-  const slClosedPnl = slClosed.reduce((s, p) => s + Number(p.size_usd ?? 10) * (Number(p.closed_roi) / 100), 0)
+  const slClosedPnl = stopLossPct != null
+    ? slClosed.reduce((s, p) => {
+        const lev  = Number(p.leverage ?? 1)
+        const size = Number(p.size_usd ?? sizeUsdCfg)
+        return s + size * (-(stopLossPct * lev) / 100)  // e.g. 10 × (-50/100) = -5
+      }, 0)
+    : slClosed.reduce((s, p) => {
+        // fallback: DB closed_roi 사용
+        if (p.closed_roi == null) return s
+        return s + Number(p.size_usd ?? sizeUsdCfg) * (Number(p.closed_roi) / 100)
+      }, 0)
 
-  // TOTAL PNL = 활성 포지션 PNL + 청산 포지션 PNL (진짜 잔고)
+  // TOTAL PNL = 활성 PNL + 청산 PNL (진짜 잔고)
   const totalPnl   = activePnl + slClosedPnl
-  const estValue   = margin + activePnl  // EST. VALUE는 현재 활성 기준 유지
+  const estValue   = margin + activePnl
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
     if (sortOrder === "roi_desc") return b.roi - a.roi

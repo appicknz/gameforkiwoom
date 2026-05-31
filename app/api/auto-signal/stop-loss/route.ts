@@ -24,25 +24,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "id required" }, { status: 400 })
   }
 
-  // 포지션의 레버리지와 시스템 SL% 조회 → PNL 금액 고정을 위해
+  // 관리자 설정에서 SL%, size_usd, leverage 조회
+  const { data: cfg } = await adminSupabase
+    .from("auto_signal_settings")
+    .select("stop_loss_pct, size_usd, leverage")
+    .eq("id", 1)
+    .single()
+
+  // 포지션 자체의 leverage도 확인 (설정보다 포지션 데이터 우선)
   const { data: pos } = await adminSupabase
     .from("auto_signal_positions")
     .select("leverage, size_usd")
     .eq("id", id)
     .single()
 
-  const { data: cfg } = await adminSupabase
-    .from("auto_signal_config")
-    .select("stop_loss_pct")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single()
-
-  // closed_roi는 SL 임계값으로 고정
-  // 예) leverage=10, stop_loss_pct=5 → closed_roi = -(5*10) = -50%
-  const leverage     = Number(pos?.leverage ?? 1)
-  const stopLossPct  = Number(cfg?.stop_loss_pct ?? 5)
-  const fixedRoi     = -(stopLossPct * leverage)   // e.g. -50%
+  // closed_roi = -(stop_loss_pct × leverage) 고정
+  // 예) stop_loss_pct=5, leverage=10 → -50%
+  const leverage    = Number(pos?.leverage ?? cfg?.leverage ?? 1)
+  const stopLossPct = Number(cfg?.stop_loss_pct ?? 5)
+  const fixedRoi    = -(stopLossPct * leverage)   // e.g. -50%
 
   const now = new Date().toISOString()
 
