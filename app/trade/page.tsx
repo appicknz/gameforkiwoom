@@ -5,7 +5,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab, { liveCache } from "@/components/trade/live-prices-tab"
 import SymbolChart from "@/components/trade/symbol-chart"
-import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Bot, LineChart, Clock, ArrowUpDown, Bell } from "lucide-react"
+import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Bot, LineChart, Clock, ArrowUpDown, Bell, ListChecks } from "lucide-react"
 
 const GOLD       = "#d4af37"
 const UP_COLOR   = "#22c55e"
@@ -466,6 +466,103 @@ function PcPositionCard({ pos, onClose, isClosing }: {
 }
 
 // ���── 메인 페이지 ────────────────────────────────────────────────────
+// ─── 청산 기록 패널 ──────────────────────────────────────────────────
+type ClosedPos = {
+  id: string
+  symbol: string
+  direction: "long" | "short"
+  entry_price: string | number
+  size_usd: number
+  leverage: number
+  signal_type: string
+  signal_time: string
+  closed_at: string | null
+  close_reason: string | null
+}
+
+function ClosedPositionsPanel() {
+  const [positions, setPositions] = useState<ClosedPos[]>([])
+  const [loading,   setLoading]   = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch("/api/auto-signal/closed-positions?limit=100")
+      .then(r => r.ok ? r.json() : { positions: [] })
+      .then(d => setPositions(d.positions ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+      불러오는 중...
+    </div>
+  )
+  if (positions.length === 0) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+      청산 기록이 없습니다.
+    </div>
+  )
+
+  return (
+    <div>
+      {/* 헤더 */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "10px 14px 8px", borderBottom: `1px solid rgba(212,175,55,0.1)`,
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
+          청산 기록 ({positions.length}건)
+        </span>
+      </div>
+      {positions.map(pos => {
+        const entry      = Number(pos.entry_price)
+        const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
+        const closedAt   = pos.closed_at
+          ? new Date(pos.closed_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+          : "-"
+        const reasonLabel: Record<string, string> = {
+          manual:    "수동",
+          stop_loss: "스탑로스",
+          all:       "전체청산",
+        }
+        const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
+
+        return (
+          <div key={pos.id} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)` }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span style={{
+                  width: 18, height: 18, borderRadius: 4, fontSize: 9, fontWeight: 900,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: pos.direction === "long" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+                  color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
+                }}>{pos.direction === "long" ? "L" : "S"}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
+                  {baseSymbol}/USDT
+                </span>
+                <span style={{
+                  padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
+                  background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)",
+                }}>{pos.leverage}x</span>
+                <span style={{
+                  padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
+                  background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.8)",
+                }}>{reason}</span>
+              </div>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>{closedAt}</span>
+            </div>
+            <div style={{ marginTop: 4, display: "flex", gap: 12, fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+              <span>진입: ${entry > 0 ? entry.toPrecision(5) : "-"}</span>
+              <span style={{ color: "rgba(255,255,255,0.25)" }}>{pos.signal_type}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── 자동매매 라이브 패널 ─────────────────────────────────────────────
 interface AutoPos {
   id:          string
@@ -551,7 +648,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
           fetch("/api/auto-signal/positions", {
             method:  "DELETE",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-            body:    JSON.stringify({ id: pos.id }),
+            body:    JSON.stringify({ id: pos.id, reason: "stop_loss" }),
           }).then(() => {
             setPositions(prev => prev.filter(p => p.id !== pos.id))
           }).catch(() => { closingRef.current.delete(pos.id) })
@@ -801,7 +898,7 @@ export default function TradePage() {
   const [tick,          setTick]          = useState(0)
   const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
   const [selectedDate,  setSelectedDate]  = useState(new Date())
-  const [tradeMode,     setTradeMode]     = useState<"auto" | "mock">("auto")
+  const [tradeMode,     setTradeMode]     = useState<"auto" | "closed" | "mock">("auto")
   const [allowMockTrade, setAllowMockTrade] = useState(false)
   const [searchQ,       setSearchQ]       = useState("")
   type SortOrder = "time" | "roi_desc" | "roi_asc" | "signal"
@@ -1101,7 +1198,8 @@ export default function TradePage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {([
-                { key: "auto", label: "자동매매", Icon: Bot },
+                { key: "auto",   label: "자동매매", Icon: Bot },
+                { key: "closed", label: "청산 기록", Icon: ListChecks },
                 ...(allowMockTrade ? [{ key: "mock" as const, label: "모의매매", Icon: LineChart }] : []),
               ] as const).map(({ key, label, Icon }) => (
                 <button
@@ -1121,12 +1219,6 @@ export default function TradePage() {
                   {label}
                 </button>
               ))}
-              {/* 자동매매 안내 문구 */}
-              {tradeMode === "auto" && (
-                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", whiteSpace: "nowrap" }}>
-                  주문이나 출금 기능은 제공하지 않습니다.
-                </span>
-              )}
             </div>
 
             {/* 실시간 시계 */}
@@ -1167,6 +1259,10 @@ export default function TradePage() {
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
             <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} />
           </div>
+        </div>
+        {/* 청산 기록 */}
+        <div style={{ position: "absolute", inset: 0, display: tradeMode === "closed" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflowY: "auto" }}>
+          <ClosedPositionsPanel />
         </div>
       </div>
 
@@ -1211,6 +1307,15 @@ export default function TradePage() {
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
               <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} />
             </div>
+          </div>
+          {/* 청산 기록 */}
+          <div className="rounded-2xl flex flex-col h-full" style={{
+            background: PANEL_BG,
+            border: `1px solid ${BORDER}`,
+            display: tradeMode === "closed" ? "flex" : "none",
+            overflowY: "auto",
+          }}>
+            <ClosedPositionsPanel />
           </div>
         </div>
       </main>

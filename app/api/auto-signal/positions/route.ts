@@ -44,6 +44,7 @@ export async function GET(req: Request) {
   let query = adminSupabase
     .from("auto_signal_positions")
     .select("*")
+    .eq("is_closed", false)
     .order("signal_time", { ascending: false })
 
   if (date) {
@@ -112,19 +113,21 @@ export async function DELETE(req: Request) {
 
   const body = await req.json().catch(() => ({}))
 
+  const now = new Date().toISOString()
+
   if (body.all === true) {
     const { error } = await adminSupabase
       .from("auto_signal_positions")
-      .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000")
+      .update({ is_closed: true, closed_at: now, close_reason: body.reason ?? "manual" })
+      .eq("is_closed", false)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true, deleted: "all" })
+    return NextResponse.json({ ok: true, closed: "all" })
   }
 
   if (body.id) {
     const { error } = await adminSupabase
       .from("auto_signal_positions")
-      .delete()
+      .update({ is_closed: true, closed_at: now, close_reason: body.reason ?? "manual" })
       .eq("id", body.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true, deleted: body.id })
