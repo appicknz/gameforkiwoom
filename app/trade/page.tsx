@@ -488,7 +488,9 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
   const [positions,     setPositions]     = useState<AutoPos[]>([])
   const [isHistorical,  setIsHistorical]  = useState(false)
   const [loading,       setLoading]       = useState(true)
-  const [, setTick] = useState(0)
+  const [, setTick]       = useState(0)
+  const [stopLossPct,   setStopLossPct]  = useState<number | null>(null)
+  const closingRef = useRef<Set<string>>(new Set())
 
   // KST 기준 오늘 날짜
   const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -520,6 +522,44 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
       return () => clearInterval(refresh)
     }
   }, [fetchPositions, isToday])
+
+  // 스탑로스 설정 조회 (마운트 시 1회)
+  useEffect(() => {
+    fetch("/api/auto-signal/settings")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.stop_loss_pct != null) setStopLossPct(Number(d.stop_loss_pct)) })
+      .catch(() => {})
+  }, [])
+
+  // 스탑로스 자동 클로즈 — 오늘 날짜, 1초마다 체크
+  useEffect(() => {
+    if (!isToday || stopLossPct === null) return
+    const check = setInterval(() => {
+      positions.forEach(pos => {
+        if (closingRef.current.has(pos.id)) return
+        const entry  = Number(pos.entry_price)
+        const sym    = pos.symbol.replace(/\.P$/, "").replace(/\//g, "")
+        const ticker = liveCache.tickers.get(sym)
+        const cur    = ticker?.price ?? 0
+        if (cur <= 0 || entry <= 0) return
+        const delta  = pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry
+        const roi    = delta * (pos.leverage ?? 1) * 100
+        const threshold = -(stopLossPct * (pos.leverage ?? 1))
+        if (roi <= threshold) {
+          closingRef.current.add(pos.id)
+          const tok = typeof window !== "undefined" ? localStorage.getItem("app_token") ?? "" : ""
+          fetch("/api/auto-signal/positions", {
+            method:  "DELETE",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+            body:    JSON.stringify({ id: pos.id }),
+          }).then(() => {
+            setPositions(prev => prev.filter(p => p.id !== pos.id))
+          }).catch(() => { closingRef.current.delete(pos.id) })
+        }
+      })
+    }, 1000)
+    return () => clearInterval(check)
+  }, [isToday, stopLossPct, positions])
 
   // 1초 tick → 오늘 날짜일 때만 liveCache 실시간 반영
   useEffect(() => {
@@ -660,12 +700,19 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
       )}
 
       {sortedCalc.map(pos => {
-        const roiColor = pos.roi >= 0 ? UP_COLOR : DOWN_COLOR
-        const inTime   = new Date(pos.signal_time).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
-        const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
+        const roiColor    = pos.roi >= 0 ? UP_COLOR : DOWN_COLOR
+        const inTime      = new Date(pos.signal_time).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
+        const baseSymbol  = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
+        const slThreshold = stopLossPct !== null ? -(stopLossPct * (pos.leverage ?? 1)) : null
+        const isSlWarning = slThreshold !== null && pos.hasCur && pos.roi <= slThreshold * 0.8 && pos.roi > slThreshold
+        const isSlHit     = slThreshold !== null && pos.hasCur && pos.roi <= slThreshold
 
         return (
-          <div key={pos.id} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.05)` }}>
+          <div key={pos.id} style={{
+            padding: "10px 14px",
+            borderBottom: `1px solid rgba(212,175,55,0.05)`,
+            background: isSlHit ? "rgba(239,68,68,0.09)" : isSlWarning ? "rgba(239,68,68,0.04)" : undefined,
+          }}>
             {/* 상단행: 방향뱃지 + 심볼 + 레버리지 + ROI | IN시각 + PnL */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -686,6 +733,12 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
                   <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
                     {pos.roi >= 0 ? "+" : ""}{pos.roi.toFixed(2)}%
                   </span>
+                )}
+                {isSlHit && (
+                  <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 3, background: "rgba(239,68,68,0.25)", color: DOWN_COLOR }}>SL 청산</span>
+                )}
+                {isSlWarning && !isSlHit && (
+                  <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 3, background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>SL 임박</span>
                 )}
               </div>
               <div className="text-right">
