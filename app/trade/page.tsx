@@ -482,8 +482,10 @@ type ClosedPos = {
 }
 
 function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
-  const [positions, setPositions] = useState<ClosedPos[]>([])
-  const [loading,   setLoading]   = useState(true)
+  const [positions,   setPositions]   = useState<ClosedPos[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [stopLossPct, setStopLossPct] = useState<number | null>(null)
+  const [, setTick] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -493,6 +495,20 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [refreshKey])
+
+  // SL% 조회
+  useEffect(() => {
+    fetch("/api/auto-signal/settings")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.stop_loss_pct != null) setStopLossPct(Number(d.stop_loss_pct)) })
+      .catch(() => {})
+  }, [])
+
+  // 1초 tick — 실시간 % 갱신
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
@@ -510,8 +526,14 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       {/* 헤더 */}
       {(() => {
         const totalPnl = positions.reduce((sum, p) => {
+          const sz  = Number(p.size_usd ?? 10)
+          const lv  = Number(p.leverage ?? 1)
+          if (p.close_reason === "stop_loss") {
+            const slRoi = stopLossPct != null ? -(stopLossPct * lv) : (p.closed_roi != null ? Number(p.closed_roi) : null)
+            return slRoi != null ? sum + sz * (slRoi / 100) : sum
+          }
           if (p.closed_roi == null) return sum
-          return sum + Number(p.size_usd ?? 10) * (Number(p.closed_roi) / 100)
+          return sum + sz * (Number(p.closed_roi) / 100)
         }, 0)
         const wins  = positions.filter(p => p.closed_roi != null && Number(p.closed_roi) > 0).length
         const total = positions.filter(p => p.closed_roi != null).length
@@ -542,21 +564,44 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       })()}
       {positions.map(pos => {
         const entry      = Number(pos.entry_price)
+        const sym        = pos.symbol.replace(/\.P$/, "").replace(/\//g, "")
         const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
+        const sizeUsd    = Number(pos.size_usd ?? 10)
+        const lev        = Number(pos.leverage ?? 1)
         const closedAt   = pos.closed_at
           ? new Date(pos.closed_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
           : "-"
         const reasonLabel: Record<string, string> = {
-          manual:    "��동",
+          manual:    "수동",
           stop_loss: "스탑로스",
           all:       "전체청산",
         }
         const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
 
-        const roi     = pos.closed_roi != null ? Number(pos.closed_roi) : null
-        const sizeUsd = Number(pos.size_usd ?? 10)
-        // closed_roi는 서버에서 SL 임계값으로 고정 저장됨 (예: -50% → -$5)
-        const pnl     = roi != null ? sizeUsd * (roi / 100) : null
+        // ROI: 실시간 liveCache 가격으로 계속 계산
+        const ticker  = liveCache.tickers.get(sym)
+        const cur     = ticker ? ticker.price : 0
+        const hasCur  = cur > 0 && entry > 0
+        const delta   = hasCur
+          ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
+          : 0
+        const liveRoi = hasCur ? delta * lev * 100 : null
+
+        // % 표시: 실시간 값 사용
+        const roi = liveRoi
+
+        // PNL 금액: SL 청산이면 고정값 (-$5), 아니면 실시간 계산
+        const pnl = (() => {
+          if (pos.close_reason === "stop_loss") {
+            // SL 고정값: stopLossPct 기준 또는 closed_roi 중 덜 손실인 값
+            const slRoi = stopLossPct != null
+              ? -(stopLossPct * lev)      // e.g. -50%
+              : pos.closed_roi != null ? Number(pos.closed_roi) : null
+            return slRoi != null ? sizeUsd * (slRoi / 100) : null
+          }
+          return liveRoi != null ? sizeUsd * (liveRoi / 100) : null
+        })()
+
         const roiColor = roi == null ? "rgba(255,255,255,0.4)" : roi >= 0 ? UP_COLOR : DOWN_COLOR
 
         return (
@@ -685,6 +730,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const check = setInterval(() => {
       positions.forEach(pos => {
         if (closingRef.current.has(pos.id)) return
+        if (pos.is_closed) return  // 이미 청산된 포지션은 재트리거 방지
         const entry  = Number(pos.entry_price)
         const sym    = pos.symbol.replace(/\.P$/, "").replace(/\//g, "")
         const ticker = liveCache.tickers.get(sym)
@@ -755,25 +801,42 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
       }
     }
 
-    // 오늘 — liveCache 실시간 가격
+    const sizeUsd = pos.size_usd ?? 10
+    const lev     = pos.leverage ?? 1
+
+    // 스탑로스로 청산된 포지션: 실시간 % 계속 계산, PNL은 SL 고정값 사용
+    if (pos.is_closed && pos.close_reason === "stop_loss") {
+      const ticker  = liveCache.tickers.get(sym)
+      const cur     = ticker ? ticker.price : 0
+      const hasCur  = cur > 0 && entry > 0
+      const delta   = hasCur
+        ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
+        : 0
+      const roi     = delta * lev * 100
+      // PNL은 SL 고정값: closed_roi가 있으면 사용, 없으면 stopLossPct 기준
+      const fixedRoi  = pos.closed_roi != null
+        ? Number(pos.closed_roi)
+        : stopLossPct != null ? -(stopLossPct * lev) : roi
+      const pnl = sizeUsd * (fixedRoi / 100)
+      return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
+    }
+
+    // 오늘 활성 포지션 — liveCache 실시간 가격
     const ticker  = liveCache.tickers.get(sym)
     const cur     = ticker ? ticker.price : 0
     const hasCur  = cur > 0 && entry > 0
     const delta   = hasCur
       ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
       : 0
-    const sizeUsd = pos.size_usd ?? 10
-    const lev     = pos.leverage ?? 1
     let roi = delta * lev * 100
     let pnl = sizeUsd * delta * lev
 
-    // 스탑로스 임계값 도달 시 ROI%는 실제 값 유지, PNL 금액은 최대 손실로 고정
-    // 예) 10x, SL 5% → 최대 손실 ROI = -50%, PNL = -$5 고정
+    // 아직 청산 안됐지만 임계값 이하인 경우 PNL 캡
     if (stopLossPct !== null) {
-      const slRoiThreshold = -(stopLossPct * lev)   // e.g. -50%
-      const slPnlFixed     = sizeUsd * (slRoiThreshold / 100) // e.g. -$5
+      const slRoiThreshold = -(stopLossPct * lev)
+      const slPnlFixed     = sizeUsd * (slRoiThreshold / 100)
       if (roi < slRoiThreshold) {
-        pnl = slPnlFixed  // 금액은 -$5로 고정, %는 실제 값 그대로
+        pnl = slPnlFixed
       }
     }
 
