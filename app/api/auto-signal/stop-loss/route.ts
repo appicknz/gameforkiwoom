@@ -8,27 +8,13 @@ import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
 import { NextResponse } from "next/server"
-import jwt from "jsonwebtoken"
-
-const JWT_SECRET = process.env.SUPABASE_JWT_SECRET ?? ""
-
-function getCallerId(req: Request): string | null {
-  try {
-    const auth  = req.headers.get("authorization") ?? ""
-    const token = auth.replace("Bearer ", "").trim()
-    if (!token) return null
-    const decoded = jwt.verify(token, JWT_SECRET) as Record<string, unknown>
-    return (decoded.sub as string) ?? null
-  } catch {
-    return null
-  }
-}
+import { verifySession } from "@/lib/auth"
 
 export async function POST(req: Request) {
-  // 로그인 유저면 누구나 호출 가능 (자신의 포지션 뷰어 역할)
-  const callerId = getCallerId(req)
-  if (!callerId) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  // lib/auth.ts의 표준 세션 검증 사용
+  const session = await verifySession(req)
+  if (!session.ok) {
+    return NextResponse.json({ error: session.error }, { status: session.status })
   }
 
   const body = await req.json().catch(() => ({}))
