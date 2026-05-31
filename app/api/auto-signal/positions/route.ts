@@ -50,9 +50,9 @@ export async function GET(req: Request) {
     // 날짜 지정: 해당 날짜의 모든 포지션 (is_closed 무관 — 히스토리 포함)
     query = query.eq("date_label", date)
   } else {
-    // 날짜 미지정: 오늘의 활성 포지션만
+    // 날짜 미지정: 오늘 포지션 중 활성 + 스탑로스 청산 모두 포함
     const today = todayKST()
-    query = query.eq("date_label", today).eq("is_closed", false)
+    query = query.eq("date_label", today).or("is_closed.eq.false,close_reason.eq.stop_loss")
   }
 
   const { data, error } = await query.limit(200)
