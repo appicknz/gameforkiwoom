@@ -1,12 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { CheckCircle, ShoppingBag, Clock } from "lucide-react"
 import Link from "next/link"
 
 export default function SuccessContent() {
+  const params    = useSearchParams()
   const router    = useRouter()
+  const sessionId = params.get("session_id")
   const [countdown, setCountdown] = useState(5)
 
   useEffect(() => {

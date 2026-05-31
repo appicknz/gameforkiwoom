@@ -47,10 +47,9 @@ export async function PATCH(req: Request) {
   const body = await req.json().catch(() => ({}))
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
-  if (body.size_usd      !== undefined) update.size_usd      = Number(body.size_usd)
-  if (body.leverage      !== undefined) update.leverage      = Number(body.leverage)
-  if (body.enabled       !== undefined) update.enabled       = Boolean(body.enabled)
-  if (body.stop_loss_pct !== undefined) update.stop_loss_pct = body.stop_loss_pct === null ? null : Number(body.stop_loss_pct)
+  if (body.size_usd  !== undefined) update.size_usd  = Number(body.size_usd)
+  if (body.leverage  !== undefined) update.leverage  = Number(body.leverage)
+  if (body.enabled   !== undefined) update.enabled   = Boolean(body.enabled)
 
   const { data, error } = await adminSupabase
     .from("auto_signal_settings")

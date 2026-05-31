@@ -11,24 +11,20 @@ const getToken = () => {
   return localStorage.getItem("app_token")
 }
 
-const MARKET_DOMAIN = "https://market.dissig.com"
-
 const BASE_NAV_ITEMS = [
   {
-    label: "마켓",
+    label: "홈",
     icon: Home,
-    href: `${MARKET_DOMAIN}/market`,
-    match: [] as string[],
+    href: "/market",
+    match: ["/market", "/"],
     requireDeposit: false,
-    external: true,
   },
   {
     label: "내역",
     icon: ShoppingBag,
     href: null,
-    match: [] as string[],
+    match: ["/purchases", "/seller", "/settlement"],
     requireDeposit: false,
-    external: false,
   },
   {
     label: "시그널",
@@ -36,7 +32,6 @@ const BASE_NAV_ITEMS = [
     href: "/trade",
     match: ["/trade"],
     requireDeposit: true,
-    external: false,
   },
   {
     label: "설정",
@@ -44,14 +39,13 @@ const BASE_NAV_ITEMS = [
     href: "/settings",
     match: ["/settings"],
     requireDeposit: false,
-    external: false,
   },
 ]
 
 const DRAWER_ITEMS = [
-  { label: "구매내역", icon: ShoppingBag, href: `${MARKET_DOMAIN}/purchases` },
-  { label: "판매관리", icon: Store,       href: `${MARKET_DOMAIN}/seller` },
-  { label: "정산관리", icon: Landmark,    href: `${MARKET_DOMAIN}/settlement` },
+  { label: "구매내역", icon: ShoppingBag, href: "/purchases" },
+  { label: "판매관리", icon: Store,       href: "/seller" },
+  { label: "정산관리", icon: Landmark,    href: "/settlement" },
 ]
 
 export function BottomNav() {
@@ -110,16 +104,22 @@ export function BottomNav() {
           <div className="flex flex-col gap-1 px-3 py-4">
             {DRAWER_ITEMS.map(item => {
               const Icon = item.icon
+              const active = pathname.startsWith(item.href)
               return (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setDrawerOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-foreground hover:bg-secondary"
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground hover:bg-secondary",
+                  )}
                 >
-                  <Icon className="w-4 h-4 text-muted-foreground" />
+                  <Icon className={cn("w-4 h-4", active ? "text-primary" : "text-muted-foreground")} />
                   {item.label}
-                </a>
+                </Link>
               )
             })}
           </div>
@@ -164,19 +164,6 @@ export function BottomNav() {
                     {item.label}
                   </span>
                 </button>
-              )
-            }
-
-            if (item.external) {
-              return (
-                <a
-                  key={item.href}
-                  href={item.href!}
-                  className="flex flex-1 flex-col items-center justify-center gap-1 transition-colors"
-                >
-                  <Icon className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-[10px] font-medium text-muted-foreground">{item.label}</span>
-                </a>
               )
             }
 
