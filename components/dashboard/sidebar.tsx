@@ -595,34 +595,8 @@ export function Sidebar() {
         {/* 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
 
-          {/* 마켓 페이지 전용 홍보 카드 */}
-          {(pathname === "/market" || pathname.startsWith("/market")) && (
-            <div className="rounded-2xl border border-border bg-secondary/30 p-4 space-y-4">
-              <div className="space-y-0.5">
-                <p className="text-[11px] text-muted-foreground leading-relaxed">트레이딩을 위한 아이디어와</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">정보를 판매하세요.</p>
-              </div>
-
-              <div className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5 flex items-baseline gap-1.5">
-                <span className="text-5xl font-black text-primary tracking-tight leading-none">3.9%</span>
-              </div>
-
-              <div className="space-y-0.5">
-              <p className="text-[11px] text-muted-foreground leading-relaxed">업계 최저 수수료를</p>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">자랑합니다.</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">채널을 운영하고 계신다면</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">유료로 구독자를 모아보세요.</p>
-              </div>
-
-              <div className="space-y-0.5">
-                <p className="text-[11px] text-muted-foreground leading-relaxed">판매와 정산을 빠르고</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">쉽게 관리하세요.</p>
-              </div>
-            </div>
-          )}
-
-          {/* ① 보너스 게임 — 접근 권한 있는 유저만 표시 */}
-          {gameEnabled && <div className="space-y-2">
+          {/* ① 게임 + 자동매매 */}
+          {isLoggedIn && <div className="space-y-2">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("sidebar.bonusGames")}</p>
             <div className="grid grid-cols-2 gap-2">
               {/* 바카라 */}
@@ -636,7 +610,7 @@ export function Sidebar() {
                   <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} R</p>
                 </div>
               </Link>
-              {/* ��트차트 */}
+              {/* 레이스 */}
               <Link href="/race" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
                   "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
@@ -645,6 +619,26 @@ export function Sidebar() {
                   <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.race")}</p>
                   <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.raceSub")}</p>
                   <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 180).toLocaleString()} R</p>
+                </div>
+              </Link>
+              {/* 모의매매 */}
+              <Link href="/trade" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/trade" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">모의매매</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">실전 없이 연습</p>
+                </div>
+              </Link>
+              {/* 자동매매 */}
+              <Link href="/trade" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                  pathname === "/trade" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">자동매매</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">시그널 실시간</p>
                 </div>
               </Link>
             </div>
@@ -729,8 +723,8 @@ export function Sidebar() {
             </div>
           </div>
 
-          {/* ③ 오늘의 비트 + 달력 + 토큰 입금 — 마스터가 허용한 회원만 */}
-          {isLoggedIn && allowTokenDeposit && (
+          {/* ③ 오늘의 비트 + 달력 + 토큰QR — 로그인 유저 전체 표시 */}
+          {isLoggedIn && (
             <>
               <div className="border-t border-border pt-3">
                 <TradeStatsMini />
