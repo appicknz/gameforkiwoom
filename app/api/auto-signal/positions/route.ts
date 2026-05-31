@@ -78,8 +78,8 @@ export async function GET(req: Request) {
     const leverage    = Number(pos.leverage ?? 1)
     const closeReason = String(pos.close_reason ?? "")
 
-    // 스탑로스 청산 포지션은 청산 당시 ROI/가격을 그대로 사용
-    if (closeReason === "stop_loss" && pos.closed_roi != null) {
+    // 저장된 closed_roi가 있으면 (stop_loss, day_close 모두) 재계산 없이 그대로 사용
+    if (pos.closed_roi != null) {
       const roi = Number(pos.closed_roi)
       return {
         ...pos,
