@@ -5,7 +5,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab, { liveCache } from "@/components/trade/live-prices-tab"
 import SymbolChart from "@/components/trade/symbol-chart"
-import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Bot, LineChart, Clock, ArrowUpDown, Bell, ListChecks } from "lucide-react"
+import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Bot, LineChart, Clock, ArrowUpDown, Bell, ListChecks, BookOpen } from "lucide-react"
 
 const GOLD       = "#d4af37"
 const UP_COLOR   = "#22c55e"
@@ -551,7 +551,7 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
           }}>
             <div className="flex items-center justify-between">
               <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
-                청산 기록 ({positions.length}건)
+                청산 ��록 ({positions.length}건)
               </span>
               <div className="flex items-center gap-3">
                 {total > 0 && (
@@ -657,6 +657,140 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ─── 매매기록(리밸런싱) 패널 ────────────────────────────────────────────
+type LedgerRecord = {
+  id:            number
+  date_label:    string
+  rebalanced_at: string
+  seed_capital:  number
+  est_value:     number
+  daily_pnl:     number
+  note:          string
+}
+
+function LedgerPanel() {
+  const [records, setRecords] = useState<LedgerRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [seedCapital, setSeedCapital] = useState(640)
+
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([
+      fetch("/api/auto-signal/rebalance").then(r => r.ok ? r.json() : { records: [] }),
+      fetch("/api/auto-signal/settings").then(r => r.ok ? r.json() : null),
+    ]).then(([ledger, cfg]) => {
+      setRecords(ledger.records ?? [])
+      if (cfg?.seed_capital != null) setSeedCapital(Number(cfg.seed_capital))
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  // 초기 시드 — 첫 기록이 없으면 현재 설정의 seed_capital 사용
+  const initialSeed = records.length > 0 ? records[records.length - 1].seed_capital : seedCapital
+  const latestEstValue = records.length > 0 ? records[0].est_value : seedCapital
+  const totalPnl = latestEstValue - initialSeed
+  const totalRoi = initialSeed > 0 ? (totalPnl / initialSeed) * 100 : 0
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* 헤더 */}
+      <div style={{ padding: "10px 14px 8px", borderBottom: `1px solid rgba(212,175,55,0.1)`, flexShrink: 0 }}>
+        <div className="flex items-center justify-between">
+          <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
+            매매기록 ({records.length}건)
+          </span>
+          <div className="flex items-center gap-3">
+            <span className="tabular-nums" style={{
+              fontSize: 12, fontWeight: 800,
+              color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR,
+            }}>
+              {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
+              <span style={{ fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>
+                ({totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%)
+              </span>
+            </span>
+          </div>
+        </div>
+        {/* 요약 카드 */}
+        <div className="grid grid-cols-2 gap-2" style={{ marginTop: 8 }}>
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>초기 시드</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>
+              ${initialSeed.toFixed(2)}
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>현재 잔고</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+              ${latestEstValue.toFixed(2)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 목록 */}
+      <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
+        {loading ? (
+          <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
+            로딩 중...
+          </div>
+        ) : records.length === 0 ? (
+          <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
+            리밸런싱 기록이 없습니다.
+          </div>
+        ) : records.map((rec, idx) => {
+          const prev     = records[idx + 1]
+          const prevSeed = prev ? prev.est_value : rec.seed_capital
+          const change   = rec.est_value - prevSeed
+          const roi      = prevSeed > 0 ? (change / prevSeed) * 100 : 0
+          const at       = new Date(rec.rebalanced_at).toLocaleString("ko-KR", {
+            year: "numeric", month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit",
+          })
+          return (
+            <div key={rec.id} style={{
+              padding: "10px 14px",
+              borderBottom: `1px solid rgba(212,175,55,0.04)`,
+              display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+            }}>
+              {/* 왼쪽: 날짜 + 노트 */}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
+                  {rec.date_label}
+                  {rec.note && (
+                    <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)" }}>
+                      {rec.note}
+                    </span>
+                  )}
+                </div>
+                <div style={{ marginTop: 3, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{at}</div>
+                <div style={{ marginTop: 3, display: "flex", gap: 10, fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+                  <span>시드 ${prevSeed.toFixed(2)}</span>
+                  <span style={{ color: "rgba(255,255,255,0.15)" }}>→</span>
+                  <span style={{ color: "rgba(255,255,255,0.6)" }}>잔고 ${rec.est_value.toFixed(2)}</span>
+                </div>
+              </div>
+              {/* 오른쪽: 당일 PNL + ROI */}
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div className="tabular-nums" style={{
+                  fontSize: 14, fontWeight: 800,
+                  color: change >= 0 ? UP_COLOR : DOWN_COLOR,
+                }}>
+                  {change >= 0 ? "+" : ""}${change.toFixed(2)}
+                </div>
+                <div className="tabular-nums" style={{
+                  fontSize: 10, color: roi >= 0 ? "rgba(34,197,94,0.7)" : "rgba(239,68,68,0.7)",
+                }}>
+                  {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -1079,7 +1213,7 @@ export default function TradePage() {
   const [tick,          setTick]          = useState(0)
   const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
   const [selectedDate,  setSelectedDate]  = useState(new Date())
-  const [tradeMode,       setTradeMode]       = useState<"auto" | "closed" | "mock">("auto")
+  const [tradeMode,       setTradeMode]       = useState<"auto" | "closed" | "ledger" | "mock">("auto")
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
   const [allowMockTrade, setAllowMockTrade] = useState(false)
   const [searchQ,       setSearchQ]       = useState("")
@@ -1382,6 +1516,7 @@ export default function TradePage() {
               {([
                 { key: "auto",   label: "자동매매", Icon: Bot },
                 { key: "closed", label: "청산 기록", Icon: ListChecks },
+                { key: "ledger", label: "매매기록",  Icon: BookOpen },
                 ...(allowMockTrade ? [{ key: "mock" as const, label: "모의매매", Icon: LineChart }] : []),
               ] as const).map(({ key, label, Icon }) => (
                 <button
@@ -1446,6 +1581,10 @@ export default function TradePage() {
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "closed" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflowY: "auto" }}>
           <ClosedPositionsPanel refreshKey={closedRefreshKey} />
         </div>
+        {/* 매매기록 */}
+        <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
+          <LedgerPanel />
+        </div>
       </div>
 
       {/* ══════ PC (lg 이상) ══════ */}
@@ -1498,6 +1637,14 @@ export default function TradePage() {
             overflowY: "auto",
           }}>
             <ClosedPositionsPanel refreshKey={closedRefreshKey} />
+          </div>
+          {/* 매매기록 */}
+          <div className="rounded-2xl flex flex-col h-full" style={{
+            background: PANEL_BG,
+            border: `1px solid ${BORDER}`,
+            display: tradeMode === "ledger" ? "flex" : "none",
+          }}>
+            <LedgerPanel />
           </div>
         </div>
       </main>

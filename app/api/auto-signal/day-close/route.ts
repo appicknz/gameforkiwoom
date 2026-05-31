@@ -104,9 +104,81 @@ export async function GET(req: Request) {
 
   await Promise.all(updates)
 
+  // ── 리밸런싱 스냅샷 저장 ───────────────────────────────────────
+  // 설정에서 seed_capital, stop_loss_pct, size_usd, leverage 조회
+  const { data: cfg } = await adminSupabase
+    .from("auto_signal_settings")
+    .select("seed_capital, stop_loss_pct, size_usd, leverage")
+    .eq("id", 1)
+    .single()
+
+  const seedCapital = Number(cfg?.seed_capital ?? 640)
+  const stopLossPct = Number(cfg?.stop_loss_pct ?? 5)
+  const sizeUsd     = Number(cfg?.size_usd ?? 10)
+  const leverage    = Number(cfg?.leverage ?? 10)
+
+  // 당일 SL 청산 PNL (설정값 기준 고정)
+  const { data: slPositions } = await adminSupabase
+    .from("auto_signal_positions")
+    .select("leverage, size_usd")
+    .eq("date_label", dateLabel)
+    .eq("close_reason", "stop_loss")
+    .eq("is_closed", true)
+
+  const slPnl = (slPositions ?? []).reduce((s: number, p: { leverage: number; size_usd: number }) => {
+    const lev  = Number(p.leverage ?? leverage)
+    const size = Number(p.size_usd ?? sizeUsd)
+    return s - (size * stopLossPct * lev / 100)
+  }, 0)
+
+  // day_close 포지션들의 PNL (저장된 closed_roi 기반)
+  const { data: dayClosePos } = await adminSupabase
+    .from("auto_signal_positions")
+    .select("size_usd, closed_roi")
+    .eq("date_label", dateLabel)
+    .eq("close_reason", "day_close")
+    .eq("is_closed", true)
+
+  const dayClosePnl = (dayClosePos ?? []).reduce((s: number, p: { size_usd: number; closed_roi: number | null }) => {
+    if (p.closed_roi == null) return s
+    return s + Number(p.size_usd ?? sizeUsd) * (Number(p.closed_roi) / 100)
+  }, 0)
+
+  const dailyPnl = slPnl + dayClosePnl
+  const estValue = seedCapital + dailyPnl
+
+  // 리밸런싱 기록 저장 (당일 중복 방지 — upsert 대신 기존 기록 확인)
+  const { data: existing } = await adminSupabase
+    .from("auto_signal_rebalance")
+    .select("id")
+    .eq("date_label", dateLabel)
+    .limit(1)
+    .single()
+
+  if (!existing) {
+    await adminSupabase
+      .from("auto_signal_rebalance")
+      .insert({
+        date_label:    dateLabel,
+        seed_capital:  seedCapital,
+        est_value:     estValue,
+        daily_pnl:     dailyPnl,
+        note:          "day_close (auto)",
+        rebalanced_at: now,
+      })
+
+    // 다음 날 시드를 EST. VALUE로 업데이트
+    await adminSupabase
+      .from("auto_signal_settings")
+      .update({ seed_capital: estValue })
+      .eq("id", 1)
+  }
+
   return NextResponse.json({
     ok:           true,
     date_label:   dateLabel,
     closed_count: positions.length,
+    daily_pnl:    dailyPnl,
+    est_value:    estValue,
   })
 }
