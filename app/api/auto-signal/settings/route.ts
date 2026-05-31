@@ -10,22 +10,9 @@ import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
 import { NextResponse } from "next/server"
-import jwt from "jsonwebtoken"
+import { verifySession } from "@/lib/auth"
 
-const JWT_SECRET   = process.env.SUPABASE_JWT_SECRET ?? ""
 const MASTER_ROLES = ["master"]
-
-function getCallerRole(req: Request): string | null {
-  try {
-    const auth  = req.headers.get("authorization") ?? ""
-    const token = auth.replace("Bearer ", "").trim()
-    if (!token) return null
-    const decoded = jwt.verify(token, JWT_SECRET) as Record<string, unknown>
-    return (decoded.role as string) ?? null
-  } catch {
-    return null
-  }
-}
 
 export async function GET() {
   const { data, error } = await adminSupabase
@@ -39,8 +26,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: Request) {
-  const role = getCallerRole(req)
-  if (!MASTER_ROLES.includes(role ?? "")) {
+  const session = await verifySession(req)
+  if (!session.ok) return NextResponse.json({ error: session.error }, { status: session.status })
+  if (!MASTER_ROLES.includes(session.role ?? "")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
   }
 
@@ -51,6 +39,7 @@ export async function PATCH(req: Request) {
   if (body.leverage      !== undefined) update.leverage      = Number(body.leverage)
   if (body.enabled       !== undefined) update.enabled       = Boolean(body.enabled)
   if (body.stop_loss_pct !== undefined) update.stop_loss_pct = body.stop_loss_pct === null ? null : Number(body.stop_loss_pct)
+  if (body.seed_capital  !== undefined) update.seed_capital  = Number(body.seed_capital)
 
   const { data, error } = await adminSupabase
     .from("auto_signal_settings")

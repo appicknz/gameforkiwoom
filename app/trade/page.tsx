@@ -551,7 +551,7 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
           }}>
             <div className="flex items-center justify-between">
               <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
-                청산 ��록 ({positions.length}건)
+                청산 기록 ({positions.length}건)
               </span>
               <div className="flex items-center gap-3">
                 {total > 0 && (
@@ -1408,7 +1408,7 @@ export default function TradePage() {
     }
   }, [])
 
-  // ── 종목 선택 ────────────────────────────────────────────────────
+  // ── 종목 선택 ───────────────────────────────────────────��────────
   // PC: 차트 변경만 (다이얼로그 열지 않음)
   const handlePcSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)
@@ -1420,7 +1420,7 @@ export default function TradePage() {
     dialogSymbolRef.current = symbol
   }, [])
 
-  // PC/모바일 모두 다이얼로그 방식으로 통일
+  // PC/모바일 모두 ��이얼로그 방식으로 통일
   const handleMobileSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)
     setSelectedSymbol(symbol)

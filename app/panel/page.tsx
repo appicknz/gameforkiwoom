@@ -203,6 +203,11 @@ export default function PanelPage() {
   const [autoSaving,       setAutoSaving]       = useState(false)
   const [autoMsg,          setAutoMsg]          = useState<string | null>(null)
   const [webhookUrl,       setWebhookUrl]       = useState("")
+  const [seedCapital,      setSeedCapital]      = useState<string>("640")
+  const [seedSaving,       setSeedSaving]       = useState(false)
+  const [seedMsg,          setSeedMsg]          = useState<string | null>(null)
+  const [rebalSaving,      setRebalSaving]      = useState(false)
+  const [rebalMsg,         setRebalMsg]         = useState<string | null>(null)
   // 지갑 복구 (master 전용)
   const [walletRepairLoading, setWalletRepairLoading] = useState(false)
   const [walletRepairResult, setWalletRepairResult]   = useState<{ repairedCount: number; skippedCount: number; repaired: { id: string; username: string; oldAddress: string | null; newAddress: string }[] } | null>(null)
@@ -1578,6 +1583,7 @@ export default function PanelPage() {
                     setAutoPositions(posData.positions ?? [])
                     setAutoSettings(setData)
                     setAutoSettingsEdit({ size_usd: String(setData.size_usd ?? 10), leverage: String(setData.leverage ?? 10), enabled: setData.enabled ?? true, stop_loss_pct: setData.stop_loss_pct != null ? String(setData.stop_loss_pct) : "" })
+                    if (setData.seed_capital != null) setSeedCapital(String(setData.seed_capital))
                     setSignalRules(Array.isArray(rulesData) ? rulesData : [])
                     setWebhookUrl(`${window.location.origin}/api/auto-signal/webhook`)
                   } finally {
@@ -3161,7 +3167,7 @@ export default function PanelPage() {
                   <div className="bg-card border border-border rounded-xl p-4">
                     <p className="text-xs text-muted-foreground mb-1">내 포인트 잔고</p>
                     <p className="text-2xl font-bold text-foreground">{pointBalance.toLocaleString()}<span className="text-sm font-normal text-muted-foreground ml-1">P</span></p>
-                    <p className="text-[11px] text-muted-foreground mt-1">총판에서 충전받은 포인트</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">총판에서 ��전받은 포인트</p>
                   </div>
                   {/* 수수료 잔고 */}
                   <div className="bg-card border border-border rounded-xl p-4">
@@ -4511,6 +4517,73 @@ export default function PanelPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* 리밸런싱 카드 */}
+            <div className="rounded-xl border border-border p-5 space-y-4">
+              <h2 className="text-sm font-semibold text-foreground">리밸런싱 (시드 관리)</h2>
+              <p className="text-xs text-muted-foreground">
+                초기 시드 자본을 설정하고, 수동으로 오늘의 잔고 스냅샷을 매매기록에 저장합니다.<br />
+                자정 cron이 자동으로 저장하지만 수동 저장도 가능합니다.
+              </p>
+
+              {/* 시드 자본 설정 */}
+              <div className="flex items-end gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">시드 자본 (USD)</label>
+                  <input
+                    type="number" min={1} step={1}
+                    value={seedCapital}
+                    onChange={e => setSeedCapital(e.target.value)}
+                    className="w-40 h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
+                  />
+                </div>
+                <button
+                  disabled={seedSaving}
+                  onClick={async () => {
+                    setSeedSaving(true); setSeedMsg(null)
+                    try {
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      const res = await fetch("/api/auto-signal/settings", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                        body: JSON.stringify({ seed_capital: Number(seedCapital) }),
+                      })
+                      const d = await res.json()
+                      setSeedMsg(res.ok ? `저장됐습니다. ($${Number(seedCapital).toFixed(2)})` : (d.error ?? "오류"))
+                    } finally { setSeedSaving(false) }
+                  }}
+                  className="h-8 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
+                  {seedSaving ? "저장 중..." : "시드 저장"}
+                </button>
+                {seedMsg && <span className="text-xs text-muted-foreground">{seedMsg}</span>}
+              </div>
+
+              {/* 수동 리밸런싱 스냅샷 */}
+              <div className="border-t border-border pt-4 flex items-center gap-3">
+                <button
+                  disabled={rebalSaving}
+                  onClick={async () => {
+                    if (!confirm("오늘 날짜로 리밸런싱 스냅샷을 수동 저장합니까?")) return
+                    setRebalSaving(true); setRebalMsg(null)
+                    try {
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      const res = await fetch("/api/auto-signal/rebalance", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                        body: JSON.stringify({ note: "수동 리밸런싱" }),
+                      })
+                      const d = await res.json()
+                      setRebalMsg(res.ok
+                        ? `저장됐습니다. EST. VALUE $${d.est_value?.toFixed(2) ?? "-"} / PNL ${d.daily_pnl >= 0 ? "+" : ""}$${d.daily_pnl?.toFixed(2) ?? "-"}`
+                        : (d.error ?? "오류"))
+                    } finally { setRebalSaving(false) }
+                  }}
+                  className="h-8 px-4 rounded-lg bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50">
+                  {rebalSaving ? "저장 중..." : "오늘 스냅샷 저장"}
+                </button>
+                {rebalMsg && <span className="text-xs text-muted-foreground">{rebalMsg}</span>}
+              </div>
             </div>
 
             {/* 포지션 목록 */}
