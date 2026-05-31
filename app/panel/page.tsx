@@ -195,8 +195,8 @@ export default function PanelPage() {
   }
   type SignalRule = { signal_type: string; direction: "long" | "short"; enabled: boolean }
   const [autoPositions,    setAutoPositions]    = useState<AutoSignalPos[]>([])
-  const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean } | null>(null)
-  const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean } | null>(null)
+  const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean; stop_loss_pct: number | null } | null>(null)
+  const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean; stop_loss_pct: string } | null>(null)
   const [signalRules,      setSignalRules]      = useState<SignalRule[]>([])
   const [rulesSaving,      setRulesSaving]      = useState<string | null>(null)  // 저장 중인 signal_type
   const [autoLoading,      setAutoLoading]      = useState(false)
@@ -676,7 +676,7 @@ export default function PanelPage() {
         setBranches(data.branches ?? [])
       }
     } catch (e) {
-      // 응답 파싱 실패 무시
+      // 응답 파싱 실��� 무시
     }
     setBranchesLoading(false)
   }, [myUserId])
@@ -1015,7 +1015,7 @@ export default function PanelPage() {
     setBuSubmitting(false)
   }
 
-  // ── 포인트 구매 요청 (현금 내고 포인트 사기) ──
+  // ── 포인트 구매 ���청 (현금 내고 포인트 사기) ──
   const [ppRequests, setPpRequests]         = useState<any[]>([])
   const [ppLoading, setPpLoading]           = useState(false)
   const [ppCashAmt, setPpCashAmt]           = useState("")
@@ -1577,7 +1577,7 @@ export default function PanelPage() {
                     const rulesData = await rulesRes.json()
                     setAutoPositions(posData.positions ?? [])
                     setAutoSettings(setData)
-                    setAutoSettingsEdit({ size_usd: String(setData.size_usd ?? 10), leverage: String(setData.leverage ?? 10), enabled: setData.enabled ?? true })
+                    setAutoSettingsEdit({ size_usd: String(setData.size_usd ?? 10), leverage: String(setData.leverage ?? 10), enabled: setData.enabled ?? true, stop_loss_pct: String(setData.stop_loss_pct ?? "") })
                     setSignalRules(Array.isArray(rulesData) ? rulesData : [])
                     setWebhookUrl(`${window.location.origin}/api/auto-signal/webhook`)
                   } finally {
@@ -3014,7 +3014,7 @@ export default function PanelPage() {
 
 
 
-            {/* 포��트 ���전 요청 (임시계정 생성) — master ��용 */}
+            {/* 포��트 ����전 요청 (임시계정 생성) — master ��용 */}
             {myRole === "master" && <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Plus className="w-4 h-4 text-primary" /> 포인트 충전 요청 (유저 계정 생성)</h2>
               <p className="text-xs text-muted-foreground">승인되면 포인트가 충전된 임시 계정이 자동 생성됩니���.</p>
@@ -4205,7 +4205,7 @@ export default function PanelPage() {
         {/* ── 수수료 설정 탭 (master 전용) ── */}
         {activeTab === "commission" && myRole === "master" && (() => {
           const ROLE_LABELS: Record<string, string> = {
-            master:       "마스터",
+            master:       "마��터",
             super_admin:  "대총판",
             branch_admin: "총판",
             admin:        "지점",
@@ -4365,7 +4365,7 @@ export default function PanelPage() {
 
               {/* 설정 폼 */}
               {autoSettingsEdit && (
-                <div className="grid grid-cols-3 gap-4 items-end">
+                <div className="grid grid-cols-4 gap-4 items-end">
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">주문 금액 (USD)</label>
                     <input type="number" min={1} value={autoSettingsEdit.size_usd}
@@ -4377,6 +4377,26 @@ export default function PanelPage() {
                     <input type="number" min={1} max={100} value={autoSettingsEdit.leverage}
                       onChange={e => setAutoSettingsEdit(s => s ? { ...s, leverage: e.target.value } : s)}
                       className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">
+                      스탑로스 (%)
+                      <span className="ml-1 text-[10px] text-muted-foreground/60">비워두면 미사용</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number" min={0.1} max={100} step={0.1}
+                        placeholder="예: 5"
+                        value={autoSettingsEdit.stop_loss_pct}
+                        onChange={e => setAutoSettingsEdit(s => s ? { ...s, stop_loss_pct: e.target.value } : s)}
+                        className="w-full h-8 px-3 pr-6 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                    </div>
+                    {autoSettingsEdit.stop_loss_pct && (
+                      <p className="text-[10px] text-amber-500">
+                        레버리지 {autoSettingsEdit.leverage}x 기준 ROI -{(Number(autoSettingsEdit.stop_loss_pct) * Number(autoSettingsEdit.leverage)).toFixed(0)}% 이하 청산
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">활성화</label>
@@ -4401,7 +4421,12 @@ export default function PanelPage() {
                       const res = await fetch("/api/auto-signal/settings", {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                        body: JSON.stringify({ size_usd: Number(autoSettingsEdit.size_usd), leverage: Number(autoSettingsEdit.leverage), enabled: autoSettingsEdit.enabled }),
+                        body: JSON.stringify({
+                          size_usd:      Number(autoSettingsEdit.size_usd),
+                          leverage:      Number(autoSettingsEdit.leverage),
+                          enabled:       autoSettingsEdit.enabled,
+                          stop_loss_pct: autoSettingsEdit.stop_loss_pct === "" ? null : Number(autoSettingsEdit.stop_loss_pct),
+                        }),
                       })
                       const d = await res.json()
                       if (res.ok) { setAutoSettings(d); setAutoMsg("저장됐습니다.") }
