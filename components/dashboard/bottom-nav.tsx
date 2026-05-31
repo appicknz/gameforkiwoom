@@ -31,7 +31,7 @@ const BASE_NAV_ITEMS = [
     icon: BarChart2,
     href: "/trade",
     match: ["/trade"],
-    requireDeposit: true,
+    requireDeposit: false,
   },
   {
     label: "설정",
