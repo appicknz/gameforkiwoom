@@ -140,15 +140,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "필수 항목을 입력해주세요." }, { status: 400 })
   }
 
-  // Stripe 상품 + 가격 동적 생성
-  const { stripe } = await import("@/lib/stripe")
-  const stripeProduct = await stripe.products.create({ name: title })
-  const stripePrice   = await stripe.prices.create({
-    product:     stripeProduct.id,
-    unit_amount: price_krw,   // 원화 (KRW, 최소 단위 = 1원)
-    currency:    "krw",
-  })
-
   const { data, error } = await adminSupabase
     .from("market_items")
     .insert({
@@ -159,7 +150,6 @@ export async function POST(req: Request) {
       price_krw,
       category_id:      category_id ?? null,
       publisher_id,
-      stripe_price_id:  stripePrice.id,
       game_bonus_rate,
       content_type:     content_type ?? "ebook",
       data_source_type: data_source_type ?? null,
