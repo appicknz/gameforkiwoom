@@ -500,20 +500,6 @@ export function Sidebar() {
         setUsername(null)
         setSellerRole(null)
       }
-        // 토큰 입금 허용 여부
-        try {
-          const pRes = await fetch("/api/user/profile", {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          const pData = await pRes.json()
-          setAllowTokenDeposit(!!pData?.profile?.allow_token_deposit)
-        } catch {
-          setAllowTokenDeposit(false)
-        }
-        } else {
-          setUsername(null)
-          setSellerRole(null)
-        }
     }
     check()
     window.addEventListener("storage", check)
