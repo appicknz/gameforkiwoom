@@ -447,6 +447,8 @@ export function Sidebar() {
   const [username, setUsername] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [sellerRole, setSellerRole] = useState<string | null>(null)
+  const [gameEnabled, setGameEnabled] = useState(false)
+  const [allowTokenDeposit, setAllowTokenDeposit] = useState(false)
 
   // 로그인 폼
   const [authTab, setAuthTab]           = useState<"login" | "register">("login")
@@ -496,9 +498,31 @@ export function Sidebar() {
             setSellerRole(role)
           }
         }
+        // 게임 접근 권한 체크
+        try {
+          const gRes = await fetch("/api/user/game-access", {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const gData = await gRes.json()
+          setGameEnabled(!!gData?.hasAccess)
+        } catch {
+          setGameEnabled(false)
+        }
+        // 토큰 입금 허용 여부
+        try {
+          const pRes = await fetch("/api/user/profile", {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const pData = await pRes.json()
+          setAllowTokenDeposit(!!pData?.profile?.allow_token_deposit)
+        } catch {
+          setAllowTokenDeposit(false)
+        }
       } else {
         setUsername(null)
         setSellerRole(null)
+        setGameEnabled(false)
+        setAllowTokenDeposit(false)
       }
     }
     check()
@@ -597,8 +621,8 @@ export function Sidebar() {
             </div>
           )}
 
-          {/* ① 보너스 게임 — 항상 표시 */}
-          <div className="space-y-2">
+          {/* ① 보너스 게임 — 접근 권한 있는 유저만 표시 */}
+          {gameEnabled && <div className="space-y-2">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("sidebar.bonusGames")}</p>
             <div className="grid grid-cols-2 gap-2">
               {/* 바카라 */}
@@ -624,7 +648,7 @@ export function Sidebar() {
                 </div>
               </Link>
             </div>
-          </div>
+          </div>}
 
           {/* ② 관리 — 2x2 그리드 */}
           <div className="border-t border-border pt-3 space-y-2">
@@ -705,8 +729,8 @@ export function Sidebar() {
             </div>
           </div>
 
-          {/* ③ 오늘의 비트 + 달력 + 토큰 입금 — 로그인 유저 전체 표시 */}
-          {isLoggedIn && (
+          {/* ③ 오늘의 비트 + 달력 + 토큰 입금 — 마스터가 허용한 회원만 */}
+          {isLoggedIn && allowTokenDeposit && (
             <>
               <div className="border-t border-border pt-3">
                 <TradeStatsMini />
