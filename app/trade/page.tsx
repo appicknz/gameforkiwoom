@@ -531,16 +531,20 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       {/* 헤더 */}
       {(() => {
         const totalPnl = positions.reduce((sum, p) => {
-          const lv = Number(p.leverage ?? 1)
-          if (p.close_reason === "stop_loss" && stopLossPct != null) {
-            // 설정값 기준 고정: size_usd × (stop_loss_pct × leverage / 100)
-            return sum - (sizeUsdCfg * (stopLossPct * lv / 100))
+          const lv  = Number(p.leverage ?? 1)
+          const sl  = stopLossPct ?? 5
+          // 모든 청산 건: SL이면 설정값 고정, 아닌 경우는 closed_roi 사용
+          if (p.close_reason === "stop_loss") {
+            return sum - (sizeUsdCfg * sl * lv / 100)
           }
           if (p.closed_roi == null) return sum
           return sum + Number(p.size_usd ?? sizeUsdCfg) * (Number(p.closed_roi) / 100)
         }, 0)
-        const wins  = positions.filter(p => p.closed_roi != null && Number(p.closed_roi) > 0).length
-        const total = positions.filter(p => p.closed_roi != null).length
+        // 승률: SL 청산은 무조건 손실, 나머지는 closed_roi > 0 여부
+        const wins  = positions.filter(p =>
+          p.close_reason !== "stop_loss" && p.closed_roi != null && Number(p.closed_roi) > 0
+        ).length
+        const total = positions.length
         return (
           <div style={{
             padding: "10px 14px 8px", borderBottom: `1px solid rgba(212,175,55,0.1)`,
@@ -819,12 +823,11 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
       const delta   = hasCur
         ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
         : 0
-      const roi     = delta * lev * 100
-      // PNL은 SL 고정값: closed_roi가 있으면 사용, 없으면 stopLossPct 기준
-      const fixedRoi  = pos.closed_roi != null
-        ? Number(pos.closed_roi)
-        : stopLossPct != null ? -(stopLossPct * lev) : roi
-      const pnl = sizeUsd * (fixedRoi / 100)
+      const roi    = delta * lev * 100
+      // PNL은 항상 설정값 기준으로 고정 — DB closed_roi 무시
+      // size_usd × (stop_loss_pct × leverage / 100) = -$5
+      const fixedRoi = stopLossPct != null ? -(stopLossPct * lev) : 0
+      const pnl      = sizeUsd * (fixedRoi / 100)
       return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
     }
 
@@ -867,17 +870,13 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   // 예) size_usd=10, stop_loss_pct=5, leverage=10 → 손실 = 10 × (5×10/100) = -$5
   const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss")
   const slClosedCnt = slClosed.length
-  const slClosedPnl = stopLossPct != null
-    ? slClosed.reduce((s, p) => {
-        const lev  = Number(p.leverage ?? 1)
-        const size = Number(p.size_usd ?? sizeUsdCfg)
-        return s + size * (-(stopLossPct * lev) / 100)  // e.g. 10 × (-50/100) = -5
-      }, 0)
-    : slClosed.reduce((s, p) => {
-        // fallback: DB closed_roi 사용
-        if (p.closed_roi == null) return s
-        return s + Number(p.size_usd ?? sizeUsdCfg) * (Number(p.closed_roi) / 100)
-      }, 0)
+  // 항상 설정값으로 계산 — DB closed_roi 절대 사용 안 함
+  // size_usd(설정) × stop_loss_pct × leverage / 100 = 예) 10 × 5 × 10 / 100 = -$5/건
+  const slClosedPnl = slClosed.reduce((s, p) => {
+    const lev = Number(p.leverage ?? 1)
+    const sl  = stopLossPct ?? 5  // settings 로드 전 임시 기본값
+    return s - (sizeUsdCfg * sl * lev / 100)
+  }, 0)
 
   // TOTAL PNL = 활성 PNL + 청산 PNL (진짜 잔고)
   const totalPnl   = activePnl + slClosedPnl
