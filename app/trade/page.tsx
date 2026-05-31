@@ -104,10 +104,12 @@ function LiveClock() {
 
 function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (d: Date) => void }) {
   const today = new Date()
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  // 오늘이 항상 맨 오른쪽(7번째)에 오도록 — 오늘 기준 6일 전부터 오늘까지
+  // 오늘 기준 29일 전부터 오늘까지 (30일)
+  const DAYS_BACK = 29
   const days: Date[] = []
-  for (let i = 6; i >= 0; i--) {
+  for (let i = DAYS_BACK; i >= 0; i--) {
     const d = new Date(today)
     d.setDate(today.getDate() - i)
     days.push(d)
@@ -117,65 +119,62 @@ function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (
   const isSame = (a: Date, b: Date) =>
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 
+  // 마운트 시 오늘(맨 오른쪽)으로 스크롤
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
+    }
+  }, [])
+
   return (
     <div style={{ borderBottom: `1px solid rgba(255,255,255,0.06)` }}>
-      <div className="grid grid-cols-7">
+      <div
+        ref={scrollRef}
+        style={{ display: "flex", overflowX: "auto", scrollbarWidth: "none" }}
+      >
         {days.map((d, i) => {
           const isSun   = d.getDay() === 0
           const isSat   = d.getDay() === 6
           const isToday = isSame(d, today)
           const isSel   = isSame(d, selectedDate)
 
-          /* 요일 색상: 토=파랑, 일=빨강, 평일=흐린 흰색 */
-          const dayColor = isSat
-            ? "#4a90d9"
-            : isSun
-            ? "#e05555"
-            : "rgba(255,255,255,0.35)"
-
-          /* 날짜 숫자 색상 */
-          const numColor = isToday
-            ? "#fff"
-            : isSel
-            ? "rgba(255,255,255,0.9)"
-            : "rgba(255,255,255,0.75)"
+          const dayColor = isSat ? "#4a90d9" : isSun ? "#e05555" : "rgba(255,255,255,0.35)"
+          const numColor = isToday ? "#fff" : isSel ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.75)"
 
           return (
             <button
               key={i}
               onClick={() => onSelect(d)}
-              className="flex flex-col items-center py-3 gap-2 transition-all"
-              style={{ background: "transparent" }}
+              style={{
+                flexShrink: 0,
+                width: 48,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                padding: "10px 0",
+                gap: 6,
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+              }}
             >
               {/* 요일 */}
-              <span style={{
-                fontSize: 10,
-                fontWeight: 500,
-                color: dayColor,
-                letterSpacing: "0.02em",
-              }}>
+              <span style={{ fontSize: 9, fontWeight: 500, color: dayColor, letterSpacing: "0.02em" }}>
                 {DAY_KO[d.getDay()]}
               </span>
-
-              {/* 날짜 숫자 — 오늘은 초록 원형 테두리 */}
+              {/* 날짜 숫자 */}
               <span style={{
-                width: 32,
-                height: 32,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                width: 30, height: 30,
+                display: "flex", alignItems: "center", justifyContent: "center",
                 borderRadius: "50%",
-                fontSize: 15,
-                fontWeight: 700,
+                fontSize: 13, fontWeight: 700,
                 color: numColor,
                 border: isToday
                   ? "2px solid #22c55e"
                   : isSel
-                  ? `2px solid rgba(212,175,55,0.6)`
+                  ? "2px solid rgba(212,175,55,0.6)"
                   : "2px solid transparent",
-                background: isSel && !isToday
-                  ? "rgba(212,175,55,0.1)"
-                  : "transparent",
+                background: isSel && !isToday ? "rgba(212,175,55,0.1)" : "transparent",
               }}>
                 {d.getDate()}
               </span>
@@ -648,7 +647,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
           fetch("/api/auto-signal/positions", {
             method:  "DELETE",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-            body:    JSON.stringify({ id: pos.id, reason: "stop_loss" }),
+            body:    JSON.stringify({ id: pos.id, reason: "stop_loss", closed_roi: roi, closed_price: cur }),
           }).then(() => {
             setPositions(prev => prev.filter(p => p.id !== pos.id))
           }).catch(() => { closingRef.current.delete(pos.id) })

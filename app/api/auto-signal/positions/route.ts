@@ -44,15 +44,15 @@ export async function GET(req: Request) {
   let query = adminSupabase
     .from("auto_signal_positions")
     .select("*")
-    .eq("is_closed", false)
     .order("signal_time", { ascending: false })
 
   if (date) {
+    // 날짜 지정: 해당 날짜의 모든 포지션 (is_closed 무관 — 히스토리 포함)
     query = query.eq("date_label", date)
   } else {
-    const since = new Date()
-    since.setDate(since.getDate() - 14)
-    query = query.gte("date_label", since.toISOString().slice(0, 10))
+    // 날짜 미지정: 오늘의 활성 포지션만
+    const today = todayKST()
+    query = query.eq("date_label", today).eq("is_closed", false)
   }
 
   const { data, error } = await query.limit(200)
@@ -73,11 +73,24 @@ export async function GET(req: Request) {
 
   // 각 포지션에 종가 기준 PnL/ROI 계산
   const enriched = positions.map(pos => {
+    const entryPrice  = Number(pos.entry_price)
+    const sizeUsd     = Number(pos.size_usd ?? 10)
+    const leverage    = Number(pos.leverage ?? 1)
+    const closeReason = String(pos.close_reason ?? "")
+
+    // 스탑로스 청산 포지션은 청산 당시 ROI/가격을 그대로 사용
+    if (closeReason === "stop_loss" && pos.closed_roi != null) {
+      const roi = Number(pos.closed_roi)
+      return {
+        ...pos,
+        close_price: pos.closed_price ?? null,
+        final_pnl:   sizeUsd * (roi / 100),
+        final_roi:   roi,
+      }
+    }
+
     const sym        = String(pos.symbol).replace(/\.P$/, "").toUpperCase()
     const closePrice = closePriceMap.get(sym) ?? null
-    const entryPrice = Number(pos.entry_price)
-    const sizeUsd    = Number(pos.size_usd ?? 10)
-    const leverage   = Number(pos.leverage ?? 1)
 
     let finalPnl: number | null = null
     let finalRoi: number | null = null
@@ -125,9 +138,17 @@ export async function DELETE(req: Request) {
   }
 
   if (body.id) {
+    const updatePayload: Record<string, unknown> = {
+      is_closed:    true,
+      closed_at:    now,
+      close_reason: body.reason ?? "manual",
+    }
+    if (body.closed_roi   !== undefined) updatePayload.closed_roi   = body.closed_roi
+    if (body.closed_price !== undefined) updatePayload.closed_price = body.closed_price
+
     const { error } = await adminSupabase
       .from("auto_signal_positions")
-      .update({ is_closed: true, closed_at: now, close_reason: body.reason ?? "manual" })
+      .update(updatePayload)
       .eq("id", body.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true, deleted: body.id })
