@@ -70,17 +70,18 @@ function elapsedStr(ms: number): string {
 
 // ─── 날짜 스트립 ─────────────────────────────────────────────────────
 function LiveClock() {
-  const [now, setNow] = useState(new Date())
+  const [now, setNow] = useState<Date | null>(null)
   useEffect(() => {
+    setNow(new Date())
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
 
-  const h   = now.getHours()
+  const h    = now ? now.getHours() : 0
   const ampm = h < 12 ? "오전" : "오후"
   const h12  = h % 12 === 0 ? 12 : h % 12
-  const mm   = String(now.getMinutes()).padStart(2, "0")
-  const ss   = String(now.getSeconds()).padStart(2, "0")
+  const mm   = now ? String(now.getMinutes()).padStart(2, "0") : "00"
+  const ss   = now ? String(now.getSeconds()).padStart(2, "0") : "00"
 
   return (
     <div className="flex items-center gap-1.5 shrink-0">
@@ -89,7 +90,7 @@ function LiveClock() {
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
         <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
       </span>
-      <span style={{
+      <span suppressHydrationWarning style={{
         fontSize: 13,
         fontWeight: 600,
         color: "rgba(255,255,255,0.75)",
@@ -1420,7 +1421,7 @@ export default function TradePage() {
     dialogSymbolRef.current = symbol
   }, [])
 
-  // PC/모바일 모두 ��이얼로그 방식으로 통일
+  // PC/모바일 모두 ���이얼로그 방식으로 통일
   const handleMobileSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)
     setSelectedSymbol(symbol)
