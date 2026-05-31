@@ -825,6 +825,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const [, setTick]       = useState(0)
   const [stopLossPct,   setStopLossPct]  = useState<number | null>(null)
   const [sizeUsdCfg,    setSizeUsdCfg]   = useState<number>(10)
+  const [seedCapital,   setSeedCapital]  = useState<number>(640)
   const closingRef = useRef<Set<string>>(new Set())
 
   // KST 기준 오늘 날짜
@@ -858,7 +859,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     }
   }, [fetchPositions, isToday])
 
-  // 스탑로스 + 포지션당 금액 설정 조회 (마운트 시 1회)
+  // 스탑로스 + 포지션당 금액 + 시드 설정 조회 (마운트 시 1회)
   useEffect(() => {
     fetch("/api/auto-signal/settings")
       .then(r => r.ok ? r.json() : null)
@@ -866,6 +867,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
         if (!d) return
         if (d.stop_loss_pct != null) setStopLossPct(Number(d.stop_loss_pct))
         if (d.size_usd      != null) setSizeUsdCfg(Number(d.size_usd))
+        if (d.seed_capital  != null) setSeedCapital(Number(d.seed_capital))
       })
       .catch(() => {})
   }, [])
@@ -998,24 +1000,26 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const totalRoi   = activeCalc.length > 0 ? activeCalc.reduce((s, p) => s + p.roi, 0) / activeCalc.length : 0
   const profitCnt  = activeCalc.filter(p => p.roi > 0).length
   const lossCnt    = activeCalc.filter(p => p.roi < 0 && p.hasCur).length
-  // 마진: 활성 포지션 수 × 설정상 포지션 금액
-  const margin     = activeCalc.length * sizeUsdCfg
+  // 마진: 활성(is_closed=false) 포지션 수 × 포지션 금액
+  // SL 청산된 건은 이미 activeCalc에서 제외되므로 자동으로 빠짐
+  const margin = activeCalc.length * sizeUsdCfg
 
-  // 스탑로스 청산 누적 — PNL은 반드시 설정값으로 계산 (DB closed_roi 무시)
-  // 예) size_usd=10, stop_loss_pct=5, leverage=10 → 손실 = 10 × (5×10/100) = -$5
+  // 스탑로스 청산 누적 PNL — 설정값으로 고정 계산 (DB closed_roi 무시)
+  // 예) $10 × 5% × 10배 / 100 = -$5/건
   const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss")
   const slClosedCnt = slClosed.length
-  // 항상 설정값으로 계산 — DB closed_roi 절대 사용 안 함
-  // size_usd(설정) × stop_loss_pct × leverage / 100 = 예) 10 × 5 × 10 / 100 = -$5/건
   const slClosedPnl = slClosed.reduce((s, p) => {
     const lev = Number(p.leverage ?? 1)
-    const sl  = stopLossPct ?? 5  // settings 로드 전 임시 기본값
+    const sl  = stopLossPct ?? 5
     return s - (sizeUsdCfg * sl * lev / 100)
   }, 0)
 
-  // TOTAL PNL = 활성 PNL + 청산 PNL (진짜 잔고)
-  const totalPnl   = activePnl + slClosedPnl
-  const estValue   = margin + activePnl
+  // TOTAL PNL = 활성 PNL + SL 청산 PNL 누적
+  const totalPnl = activePnl + slClosedPnl
+
+  // EST. VALUE = 시드 자본 + 활성 PNL + SL 청산 누적 손실
+  // 예) $640(시드) + $32(활성PNL) + -$20(SL 4건) = $652
+  const estValue = seedCapital + activePnl + slClosedPnl
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
     if (sortOrder === "roi_desc") return b.roi - a.roi
@@ -1062,16 +1066,16 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
               ${margin.toFixed(2)}
             </div>
             <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
-              {posCalc.length}건 × $10
+              {activeCalc.length}건 × ${sizeUsdCfg}
             </div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>EST. VALUE</div>
-            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: estValue >= margin ? UP_COLOR : DOWN_COLOR }}>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: estValue >= seedCapital ? UP_COLOR : DOWN_COLOR }}>
               ${estValue.toFixed(2)}
             </div>
             <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
-              MARGIN + PNL
+              시드 ${seedCapital} + PNL {totalPnl >= 0 ? "+" : ""}{totalPnl.toFixed(2)}
             </div>
           </div>
         </div>
@@ -1409,7 +1413,7 @@ export default function TradePage() {
     }
   }, [])
 
-  // ── 종목 선택 ───────────────────────────────────────────��────────
+  // ── 종목 선택 ─────────��─────────────────────────────────��────────
   // PC: 차트 변경만 (다이얼로그 열지 않음)
   const handlePcSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)
