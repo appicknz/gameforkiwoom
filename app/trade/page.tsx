@@ -553,9 +553,10 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
         }
         const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
 
-        const roi    = pos.closed_roi != null ? Number(pos.closed_roi) : null
+        const roi     = pos.closed_roi != null ? Number(pos.closed_roi) : null
         const sizeUsd = Number(pos.size_usd ?? 10)
-        const pnl    = roi != null ? sizeUsd * (roi / 100) : null
+        // closed_roi는 서버에서 SL 임계값으로 고정 저장됨 (예: -50% → -$5)
+        const pnl     = roi != null ? sizeUsd * (roi / 100) : null
         const roiColor = roi == null ? "rgba(255,255,255,0.4)" : roi >= 0 ? UP_COLOR : DOWN_COLOR
 
         return (
@@ -698,16 +699,18 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
           fetch("/api/auto-signal/stop-loss", {
             method:  "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-            body:    JSON.stringify({ id: pos.id, closed_roi: roi, closed_price: cur }),
-          }).then(r => {
+            body:    JSON.stringify({ id: pos.id, closed_price: cur }),
+          }).then(async r => {
             if (!r.ok) { closingRef.current.delete(pos.id); return }
-            // 청산 포지션을 is_closed=true로 업데이트 → TOTAL CLOSE에 반영
+            // 서버가 반환한 고정 ROI 사용 (SL 임계값 고정, 예: -50%)
+            const json = await r.json().catch(() => ({}))
+            const fixedRoi = json.closed_roi ?? roi
             setPositions(prev => prev.map(p =>
               p.id === pos.id
-                ? { ...p, is_closed: true, close_reason: "stop_loss", closed_roi: roi, closed_price: cur }
+                ? { ...p, is_closed: true, close_reason: "stop_loss", closed_roi: fixedRoi, closed_price: cur }
                 : p
             ))
-            onSlClosed?.()  // 청산 기록 탭 리프레시
+            onSlClosed?.()
           }).catch(() => { closingRef.current.delete(pos.id) })
         }
       })
@@ -729,7 +732,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
 
   // 통계 계산
   // - 오늘: liveCache 실시간 가격으로 PnL 계산
-  // - 과거: API가 반환한 final_pnl / final_roi (Binance Klines 종가 기준)
+  // - ���거: API가 반환한 final_pnl / final_roi (Binance Klines 종가 기준)
   const posCalc = positions.map(pos => {
     const sym    = normalize(pos.symbol)
     const entry  = Number(pos.entry_price)
@@ -753,14 +756,27 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     }
 
     // 오늘 — liveCache 실시간 가격
-    const ticker = liveCache.tickers.get(sym)
-    const cur    = ticker ? ticker.price : 0
-    const hasCur = cur > 0 && entry > 0
-    const delta  = hasCur
+    const ticker  = liveCache.tickers.get(sym)
+    const cur     = ticker ? ticker.price : 0
+    const hasCur  = cur > 0 && entry > 0
+    const delta   = hasCur
       ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
       : 0
-    const roi  = delta * (pos.leverage ?? 1) * 100
-    const pnl  = (pos.size_usd ?? 10) * delta * (pos.leverage ?? 1)
+    const sizeUsd = pos.size_usd ?? 10
+    const lev     = pos.leverage ?? 1
+    let roi = delta * lev * 100
+    let pnl = sizeUsd * delta * lev
+
+    // 스탑로스 임계값 도달 시 ROI%는 실제 값 유지, PNL 금액은 최대 손실로 고정
+    // 예) 10x, SL 5% → 최대 손실 ROI = -50%, PNL = -$5 고정
+    if (stopLossPct !== null) {
+      const slRoiThreshold = -(stopLossPct * lev)   // e.g. -50%
+      const slPnlFixed     = sizeUsd * (slRoiThreshold / 100) // e.g. -$5
+      if (roi < slRoiThreshold) {
+        pnl = slPnlFixed  // 금액은 -$5로 고정, %는 실제 값 그대로
+      }
+    }
+
     return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
   })
 
