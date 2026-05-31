@@ -481,7 +481,7 @@ type ClosedPos = {
   closed_price: number | null
 }
 
-function ClosedPositionsPanel() {
+function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const [positions, setPositions] = useState<ClosedPos[]>([])
   const [loading,   setLoading]   = useState(true)
 
@@ -492,7 +492,7 @@ function ClosedPositionsPanel() {
       .then(d => setPositions(d.positions ?? []))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [refreshKey])
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
@@ -626,10 +626,11 @@ interface AutoPos {
   closed_price: number | null
 }
 
-function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
+function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed }: {
   selectedDate: Date
   sortOrder?: "time" | "roi_desc" | "roi_asc" | "signal"
   searchQ?: string
+  onSlClosed?: () => void
 }) {
   const [positions,     setPositions]     = useState<AutoPos[]>([])
   const [isHistorical,  setIsHistorical]  = useState(false)
@@ -694,12 +695,19 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
         if (roi <= threshold) {
           closingRef.current.add(pos.id)
           const tok = typeof window !== "undefined" ? localStorage.getItem("app_token") ?? "" : ""
-          fetch("/api/auto-signal/positions", {
-            method:  "DELETE",
+          fetch("/api/auto-signal/stop-loss", {
+            method:  "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-            body:    JSON.stringify({ id: pos.id, reason: "stop_loss", closed_roi: roi, closed_price: cur }),
-          }).then(() => {
-            setPositions(prev => prev.filter(p => p.id !== pos.id))
+            body:    JSON.stringify({ id: pos.id, closed_roi: roi, closed_price: cur }),
+          }).then(r => {
+            if (!r.ok) { closingRef.current.delete(pos.id); return }
+            // 청산 포지션을 is_closed=true로 업데이트 → TOTAL CLOSE에 반영
+            setPositions(prev => prev.map(p =>
+              p.id === pos.id
+                ? { ...p, is_closed: true, close_reason: "stop_loss", closed_roi: roi, closed_price: cur }
+                : p
+            ))
+            onSlClosed?.()  // 청산 기록 탭 리프레시
           }).catch(() => { closingRef.current.delete(pos.id) })
         }
       })
@@ -756,15 +764,17 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "" }: {
     return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
   })
 
+  // 활성 포지션만 (카드 목록 + 통계)
+  const activeCalc  = posCalc.filter(p => !p.is_closed)
   const filteredCalc = searchQ
-    ? posCalc.filter(p => p.sym.toLowerCase().includes(searchQ.toLowerCase()))
-    : posCalc
+    ? activeCalc.filter(p => p.sym.toLowerCase().includes(searchQ.toLowerCase()))
+    : activeCalc
 
-  const activePnl  = posCalc.reduce((s, p) => s + p.pnl, 0)
-  const totalRoi   = posCalc.length > 0 ? posCalc.reduce((s, p) => s + p.roi, 0) / posCalc.length : 0
-  const profitCnt  = posCalc.filter(p => p.roi > 0).length
-  const lossCnt    = posCalc.filter(p => p.roi < 0 && p.hasCur).length
-  const margin     = posCalc.length * 10
+  const activePnl  = activeCalc.reduce((s, p) => s + p.pnl, 0)
+  const totalRoi   = activeCalc.length > 0 ? activeCalc.reduce((s, p) => s + p.roi, 0) / activeCalc.length : 0
+  const profitCnt  = activeCalc.filter(p => p.roi > 0).length
+  const lossCnt    = activeCalc.filter(p => p.roi < 0 && p.hasCur).length
+  const margin     = activeCalc.length * 10
 
   // 스탑로스 청산 누적 (is_closed=true, close_reason="stop_loss")
   const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss" && p.closed_roi != null)
@@ -972,7 +982,8 @@ export default function TradePage() {
   const [tick,          setTick]          = useState(0)
   const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
   const [selectedDate,  setSelectedDate]  = useState(new Date())
-  const [tradeMode,     setTradeMode]     = useState<"auto" | "closed" | "mock">("auto")
+  const [tradeMode,       setTradeMode]       = useState<"auto" | "closed" | "mock">("auto")
+  const [closedRefreshKey, setClosedRefreshKey] = useState(0)
   const [allowMockTrade, setAllowMockTrade] = useState(false)
   const [searchQ,       setSearchQ]       = useState("")
   type SortOrder = "time" | "roi_desc" | "roi_asc" | "signal"
@@ -1331,12 +1342,12 @@ export default function TradePage() {
             <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} />
+            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} />
           </div>
         </div>
         {/* 청산 기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "closed" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflowY: "auto" }}>
-          <ClosedPositionsPanel />
+          <ClosedPositionsPanel refreshKey={closedRefreshKey} />
         </div>
       </div>
 
@@ -1379,7 +1390,7 @@ export default function TradePage() {
               <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} />
+              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} />
             </div>
           </div>
           {/* 청산 기록 */}
@@ -1389,7 +1400,7 @@ export default function TradePage() {
             display: tradeMode === "closed" ? "flex" : "none",
             overflowY: "auto",
           }}>
-            <ClosedPositionsPanel />
+            <ClosedPositionsPanel refreshKey={closedRefreshKey} />
           </div>
         </div>
       </main>
