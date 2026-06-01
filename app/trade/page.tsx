@@ -466,88 +466,6 @@ function PcPositionCard({ pos, onClose, isClosing }: {
 }
 
 // ���── 메인 페이지 ────────────────────────────────────────────────────
-// ─── 미니 달력 (공용) ─────────────────────────────────────────────────
-function MiniCalendar({
-  selectedDate,
-  onSelect,
-}: {
-  selectedDate: string | null
-  onSelect: (date: string | null) => void
-}) {
-  const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  const [viewYear,  setViewYear]  = useState(() => parseInt(todayKST.slice(0, 4)))
-  const [viewMonth, setViewMonth] = useState(() => parseInt(todayKST.slice(5, 7)) - 1)
-
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
-  const firstDow    = new Date(viewYear, viewMonth, 1).getDay()
-  const cells: (number | null)[] = [...Array(firstDow).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
-  const DAY_LABELS  = ["일", "월", "화", "수", "목", "금", "토"]
-
-  return (
-    <div style={{ padding: "8px 12px 6px", borderBottom: `1px solid rgba(212,175,55,0.1)`, flexShrink: 0 }}>
-      {/* 월 헤더 */}
-      <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
-          {viewYear}년 {viewMonth + 1}월
-          {selectedDate && (
-            <span style={{ marginLeft: 8, fontSize: 9, color: GOLD }}>
-              {parseInt(selectedDate.slice(5,7))}월 {parseInt(selectedDate.slice(8,10))}일 선택중
-            </span>
-          )}
-        </span>
-        <div className="flex items-center gap-1">
-          {selectedDate && (
-            <button
-              onClick={() => onSelect(null)}
-              style={{ fontSize: 8, padding: "1px 6px", borderRadius: 4, border: `1px solid ${GOLD}`, color: GOLD, background: "transparent", cursor: "pointer", marginRight: 4 }}
-            >
-              전체
-            </button>
-          )}
-          <button
-            onClick={() => { if (viewMonth === 0) { setViewYear(y => y-1); setViewMonth(11) } else setViewMonth(m => m-1) }}
-            style={{ width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.06)", borderRadius: 4, border: "none", cursor: "pointer", color: "rgba(255,255,255,0.5)" }}
-          ><ChevronLeft size={10} /></button>
-          <button
-            onClick={() => { if (viewMonth === 11) { setViewYear(y => y+1); setViewMonth(0) } else setViewMonth(m => m+1) }}
-            style={{ width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.06)", borderRadius: 4, border: "none", cursor: "pointer", color: "rgba(255,255,255,0.5)" }}
-          ><ChevronRight size={10} /></button>
-        </div>
-      </div>
-      {/* 요일 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", textAlign: "center", marginBottom: 3 }}>
-        {DAY_LABELS.map((d, i) => (
-          <div key={d} style={{ fontSize: 8, fontWeight: 600, color: i === 0 ? DOWN_COLOR : i === 6 ? "#4a9eff" : "rgba(255,255,255,0.3)" }}>{d}</div>
-        ))}
-      </div>
-      {/* 날짜 격자 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1 }}>
-        {cells.map((day, idx) => {
-          if (!day) return <div key={`e-${idx}`} />
-          const dateStr  = `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`
-          const isToday  = dateStr === todayKST
-          const isSel    = dateStr === selectedDate
-          const isFuture = dateStr > todayKST
-          return (
-            <button
-              key={dateStr}
-              disabled={isFuture}
-              onClick={() => onSelect(isSel ? null : dateStr)}
-              style={{
-                height: 20, borderRadius: 4, fontSize: 9, fontWeight: isSel ? 800 : 500,
-                border: "none", cursor: isFuture ? "default" : "pointer",
-                background: isSel ? "rgba(212,175,55,0.25)" : isToday ? "rgba(212,175,55,0.08)" : "transparent",
-                color: isFuture ? "rgba(255,255,255,0.1)" : isSel ? GOLD : isToday ? GOLD : "rgba(255,255,255,0.6)",
-                outline: isToday && !isSel ? "1px solid rgba(212,175,55,0.4)" : isSel ? `1px solid ${GOLD}` : "none",
-              }}
-            >{day}</button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 // ─── 청산 기록 패널 ──────────────────────────────────────────────────
 type ClosedPos = {
   id: string
@@ -569,20 +487,19 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const [loading,      setLoading]     = useState(true)
   const [stopLossPct,  setStopLossPct] = useState<number | null>(null)
   const [sizeUsdCfg,   setSizeUsdCfg]  = useState<number>(10)
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [, setTick] = useState(0)
+
+  const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
 
   useEffect(() => {
     setLoading(true)
-    const url = selectedDate
-      ? `/api/auto-signal/closed-positions?limit=100&date=${selectedDate}`
-      : "/api/auto-signal/closed-positions?limit=100"
-    fetch(url)
+    fetch(`/api/auto-signal/closed-positions?limit=100&date=${dateStr}`)
       .then(r => r.ok ? r.json() : { positions: [] })
       .then(d => setPositions(d.positions ?? []))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [refreshKey, selectedDate])
+  }, [refreshKey, dateStr])
 
   // 설정 조회 (SL%, size_usd)
   useEffect(() => {
@@ -604,8 +521,8 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* 달력 */}
-      <MiniCalendar selectedDate={selectedDate} onSelect={setSelectedDate} />
+      {/* 날짜 스트립 */}
+      <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
       {/* 헤더 */}
       {(() => {
         const totalPnl = positions.reduce((sum, p) => {
@@ -654,7 +571,7 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
         <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>불러오는 중...</div>
       ) : positions.length === 0 ? (
         <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
-          {selectedDate ? `${selectedDate} 청산 기록이 없습니다.` : "청산 기록이 없습니다."}
+          {dateStr} 청산 기록이 없습니다.
         </div>
       ) : null}
       {positions.map(pos => {
@@ -764,7 +681,9 @@ function LedgerPanel() {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+
+  const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
 
   useEffect(() => {
     setLoading(true)
@@ -777,10 +696,8 @@ function LedgerPanel() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
-  // 날짜 필터 적용
-  const filteredRecords = selectedDate
-    ? records.filter(r => r.date_label === selectedDate)
-    : records
+  // 선택된 날짜의 기록 필터
+  const filteredRecords = records.filter(r => r.date_label === dateStr)
 
   // 요약: 전체 기준
   const initialSeed    = records.length > 0 ? records[records.length - 1].seed_capital : seedCapital
@@ -790,8 +707,8 @@ function LedgerPanel() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* 달력 */}
-      <MiniCalendar selectedDate={selectedDate} onSelect={setSelectedDate} />
+      {/* 날짜 스트립 */}
+      <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
       {/* 헤더 */}
       <div style={{ padding: "10px 14px 8px", borderBottom: `1px solid rgba(212,175,55,0.1)`, flexShrink: 0 }}>
         <div className="flex items-center justify-between">
@@ -833,12 +750,12 @@ function LedgerPanel() {
           <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
             로딩 중...
           </div>
-        ) : records.length === 0 ? (
+        ) : filteredRecords.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
-            리밸런싱 기록이 없습니다.
+            {dateStr} 매매기록이 없습니다.
           </div>
-        ) : records.map((rec, idx) => {
-          const prev     = records[idx + 1]
+        ) : filteredRecords.map((rec, idx) => {
+          const prev     = filteredRecords[idx + 1]
           const prevSeed = prev ? prev.est_value : rec.seed_capital
           const change   = rec.est_value - prevSeed
           const roi      = prevSeed > 0 ? (change / prevSeed) * 100 : 0
