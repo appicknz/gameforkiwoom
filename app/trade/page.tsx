@@ -533,18 +533,20 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
         const slCnt  = positions.filter(p => p.close_reason === "stop_loss").length
         // 포지션별 실제 PNL: size_usd × closed_roi / 100
         // SL도 closed_roi가 있으면 그 값 사용, 없으면 -(stop_loss_pct × leverage) 폴백
-        const slFallbackRoi = (stopLossPct ?? 5) * 10
+        // 실시간 가격으로 ROI 계산 (자동매매와 동일)
         const perPnl = positions.map(p => {
-          const roi = p.closed_roi != null ? Number(p.closed_roi)
-            : p.close_reason === "stop_loss" ? -slFallbackRoi : 0
-          return { roi, pnl: Number(p.size_usd ?? sizeUsdCfg) * (roi / 100) }
+          const entry  = Number(p.entry_price)
+          const symKey = p.symbol.replace(/\.P$/, "").replace(/\//g, "")
+          const cur    = liveCache.tickers.get(symKey)?.price ?? 0
+          const lev    = Number(p.leverage ?? 10)
+          const sz     = Number(p.size_usd ?? sizeUsdCfg)
+          const hasCur = cur > 0 && entry > 0
+          const delta  = hasCur ? (p.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry) : 0
+          const roi    = hasCur ? delta * lev * 100 : (p.closed_roi != null ? Number(p.closed_roi) : 0)
+          return { roi, pnl: sz * (roi / 100), isSl: p.close_reason === "stop_loss" }
         })
-        const slPnl = positions
-          .filter(p => p.close_reason === "stop_loss")
-          .reduce((s, p) => {
-            const roi = p.closed_roi != null ? Number(p.closed_roi) : -slFallbackRoi
-            return s + Number(p.size_usd ?? sizeUsdCfg) * (roi / 100)
-          }, 0)
+        const slPnl    = perPnl.filter(x => x.isSl).reduce((s, x) => s + x.pnl, 0)
+        const slCntAdj = perPnl.filter(x => x.isSl).length
         const totalPnl = perPnl.reduce((s, x) => s + x.pnl, 0)
         const avgRoi   = cnt > 0 ? perPnl.reduce((s, x) => s + x.roi, 0) / cnt : 0
         const estValue = margin + totalPnl
@@ -591,13 +593,13 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
                   {avgRoi >= 0 ? "+" : ""}{avgRoi.toFixed(2)}%
                 </div>
               </div>
-              <div style={{ background: slCnt > 0 ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+              <div style={{ background: slCntAdj > 0 ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>SL CLOSE</div>
-                <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: slCnt === 0 ? "rgba(255,255,255,0.25)" : DOWN_COLOR }}>
-                  {slCnt === 0 ? "-" : `$${slPnl.toFixed(2)}`}
+                <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: slCntAdj === 0 ? "rgba(255,255,255,0.25)" : DOWN_COLOR }}>
+                  {slCntAdj === 0 ? "-" : `$${slPnl.toFixed(2)}`}
                 </div>
                 <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
-                  {slCnt > 0 ? `${slCnt}건 × $${Math.abs(slPnl / slCnt).toFixed(2)}` : "청산 없음"}
+                  {slCntAdj > 0 ? `${slCntAdj}건 × $${Math.abs(slPnl / slCntAdj).toFixed(2)}` : "청산 없음"}
                 </div>
               </div>
               <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
@@ -621,6 +623,7 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       ) : null}
       {positions.map(pos => {
         const entry      = Number(pos.entry_price)
+        const sym        = pos.symbol.replace(/\.P$/, "").replace(/\//g, "")
         const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
         const sizeUsd    = Number(pos.size_usd ?? sizeUsdCfg)
         const lev        = Number(pos.leverage ?? 10)
@@ -634,16 +637,14 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
         }
         const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
 
-        // ROI: 청산 포지션이므로 DB의 closed_roi 사용
-        // 없으면 SL은 -(stop_loss_pct × leverage) 폴백
-        const roi: number = pos.closed_roi != null
-          ? Number(pos.closed_roi)
-          : pos.close_reason === "stop_loss"
-            ? -((stopLossPct ?? 5) * lev)
-            : 0
-
-        // PNL = size_usd × roi / 100
-        const pnl = sizeUsd * (roi / 100)
+        // 실시간 가격으로 ROI 계산 (자동매매와 동일 방식)
+        const cur    = liveCache.tickers.get(sym)?.price ?? 0
+        const hasCur = cur > 0 && entry > 0
+        const delta  = hasCur
+          ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
+          : 0
+        const roi  = hasCur ? delta * lev * 100 : (pos.closed_roi != null ? Number(pos.closed_roi) : 0)
+        const pnl  = sizeUsd * (roi / 100)
 
         const roiColor = roi >= 0 ? UP_COLOR : DOWN_COLOR
         const isSl     = pos.close_reason === "stop_loss"
