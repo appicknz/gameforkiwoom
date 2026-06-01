@@ -311,7 +311,7 @@ function TradeForm({
   )
 }
 
-// ─── 모바일 주문 다이얼로그 ──────────────────────────────────────────
+// ─── 모바일 주문 다이얼로��� ──────────────────────────────────────────
 function TradeDialog({
   symbol, price, balance, onClose, onOpen, isOpening,
 }: {
@@ -1019,6 +1019,8 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
 
   const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss")
   const slClosedCnt = slClosed.length
+  // 건당 -$5 고정 (size_usd=10, leverage=10, stop_loss_pct=5% → 10 × 50% = -$5)
+  const slClosedPnl = slClosed.reduce((s, p) => s - (Number(p.size_usd ?? sizeUsdCfg) * (stopLossPct ?? 5) * Number(p.leverage ?? 10) / 100), 0)
 
   // TOTAL PNL = 평균 ROI × 마진 (ROI 대비 계산)
   const totalPnl = margin * (totalRoi / 100)
@@ -1413,7 +1415,7 @@ export default function TradePage() {
     }
   }, [])
 
-  // ── 종목 선택 ─────────��─────────────────────────────────��────────
+  // ── 종목 선택 ─────────��──────────────���──────────────────��────────
   // PC: 차트 변경만 (다이얼로그 열지 않음)
   const handlePcSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)
