@@ -548,22 +548,7 @@ export default function MarketPage() {
             >
               <span>🏪</span> {t("market.all")}
             </button>
-            {/* 구매한 필터 — 로그인한 유저에게만 표시 */}
-            {purchasedIds.size > 0 && (
-              <button
-                onClick={() => { setShowPurchasedOnly(v => !v); setActiveCat("all") }}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors shrink-0",
-                  showPurchasedOnly
-                    ? "bg-primary text-black"
-                    : "bg-secondary text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                구매한
-                <span className="ml-0.5 opacity-70">({purchasedIds.size})</span>
-              </button>
-            )}
+
             {categories.filter(c => c.name !== "전체").map(cat => (
               <button
                 key={cat.id}

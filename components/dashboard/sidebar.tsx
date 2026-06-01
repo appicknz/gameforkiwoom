@@ -124,9 +124,17 @@ function TradeStatsMini() {
   // 달력 dot 표시용 집계만 유지 (모의매매 전체 합계 통계 제거)
   const allDays = Object.values(byDate)
 
-  // 자동매매 실시간 통계 — liveCache에서 현재가 읽기
   const normalize = (raw: string) => raw.replace(/\.P$/, "").replace(/\//g, "")
+  const isHistorical = !!selectedDate && selectedDate < todayKST
+
+  // 과거 날짜 선택 시: closed_roi(DB 저장값) 사용 — 실시간 계산 안 함
+  // 오늘: liveCache 실시간 가격으로 ROI 계산
   const autoCalc = autoPositions.map(pos => {
+    if (isHistorical) {
+      const roi = Number((pos as unknown as Record<string, unknown>).closed_roi ?? 0)
+      const pnl = pos.size_usd * (roi / 100)
+      return { ...pos, cur: 0, hasCur: false, roi, pnl }
+    }
     const sym    = normalize(pos.symbol)
     const cur    = liveCache.tickers.get(sym)?.price ?? 0
     const entry  = Number(pos.entry_price)
