@@ -526,43 +526,77 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* 날짜 스트립 */}
       <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
-      {/* 헤더 */}
+      {/* 요약 카드 */}
       {(() => {
-        const totalPnl = positions.reduce((sum, p) => {
-          const lv  = Number(p.leverage ?? 1)
-          const sl  = stopLossPct ?? 5
-          // 모든 청산 건: SL이면 설정값 고정, 아닌 경우는 closed_roi 사용
-          if (p.close_reason === "stop_loss") {
-            return sum - (sizeUsdCfg * sl * lv / 100)
-          }
-          if (p.closed_roi == null) return sum
-          return sum + Number(p.size_usd ?? sizeUsdCfg) * (Number(p.closed_roi) / 100)
+        const cnt      = positions.length
+        const margin   = cnt * sizeUsdCfg
+        const slCnt    = positions.filter(p => p.close_reason === "stop_loss").length
+        const slPnl    = slCnt * (-(sizeUsdCfg * (stopLossPct ?? 5) * 10 / 100))
+        // 평균 closed_roi (SL은 -(stop_loss_pct × leverage)로 고정)
+        const roiSum   = positions.reduce((s, p) => {
+          if (p.close_reason === "stop_loss") return s - ((stopLossPct ?? 5) * 10)
+          return s + (p.closed_roi != null ? Number(p.closed_roi) : 0)
         }, 0)
-        // 승률: SL 청산은 무조건 손실, 나머지는 closed_roi > 0 여부
-        const wins  = positions.filter(p =>
+        const avgRoi   = cnt > 0 ? roiSum / cnt : 0
+        const totalPnl = margin > 0 ? margin * (avgRoi / 100) : 0
+        const estValue = margin + totalPnl
+        const wins     = positions.filter(p =>
           p.close_reason !== "stop_loss" && p.closed_roi != null && Number(p.closed_roi) > 0
         ).length
-        const total = positions.length
         return (
-          <div style={{
-            padding: "10px 14px 8px", borderBottom: `1px solid rgba(212,175,55,0.1)`,
-          }}>
-            <div className="flex items-center justify-between">
+          <div style={{ padding: "8px 12px", borderBottom: `1px solid rgba(212,175,55,0.1)`, flexShrink: 0 }}>
+            {/* 타이틀 + 승률 */}
+            <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
-                청산 기록 ({positions.length}건)
+                청산 기록 ({cnt}건)
               </span>
-              <div className="flex items-center gap-3">
-                {total > 0 && (
-                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
-                    승률 {wins}/{total} ({Math.round(wins / total * 100)}%)
-                  </span>
-                )}
-                <span className="tabular-nums" style={{
-                  fontSize: 12, fontWeight: 800,
-                  color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR,
-                }}>
-                  {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
+              {cnt > 0 && (
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+                  승률 {wins}/{cnt} ({Math.round(wins / cnt * 100)}%)
                 </span>
+              )}
+            </div>
+            {/* MARGIN / EST.VALUE */}
+            <div className="grid grid-cols-2 gap-2" style={{ marginBottom: 6 }}>
+              <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>MARGIN</div>
+                <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
+                  ${margin.toFixed(2)}
+                </div>
+                <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>{cnt}건 × ${sizeUsdCfg}</div>
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>EST. VALUE</div>
+                <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+                  ${estValue.toFixed(2)}
+                </div>
+                <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+                  MARGIN + PNL {totalPnl >= 0 ? "+" : ""}{totalPnl.toFixed(2)}
+                </div>
+              </div>
+            </div>
+            {/* TOTAL ROI / SL CLOSE / TOTAL PNL */}
+            <div className="grid grid-cols-3 gap-2">
+              <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL ROI</div>
+                <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: avgRoi >= 0 ? UP_COLOR : DOWN_COLOR }}>
+                  {avgRoi >= 0 ? "+" : ""}{avgRoi.toFixed(2)}%
+                </div>
+              </div>
+              <div style={{ background: slCnt > 0 ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>SL CLOSE</div>
+                <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: slCnt === 0 ? "rgba(255,255,255,0.25)" : DOWN_COLOR }}>
+                  {slCnt === 0 ? "-" : `$${slPnl.toFixed(2)}`}
+                </div>
+                <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+                  {slCnt > 0 ? `${slCnt}건 × $${Math.abs(slPnl / slCnt).toFixed(2)}` : "청산 없음"}
+                </div>
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL PNL</div>
+                <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+                  {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
+                </div>
               </div>
             </div>
           </div>
