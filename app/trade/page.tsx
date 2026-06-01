@@ -1014,8 +1014,8 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     return s - (sizeUsdCfg * sl * lev / 100)
   }, 0)
 
-  // TOTAL PNL = 활성 PNL + SL 청산 PNL 누적
-  const totalPnl = activePnl + slClosedPnl
+  // TOTAL PNL = TOTAL ROI 기준 (활성 포지션만, SL 청산 별도 계산 안 함)
+  const totalPnl = activePnl
 
   // EST. VALUE = 마진(활성 포지션 금액) + 활성 PNL
   const estValue = margin + activePnl
