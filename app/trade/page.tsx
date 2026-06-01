@@ -1061,11 +1061,11 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>EST. VALUE</div>
-            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: activePnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
               ${estValue.toFixed(2)}
             </div>
             <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
-              MARGIN + PNL {activePnl >= 0 ? "+" : ""}{activePnl.toFixed(2)}
+              MARGIN + PNL {totalPnl >= 0 ? "+" : ""}{totalPnl.toFixed(2)}
             </div>
           </div>
         </div>
