@@ -311,7 +311,7 @@ function TradeForm({
   )
 }
 
-// ─── 모바일 주문 다���얼����� ──────────────────────────────────────────
+// ─── 모바일 주문 다����������� ──────────────────────────────────────────
 function TradeDialog({
   symbol, price, balance, onClose, onOpen, isOpening,
 }: {
@@ -1063,10 +1063,13 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   // 건당 -$5 고정 (size_usd=10, leverage=10, stop_loss_pct=5% → 10 × 50% = -$5)
   const slClosedPnl = slClosed.reduce((s, p) => s - (Number(p.size_usd ?? sizeUsdCfg) * (stopLossPct ?? 5) * Number(p.leverage ?? 10) / 100), 0)
 
-  // TOTAL PNL = 평균 ROI × 마진 (ROI 대비 계산)
-  const totalPnl = margin * (totalRoi / 100)
+  // 활성 포지션 PNL = 평균 ROI × 활성 마진
+  const activePnl = margin * (totalRoi / 100)
 
-  // EST. VALUE = 마진 + TOTAL PNL
+  // TOTAL PNL = 활성 PNL + 해당 날짜 SL 청산 PNL 누적
+  const totalPnl = activePnl + slClosedPnl
+
+  // EST. VALUE = 활성 마진 + TOTAL PNL
   const estValue = margin + totalPnl
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
