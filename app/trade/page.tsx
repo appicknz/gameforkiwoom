@@ -1084,12 +1084,21 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
             </div>
           </div>
         </div>
-        {/* TOTAL ROI + TOTAL PNL */}
-        <div className="grid grid-cols-2 gap-2">
+        {/* TOTAL ROI + SL CLOSE + TOTAL PNL */}
+        <div className="grid grid-cols-3 gap-2">
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL ROI</div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalRoi >= 0 ? UP_COLOR : DOWN_COLOR }}>
               {totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%
+            </div>
+          </div>
+          <div style={{ background: slClosedCnt > 0 ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>SL CLOSE</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: slClosedCnt === 0 ? "rgba(255,255,255,0.25)" : DOWN_COLOR }}>
+              {slClosedCnt === 0 ? "-" : `$${slClosedPnl.toFixed(2)}`}
+            </div>
+            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+              {slClosedCnt > 0 ? `${slClosedCnt}건 × $${Math.abs(slClosedPnl / slClosedCnt).toFixed(2)}` : "청산 없음"}
             </div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
@@ -1097,11 +1106,6 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
               {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
             </div>
-            {slClosedCnt > 0 && (
-              <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
-                청산 포함
-              </div>
-            )}
           </div>
         </div>
       </div>
