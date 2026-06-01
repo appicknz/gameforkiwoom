@@ -13,13 +13,22 @@ import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const limit  = Math.min(Number(searchParams.get("limit")  ?? 100), 200)
-  const offset = Number(searchParams.get("offset") ?? 0)
+  const limit      = Math.min(Number(searchParams.get("limit")  ?? 100), 200)
+  const offset     = Number(searchParams.get("offset") ?? 0)
+  const dateFilter = searchParams.get("date") // 특정 날짜 (YYYY-MM-DD), 없으면 전체
 
-  const { data, error } = await adminSupabase
+  // 청산기록 = stop_loss로 청산된 것만 (날짜별)
+  let query = adminSupabase
     .from("auto_signal_positions")
     .select("*")
     .eq("is_closed", true)
+    .eq("close_reason", "stop_loss")
+
+  if (dateFilter) {
+    query = query.eq("date_label", dateFilter)
+  }
+
+  const { data, error } = await query
     .order("closed_at", { ascending: false })
     .range(offset, offset + limit - 1)
 
