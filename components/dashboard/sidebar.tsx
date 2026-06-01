@@ -56,12 +56,24 @@ function TradeStatsMini() {
   // 자동매매 포지션 (오늘치)
   const [autoPositions, setAutoPositions] = useState<AutoPos[]>([])
   const [, setTick] = useState(0) // 1초 tick — liveCache 가격 재계산용
+  // SL 기준: stop_loss_pct × leverage (e.g. 5 × 10 = 50 → -50%)
+  const [slRoiPct, setSlRoiPct] = useState<number>(50)
 
   useEffect(() => {
     const kst = toKSTDateStr(new Date())
     setTodayKST(kst)
     setViewYear(parseInt(kst.slice(0, 4)))
     setViewMonth(parseInt(kst.slice(5, 7)) - 1)
+    // SL 기준값 조회
+    fetch("/api/auto-signal/settings")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return
+        const pct = Number(d.stop_loss_pct ?? 5)
+        const lev = Number(d.leverage ?? 10)
+        setSlRoiPct(pct * lev)  // e.g. 5 × 10 = 50
+      })
+      .catch(() => {})
   }, [])
 
   const getToken = () => { try { return localStorage.getItem("app_token") } catch { return null } }
@@ -129,7 +141,16 @@ function TradeStatsMini() {
 
   // 과거 날짜 선택 시: closed_roi(DB 저장값) 사용 — 실시간 계산 안 함
   // 오늘: liveCache 실시간 가격으로 ROI 계산
-  const autoCalc = autoPositions.map(pos => {
+  // 해당 날짜 SL 청산 포지션 (is_closed=true, close_reason=stop_loss)
+  const slClosedPositions = autoPositions.filter(
+    (p: {is_closed?: boolean; close_reason?: string}) => p.is_closed && p.close_reason === "stop_loss"
+  )
+  // 활성 포지션만 (실시간 또는 과거 ROI 계산)
+  const activePositions = autoPositions.filter(
+    (p: {is_closed?: boolean}) => !p.is_closed
+  )
+
+  const autoCalc = activePositions.map(pos => {
     if (isHistorical) {
       const roi = Number((pos as unknown as Record<string, unknown>).closed_roi ?? 0)
       const pnl = pos.size_usd * (roi / 100)
@@ -144,8 +165,18 @@ function TradeStatsMini() {
     const pnl = pos.size_usd * delta * pos.leverage
     return { ...pos, cur, hasCur, roi, pnl }
   })
-  const autoTotalPnl  = autoCalc.reduce((s, p) => s + p.pnl, 0)
-  const autoTotalRoi  = autoCalc.length > 0 ? autoCalc.reduce((s, p) => s + p.roi, 0) / autoCalc.length : 0
+
+  // 해당 날짜 SL 청산 PNL: size_usd × (stop_loss_pct × leverage) / 100
+  // slRoiPct = settings.stop_loss_pct × settings.leverage (e.g. 5×10=50 → -50%)
+  const slClosedPnl = slClosedPositions.reduce((s: number, p: {size_usd: number}) => {
+    return s + p.size_usd * (-slRoiPct / 100)
+  }, 0)
+
+  const activeRoiSum  = autoCalc.reduce((s, p) => s + p.roi, 0)
+  const activePnlSum  = autoCalc.reduce((s, p) => s + p.pnl, 0)
+  // TOTAL PNL = 활성 PNL + 해당 날짜 SL 청산 PNL 누적
+  const autoTotalPnl  = activePnlSum + slClosedPnl
+  const autoTotalRoi  = autoCalc.length > 0 ? activeRoiSum / autoCalc.length : 0
   const autoProfit    = autoCalc.filter(p => p.roi > 0).length
   const autoLoss      = autoCalc.filter(p => p.roi <= 0 && p.hasCur).length
 
