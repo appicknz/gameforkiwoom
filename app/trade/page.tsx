@@ -311,7 +311,7 @@ function TradeForm({
   )
 }
 
-// ─── 모바일 주문 다이얼로��� ──────────────────────────────────────────
+// ─── 모바일 주문 다이얼����� ──────────────────────────────────────────
 function TradeDialog({
   symbol, price, balance, onClose, onOpen, isOpening,
 }: {
@@ -528,17 +528,25 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
       {/* 요약 카드 */}
       {(() => {
-        const cnt      = positions.length
-        const margin   = cnt * sizeUsdCfg
-        const slCnt    = positions.filter(p => p.close_reason === "stop_loss").length
-        const slPnl    = slCnt * (-(sizeUsdCfg * (stopLossPct ?? 5) * 10 / 100))
-        // 평균 closed_roi (SL은 -(stop_loss_pct × leverage)로 고정)
-        const roiSum   = positions.reduce((s, p) => {
-          if (p.close_reason === "stop_loss") return s - ((stopLossPct ?? 5) * 10)
-          return s + (p.closed_roi != null ? Number(p.closed_roi) : 0)
-        }, 0)
-        const avgRoi   = cnt > 0 ? roiSum / cnt : 0
-        const totalPnl = margin > 0 ? margin * (avgRoi / 100) : 0
+        const cnt    = positions.length
+        const margin = cnt * sizeUsdCfg
+        const slCnt  = positions.filter(p => p.close_reason === "stop_loss").length
+        // 포지션별 실제 PNL: size_usd × closed_roi / 100
+        // SL도 closed_roi가 있으면 그 값 사용, 없으면 -(stop_loss_pct × leverage) 폴백
+        const slFallbackRoi = (stopLossPct ?? 5) * 10
+        const perPnl = positions.map(p => {
+          const roi = p.closed_roi != null ? Number(p.closed_roi)
+            : p.close_reason === "stop_loss" ? -slFallbackRoi : 0
+          return { roi, pnl: Number(p.size_usd ?? sizeUsdCfg) * (roi / 100) }
+        })
+        const slPnl = positions
+          .filter(p => p.close_reason === "stop_loss")
+          .reduce((s, p) => {
+            const roi = p.closed_roi != null ? Number(p.closed_roi) : -slFallbackRoi
+            return s + Number(p.size_usd ?? sizeUsdCfg) * (roi / 100)
+          }, 0)
+        const totalPnl = perPnl.reduce((s, x) => s + x.pnl, 0)
+        const avgRoi   = cnt > 0 ? perPnl.reduce((s, x) => s + x.roi, 0) / cnt : 0
         const estValue = margin + totalPnl
         const wins     = positions.filter(p =>
           p.close_reason !== "stop_loss" && p.closed_roi != null && Number(p.closed_roi) > 0
@@ -845,7 +853,7 @@ function LedgerPanel() {
   )
 }
 
-// ─── 자동매매 라이브 패널 ─────────────────────────────────────────────
+// ─── 자동매매 라이브 패널 ───────────────────────────────────────────��─
 interface AutoPos {
   id:           string
   signal_type:  string
