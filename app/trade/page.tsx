@@ -1017,9 +1017,8 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   // TOTAL PNL = 활성 PNL + SL 청산 PNL 누적
   const totalPnl = activePnl + slClosedPnl
 
-  // EST. VALUE = 시드 자본 + 활성 PNL + SL 청산 누적 손실
-  // 예) $640(시드) + $32(활성PNL) + -$20(SL 4건) = $652
-  const estValue = seedCapital + activePnl + slClosedPnl
+  // EST. VALUE = 마진(활성 포지션 금액) + 활성 PNL
+  const estValue = margin + activePnl
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
     if (sortOrder === "roi_desc") return b.roi - a.roi
@@ -1071,16 +1070,16 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>EST. VALUE</div>
-            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: estValue >= seedCapital ? UP_COLOR : DOWN_COLOR }}>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: activePnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
               ${estValue.toFixed(2)}
             </div>
             <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
-              시드 ${seedCapital} + PNL {totalPnl >= 0 ? "+" : ""}{totalPnl.toFixed(2)}
+              MARGIN + PNL {activePnl >= 0 ? "+" : ""}{activePnl.toFixed(2)}
             </div>
           </div>
         </div>
-        {/* TOTAL ROI + TOTAL PNL + TOTAL CLOSE */}
-        <div className="grid grid-cols-3 gap-2">
+        {/* TOTAL ROI + TOTAL PNL */}
+        <div className="grid grid-cols-2 gap-2">
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL ROI</div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalRoi >= 0 ? UP_COLOR : DOWN_COLOR }}>
@@ -1097,15 +1096,6 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
                 청산 포함
               </div>
             )}
-          </div>
-          <div style={{ background: slClosedCnt > 0 ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
-            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL CLOSE</div>
-            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: slClosedCnt === 0 ? "rgba(255,255,255,0.3)" : slClosedPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
-              {slClosedCnt === 0 ? "-" : `${slClosedPnl >= 0 ? "+" : ""}$${slClosedPnl.toFixed(2)}`}
-            </div>
-            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
-              {slClosedCnt > 0 ? `SL 청산 ${slClosedCnt}건` : "스탑로스 청산 없음"}
-            </div>
           </div>
         </div>
       </div>
