@@ -996,29 +996,20 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     ? activeCalc.filter(p => p.sym.toLowerCase().includes(searchQ.toLowerCase()))
     : activeCalc
 
-  const activePnl  = activeCalc.reduce((s, p) => s + p.pnl, 0)
-  const totalRoi   = activeCalc.length > 0 ? activeCalc.reduce((s, p) => s + p.roi, 0) / activeCalc.length : 0
-  const profitCnt  = activeCalc.filter(p => p.roi > 0).length
-  const lossCnt    = activeCalc.filter(p => p.roi < 0 && p.hasCur).length
+  const totalRoi  = activeCalc.length > 0 ? activeCalc.reduce((s, p) => s + p.roi, 0) / activeCalc.length : 0
+  const profitCnt = activeCalc.filter(p => p.roi > 0).length
+  const lossCnt   = activeCalc.filter(p => p.roi < 0 && p.hasCur).length
   // 마진: 활성(is_closed=false) 포지션 수 × 포지션 금액
-  // SL 청산된 건은 이미 activeCalc에서 제외되므로 자동으로 빠짐
   const margin = activeCalc.length * sizeUsdCfg
 
-  // 스탑로스 청산 누적 PNL — 설정값으로 고정 계산 (DB closed_roi 무시)
-  // 예) $10 × 5% × 10배 / 100 = -$5/건
   const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss")
   const slClosedCnt = slClosed.length
-  const slClosedPnl = slClosed.reduce((s, p) => {
-    const lev = Number(p.leverage ?? 1)
-    const sl  = stopLossPct ?? 5
-    return s - (sizeUsdCfg * sl * lev / 100)
-  }, 0)
 
-  // TOTAL PNL = TOTAL ROI 기준 (활성 포지션만, SL 청산 별도 계산 안 함)
-  const totalPnl = activePnl
+  // TOTAL PNL = 평균 ROI × 마진 (ROI 대비 계산)
+  const totalPnl = margin * (totalRoi / 100)
 
-  // EST. VALUE = 마진(활성 포지션 금액) + 활성 PNL
-  const estValue = margin + activePnl
+  // EST. VALUE = 마진 + TOTAL PNL
+  const estValue = margin + totalPnl
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
     if (sortOrder === "roi_desc") return b.roi - a.roi
