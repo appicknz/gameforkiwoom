@@ -120,11 +120,14 @@ function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (
   const isSame = (a: Date, b: Date) =>
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 
-  // 마운트 시 오늘(맨 오른쪽)으로 스크롤
+  // 마운트 시 오늘(맨 오른쪽)으로 스크롤 — setTimeout으로 레이아웃 완료 후 실행
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
-    }
+    const el = scrollRef.current
+    if (!el) return
+    const scroll = () => { el.scrollLeft = el.scrollWidth }
+    scroll()
+    const t = setTimeout(scroll, 50)
+    return () => clearTimeout(t)
   }, [])
 
   return (
