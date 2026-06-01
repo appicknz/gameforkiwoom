@@ -311,7 +311,7 @@ function TradeForm({
   )
 }
 
-// ─── 모바일 주문 다이얼����� ──────────────────────────────────────────
+// ─── 모바일 주문 다���얼����� ──────────────────────────────────────────
 function TradeDialog({
   symbol, price, balance, onClose, onOpen, isOpening,
 }: {
@@ -621,10 +621,9 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       ) : null}
       {positions.map(pos => {
         const entry      = Number(pos.entry_price)
-        const sym        = pos.symbol.replace(/\.P$/, "").replace(/\//g, "")
         const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
-        const sizeUsd    = Number(pos.size_usd ?? 10)
-        const lev        = Number(pos.leverage ?? 1)
+        const sizeUsd    = Number(pos.size_usd ?? sizeUsdCfg)
+        const lev        = Number(pos.leverage ?? 10)
         const closedAt   = pos.closed_at
           ? new Date(pos.closed_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
           : "-"
@@ -635,32 +634,27 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
         }
         const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
 
-        // ROI: 실시간 liveCache 가격으로 계속 계산
-        const ticker  = liveCache.tickers.get(sym)
-        const cur     = ticker ? ticker.price : 0
-        const hasCur  = cur > 0 && entry > 0
-        const delta   = hasCur
-          ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
-          : 0
-        const liveRoi = hasCur ? delta * lev * 100 : null
+        // ROI: 청산 포지션이므로 DB의 closed_roi 사용
+        // 없으면 SL은 -(stop_loss_pct × leverage) 폴백
+        const roi: number = pos.closed_roi != null
+          ? Number(pos.closed_roi)
+          : pos.close_reason === "stop_loss"
+            ? -((stopLossPct ?? 5) * lev)
+            : 0
 
-        // % 표시: 실시간 값 사용
-        const roi = liveRoi
+        // PNL = size_usd × roi / 100
+        const pnl = sizeUsd * (roi / 100)
 
-        // PNL 금액: SL 청산이면 설정값 기준 고정 (-$5), 아니면 실시간 계산
-        // size_usd × (stop_loss_pct × leverage / 100)
-        // 예) 10불 × (5% × 10배 / 100) = -$5 고정
-        const pnl = (() => {
-          if (pos.close_reason === "stop_loss" && stopLossPct != null) {
-            return -(sizeUsdCfg * (stopLossPct * lev / 100))
-          }
-          return liveRoi != null ? sizeUsd * (liveRoi / 100) : null
-        })()
-
-        const roiColor = roi == null ? "rgba(255,255,255,0.4)" : roi >= 0 ? UP_COLOR : DOWN_COLOR
+        const roiColor = roi >= 0 ? UP_COLOR : DOWN_COLOR
+        const isSl     = pos.close_reason === "stop_loss"
 
         return (
-          <div key={pos.id} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)` }}>
+          <div key={pos.id} style={{
+            padding: "10px 14px",
+            borderBottom: `1px solid rgba(212,175,55,0.04)`,
+            background: isSl ? "rgba(239,68,68,0.04)" : undefined,
+          }}>
+            {/* 상단행: 방향뱃지 + 심볼 + 레버리지 + ROI | IN시각 + PnL */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <span style={{
@@ -675,31 +669,36 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
                 <span style={{
                   padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
                   background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)",
-                }}>{pos.leverage}x</span>
-                {roi != null && (
-                  <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
-                    {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
-                  </span>
-                )}
+                }}>{lev}x</span>
+                <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
+                  {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
+                </span>
                 <span style={{
                   padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
-                  background: roi == null || roi >= 0 ? "rgba(255,255,255,0.06)" : "rgba(239,68,68,0.12)",
-                  color: roi == null || roi >= 0 ? "rgba(255,255,255,0.4)" : "rgba(239,68,68,0.8)",
+                  background: isSl ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)",
+                  color: isSl ? "rgba(239,68,68,0.8)" : "rgba(255,255,255,0.4)",
                 }}>{reason}</span>
               </div>
               <div className="flex flex-col items-end gap-0.5">
-                {pnl != null && (
-                  <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 700, color: roiColor }}>
-                    {pnl >= 0 ? "+" : ""}${pnl.toFixed(3)}
-                  </span>
-                )}
-                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{closedAt}</span>
+                <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
+                  {pnl >= 0 ? "+" : ""}${pnl.toFixed(3)}
+                </span>
+                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{closedAt}</span>
               </div>
             </div>
-            <div style={{ marginTop: 4, display: "flex", gap: 12, fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
-              <span>진입: ${entry > 0 ? entry.toPrecision(5) : "-"}</span>
+            {/* 하단행: 진입가 | 청산가 | 시그널 */}
+            <div className="flex items-center gap-3 mt-0.5" style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+              <span>진입:{" "}
+                <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  ${fmt(entry)}
+                </span>
+              </span>
               {pos.closed_price != null && (
-                <span>청산: ${Number(pos.closed_price).toPrecision(5)}</span>
+                <span>청산:{" "}
+                  <span className="tabular-nums" style={{ color: roiColor }}>
+                    ${fmt(Number(pos.closed_price))}
+                  </span>
+                </span>
               )}
               <span style={{ color: "rgba(255,255,255,0.25)" }}>{pos.signal_type}</span>
             </div>
