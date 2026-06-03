@@ -141,18 +141,24 @@ function TradeStatsMini() {
 
   // 과거 날짜 선택 시: closed_roi(DB 저장값) 사용 — 실시간 계산 안 함
   // 오늘: liveCache 실시간 가격으로 ROI 계산
-  // 해당 날짜 SL 청산 포지션 (is_closed=true, close_reason=stop_loss)
+  // SL 청산 포지션 (is_closed=true, close_reason=stop_loss)
   const slClosedPositions = autoPositions.filter(
     (p: {is_closed?: boolean; close_reason?: string}) => p.is_closed && p.close_reason === "stop_loss"
   )
-  // 활성 포지션만 (실시간 또는 과거 ROI 계산)
-  const activePositions = autoPositions.filter(
-    (p: {is_closed?: boolean}) => !p.is_closed
-  )
 
-  const autoCalc = activePositions.map(pos => {
+  // 과거 날짜: 전체 포지션(day_close + stop_loss 포함) ROI 계산
+  // 오늘: 활성 포지션만 실시간 계산
+  const calcTargets = isHistorical
+    ? autoPositions  // 날짜의 모든 포지션
+    : autoPositions.filter((p: {is_closed?: boolean}) => !p.is_closed)  // 오늘은 활성만
+
+  const autoCalc = calcTargets.map((pos: typeof autoPositions[0]) => {
     if (isHistorical) {
-      const roi = Number((pos as unknown as Record<string, unknown>).closed_roi ?? 0)
+      // final_roi(서버 계산) → closed_roi(DB) 순 폴백
+      const anyPos = pos as unknown as Record<string, unknown>
+      const roi = anyPos.final_roi != null
+        ? Number(anyPos.final_roi)
+        : Number(anyPos.closed_roi ?? 0)
       const pnl = pos.size_usd * (roi / 100)
       return { ...pos, cur: 0, hasCur: false, roi, pnl }
     }
@@ -161,8 +167,8 @@ function TradeStatsMini() {
     const entry  = Number(pos.entry_price)
     const hasCur = cur > 0 && entry > 0
     const delta  = hasCur ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry) : 0
-    const roi = delta * pos.leverage * 100
-    const pnl = pos.size_usd * delta * pos.leverage
+    const roi    = delta * pos.leverage * 100
+    const pnl    = pos.size_usd * delta * pos.leverage
     return { ...pos, cur, hasCur, roi, pnl }
   })
 

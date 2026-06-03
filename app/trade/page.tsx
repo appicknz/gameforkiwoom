@@ -479,10 +479,15 @@ type ClosedPos = {
   leverage: number
   signal_type: string
   signal_time: string
+  date_label: string
+  is_closed: boolean
   closed_at: string | null
   close_reason: string | null
   closed_roi: number | null
   closed_price: number | null
+  // positions API 과거 날짜 응답에서 추가되는 필드
+  final_roi: number | null
+  final_pnl: number | null
 }
 
 function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
@@ -497,7 +502,9 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/auto-signal/closed-positions?limit=100&date=${dateStr}`)
+    // positions API 사용: 해당 날짜의 모든 포지션 (stop_loss + day_close 포함)
+    // is_historical=true 시 final_roi/final_pnl이 서버에서 계산돼 내려옴
+    fetch(`/api/auto-signal/positions?date=${dateStr}`)
       .then(r => r.ok ? r.json() : { positions: [] })
       .then(d => setPositions(d.positions ?? []))
       .catch(() => {})
@@ -533,16 +540,24 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
         const slCnt  = positions.filter(p => p.close_reason === "stop_loss").length
         // 포지션별 실제 PNL: size_usd × closed_roi / 100
         // SL도 closed_roi가 있으면 그 값 사용, 없으면 -(stop_loss_pct × leverage) 폴백
-        // 실시간 가격으로 ROI 계산 (자동매매와 동일)
+        // ROI: final_roi(서버 계산) → closed_roi(DB 저장) → 실시간 liveCache 순 폴백
         const perPnl = positions.map(p => {
           const entry  = Number(p.entry_price)
           const symKey = p.symbol.replace(/\.P$/, "").replace(/\//g, "")
           const cur    = liveCache.tickers.get(symKey)?.price ?? 0
           const lev    = Number(p.leverage ?? 10)
           const sz     = Number(p.size_usd ?? sizeUsdCfg)
-          const hasCur = cur > 0 && entry > 0
-          const delta  = hasCur ? (p.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry) : 0
-          const roi    = hasCur ? delta * lev * 100 : (p.closed_roi != null ? Number(p.closed_roi) : 0)
+          let roi: number
+          if (p.final_roi != null) {
+            roi = Number(p.final_roi)
+          } else if (p.closed_roi != null) {
+            roi = Number(p.closed_roi)
+          } else if (cur > 0 && entry > 0) {
+            const delta = p.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry
+            roi = delta * lev * 100
+          } else {
+            roi = 0
+          }
           return { roi, pnl: sz * (roi / 100), isSl: p.close_reason === "stop_loss" }
         })
         const slPnl    = perPnl.filter(x => x.isSl).reduce((s, x) => s + x.pnl, 0)
@@ -637,14 +652,16 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
         }
         const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
 
-        // 실시간 가격으로 ROI 계산 (자동매매와 동일 방식)
+        // ROI: final_roi(서버 계산) → closed_roi(DB) → 실시간 liveCache 순 폴백
         const cur    = liveCache.tickers.get(sym)?.price ?? 0
-        const hasCur = cur > 0 && entry > 0
-        const delta  = hasCur
-          ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
-          : 0
-        const roi  = hasCur ? delta * lev * 100 : (pos.closed_roi != null ? Number(pos.closed_roi) : 0)
-        const pnl  = sizeUsd * (roi / 100)
+        const roi: number = pos.final_roi != null
+          ? Number(pos.final_roi)
+          : pos.closed_roi != null
+            ? Number(pos.closed_roi)
+            : cur > 0 && entry > 0
+              ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry) * lev * 100
+              : 0
+        const pnl = sizeUsd * (roi / 100)
 
         const roiColor = roi >= 0 ? UP_COLOR : DOWN_COLOR
         const isSl     = pos.close_reason === "stop_loss"
