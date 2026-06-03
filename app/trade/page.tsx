@@ -947,7 +947,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
     if (!confirmPw) { setConfirmMsg("비밀번호를 입력해주세요."); return }
     setConfirming(true); setConfirmMsg(null)
     try {
-      // 1. 비밀번호 검증 (역삼1 username 고정)
+      // 1. 비밀번호 검증 — 응답에서 새 토큰을 받아 사용 (기존 토큰은 무효화됨)
       const loginRes = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -955,13 +955,18 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
       })
       if (!loginRes.ok) { setConfirmMsg("비밀번호가 올바르지 않습니다."); return }
 
-      const tok = getToken() ?? ""
+      // 로그인 성공 시 발급된 새 토큰 사용 (session_version 갱신됐으므로 반드시 새 토큰 필요)
+      const loginData = await loginRes.json()
+      const freshTok = loginData.token ?? getToken() ?? ""
+      // localStorage도 업데이트
+      if (loginData.token) localStorage.setItem("app_token", loginData.token)
+
       const kstDate = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
 
       // 2. 오늘 매매기록에 PNL 저장
       const saveRes = await fetch("/api/auto-signal/rebalance", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshTok}` },
         credentials: "include",
         body: JSON.stringify({ date_label: kstDate, daily_pnl: confirmPnl, note: "자동매매 반영" }),
       })
@@ -970,7 +975,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
       // 3. 오늘 자동매매 포지션 전체 종료
       await fetch("/api/auto-signal/positions", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshTok}` },
         body: JSON.stringify({ all: true, reason: "confirmed_by_master" }),
       })
 
@@ -1940,7 +1945,7 @@ export default function TradePage() {
         body:    JSON.stringify({ position_id: id, current_price: price }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { alert(data.error ?? `청산 실패 (${res.status})`); return }
+      if (!res.ok) { alert(data.error ?? `청산 ���패 (${res.status})`); return }
       setBalance(data.newBalance)
       setPositions(prev => prev.filter(p => p.id !== id))
       setLogs(l => [{
