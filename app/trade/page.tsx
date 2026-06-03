@@ -364,7 +364,7 @@ function TradeDialog({
             style={{ background: "rgba(212,175,55,0.06)", border: `1px solid ${BORDER}` }}>
             <div className="flex items-center gap-2">
               <Wallet className="w-3.5 h-3.5" style={{ color: GOLD }} />
-              <span className="text-xs" style={{ color: "rgba(212,175,55,0.6)" }}>사용 가능 잔고</span>
+              <span className="text-xs" style={{ color: "rgba(212,175,55,0.6)" }}>사용 가능 ��고</span>
             </div>
             <span className="text-sm font-bold tabular-nums" style={{ color: GOLD }}>
               {balance === null ? "—" : `₩${(balance ?? 0).toLocaleString("ko-KR")}`}
@@ -780,7 +780,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
   )
 }
 
-// ─── 매매기록(리밸런싱) 패널 ────────────────────────────────────────────
+// ─── 매매기록 패널 ─────────────────────────────────────────────────────
 type LedgerRecord = {
   id:            number
   date_label:    string
@@ -796,10 +796,15 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  // 입력 폼 상태
+  const [inputPnl,  setInputPnl]  = useState("")
+  const [inputNote, setInputNote] = useState("")
+  const [saving,    setSaving]    = useState(false)
+  const [saveMsg,   setSaveMsg]   = useState<string | null>(null)
 
   const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true)
     Promise.all([
       fetch("/api/auto-signal/rebalance").then(r => r.ok ? r.json() : { records: [] }),
@@ -808,111 +813,210 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
       setRecords(ledger.records ?? [])
       if (cfg?.seed_capital != null) setSeedCapital(Number(cfg.seed_capital))
     }).catch(() => {}).finally(() => setLoading(false))
-  }, [])
+  }
 
-  // 선택된 날짜의 기록 필터
-  const filteredRecords = records.filter(r => r.date_label === dateStr)
+  useEffect(() => { load() }, [])
 
-  // 요약: 전체 기준
-  const initialSeed    = records.length > 0 ? records[records.length - 1].seed_capital : seedCapital
-  const latestEstValue = records.length > 0 ? records[0].est_value : seedCapital
-  const totalPnl       = latestEstValue - initialSeed
-  const totalRoi       = initialSeed > 0 ? (totalPnl / initialSeed) * 100 : 0
+  // 날짜가 바뀌면 입력창을 해당 날짜 기존 값으로 채움
+  useEffect(() => {
+    const rec = records.find(r => r.date_label === dateStr)
+    setInputPnl(rec ? String(rec.daily_pnl) : "")
+    setInputNote(rec?.note ?? "")
+    setSaveMsg(null)
+  }, [dateStr, records])
+
+  // 전체 누적 요약 (date_label 오름차순)
+  const sorted      = [...records].sort((a, b) => a.date_label.localeCompare(b.date_label))
+  const firstSeed   = sorted.length > 0 ? Number(sorted[0].seed_capital) : seedCapital
+  const latestValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : seedCapital
+  const totalPnl    = latestValue - firstSeed
+  const totalRoi    = firstSeed > 0 ? (totalPnl / firstSeed) * 100 : 0
+
+  // 선택 날짜 기존 기록
+  const existing = records.find(r => r.date_label === dateStr)
+
+  const handleSave = async () => {
+    const pnl = parseFloat(inputPnl)
+    if (isNaN(pnl)) { setSaveMsg("수익을 숫자로 입력해주세요."); return }
+    setSaving(true); setSaveMsg(null)
+    try {
+      const res = await fetch("/api/auto-signal/rebalance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ date_label: dateStr, daily_pnl: pnl, note: inputNote }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setSaveMsg(json.error ?? "저장 실패"); return }
+      setSaveMsg("저장됐습니다.")
+      load()
+    } catch { setSaveMsg("저장 실패") } finally { setSaving(false) }
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("삭제하시겠습니까?")) return
+    await fetch(`/api/auto-signal/rebalance?id=${id}`, { method: "DELETE", credentials: "include" })
+    load()
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* 날짜 스트립 */}
       <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
-      {/* 헤더 */}
-      <div style={{ padding: "10px 14px 8px", borderBottom: `1px solid rgba(212,175,55,0.1)`, flexShrink: 0 }}>
-        <div className="flex items-center justify-between">
+
+      {/* 전체 요약 */}
+      <div style={{ padding: "10px 14px 0", flexShrink: 0 }}>
+        <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
-            매매기록 ({records.length}건)
+            매매기록 ({records.length}일)
           </span>
-          <div className="flex items-center gap-3">
-            <span className="tabular-nums" style={{
-              fontSize: 12, fontWeight: 800,
-              color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR,
-            }}>
-              {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
-              <span style={{ fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>
-                ({totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%)
-              </span>
+          <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+            {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
+            <span style={{ fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>
+              ({totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%)
             </span>
-          </div>
+          </span>
         </div>
-        {/* 요약 카드 */}
-        <div className="grid grid-cols-2 gap-2" style={{ marginTop: 8 }}>
+        <div className="grid grid-cols-2 gap-2" style={{ marginBottom: 10 }}>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>초기 시드</div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>
-              ${initialSeed.toFixed(2)}
+              ${firstSeed.toFixed(2)}
             </div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>현재 잔고</div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
-              ${latestEstValue.toFixed(2)}
+              ${latestValue.toFixed(2)}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 목록 */}
+      {/* 날짜별 수익 입력 */}
+      <div style={{
+        margin: "0 14px 10px",
+        padding: "12px 14px",
+        borderRadius: 10,
+        border: `1px solid rgba(212,175,55,0.15)`,
+        background: "rgba(212,175,55,0.04)",
+        flexShrink: 0,
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, marginBottom: 10 }}>
+          {`${selectedDate.getMonth()+1}월 ${selectedDate.getDate()}일`} 수익 입력
+          {existing && (
+            <span style={{ marginLeft: 6, fontSize: 9, color: "rgba(255,255,255,0.3)", fontWeight: 400 }}>기록 있음 — 덮어씁니다</span>
+          )}
+        </div>
+        {/* PNL 입력 */}
+        <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", width: 36, flexShrink: 0 }}>수익</span>
+          <div className="flex items-center" style={{
+            flex: 1, background: "rgba(255,255,255,0.06)", borderRadius: 6,
+            border: "1px solid rgba(255,255,255,0.08)", padding: "5px 8px",
+          }}>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginRight: 4 }}>$</span>
+            <input
+              type="number"
+              value={inputPnl}
+              onChange={e => setInputPnl(e.target.value)}
+              placeholder="0.00  (손실은 음수)"
+              style={{
+                flex: 1, background: "transparent", border: "none", outline: "none",
+                fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            />
+          </div>
+        </div>
+        {/* 메모 입력 */}
+        <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", width: 36, flexShrink: 0 }}>메모</span>
+          <input
+            type="text"
+            value={inputNote}
+            onChange={e => setInputNote(e.target.value)}
+            placeholder="선택 입력"
+            style={{
+              flex: 1, background: "rgba(255,255,255,0.06)", borderRadius: 6,
+              border: "1px solid rgba(255,255,255,0.08)", padding: "5px 8px",
+              fontSize: 12, color: "rgba(255,255,255,0.7)", outline: "none",
+            }}
+          />
+        </div>
+        {/* 저장 버튼 */}
+        <div className="flex items-center justify-between">
+          <span style={{ fontSize: 10, color: saveMsg?.includes("저장") ? UP_COLOR : "rgba(239,68,68,0.8)" }}>
+            {saveMsg ?? ""}
+          </span>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: "6px 18px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+              background: saving ? "rgba(212,175,55,0.3)" : GOLD,
+              color: "#000", border: "none", cursor: saving ? "default" : "pointer",
+            }}
+          >
+            {saving ? "저장 중..." : existing ? "수정" : "저장"}
+          </button>
+        </div>
+      </div>
+
+      {/* 기록 목록 */}
       <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
         {loading ? (
+          <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>로딩 중...</div>
+        ) : sorted.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
-            로딩 중...
+            5월 31일부터 수익을 입력해주세요.
           </div>
-        ) : filteredRecords.length === 0 ? (
-          <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
-            {dateStr} 매매기록이 없습니다.
-          </div>
-        ) : filteredRecords.map((rec, idx) => {
-          const prev     = filteredRecords[idx + 1]
-          const prevSeed = prev ? prev.est_value : rec.seed_capital
-          const change   = rec.est_value - prevSeed
-          const roi      = prevSeed > 0 ? (change / prevSeed) * 100 : 0
-          const at       = new Date(rec.rebalanced_at).toLocaleString("ko-KR", {
-            year: "numeric", month: "2-digit", day: "2-digit",
-            hour: "2-digit", minute: "2-digit",
-          })
+        ) : [...sorted].reverse().map((rec) => {
+          const pnl      = Number(rec.daily_pnl)
+          const seed     = Number(rec.seed_capital)
+          const estVal   = Number(rec.est_value)
+          const roi      = seed > 0 ? (pnl / seed) * 100 : 0
+          const pnlColor = pnl >= 0 ? UP_COLOR : DOWN_COLOR
+          const [yy, mm, dd] = rec.date_label.split("-")
+          const label    = `${parseInt(mm)}월 ${parseInt(dd)}일`
+
           return (
             <div key={rec.id} style={{
               padding: "10px 14px",
               borderBottom: `1px solid rgba(212,175,55,0.04)`,
-              display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              background: rec.date_label === dateStr ? "rgba(212,175,55,0.04)" : undefined,
             }}>
-              {/* 왼쪽: 날짜 + 노트 */}
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
-                  {rec.date_label}
+                  {label}
                   {rec.note && (
                     <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)" }}>
                       {rec.note}
                     </span>
                   )}
                 </div>
-                <div style={{ marginTop: 3, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{at}</div>
-                <div style={{ marginTop: 3, display: "flex", gap: 10, fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
-                  <span>시드 ${prevSeed.toFixed(2)}</span>
-                  <span style={{ color: "rgba(255,255,255,0.15)" }}>→</span>
-                  <span style={{ color: "rgba(255,255,255,0.6)" }}>잔고 ${rec.est_value.toFixed(2)}</span>
+                <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+                  시드 ${seed.toFixed(2)} → 잔고 ${estVal.toFixed(2)}
                 </div>
               </div>
-              {/* 오른쪽: 당일 PNL + ROI */}
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div className="tabular-nums" style={{
-                  fontSize: 14, fontWeight: 800,
-                  color: change >= 0 ? UP_COLOR : DOWN_COLOR,
-                }}>
-                  {change >= 0 ? "+" : ""}${change.toFixed(2)}
+              <div className="flex items-center gap-3">
+                <div style={{ textAlign: "right" }}>
+                  <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>
+                    {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
+                  </div>
+                  <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>
+                    {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
+                  </div>
                 </div>
-                <div className="tabular-nums" style={{
-                  fontSize: 10, color: roi >= 0 ? "rgba(34,197,94,0.7)" : "rgba(239,68,68,0.7)",
-                }}>
-                  {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
-                </div>
+                <button
+                  onClick={() => handleDelete(rec.id)}
+                  style={{
+                    width: 20, height: 20, borderRadius: 4, border: "none",
+                    background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.6)",
+                    fontSize: 11, cursor: "pointer", flexShrink: 0,
+                  }}
+                >×</button>
               </div>
             </div>
           )
@@ -1709,7 +1813,7 @@ export default function TradePage() {
             positions={positionRows}
           />
         </div>
-        {/* 자동매매: 날짜 스트립 + 포지션 */}
+        {/* 자동매매: 날짜 스트립 + 포��션 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "auto" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
           <div style={{ flexShrink: 0 }}>
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />

@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic"
 /**
- * GET  /api/auto-signal/rebalance        — 리밸런싱 기록 목록 (최신순)
- * POST /api/auto-signal/rebalance        — 수동 리밸런싱 스냅샷 저장 (master 전용)
- *   body: { date_label, seed_capital, est_value, daily_pnl, note? }
+ * GET  /api/auto-signal/rebalance             — 기록 목록 (최신순, 5월 31일 이후)
+ * POST /api/auto-signal/rebalance             — 날짜별 수익 수동 입력 (UPSERT)
+ *   body: { date_label: "YYYY-MM-DD", daily_pnl: number, note?: string }
+ * DELETE /api/auto-signal/rebalance?id=N      — 기록 삭제
  */
 
 import "server-only"
@@ -13,12 +14,14 @@ import { NextResponse } from "next/server"
 import { verifySession } from "@/lib/auth"
 
 const MASTER_ROLES = ["master", "admin"]
+const START_DATE   = "2026-05-31"  // 기록 시작일
 
 export async function GET() {
   const { data, error } = await adminSupabase
     .from("auto_signal_rebalance")
     .select("*")
-    .order("rebalanced_at", { ascending: false })
+    .gte("date_label", START_DATE)
+    .order("date_label", { ascending: false })
     .limit(365)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -27,84 +30,89 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await verifySession(req)
-  if (!session.ok) {
-    return NextResponse.json({ error: session.error }, { status: session.status })
-  }
-  if (!MASTER_ROLES.includes(session.role ?? "")) {
+  if (!session.ok) return NextResponse.json({ error: session.error }, { status: session.status })
+  if (!MASTER_ROLES.includes(session.role ?? ""))
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
-  }
 
-  const body    = await req.json().catch(() => ({}))
-  const { note } = body
+  const body      = await req.json().catch(() => ({}))
+  const { date_label, daily_pnl, note } = body
 
-  const now       = new Date()
-  const dateLabel = now.toISOString().slice(0, 10) // "2025-05-31"
+  if (!date_label || daily_pnl == null)
+    return NextResponse.json({ error: "date_label, daily_pnl 필수" }, { status: 400 })
 
-  // 이미 오늘 기록이 있으면 덮어쓰지 않음
-  const { data: existing } = await adminSupabase
+  // 초기 시드 조회
+  const { data: cfg } = await adminSupabase
+    .from("auto_signal_settings")
+    .select("seed_capital")
+    .eq("id", 1)
+    .single()
+  const seedCapital = Number(cfg?.seed_capital ?? 640)
+
+  // 해당 날짜 이전 기록 중 가장 최근 잔고 → 누적 계산 기준
+  const { data: prev } = await adminSupabase
     .from("auto_signal_rebalance")
-    .select("id")
-    .eq("date_label", dateLabel)
+    .select("est_value")
+    .gte("date_label", START_DATE)
+    .lt("date_label", date_label)
+    .order("date_label", { ascending: false })
     .limit(1)
     .single()
 
-  if (existing) {
-    return NextResponse.json({ error: "오늘 날짜 기록이 이미 존재합니다." }, { status: 409 })
+  const baseSeed = prev ? Number(prev.est_value) : seedCapital
+  const estValue = baseSeed + Number(daily_pnl)
+
+  // UPSERT: 같은 날짜면 덮어씀
+  const { data: existing } = await adminSupabase
+    .from("auto_signal_rebalance")
+    .select("id")
+    .eq("date_label", date_label)
+    .limit(1)
+    .single()
+
+  const payload = {
+    date_label,
+    seed_capital:  baseSeed,
+    est_value:     estValue,
+    daily_pnl:     Number(daily_pnl),
+    note:          note ?? "",
+    rebalanced_at: new Date().toISOString(),
   }
 
-  // 관리자 설정 조회
-  const { data: cfg } = await adminSupabase
-    .from("auto_signal_settings")
-    .select("seed_capital, stop_loss_pct, size_usd, leverage")
-    .eq("id", 1)
-    .single()
+  let result
+  if (existing) {
+    result = await adminSupabase
+      .from("auto_signal_rebalance")
+      .update(payload)
+      .eq("id", existing.id)
+      .select()
+      .single()
+  } else {
+    result = await adminSupabase
+      .from("auto_signal_rebalance")
+      .insert(payload)
+      .select()
+      .single()
+  }
 
-  const seedCapital = Number(cfg?.seed_capital ?? 640)
-  const stopLossPct = Number(cfg?.stop_loss_pct ?? 5)
-  const sizeUsd     = Number(cfg?.size_usd ?? 10)
-  const leverage    = Number(cfg?.leverage ?? 10)
+  if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
+  return NextResponse.json({ ok: true, record: result.data })
+}
 
-  // 오늘 SL 청산 PNL (설정값 기준 고정)
-  const { data: slPos } = await adminSupabase
-    .from("auto_signal_positions")
-    .select("leverage, size_usd")
-    .eq("date_label", dateLabel)
-    .eq("close_reason", "stop_loss")
-    .eq("is_closed", true)
+export async function DELETE(req: Request) {
+  const session = await verifySession(req)
+  if (!session.ok) return NextResponse.json({ error: session.error }, { status: session.status })
+  if (!MASTER_ROLES.includes(session.role ?? ""))
+    return NextResponse.json({ error: "forbidden" }, { status: 403 })
 
-  const slPnl = (slPos ?? []).reduce((s: number, p: { leverage: number; size_usd: number }) => {
-    const lev  = Number(p.leverage ?? leverage)
-    const size = Number(p.size_usd ?? sizeUsd)
-    return s - (size * stopLossPct * lev / 100)
-  }, 0)
+  const { searchParams } = new URL(req.url)
+  const id = searchParams.get("id")
+  if (!id) return NextResponse.json({ error: "id 필수" }, { status: 400 })
 
-  // 오늘 활성 포지션 수 기반 마진 (실시간 PNL 없이 마진만 반영)
-  const { data: activePosData } = await adminSupabase
-    .from("auto_signal_positions")
-    .select("size_usd")
-    .eq("date_label", dateLabel)
-    .eq("is_closed", false)
-
-  const marginTotal = (activePosData ?? []).reduce((s: number, p: { size_usd: number }) =>
-    s + Number(p.size_usd ?? sizeUsd), 0)
-
-  const dailyPnl = slPnl  // 수동 스냅샷은 SL 손실만 반영 (활성 포지션 PNL은 실시간이라 제외)
-  const estValue = seedCapital + marginTotal + dailyPnl
-
-  const { data, error } = await adminSupabase
+  const { error } = await adminSupabase
     .from("auto_signal_rebalance")
-    .insert({
-      date_label:    dateLabel,
-      seed_capital:  seedCapital,
-      est_value:     estValue,
-      daily_pnl:     dailyPnl,
-      note:          note ?? "수동 리밸런싱",
-      rebalanced_at: now.toISOString(),
-    })
-    .select()
-    .single()
+    .delete()
+    .eq("id", id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  return NextResponse.json({ ok: true, est_value: estValue, daily_pnl: dailyPnl, record: data })
+  return NextResponse.json({ ok: true })
 }
