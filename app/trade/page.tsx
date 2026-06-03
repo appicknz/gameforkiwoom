@@ -1549,13 +1549,9 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   // EST. VALUE = 마진 + TOTAL PNL
   const estValue = margin + totalPnl
 
-  // 오늘 날짜이면 부모에게 실시간 PNL 전달, 날짜 바뀌면 0으로 리셋
+  // 오늘 날짜이면 부모에게 실시간 PNL 전달 (마스터가 반영할 때까지 계속 유지)
   useEffect(() => {
-    if (isToday) {
-      onTodayPnl?.(totalPnl)
-    } else {
-      onTodayPnl?.(0)
-    }
+    if (isToday) onTodayPnl?.(totalPnl)
   }, [totalPnl, isToday])
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
