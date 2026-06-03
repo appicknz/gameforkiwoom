@@ -3,7 +3,7 @@ import { cookies } from "next/headers"
 import { redis } from "@/lib/redis"
 
 export type AuthResult =
-  | { ok: true; userId: string; token: string }
+  | { ok: true; userId: string; token: string; role?: string }
   | { ok: false; status: 401; error: string }
 
 /** Redis key: 유저 활성 세션 버전 */
@@ -15,7 +15,7 @@ export function sessionVersionKey(userId: string) {
  * JWT를 로컬에서 디코딩 — payload와 버전(sv) 반환
  * Supabase access_token은 HS256 서명이 포함된 표준 JWT
  */
-function decodeToken(token: string): { sub: string; sv?: number; exp?: number } | null {
+function decodeToken(token: string): { sub: string; sv?: number; exp?: number; role?: string } | null {
   try {
     const parts = token.split(".")
     if (parts.length !== 3) return null
@@ -38,7 +38,7 @@ function extractToken(req: Request, cookieStore: Awaited<ReturnType<typeof cooki
 }
 
 /** 토큰 검증 + session_version 비교 (중복 로그인 감지) */
-async function verifyToken(token: string): Promise<{ userId: string } | null> {
+async function verifyToken(token: string): Promise<{ userId: string; role?: string } | null> {
   const payload = decodeToken(token)
   if (!payload) return null
 
@@ -50,7 +50,7 @@ async function verifyToken(token: string): Promise<{ userId: string } | null> {
     if (current !== null && payload.sv < current) return null  // 구버전 세션 — 무효
   }
 
-  return { userId }
+  return { userId, role: payload.role }
 }
 
 /**
@@ -70,7 +70,7 @@ export async function verifySession(req: Request): Promise<AuthResult> {
   const result = await verifyToken(token)
   if (!result) return { ok: false, status: 401, error: "Session expired" }
 
-  return { ok: true, userId: result.userId, token }
+  return { ok: true, userId: result.userId, token, role: result.role }
 }
 
 /**
