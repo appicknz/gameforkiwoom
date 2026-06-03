@@ -791,7 +791,7 @@ type LedgerRecord = {
   note:          string
 }
 
-function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: string | null }) {
+function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
@@ -802,8 +802,6 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
   const [saving,    setSaving]    = useState(false)
   const [saveMsg,   setSaveMsg]   = useState<string | null>(null)
 
-  const MASTER_ROLES = ["master", "admin"]
-  const isMaster = MASTER_ROLES.includes(userRole ?? "")
   const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
 
   const load = () => {
@@ -895,8 +893,8 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
         </div>
       </div>
 
-      {/* 날짜별 수익 입력 — 마스터 계정만 표시 */}
-      {isMaster && <div style={{
+      {/* 날짜별 수익 입력 */}
+      <div style={{
         margin: "0 14px 10px",
         padding: "12px 14px",
         borderRadius: 10,
@@ -963,7 +961,7 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
             {saving ? "저장 중..." : existing ? "수정" : "저장"}
           </button>
         </div>
-      </div>}
+      </div>
 
       {/* 기록 목록 */}
       <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
@@ -1028,7 +1026,7 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
   )
 }
 
-// ─── 자동매매 라이브 패널 ────────────��──────────────────────────────��─
+// ─── 자동매매 라이브 패널 ────────────��─────────────��────────────────��─
 interface AutoPos {
   id:           string
   signal_type:  string
@@ -1832,7 +1830,7 @@ export default function TradePage() {
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
-          <LedgerPanel tradeMode={tradeMode} userRole={userRole} />
+          <LedgerPanel tradeMode={tradeMode} />
         </div>
       </div>
 
@@ -1893,7 +1891,7 @@ export default function TradePage() {
             border: `1px solid ${BORDER}`,
             display: tradeMode === "ledger" ? "flex" : "none",
           }}>
-            <LedgerPanel tradeMode={tradeMode} userRole={userRole} />
+            <LedgerPanel tradeMode={tradeMode} />
           </div>
         </div>
       </main>
