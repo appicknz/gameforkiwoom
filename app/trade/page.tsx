@@ -806,7 +806,7 @@ type LedgerRecord = {
   note:          string
 }
 
-function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: string | null }) {
+function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: string; userRole: string | null; todayAutoPnl?: number }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
@@ -820,6 +820,13 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
   const [saving,    setSaving]    = useState(false)
   const [saveMsg,   setSaveMsg]   = useState<string | null>(null)
 
+  // 반영 확인 모달
+  const [confirmOpen,    setConfirmOpen]    = useState(false)
+  const [confirmPnl,     setConfirmPnl]     = useState(0)
+  const [confirmPw,      setConfirmPw]      = useState("")
+  const [confirmMsg,     setConfirmMsg]     = useState<string | null>(null)
+  const [confirming,     setConfirming]     = useState(false)
+
   const MASTER_ROLES = ["master", "admin"]
   const isMaster = MASTER_ROLES.includes(userRole ?? "")
 
@@ -830,7 +837,9 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
       : { "Content-Type": "application/json" }
   }
 
-  const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
+  const dateStr   = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
+  const todayKST  = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+  const isToday   = dateStr === todayKST
 
   const load = () => {
     setLoading(true)
@@ -886,7 +895,12 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
   // 전체 누적 (오름차순)
   const sorted      = [...records].sort((a, b) => a.date_label.localeCompare(b.date_label))
   const firstSeed   = seedCapital
-  const latestValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : seedCapital
+  // 마지막 확정 잔고 (저장된 기록 기준)
+  const confirmedValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : seedCapital
+  // 오늘 날짜 기록이 아직 없으면 실시간 PNL을 더해서 현재 잔고 표시
+  const todayRecordExists = records.some(r => r.date_label === todayKST)
+  const liveValue   = (!todayRecordExists && todayAutoPnl !== 0) ? confirmedValue + todayAutoPnl : confirmedValue
+  const latestValue = liveValue
   const totalPnl    = latestValue - firstSeed
   const totalRoi    = firstSeed > 0 ? (totalPnl / firstSeed) * 100 : 0
 
@@ -919,6 +933,53 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
       credentials: "include",
     })
     load()
+  }
+
+  const handleConfirmOpen = (pnl: number) => {
+    setConfirmPnl(pnl)
+    setConfirmPw("")
+    setConfirmMsg(null)
+    setConfirmOpen(true)
+  }
+
+  const handleConfirmSubmit = async () => {
+    if (!confirmPw) { setConfirmMsg("비밀번호를 입력해주세요."); return }
+    setConfirming(true); setConfirmMsg(null)
+    try {
+      // 1. 비밀번호 검증 (역삼1 username 고정)
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "역삼1", password: confirmPw }),
+      })
+      if (!loginRes.ok) { setConfirmMsg("비밀번호가 올바르지 않습니다."); return }
+
+      const tok = getToken() ?? ""
+      const kstDate = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+
+      // 2. 오늘 매매기록에 PNL 저장
+      const saveRes = await fetch("/api/auto-signal/rebalance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+        credentials: "include",
+        body: JSON.stringify({ date_label: kstDate, daily_pnl: confirmPnl, note: "자동매매 반영" }),
+      })
+      if (!saveRes.ok) { setConfirmMsg("저장 실패: " + (await saveRes.json()).error); return }
+
+      // 3. 오늘 자동매매 포지션 전체 종료
+      await fetch("/api/auto-signal/positions", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+        body: JSON.stringify({ all: true, reason: "confirmed_by_master" }),
+      })
+
+      setConfirmOpen(false)
+      load()
+    } catch (e) {
+      setConfirmMsg("오류가 발생했습니다.")
+    } finally {
+      setConfirming(false)
+    }
   }
 
   // ── 통계 계산 ──────────────────────────────────────────────────────
@@ -983,8 +1044,18 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
             <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>≈ {Math.round(firstSeed * krwRate).toLocaleString("ko-KR")}원</div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
-            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>현재 잔고</div>
+            <div className="flex items-center gap-1.5" style={{ marginBottom: 2 }}>
+              <span style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600 }}>현재 잔고</span>
+              {!todayRecordExists && todayAutoPnl !== 0 && (
+                <span style={{ fontSize: 8, fontWeight: 700, padding: "0px 4px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "rgba(34,197,94,0.8)" }}>실시간</span>
+              )}
+            </div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>${latestValue.toFixed(2)}</div>
+            {!todayRecordExists && todayAutoPnl !== 0 && (
+              <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>
+                확정 ${confirmedValue.toFixed(2)} + 자동 {todayAutoPnl >= 0 ? "+" : ""}{todayAutoPnl.toFixed(2)}
+              </div>
+            )}
             <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>≈ {Math.round(latestValue * krwRate).toLocaleString("ko-KR")}원</div>
           </div>
         </div>
@@ -1068,36 +1139,75 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
 
         ) : statTab === "daily" ? (
           // ── 일별 ──
-          [...sorted].reverse().map(rec => {
-            const pnl      = Number(rec.daily_pnl)
-            const seed     = Number(rec.seed_capital)
-            const estVal   = Number(rec.est_value)
-            const roi      = seed > 0 ? (pnl / seed) * 100 : 0
-            const pnlColor = pnl >= 0 ? UP_COLOR : DOWN_COLOR
-            const [, mm, dd] = rec.date_label.split("-")
-            return (
-              <div key={rec.id} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center", background: rec.date_label === dateStr ? "rgba(212,175,55,0.04)" : undefined }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
-                    {parseInt(mm)}월 {parseInt(dd)}일
-                    {rec.note && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)" }}>{rec.note}</span>}
+          <>
+            {/* 오늘 미반영 실시간 행 (마스터만 반영 버튼 표시) */}
+            {!todayRecordExists && todayAutoPnl !== 0 && (() => {
+              const nowKst = new Date(Date.now() + 9 * 3600_000)
+              const mm = nowKst.getUTCMonth() + 1
+              const dd = nowKst.getUTCDate()
+              const pnlColor = todayAutoPnl >= 0 ? UP_COLOR : DOWN_COLOR
+              const roi = confirmedValue > 0 ? (todayAutoPnl / confirmedValue) * 100 : 0
+              return (
+                <div style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.08)`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(212,175,55,0.03)" }}>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <PulseDot />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>{mm}월 {dd}일</span>
+                      <span style={{ fontSize: 8, fontWeight: 700, padding: "0px 4px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "rgba(34,197,94,0.8)" }}>실시간</span>
+                    </div>
+                    <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+                      확정 ${confirmedValue.toFixed(2)} → 예상 ${liveValue.toFixed(2)}
+                    </div>
                   </div>
-                  <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
-                    시드 ${seed.toFixed(2)} → 잔고 ${estVal.toFixed(2)}
+                  <div className="flex items-center gap-2">
+                    <div style={{ textAlign: "right" }}>
+                      <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>{todayAutoPnl >= 0 ? "+" : ""}${todayAutoPnl.toFixed(2)}</div>
+                      <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{todayAutoPnl >= 0 ? "+" : ""}{Math.round(todayAutoPnl * krwRate).toLocaleString("ko-KR")}원</div>
+                      <div className="tabular-nums" style={{ fontSize: 10, color: todayAutoPnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
+                    </div>
+                    {isMaster && (
+                      <button onClick={() => handleConfirmOpen(todayAutoPnl)}
+                        style={{ padding: "4px 10px", borderRadius: 12, border: "none", background: GOLD, color: "#000", fontSize: 10, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                        반영
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div style={{ textAlign: "right" }}>
-                    <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
-                    <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
-                    <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
+              )
+            })()}
+            {[...sorted].reverse().map(rec => {
+              const pnl      = Number(rec.daily_pnl)
+              const seed     = Number(rec.seed_capital)
+              const estVal   = Number(rec.est_value)
+              const roi      = seed > 0 ? (pnl / seed) * 100 : 0
+              const pnlColor = pnl >= 0 ? UP_COLOR : DOWN_COLOR
+              const [, mm, dd] = rec.date_label.split("-")
+              return (
+                <div key={rec.id} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center", background: rec.date_label === dateStr ? "rgba(212,175,55,0.04)" : undefined }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
+                      {parseInt(mm)}월 {parseInt(dd)}일
+                      {rec.note && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)" }}>{rec.note}</span>}
+                    </div>
+                    <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+                      시드 ${seed.toFixed(2)} → 잔고 ${estVal.toFixed(2)}
+                    </div>
                   </div>
-                  <button onClick={() => handleDelete(rec.id)}
-                    style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.6)", fontSize: 11, cursor: "pointer", flexShrink: 0 }}>×</button>
+                  <div className="flex items-center gap-3">
+                    <div style={{ textAlign: "right" }}>
+                      <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
+                      <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
+                      <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
+                    </div>
+                    {isMaster && (
+                      <button onClick={() => handleDelete(rec.id)}
+                        style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.6)", fontSize: 11, cursor: "pointer", flexShrink: 0 }}>×</button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )
-          })
+              )
+            })}
+          </>
 
         ) : statTab === "weekly" ? (
           // ── 주별 ──
@@ -1149,6 +1259,60 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
             })
         )}
       </div>
+
+      {/* 반영 확인 모달 */}
+      {confirmOpen && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 9999,
+          background: "rgba(0,0,0,0.7)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={() => setConfirmOpen(false)}>
+          <div style={{
+            background: "#0e100f",
+            border: `1px solid rgba(212,175,55,0.25)`,
+            borderRadius: 14, padding: "22px 20px", width: 300,
+            boxShadow: "0 8px 40px rgba(0,0,0,0.8)",
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 4 }}>자동매매 반영 확인</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginBottom: 16 }}>
+              오늘 TOTAL PNL{" "}
+              <span style={{ color: confirmPnl >= 0 ? UP_COLOR : DOWN_COLOR, fontWeight: 700 }}>
+                {confirmPnl >= 0 ? "+" : ""}${confirmPnl.toFixed(2)}
+              </span>
+              {" "}을 매매기록에 저장하고<br />
+              모든 자동매매 포지션을 종료합니다.
+            </div>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginBottom: 6 }}>마스터 비밀번호</div>
+            <input
+              type="password"
+              value={confirmPw}
+              onChange={e => setConfirmPw(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleConfirmSubmit()}
+              placeholder="비밀번호 입력"
+              autoFocus
+              style={{
+                width: "100%", background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8,
+                padding: "8px 10px", fontSize: 13, color: "rgba(255,255,255,0.85)",
+                outline: "none", marginBottom: 10, boxSizing: "border-box",
+              }}
+            />
+            {confirmMsg && (
+              <div style={{ fontSize: 10, color: "rgba(239,68,68,0.8)", marginBottom: 8 }}>{confirmMsg}</div>
+            )}
+            <div className="flex items-center gap-2">
+              <button onClick={() => setConfirmOpen(false)}
+                style={{ flex: 1, padding: "8px 0", borderRadius: 20, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.45)", fontSize: 11, cursor: "pointer" }}>
+                취소
+              </button>
+              <button onClick={handleConfirmSubmit} disabled={confirming}
+                style={{ flex: 2, padding: "8px 0", borderRadius: 20, border: "none", background: confirming ? "rgba(212,175,55,0.4)" : GOLD, color: "#000", fontSize: 11, fontWeight: 700, cursor: confirming ? "default" : "pointer" }}>
+                {confirming ? "처리 중..." : "반영 및 종료"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1170,11 +1334,12 @@ interface AutoPos {
   closed_price: number | null
 }
 
-function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed }: {
+function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl }: {
   selectedDate: Date
   sortOrder?: "time" | "roi_desc" | "roi_asc" | "signal"
   searchQ?: string
   onSlClosed?: () => void
+  onTodayPnl?: (pnl: number) => void
 }) {
   const [positions,     setPositions]     = useState<AutoPos[]>([])
   const [isHistorical,  setIsHistorical]  = useState(false)
@@ -1384,6 +1549,11 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   // EST. VALUE = 마진 + TOTAL PNL
   const estValue = margin + totalPnl
 
+  // 오늘 날짜이면 부모에게 실시간 PNL 전달
+  useEffect(() => {
+    if (isToday) onTodayPnl?.(totalPnl)
+  }, [totalPnl, isToday])
+
   const sortedCalc = [...filteredCalc].sort((a, b) => {
     if (sortOrder === "roi_desc") return b.roi - a.roi
     if (sortOrder === "roi_asc")  return a.roi - b.roi
@@ -1586,6 +1756,7 @@ export default function TradePage() {
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
   const [allowMockTrade, setAllowMockTrade] = useState(false)
   const [userRole,       setUserRole]       = useState<string | null>(null)
+  const [todayAutoPnl,   setTodayAutoPnl]   = useState<number>(0)
   const [searchQ,       setSearchQ]       = useState("")
   type SortOrder = "time" | "roi_desc" | "roi_asc" | "signal"
   const SORT_CYCLE: SortOrder[] = ["time", "roi_desc", "roi_asc", "signal"]
@@ -1953,7 +2124,7 @@ export default function TradePage() {
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
-          <LedgerPanel tradeMode={tradeMode} userRole={userRole} />
+          <LedgerPanel tradeMode={tradeMode} userRole={userRole} todayAutoPnl={todayAutoPnl} />
         </div>
       </div>
 
@@ -1996,7 +2167,7 @@ export default function TradePage() {
               <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} />
+              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} />
             </div>
           </div>
           {/* 청산 기록 */}
@@ -2014,7 +2185,7 @@ export default function TradePage() {
             border: `1px solid ${BORDER}`,
             display: tradeMode === "ledger" ? "flex" : "none",
           }}>
-            <LedgerPanel tradeMode={tradeMode} userRole={userRole} />
+            <LedgerPanel tradeMode={tradeMode} userRole={userRole} todayAutoPnl={todayAutoPnl} />
           </div>
         </div>
       </main>
