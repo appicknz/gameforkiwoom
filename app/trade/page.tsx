@@ -797,6 +797,8 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   const [seedCapital,  setSeedCapital]  = useState(640)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
+  const [krwRate,      setKrwRate]      = useState<number | null>(null)
+  const [countdown,    setCountdown]    = useState("")
   // 입력 폼 상태
   const [inputPnl,  setInputPnl]  = useState("")
   const [inputNote, setInputNote] = useState("")
@@ -824,6 +826,48 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   }
 
   useEffect(() => { load() }, [])
+
+  // Upbit KRW-USDT 환율 (30초마다 갱신)
+  useEffect(() => {
+    const fetchRate = () => {
+      fetch("https://api.upbit.com/v1/ticker?markets=KRW-USDT")
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.[0]?.trade_price) setKrwRate(Number(d[0].trade_price)) })
+        .catch(() => {})
+    }
+    fetchRate()
+    const id = setInterval(fetchRate, 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // 다음 토요일 자정(일요일 00:00 KST)까지 카운트다운
+  useEffect(() => {
+    const calc = () => {
+      const now = new Date()
+      // KST = UTC+9
+      const kstNow = new Date(now.getTime() + 9 * 3600_000)
+      const day = kstNow.getUTCDay() // 0=일, 6=토
+      // 토요일 23:59:59 → 남은 초 = 자정(일요일 00:00)까지
+      const daysUntilSat = day === 6 ? 0 : (6 - day)
+      const nextSat = new Date(kstNow)
+      nextSat.setUTCDate(kstNow.getUTCDate() + daysUntilSat)
+      nextSat.setUTCHours(15, 0, 0, 0) // KST 00:00 = UTC 15:00
+      // 이미 지난 경우 다음 주 토요일로
+      if (nextSat.getTime() <= now.getTime()) {
+        nextSat.setUTCDate(nextSat.getUTCDate() + 7)
+      }
+      const diff = Math.max(0, Math.floor((nextSat.getTime() - now.getTime()) / 1000))
+      const d = Math.floor(diff / 86400)
+      const h = Math.floor((diff % 86400) / 3600)
+      const m = Math.floor((diff % 3600) / 60)
+      const s = diff % 60
+      const pad = (n: number) => String(n).padStart(2, "0")
+      setCountdown(d > 0 ? `${d}일 ${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(h)}:${pad(m)}:${pad(s)}`)
+    }
+    calc()
+    const id = setInterval(calc, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   // 날짜가 바뀌면 입력창을 해당 날짜 기존 값으로 채움
   useEffect(() => {
@@ -855,7 +899,7 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
         body: JSON.stringify({ date_label: dateStr, daily_pnl: pnl, note: inputNote }),
       })
       const json = await res.json()
-      if (!res.ok) { setSaveMsg(json.error ?? "저장 실패"); return }
+      if (!res.ok) { setSaveMsg(json.error ?? "저��� 실패"); return }
       setSaveMsg("저장 완료")
       load()
     } catch { setSaveMsg("저장 실패") } finally { setSaving(false) }
@@ -910,6 +954,7 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
 
       {/* 전체 요약 카드 */}
       <div style={{ padding: "10px 14px 0", flexShrink: 0 }}>
+        {/* 헤더 행 */}
         <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>매매기록 ({records.length}일)</span>
           <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
@@ -919,14 +964,47 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
             </span>
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-2" style={{ marginBottom: 10 }}>
+
+        {/* 시드 / 잔고 카드 (원화 포함) */}
+        <div className="grid grid-cols-2 gap-2" style={{ marginBottom: 8 }}>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>초기 시드</div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>${firstSeed.toFixed(2)}</div>
+            {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>≈ {Math.round(firstSeed * krwRate).toLocaleString("ko-KR")}원</div>}
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>현재 잔고</div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>${latestValue.toFixed(2)}</div>
+            {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>≈ {Math.round(latestValue * krwRate).toLocaleString("ko-KR")}원</div>}
+          </div>
+        </div>
+
+        {/* 수익 분배 카드 (1/2, 2/2) */}
+        {totalPnl > 0 && (
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 6 }}>
+              수익 분배 (총 {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}{krwRate ? ` ≈ ${Math.round(totalPnl * krwRate).toLocaleString("ko-KR")}원` : ""})
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[1, 2].map(n => (
+                <div key={n} style={{ background: "rgba(212,175,55,0.06)", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 2 }}>{n}/2</div>
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>${(totalPnl / 2).toFixed(2)}</div>
+                  {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>{Math.round((totalPnl / 2) * krwRate).toLocaleString("ko-KR")}원</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 토요일 분배일 카운트다운 */}
+        <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "7px 10px", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>다음 분배일 (토요일 자정)</div>
+            <div className="tabular-nums" style={{ fontSize: 15, fontWeight: 800, color: GOLD, letterSpacing: "0.04em" }}>{countdown || "--:--:--"}</div>
+          </div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textAlign: "right" }}>
+            매주 토요일<br />자정 기준
           </div>
         </div>
       </div>
@@ -997,6 +1075,7 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
                 <div className="flex items-center gap-3">
                   <div style={{ textAlign: "right" }}>
                     <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
+                    {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>}
                     <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
                   </div>
                   <button onClick={() => handleDelete(rec.id)}
@@ -1025,6 +1104,7 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: col }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
+                    {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>}
                     <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roiPct >= 0 ? "+" : ""}{roiPct.toFixed(2)}%</div>
                   </div>
                 </div>
@@ -1047,6 +1127,7 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: col }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
+                    {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>}
                     <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roiPct >= 0 ? "+" : ""}{roiPct.toFixed(2)}%</div>
                   </div>
                 </div>
