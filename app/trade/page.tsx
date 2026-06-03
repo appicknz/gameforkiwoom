@@ -556,7 +556,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
 
   useEffect(() => {
     setLoading(true)
-    // positions API 사용: 해당 날짜의 모든 포지션 (stop_loss + day_close 포함)
+    // positions API 사용: 해�� 날짜의 모든 포지션 (stop_loss + day_close 포함)
     // is_historical=true 시 final_roi/final_pnl이 서버에서 계산돼 내려옴
     fetch(`/api/auto-signal/positions?date=${dateStr}`)
       .then(r => r.ok ? r.json() : { positions: [] })
@@ -806,7 +806,7 @@ type LedgerRecord = {
   note:          string
 }
 
-function LedgerPanel({ tradeMode }: { tradeMode: string }) {
+function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: string | null }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
@@ -819,6 +819,9 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   const [inputNote, setInputNote] = useState("")
   const [saving,    setSaving]    = useState(false)
   const [saveMsg,   setSaveMsg]   = useState<string | null>(null)
+
+  const MASTER_ROLES = ["master", "admin"]
+  const isMaster = MASTER_ROLES.includes(userRole ?? "")
 
   const authHeaders = () => {
     const tok = getToken()
@@ -1036,8 +1039,8 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
         </div>
       </div>
 
-      {/* 수익 입력 폼 */}
-      <div style={{ margin: "0 14px 10px", padding: "12px 14px", borderRadius: 10, border: `1px solid rgba(212,175,55,0.15)`, background: "rgba(212,175,55,0.04)", flexShrink: 0 }}>
+      {/* 수익 입력 폼 — 마스터 계정만 */}
+      {isMaster && <div style={{ margin: "0 14px 10px", padding: "12px 14px", borderRadius: 10, border: `1px solid rgba(212,175,55,0.15)`, background: "rgba(212,175,55,0.04)", flexShrink: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, marginBottom: 10 }}>
           {`${selectedDate.getMonth()+1}월 ${selectedDate.getDate()}일`} 수익 입력
           {existing && <span style={{ marginLeft: 6, fontSize: 9, color: "rgba(255,255,255,0.3)", fontWeight: 400 }}>기록 있음 — 덮어씁니다</span>}
@@ -1063,7 +1066,7 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
             {saving ? "저장 중..." : existing ? "수정" : "저장"}
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* 통계 탭 */}
       <div className="flex items-center gap-2" style={{ padding: "0 14px 8px", flexShrink: 0 }}>
@@ -1378,7 +1381,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const totalRoi  = statsCalc.length > 0 ? statsCalc.reduce((s, p) => s + p.roi, 0) / statsCalc.length : 0
   const profitCnt = statsCalc.filter(p => p.roi > 0).length
   const lossCnt   = statsCalc.filter(p => p.roi < 0).length
-  // 마진: 해당 날짜 포지션 수 × 포지션 금액
+  // ��진: 해당 날짜 포지션 수 × 포지션 금액
   const margin = statsCalc.length * sizeUsdCfg
 
   // SL 청산 (오늘: 고정값 PNL / 과거: final_roi가 이미 포함돼 있으므로 별도 계��� 불필요)
@@ -1966,7 +1969,7 @@ export default function TradePage() {
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
-          <LedgerPanel tradeMode={tradeMode} />
+          <LedgerPanel tradeMode={tradeMode} userRole={userRole} />
         </div>
       </div>
 
@@ -2027,7 +2030,7 @@ export default function TradePage() {
             border: `1px solid ${BORDER}`,
             display: tradeMode === "ledger" ? "flex" : "none",
           }}>
-            <LedgerPanel tradeMode={tradeMode} />
+            <LedgerPanel tradeMode={tradeMode} userRole={userRole} />
           </div>
         </div>
       </main>
