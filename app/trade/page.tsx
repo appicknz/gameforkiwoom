@@ -791,12 +791,11 @@ type LedgerRecord = {
   note:          string
 }
 
-function LedgerPanel({ tradeMode }: { tradeMode: string }) {
+function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: string | null }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-  const [isMaster,     setIsMaster]     = useState(false)
   // 입력 폼 상태
   const [inputPnl,  setInputPnl]  = useState("")
   const [inputNote, setInputNote] = useState("")
@@ -804,6 +803,7 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   const [saveMsg,   setSaveMsg]   = useState<string | null>(null)
 
   const MASTER_ROLES = ["master", "admin"]
+  const isMaster = MASTER_ROLES.includes(userRole ?? "")
   const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
 
   const load = () => {
@@ -811,10 +811,8 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
     Promise.all([
       fetch("/api/auto-signal/rebalance", { credentials: "include" }).then(r => r.ok ? r.json() : { records: [] }),
       fetch("/api/auto-signal/settings").then(r => r.ok ? r.json() : null),
-      fetch("/api/auth/me", { credentials: "include" }).then(r => r.ok ? r.json() : { role: null }),
-    ]).then(([ledger, cfg, me]) => {
+    ]).then(([ledger, cfg]) => {
       setRecords(ledger.records ?? [])
-      setIsMaster(MASTER_ROLES.includes(me.role ?? ""))
       if (cfg?.seed_capital != null) setSeedCapital(Number(cfg.seed_capital))
     }).catch(() => {}).finally(() => setLoading(false))
   }
@@ -1462,6 +1460,7 @@ export default function TradePage() {
   }
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
   const [allowMockTrade, setAllowMockTrade] = useState(false)
+  const [userRole,       setUserRole]       = useState<string | null>(null)
   const [searchQ,       setSearchQ]       = useState("")
   type SortOrder = "time" | "roi_desc" | "roi_asc" | "signal"
   const SORT_CYCLE: SortOrder[] = ["time", "roi_desc", "roi_asc", "signal"]
@@ -1492,18 +1491,19 @@ export default function TradePage() {
 
   usePriceWorker({})
 
-  // 모의매매 허용 여부 조회 (마운트 시 1회)
+  // 모의매매 허용 여부 + 사용자 role 조회 (마운트 시 1회)
   useEffect(() => {
     const token = getToken()
     if (!token) return
-    fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        const allowed = !!d?.profile?.allow_mock_trade
-        setAllowMockTrade(allowed)
-        if (!allowed) setTradeMode("auto")
-      })
-      .catch(() => {})
+    Promise.all([
+      fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
+      fetch("/api/auth/me", { credentials: "include" }).then(r => r.ok ? r.json() : { role: null }),
+    ]).then(([profileData, meData]) => {
+      const allowed = !!profileData?.profile?.allow_mock_trade
+      setAllowMockTrade(allowed)
+      if (!allowed) setTradeMode("auto")
+      setUserRole(meData.role ?? null)
+    }).catch(() => {})
   }, [])
 
   // ── 폴링 ────────────────────────────────────────────────────────
@@ -1520,7 +1520,7 @@ export default function TradePage() {
     const token = getToken()
     if (!token) return
     fetchBalance()
-    // 클라이언트 WebSocket 가격을 쿼리로 전달 — 서버가 Binance 조회 없이 PnL 계산
+    // 클라이언트 WebSocket 가격�� 쿼리로 전달 — 서버가 Binance 조회 없이 PnL 계산
     const pricesParam = [...priceMapRef.current.entries()]
       .map(([sym, price]) => `${sym}:${price}`).join(",")
     const qs = pricesParam ? `?prices=${encodeURIComponent(pricesParam)}` : ""
@@ -1832,7 +1832,7 @@ export default function TradePage() {
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
-          <LedgerPanel tradeMode={tradeMode} />
+          <LedgerPanel tradeMode={tradeMode} userRole={userRole} />
         </div>
       </div>
 
@@ -1893,7 +1893,7 @@ export default function TradePage() {
             border: `1px solid ${BORDER}`,
             display: tradeMode === "ledger" ? "flex" : "none",
           }}>
-            <LedgerPanel tradeMode={tradeMode} />
+            <LedgerPanel tradeMode={tradeMode} userRole={userRole} />
           </div>
         </div>
       </main>
