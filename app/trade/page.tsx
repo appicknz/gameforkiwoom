@@ -120,7 +120,8 @@ function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (
   const isSame = (a: Date, b: Date) =>
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 
-  // 마운트 시 오늘(맨 오른쪽)으로 스크롤 — setTimeout으로 레이아웃 완료 후 실행
+  // 마운트 시 또는 selectedDate가 오늘로 변경될 때 맨 오른쪽으로 스크롤
+  const isSelectedToday = isSame(selectedDate, today)
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -128,7 +129,7 @@ function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (
     scroll()
     const t = setTimeout(scroll, 50)
     return () => clearTimeout(t)
-  }, [])
+  }, [isSelectedToday])
 
   return (
     <div style={{ borderBottom: `1px solid rgba(255,255,255,0.06)` }}>
@@ -1298,6 +1299,12 @@ export default function TradePage() {
   const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
   const [selectedDate,  setSelectedDate]  = useState(new Date())
   const [tradeMode,       setTradeMode]       = useState<"auto" | "closed" | "ledger" | "mock">("auto")
+
+  // 탭 전환 시 날짜를 오늘로 리셋 → DateStrip이 맨 오른쪽으로 스크롤
+  const switchTab = (mode: "auto" | "closed" | "ledger" | "mock") => {
+    setSelectedDate(new Date())
+    setTradeMode(mode)
+  }
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
   const [allowMockTrade, setAllowMockTrade] = useState(false)
   const [searchQ,       setSearchQ]       = useState("")
@@ -1430,7 +1437,7 @@ export default function TradePage() {
     }
   }, [fetchPositions])
 
-  // ── 주문 핸들러 — ref ���용으로 stale closure 완전 차단 ──────────
+  // ── 주문 ���들러 — ref ���용으로 stale closure 완전 차단 ──────────
   const handleOpen = useCallback(async (dir: Direction, amount: number, leverage: number) => {
     const bal = balanceRef.current
     if (bal === null) { alert("잔고를 불러오는 중입니다."); return }
@@ -1608,7 +1615,7 @@ export default function TradePage() {
             ] as const).map(({ key, label, Icon }) => (
               <button
                 key={key}
-                onClick={() => setTradeMode(key)}
+                onClick={() => switchTab(key)}
                 className="flex items-center justify-center gap-1 py-1.5 rounded-full text-xs font-semibold transition-all"
                 style={{
                   flex: "1 1 0",
