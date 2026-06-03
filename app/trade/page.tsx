@@ -827,6 +827,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
   const [confirmMsg,     setConfirmMsg]     = useState<string | null>(null)
   const [confirming,     setConfirming]     = useState(false)
   const [closedToday,    setClosedToday]    = useState(false)   // 반영 완료 → 금일매매 종료 표시
+  const [closedTime,     setClosedTime]     = useState("")      // 반영 완료 시각 (HH:MM:SS)
 
   const MASTER_ROLES = ["master", "admin"]
   const isMaster = MASTER_ROLES.includes(userRole ?? "")
@@ -979,6 +980,13 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
         body: JSON.stringify({ all: true, reason: "confirmed_by_master" }),
       })
 
+      const now = new Date(Date.now() + 9 * 3600_000)
+      const hh = String(now.getUTCHours()).padStart(2, "0")
+      const mi = String(now.getUTCMinutes()).padStart(2, "0")
+      const ss = String(now.getUTCSeconds()).padStart(2, "0")
+      const ampm = now.getUTCHours() < 12 ? "오전" : "오후"
+      const h12  = now.getUTCHours() % 12 === 0 ? 12 : now.getUTCHours() % 12
+      setClosedTime(`${ampm} ${String(h12).padStart(2,"0")}:${mi}:${ss}`)
       setConfirmOpen(false)
       setClosedToday(true)
       load()
@@ -1154,23 +1162,23 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
               const dd = nowKst.getUTCDate()
               const pnlColor = todayAutoPnl >= 0 ? UP_COLOR : DOWN_COLOR
               const roi = confirmedValue > 0 ? (todayAutoPnl / confirmedValue) * 100 : 0
-              return (
-                <div style={{ padding: "10px 14px", borderBottom: `1px solid ${closedToday ? "rgba(239,68,68,0.15)" : "rgba(212,175,55,0.08)"}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: closedToday ? "rgba(239,68,68,0.04)" : "rgba(212,175,55,0.03)" }}>
+              return closedToday ? (
+                /* 반영 완료 — 가운데 정렬, 시간만 표시 */
+                <div style={{ padding: "14px", borderBottom: "1px solid rgba(239,68,68,0.15)", background: "rgba(239,68,68,0.04)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 900, color: "rgba(239,68,68,0.9)", letterSpacing: "0.04em" }}>금일매매 종료</span>
+                  <span className="tabular-nums" style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)" }}>{closedTime}</span>
+                </div>
+              ) : (
+                /* 실시간 미반영 행 */
+                <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(212,175,55,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(212,175,55,0.03)" }}>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      {closedToday
-                        ? <span style={{ fontSize: 11, fontWeight: 900, color: "rgba(239,68,68,0.9)", letterSpacing: "0.02em" }}>금일매매 종료</span>
-                        : <><PulseDot /><span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>{mm}월 {dd}일</span></>
-                      }
-                      {!closedToday && (
-                        <span style={{ fontSize: 8, fontWeight: 700, padding: "0px 4px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "rgba(34,197,94,0.8)" }}>실시간</span>
-                      )}
+                      <PulseDot />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>{mm}월 {dd}일</span>
+                      <span style={{ fontSize: 8, fontWeight: 700, padding: "0px 4px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "rgba(34,197,94,0.8)" }}>실시간</span>
                     </div>
                     <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
-                      {closedToday
-                        ? `반영 완료 · ${mm}월 ${dd}일`
-                        : `확정 $${confirmedValue.toFixed(2)} → 예상 $${liveValue.toFixed(2)}`
-                      }
+                      확정 ${confirmedValue.toFixed(2)} → 예상 ${liveValue.toFixed(2)}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1179,7 +1187,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
                       <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{todayAutoPnl >= 0 ? "+" : ""}{Math.round(todayAutoPnl * krwRate).toLocaleString("ko-KR")}원</div>
                       <div className="tabular-nums" style={{ fontSize: 10, color: todayAutoPnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
                     </div>
-                    {isMaster && !closedToday && (
+                    {isMaster && (
                       <button onClick={() => handleConfirmOpen(todayAutoPnl)}
                         style={{ padding: "4px 10px", borderRadius: 12, border: "none", background: GOLD, color: "#000", fontSize: 10, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
                         반영
@@ -1843,7 +1851,7 @@ export default function TradePage() {
     if (liquidated.length > 0) {
       fetchBalance()
       liquidated.forEach((p: any) =>
-        alert(`[강제청산] ${p.symbol.replace("USDT","")} ${p.direction === "long" ? "롱" : "숏"} ${p.leverage}x 포지션이 강제��산 되었습니다.`)
+        alert(`[강제청산] ${p.symbol.replace("USDT","")} ${p.direction === "long" ? "롱" : "숏"} ${p.leverage}x 포지션이 강제���� 되었습니다.`)
       )
     }
 
