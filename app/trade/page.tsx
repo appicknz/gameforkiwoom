@@ -1045,7 +1045,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
           </div>
           <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
             {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
-            <span style={{ fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>
+            <span style={{ fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.65)", marginLeft: 4 }}>
               ({totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%)
             </span>
           </span>
@@ -1054,24 +1054,24 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
         {/* 시드 / 잔고 카드 (원화 포함) */}
         <div className="grid grid-cols-2 gap-2" style={{ marginBottom: 8 }}>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
-            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>초기 시드</div>
-            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>${firstSeed.toFixed(2)}</div>
-            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>≈ {Math.round(firstSeed * krwRate).toLocaleString("ko-KR")}원</div>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", fontWeight: 600, marginBottom: 2 }}>초기 시드</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.95)" }}>${firstSeed.toFixed(2)}</div>
+            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>≈ {Math.round(firstSeed * krwRate).toLocaleString("ko-KR")}원</div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div className="flex items-center gap-1.5" style={{ marginBottom: 2 }}>
-              <span style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600 }}>현재 잔고</span>
+              <span style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>현재 잔고</span>
               {!todayRecordExists && todayAutoPnl !== 0 && (
                 <span style={{ fontSize: 8, fontWeight: 700, padding: "0px 4px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "rgba(34,197,94,0.8)" }}>실시간</span>
               )}
             </div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>${latestValue.toFixed(2)}</div>
             {!todayRecordExists && todayAutoPnl !== 0 && (
-              <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>
+              <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.55)", marginTop: 1 }}>
                 확정 ${confirmedValue.toFixed(2)} + 자동 {todayAutoPnl >= 0 ? "+" : ""}{todayAutoPnl.toFixed(2)}
               </div>
             )}
-            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>≈ {Math.round(latestValue * krwRate).toLocaleString("ko-KR")}원</div>
+            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>≈ {Math.round(latestValue * krwRate).toLocaleString("ko-KR")}원</div>
           </div>
         </div>
 
@@ -1083,15 +1083,15 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
           const totalKrw = (totalPnl * KRW_RATE).toFixed(2)
           return (
             <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 6 }}>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", fontWeight: 600, marginBottom: 6 }}>
                 수익 분배 (총 {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)} ≈ {Number(totalKrw).toLocaleString("ko-KR", { minimumFractionDigits: 2 })}원)
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {[1, 2].map(n => (
                   <div key={n} style={{ background: "rgba(212,175,55,0.06)", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
-                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 2 }}>{n}/2</div>
+                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", marginBottom: 2 }}>{n}/2</div>
                     <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>${half.toFixed(2)}</div>
-                    <div className="tabular-nums" style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>
+                    <div className="tabular-nums" style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
                       {Number(halfKrw).toLocaleString("ko-KR", { minimumFractionDigits: 2 })}원
                     </div>
                   </div>
@@ -1140,7 +1140,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
           <button style={statTabStyle(statTab === "monthly")} onClick={() => setStatTab("monthly")}>월별</button>
         </div>
         <div className="flex items-center gap-2">
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", textAlign: "right" }}>분배일까지</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", textAlign: "right" }}>분배일까지</div>
           <div className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: GOLD, letterSpacing: "0.04em" }}>{countdown || "--:--:--"}</div>
         </div>
       </div>
@@ -1166,7 +1166,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
                 /* 반영 완료 — 가운데 정렬, 시간만 표시 */
                 <div style={{ padding: "14px", borderBottom: "1px solid rgba(239,68,68,0.15)", background: "rgba(239,68,68,0.04)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
                   <span style={{ fontSize: 12, fontWeight: 900, color: "rgba(239,68,68,0.9)", letterSpacing: "0.04em" }}>금일매매 종료</span>
-                  <span className="tabular-nums" style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)" }}>{closedTime}</span>
+                  <span className="tabular-nums" style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.7)" }}>{closedTime}</span>
                 </div>
               ) : (
                 /* 실시간 미반영 행 */
@@ -1177,15 +1177,15 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
                       <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>{mm}월 {dd}일</span>
                       <span style={{ fontSize: 8, fontWeight: 700, padding: "0px 4px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "rgba(34,197,94,0.8)" }}>실시간</span>
                     </div>
-                    <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+                    <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>
                       확정 ${confirmedValue.toFixed(2)} → 예상 ${liveValue.toFixed(2)}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div style={{ textAlign: "right" }}>
                       <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>{todayAutoPnl >= 0 ? "+" : ""}${todayAutoPnl.toFixed(2)}</div>
-                      <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{todayAutoPnl >= 0 ? "+" : ""}{Math.round(todayAutoPnl * krwRate).toLocaleString("ko-KR")}원</div>
-                      <div className="tabular-nums" style={{ fontSize: 10, color: todayAutoPnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
+                      <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{todayAutoPnl >= 0 ? "+" : ""}{Math.round(todayAutoPnl * krwRate).toLocaleString("ko-KR")}원</div>
+                      <div className="tabular-nums" style={{ fontSize: 10, color: todayAutoPnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
                     </div>
                     {isMaster && (
                       <button onClick={() => handleConfirmOpen(todayAutoPnl)}
@@ -1207,19 +1207,19 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
               return (
                 <div key={rec.id} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center", background: rec.date_label === dateStr ? "rgba(212,175,55,0.04)" : undefined }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.95)" }}>
                       {parseInt(mm)}월 {parseInt(dd)}일
-                      {rec.note && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)" }}>{rec.note}</span>}
+                      {rec.note && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.55)" }}>{rec.note}</span>}
                     </div>
-                    <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+                    <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>
                       시드 ${seed.toFixed(2)} → 잔고 ${estVal.toFixed(2)}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div style={{ textAlign: "right" }}>
                       <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
-                      <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
-                      <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
+                      <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
+                      <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
                     </div>
                     {isMaster && (
                       <button onClick={() => handleDelete(rec.id)}
@@ -1243,15 +1243,15 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
               return (
                 <div key={wk} style={{ padding: "11px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.95)" }}>
                       {parseInt(sm)}월 {parseInt(sd)}일 ~ {parseInt(em)}월 {parseInt(ed)}일
                     </div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>{days.length}일 기록</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{days.length}일 기록</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: col }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
-                    <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
-                    <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roiPct >= 0 ? "+" : ""}{roiPct.toFixed(2)}%</div>
+                    <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
+                    <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roiPct >= 0 ? "+" : ""}{roiPct.toFixed(2)}%</div>
                   </div>
                 </div>
               )
@@ -1268,13 +1268,13 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
               return (
                 <div key={mk} style={{ padding: "11px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>{yy}년 {parseInt(mm)}월</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>{days.length}일 기록</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.95)" }}>{yy}년 {parseInt(mm)}월</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{days.length}일 기록</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: col }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
-                    <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
-                    <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roiPct >= 0 ? "+" : ""}{roiPct.toFixed(2)}%</div>
+                    <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
+                    <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roiPct >= 0 ? "+" : ""}{roiPct.toFixed(2)}%</div>
                   </div>
                 </div>
               )
@@ -2150,7 +2150,7 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* ══════ PC (lg 이상) ══════ */}
+      {/* ═══��══ PC (lg 이상) ══════ */}
       <main className="hidden lg:block max-w-7xl mx-auto p-4">
         <div style={{ height: "calc(100vh - 172px)", position: "relative" }}>
           {/* LivePricesTab — 항상 mount (소켓 유지), 자동매매 탭에서는 숨김 */}
