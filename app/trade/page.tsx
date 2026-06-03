@@ -796,24 +796,21 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-  const [isMaster,     setIsMaster]     = useState(false)
   // 입력 폼 상태
   const [inputPnl,  setInputPnl]  = useState("")
   const [inputNote, setInputNote] = useState("")
   const [saving,    setSaving]    = useState(false)
   const [saveMsg,   setSaveMsg]   = useState<string | null>(null)
 
-  const MASTER_ROLES = ["master", "admin"]
   const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
 
   const load = () => {
     setLoading(true)
     Promise.all([
-      fetch("/api/auto-signal/rebalance", { credentials: "include" }).then(r => r.ok ? r.json() : { records: [], role: null }),
+      fetch("/api/auto-signal/rebalance", { credentials: "include" }).then(r => r.ok ? r.json() : { records: [] }),
       fetch("/api/auto-signal/settings").then(r => r.ok ? r.json() : null),
     ]).then(([ledger, cfg]) => {
       setRecords(ledger.records ?? [])
-      setIsMaster(MASTER_ROLES.includes(ledger.role ?? ""))
       if (cfg?.seed_capital != null) setSeedCapital(Number(cfg.seed_capital))
     }).catch(() => {}).finally(() => setLoading(false))
   }
@@ -896,8 +893,8 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
         </div>
       </div>
 
-      {/* 날짜별 수익 입력 — 마스터 계정만 표시 */}
-      {isMaster && <div style={{
+      {/* 날짜별 수익 입력 */}
+      <div style={{
         margin: "0 14px 10px",
         padding: "12px 14px",
         borderRadius: 10,
@@ -1029,7 +1026,7 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   )
 }
 
-// ─── 자동매매 라이브 패널 ───────────────────────────────────────────��─
+// ─── 자동매매 라이브 패널 ────────────��──────────────────────────────��─
 interface AutoPos {
   id:           string
   signal_type:  string
