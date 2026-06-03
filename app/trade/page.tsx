@@ -491,6 +491,42 @@ type ClosedPos = {
   final_pnl: number | null
 }
 
+function OtherPositionsGroup({
+  positions,
+  renderCard,
+}: {
+  positions: ClosedPos[]
+  renderCard: (pos: ClosedPos) => React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const reasonLabel: Record<string, string> = { manual: "수동", stop_loss: "스탑로스", all: "전체청산" }
+  // 대표 reason 레이블 (중복 제거)
+  const reasons = [...new Set(positions.map(p => reasonLabel[p.close_reason ?? ""] ?? p.close_reason ?? "-"))].join(" · ")
+
+  return (
+    <div>
+      {/* 토글 헤더 */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between"
+        style={{
+          padding: "9px 14px",
+          borderBottom: `1px solid rgba(212,175,55,0.06)`,
+          background: "rgba(255,255,255,0.02)",
+        }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)" }}>
+          {reasons} {positions.length}건
+        </span>
+        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+          {open ? "접기 ▲" : "펼치기 ▼"}
+        </span>
+      </button>
+      {open && positions.map(renderCard)}
+    </div>
+  )
+}
+
 function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: number; tradeMode: string }) {
   const [positions,    setPositions]   = useState<ClosedPos[]>([])
   const [loading,      setLoading]     = useState(true)
@@ -650,94 +686,95 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
           {dateStr} 청산 기록이 없습니다.
         </div>
       ) : null}
-      {positions.map(pos => {
-        const entry      = Number(pos.entry_price)
-        const sym        = pos.symbol.replace(/\.P$/, "").replace(/\//g, "")
-        const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
-        const sizeUsd    = Number(pos.size_usd ?? sizeUsdCfg)
-        const lev        = Number(pos.leverage ?? 10)
-        const closedAt   = pos.closed_at
-          ? new Date(pos.closed_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
-          : "-"
-        const reasonLabel: Record<string, string> = {
-          manual:    "수동",
-          stop_loss: "스탑로스",
-          all:       "전체청산",
+      {(() => {
+        const slPositions    = positions.filter(p => p.close_reason === "stop_loss")
+        const otherPositions = positions.filter(p => p.close_reason !== "stop_loss")
+
+        const renderCard = (pos: ClosedPos) => {
+          const entry      = Number(pos.entry_price)
+          const sym        = pos.symbol.replace(/\.P$/, "").replace(/\//g, "")
+          const baseSymbol = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
+          const sizeUsd    = Number(pos.size_usd ?? sizeUsdCfg)
+          const lev        = Number(pos.leverage ?? 10)
+          const closedAt   = pos.closed_at
+            ? new Date(pos.closed_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+            : "-"
+          const reasonLabel: Record<string, string> = { manual: "수동", stop_loss: "스탑로스", all: "전체청산" }
+          const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
+
+          const cur     = liveCache.tickers.get(sym)?.price ?? 0
+          const liveRoi = cur > 0 && entry > 0
+            ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry) * lev * 100
+            : null
+          const roi: number = isToday && liveRoi != null
+            ? liveRoi
+            : pos.final_roi  != null ? Number(pos.final_roi)
+            : pos.closed_roi != null ? Number(pos.closed_roi)
+            : liveRoi ?? 0
+          const pnl      = sizeUsd * (roi / 100)
+          const roiColor = roi >= 0 ? UP_COLOR : DOWN_COLOR
+          const isSl     = pos.close_reason === "stop_loss"
+
+          return (
+            <div key={pos.id} style={{
+              padding: "10px 14px",
+              borderBottom: `1px solid rgba(212,175,55,0.04)`,
+              background: isSl ? "rgba(239,68,68,0.04)" : undefined,
+            }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span style={{
+                    width: 18, height: 18, borderRadius: 4, fontSize: 9, fontWeight: 900,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: pos.direction === "long" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+                    color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
+                  }}>{pos.direction === "long" ? "L" : "S"}</span>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
+                    {baseSymbol}/USDT
+                  </span>
+                  <span style={{
+                    padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
+                    background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)",
+                  }}>{lev}x</span>
+                  <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
+                    {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
+                  </span>
+                  <span style={{
+                    padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
+                    background: isSl ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)",
+                    color: isSl ? "rgba(239,68,68,0.8)" : "rgba(255,255,255,0.4)",
+                  }}>{reason}</span>
+                </div>
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
+                    {pnl >= 0 ? "+" : ""}${pnl.toFixed(3)}
+                  </span>
+                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{closedAt}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 mt-0.5" style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+                <span>진입: <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>${fmt(entry)}</span></span>
+                {pos.closed_price != null && (
+                  <span>청산: <span className="tabular-nums" style={{ color: roiColor }}>${fmt(Number(pos.closed_price))}</span></span>
+                )}
+                <span style={{ color: "rgba(255,255,255,0.25)" }}>{pos.signal_type}</span>
+              </div>
+            </div>
+          )
         }
-        const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
-
-        // 오늘: liveCache 실시간 우선 / 과거: final_roi → closed_roi → liveCache 폴백
-        const cur = liveCache.tickers.get(sym)?.price ?? 0
-        const liveRoi = cur > 0 && entry > 0
-          ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry) * lev * 100
-          : null
-        const roi: number = isToday && liveRoi != null
-          ? liveRoi
-          : pos.final_roi  != null ? Number(pos.final_roi)
-          : pos.closed_roi != null ? Number(pos.closed_roi)
-          : liveRoi ?? 0
-        const pnl = sizeUsd * (roi / 100)
-
-        const roiColor = roi >= 0 ? UP_COLOR : DOWN_COLOR
-        const isSl     = pos.close_reason === "stop_loss"
 
         return (
-          <div key={pos.id} style={{
-            padding: "10px 14px",
-            borderBottom: `1px solid rgba(212,175,55,0.04)`,
-            background: isSl ? "rgba(239,68,68,0.04)" : undefined,
-          }}>
-            {/* 상단행: 방향뱃지 + 심볼 + 레버리지 + ROI | IN시각 + PnL */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span style={{
-                  width: 18, height: 18, borderRadius: 4, fontSize: 9, fontWeight: 900,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: pos.direction === "long" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
-                  color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
-                }}>{pos.direction === "long" ? "L" : "S"}</span>
-                <span style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
-                  {baseSymbol}/USDT
-                </span>
-                <span style={{
-                  padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
-                  background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)",
-                }}>{lev}x</span>
-                <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
-                  {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
-                </span>
-                <span style={{
-                  padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
-                  background: isSl ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)",
-                  color: isSl ? "rgba(239,68,68,0.8)" : "rgba(255,255,255,0.4)",
-                }}>{reason}</span>
-              </div>
-              <div className="flex flex-col items-end gap-0.5">
-                <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
-                  {pnl >= 0 ? "+" : ""}${pnl.toFixed(3)}
-                </span>
-                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{closedAt}</span>
-              </div>
-            </div>
-            {/* 하단행: 진입가 | 청산가 | 시그널 */}
-            <div className="flex items-center gap-3 mt-0.5" style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
-              <span>진입:{" "}
-                <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>
-                  ${fmt(entry)}
-                </span>
-              </span>
-              {pos.closed_price != null && (
-                <span>청산:{" "}
-                  <span className="tabular-nums" style={{ color: roiColor }}>
-                    ${fmt(Number(pos.closed_price))}
-                  </span>
-                </span>
-              )}
-              <span style={{ color: "rgba(255,255,255,0.25)" }}>{pos.signal_type}</span>
-            </div>
-          </div>
+          <>
+            {/* 스탑로스: 항상 펼쳐서 표시 */}
+            {slPositions.map(renderCard)}
+
+            {/* 나머지(수동/전체청산): 접기 토글 */}
+            {otherPositions.length > 0 && (
+              <OtherPositionsGroup positions={otherPositions} renderCard={renderCard} />
+            )}
+          </>
         )
-      })}
+      })()}
       </div>{/* /scroll wrapper */}
     </div>
   )
@@ -1048,7 +1085,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const sizeUsd = pos.size_usd ?? 10
     const lev     = pos.leverage ?? 1
 
-    // 스탑로스로 청산된 포지션: 실시간 % 계속 계산, PNL은 SL 고정값 사용
+    // 스탑���스로 청산된 포지션: 실시간 % 계속 계산, PNL은 SL 고정값 사용
     if (pos.is_closed && pos.close_reason === "stop_loss") {
       const ticker  = liveCache.tickers.get(sym)
       const cur     = ticker ? ticker.price : 0
