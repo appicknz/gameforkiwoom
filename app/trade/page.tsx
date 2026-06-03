@@ -1006,20 +1006,27 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const entry  = Number(pos.entry_price)
 
     if (isHistorical) {
-      // 과거 날짜 — API에서 이미 계산된 종가 기준 값 사용
-      const closePrice = Number(pos.close_price ?? 0)
-      const finalPnl   = pos.final_pnl !== null && pos.final_pnl !== undefined ? Number(pos.final_pnl) : null
-      const finalRoi   = pos.final_roi !== null && pos.final_roi !== undefined ? Number(pos.final_roi) : null
-      const hasCur     = finalPnl !== null
+      // 과거 날짜 — final_roi(Klines) → closed_roi(DB 저장값) 순 폴백
+      const sizeUsd  = Number(pos.size_usd ?? 10)
+      const lev      = Number(pos.leverage ?? 10)
+      const rawRoi   = pos.final_roi   != null ? Number(pos.final_roi)
+                     : pos.closed_roi  != null ? Number(pos.closed_roi)
+                     : null
+      const rawPrice = pos.close_price != null ? Number(pos.close_price)
+                     : pos.closed_price!= null ? Number(pos.closed_price)
+                     : 0
+      const hasCur   = rawRoi !== null
+      const roi      = rawRoi ?? 0
+      const pnl      = sizeUsd * (roi / 100)
       return {
         ...pos,
         sym,
-        cur:     closePrice,
+        cur:     rawPrice,
         hasCur,
-        pnl:     finalPnl ?? 0,
-        roi:     finalRoi ?? 0,
+        pnl,
+        roi,
         delta:   0,
-        isClose: true,  // 종가 기준 표시용
+        isClose: true,
       }
     }
 

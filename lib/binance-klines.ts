@@ -21,25 +21,24 @@ export type DayClose = {
  */
 export async function getDayClose(
   symbol: string,
-  dateLabel: string  // YYYY-MM-DD
+  dateLabel: string  // YYYY-MM-DD (KST 기준)
 ): Promise<DayClose | null> {
   // 날짜가 오늘(KST 기준)이면 아직 마감 전이므로 종가 없음
   const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
   if (dateLabel >= todayKST) return null
 
-  // 해당 날짜의 KST 자정(= UTC 전날 15:00)을 startTime으로 사용
-  // date_label은 KST 기준이므로: KST 날짜 00:00 = UTC 전날 15:00
-  const kstMidnight = new Date(`${dateLabel}T00:00:00+09:00`)
-  const startTime   = kstMidnight.getTime()
-  const endTime     = startTime + 24 * 60 * 60 * 1000  // +24h
+  // KST 날짜 23:59:00 = 해당 날짜가 바뀌기 직전 1분봉 시가
+  // KST 23:59 = UTC 14:59 → endTime으로 해당 1분봉을 pinpoint
+  const kstEnd  = new Date(`${dateLabel}T23:59:00+09:00`)  // KST 23:59:00
+  const endTime = kstEnd.getTime() + 60_000  // +1분 (해당 봉 포함)
+  const startTime = kstEnd.getTime()
 
   const sym = symbol.replace(/\.P$/, "").toUpperCase()
-  // .P가 붙은 심볼은 Binance Futures 심볼 — fapi 사용
-  const url = `${BINANCE_BASE}/fapi/v1/klines?symbol=${sym}&interval=1d&startTime=${startTime}&endTime=${endTime}&limit=1`
+  const url = `${BINANCE_BASE}/fapi/v1/klines?symbol=${sym}&interval=1m&startTime=${startTime}&endTime=${endTime}&limit=1`
 
   try {
     const res = await fetch(url, {
-      next: { revalidate: 3600 },  // 1시간 캐시 — 과거 데이터는 변하지 않음
+      next: { revalidate: 3600 },  // 과거 데이터는 변하지 않으므로 1시간 캐시
     })
     if (!res.ok) return null
 
@@ -47,6 +46,7 @@ export async function getDayClose(
     if (!Array.isArray(data) || data.length === 0) return null
 
     const candle = data[0]
+    // 1분봉 close 가격 = KST 23:59~24:00 사이 마지막 체결가
     return {
       symbol:     sym,
       date:       dateLabel,
