@@ -13,16 +13,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ role: null, userId: null })
   }
 
-  // JWT에 role이 있으면 바로 반환, 없으면 DB 조회
-  let role = session.role ?? null
-  if (!role) {
-    const { data } = await adminSupabase
-      .from("profiles")
-      .select("role, username")
-      .eq("id", session.userId)
-      .single()
-    role = data?.role ?? "user"
-  }
+  // 항상 DB에서 role 조회 (JWT 클레임 신뢰 불가)
+  const { data } = await adminSupabase
+    .from("profiles")
+    .select("role")
+    .eq("id", session.userId)
+    .single()
+  const role = data?.role ?? session.role ?? "user"
 
   return NextResponse.json({ role, userId: session.userId })
 }

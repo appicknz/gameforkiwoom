@@ -1638,7 +1638,7 @@ export default function TradePage() {
     if (!token) return
     Promise.all([
       fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
-      fetch("/api/auth/me", { credentials: "include" }).then(r => r.ok ? r.json() : { role: null }),
+      fetch("/api/auth/me", { credentials: "include", headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : { role: null }),
     ]).then(([profileData, meData]) => {
       const allowed = !!profileData?.profile?.allow_mock_trade
       setAllowMockTrade(allowed)
@@ -1711,7 +1711,7 @@ export default function TradePage() {
     fetchPositions()
 
     // Supabase Realtime — trade_positions 변경 시 즉시 re-fetch
-    // 폴링(3초) 완전 제거 → Vercel Function 호출 ~97% 감소
+    // 폴링(3초) 완전 제거 → Vercel Function 호출 ~97% 감���
     const token = getToken()
     if (!token) return
 
