@@ -16,7 +16,11 @@ import { verifySession } from "@/lib/auth"
 const MASTER_ROLES = ["master", "admin"]
 const START_DATE   = "2026-05-31"  // 기록 시작일
 
-export async function GET() {
+export async function GET(req: Request) {
+  // role을 응답에 포함 — 마스터 여부를 클라이언트에서 판단하기 위해
+  const session = await verifySession(req).catch(() => null)
+  const role    = session?.ok ? (session.role ?? "user") : null
+
   const { data, error } = await adminSupabase
     .from("auto_signal_rebalance")
     .select("*")
@@ -25,7 +29,7 @@ export async function GET() {
     .limit(365)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ records: data ?? [] })
+  return NextResponse.json({ records: data ?? [], role })
 }
 
 export async function POST(req: Request) {
