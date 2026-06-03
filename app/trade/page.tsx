@@ -1027,16 +1027,6 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
           )
         })()}
 
-        {/* 토요일 분배일 카운트다운 */}
-        <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "7px 10px", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>다음 분배일 (토요일 자정)</div>
-            <div className="tabular-nums" style={{ fontSize: 15, fontWeight: 800, color: GOLD, letterSpacing: "0.04em" }}>{countdown || "--:--:--"}</div>
-          </div>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textAlign: "right" }}>
-            매주 토요일<br />자정 기준
-          </div>
-        </div>
       </div>
 
       {/* 수익 입력 폼 — 마스터 계정만 */}
@@ -1068,11 +1058,17 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
         </div>
       </div>}
 
-      {/* 통계 탭 */}
-      <div className="flex items-center gap-2" style={{ padding: "0 14px 8px", flexShrink: 0 }}>
-        <button style={statTabStyle(statTab === "daily")}   onClick={() => setStatTab("daily")}>일별</button>
-        <button style={statTabStyle(statTab === "weekly")}  onClick={() => setStatTab("weekly")}>주별</button>
-        <button style={statTabStyle(statTab === "monthly")} onClick={() => setStatTab("monthly")}>월별</button>
+      {/* 통계 탭 + 카운트다운 한 줄 */}
+      <div className="flex items-center justify-between" style={{ padding: "0 14px 8px", flexShrink: 0 }}>
+        <div className="flex items-center gap-2">
+          <button style={statTabStyle(statTab === "daily")}   onClick={() => setStatTab("daily")}>일별</button>
+          <button style={statTabStyle(statTab === "weekly")}  onClick={() => setStatTab("weekly")}>주별</button>
+          <button style={statTabStyle(statTab === "monthly")} onClick={() => setStatTab("monthly")}>월별</button>
+        </div>
+        <div className="flex items-center gap-2">
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", textAlign: "right" }}>분배일까지</div>
+          <div className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: GOLD, letterSpacing: "0.04em" }}>{countdown || "--:--:--"}</div>
+        </div>
       </div>
 
       {/* 기록 목록 */}
@@ -1795,7 +1791,7 @@ export default function TradePage() {
     }
   }, [])
 
-  // ── 종목 선택 ─────────��──────────────���──────────────────��────────
+  // ── 종목 선택 ─────────��──────────────���───────────��──────��────────
   // PC: 차트 변경만 (다이얼로그 열지 않음)
   const handlePcSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)
