@@ -19,7 +19,20 @@ const START_DATE   = "2026-05-31"  // 기록 시작일
 export async function GET(req: Request) {
   // role을 응답에 포함 — 마스터 여부를 클라이언트에서 판단하기 위해
   const session = await verifySession(req).catch(() => null)
-  const role    = session?.ok ? (session.role ?? "user") : null
+  let role: string | null = null
+  if (session?.ok) {
+    // JWT에 role 클레임이 있으면 우선 사용, 없으면 DB에서 직접 조회
+    if (session.role) {
+      role = session.role
+    } else {
+      const { data: profile } = await adminSupabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.userId)
+        .single()
+      role = profile?.role ?? "user"
+    }
+  }
 
   const { data, error } = await adminSupabase
     .from("auto_signal_rebalance")
