@@ -132,12 +132,56 @@ export async function DELETE(req: Request) {
   const now = new Date().toISOString()
 
   if (body.all === true) {
-    const { error } = await adminSupabase
+    // 활성 포지션 조회 → Binance 현재가로 closed_price, closed_roi 계산 후 저장
+    const { data: activePos, error: fetchErr } = await adminSupabase
       .from("auto_signal_positions")
-      .update({ is_closed: true, closed_at: now, close_reason: body.reason ?? "manual" })
+      .select("id, symbol, direction, entry_price, leverage")
       .eq("is_closed", false)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true, closed: "all" })
+    if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
+
+    if (activePos && activePos.length > 0) {
+      // Binance 현재가 일괄 조회
+      const BINANCE_BASE = "https://fapi.binance.com"
+      const priceMap = new Map<string, number>()
+      try {
+        const res  = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price`, { cache: "no-store" })
+        if (res.ok) {
+          const data: { symbol: string; price: string }[] = await res.json()
+          const needed = new Set(activePos.map((p: { symbol: string }) => p.symbol.replace(/\.P$/, "").toUpperCase()))
+          for (const row of data) {
+            if (needed.has(row.symbol)) priceMap.set(row.symbol, parseFloat(row.price))
+          }
+        }
+      } catch { /* 가격 조회 실패 시 null로 저장 */ }
+
+      // 포지션별 개별 업데이트 (closed_price, closed_roi 포함)
+      await Promise.all(
+        activePos.map(async (pos: { id: string; symbol: string; direction: string; entry_price: number; leverage: number }) => {
+          const sym      = pos.symbol.replace(/\.P$/, "").toUpperCase()
+          const curPrice = priceMap.get(sym) ?? null
+          const entry    = Number(pos.entry_price)
+          const lev      = Number(pos.leverage ?? 10)
+          let closedRoi: number | null = null
+          if (curPrice && entry > 0) {
+            const delta = pos.direction === "long"
+              ? (curPrice - entry) / entry
+              : (entry - curPrice) / entry
+            closedRoi = delta * lev * 100
+          }
+          return adminSupabase
+            .from("auto_signal_positions")
+            .update({
+              is_closed:    true,
+              closed_at:    now,
+              close_reason: body.reason ?? "manual",
+              closed_price: curPrice,
+              closed_roi:   closedRoi,
+            })
+            .eq("id", pos.id)
+        })
+      )
+    }
+    return NextResponse.json({ ok: true, closed: "all", count: activePos?.length ?? 0 })
   }
 
   if (body.id) {
