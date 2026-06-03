@@ -796,18 +796,26 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
   // 입력 폼 상태
   const [inputPnl,  setInputPnl]  = useState("")
   const [inputNote, setInputNote] = useState("")
   const [saving,    setSaving]    = useState(false)
   const [saveMsg,   setSaveMsg]   = useState<string | null>(null)
 
+  const authHeaders = () => {
+    const tok = getToken()
+    return tok
+      ? { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }
+      : { "Content-Type": "application/json" }
+  }
+
   const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
 
   const load = () => {
     setLoading(true)
     Promise.all([
-      fetch("/api/auto-signal/rebalance", { credentials: "include" }).then(r => r.ok ? r.json() : { records: [] }),
+      fetch("/api/auto-signal/rebalance", { credentials: "include", headers: { Authorization: `Bearer ${getToken() ?? ""}` } }).then(r => r.ok ? r.json() : { records: [] }),
       fetch("/api/auto-signal/settings").then(r => r.ok ? r.json() : null),
     ]).then(([ledger, cfg]) => {
       setRecords(ledger.records ?? [])
@@ -825,9 +833,9 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
     setSaveMsg(null)
   }, [dateStr, records])
 
-  // 전체 누적 요약 (date_label 오름차순)
+  // 전체 누적 (오름차순)
   const sorted      = [...records].sort((a, b) => a.date_label.localeCompare(b.date_label))
-  const firstSeed   = sorted.length > 0 ? Number(sorted[0].seed_capital) : seedCapital
+  const firstSeed   = seedCapital
   const latestValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : seedCapital
   const totalPnl    = latestValue - firstSeed
   const totalRoi    = firstSeed > 0 ? (totalPnl / firstSeed) * 100 : 0
@@ -842,34 +850,68 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
     try {
       const res = await fetch("/api/auto-signal/rebalance", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(),
         credentials: "include",
         body: JSON.stringify({ date_label: dateStr, daily_pnl: pnl, note: inputNote }),
       })
       const json = await res.json()
       if (!res.ok) { setSaveMsg(json.error ?? "저장 실패"); return }
-      setSaveMsg("저장됐습니다.")
+      setSaveMsg("저장 완료")
       load()
     } catch { setSaveMsg("저장 실패") } finally { setSaving(false) }
   }
 
   const handleDelete = async (id: number) => {
     if (!confirm("삭제하시겠습니까?")) return
-    await fetch(`/api/auto-signal/rebalance?id=${id}`, { method: "DELETE", credentials: "include" })
+    await fetch(`/api/auto-signal/rebalance?id=${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${getToken() ?? ""}` },
+      credentials: "include",
+    })
     load()
   }
+
+  // ── 통계 계산 ──────────────────────────────────────────────────────
+  // 주별: ISO 주 번호(월요일 기준)
+  const getWeekKey = (dateLabel: string) => {
+    const d = new Date(dateLabel)
+    const day = d.getDay() === 0 ? 7 : d.getDay()
+    const mon = new Date(d); mon.setDate(d.getDate() - (day - 1))
+    return `${mon.getFullYear()}-W${String(mon.getMonth()+1).padStart(2,"0")}${String(mon.getDate()).padStart(2,"0")}`
+  }
+
+  const weeklyMap = new Map<string, { pnl: number; days: string[] }>()
+  const monthlyMap = new Map<string, { pnl: number; days: string[] }>()
+
+  sorted.forEach(r => {
+    const pnl = Number(r.daily_pnl)
+    const wk  = getWeekKey(r.date_label)
+    const mk  = r.date_label.slice(0, 7)
+    if (!weeklyMap.has(wk))  weeklyMap.set(wk,  { pnl: 0, days: [] })
+    if (!monthlyMap.has(mk)) monthlyMap.set(mk, { pnl: 0, days: [] })
+    weeklyMap.get(wk)!.pnl  += pnl; weeklyMap.get(wk)!.days.push(r.date_label)
+    monthlyMap.get(mk)!.pnl += pnl; monthlyMap.get(mk)!.days.push(r.date_label)
+  })
+
+  const weeklyRows  = [...weeklyMap.entries()].reverse()
+  const monthlyRows = [...monthlyMap.entries()].reverse()
+
+  const statTabStyle = (active: boolean) => ({
+    padding: "4px 12px", borderRadius: 20, fontSize: 10, fontWeight: 700,
+    background: active ? GOLD : "rgba(255,255,255,0.06)",
+    color: active ? "#000" : "rgba(255,255,255,0.45)",
+    border: "none", cursor: "pointer",
+  } as React.CSSProperties)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* 날짜 스트립 */}
       <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
 
-      {/* 전체 요약 */}
+      {/* 전체 요약 카드 */}
       <div style={{ padding: "10px 14px 0", flexShrink: 0 }}>
         <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
-            매매기록 ({records.length}일)
-          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>매매기록 ({records.length}일)</span>
           <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
             {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
             <span style={{ fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>
@@ -880,87 +922,49 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
         <div className="grid grid-cols-2 gap-2" style={{ marginBottom: 10 }}>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>초기 시드</div>
-            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>
-              ${firstSeed.toFixed(2)}
-            </div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>${firstSeed.toFixed(2)}</div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>현재 잔고</div>
-            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
-              ${latestValue.toFixed(2)}
-            </div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>${latestValue.toFixed(2)}</div>
           </div>
         </div>
       </div>
 
-      {/* 날짜별 수익 입력 */}
-      <div style={{
-        margin: "0 14px 10px",
-        padding: "12px 14px",
-        borderRadius: 10,
-        border: `1px solid rgba(212,175,55,0.15)`,
-        background: "rgba(212,175,55,0.04)",
-        flexShrink: 0,
-      }}>
+      {/* 수익 입력 폼 */}
+      <div style={{ margin: "0 14px 10px", padding: "12px 14px", borderRadius: 10, border: `1px solid rgba(212,175,55,0.15)`, background: "rgba(212,175,55,0.04)", flexShrink: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, marginBottom: 10 }}>
           {`${selectedDate.getMonth()+1}월 ${selectedDate.getDate()}일`} 수익 입력
-          {existing && (
-            <span style={{ marginLeft: 6, fontSize: 9, color: "rgba(255,255,255,0.3)", fontWeight: 400 }}>기록 있음 — 덮어씁니다</span>
-          )}
+          {existing && <span style={{ marginLeft: 6, fontSize: 9, color: "rgba(255,255,255,0.3)", fontWeight: 400 }}>기록 있음 — 덮어씁니다</span>}
         </div>
-        {/* PNL 입력 */}
         <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", width: 36, flexShrink: 0 }}>수익</span>
-          <div className="flex items-center" style={{
-            flex: 1, background: "rgba(255,255,255,0.06)", borderRadius: 6,
-            border: "1px solid rgba(255,255,255,0.08)", padding: "5px 8px",
-          }}>
+          <div className="flex items-center" style={{ flex: 1, background: "rgba(255,255,255,0.06)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", padding: "5px 8px" }}>
             <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginRight: 4 }}>$</span>
-            <input
-              type="number"
-              value={inputPnl}
-              onChange={e => setInputPnl(e.target.value)}
+            <input type="number" value={inputPnl} onChange={e => setInputPnl(e.target.value)}
               placeholder="0.00  (손실은 음수)"
-              style={{
-                flex: 1, background: "transparent", border: "none", outline: "none",
-                fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            />
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)", fontVariantNumeric: "tabular-nums" }} />
           </div>
         </div>
-        {/* 메모 입력 */}
         <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", width: 36, flexShrink: 0 }}>메모</span>
-          <input
-            type="text"
-            value={inputNote}
-            onChange={e => setInputNote(e.target.value)}
-            placeholder="선택 입력"
-            style={{
-              flex: 1, background: "rgba(255,255,255,0.06)", borderRadius: 6,
-              border: "1px solid rgba(255,255,255,0.08)", padding: "5px 8px",
-              fontSize: 12, color: "rgba(255,255,255,0.7)", outline: "none",
-            }}
-          />
+          <input type="text" value={inputNote} onChange={e => setInputNote(e.target.value)} placeholder="선택 입력"
+            style={{ flex: 1, background: "rgba(255,255,255,0.06)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", padding: "5px 8px", fontSize: 12, color: "rgba(255,255,255,0.7)", outline: "none" }} />
         </div>
-        {/* 저장 버튼 */}
         <div className="flex items-center justify-between">
-          <span style={{ fontSize: 10, color: saveMsg?.includes("저장") ? UP_COLOR : "rgba(239,68,68,0.8)" }}>
-            {saveMsg ?? ""}
-          </span>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              padding: "6px 18px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-              background: saving ? "rgba(212,175,55,0.3)" : GOLD,
-              color: "#000", border: "none", cursor: saving ? "default" : "pointer",
-            }}
-          >
+          <span style={{ fontSize: 10, color: saveMsg === "저장 완료" ? UP_COLOR : "rgba(239,68,68,0.8)" }}>{saveMsg ?? ""}</span>
+          <button onClick={handleSave} disabled={saving}
+            style={{ padding: "6px 18px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: saving ? "rgba(212,175,55,0.3)" : GOLD, color: "#000", border: "none", cursor: saving ? "default" : "pointer" }}>
             {saving ? "저장 중..." : existing ? "수정" : "저장"}
           </button>
         </div>
+      </div>
+
+      {/* 통계 탭 */}
+      <div className="flex items-center gap-2" style={{ padding: "0 14px 8px", flexShrink: 0 }}>
+        <button style={statTabStyle(statTab === "daily")}   onClick={() => setStatTab("daily")}>일별</button>
+        <button style={statTabStyle(statTab === "weekly")}  onClick={() => setStatTab("weekly")}>주별</button>
+        <button style={statTabStyle(statTab === "monthly")} onClick={() => setStatTab("monthly")}>월별</button>
       </div>
 
       {/* 기록 목록 */}
@@ -968,59 +972,87 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
         {loading ? (
           <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>로딩 중...</div>
         ) : sorted.length === 0 ? (
-          <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
-            매매 시작일은 5월 31일입니다.
-          </div>
-        ) : [...sorted].reverse().map((rec) => {
-          const pnl      = Number(rec.daily_pnl)
-          const seed     = Number(rec.seed_capital)
-          const estVal   = Number(rec.est_value)
-          const roi      = seed > 0 ? (pnl / seed) * 100 : 0
-          const pnlColor = pnl >= 0 ? UP_COLOR : DOWN_COLOR
-          const [yy, mm, dd] = rec.date_label.split("-")
-          const label    = `${parseInt(mm)}월 ${parseInt(dd)}일`
+          <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>매매 시작일은 5월 31일입니다.</div>
 
-          return (
-            <div key={rec.id} style={{
-              padding: "10px 14px",
-              borderBottom: `1px solid rgba(212,175,55,0.04)`,
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              background: rec.date_label === dateStr ? "rgba(212,175,55,0.04)" : undefined,
-            }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
-                  {label}
-                  {rec.note && (
-                    <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)" }}>
-                      {rec.note}
-                    </span>
-                  )}
-                </div>
-                <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
-                  시드 ${seed.toFixed(2)} → 잔고 ${estVal.toFixed(2)}
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div style={{ textAlign: "right" }}>
-                  <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>
-                    {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
+        ) : statTab === "daily" ? (
+          // ── 일별 ──
+          [...sorted].reverse().map(rec => {
+            const pnl      = Number(rec.daily_pnl)
+            const seed     = Number(rec.seed_capital)
+            const estVal   = Number(rec.est_value)
+            const roi      = seed > 0 ? (pnl / seed) * 100 : 0
+            const pnlColor = pnl >= 0 ? UP_COLOR : DOWN_COLOR
+            const [, mm, dd] = rec.date_label.split("-")
+            return (
+              <div key={rec.id} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center", background: rec.date_label === dateStr ? "rgba(212,175,55,0.04)" : undefined }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
+                    {parseInt(mm)}월 {parseInt(dd)}일
+                    {rec.note && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)" }}>{rec.note}</span>}
                   </div>
-                  <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>
-                    {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
+                  <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+                    시드 ${seed.toFixed(2)} → 잔고 ${estVal.toFixed(2)}
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDelete(rec.id)}
-                  style={{
-                    width: 20, height: 20, borderRadius: 4, border: "none",
-                    background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.6)",
-                    fontSize: 11, cursor: "pointer", flexShrink: 0,
-                  }}
-                >×</button>
+                <div className="flex items-center gap-3">
+                  <div style={{ textAlign: "right" }}>
+                    <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
+                    <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
+                  </div>
+                  <button onClick={() => handleDelete(rec.id)}
+                    style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.6)", fontSize: 11, cursor: "pointer", flexShrink: 0 }}>×</button>
+                </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })
+
+        ) : statTab === "weekly" ? (
+          // ── 주별 ──
+          weeklyRows.length === 0
+            ? <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>데이터 없음</div>
+            : weeklyRows.map(([wk, { pnl, days }]) => {
+              const startDay = days[0]; const endDay = days[days.length - 1]
+              const [,sm,sd] = startDay.split("-"); const [,em,ed] = endDay.split("-")
+              const roiPct = firstSeed > 0 ? (pnl / firstSeed) * 100 : 0
+              const col = pnl >= 0 ? UP_COLOR : DOWN_COLOR
+              return (
+                <div key={wk} style={{ padding: "11px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
+                      {parseInt(sm)}월 {parseInt(sd)}일 ~ {parseInt(em)}월 {parseInt(ed)}일
+                    </div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>{days.length}일 기록</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: col }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
+                    <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roiPct >= 0 ? "+" : ""}{roiPct.toFixed(2)}%</div>
+                  </div>
+                </div>
+              )
+            })
+
+        ) : (
+          // ── 월별 ──
+          monthlyRows.length === 0
+            ? <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>데이터 없음</div>
+            : monthlyRows.map(([mk, { pnl, days }]) => {
+              const [yy, mm] = mk.split("-")
+              const roiPct = firstSeed > 0 ? (pnl / firstSeed) * 100 : 0
+              const col = pnl >= 0 ? UP_COLOR : DOWN_COLOR
+              return (
+                <div key={mk} style={{ padding: "11px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>{yy}년 {parseInt(mm)}월</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>{days.length}일 기록</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: col }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
+                    <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roiPct >= 0 ? "+" : ""}{roiPct.toFixed(2)}%</div>
+                  </div>
+                </div>
+              )
+            })
+        )}
       </div>
     </div>
   )
