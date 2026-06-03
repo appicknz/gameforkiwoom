@@ -506,7 +506,11 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
     // is_historical=true 시 final_roi/final_pnl이 서버에서 계산돼 내려옴
     fetch(`/api/auto-signal/positions?date=${dateStr}`)
       .then(r => r.ok ? r.json() : { positions: [] })
-      .then(d => setPositions(d.positions ?? []))
+      .then(d => {
+        // 청산 기록 탭: is_closed=true인 포지션만 표시
+        const all = d.positions ?? []
+        setPositions(all.filter((p: ClosedPos) => p.is_closed === true))
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [refreshKey, dateStr])
