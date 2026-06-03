@@ -551,7 +551,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
   const dateStr  = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
   const todayStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}` })()
   // 오늘: 모든 청산 포지션(SL 포함) → liveCache 실시간 계산
-  // 과거: final_roi(Klines 종가) → closed_roi(DB) 사용
+  // 과거: final_roi(Klines 종가) → closed_roi(DB) 사��
   const isToday  = dateStr === todayStr
 
   useEffect(() => {
@@ -1549,9 +1549,13 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   // EST. VALUE = 마진 + TOTAL PNL
   const estValue = margin + totalPnl
 
-  // 오늘 날짜이면 부모에게 실시간 PNL 전달
+  // 오늘 날짜이면 부모에게 실시간 PNL 전달, 날짜 바뀌면 0으로 리셋
   useEffect(() => {
-    if (isToday) onTodayPnl?.(totalPnl)
+    if (isToday) {
+      onTodayPnl?.(totalPnl)
+    } else {
+      onTodayPnl?.(0)
+    }
   }, [totalPnl, isToday])
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
@@ -1950,7 +1954,7 @@ export default function TradePage() {
     }
   }, [])
 
-  // ── 종목 선택 ─────────��──────────────���───────────��──────��────────
+  // ── 종목 선택 ─────────��────────���─────���───────────��──────��────────
   // PC: 차트 변경만 (다이얼로그 열지 않음)
   const handlePcSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)
