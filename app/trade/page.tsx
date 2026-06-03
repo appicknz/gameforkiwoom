@@ -1583,36 +1583,39 @@ export default function TradePage() {
               알림
             </a>
           </div>
-          {/* 카테고리 탭 + 실시간 시계 */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {([
-                { key: "auto",   label: "자동매매", Icon: Bot },
-                { key: "closed", label: "청산 기록", Icon: ListChecks },
-                { key: "ledger", label: "매매기록",  Icon: BookOpen },
-                ...(allowMockTrade ? [{ key: "mock" as const, label: "모의매매", Icon: LineChart }] : []),
-              ] as const).map(({ key, label, Icon }) => (
-                <button
-                  key={key}
-                  onClick={() => setTradeMode(key)}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0"
-                  style={tradeMode === key ? {
+          {/* 실시간 시계 — 탭바 위 */}
+          <div className="flex justify-end" style={{ marginBottom: 4 }}>
+            <LiveClock />
+          </div>
+          {/* 카테고리 탭 — 균등 25% */}
+          <div className="flex w-full gap-1.5">
+            {([
+              { key: "auto",   label: "자동매매", Icon: Bot },
+              { key: "closed", label: "청산 기록", Icon: ListChecks },
+              { key: "ledger", label: "매매기록",  Icon: BookOpen },
+              ...(allowMockTrade ? [{ key: "mock" as const, label: "모의매매", Icon: LineChart }] : []),
+            ] as const).map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                onClick={() => setTradeMode(key)}
+                className="flex items-center justify-center gap-1 py-1.5 rounded-full text-xs font-semibold transition-all"
+                style={{
+                  flex: "1 1 0",
+                  minWidth: 0,
+                  ...(tradeMode === key ? {
                     background: GOLD,
                     color: "#000",
                   } : {
                     background: "rgba(255,255,255,0.06)",
                     color: "rgba(255,255,255,0.5)",
                     border: `1px solid ${BORDER}`,
-                  }}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* 실시간 시계 */}
-            <LiveClock />
+                  })
+                }}
+              >
+                <Icon className="w-3 h-3 shrink-0" />
+                <span className="truncate">{label}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
