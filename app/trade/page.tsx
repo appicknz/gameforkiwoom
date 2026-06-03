@@ -537,7 +537,7 @@ function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* 날짜 스트립 */}
-      <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+      <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
       {/* 요약 카드 */}
       {(() => {
         const cnt    = positions.length
@@ -775,7 +775,7 @@ function LedgerPanel() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* 날짜 스트립 */}
-      <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+      <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
       {/* 헤더 */}
       <div style={{ padding: "10px 14px 8px", borderBottom: `1px solid rgba(212,175,55,0.1)`, flexShrink: 0 }}>
         <div className="flex items-center justify-between">
@@ -1544,7 +1544,7 @@ export default function TradePage() {
         <div className="max-w-7xl mx-auto px-4 pt-3 pb-2 space-y-2.5">
           {/* 검색바 + 우측 버튼들 */}
           <div className="flex items-center gap-2">
-            {/* 검색 입력 */}
+            {/* ���색 입력 */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
               <input
@@ -1665,7 +1665,7 @@ export default function TradePage() {
         {/* 자동매매: 날짜 스트립 + 포지션 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "auto" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
           <div style={{ flexShrink: 0 }}>
-            <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+            <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
             <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} />
@@ -1717,7 +1717,7 @@ export default function TradePage() {
             display: tradeMode === "auto" ? "flex" : "none",
           }}>
             <div style={{ flexShrink: 0 }}>
-              <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+              <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
               <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} />
