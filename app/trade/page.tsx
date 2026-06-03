@@ -809,11 +809,12 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   const load = () => {
     setLoading(true)
     Promise.all([
-      fetch("/api/auto-signal/rebalance", { credentials: "include" }).then(r => r.ok ? r.json() : { records: [], role: null }),
+      fetch("/api/auto-signal/rebalance", { credentials: "include" }).then(r => r.ok ? r.json() : { records: [] }),
       fetch("/api/auto-signal/settings").then(r => r.ok ? r.json() : null),
-    ]).then(([ledger, cfg]) => {
+      fetch("/api/auth/me", { credentials: "include" }).then(r => r.ok ? r.json() : { role: null }),
+    ]).then(([ledger, cfg, me]) => {
       setRecords(ledger.records ?? [])
-      setIsMaster(MASTER_ROLES.includes(ledger.role ?? ""))
+      setIsMaster(MASTER_ROLES.includes(me.role ?? ""))
       if (cfg?.seed_capital != null) setSeedCapital(Number(cfg.seed_capital))
     }).catch(() => {}).finally(() => setLoading(false))
   }
@@ -972,7 +973,7 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
           <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>로딩 중...</div>
         ) : sorted.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
-            5월 31일부터 수익을 입력해주세요.
+            매매 시작일은 5월 31일입니다.
           </div>
         ) : [...sorted].reverse().map((rec) => {
           const pnl      = Number(rec.daily_pnl)
@@ -1029,7 +1030,7 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   )
 }
 
-// ─── 자동매매 라이브 패널 ───────────────────────────────────────────��─
+// ─── 자동매매 라이브 패널 ────────────��──────────────────────────────��─
 interface AutoPos {
   id:           string
   signal_type:  string
