@@ -980,22 +980,30 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
         </div>
 
         {/* 수익 분배 카드 (1/2, 2/2) */}
-        {totalPnl > 0 && (
-          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 6 }}>
-              수익 분배 (총 {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}{krwRate ? ` ≈ ${Math.round(totalPnl * krwRate).toLocaleString("ko-KR")}원` : ""})
+        {totalPnl > 0 && (() => {
+          const KRW_RATE = 1450
+          const half = totalPnl / 2
+          const halfKrw = (half * KRW_RATE).toFixed(2)
+          const totalKrw = (totalPnl * KRW_RATE).toFixed(2)
+          return (
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 6 }}>
+                수익 분배 (총 {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)} ≈ {Number(totalKrw).toLocaleString("ko-KR", { minimumFractionDigits: 2 })}원)
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[1, 2].map(n => (
+                  <div key={n} style={{ background: "rgba(212,175,55,0.06)", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 2 }}>{n}/2</div>
+                    <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>${half.toFixed(2)}</div>
+                    <div className="tabular-nums" style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>
+                      {Number(halfKrw).toLocaleString("ko-KR", { minimumFractionDigits: 2 })}원
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {[1, 2].map(n => (
-                <div key={n} style={{ background: "rgba(212,175,55,0.06)", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
-                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 2 }}>{n}/2</div>
-                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>${(totalPnl / 2).toFixed(2)}</div>
-                  {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>{Math.round((totalPnl / 2) * krwRate).toLocaleString("ko-KR")}원</div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* 토요일 분배일 카운트다운 */}
         <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "7px 10px", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
