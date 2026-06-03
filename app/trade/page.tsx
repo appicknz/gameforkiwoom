@@ -622,9 +622,12 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
           <div style={{ padding: "8px 12px", borderBottom: `1px solid rgba(212,175,55,0.1)`, flexShrink: 0 }}>
             {/* 타이틀 + 승률 */}
             <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
-                청산 기록 ({cnt}건)
-              </span>
+              <div className="flex items-center gap-2">
+                <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
+                  청산 기록 ({cnt}건)
+                </span>
+                <LiveClock />
+              </div>
               {cnt > 0 && (
                 <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
                   승률 {wins}/{cnt} ({Math.round(wins / cnt * 100)}%)
@@ -956,7 +959,10 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
       <div style={{ padding: "10px 14px 0", flexShrink: 0 }}>
         {/* 헤더 행 */}
         <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>매매기록 ({records.length}일)</span>
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>매매기록 ({records.length}일)</span>
+            <LiveClock />
+          </div>
           <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
             {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
             <span style={{ fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>
@@ -1310,7 +1316,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const sizeUsd = pos.size_usd ?? 10
     const lev     = pos.leverage ?? 1
 
-    // 스탑���스로 청산된 포지션: 실시간 % 계속 계산, PNL은 SL 고정값 사용
+    // 스탑���스로 청산된 포지션: 실시간 % 계�� 계산, PNL은 SL 고정값 사용
     if (pos.is_closed && pos.close_reason === "stop_loss") {
       const ticker  = liveCache.tickers.get(sym)
       const cur     = ticker ? ticker.price : 0
@@ -1404,6 +1410,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
                 background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)",
               }}>종가 기준</span>
             )}
+            {!isHistorical && <LiveClock />}
           </div>
           <div className="flex items-center gap-3">
             <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
@@ -1610,7 +1617,7 @@ export default function TradePage() {
 
   usePriceWorker({})
 
-  // 모의매매 허용 여부 + 사용자 role 조회 (마운트 시 1회)
+  // 모��매매 허용 여부 + 사용자 role 조회 (마운트 시 1회)
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -1875,10 +1882,6 @@ export default function TradePage() {
               알림
             </a>
           </div>
-          {/* 실시간 시계 — 탭바 위 */}
-          <div className="flex justify-end" style={{ marginBottom: 4 }}>
-            <LiveClock />
-          </div>
           {/* 카테고리 탭 — 균등 25% */}
           <div className="flex w-full gap-1.5">
             {([
@@ -2017,7 +2020,7 @@ export default function TradePage() {
         </div>
       </main>
 
-      {/* TradeDialog — 모바일/PC 공통 (PC에서는 LivePricesTab 클릭 시 열리지 않음) */}
+      {/* TradeDialog ��� 모바일/PC 공통 (PC에서는 LivePricesTab 클릭 시 열리지 않음) */}
       {dialogOpen && (
         <TradeDialog
           symbol={dialogSymbol}
