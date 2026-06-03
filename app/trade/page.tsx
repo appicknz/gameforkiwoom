@@ -491,7 +491,7 @@ type ClosedPos = {
   final_pnl: number | null
 }
 
-function ClosedPositionsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
+function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: number; tradeMode: string }) {
   const [positions,    setPositions]   = useState<ClosedPos[]>([])
   const [loading,      setLoading]     = useState(true)
   const [stopLossPct,  setStopLossPct] = useState<number | null>(null)
@@ -744,7 +744,7 @@ type LedgerRecord = {
   note:          string
 }
 
-function LedgerPanel() {
+function LedgerPanel({ tradeMode }: { tradeMode: string }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
@@ -1673,11 +1673,11 @@ export default function TradePage() {
         </div>
         {/* 청산 기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "closed" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflowY: "auto" }}>
-          <ClosedPositionsPanel refreshKey={closedRefreshKey} />
+          <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} />
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
-          <LedgerPanel />
+          <LedgerPanel tradeMode={tradeMode} />
         </div>
       </div>
 
@@ -1730,7 +1730,7 @@ export default function TradePage() {
             display: tradeMode === "closed" ? "flex" : "none",
             overflowY: "auto",
           }}>
-            <ClosedPositionsPanel refreshKey={closedRefreshKey} />
+            <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} />
           </div>
           {/* 매매기록 */}
           <div className="rounded-2xl flex flex-col h-full" style={{
@@ -1738,7 +1738,7 @@ export default function TradePage() {
             border: `1px solid ${BORDER}`,
             display: tradeMode === "ledger" ? "flex" : "none",
           }}>
-            <LedgerPanel />
+            <LedgerPanel tradeMode={tradeMode} />
           </div>
         </div>
       </main>
