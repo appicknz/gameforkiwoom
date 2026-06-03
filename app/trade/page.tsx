@@ -69,36 +69,49 @@ function elapsedStr(ms: number): string {
 }
 
 // ─── 날짜 스트립 ─────────────────────────────────────────────────────
-function LiveClock() {
+
+/** 깜빡이는 초록 점만 */
+function PulseDot() {
+  return (
+    <span className="relative flex h-1.5 w-1.5 shrink-0">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
+    </span>
+  )
+}
+
+/** 현재 시간 텍스트만 */
+function ClockTime() {
   const [now, setNow] = useState<Date | null>(null)
   useEffect(() => {
     setNow(new Date())
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
-
   const h    = now ? now.getHours() : 0
   const ampm = h < 12 ? "오전" : "오후"
   const h12  = h % 12 === 0 ? 12 : h % 12
   const mm   = now ? String(now.getMinutes()).padStart(2, "0") : "00"
   const ss   = now ? String(now.getSeconds()).padStart(2, "0") : "00"
+  return (
+    <span suppressHydrationWarning style={{
+      fontSize: 9,
+      fontWeight: 500,
+      color: "rgba(255,255,255,0.45)",
+      fontVariantNumeric: "tabular-nums",
+      letterSpacing: "0.03em",
+    }}>
+      {ampm} {String(h12).padStart(2, "0")}:{mm}:{ss}
+    </span>
+  )
+}
 
+/** 점 + 시간 묶음 (하위 호환) */
+function LiveClock() {
   return (
     <div className="flex items-center gap-1.5 shrink-0">
-      {/* 깜빡이는 초록 점 */}
-      <span className="relative flex h-2 w-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-      </span>
-      <span suppressHydrationWarning style={{
-        fontSize: 13,
-        fontWeight: 600,
-        color: "rgba(255,255,255,0.75)",
-        fontVariantNumeric: "tabular-nums",
-        letterSpacing: "0.03em",
-      }}>
-        {ampm} {String(h12).padStart(2, "0")}:{mm}:{ss}
-      </span>
+      <PulseDot />
+      <ClockTime />
     </div>
   )
 }
@@ -622,11 +635,10 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
           <div style={{ padding: "8px 12px", borderBottom: `1px solid rgba(212,175,55,0.1)`, flexShrink: 0 }}>
             {/* 타이틀 + 승률 */}
             <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
-              <div className="flex items-center gap-2">
-                <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>
-                  청산 기록 ({cnt}건)
-                </span>
-                <LiveClock />
+              <div className="flex items-center gap-1.5">
+                <PulseDot />
+                <span style={{ fontSize: 10, fontWeight: 700, color: GOLD }}>청산 기록 ({cnt}건)</span>
+                <ClockTime />
               </div>
               {cnt > 0 && (
                 <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
@@ -959,9 +971,10 @@ function LedgerPanel({ tradeMode }: { tradeMode: string }) {
       <div style={{ padding: "10px 14px 0", flexShrink: 0 }}>
         {/* 헤더 행 */}
         <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-          <div className="flex items-center gap-2">
-            <span style={{ fontSize: 11, fontWeight: 700, color: GOLD }}>매매기록 ({records.length}일)</span>
-            <LiveClock />
+          <div className="flex items-center gap-1.5">
+            <PulseDot />
+            <span style={{ fontSize: 10, fontWeight: 700, color: GOLD }}>매매기록 ({records.length}일)</span>
+            <ClockTime />
           </div>
           <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
             {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
@@ -1368,7 +1381,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   // 마진: 해당 날짜 포지션 수 × 포지션 금액
   const margin = statsCalc.length * sizeUsdCfg
 
-  // SL 청산 (오늘: 고정값 PNL / 과거: final_roi가 이미 포함돼 있으므로 별도 계산 불필요)
+  // SL 청산 (오늘: 고정값 PNL / 과거: final_roi가 이미 포함돼 있으므로 별도 계��� 불필요)
   const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss")
   const slClosedCnt = isHistorical ? slClosed.length : slClosed.length
   const slClosedPnl = isHistorical
@@ -1403,14 +1416,13 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
       <div className="px-4 py-3" style={{ borderBottom: `1px solid rgba(212,175,55,0.08)` }}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
-            <span style={{ fontSize: 12, fontWeight: 700, color: GOLD }}>{dateLabel} 자동매매</span>
-            {isHistorical && (
-              <span style={{
-                fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4,
-                background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)",
-              }}>종가 기준</span>
-            )}
-            {!isHistorical && <LiveClock />}
+            {!isHistorical && <PulseDot />}
+            <span style={{ fontSize: 10, fontWeight: 700, color: GOLD }}>자동매매</span>
+            <span style={{ fontSize: 10, fontWeight: 500, color: "rgba(255,255,255,0.5)" }}>{dateLabel}</span>
+            {isHistorical
+              ? <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4, background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)" }}>종가 기준</span>
+              : <ClockTime />
+            }
           </div>
           <div className="flex items-center gap-3">
             <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
