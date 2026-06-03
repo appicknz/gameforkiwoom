@@ -1064,30 +1064,34 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
   })
 
-  // 활성 포지션만 (카드 목록 + 통계)
-  const activeCalc  = posCalc.filter(p => !p.is_closed)
+  // 과거 날짜: 전체 포지션(day_close + SL 포함) / 오늘: 활성 포지션만
+  const statsCalc   = isHistorical ? posCalc : posCalc.filter(p => !p.is_closed)
+  // 카드 목록: 오늘은 활성만, 과거는 전체
+  const activeCalc  = statsCalc
   const filteredCalc = searchQ
     ? activeCalc.filter(p => p.sym.toLowerCase().includes(searchQ.toLowerCase()))
     : activeCalc
 
-  const totalRoi  = activeCalc.length > 0 ? activeCalc.reduce((s, p) => s + p.roi, 0) / activeCalc.length : 0
-  const profitCnt = activeCalc.filter(p => p.roi > 0).length
-  const lossCnt   = activeCalc.filter(p => p.roi < 0 && p.hasCur).length
-  // 마진: 활성(is_closed=false) 포지션 수 × 포지션 금액
-  const margin = activeCalc.length * sizeUsdCfg
+  const totalRoi  = statsCalc.length > 0 ? statsCalc.reduce((s, p) => s + p.roi, 0) / statsCalc.length : 0
+  const profitCnt = statsCalc.filter(p => p.roi > 0).length
+  const lossCnt   = statsCalc.filter(p => p.roi < 0).length
+  // 마진: 해당 날짜 포지션 수 × 포지션 금액
+  const margin = statsCalc.length * sizeUsdCfg
 
+  // SL 청산 (오늘: 고정값 PNL / 과거: final_roi가 이미 포함돼 있으므로 별도 계산 불필요)
   const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss")
-  const slClosedCnt = slClosed.length
-  // 건당 -$5 고정 (size_usd=10, leverage=10, stop_loss_pct=5% → 10 × 50% = -$5)
-  const slClosedPnl = slClosed.reduce((s, p) => s - (Number(p.size_usd ?? sizeUsdCfg) * (stopLossPct ?? 5) * Number(p.leverage ?? 10) / 100), 0)
+  const slClosedCnt = isHistorical ? slClosed.length : slClosed.length
+  const slClosedPnl = isHistorical
+    ? statsCalc.filter(p => p.is_closed && p.close_reason === "stop_loss").reduce((s, p) => s + p.pnl, 0)
+    : slClosed.reduce((s, p) => s - (Number(p.size_usd ?? sizeUsdCfg) * (stopLossPct ?? 5) * Number(p.leverage ?? 10) / 100), 0)
 
-  // 활성 포지션 PNL = 평균 ROI × 활성 마진
-  const activePnl = margin * (totalRoi / 100)
+  // TOTAL PNL = 전체 포지션 PNL 합산 (과거: final_roi 기준 / 오늘: 활성PNL + SL고정)
+  const activePnl = isHistorical
+    ? statsCalc.reduce((s, p) => s + p.pnl, 0)
+    : margin * (totalRoi / 100)
+  const totalPnl = isHistorical ? activePnl : activePnl + slClosedPnl
 
-  // TOTAL PNL = 활성 PNL + 해당 날짜 SL 청산 PNL 누적
-  const totalPnl = activePnl + slClosedPnl
-
-  // EST. VALUE = 활성 마진 + TOTAL PNL
+  // EST. VALUE = 마진 + TOTAL PNL
   const estValue = margin + totalPnl
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
@@ -1356,7 +1360,7 @@ export default function TradePage() {
     if (liquidated.length > 0) {
       fetchBalance()
       liquidated.forEach((p: any) =>
-        alert(`[강제청산] ${p.symbol.replace("USDT","")} ${p.direction === "long" ? "롱" : "숏"} ${p.leverage}x 포지션이 강제청산 되었습니다.`)
+        alert(`[강제청산] ${p.symbol.replace("USDT","")} ${p.direction === "long" ? "롱" : "숏"} ${p.leverage}x 포지션이 강제��산 되었습니다.`)
       )
     }
 
@@ -1544,7 +1548,7 @@ export default function TradePage() {
               )}
             </div>
 
-            {/* 정렬 순환 버튼 — 자동매매 탭일 때만 */}
+            {/* 정�� 순환 버튼 — 자동매매 탭일 때만 */}
             {tradeMode === "auto" && (
               <button
                 onClick={cycleSort}

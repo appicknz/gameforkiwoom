@@ -172,17 +172,22 @@ function TradeStatsMini() {
     return { ...pos, cur, hasCur, roi, pnl }
   })
 
-  // 해당 날짜 SL 청산 PNL: size_usd × (stop_loss_pct × leverage) / 100
-  // slRoiPct = settings.stop_loss_pct × settings.leverage (e.g. 5×10=50 → -50%)
-  const slClosedPnl = slClosedPositions.reduce((s: number, p: {size_usd: number}) => {
-    return s + p.size_usd * (-slRoiPct / 100)
-  }, 0)
+  // 오늘: SL 청산 PNL 별도 계산 (고정 -slRoiPct%)
+  // 과거: final_roi가 이미 모든 포지션에 붙어서 나오므로 별도 계산 불필요
+  const slClosedPnl = isHistorical
+    ? 0  // autoCalc에 이미 SL 포함됨
+    : slClosedPositions.reduce((s: number, p: {size_usd: number}) => {
+        return s + p.size_usd * (-slRoiPct / 100)
+      }, 0)
 
-  const activeRoiSum  = autoCalc.reduce((s, p) => s + p.roi, 0)
-  const activePnlSum  = autoCalc.reduce((s, p) => s + p.pnl, 0)
-  // TOTAL PNL = 활성 PNL + 해당 날짜 SL 청산 PNL 누적
-  const autoTotalPnl  = activePnlSum + slClosedPnl
-  const autoTotalRoi  = autoCalc.length > 0 ? activeRoiSum / autoCalc.length : 0
+  const autoRoiSum   = autoCalc.reduce((s, p) => s + p.roi, 0)
+  const autoPnlSum   = autoCalc.reduce((s, p) => s + p.pnl, 0)
+  // TOTAL PNL = 포지션 PNL 합 + 오늘 SL 청산 PNL (과거는 0)
+  const autoTotalPnl = autoPnlSum + slClosedPnl
+  // SL 표시용 카운트·금액 (오늘만 별도 표시)
+  const slClosedCntDisplay = isHistorical ? 0 : slClosedPositions.length
+  const slClosedPnlDisplay = isHistorical ? 0 : slClosedPnl
+  const autoTotalRoi  = autoCalc.length > 0 ? autoRoiSum / autoCalc.length : 0
   const autoProfit    = autoCalc.filter(p => p.roi > 0).length
   const autoLoss      = autoCalc.filter(p => p.roi <= 0 && p.hasCur).length
 
