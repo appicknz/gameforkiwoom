@@ -812,7 +812,7 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
   const [seedCapital,  setSeedCapital]  = useState(640)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
-  const [krwRate,      setKrwRate]      = useState<number | null>(null)
+  const krwRate = 1450
   const [countdown,    setCountdown]    = useState("")
   // 입력 폼 상태
   const [inputPnl,  setInputPnl]  = useState("")
@@ -845,18 +845,6 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
 
   useEffect(() => { load() }, [])
 
-  // Upbit KRW-USDT 환율 (30초마다 갱신)
-  useEffect(() => {
-    const fetchRate = () => {
-      fetch("https://api.upbit.com/v1/ticker?markets=KRW-USDT")
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d?.[0]?.trade_price) setKrwRate(Number(d[0].trade_price)) })
-        .catch(() => {})
-    }
-    fetchRate()
-    const id = setInterval(fetchRate, 30_000)
-    return () => clearInterval(id)
-  }, [])
 
   // 다음 토요일 자정(일요일 00:00 KST)까지 카운트다운
   useEffect(() => {
@@ -992,12 +980,12 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>초기 시드</div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>${firstSeed.toFixed(2)}</div>
-            {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>≈ {Math.round(firstSeed * krwRate).toLocaleString("ko-KR")}원</div>}
+            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>≈ {Math.round(firstSeed * krwRate).toLocaleString("ko-KR")}원</div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>현재 잔고</div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>${latestValue.toFixed(2)}</div>
-            {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>≈ {Math.round(latestValue * krwRate).toLocaleString("ko-KR")}원</div>}
+            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>≈ {Math.round(latestValue * krwRate).toLocaleString("ko-KR")}원</div>
           </div>
         </div>
 
@@ -1101,7 +1089,7 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
                 <div className="flex items-center gap-3">
                   <div style={{ textAlign: "right" }}>
                     <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
-                    {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>}
+                    <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
                     <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
                   </div>
                   <button onClick={() => handleDelete(rec.id)}
@@ -1130,7 +1118,7 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: col }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
-                    {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>}
+                    <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
                     <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roiPct >= 0 ? "+" : ""}{roiPct.toFixed(2)}%</div>
                   </div>
                 </div>
@@ -1153,7 +1141,7 @@ function LedgerPanel({ tradeMode, userRole }: { tradeMode: string; userRole: str
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: col }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
-                    {krwRate && <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>}
+                    <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
                     <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)" }}>{roiPct >= 0 ? "+" : ""}{roiPct.toFixed(2)}%</div>
                   </div>
                 </div>
@@ -1247,7 +1235,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const check = setInterval(() => {
       positions.forEach(pos => {
         if (closingRef.current.has(pos.id)) return
-        if (pos.is_closed) return  // 이미 청산된 포지션은 재트리거 방지
+        if (pos.is_closed) return  // 이��� 청산된 포지션은 재트리거 방지
         const entry  = Number(pos.entry_price)
         const sym    = pos.symbol.replace(/\.P$/, "").replace(/\//g, "")
         const ticker = liveCache.tickers.get(sym)
@@ -1628,7 +1616,7 @@ export default function TradePage() {
 
   usePriceWorker({})
 
-  // 모��매매 허용 여부 + 사용자 role 조회 (마운트 시 1회)
+  // 모��매매 허용 여부 + 사용자 role 조회 (마���트 시 1회)
   useEffect(() => {
     const token = getToken()
     if (!token) return
