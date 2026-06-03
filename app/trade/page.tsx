@@ -117,7 +117,8 @@ function LiveClock() {
 }
 
 function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (d: Date) => void }) {
-  const today = new Date()
+  // KST 기준 오늘 날짜 (UTC+9)
+  const today = new Date(Date.now() + 9 * 3600_000)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // 오늘 기준 29일 전부터 오늘까지 (30일)
@@ -545,13 +546,11 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
   const [loading,      setLoading]     = useState(true)
   const [stopLossPct,  setStopLossPct] = useState<number | null>(null)
   const [sizeUsdCfg,   setSizeUsdCfg]  = useState<number>(10)
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date(Date.now() + 9 * 3600_000))
   const [, setTick] = useState(0)
 
   const dateStr  = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
-  const todayStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}` })()
-  // 오늘: 모든 청산 포지션(SL 포함) → liveCache 실시간 계산
-  // 과거: final_roi(Klines 종가) → closed_roi(DB) 사��
+  const todayStr = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
   const isToday  = dateStr === todayStr
 
   useEffect(() => {
@@ -810,7 +809,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date(Date.now() + 9 * 3600_000))
   const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
   const krwRate = 1450
   const [countdown,    setCountdown]    = useState("")
@@ -857,7 +856,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
   useEffect(() => { load() }, [])
 
 
-  // 다음 토요일 자정(일요일 00:00 KST)까지 카운트다운
+  // 다음 토요일 자정(일요일 00:00 KST)까지 카운트���운
   useEffect(() => {
     const calc = () => {
       const now = new Date()
@@ -1767,12 +1766,12 @@ export default function TradePage() {
   const [dialogPrice,   setDialogPrice]   = useState<number | null>(null)
   const [tick,          setTick]          = useState(0)
   const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
-  const [selectedDate,  setSelectedDate]  = useState(new Date())
+  const [selectedDate,  setSelectedDate]  = useState(() => new Date(Date.now() + 9 * 3600_000))
   const [tradeMode,       setTradeMode]       = useState<"auto" | "closed" | "ledger" | "mock">("auto")
 
   // 탭 전환 시 날짜를 오늘로 리셋 → DateStrip이 맨 오른쪽으로 스크롤
   const switchTab = (mode: "auto" | "closed" | "ledger" | "mock") => {
-    setSelectedDate(new Date())
+    setSelectedDate(new Date(Date.now() + 9 * 3600_000))
     setTradeMode(mode)
   }
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
@@ -2150,7 +2149,7 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* ═══��══ PC (lg 이상) ══════ */}
+      {/* ══����══ PC (lg 이상) ══════ */}
       <main className="hidden lg:block max-w-7xl mx-auto p-4">
         <div style={{ height: "calc(100vh - 172px)", position: "relative" }}>
           {/* LivePricesTab — 항상 mount (소켓 유지), 자동매매 탭에서는 숨김 */}
