@@ -499,7 +499,11 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [, setTick] = useState(0)
 
-  const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
+  const dateStr  = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
+  const todayStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}` })()
+  // 오늘: 모든 청산 포지션(SL 포함) → liveCache 실시간 계산
+  // 과거: final_roi(Klines 종가) → closed_roi(DB) 사용
+  const isToday  = dateStr === todayStr
 
   useEffect(() => {
     setLoading(true)
@@ -545,7 +549,8 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
         const slCnt  = positions.filter(p => p.close_reason === "stop_loss").length
         // 포지션별 실제 PNL: size_usd × closed_roi / 100
         // SL도 closed_roi가 있으면 그 값 사용, 없으면 -(stop_loss_pct × leverage) 폴백
-        // ROI: final_roi(서버 계산) → closed_roi(DB 저장) → 실시간 liveCache 순 폴백
+        // 오늘: liveCache 실시간 우선 (SL 포함 전체)
+        // 과거: final_roi(Klines) → closed_roi(DB) → liveCache 폴백
         const perPnl = positions.map(p => {
           const entry  = Number(p.entry_price)
           const symKey = p.symbol.replace(/\.P$/, "").replace(/\//g, "")
@@ -553,9 +558,13 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
           const lev    = Number(p.leverage ?? 10)
           const sz     = Number(p.size_usd ?? sizeUsdCfg)
           let roi: number
-          if (p.final_roi != null) {
+          if (isToday && cur > 0 && entry > 0) {
+            // 오늘: 항상 실시간 가격으로 계산
+            const delta = p.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry
+            roi = delta * lev * 100
+          } else if (!isToday && p.final_roi != null) {
             roi = Number(p.final_roi)
-          } else if (p.closed_roi != null) {
+          } else if (!isToday && p.closed_roi != null) {
             roi = Number(p.closed_roi)
           } else if (cur > 0 && entry > 0) {
             const delta = p.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry
@@ -657,15 +666,16 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
         }
         const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
 
-        // ROI: final_roi(서버 계산) → closed_roi(DB) → 실시간 liveCache 순 폴백
-        const cur    = liveCache.tickers.get(sym)?.price ?? 0
-        const roi: number = pos.final_roi != null
-          ? Number(pos.final_roi)
-          : pos.closed_roi != null
-            ? Number(pos.closed_roi)
-            : cur > 0 && entry > 0
-              ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry) * lev * 100
-              : 0
+        // 오늘: liveCache 실시간 우선 / 과거: final_roi → closed_roi → liveCache 폴백
+        const cur = liveCache.tickers.get(sym)?.price ?? 0
+        const liveRoi = cur > 0 && entry > 0
+          ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry) * lev * 100
+          : null
+        const roi: number = isToday && liveRoi != null
+          ? liveRoi
+          : pos.final_roi  != null ? Number(pos.final_roi)
+          : pos.closed_roi != null ? Number(pos.closed_roi)
+          : liveRoi ?? 0
         const pnl = sizeUsd * (roi / 100)
 
         const roiColor = roi >= 0 ? UP_COLOR : DOWN_COLOR
@@ -1192,7 +1202,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
 
       {posCalc.length === 0 && (
         <div className="py-6 text-center" style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>
-          이 날짜에 수신된 시그널이 없습니다.
+          이 날짜에 ���신된 시그널이 없습니다.
         </div>
       )}
 
@@ -1542,7 +1552,7 @@ export default function TradePage() {
       {/* ══════ 공통 Sticky 검색 + 카테고리 헤더 ══════ */}
       <div className="sticky top-0 z-40 border-b" style={{ background: "rgba(4,10,6,0.97)", borderColor: BORDER, backdropFilter: "blur(12px)" }}>
         <div className="max-w-7xl mx-auto px-4 pt-3 pb-2 space-y-2.5">
-          {/* 검색바 + 우측 버튼들 */}
+          {/* 검색바 + 우��� 버튼들 */}
           <div className="flex items-center gap-2">
             {/* ���색 입력 */}
             <div className="relative flex-1">
