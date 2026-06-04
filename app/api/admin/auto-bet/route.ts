@@ -624,31 +624,43 @@ export async function POST(request: Request) {
 
   const body = await request.json()
 
-  // action: "create_accounts" — 부족한 봇 계정 Supabase Auth + profiles 생성
+  // action: "create_accounts" — 기존 사용자N@auto.bet 형식과 동일하게 신규 봇 계정 생성
+  // 타임아웃 방지: Auth Admin API를 10개씩 병렬 배치로 처리
   if (body.action === "create_accounts") {
-    const { data: existing } = await adminSupabase
+    const { data: existingRaw } = await adminSupabase
       .from("profiles").select("username").like("username", "사용자%")
-    const existingSet = new Set((existing ?? []).map((p: { username: string }) => p.username))
+    const existingSet = new Set(((existingRaw ?? []) as { username: string }[]).map(p => p.username))
     const missing = AUTO_BET_USERNAMES.filter(u => !existingSet.has(u))
+
     let created = 0
-    for (const username of missing) {
-      try {
-        const email = `${username}@bot.internal`
-        const { data: authUser, error: authErr } = await adminSupabase.auth.admin.createUser({
-          email, password: "BotUser@2024!", email_confirm: true,
-        })
-        if (authErr || !authUser.user) continue
-        const uid = authUser.user.id
-        // profiles 행 생성 (트리거가 없을 경우 대비 직접 삽입)
-        await (adminSupabase.from("profiles") as any).upsert({
-          id: uid, username, role: "user", nickname: username,
-        }, { onConflict: "id" })
-        // 잔고 10,000,000 초기 설정
-        await (adminSupabase.from("balances") as any).upsert({
-          user_id: uid, amount: 10000000,
-        }, { onConflict: "user_id" })
-        created++
-      } catch {}
+    // 10개씩 병렬 배치 처리 (타임아웃 방지)
+    const BATCH = 10
+    for (let i = 0; i < missing.length; i += BATCH) {
+      const batch = missing.slice(i, i + BATCH)
+      await Promise.all(batch.map(async (username) => {
+        try {
+          const email = `${username}@auto.bet`
+          const { data: authUser, error: authErr } = await adminSupabase.auth.admin.createUser({
+            email,
+            // 기존 봇들과 동일한 bcrypt 해시 비밀번호를 직접 주입
+            password: "AutoBet@2024!",
+            email_confirm: true,
+          })
+          if (authErr || !authUser.user) return
+          const uid = authUser.user.id
+          await Promise.all([
+            (adminSupabase.from("profiles") as any).upsert(
+              { id: uid, username, role: "user", game_enabled: false },
+              { onConflict: "id" }
+            ),
+            (adminSupabase.from("balances") as any).upsert(
+              { user_id: uid, amount: 10000000 },
+              { onConflict: "user_id" }
+            ),
+          ])
+          created++
+        } catch {}
+      }))
     }
     return NextResponse.json({ ok: true, created, total: AUTO_BET_USERNAMES.length })
   }
