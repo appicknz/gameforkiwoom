@@ -614,6 +614,13 @@ export function RoundMonitor({
   useEffect(() => {
     loadRoundStats(); loadHouseStats(); loadLpHistory()
     if (isSuperAdmin) { loadLpState(); loadAbUsers(); loadAbLogs() }
+
+    // 자동배팅: 마운트 시 즉시 시작 (isSuperAdmin이면 자동으로 켜짐)
+    if (isSuperAdmin) {
+      startBaccarat()
+      startRace()
+    }
+
     // 5초마다 라운드 통계 + 봇 잔고 갱신 (배팅 직후 배율·잔고 즉시 반영)
     statsRefreshRef.current = setInterval(() => {
       loadRoundStats()
@@ -621,13 +628,15 @@ export function RoundMonitor({
     }, 5_000)
     // 하우스 통계는 30초 간격으로 충분
     const houseRefresh = setInterval(() => loadHouseStats(), 30_000)
-    return () => clearInterval(houseRefresh)
+
     return () => {
+      clearInterval(houseRefresh)
       if (baccaratIntervalRef.current) clearInterval(baccaratIntervalRef.current)
       if (raceIntervalRef.current)     clearInterval(raceIntervalRef.current)
       if (statsRefreshRef.current)     clearInterval(statsRefreshRef.current)
     }
-  }, [loadRoundStats, loadHouseStats, loadLpHistory, loadLpState, loadAbUsers, loadAbLogs, isSuperAdmin])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuperAdmin])
 
   // Railway WS 게이트웨이 구독 — SSE 2개(Vercel Function 2개 점유) 제거
   const applyOddsPayload = useCallback((
@@ -706,13 +715,13 @@ export function RoundMonitor({
 
       {/* ════════════════════════════════════════════════════════
           섹션 1 — 현재 라운드 실시간 현황
-      ═════════════════════════���══════════════════════════════ */}
+      ════════════════════════������══════════════════════════════ */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Activity className="w-4 h-4 text-primary" />
             <div>
-              <h3 className="text-sm font-semibold text-foreground">현재 라운드 실시간 현황</h3>
+              <h3 className="text-sm font-semibold text-foreground">현재 ��운드 실시간 현황</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
                 바카라(30초) + 레이스(3분) &middot; 실시간
                 {isBranchAdmin && <span className="ml-1 text-blue-500">· 내 지점</span>}
@@ -1499,7 +1508,7 @@ export function RoundMonitor({
         )}
       </div></>}
 
-      {/* ═��═════════════��════════════════════���════���══════════════
+      {/* ═��═════════════��═════���══════════════���════���══════════════
           섹션 5 — 지점별 LP 설정 (superadmin 전용)
       ══════════��═════════════════��═══════════════════════════ */}
 

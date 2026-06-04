@@ -66,10 +66,10 @@ export async function GET(request: Request) {
   const bacSec1    = nowSec1 % 30
   const raceSec1   = nowSec1 % 180
 
-  // 배팅 윈도우: 5~11초에 cron이 진입해야 배팅 분산(최대 8.5초) 후에도 게임중(20초) 전 완료
-  // isBettingPhase 체크가 auto-bet 내부에서도 이루어지므로 안전하게 넓게 잡음
-  const doBaccarat1 = bacSec1 >= 5 && bacSec1 <= 14
-  // 레이스: 배팅창 전체(10~59초)에서 시도 — betOne 내부에서 이미 배팅한 유저는 skip
+  // isBettingPhase가 내부에서 재체크하므로 cron에서는 넓게 허용
+  // 바카라: 5~19초 배팅 구간 전체 허용 (isBettingPhase와 동일)
+  const doBaccarat1 = bacSec1 >= 5 && bacSec1 < 20
+  // 레이스: 10~59초 배팅 구간 전체 허용
   const doRace1     = raceSec1 >= 10 && raceSec1 < 60
 
   // 정산은 배팅 전에 실행 (직전 라운드 결과 처리)
@@ -88,8 +88,8 @@ export async function GET(request: Request) {
   const bacRound2 = Math.floor(nowSec2 / 30)
   const bacSec2   = nowSec2 % 30
 
-  // 2차도 동일한 윈도우 (5~14초)
-  const doBaccarat2 = bacSec2 >= 5 && bacSec2 <= 14
+  // 2차도 isBettingPhase와 동일한 윈도우 (5~19초)
+  const doBaccarat2 = bacSec2 >= 5 && bacSec2 < 20
 
   // 2차 정산 → 배팅 순서 유지
   results.settle2    = await callBotSettle("baccarat", bacRound2 - 1)
