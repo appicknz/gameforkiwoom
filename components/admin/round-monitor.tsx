@@ -128,6 +128,33 @@ interface BetResult {
 interface BetLog {
   ts: number; results: BetResult[]; totalFee: number; gameType?: string
 }
+
+// 라운드별 상세 배팅 로그
+interface WaveEntry {
+  waveLabel: string        // "wave1(25초)", "wave2(20초)" 등
+  ts: number               // 실행 시각
+  total: number            // 시도 인원
+  success: number          // 성공
+  failed: number           // 실패
+  details: {
+    username: string
+    side: string
+    amount: number
+    success: boolean
+    error?: string
+    odds: number | null
+  }[]
+}
+interface RoundBetLog {
+  round: number
+  gameType: "baccarat" | "race"
+  startTs: number          // 최초 wave 시작 시각
+  waves: WaveEntry[]
+  totalSuccess: number
+  totalFailed: number
+  totalFee: number
+  status: "진행중" | "완료" | "실패"
+}
 interface BetStats {
   totalWinProfit: number; totalLoss: number; totalBalance: number
   winRate: number; winCount: number; loseCount: number; tieCount: number; totalBets: number
@@ -316,6 +343,8 @@ export function RoundMonitor({
   const [resetLoading,     setResetLoading]     = useState(false)
   const [resetError,       setResetError]       = useState("")
   const [abUserTab,        setAbUserTab]        = useState<"baccarat" | "race">("baccarat")
+  const [roundBetLogs,    setRoundBetLogs]    = useState<RoundBetLog[]>([])
+  const [logTab,          setLogTab]          = useState<"baccarat" | "race">("baccarat")
   const [baccaratPhase,   setBaccaratPhase]   = useState<"정산중" | "배팅가능" | "게임중">("게임중")
   const [racePhase,       setRacePhase]       = useState<"정산중" | "배팅가능" | "게임중">("게임중")
   const [baccaratTimeLeft, setBaccaratTimeLeft] = useState(30)
@@ -441,6 +470,7 @@ export function RoundMonitor({
   const runBaccaratBet = useCallback(async () => {
     const token = getToken(); if (!token) return
     setBaccaratLoading(true)
+    const startTs = Date.now()
     try {
       const res = await fetchWithRefresh("/api/admin/auto-bet", {
         method: "POST",
@@ -451,37 +481,130 @@ export function RoundMonitor({
         const d = await res.json()
         if (d.skipped) {
           setAbStatus(`바카라 배팅 건너뜀 — ${d.skipReason ?? "배팅 구간 아님"}`)
+          // 건너뜀 로그도 기록
+          const skippedLog: RoundBetLog = {
+            round: d.round ?? Math.floor(Date.now() / 1000 / 30),
+            gameType: "baccarat",
+            startTs,
+            waves: [{ waveLabel: "건너뜀", ts: startTs, total: 0, success: 0, failed: 0, details: [] }],
+            totalSuccess: 0, totalFailed: 0, totalFee: 0, status: "실패",
+          }
+          setRoundBetLogs(prev => [skippedLog, ...prev].slice(0, 20))
         } else {
           setLastBetResults(d.results ?? [])
           setAccumulatedFee(d.accumulatedFee ?? 0)
           setBaccaratFee(d.baccaratFee ?? 0)
-          const roundLabel = d.round != null ? `#${d.round}` : "-"
-          setAbStatus(`바카라 배팅 완료 (라운드 ${roundLabel}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
+          const results: BetResult[] = d.results ?? []
+          const round: number = d.round ?? 0
+
+          // wave 정보를 서버에서 받거나, 없으면 단일 wave로 처리
+          const waveData: { waveLabel: string; ts: number; results: BetResult[] }[] =
+            d.waves ?? [{ waveLabel: "배팅", ts: startTs, results }]
+
+          const waves: WaveEntry[] = waveData.map(w => ({
+            waveLabel: w.waveLabel,
+            ts: w.ts,
+            total: w.results.length,
+            success: w.results.filter(r => r.success).length,
+            failed: w.results.filter(r => !r.success).length,
+            details: w.results.map(r => ({
+              username: r.username, side: r.side, amount: r.amount,
+              success: r.success, error: r.error, odds: r.odds,
+            })),
+          }))
+
+          const totalSuccess = results.filter(r => r.success).length
+          const totalFailed  = results.filter(r => !r.success).length
+
+          const newLog: RoundBetLog = {
+            round, gameType: "baccarat", startTs, waves,
+            totalSuccess, totalFailed,
+            totalFee: d.totalFeeThisRound ?? 0,
+            status: totalFailed === 0 ? "완료" : totalSuccess === 0 ? "실패" : "완료",
+          }
+          setRoundBetLogs(prev => [newLog, ...prev.filter(l => !(l.round === round && l.gameType === "baccarat"))].slice(0, 20))
+          setAbStatus(`바카라 라운드 #${round} — ${totalSuccess}명 성공 / ${totalFailed}명 실패 / 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
           loadAbUsers()
         }
       }
-    } catch { setAbStatus("바카라 배팅 실패") }
+    } catch (e) {
+      setAbStatus("바카라 배팅 오류")
+      const errLog: RoundBetLog = {
+        round: Math.floor(Date.now() / 1000 / 30),
+        gameType: "baccarat", startTs, waves: [],
+        totalSuccess: 0, totalFailed: 0, totalFee: 0, status: "실패",
+      }
+      setRoundBetLogs(prev => [errLog, ...prev].slice(0, 20))
+    }
     setBaccaratLoading(false)
   }, [loadAbUsers])
 
   const runRaceBet = useCallback(async () => {
     const token = getToken(); if (!token) return
     setRaceLoading(true)
+    const startTs = Date.now()
     try {
-      const res = await fetch("/api/admin/auto-bet", {
+      const res = await fetchWithRefresh("/api/admin/auto-bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "bet_race" }),
       })
       if (res.ok) {
         const d = await res.json()
-        setLastBetResults(d.results ?? [])
-        setAccumulatedFee(d.accumulatedFee ?? 0)
-        setRaceFee(d.raceFee ?? 0)
-        setAbStatus(`레이스 배팅 완료 (라운드 #${d.round}) — 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
-        loadAbUsers()
+        if (d.skipped) {
+          setAbStatus(`레이스 배팅 건너뜀 — ${d.skipReason ?? "배팅 구간 아님"}`)
+          const skippedLog: RoundBetLog = {
+            round: d.round ?? Math.floor(Date.now() / 1000 / 180),
+            gameType: "race", startTs,
+            waves: [{ waveLabel: "건너뜀", ts: startTs, total: 0, success: 0, failed: 0, details: [] }],
+            totalSuccess: 0, totalFailed: 0, totalFee: 0, status: "실패",
+          }
+          setRoundBetLogs(prev => [skippedLog, ...prev].slice(0, 20))
+        } else {
+          setLastBetResults(d.results ?? [])
+          setAccumulatedFee(d.accumulatedFee ?? 0)
+          setRaceFee(d.raceFee ?? 0)
+          const results: BetResult[] = d.results ?? []
+          const round: number = d.round ?? 0
+
+          const waveData: { waveLabel: string; ts: number; results: BetResult[] }[] =
+            d.waves ?? [{ waveLabel: "배팅", ts: startTs, results }]
+
+          const waves: WaveEntry[] = waveData.map(w => ({
+            waveLabel: w.waveLabel,
+            ts: w.ts,
+            total: w.results.length,
+            success: w.results.filter(r => r.success).length,
+            failed: w.results.filter(r => !r.success).length,
+            details: w.results.map(r => ({
+              username: r.username, side: r.side, amount: r.amount,
+              success: r.success, error: r.error, odds: r.odds,
+            })),
+          }))
+
+          const totalSuccess = results.filter(r => r.success).length
+          const totalFailed  = results.filter(r => !r.success).length
+
+          const newLog: RoundBetLog = {
+            round, gameType: "race", startTs, waves,
+            totalSuccess, totalFailed,
+            totalFee: d.totalFeeThisRound ?? 0,
+            status: totalFailed === 0 ? "완료" : totalSuccess === 0 ? "실패" : "완료",
+          }
+          setRoundBetLogs(prev => [newLog, ...prev.filter(l => !(l.round === round && l.gameType === "race"))].slice(0, 20))
+          setAbStatus(`레이스 라운드 #${round} — ${totalSuccess}명 성공 / ${totalFailed}명 실패 / 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
+          loadAbUsers()
+        }
       }
-    } catch { setAbStatus("레이스 배팅 실패") }
+    } catch {
+      setAbStatus("레이스 배팅 오류")
+      const errLog: RoundBetLog = {
+        round: Math.floor(Date.now() / 1000 / 180),
+        gameType: "race", startTs, waves: [],
+        totalSuccess: 0, totalFailed: 0, totalFee: 0, status: "실패",
+      }
+      setRoundBetLogs(prev => [errLog, ...prev].slice(0, 20))
+    }
     setRaceLoading(false)
   }, [loadAbUsers])
 
@@ -1050,6 +1173,147 @@ export function RoundMonitor({
                 </div>
               </div>
             )}
+
+            {/* ── 자동배팅 라운드 로그 ── */}
+            <div className="px-5 pb-5">
+              {/* 탭 */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-semibold text-foreground">라운드별 배팅 로그</span>
+                  <span className="text-[10px] text-muted-foreground">최근 20라운드</span>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setLogTab("baccarat")}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition-colors ${logTab === "baccarat" ? "bg-blue-500 text-white" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                  >
+                    바카라
+                  </button>
+                  <button
+                    onClick={() => setLogTab("race")}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition-colors ${logTab === "race" ? "bg-orange-500 text-white" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                  >
+                    레이스
+                  </button>
+                  {roundBetLogs.length > 0 && (
+                    <button
+                      onClick={() => setRoundBetLogs([])}
+                      className="text-[11px] px-2 py-1 rounded-lg text-muted-foreground hover:text-foreground bg-muted"
+                    >
+                      초기화
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 로그 목록 */}
+              {(() => {
+                const filtered = roundBetLogs.filter(l => l.gameType === logTab)
+                if (filtered.length === 0) {
+                  return (
+                    <div className="flex items-center justify-center py-8 text-xs text-muted-foreground bg-muted/30 rounded-xl border border-border border-dashed">
+                      아직 배팅 로그가 없습니다 — 자동배팅 시작 후 기록됩니다
+                    </div>
+                  )
+                }
+                return (
+                  <div className="space-y-2">
+                    {filtered.map((log, li) => {
+                      const isFirst = li === 0
+                      const timeStr = new Date(log.startTs).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+                      return (
+                        <div
+                          key={`${log.gameType}-${log.round}-${log.startTs}`}
+                          className={`rounded-xl border overflow-hidden transition-all ${
+                            isFirst ? "border-blue-500/30 bg-blue-500/5" : "border-border bg-muted/20"
+                          }`}
+                        >
+                          {/* 라운드 헤더 */}
+                          <div className="px-4 py-2.5 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                log.status === "완료" ? "bg-emerald-500/15 text-emerald-500"
+                                : log.status === "진행중" ? "bg-blue-500/15 text-blue-500"
+                                : "bg-red-500/15 text-red-500"
+                              }`}>{log.status}</span>
+                              <span className="text-xs font-semibold text-foreground">
+                                라운드 #{log.round}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">{timeStr}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="text-emerald-500 font-semibold tabular-nums">
+                                {log.totalSuccess}명 성공
+                              </span>
+                              {log.totalFailed > 0 && (
+                                <span className="text-red-500 font-semibold tabular-nums">
+                                  {log.totalFailed}명 실패
+                                </span>
+                              )}
+                              <span className="text-amber-500 font-semibold tabular-nums">
+                                수수료 {fmt(log.totalFee)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* wave 목록 */}
+                          {log.waves.length > 0 && (
+                            <div className="border-t border-border divide-y divide-border/50">
+                              {log.waves.map((wave, wi) => (
+                                <div key={wi} className="px-4 py-2">
+                                  {/* wave 헤더 */}
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
+                                        {wave.waveLabel}
+                                      </span>
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {new Date(wave.ts).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[11px]">
+                                      <span className="text-muted-foreground">{wave.total}명 시도</span>
+                                      <span className="text-emerald-500">{wave.success}명 성공</span>
+                                      {wave.failed > 0 && <span className="text-red-500">{wave.failed}명 실패</span>}
+                                    </div>
+                                  </div>
+                                  {/* 개별 배팅 결과 태그 */}
+                                  <div className="flex flex-wrap gap-1">
+                                    {wave.details.map((d, di) => (
+                                      <div
+                                        key={di}
+                                        title={d.error ? `실패: ${d.error}` : `${SIDE_LABEL[d.side] ?? d.side} ${fmt(d.amount)} × ${d.odds ?? "-"}배`}
+                                        className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
+                                          d.success
+                                            ? "bg-emerald-500/10 text-emerald-600"
+                                            : "bg-red-500/10 text-red-500"
+                                        }`}
+                                      >
+                                        <span className="text-muted-foreground">{d.username.replace("사용자", "#")}</span>
+                                        {d.success ? (
+                                          <>
+                                            <span className={SIDE_COLOR[d.side] ?? "text-foreground"}>{SIDE_LABEL[d.side] ?? d.side}</span>
+                                            <span className="tabular-nums">{fmt(d.amount)}</span>
+                                            {d.odds && <span className="text-muted-foreground">×{d.odds.toFixed(2)}</span>}
+                                          </>
+                                        ) : (
+                                          <span className="text-red-400">{d.error ?? "실패"}</span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
           </div>
 
           {/* 자동배팅 유저 통합 목록 — 최근 배팅 접수 + 누적 통계 */}

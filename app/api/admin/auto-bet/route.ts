@@ -578,44 +578,42 @@ async function runBetForGame(gameType: "baccarat" | "race") {
   }
 
   const settled: Awaited<ReturnType<typeof betOne>>[] = []
+  // wave별 결과 추적 (클라이언트 상세 로그용)
+  const waveLog: { waveLabel: string; ts: number; results: Awaited<ReturnType<typeof betOne>>[] }[] = []
 
   if (gameType === "baccarat") {
     // ── 바카라: wave 기반 배팅 ────────────────────────────────────
     // wave 1(25초): 30%  wave 2(20초): 15%  wave 3(16초): 15%  wave 4(13초): 나머지
-    // 현재 secInRound를 보고 어느 wave부터 실행할지 결정 — 이미 지난 wave는 건너뜀
     const total = shuffled.length
     const w1End = Math.round(total * 0.30)
     const w2End = Math.round(total * 0.45)
     const w3End = Math.round(total * 0.60)
 
     const waveSlices = [
-      { users: shuffled.slice(0, w1End),       secTrigger: 5  }, // 남은 25초 (secInRound=5)
-      { users: shuffled.slice(w1End, w2End),   secTrigger: 10 }, // 남은 20초 (secInRound=10)
-      { users: shuffled.slice(w2End, w3End),   secTrigger: 14 }, // 남은 16초 (secInRound=14)
-      { users: shuffled.slice(w3End),           secTrigger: 17 }, // 남은 13초 (secInRound=17)
+      { users: shuffled.slice(0, w1End),     secTrigger: 5,  waveLabel: "wave1(25초)" },
+      { users: shuffled.slice(w1End, w2End), secTrigger: 10, waveLabel: "wave2(20초)" },
+      { users: shuffled.slice(w2End, w3End), secTrigger: 14, waveLabel: "wave3(16초)" },
+      { users: shuffled.slice(w3End),         secTrigger: 17, waveLabel: "wave4(13초)" },
     ]
 
     for (const wave of waveSlices) {
       if (wave.users.length === 0) continue
 
-      // 현재 secInRound가 이 wave의 트리거 시점 이후면 즉시 실행
-      // 아직 안 됐으면 해당 초까지 대기
       let phase = isBettingPhase("baccarat")
       if (!phase.allowed) break
 
       if (phase.secInRound < wave.secTrigger) {
-        // 해당 wave 트리거까지 남은 ms 계산
         const remainMs = (wave.secTrigger - phase.secInRound) * 1000
-        // 최대 1000ms 지터 추가로 자연스럽게
-        const jitter = Math.floor(Math.random() * 1000)
+        const jitter = Math.floor(Math.random() * 800)
         await new Promise(r => setTimeout(r, remainMs + jitter))
       }
 
-      // wave 트리거 후 재확인
       phase = isBettingPhase("baccarat")
       if (!phase.allowed) break
 
-      // 그룹 내 2~4명씩 짧은 간격(200~600ms)으로 배팅 → 자연스럽게
+      const waveTs = Date.now()
+      const waveResults: Awaited<ReturnType<typeof betOne>>[] = []
+
       const groups: (typeof shuffled)[] = []
       let idx2 = 0
       while (idx2 < wave.users.length) {
@@ -628,10 +626,12 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         if (!stillOk.allowed) break
         const grpResults = await Promise.all(grp.map(betOne))
         settled.push(...grpResults)
+        waveResults.push(...grpResults)
         if (groups.indexOf(grp) < groups.length - 1) {
           await new Promise(r => setTimeout(r, 200 + Math.floor(Math.random() * 400)))
         }
       }
+      waveLog.push({ waveLabel: wave.waveLabel, ts: waveTs, results: waveResults })
     }
   } else {
     // ── 레이스: 배팅창 50초(10~59초) 안에 자연 분산 ─────────────
@@ -645,6 +645,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
     }
     const delayPerGap = groups.length > 1 ? Math.floor(SPREAD_BUDGET_MS / (groups.length - 1)) : 0
     const jitter = () => Math.floor((Math.random() - 0.5) * 2 * delayPerGap * 0.3)
+    const raceWaveResults: Awaited<ReturnType<typeof betOne>>[] = []
 
     for (let g = 0; g < groups.length; g++) {
       if (g === 0) {
@@ -656,13 +657,20 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       if (!stillOk.allowed) break
       const grpResults = await Promise.all(groups[g].map(betOne))
       settled.push(...grpResults)
+      raceWaveResults.push(...grpResults)
     }
+    waveLog.push({ waveLabel: "분산배팅", ts: Date.now(), results: raceWaveResults })
   }
 
-  // odds:final 저장 제거 — 각 유저의 odds:snap이 betOne에서 저장됨
   const results = settled.map(({ fee: _fee, ...rest }) => rest)
   const totalFee = settled.reduce((s, r) => s + r.fee, 0)
-  return { results, totalFee, round: roundNumber }
+  // wave 로그에서 fee 제거 후 반환
+  const wavesForClient = waveLog.map(w => ({
+    waveLabel: w.waveLabel,
+    ts: w.ts,
+    results: w.results.map(({ fee: _f, ...r }) => r),
+  }))
+  return { results, totalFee, round: roundNumber, waves: wavesForClient }
 }
 
 // POST: 자동배팅 1회 실행 (또는 잔고 일괄 충전)
