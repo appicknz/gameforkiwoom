@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   RefreshCw, Download, TrendingUp, TrendingDown, Activity, Info,
-  Play, Square, Wallet, AlertCircle, BarChart3, RotateCcw, Lock,
+  Play, Square, Wallet, AlertCircle, BarChart3, RotateCcw, Lock, Bot,
 } from "lucide-react"
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────
@@ -344,8 +344,6 @@ export function RoundMonitor({
 
   const loadRoundStats = useCallback(async () => {
     const token = getToken(); if (!token) return
-    // 게임중 페이즈에는 배당/풀이 변하지 않으므로 폴링 스킵 — 화면 freeze 유지
-    if (baccaratPhaseRef.current === "게임중" && racePhaseRef.current === "게임중") return
     setRoundLoading(true)
     try {
       const res = await fetchWithRefresh("/api/admin/round-stats")
@@ -616,10 +614,14 @@ export function RoundMonitor({
   useEffect(() => {
     loadRoundStats(); loadHouseStats(); loadLpHistory()
     if (isSuperAdmin) { loadLpState(); loadAbUsers(); loadAbLogs() }
+    // 5초마다 라운드 통계 + 봇 잔고 갱신 (배팅 직후 배율·잔고 즉시 반영)
     statsRefreshRef.current = setInterval(() => {
-      loadRoundStats(); loadHouseStats()
+      loadRoundStats()
       if (isSuperAdmin) loadAbUsers()
-    }, 30_000)
+    }, 5_000)
+    // 하우스 통계는 30초 간격으로 충분
+    const houseRefresh = setInterval(() => loadHouseStats(), 30_000)
+    return () => clearInterval(houseRefresh)
     return () => {
       if (baccaratIntervalRef.current) clearInterval(baccaratIntervalRef.current)
       if (raceIntervalRef.current)     clearInterval(raceIntervalRef.current)
@@ -632,8 +634,6 @@ export function RoundMonitor({
     gameType: "baccarat" | "race",
     data: { roundNumber: number; userCount: number; pools: Record<string, number>; odds: Record<string, number> }
   ) => {
-    if (gameType === "baccarat" && baccaratPhaseRef.current === "게임중") return
-    if (gameType === "race"     && racePhaseRef.current     === "게임중") return
 
     const totalBet = Object.values(data.pools ?? {}).reduce((a, b) => a + b, 0)
     const stat: RoundStats = {
@@ -646,7 +646,7 @@ export function RoundMonitor({
       lpAmount:   0,
       fee:        Math.floor(totalBet * 0.2),
       feeRate:    0.2,
-      mode:       (data.odds?.mode as string) ?? "pari",
+      mode:       String(data.odds?.mode ?? "pari"),
       odds:       data.odds ?? null,
       prediction: {},
     }
@@ -1137,8 +1137,8 @@ export function RoundMonitor({
                           }`}>
                             {(betResult?.gameType ?? u.gameType) === "baccarat" ? "바카라" : "레이스"}
                           </span>
-                          <span className={`text-sm font-bold ${SIDE_COLOR[betResult?.side ?? u.currentBet?.side] ?? "text-foreground"}`}>
-                            {SIDE_LABEL[betResult?.side ?? u.currentBet?.side] ?? betResult?.side ?? u.currentBet?.side}
+                          <span className={`text-sm font-bold ${SIDE_COLOR[(betResult?.side ?? u.currentBet?.side) ?? ""] ?? "text-foreground"}`}>
+                            {SIDE_LABEL[(betResult?.side ?? u.currentBet?.side) ?? ""] ?? betResult?.side ?? u.currentBet?.side}
                           </span>
                           <span className="text-sm tabular-nums text-foreground font-medium">
                             {fmt(betResult?.amount ?? u.currentBet?.amount ?? 0)}
@@ -1274,12 +1274,12 @@ export function RoundMonitor({
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {[
-                    { label: "총 배팅액",   value: masterSummary.totalBet,    color: "text-foreground" },
-                    { label: "총 지급액",   value: masterSummary.totalPayout, color: "text-red-500" },
-                    { label: "하우스 손익", value: masterSummary.houseProfit, color: masterSummary.houseProfit >= 0 ? "text-emerald-500" : "text-red-500" },
-                    { label: "총 LP 사용",  value: masterSummary.totalLpUsed, color: "text-blue-500" },
-                    { label: "누적 수수료", value: masterSummary.totalFee,    color: "text-amber-500" },
-                    { label: "미수금",      value: masterSummary.pendingFee,  color: masterSummary.pendingFee > 0 ? "text-orange-500" : "text-muted-foreground" },
+                    { label: "총 배팅액",   value: masterSummary?.totalBet    ?? 0, color: "text-foreground" },
+                    { label: "총 지급액",   value: masterSummary?.totalPayout ?? 0, color: "text-red-500" },
+                    { label: "하우스 손익", value: masterSummary?.houseProfit ?? 0, color: (masterSummary?.houseProfit ?? 0) >= 0 ? "text-emerald-500" : "text-red-500" },
+                    { label: "총 LP 사용",  value: masterSummary?.totalLpUsed ?? 0, color: "text-blue-500" },
+                    { label: "누적 수수료", value: masterSummary?.totalFee    ?? 0, color: "text-amber-500" },
+                    { label: "미수금",      value: masterSummary?.pendingFee  ?? 0, color: (masterSummary?.pendingFee ?? 0) > 0 ? "text-orange-500" : "text-muted-foreground" },
                   ].map(item => (
                     <div key={item.label} className="bg-muted rounded-lg p-2.5">
                       <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -1499,7 +1499,7 @@ export function RoundMonitor({
         )}
       </div></>}
 
-      {/* ═══════════════��════════════════════���════���══════════════
+      {/* ═��═════════════��════════════════════���════���══════════════
           섹션 5 — 지점별 LP 설정 (superadmin 전용)
       ══════════��═════════════════��═══════════════════════════ */}
 

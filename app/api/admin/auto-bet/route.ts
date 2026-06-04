@@ -28,11 +28,12 @@ async function requireAdmin(token: string | null, req?: Request) {
   if (!token) return null
   const userId = decodeJwtUserId(token)
   if (!userId) return null
-  const { data: profile } = await adminSupabase
+  const { data: profileRaw } = await adminSupabase
     .from("profiles")
     .select("role")
     .eq("id", userId)
     .single()
+  const profile = profileRaw as { role: string } | null
   const adminRoles = ["master", "super_admin", "admin", "superadmin", "branch_admin"]
   if (!profile || !adminRoles.includes(profile.role)) return null
   return { id: userId }
@@ -81,7 +82,7 @@ async function settlePendingBots(
   } else {
     // 2차: DB에서 해당 라운드 closeTime = roundNumber * 30 (Unix초)
     const closeTime = roundNumber * 30
-    const { data: row } = await adminSupabase
+    const { data: rowRaw } = await adminSupabase
       .from("btc_closing_prices")
       .select("price, baccarat_result")
       .gte("time", closeTime - 29)
@@ -89,6 +90,7 @@ async function settlePendingBots(
       .order("time", { ascending: false })
       .limit(1)
       .maybeSingle()
+    const row = rowRaw as { price: number | string | null; baccarat_result: string | null } | null
 
     if (!row) {
       // 결과가 아직 없음 — 잠금 걸지 않고 return (다음 새로고침에서 재시도)
@@ -128,8 +130,8 @@ async function settlePendingBots(
       tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
     }
     if (pool.player + pool.banker + pool.tie > 0) {
-      const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, userCount as number)
-      oddsSnap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+      const r = calcBaccaratOdds(pool, DEFAULT_LP_CONFIG, Number(userCount ?? 0))
+      oddsSnap = { player: Number(r.playerOdds), banker: Number(r.bankerOdds), tie: Number(r.tieOdds) }
     }
   } else {
     const pool = {
@@ -138,8 +140,8 @@ async function settlePendingBots(
       tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
     }
     if (pool.bit + pool.coin + pool.tie > 0) {
-      const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, userCount as number)
-      oddsSnap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+      const r = calcRaceOdds(pool, DEFAULT_LP_CONFIG, Number(userCount ?? 0))
+      oddsSnap = { bit: Number(r.bitOdds), coin: Number(r.coinOdds), tie: Number(r.tieOdds) }
     }
   }
 
@@ -216,12 +218,12 @@ async function settlePendingBots(
     if (historyRows.length === 0) return
 
     // ── bet_history INSERT ───────────────────────────────────────
-    const { error: insertErr } = await adminSupabase.from("bet_history").insert(historyRows)
+    const { error: insertErr } = await (adminSupabase.from("bet_history") as any).insert(historyRows)
     if (insertErr) return  // INSERT 실패 시 잠금 설정 안 함 → 다음 호출에서 재시도
 
     // ── 승리 시 잔고 환급 ────────────────────────────────────────
     if (totalPayout > 0) {
-      await adminSupabase.rpc("add_balance_for_payout", { p_user_id: p.id, p_amount: totalPayout })
+      await (adminSupabase.rpc as Function)("add_balance_for_payout", { p_user_id: p.id, p_amount: totalPayout })
       await redis.incr(`balance_version:${p.id}`).catch(() => {})
     }
 
@@ -248,23 +250,25 @@ export async function GET(request: Request) {
   const admin = await requireAdmin(token, request)
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: profiles } = await adminSupabase
+  const { data: profilesRaw } = await adminSupabase
     .from("profiles")
     .select("id, username, branch_id")
     .in("username", AUTO_BET_USERNAMES)
     .order("username")
+  const profiles = (profilesRaw ?? []) as { id: string; username: string; branch_id: string | null }[]
 
-  if (!profiles || profiles.length === 0) {
+  if (profiles.length === 0) {
     return NextResponse.json({ users: [] })
   }
 
   const userIds = profiles.map(p => p.id)
-  const { data: balances } = await adminSupabase
+  const { data: balancesRaw } = await adminSupabase
     .from("balances")
     .select("user_id, amount")
     .in("user_id", userIds)
+  const balances = (balancesRaw ?? []) as { user_id: string; amount: number }[]
 
-  const balMap = Object.fromEntries((balances ?? []).map(b => [b.user_id, b.amount]))
+  const balMap = Object.fromEntries(balances.map(b => [b.user_id, b.amount]))
 
   const nowSec = Math.floor(Date.now() / 1000)
   const baccaratRound = Math.floor(nowSec / 30)
@@ -278,11 +282,12 @@ export async function GET(request: Request) {
   ])
 
   // ── bet_history 전수 조회 (통계 집계 + 최근 정산 내역 동시 처리) ──
-  const { data: allHistory } = await adminSupabase
+  const { data: allHistoryRaw } = await adminSupabase
     .from("bet_history")
     .select("user_id, bet_direction, bet_amount, payout, result, created_at")
     .in("user_id", userIds)
     .order("created_at", { ascending: false })  // 최신순 정렬
+  const allHistory = (allHistoryRaw ?? []) as { user_id: string; bet_direction: string; bet_amount: number; payout: number; result: string; created_at: string }[]
 
   // ── 유저별 개인 통계 집계 + 최신 1건 추출 ──────────────────
   type UserStat = { winProfit: number; loss: number; winCount: number; loseCount: number; tieCount: number; fee: number }
@@ -402,23 +407,25 @@ async function runBetForGame(gameType: "baccarat" | "race") {
     return { results: [], totalFee: 0, round: 0, skipped: true, skipReason: phase.reason }
   }
 
-  const { data: profiles } = await adminSupabase
+  const { data: profilesRaw2 } = await adminSupabase
     .from("profiles")
     .select("id, username")
     .in("username", AUTO_BET_USERNAMES)
+  const profiles2 = (profilesRaw2 ?? []) as { id: string; username: string }[]
 
-  if (!profiles || profiles.length === 0) return { results: [], totalFee: 0, round: 0 }
+  if (profiles2.length === 0) return { results: [], totalFee: 0, round: 0 }
 
   // 해당 게임 타입 유저만 필터
-  const targetProfiles = profiles.filter(p => {
+  const targetProfiles = profiles2.filter(p => {
     const num = parseInt(p.username.replace("사용자", ""))
     return gameType === "baccarat" ? num % 2 !== 0 : num % 2 === 0
   })
 
   const userIds = targetProfiles.map(p => p.id)
-  const { data: balances } = await adminSupabase
+  const { data: balancesRaw2 } = await adminSupabase
     .from("balances").select("user_id, amount").in("user_id", userIds)
-  const balMap = Object.fromEntries((balances ?? []).map(b => [b.user_id, b.amount]))
+  const balances2 = (balancesRaw2 ?? []) as { user_id: string; amount: number }[]
+  const balMap = Object.fromEntries(balances2.map(b => [b.user_id, b.amount]))
 
   const nowSec = Math.floor(Date.now() / 1000)
   // race: 180초(3분) 라운드 — bet/SSE/settle/round-stats 모두 동일 기준
@@ -436,13 +443,15 @@ async function runBetForGame(gameType: "baccarat" | "race") {
   let lpConfig = DEFAULT_LP_CONFIG
   const firstId = userIds[0]
   if (firstId) {
-    const { data: pf } = await adminSupabase.from("profiles").select("branch_id").eq("id", firstId).single()
+    const { data: pfRaw } = await adminSupabase.from("profiles").select("branch_id").eq("id", firstId).single()
+    const pf = pfRaw as { branch_id: string | null } | null
     if (pf?.branch_id) {
-      const { data: br } = await adminSupabase
+      const { data: brRaw } = await adminSupabase
         .from("branches")
         .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
         .eq("id", pf.branch_id).single()
-      if (br) lpConfig = branchToLpConfig(br)
+      const br = brRaw as Record<string, unknown> | null
+      if (br) lpConfig = branchToLpConfig(br as Parameters<typeof branchToLpConfig>[0])
     }
   }
 
@@ -467,8 +476,8 @@ async function runBetForGame(gameType: "baccarat" | "race") {
     }
 
     try {
-      const { data: newBal, error: deductErr } = await adminSupabase
-        .rpc("deduct_balance_for_bet", { p_user_id: p.id, p_amount: amount })
+      const { data: newBalRaw, error: deductErr } = await (adminSupabase.rpc as Function)("deduct_balance_for_bet", { p_user_id: p.id, p_amount: amount })
+      const newBal = newBalRaw as number | null
       if (deductErr) {
         return { username: p.username, gameType, side, amount, success: false, error: deductErr.message, balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
       }
@@ -498,11 +507,11 @@ async function runBetForGame(gameType: "baccarat" | "race") {
           tie:    parseInt((poolDataNow?.tie    as string) ?? "0") || 0,
         }
         const r = calcBaccaratOdds(pool, lpConfig, (userCountNow as number) ?? 0)
-        oddsSnapNow = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+        oddsSnapNow = { player: Number(r.playerOdds), banker: Number(r.bankerOdds), tie: Number(r.tieOdds) }
         // 공유 캐시 갱신 → Railway WS가 폴링 시 최신 배당 push
         oddsCurrentPayload = {
-          gameType, roundNumber, userCount: (userCountNow as number) ?? 0, pools: pool,
-          odds: { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds,
+          gameType, roundNumber, userCount: Number(userCountNow ?? 0), pools: pool,
+          odds: { player: Number(r.playerOdds), banker: Number(r.bankerOdds), tie: Number(r.tieOdds),
             lpWeight: r.lpWeight, mode: r.mode, available: r.available },
         }
       } else {
@@ -511,11 +520,11 @@ async function runBetForGame(gameType: "baccarat" | "race") {
           coin: parseInt((poolDataNow?.coin as string) ?? "0") || 0,
           tie:  parseInt((poolDataNow?.tie  as string) ?? "0") || 0,
         }
-        const r = calcRaceOdds(pool, lpConfig, (userCountNow as number) ?? 0)
-        oddsSnapNow = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
+        const r = calcRaceOdds(pool, lpConfig, Number(userCountNow ?? 0))
+        oddsSnapNow = { bit: Number(r.bitOdds), coin: Number(r.coinOdds), tie: Number(r.tieOdds) }
         oddsCurrentPayload = {
-          gameType, roundNumber, userCount: (userCountNow as number) ?? 0, pools: pool,
-          odds: { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds,
+          gameType, roundNumber, userCount: Number(userCountNow ?? 0), pools: pool,
+          odds: { bit: Number(r.bitOdds), coin: Number(r.coinOdds), tie: Number(r.tieOdds),
             lpWeight: r.lpWeight, mode: r.mode, available: r.available },
         }
       }
@@ -524,7 +533,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       await Promise.all([
         redis.set(userBetsKey, JSON.stringify(betPayload), { ex: ttl }),
         redis.set(`bet:round:${gameType}:${p.id}`, roundNumber, { ex: ttl }),
-        redis.set(`balance:${p.id}`, newBal as number, { ex: 3600 }),
+        redis.set(`balance:${p.id}`, (newBal ?? 0) as number, { ex: 3600 }),
         redis.incr(`balance_version:${p.id}`),
         redis.set(oddsSnapKey, JSON.stringify(oddsSnapNow), { ex: ttl }),
         // odds:current 캐시 갱신 먼저 → 그 다음 version incr (Railway poll이 최신 캐시를 읽음)
@@ -536,7 +545,7 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       await redis.incr(`odds_version:${gameType}`)
 
       const betOdds = oddsSnapNow[side] ?? null
-      return { username: p.username, gameType, side, amount, success: true, balance: newBal as number, round: roundNumber, odds: betOdds, fee: Math.floor(amount * 0.2) }
+      return { username: p.username, gameType, side, amount, success: true, balance: (newBal ?? 0) as number, round: roundNumber, odds: betOdds, fee: Math.floor(amount * 0.2) }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error"
       return { username: p.username, gameType, side, amount, success: false, error: msg, balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
@@ -631,11 +640,11 @@ export async function POST(request: Request) {
         if (authErr || !authUser.user) continue
         const uid = authUser.user.id
         // profiles 행 생성 (트리거가 없을 경우 대비 직접 삽입)
-        await adminSupabase.from("profiles").upsert({
+        await (adminSupabase.from("profiles") as any).upsert({
           id: uid, username, role: "user", nickname: username,
         }, { onConflict: "id" })
         // 잔고 10,000,000 초기 설정
-        await adminSupabase.from("balances").upsert({
+        await (adminSupabase.from("balances") as any).upsert({
           user_id: uid, amount: 10000000,
         }, { onConflict: "user_id" })
         created++
@@ -646,16 +655,16 @@ export async function POST(request: Request) {
 
   // action: "top_up"
   if (body.action === "top_up") {
-    const { data: profiles } = await adminSupabase
+    const { data: profilesTop } = await adminSupabase
       .from("profiles").select("id").in("username", AUTO_BET_USERNAMES)
-    if (!profiles) return NextResponse.json({ ok: true, topped: 0 })
-    const ids = profiles.map(p => p.id)
-    const { data: balances } = await adminSupabase
+    if (!profilesTop) return NextResponse.json({ ok: true, topped: 0 })
+    const ids = (profilesTop as { id: string }[]).map(p => p.id)
+    const { data: balancesTop } = await adminSupabase
       .from("balances").select("user_id, amount").in("user_id", ids)
-    const needTopUp = (balances ?? []).filter(b => b.amount < 1000000)
+    const needTopUp = ((balancesTop ?? []) as { user_id: string; amount: number }[]).filter(b => b.amount < 1000000)
     let topped = 0
     for (const b of needTopUp) {
-      await adminSupabase.from("balances").update({ amount: 10000000 }).eq("user_id", b.user_id)
+      await (adminSupabase.from("balances") as any).update({ amount: 10000000 }).eq("user_id", b.user_id)
       topped++
     }
     return NextResponse.json({ ok: true, topped })
@@ -757,30 +766,32 @@ export async function PATCH(request: Request) {
   if (body.action === "full_reset") {
     const gameType: "baccarat" | "race" | "all" = body.gameType ?? "all"
 
-    const { data: profiles } = await adminSupabase
+    const { data: profilesReset } = await adminSupabase
       .from("profiles")
       .select("id")
       .in("username", AUTO_BET_USERNAMES)
+    const profiles = (profilesReset ?? []) as { id: string }[]
 
-    if (!profiles || profiles.length === 0) return NextResponse.json({ ok: true, reset: 0 })
+    if (profiles.length === 0) return NextResponse.json({ ok: true, reset: 0 })
 
     const allIds = profiles.map(p => p.id)
 
     // gameType 필터: baccarat/race면 해당 게임에 bet_history가 있는 유저만
     let ids = allIds
     if (gameType !== "all") {
-      const { data: bh } = await adminSupabase
+      const { data: bhRaw } = await adminSupabase
         .from("bet_history")
         .select("user_id")
         .in("user_id", allIds)
         .eq("game_type", gameType)
-      const filtered = [...new Set((bh ?? []).map(r => r.user_id))]
+      const bh = (bhRaw ?? []) as { user_id: string }[]
+      const filtered = [...new Set(bh.map(r => r.user_id))]
       ids = filtered.length > 0 ? filtered : allIds
     }
 
     // 1. 잔고 1천만원으로 초기화
     for (const id of ids) {
-      await adminSupabase.from("balances").update({ amount: 10000000 }).eq("user_id", id)
+      await (adminSupabase.from("balances") as any).update({ amount: 10000000 }).eq("user_id", id)
       await redis.set(`balance:${id}`, 10000000, { ex: 3600 })
       await redis.incr(`balance_version:${id}`)
     }
