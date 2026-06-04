@@ -467,12 +467,11 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       return { username: p.username, gameType, side, amount, success: false, error: "잔고 부족", balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
     }
 
+    // 바카라·레이스 모두 라운드 내 중복 배팅 방지
     const userBetsKey = `bet:bets:${gameType}:${roundNumber}:${p.id}`
-    if (gameType === "race") {
-      const existing = await redis.get(userBetsKey)
-      if (existing) {
-        return { username: p.username, gameType, side, amount, success: false, error: "이미 배팅함", balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
-      }
+    const existing = await redis.get(userBetsKey)
+    if (existing) {
+      return { username: p.username, gameType, side, amount, success: false, error: "이미 배팅함", balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
     }
 
     try {
