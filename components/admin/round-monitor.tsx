@@ -543,6 +543,24 @@ export function RoundMonitor({
     setAbStatus("레이스 자동배팅 중지됨")
   }
 
+  const [creatingAccounts, setCreatingAccounts] = useState(false)
+
+  const handleCreateAccounts = async () => {
+    setCreatingAccounts(true)
+    setAbStatus("봇 계정 생성 중... (최대 2분 소요)")
+    const res = await fetchWithRefresh("/api/admin/auto-bet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "create_accounts" }),
+    })
+    if (res.ok) {
+      const d = await res.json()
+      setAbStatus(`봇 계정 생성 완료 — ${d.created}명 신규 생성 (전체 ${d.total}명)`)
+      loadAbUsers()
+    }
+    setCreatingAccounts(false)
+  }
+
   const handleTopUp = async () => {
     setToppingUp(true)
     const res = await fetchWithRefresh("/api/admin/auto-bet", {
@@ -774,6 +792,13 @@ export function RoundMonitor({
               <div className="flex items-center gap-2 flex-wrap">
                 <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => { loadAbUsers(); loadAbLogs() }}>
                   <RefreshCw className="w-3 h-3" /> 새로고침
+                </Button>
+                <Button
+                  variant="outline" size="sm" className="h-7 text-xs gap-1 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10"
+                  onClick={handleCreateAccounts} disabled={creatingAccounts}
+                >
+                  <Bot className="w-3 h-3" />
+                  {creatingAccounts ? "생성 중..." : "봇 계정 생성 (100명)"}
                 </Button>
                 <Button
                   variant="outline" size="sm" className="h-7 text-xs gap-1"

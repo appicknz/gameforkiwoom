@@ -38,8 +38,8 @@ async function requireAdmin(token: string | null, req?: Request) {
   return { id: userId }
 }
 
-// 자동배팅 유저 목록 (사용자2~사용자30, 홀수=baka, 짝수=race)
-const AUTO_BET_USERNAMES = Array.from({ length: 29 }, (_, i) => `사용자${i + 2}`)
+// 자동배팅 유저 목록 (사용자2~101, 홀수=baccarat 50명, 짝수=race 50명)
+const AUTO_BET_USERNAMES = Array.from({ length: 100 }, (_, i) => `사용자${i + 2}`)
 const BET_AMOUNTS = [10000, 50000, 100000]
 const BACCARAT_SIDES = ["player", "banker", "tie"] as const
 const RACE_SIDES = ["bit", "coin", "tie"] as const
@@ -544,10 +544,9 @@ async function runBetForGame(gameType: "baccarat" | "race") {
   }
 
   // ── 배팅 구간 내에 무작위 분산 배팅 ──────────────────────────
-  // 바카라: 배팅창 15초(5~19초), cron 진입(5초) 후 게임중(20초) 전까지 약 10~14초 예산
-  //         → 10초로 설정해 전체 유저가 게임중 진입 전에 완료 보장
-  // 레이스: cron maxDuration=55초 제약 → 5초 예산으로 즉시 완료
-  const SPREAD_BUDGET_MS = gameType === "baccarat" ? 10000 : 5000
+  // 바카라: 배팅창 15초(5~19초) — 50명을 12초 안에 자연 분산
+  // 레이스: 배팅창 50초(10~59초) — 50명을 40초 안에 자연 분산
+  const SPREAD_BUDGET_MS = gameType === "baccarat" ? 12000 : 40000
 
   // Fisher-Yates 셔플
   const shuffled = [...targetProfiles]
@@ -615,6 +614,35 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json()
+
+  // action: "create_accounts" — 부족한 봇 계정 Supabase Auth + profiles 생성
+  if (body.action === "create_accounts") {
+    const { data: existing } = await adminSupabase
+      .from("profiles").select("username").like("username", "사용자%")
+    const existingSet = new Set((existing ?? []).map((p: { username: string }) => p.username))
+    const missing = AUTO_BET_USERNAMES.filter(u => !existingSet.has(u))
+    let created = 0
+    for (const username of missing) {
+      try {
+        const email = `${username}@bot.internal`
+        const { data: authUser, error: authErr } = await adminSupabase.auth.admin.createUser({
+          email, password: "BotUser@2024!", email_confirm: true,
+        })
+        if (authErr || !authUser.user) continue
+        const uid = authUser.user.id
+        // profiles 행 생성 (트리거가 없을 경우 대비 직접 삽입)
+        await adminSupabase.from("profiles").upsert({
+          id: uid, username, role: "user", nickname: username,
+        }, { onConflict: "id" })
+        // 잔고 10,000,000 초기 설정
+        await adminSupabase.from("balances").upsert({
+          user_id: uid, amount: 10000000,
+        }, { onConflict: "user_id" })
+        created++
+      } catch {}
+    }
+    return NextResponse.json({ ok: true, created, total: AUTO_BET_USERNAMES.length })
+  }
 
   // action: "top_up"
   if (body.action === "top_up") {
