@@ -41,8 +41,22 @@ function toKSTDateStr(d: Date) {
 
 function getMonthDays(year: number, month: number) {
   // month: 0-based
-  const firstDay = new Date(year, month, 1).getDay()   // 0=일
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  // KST(+09:00) 기준으로 1일 요일과 말일 날짜를 계산
+  // new Date(year, month, 1) 는 로컬 타임존(UTC 환경에서 UTC)에 의존하므로
+  // ISO 문자열 + 오프셋으로 명시적 KST Date를 생성
+  const m = String(month + 1).padStart(2, "0")
+  const nextY = month === 11 ? year + 1 : year
+  const nextM = String(month === 11 ? 1 : month + 2).padStart(2, "0")
+
+  const firstDayKST   = new Date(`${year}-${m}-01T00:00:00+09:00`)
+  const nextMonthKST  = new Date(`${nextY}-${nextM}-01T00:00:00+09:00`)
+  const lastDayKST    = new Date(nextMonthKST.getTime() - 1000) // 말일 23:59:59 KST
+
+  const firstDay    = firstDayKST.getDay()   // 0=일 ~ 6=토 (KST 기준)
+  const daysInMonth = parseInt(
+    lastDayKST.toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" }).slice(-2),
+    10,
+  )
   return { firstDay, daysInMonth }
 }
 
