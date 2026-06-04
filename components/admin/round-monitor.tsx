@@ -194,7 +194,7 @@ function GameRoundCard({
 
   const modeLabel =
     stats.mode === "pari"   ? "파리뮤추얼" :
-    stats.mode === "hybrid" ? "����이브리드"  : "LP 주도"
+    stats.mode === "hybrid" ? "����이브��드"  : "LP 주도"
   const modeBg =
     stats.mode === "pari"   ? "bg-emerald-500/10 text-emerald-600" :
     stats.mode === "hybrid" ? "bg-amber-500/10 text-amber-600"    :
@@ -349,7 +349,7 @@ export function RoundMonitor({
   const [racePhase,       setRacePhase]       = useState<"정산중" | "배팅가능" | "게임중">("게임중")
   const [baccaratTimeLeft, setBaccaratTimeLeft] = useState(30)
   const [raceTimeLeft,     setRaceTimeLeft]     = useState(180)
-  // ref로 ��신 페이즈를 추적 — loadRoundStats 콜백 클로저에서 접근용
+  // ref로 ��신 ��이즈를 추적 — loadRoundStats 콜백 클로저에서 접근용
   const baccaratPhaseRef = useRef<"정산중" | "배팅가능" | "게임중">("게임중")
   const racePhaseRef     = useRef<"정산중" | "배팅가능" | "게임중">("게임중")
   const baccaratIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -523,7 +523,7 @@ export function RoundMonitor({
             status: totalFailed === 0 ? "완료" : totalSuccess === 0 ? "실패" : "완료",
           }
           setRoundBetLogs(prev => [newLog, ...prev.filter(l => !(l.round === round && l.gameType === "baccarat"))].slice(0, 20))
-          setAbStatus(`바카라 라운드 #${round} — ${totalSuccess}명 성공 / ${totalFailed}명 실패 / 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
+          setAbStatus(`바카라 라운드 #${round} — ${totalSuccess}명 성공 / ${totalFailed}�� 실패 / 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
           loadAbUsers()
         }
       }
@@ -635,9 +635,16 @@ export function RoundMonitor({
     baccaratIntervalRef.current = setInterval(() => {
       const { phase, round } = getBaccaratPhase()
       setBaccaratPhase(phase)
-      if (phase === "배팅가능" && baccaratLastBetRound.current !== round) {
-        baccaratLastBetRound.current = round
-        runBaccaratBet()
+      // 정산중(2~4초)에 미리 호출 — 서버가 배팅 구간까지 최대 6초 대기
+      // 이미 이번 라운드에 트리거했으면 스킵
+      if (phase === "정산중" && baccaratLastBetRound.current !== round) {
+        const nowSec = Math.floor(Date.now() / 1000)
+        const secInRound = nowSec % 30
+        // secInRound 2~4 구간에서 1회만 호출 (너무 이르면 서버 대기 시간 낭비)
+        if (secInRound >= 2) {
+          baccaratLastBetRound.current = round
+          runBaccaratBet()
+        }
       }
     }, 500)
   }
@@ -652,9 +659,14 @@ export function RoundMonitor({
     raceIntervalRef.current = setInterval(() => {
       const { phase, round } = getRacePhase()
       setRacePhase(phase)
-      if (phase === "배팅가능" && raceLastBetRound.current !== round) {
-        raceLastBetRound.current = round
-        runRaceBet()
+      // 정산중(5~9초)에 미리 호출 — 서버가 배팅 구간까지 대기
+      if (phase === "정산중" && raceLastBetRound.current !== round) {
+        const nowSec = Math.floor(Date.now() / 1000)
+        const secInRound = nowSec % 180
+        if (secInRound >= 5) {
+          raceLastBetRound.current = round
+          runRaceBet()
+        }
       }
     }, 1_000)
   }
@@ -726,7 +738,7 @@ export function RoundMonitor({
       setShowResetDialog(false); setResetPassword("")
       if (resetGameType === "all" || resetGameType === "baccarat") { setAccumulatedFee(0); setAbStats(null); setAbLogs([]) }
       setLastBetResults(null)
-      const label = resetGameType === "all" ? "전체" : resetGameType === "baccarat" ? "바카라" : "레이스"
+      const label = resetGameType === "all" ? "전체" : resetGameType === "baccarat" ? "바카��" : "레이스"
       setAbStatus(`${label} 초기화 완료 — ${d.reset}명 잔고 1천만원 리셋, 배팅 이력 삭제`)
       loadAbUsers()
     } else { setResetError("초기화 중 오류가 발생했습니다.") }

@@ -420,10 +420,24 @@ const BACCARAT_WAVES = [
 
 // 공통: 유저 배팅 1회 실행 (gameType 지정)
 async function runBetForGame(gameType: "baccarat" | "race") {
-  // ── 페이즈 체크: ��팅 가능 구간이 아니면 즉시 반환 ──
-  const phase = isBettingPhase(gameType)
-  if (!phase.allowed) {
-    return { results: [], totalFee: 0, round: 0, skipped: true, skipReason: phase.reason }
+  // ── 배팅 구간까지 최대 6초 대기 (클라이언트/서버 시계 오차 + 네트워크 지연 보정) ──
+  const WAIT_LIMIT_MS = 6000
+  const waitStart = Date.now()
+  let phase = isBettingPhase(gameType)
+  while (!phase.allowed) {
+    if (Date.now() - waitStart > WAIT_LIMIT_MS) {
+      return { results: [], totalFee: 0, round: 0, skipped: true, skipReason: phase.reason }
+    }
+    // 게임중(20~29초)이면 다음 라운드 정산→배팅까지 대기할 이유 없음 — 즉시 포기
+    if (gameType === "baccarat" && phase.secInRound >= 20) {
+      return { results: [], totalFee: 0, round: 0, skipped: true, skipReason: phase.reason }
+    }
+    if (gameType === "race" && phase.secInRound >= 60) {
+      return { results: [], totalFee: 0, round: 0, skipped: true, skipReason: phase.reason }
+    }
+    // 정산중이면 200ms 폴링으로 배팅 구간 진입 대기
+    await new Promise(r => setTimeout(r, 200))
+    phase = isBettingPhase(gameType)
   }
 
   const { data: profilesRaw2 } = await adminSupabase
