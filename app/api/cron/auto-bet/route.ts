@@ -57,45 +57,73 @@ export async function GET(request: Request) {
     } catch (e) { return { error: String(e) } }
   }
 
+  // ── 전략 ──────────────────────────────────────────────────────
+  // 바카라(30초 라운드): cron 1분 내에 라운드 2개를 커버
+  //   배팅 구간: secInRound 5~19 (남은 25→11초)
+  //   wave 트리거 secInRound: 5(30%), 10(15%), 14(15%), 17(나머지)
+  //   → runBetForGame 내부에서 wave 대기/실행을 직접 처리
+  //   → cron은 배팅 구간 진입 직전(secInRound=3~4)에 한 번씩 호출
+  // 레이스(180초 라운드): 배팅 구간 10~59초, 분당 1회 호출로 충분
+  // maxDuration=55초 내 안전하게 처리
+
   const results: Record<string, unknown> = {}
 
-  // 전략: cron에서 phase 판단 없이 매 실행마다 배팅 호출
-  // isBettingPhase 체크는 /api/admin/auto-bet 서버 내부에서 수행
-  // 바카라 30초 라운드를 분당 2회 커버하기 위해 5초 간격으로 6회 폴링
+  const sleepMs = (ms: number) => new Promise(r => setTimeout(r, ms))
+  const nowMs = () => Date.now()
 
-  const nowSec0    = Math.floor(Date.now() / 1000)
-  const raceRound0 = Math.floor(nowSec0 / 180)
-
-  // 레이스 정산 (분당 1회로 충분)
+  // ── 레이스 정산 (1회) ─────────────────────────────────────────
+  const t0 = Math.floor(nowMs() / 1000)
+  const raceRound0 = Math.floor(t0 / 180)
   results.raceSettle = await callBotSettle("race", raceRound0 - 1)
 
-  // 바카라 + 레이스를 5초 간격으로 6회 시도 (총 25초, maxDuration=55초 내 안전)
-  // 각 호출은 내부 isBettingPhase가 허용할 때만 실제 배팅
-  const betResults: unknown[] = []
-  const raceResults: unknown[] = []
+  // ── 헬퍼: 현재 secInRound 반환 ───────────────────────────────
+  const bacSecInRound = () => Math.floor(nowMs() / 1000) % 30
 
-  for (let i = 0; i < 6; i++) {
-    const nowSec = Math.floor(Date.now() / 1000)
-    const bacRound = Math.floor(nowSec / 30)
-
-    // 바카라 정산 (각 라운드 전환 시점에 1회)
-    if (i === 0 || i === 3) {
-      results[`settle_bac_${i}`] = await callBotSettle("baccarat", bacRound - 1)
+  // ── 바카라 1라운드 처리 ───────────────────────────────────────
+  // 현재 secInRound가 5 미만이면 5초까지 대기, 배팅 시작 (wave는 내부에서 관리)
+  // 이미 배팅 구간(5~19)이면 즉시 호출
+  // 게임중(20~29)이면 다음 라운드 배팅 구간까지 대기
+  const waitUntilBettingStart = async (maxWaitMs: number) => {
+    const deadline = nowMs() + maxWaitMs
+    while (nowMs() < deadline) {
+      const s = bacSecInRound()
+      if (s >= 5 && s < 20) return true   // 배팅 구간 진입
+      if (s >= 20) {
+        // 게임중 → 다음 라운드 시작(0초) + 5초 까지 대기
+        const waitSec = (30 - s) + 5
+        await sleepMs(waitSec * 1000 + 100)
+      } else {
+        // 정산중(0~4) → 5초까지 대기
+        const waitSec = 5 - s
+        await sleepMs(waitSec * 1000 + 100)
+      }
     }
-
-    // 배팅 시도 (내부에서 phase 체크)
-    const [bacRes, raceRes] = await Promise.all([
-      callAutoBet("bet_baccarat"),
-      callAutoBet("bet_race"),
-    ])
-    betResults.push(bacRes)
-    raceResults.push(raceRes)
-
-    if (i < 5) await new Promise(r => setTimeout(r, 5000))
+    return false
   }
 
-  results.baccarat = betResults
-  results.race     = raceResults
+  // 1라운드
+  const r1Ready = await waitUntilBettingStart(20000) // 최대 20초 대기
+  if (r1Ready) {
+    const nowBac = Math.floor(nowMs() / 1000)
+    results.settle_bac_1 = await callBotSettle("baccarat", Math.floor(nowBac / 30) - 1)
+    results.baccarat_1 = await callAutoBet("bet_baccarat") // 내부 wave 로직 실행 (~12초 소요)
+  }
+
+  // ── 레이스 배팅 (배팅 구간 10~59초에 진입 시 실행) ─────────────
+  const raceSecInRound = () => Math.floor(nowMs() / 1000) % 180
+  const rs = raceSecInRound()
+  if (rs >= 10 && rs < 60) {
+    results.race = await callAutoBet("bet_race")
+  }
+
+  // ── 바카라 2라운드 (1라운드 종료 후 남은 시간으로 커버) ──────────
+  // bet_baccarat 내부에서 최대 12초 소요 → 이후 다음 라운드 배팅 구간 대기
+  const r2Ready = await waitUntilBettingStart(25000) // 최대 25초 대기
+  if (r2Ready) {
+    const nowBac2 = Math.floor(nowMs() / 1000)
+    results.settle_bac_2 = await callBotSettle("baccarat", Math.floor(nowBac2 / 30) - 1)
+    results.baccarat_2 = await callAutoBet("bet_baccarat")
+  }
 
   return NextResponse.json({
     ok: true,

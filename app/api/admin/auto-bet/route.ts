@@ -381,23 +381,42 @@ export async function GET(request: Request) {
 }
 
 // 페이즈 체크: 현재 시각이 배팅 가능 구간인지 확인
-function isBettingPhase(gameType: "baccarat" | "race"): { allowed: boolean; reason?: string } {
+// 바카라 30초 라운드: 30→26초=정산(5초), 25→11초=배팅(15초), 10→0초=게임중(10초)
+// secInRound는 라운드 내 경과초 (0~29)
+// 라운드 시작(0초) 기준 게임중=0~9, 정산=20~24, 배팅=10~19 가 아니라
+// "남은 시간" 기준으로 계산: 30 - secInRound = 남은 초
+function isBettingPhase(gameType: "baccarat" | "race"): { allowed: boolean; secInRound: number; reason?: string } {
   const nowSec = Math.floor(Date.now() / 1000)
   if (gameType === "baccarat") {
-    // 30초 라운드: 실제 게임과 ��일 기준
-    // 0~4초: 정산(5초), 5~19초: 배팅(15초), 20~29초: 게임중(10초)
+    // 30초 라운드, secInRound = 경과초(0~29)
+    // 남은 초 = 30 - secInRound
+    // 배팅 구간: 남은 11초 ~ 25초 → secInRound 5~19
+    // 게임중:    남은 0초  ~ 10초 → secInRound 20~29
+    // 정산중:    남은 26초 ~ 30초 → secInRound 0~4
     const s = nowSec % 30
-    if (s < 5)  return { allowed: false, reason: `정산중 (secInRound=${s})` }
-    if (s >= 20) return { allowed: false, reason: `게임중 (secInRound=${s})` }
-    return { allowed: true }
+    if (s < 5)   return { allowed: false, secInRound: s, reason: `정산중 (secInRound=${s})` }
+    if (s >= 20)  return { allowed: false, secInRound: s, reason: `게임중 (secInRound=${s})` }
+    return { allowed: true, secInRound: s }
   } else {
-    // 180초 라운드: 0~9초: 정산, 10~59초: 배팅, 60~179초: 게임중
+    // 180초 라운드: 0~9초=정산, 10~59초=배팅, 60~179초=게임중
     const s = nowSec % 180
-    if (s < 10)  return { allowed: false, reason: `정산중 (secInRound=${s})` }
-    if (s >= 60) return { allowed: false, reason: `게임중 (secInRound=${s})` }
-    return { allowed: true }
+    if (s < 10)  return { allowed: false, secInRound: s, reason: `정산중 (secInRound=${s})` }
+    if (s >= 60) return { allowed: false, secInRound: s, reason: `게임중 (secInRound=${s})` }
+    return { allowed: true, secInRound: s }
   }
 }
+
+// 바카라 wave 정의 (secInRound 기준)
+// secInRound 5 = 남은 25초 (배팅 시작) → wave 1 (30%)
+// secInRound 10 = 남은 20초             → wave 2 (15%)
+// secInRound 14 = 남은 16초             → wave 3 (15%)
+// secInRound 17 = 남은 13초             → wave 4 (나머지 전부)
+const BACCARAT_WAVES = [
+  { secInRound: 5,  ratio: 0.30, waveIdx: 1 },
+  { secInRound: 10, ratio: 0.15, waveIdx: 2 },
+  { secInRound: 14, ratio: 0.15, waveIdx: 3 },
+  { secInRound: 17, ratio: 1.00, waveIdx: 4 }, // 나머지 전부
+] as const
 
 // 공통: 유저 배팅 1회 실행 (gameType 지정)
 async function runBetForGame(gameType: "baccarat" | "race") {
@@ -551,56 +570,93 @@ async function runBetForGame(gameType: "baccarat" | "race") {
     }
   }
 
-  // ── 배팅 구간 내에 무작위 분산 배팅 ──────────────────────────
-  // 바카라: 배팅창 15초(5~19초) — 50명을 12초 안에 자연 분산
-  // 레이스: 배팅창 50초(10~59초) — 50명을 40초 안에 자연 분산
-  const SPREAD_BUDGET_MS = gameType === "baccarat" ? 12000 : 40000
-
-  // Fisher-Yates 셔플
+  // ── Fisher-Yates 셔플 ──────────────────────────────────────────
   const shuffled = [...targetProfiles]
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
   }
 
-  // 2~4명씩 랜덤 그룹 분할
-  const groups: (typeof shuffled)[] = []
-  let idx = 0
-  while (idx < shuffled.length) {
-    const groupSize = Math.min(
-      2 + Math.floor(Math.random() * 3),  // 2, 3, 4 중 랜덤
-      shuffled.length - idx
-    )
-    groups.push(shuffled.slice(idx, idx + groupSize))
-    idx += groupSize
-  }
-
-  // 그룹 간 딜레이 균등 분배 (마지막 그룹은 딜레이 없음)
-  const delayPerGap = groups.length > 1
-    ? Math.floor(SPREAD_BUDGET_MS / (groups.length - 1))
-    : 0
-  // ±30% 지터 추가로 더 자연스럽게
-  const jitter = () => Math.floor((Math.random() - 0.5) * 2 * delayPerGap * 0.3)
-
   const settled: Awaited<ReturnType<typeof betOne>>[] = []
 
-  for (let g = 0; g < groups.length; g++) {
-    // 첫 그룹도 0~1500ms 랜덤 딜레이로 시작 타이밍 분산
-    if (g === 0) {
-      const initialDelay = Math.floor(Math.random() * 1500)
-      await new Promise(res => setTimeout(res, initialDelay))
-    } else {
-      const wait = Math.max(300, delayPerGap + jitter())
-      await new Promise(res => setTimeout(res, wait))
+  if (gameType === "baccarat") {
+    // ── 바카라: wave 기반 배팅 ────────────────────────────────────
+    // wave 1(25초): 30%  wave 2(20초): 15%  wave 3(16초): 15%  wave 4(13초): 나머지
+    // 현재 secInRound를 보고 어느 wave부터 실행할지 결정 — 이미 지난 wave는 건너뜀
+    const total = shuffled.length
+    const w1End = Math.round(total * 0.30)
+    const w2End = Math.round(total * 0.45)
+    const w3End = Math.round(total * 0.60)
+
+    const waveSlices = [
+      { users: shuffled.slice(0, w1End),       secTrigger: 5  }, // 남은 25초 (secInRound=5)
+      { users: shuffled.slice(w1End, w2End),   secTrigger: 10 }, // 남은 20초 (secInRound=10)
+      { users: shuffled.slice(w2End, w3End),   secTrigger: 14 }, // 남은 16초 (secInRound=14)
+      { users: shuffled.slice(w3End),           secTrigger: 17 }, // 남은 13초 (secInRound=17)
+    ]
+
+    for (const wave of waveSlices) {
+      if (wave.users.length === 0) continue
+
+      // 현재 secInRound가 이 wave의 트리거 시점 이후면 즉시 실행
+      // 아직 안 됐으면 해당 초까지 대기
+      let phase = isBettingPhase("baccarat")
+      if (!phase.allowed) break
+
+      if (phase.secInRound < wave.secTrigger) {
+        // 해당 wave 트리거까지 남은 ms 계산
+        const remainMs = (wave.secTrigger - phase.secInRound) * 1000
+        // 최대 1000ms 지터 추가로 자연스럽게
+        const jitter = Math.floor(Math.random() * 1000)
+        await new Promise(r => setTimeout(r, remainMs + jitter))
+      }
+
+      // wave 트리거 후 재확인
+      phase = isBettingPhase("baccarat")
+      if (!phase.allowed) break
+
+      // 그룹 내 2~4명씩 짧은 간격(200~600ms)으로 배팅 → 자연스럽게
+      const groups: (typeof shuffled)[] = []
+      let idx2 = 0
+      while (idx2 < wave.users.length) {
+        const gs = Math.min(2 + Math.floor(Math.random() * 3), wave.users.length - idx2)
+        groups.push(wave.users.slice(idx2, idx2 + gs))
+        idx2 += gs
+      }
+      for (const grp of groups) {
+        const stillOk = isBettingPhase("baccarat")
+        if (!stillOk.allowed) break
+        const grpResults = await Promise.all(grp.map(betOne))
+        settled.push(...grpResults)
+        if (groups.indexOf(grp) < groups.length - 1) {
+          await new Promise(r => setTimeout(r, 200 + Math.floor(Math.random() * 400)))
+        }
+      }
     }
+  } else {
+    // ── 레이스: 배팅창 50초(10~59초) 안에 자연 분산 ─────────────
+    const SPREAD_BUDGET_MS = 40000
+    const groups: (typeof shuffled)[] = []
+    let idx = 0
+    while (idx < shuffled.length) {
+      const gs = Math.min(2 + Math.floor(Math.random() * 3), shuffled.length - idx)
+      groups.push(shuffled.slice(idx, idx + gs))
+      idx += gs
+    }
+    const delayPerGap = groups.length > 1 ? Math.floor(SPREAD_BUDGET_MS / (groups.length - 1)) : 0
+    const jitter = () => Math.floor((Math.random() - 0.5) * 2 * delayPerGap * 0.3)
 
-    // 배팅 구간이 아직 유효한지 재확인
-    const stillOk = isBettingPhase(gameType)
-    if (!stillOk.allowed) break
-
-    // 그룹 내는 병렬 처리
-    const groupResults = await Promise.all(groups[g].map(betOne))
-    settled.push(...groupResults)
+    for (let g = 0; g < groups.length; g++) {
+      if (g === 0) {
+        await new Promise(r => setTimeout(r, Math.floor(Math.random() * 1500)))
+      } else {
+        await new Promise(r => setTimeout(r, Math.max(300, delayPerGap + jitter())))
+      }
+      const stillOk = isBettingPhase("race")
+      if (!stillOk.allowed) break
+      const grpResults = await Promise.all(groups[g].map(betOne))
+      settled.push(...grpResults)
+    }
   }
 
   // odds:final 저장 제거 — 각 유저의 odds:snap이 betOne에서 저장됨
