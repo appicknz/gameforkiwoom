@@ -68,23 +68,6 @@ function elapsedStr(ms: number): string {
   return `${Math.floor(s / 3600)}시간`
 }
 
-// ─── KST 날짜 헬퍼 ───────────────────────────────────────────────────
-/** KST 기준 오늘 날짜 문자열 "YYYY-MM-DD" */
-function kstDateStr(d: Date = new Date()): string {
-  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
-}
-/** "YYYY-MM-DD" → { year, month(0-based), day } KST 파싱 */
-function parseKstDateStr(s: string) {
-  const [y, m, d] = s.split("-").map(Number)
-  return { year: y, month: m - 1, day: d }
-}
-/** KST 기준 오늘 Date를 "가짜 UTC" Date로 — getFullYear/Month/Date 이 KST 값을 돌려줌 */
-function kstFakeDate(d: Date = new Date()): Date {
-  const kst = kstDateStr(d)
-  const { year, month, day } = parseKstDateStr(kst)
-  return new Date(Date.UTC(year, month, day))
-}
-
 // ─── 날짜 스트립 ─────────────────────────────────────────────────────
 
 /** 깜빡이는 초록 점만 */
@@ -97,25 +80,19 @@ function PulseDot() {
   )
 }
 
-/** 현재 시간 텍스트만 — KST 기준 */
+/** 현재 시간 텍스트만 */
 function ClockTime() {
-  const [timeStr, setTimeStr] = useState<string>("")
+  const [now, setNow] = useState<Date | null>(null)
   useEffect(() => {
-    const update = () => {
-      const now = new Date()
-      const kst = now.toLocaleTimeString("ko-KR", {
-        timeZone: "Asia/Seoul",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true,
-      })
-      setTimeStr(kst)
-    }
-    update()
-    const id = setInterval(update, 1000)
+    setNow(new Date())
+    const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
+  const h    = now ? now.getHours() : 0
+  const ampm = h < 12 ? "오전" : "오후"
+  const h12  = h % 12 === 0 ? 12 : h % 12
+  const mm   = now ? String(now.getMinutes()).padStart(2, "0") : "00"
+  const ss   = now ? String(now.getSeconds()).padStart(2, "0") : "00"
   return (
     <span suppressHydrationWarning style={{
       fontSize: 9,
@@ -124,7 +101,7 @@ function ClockTime() {
       fontVariantNumeric: "tabular-nums",
       letterSpacing: "0.03em",
     }}>
-      {timeStr}
+      {ampm} {String(h12).padStart(2, "0")}:{mm}:{ss}
     </span>
   )
 }
@@ -140,8 +117,8 @@ function LiveClock() {
 }
 
 function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (d: Date) => void }) {
-  // KST 기준 오늘 — kstFakeDate()는 getFullYear/Month/Date가 KST 값을 반환하는 가짜 UTC Date
-  const today = kstFakeDate()
+  // KST 기준 오늘 날짜 (UTC+9)
+  const today = new Date(Date.now() + 9 * 3600_000)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // 오늘 기준 29일 전부터 오늘까지 (30일)
@@ -149,14 +126,13 @@ function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (
   const days: Date[] = []
   for (let i = DAYS_BACK; i >= 0; i--) {
     const d = new Date(today)
-    d.setUTCDate(today.getUTCDate() - i)
+    d.setDate(today.getDate() - i)
     days.push(d)
   }
 
   const DAY_KO = ["일", "월", "화", "수", "목", "금", "토"]
-  // 두 가짜 UTC Date 비교: getUTCFullYear/Month/Date 사용
   const isSame = (a: Date, b: Date) =>
-    a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate()
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 
   // 마운트 시 또는 selectedDate가 오늘로 변경될 때 맨 오른쪽으로 스크롤
   const isSelectedToday = isSame(selectedDate, today)
@@ -176,9 +152,8 @@ function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (
         style={{ display: "flex", overflowX: "auto", scrollbarWidth: "none" }}
       >
         {days.map((d, i) => {
-          const dow     = d.getUTCDay() // 가짜 UTC Date에서 요일은 getUTCDay()
-          const isSun   = dow === 0
-          const isSat   = dow === 6
+          const isSun   = d.getDay() === 0
+          const isSat   = d.getDay() === 6
           const isToday = isSame(d, today)
           const isSel   = isSame(d, selectedDate)
 
@@ -204,7 +179,7 @@ function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (
             >
               {/* 요일 */}
               <span style={{ fontSize: 9, fontWeight: 500, color: dayColor, letterSpacing: "0.02em" }}>
-                {DAY_KO[dow]}
+                {DAY_KO[d.getDay()]}
               </span>
               {/* 날짜 숫자 */}
               <span style={{
@@ -220,7 +195,7 @@ function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (
                   : "2px solid transparent",
                 background: isSel && !isToday ? "rgba(212,175,55,0.1)" : "transparent",
               }}>
-                {d.getUTCDate()}
+                {d.getDate()}
               </span>
             </button>
           )
@@ -571,12 +546,11 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
   const [loading,      setLoading]     = useState(true)
   const [stopLossPct,  setStopLossPct] = useState<number | null>(null)
   const [sizeUsdCfg,   setSizeUsdCfg]  = useState<number>(10)
-  const [selectedDate, setSelectedDate] = useState<Date>(() => kstFakeDate())
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date(Date.now() + 9 * 3600_000))
   const [, setTick] = useState(0)
 
-  // kstFakeDate()는 getUTCFullYear/Month/Date가 KST 날짜를 반환
-  const dateStr  = `${selectedDate.getUTCFullYear()}-${String(selectedDate.getUTCMonth()+1).padStart(2,"0")}-${String(selectedDate.getUTCDate()).padStart(2,"0")}`
-  const todayStr = kstDateStr()
+  const dateStr  = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
+  const todayStr = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
   const isToday  = dateStr === todayStr
 
   useEffect(() => {
@@ -737,7 +711,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
           const sizeUsd    = Number(pos.size_usd ?? sizeUsdCfg)
           const lev        = Number(pos.leverage ?? 10)
           const closedAt   = pos.closed_at
-            ? new Date(pos.closed_at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+            ? new Date(pos.closed_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
             : "-"
           const reasonLabel: Record<string, string> = { manual: "수동", stop_loss: "스탑로스", all: "전체청산" }
           const reason = reasonLabel[pos.close_reason ?? ""] ?? pos.close_reason ?? "-"
@@ -835,7 +809,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
-  const [selectedDate, setSelectedDate] = useState<Date>(() => kstFakeDate())
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date(Date.now() + 9 * 3600_000))
   const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
   const krwRate = 1450
   const [countdown,    setCountdown]    = useState("")
@@ -864,9 +838,8 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
       : { "Content-Type": "application/json" }
   }
 
-  // kstFakeDate()는 getUTCFullYear/Month/Date가 KST 날짜를 반환
-  const dateStr   = `${selectedDate.getUTCFullYear()}-${String(selectedDate.getUTCMonth()+1).padStart(2,"0")}-${String(selectedDate.getUTCDate()).padStart(2,"0")}`
-  const todayKST  = kstDateStr()
+  const dateStr   = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
+  const todayKST  = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
   const isToday   = dateStr === todayKST
 
   const load = () => {
@@ -988,7 +961,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
       // localStorage도 업데이트
       if (loginData.token) localStorage.setItem("app_token", loginData.token)
 
-      const kstDate = kstDateStr()
+      const kstDate = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
 
       // 2. 오늘 매매기록에 PNL 저장
       const saveRes = await fetch("/api/auto-signal/rebalance", {
@@ -1006,9 +979,13 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
         body: JSON.stringify({ all: true, reason: "confirmed_by_master" }),
       })
 
-      setClosedTime(new Date().toLocaleTimeString("ko-KR", {
-        timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
-      }))
+      const now = new Date(Date.now() + 9 * 3600_000)
+      const hh = String(now.getUTCHours()).padStart(2, "0")
+      const mi = String(now.getUTCMinutes()).padStart(2, "0")
+      const ss = String(now.getUTCSeconds()).padStart(2, "0")
+      const ampm = now.getUTCHours() < 12 ? "오전" : "오후"
+      const h12  = now.getUTCHours() % 12 === 0 ? 12 : now.getUTCHours() % 12
+      setClosedTime(`${ampm} ${String(h12).padStart(2,"0")}:${mi}:${ss}`)
       setConfirmOpen(false)
       setClosedToday(true)
       load()
@@ -1128,7 +1105,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
       {/* 수익 입력 폼 — 마스터 계정만 */}
       {isMaster && <div style={{ margin: "0 14px 10px", padding: "12px 14px", borderRadius: 10, border: `1px solid rgba(212,175,55,0.15)`, background: "rgba(212,175,55,0.04)", flexShrink: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, marginBottom: 10 }}>
-          {`${selectedDate.getUTCMonth()+1}월 ${selectedDate.getUTCDate()}일`} 수익 입력
+          {`${selectedDate.getMonth()+1}월 ${selectedDate.getDate()}일`} 수익 입력
           {existing && <span style={{ marginLeft: 6, fontSize: 9, color: "rgba(255,255,255,0.3)", fontWeight: 400 }}>기록 있음 — 덮어씁니다</span>}
         </div>
         <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
@@ -1179,9 +1156,9 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
           <>
             {/* 오늘 실시간 행 — 미반영 시 반영 버튼, 반영 후 금일매매 종료 표시 */}
             {((!todayRecordExists && todayAutoPnl !== 0) || closedToday) && (() => {
-              const _kst = kstDateStr()
-              const mm = parseInt(_kst.slice(5, 7))
-              const dd = parseInt(_kst.slice(8, 10))
+              const nowKst = new Date(Date.now() + 9 * 3600_000)
+              const mm = nowKst.getUTCMonth() + 1
+              const dd = nowKst.getUTCDate()
               const pnlColor = todayAutoPnl >= 0 ? UP_COLOR : DOWN_COLOR
               const roi = confirmedValue > 0 ? (todayAutoPnl / confirmedValue) * 100 : 0
               return closedToday ? (
@@ -1394,13 +1371,13 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const [seedCapital,   setSeedCapital]  = useState<number>(640)
   const closingRef = useRef<Set<string>>(new Set())
 
-  // KST 기준 오늘 날짜 — kstFakeDate()로 만든 Date는 getUTCYear/Month/Date가 KST 값
-  const todayKST = kstDateStr()
+  // KST 기준 오늘 날짜
+  const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   const dateKey = [
-    selectedDate.getUTCFullYear(),
-    String(selectedDate.getUTCMonth() + 1).padStart(2, "0"),
-    String(selectedDate.getUTCDate()).padStart(2, "0"),
+    selectedDate.getFullYear(),
+    String(selectedDate.getMonth() + 1).padStart(2, "0"),
+    String(selectedDate.getDate()).padStart(2, "0"),
   ].join("-")
 
   const isToday = dateKey === todayKST
@@ -1485,7 +1462,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     return () => clearInterval(t)
   }, [isToday])
 
-  const dateLabel = `${selectedDate.getUTCMonth() + 1}월 ${selectedDate.getUTCDate()}일`
+  const dateLabel = `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일`
 
   // 심볼 정규화: JCTUSDT.P → JCTUSDT
   const normalize = (raw: string) => raw.replace(/\.P$/, "").replace(/\//g, "")
@@ -1690,7 +1667,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
 
       {sortedCalc.map(pos => {
         const roiColor    = pos.roi >= 0 ? UP_COLOR : DOWN_COLOR
-        const inTime      = new Date(pos.signal_time).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })
+        const inTime      = new Date(pos.signal_time).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
         const baseSymbol  = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
         const slThreshold = stopLossPct !== null ? -(stopLossPct * (pos.leverage ?? 1)) : null
         const isSlWarning = slThreshold !== null && pos.hasCur && pos.roi <= slThreshold * 0.8 && pos.roi > slThreshold
@@ -1789,12 +1766,12 @@ export default function TradePage() {
   const [dialogPrice,   setDialogPrice]   = useState<number | null>(null)
   const [tick,          setTick]          = useState(0)
   const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
-  const [selectedDate,  setSelectedDate]  = useState(() => kstFakeDate())
+  const [selectedDate,  setSelectedDate]  = useState(() => new Date(Date.now() + 9 * 3600_000))
   const [tradeMode,       setTradeMode]       = useState<"auto" | "closed" | "ledger" | "mock">("auto")
 
   // 탭 전환 시 날짜를 오늘로 리셋 → DateStrip이 맨 오른쪽으로 스크롤
   const switchTab = (mode: "auto" | "closed" | "ledger" | "mock") => {
-    setSelectedDate(kstFakeDate())
+    setSelectedDate(new Date(Date.now() + 9 * 3600_000))
     setTradeMode(mode)
   }
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
@@ -2172,7 +2149,7 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* ══����══ PC (lg 이상) ════��═ */}
+      {/* ══����══ PC (lg 이상) ══════ */}
       <main className="hidden lg:block max-w-7xl mx-auto p-4">
         <div style={{ height: "calc(100vh - 172px)", position: "relative" }}>
           {/* LivePricesTab — 항상 mount (소켓 유지), 자동매매 탭에서는 숨김 */}
