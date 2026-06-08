@@ -7,6 +7,20 @@ import LivePricesTab, { liveCache } from "@/components/trade/live-prices-tab"
 import SymbolChart from "@/components/trade/symbol-chart"
 import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Bot, LineChart, Clock, ArrowUpDown, Bell, ListChecks, BookOpen } from "lucide-react"
 
+// KST 기준 오늘 날짜를 Date 객체로 반환하는 헬퍼
+// new Date(Date.now() + 9h) 는 UTC Date 객체이므로
+// .getDate()/.getMonth() 등이 UTC 기준으로 읽혀 하루 틀림
+// 올바른 방법: Intl 으로 KST 날짜 문자열 파싱 후 로컬 Date 생성
+function kstToday(): Date {
+  const kstStr = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" }) // "2026-06-07"
+  const [y, m, d] = kstStr.split("-").map(Number)
+  return new Date(y, m - 1, d) // 로컬 자정 Date — .getDate()/.getMonth() 안전
+}
+// KST 기준 오늘 날짜 문자열 "YYYY-MM-DD"
+function kstTodayStr(): string {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+}
+
 const GOLD       = "#d4af37"
 const UP_COLOR   = "#22c55e"
 const DOWN_COLOR = "#ef4444"
@@ -117,8 +131,8 @@ function LiveClock() {
 }
 
 function DateStrip({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (d: Date) => void }) {
-  // KST 기준 오늘 날짜 (UTC+9)
-  const today = new Date(Date.now() + 9 * 3600_000)
+  // KST 기준 오늘 날짜
+  const today = kstToday()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // 오늘 기준 29일 전부터 오늘까지 (30일)
@@ -546,11 +560,11 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
   const [loading,      setLoading]     = useState(true)
   const [stopLossPct,  setStopLossPct] = useState<number | null>(null)
   const [sizeUsdCfg,   setSizeUsdCfg]  = useState<number>(10)
-  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date(Date.now() + 9 * 3600_000))
+  const [selectedDate, setSelectedDate] = useState<Date>(() => kstToday())
   const [, setTick] = useState(0)
 
   const dateStr  = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
-  const todayStr = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+  const todayStr = kstTodayStr()
   const isToday  = dateStr === todayStr
 
   useEffect(() => {
@@ -809,7 +823,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
-  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date(Date.now() + 9 * 3600_000))
+  const [selectedDate, setSelectedDate] = useState<Date>(() => kstToday())
   const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
   const krwRate = 1450
   const [countdown,    setCountdown]    = useState("")
@@ -839,7 +853,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
   }
 
   const dateStr   = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
-  const todayKST  = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+  const todayKST  = kstTodayStr()
   const isToday   = dateStr === todayKST
 
   const load = () => {
@@ -961,7 +975,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
       // localStorage도 업데이트
       if (loginData.token) localStorage.setItem("app_token", loginData.token)
 
-      const kstDate = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+      const kstDate = kstTodayStr()
 
       // 2. 오늘 매매기록에 PNL 저장
       const saveRes = await fetch("/api/auto-signal/rebalance", {
@@ -1156,9 +1170,9 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
           <>
             {/* 오늘 실시간 행 — 미반영 시 반영 버튼, 반영 후 금일매매 종료 표시 */}
             {((!todayRecordExists && todayAutoPnl !== 0) || closedToday) && (() => {
-              const nowKst = new Date(Date.now() + 9 * 3600_000)
-              const mm = nowKst.getUTCMonth() + 1
-              const dd = nowKst.getUTCDate()
+              const kstStr = kstTodayStr() // "YYYY-MM-DD"
+              const mm = parseInt(kstStr.slice(5, 7))
+              const dd = parseInt(kstStr.slice(8, 10))
               const pnlColor = todayAutoPnl >= 0 ? UP_COLOR : DOWN_COLOR
               const roi = confirmedValue > 0 ? (todayAutoPnl / confirmedValue) * 100 : 0
               return closedToday ? (
@@ -1372,7 +1386,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const closingRef = useRef<Set<string>>(new Set())
 
   // KST 기준 오늘 날짜
-  const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const todayKST = kstTodayStr()
 
   const dateKey = [
     selectedDate.getFullYear(),
@@ -1766,12 +1780,12 @@ export default function TradePage() {
   const [dialogPrice,   setDialogPrice]   = useState<number | null>(null)
   const [tick,          setTick]          = useState(0)
   const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
-  const [selectedDate,  setSelectedDate]  = useState(() => new Date(Date.now() + 9 * 3600_000))
+  const [selectedDate,  setSelectedDate]  = useState(() => kstToday())
   const [tradeMode,       setTradeMode]       = useState<"auto" | "closed" | "ledger" | "mock">("auto")
 
   // 탭 전환 시 날짜를 오늘로 리셋 → DateStrip이 맨 오른쪽으로 스크롤
   const switchTab = (mode: "auto" | "closed" | "ledger" | "mock") => {
-    setSelectedDate(new Date(Date.now() + 9 * 3600_000))
+    setSelectedDate(kstToday())
     setTradeMode(mode)
   }
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
