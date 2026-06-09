@@ -1994,7 +1994,7 @@ export default function TradePage() {
     }
   }, [])
 
-  // ── 종목 선택 ─────────��────────���─────���───────────��──────��────────
+  // ── 종목 선택 ─────────��────────���─────���───���───────��──────��────────
   // PC: 차트 변경만 (다이얼로그 열지 않음)
   const handlePcSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)

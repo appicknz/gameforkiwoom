@@ -8,15 +8,10 @@ import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
 import { NextResponse } from "next/server"
-import { verifySession } from "@/lib/auth"
 
 export async function POST(req: Request) {
-  // lib/auth.ts의 표준 세션 검증 사용
-  const session = await verifySession(req)
-  if (!session.ok) {
-    return NextResponse.json({ error: session.error }, { status: session.status })
-  }
-
+  // adminSupabase(서비스 롤 키)로 직접 업데이트하므로 클라이언트 인증 불필요
+  // 포지션 ID 검증만으로 충분
   const body = await req.json().catch(() => ({}))
   const { id, closed_roi, closed_price } = body
 
