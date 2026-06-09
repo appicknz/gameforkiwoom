@@ -68,7 +68,31 @@ export async function GET(req: Request) {
   const priceMap  = await getBinancePrices(symbols)
   const now       = new Date().toISOString()
 
-  // 각 포지션별 closed_roi, closed_price 계산 후 업데이트
+  // 설정에서 stop_loss_pct, size_usd, leverage 조회
+  const { data: cfg } = await adminSupabase
+    .from("auto_signal_settings")
+    .select("seed_capital, stop_loss_pct, size_usd, leverage")
+    .eq("id", 1)
+    .single()
+
+  const cfgStopLossPct = Number(cfg?.stop_loss_pct ?? 5)
+  const cfgSizeUsd     = Number(cfg?.size_usd ?? 10)
+  const cfgLeverage    = Number(cfg?.leverage ?? 10)
+
+  // ── 확정 잔고 기준값: rebalance 테이블의 가장 최근 est_value ──────
+  // day-close는 설정의 seed_capital이 아닌 직전 반영 잔고에서 누적해야 함
+  const { data: prevRebalance } = await adminSupabase
+    .from("auto_signal_rebalance")
+    .select("est_value, date_label")
+    .lt("date_label", dateLabel)          // 오늘 이전 기록만
+    .order("date_label", { ascending: false })
+    .limit(1)
+    .single()
+
+  // 직전 반영 기록이 없으면 설정의 seed_capital을 초기값으로 사용
+  const baseBalance = prevRebalance ? Number(prevRebalance.est_value) : Number(cfg?.seed_capital ?? 640)
+
+  // 각 포지션별 closed_roi, closed_price, final_pnl, final_roi 계산 후 업데이트
   const updates = positions.map(async (pos: {
     id: string
     symbol: string
@@ -80,14 +104,17 @@ export async function GET(req: Request) {
     const sym      = pos.symbol.replace(/\.P$/, "").toUpperCase()
     const curPrice = priceMap.get(sym) ?? null
     const entry    = Number(pos.entry_price)
-    const leverage = Number(pos.leverage ?? 1)
+    const lev      = Number(pos.leverage ?? cfgLeverage)
+    const size     = Number(pos.size_usd ?? cfgSizeUsd)
 
     let closedRoi: number | null = null
+    let finalPnl:  number | null = null
     if (curPrice && entry > 0) {
       const delta = pos.direction === "long"
         ? (curPrice - entry) / entry
         : (entry - curPrice) / entry
-      closedRoi = delta * leverage * 100
+      closedRoi = delta * lev * 100
+      finalPnl  = size * (closedRoi / 100)
     }
 
     return adminSupabase
@@ -98,6 +125,8 @@ export async function GET(req: Request) {
         close_reason: "day_close",
         closed_price: curPrice,
         closed_roi:   closedRoi,
+        final_roi:    closedRoi,
+        final_pnl:    finalPnl,
       })
       .eq("id", pos.id)
   })
@@ -105,49 +134,7 @@ export async function GET(req: Request) {
   await Promise.all(updates)
 
   // ── 리밸런싱 스냅샷 저장 ───────────────────────────────────────
-  // 설정에서 seed_capital, stop_loss_pct, size_usd, leverage 조회
-  const { data: cfg } = await adminSupabase
-    .from("auto_signal_settings")
-    .select("seed_capital, stop_loss_pct, size_usd, leverage")
-    .eq("id", 1)
-    .single()
-
-  const seedCapital = Number(cfg?.seed_capital ?? 640)
-  const stopLossPct = Number(cfg?.stop_loss_pct ?? 5)
-  const sizeUsd     = Number(cfg?.size_usd ?? 10)
-  const leverage    = Number(cfg?.leverage ?? 10)
-
-  // 당일 SL 청산 PNL (설정값 기준 고정)
-  const { data: slPositions } = await adminSupabase
-    .from("auto_signal_positions")
-    .select("leverage, size_usd")
-    .eq("date_label", dateLabel)
-    .eq("close_reason", "stop_loss")
-    .eq("is_closed", true)
-
-  const slPnl = (slPositions ?? []).reduce((s: number, p: { leverage: number; size_usd: number }) => {
-    const lev  = Number(p.leverage ?? leverage)
-    const size = Number(p.size_usd ?? sizeUsd)
-    return s - (size * stopLossPct * lev / 100)
-  }, 0)
-
-  // day_close 포지션들의 PNL (저장된 closed_roi 기반)
-  const { data: dayClosePos } = await adminSupabase
-    .from("auto_signal_positions")
-    .select("size_usd, closed_roi")
-    .eq("date_label", dateLabel)
-    .eq("close_reason", "day_close")
-    .eq("is_closed", true)
-
-  const dayClosePnl = (dayClosePos ?? []).reduce((s: number, p: { size_usd: number; closed_roi: number | null }) => {
-    if (p.closed_roi == null) return s
-    return s + Number(p.size_usd ?? sizeUsd) * (Number(p.closed_roi) / 100)
-  }, 0)
-
-  const dailyPnl = slPnl + dayClosePnl
-  const estValue = seedCapital + dailyPnl
-
-  // 리밸런싱 기록 저장 (당일 중복 방지 — upsert 대신 기존 기록 확인)
+  // 중복 방지: 당일 기록이 이미 있으면 건너뜀 (수동 반영이 먼저 된 경우)
   const { data: existing } = await adminSupabase
     .from("auto_signal_rebalance")
     .select("id")
@@ -155,24 +142,65 @@ export async function GET(req: Request) {
     .limit(1)
     .single()
 
-  if (!existing) {
-    await adminSupabase
-      .from("auto_signal_rebalance")
-      .insert({
-        date_label:    dateLabel,
-        seed_capital:  seedCapital,
-        est_value:     estValue,
-        daily_pnl:     dailyPnl,
-        note:          "day_close (auto)",
-        rebalanced_at: now,
-      })
-
-    // 다음 날 시드를 EST. VALUE로 업데이트
-    await adminSupabase
-      .from("auto_signal_settings")
-      .update({ seed_capital: estValue })
-      .eq("id", 1)
+  if (existing) {
+    // 이미 수동으로 반영된 날 — 포지션 마감만 하고 재정산하지 않음
+    return NextResponse.json({
+      ok:           true,
+      date_label:   dateLabel,
+      closed_count: positions.length,
+      note:         "positions closed; rebalance already exists (manual)",
+    })
   }
+
+  // 당일 SL 청산 PNL — final_pnl이 저장돼 있으면 그 값 우선 사용
+  const { data: slPositions } = await adminSupabase
+    .from("auto_signal_positions")
+    .select("leverage, size_usd, final_pnl")
+    .eq("date_label", dateLabel)
+    .eq("close_reason", "stop_loss")
+    .eq("is_closed", true)
+
+  const slPnl = (slPositions ?? []).reduce((s: number, p: { leverage: number; size_usd: number; final_pnl: number | null }) => {
+    if (p.final_pnl != null) return s + Number(p.final_pnl)
+    const lev  = Number(p.leverage ?? cfgLeverage)
+    const size = Number(p.size_usd ?? cfgSizeUsd)
+    return s - (size * cfgStopLossPct * lev / 100)
+  }, 0)
+
+  // day_close 포지션들의 PNL — 방금 저장한 final_pnl 기반
+  const { data: dayClosePos } = await adminSupabase
+    .from("auto_signal_positions")
+    .select("size_usd, closed_roi, final_pnl")
+    .eq("date_label", dateLabel)
+    .eq("close_reason", "day_close")
+    .eq("is_closed", true)
+
+  const dayClosePnl = (dayClosePos ?? []).reduce((s: number, p: { size_usd: number; closed_roi: number | null; final_pnl: number | null }) => {
+    if (p.final_pnl != null) return s + Number(p.final_pnl)
+    if (p.closed_roi == null) return s
+    return s + Number(p.size_usd ?? cfgSizeUsd) * (Number(p.closed_roi) / 100)
+  }, 0)
+
+  const dailyPnl = slPnl + dayClosePnl
+  // 확정 잔고 = 직전 반영 잔고 + 오늘 PNL (누적 복리 구조)
+  const estValue = baseBalance + dailyPnl
+
+  await adminSupabase
+    .from("auto_signal_rebalance")
+    .insert({
+      date_label:    dateLabel,
+      seed_capital:  baseBalance,   // 이 날의 시작 잔고 (직전 확정 잔고)
+      est_value:     estValue,      // 이 날의 최종 잔고
+      daily_pnl:     dailyPnl,
+      note:          "day_close (auto)",
+      rebalanced_at: now,
+    })
+
+  // 다음 날 시드를 EST. VALUE로 업데이트 (설정 seed_capital 갱신)
+  await adminSupabase
+    .from("auto_signal_settings")
+    .update({ seed_capital: estValue })
+    .eq("id", 1)
 
   return NextResponse.json({
     ok:           true,
