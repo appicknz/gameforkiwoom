@@ -34,7 +34,7 @@ function getCallerRole(req: Request): string | null {
 
 /** KST 기준 오늘 날짜 YYYY-MM-DD */
 function todayKST(): string {
-  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
 }
 
 export async function GET(req: Request) {
@@ -50,11 +50,18 @@ export async function GET(req: Request) {
     // 날짜 지정: 해당 날짜의 모든 포지션 (is_closed 무관 — 히스토리 포함)
     query = query.eq("date_label", date)
   } else {
-    // 날짜 미지정: 오늘 날짜 안에서만 활성 + 스탑로스 청산 포함
-    // and(date_label=today, or(is_closed=false, close_reason=stop_loss))
-    const today = todayKST()
+    // 날짜 미지정: 오늘 KST 기준
+    // 활성(is_closed=false): date_label=today
+    // SL 청산(is_closed=true, close_reason=stop_loss): closed_at이 오늘 KST 날짜인 것
+    const today    = todayKST()
+    const kstStart = new Date(`${today}T00:00:00+09:00`).toISOString()
+    const kstEnd   = new Date(`${today}T23:59:59+09:00`).toISOString()
+    // Supabase or()로 두 조건 합침:
+    // 1) 활성 포지션 (date_label=today AND is_closed=false)
+    // 2) 오늘 SL 청산 (is_closed=true AND close_reason=stop_loss AND closed_at between kstStart~kstEnd)
     query = query.or(
-      `and(date_label.eq.${today},is_closed.eq.false),and(date_label.eq.${today},close_reason.eq.stop_loss)`
+      `and(date_label.eq.${today},is_closed.eq.false),` +
+      `and(is_closed.eq.true,close_reason.eq.stop_loss,closed_at.gte.${kstStart},closed_at.lte.${kstEnd})`
     )
   }
 

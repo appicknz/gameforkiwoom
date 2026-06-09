@@ -569,15 +569,12 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: numb
 
   useEffect(() => {
     setLoading(true)
-    // positions API 사용: 해�� 날짜의 모든 포지션 (stop_loss + day_close 포함)
-    // is_historical=true 시 final_roi/final_pnl이 서버에서 계산돼 내려옴
-    fetch(`/api/auto-signal/positions?date=${dateStr}`)
+    // closed-positions API: closed_at KST 기준으로 필터 (date_label 아님)
+    // SL 청산 포지션은 date_label(생성일)과 청산일이 다를 수 있으므로
+    // closed_at 날짜로 조회해야 정확함
+    fetch(`/api/auto-signal/closed-positions?date=${dateStr}&limit=200`)
       .then(r => r.ok ? r.json() : { positions: [] })
-      .then(d => {
-        // 청산 기록 탭: is_closed=true인 포지션만 표시
-        const all = d.positions ?? []
-        setPositions(all.filter((p: ClosedPos) => p.is_closed === true))
-      })
+      .then(d => setPositions(d.positions ?? []))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [refreshKey, dateStr])
@@ -1929,7 +1926,7 @@ export default function TradePage() {
     if (bal === null) { alert("잔고를 불러오는 중입니다."); return }
     if (amount <= 0 || amount > bal) { alert("잔고가 부족합니다."); return }
 
-    // dialogSymbolRef: 다이얼로그에서 호출 시 항상 올바른 심볼을 가리킴
+    // dialogSymbolRef: 다이얼로그에서 호출 시 항상 올바른 심볼을 가���킴
     const sym   = dialogSymbolRef.current
     const price = priceMapRef.current.get(sym) ?? 0
 

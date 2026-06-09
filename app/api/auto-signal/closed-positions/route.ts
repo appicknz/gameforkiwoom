@@ -17,15 +17,19 @@ export async function GET(req: Request) {
   const offset     = Number(searchParams.get("offset") ?? 0)
   const dateFilter = searchParams.get("date") // 특정 날짜 (YYYY-MM-DD), 없으면 전체
 
-  // 청산기록 = stop_loss로 청산된 것만 (날짜별)
+  // 청산기록 = is_closed=true 전체 (stop_loss + day_close + manual 모두 포함)
+  // 날짜 필터: closed_at을 KST(+9h)로 변환한 날짜 기준
+  // date_label은 포지션 생성일이라 청산일과 다를 수 있으므로 사용 안 함
   let query = adminSupabase
     .from("auto_signal_positions")
     .select("*")
     .eq("is_closed", true)
-    .eq("close_reason", "stop_loss")
 
   if (dateFilter) {
-    query = query.eq("date_label", dateFilter)
+    // KST 기준 해당 날 00:00 ~ 23:59:59 → UTC로 역산 (KST = UTC+9)
+    const kstStart = new Date(`${dateFilter}T00:00:00+09:00`).toISOString()
+    const kstEnd   = new Date(`${dateFilter}T23:59:59+09:00`).toISOString()
+    query = query.gte("closed_at", kstStart).lte("closed_at", kstEnd)
   }
 
   const { data, error } = await query
