@@ -1495,7 +1495,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const normalize = (raw: string) => raw.replace(/\.P$/, "").replace(/\//g, "")
 
   // 통계 계산
-  // - 오늘: liveCache 실시간 가격으로 PnL 계산
+  // - 오늘: liveCache 실���간 가격으로 PnL 계산
   // - ���거: API가 반환한 final_pnl / final_roi (Binance Klines 종가 기준)
   const posCalc = positions.map(pos => {
     const sym    = normalize(pos.symbol)
@@ -1817,6 +1817,28 @@ export default function TradePage() {
   const [userRole,       setUserRole]       = useState<string | null>(null)
   const [todayAutoPnl,   setTodayAutoPnl]   = useState<number>(0)
   const [confirmedValue, setConfirmedValue] = useState<number>(0)
+
+  // 앱 시작 시 매매기록의 최신 확정 잔고(est_value)를 로드
+  // LedgerPanel 탭을 열지 않아도 AutoSignalPanel MARGIN 기준값이 올바르게 설정됨
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/auto-signal/rebalance", {
+        credentials: "include",
+        headers: { Authorization: `Bearer ${getToken() ?? ""}` },
+      }).then(r => r.ok ? r.json() : { records: [] }),
+      fetch("/api/auto-signal/settings").then(r => r.ok ? r.json() : null),
+    ]).then(([ledger, cfg]) => {
+      const recs: { date_label: string; est_value: number }[] = ledger.records ?? []
+      const seed = cfg?.seed_capital != null ? Number(cfg.seed_capital) : 640
+      if (recs.length > 0) {
+        const latest = [...recs].sort((a, b) => a.date_label.localeCompare(b.date_label))
+        setConfirmedValue(Number(latest[latest.length - 1].est_value))
+      } else {
+        setConfirmedValue(seed)
+      }
+    }).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [searchQ,       setSearchQ]       = useState("")
   type SortOrder = "time" | "roi_desc" | "roi_asc" | "signal"
   const SORT_CYCLE: SortOrder[] = ["time", "roi_desc", "roi_asc", "signal"]
@@ -1847,7 +1869,7 @@ export default function TradePage() {
 
   usePriceWorker({})
 
-  // 모��매매 허용 여부 + 사용자 role 조회 (마���트 시 1회)
+  // 모��매매 허용 여부 + 사용자 role 조��� (마���트 시 1회)
   useEffect(() => {
     const token = getToken()
     if (!token) return
