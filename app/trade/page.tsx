@@ -825,7 +825,7 @@ type LedgerRecord = {
   note:          string
 }
 
-function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: string; userRole: string | null; todayAutoPnl?: number }) {
+function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0, onConfirmedValue }: { tradeMode: string; userRole: string | null; todayAutoPnl?: number; onConfirmedValue?: (v: number) => void }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
@@ -918,6 +918,9 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
   const firstSeed   = seedCapital
   // 마지막 확정 잔고 (저장된 기록 기준)
   const confirmedValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : seedCapital
+  // 부모에 확정 잔고 전달 (AutoSignalPanel MARGIN 기준값으로 사용)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { onConfirmedValue?.(confirmedValue) }, [confirmedValue])
   // 오늘 날짜 기록이 아직 없으면 실시간 PNL을 더해서 현재 잔고 표시
   const todayRecordExists = records.some(r => r.date_label === todayKST)
   const liveValue   = (!todayRecordExists && todayAutoPnl !== 0) ? confirmedValue + todayAutoPnl : confirmedValue
@@ -1375,12 +1378,13 @@ interface AutoPos {
   closed_price: number | null
 }
 
-function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl }: {
+function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl, confirmedMargin }: {
   selectedDate: Date
   sortOrder?: "time" | "roi_desc" | "roi_asc" | "signal"
   searchQ?: string
   onSlClosed?: () => void
   onTodayPnl?: (pnl: number) => void
+  confirmedMargin?: number   // 전날 확정 잔고 — MARGIN 기준값
 }) {
   const [positions,     setPositions]     = useState<AutoPos[]>([])
   const [isHistorical,  setIsHistorical]  = useState(false)
@@ -1571,15 +1575,15 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     ? activeCalc.filter(p => p.sym.toLowerCase().includes(searchQ.toLowerCase()))
     : activeCalc
 
-  const totalRoi  = statsCalc.length > 0 ? statsCalc.reduce((s, p) => s + p.roi, 0) / statsCalc.length : 0
+  const avgRoi    = statsCalc.length > 0 ? statsCalc.reduce((s, p) => s + p.roi, 0) / statsCalc.length : 0
   const profitCnt = statsCalc.filter(p => p.roi > 0).length
   const lossCnt   = statsCalc.filter(p => p.roi < 0).length
-  // ��진: 해당 날짜 포지션 수 × 포지션 금액
-  const margin = statsCalc.length * sizeUsdCfg
+  // 포지션 수 × 포지션금액 (부 통계 표시용)
+  const posMargin = statsCalc.length * sizeUsdCfg
 
-  // SL 청산 (오늘: 고정값 PNL / 과거: final_roi가 이미 포함돼 있으므로 별도 계��� 불필요)
+  // SL 청산 (오늘: 고정값 PNL / 과거: final_roi가 이미 포함돼 있으므로 별도 계산 불필요)
   const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss")
-  const slClosedCnt = isHistorical ? slClosed.length : slClosed.length
+  const slClosedCnt = slClosed.length
   const slClosedPnl = isHistorical
     ? statsCalc.filter(p => p.is_closed && p.close_reason === "stop_loss").reduce((s, p) => s + p.pnl, 0)
     : slClosed.reduce((s, p) => s - (Number(p.size_usd ?? sizeUsdCfg) * (stopLossPct ?? 5) * Number(p.leverage ?? 10) / 100), 0)
@@ -1587,11 +1591,19 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   // TOTAL PNL = 전체 포지션 PNL 합산 (과거: final_roi 기준 / 오늘: 활성PNL + SL고정)
   const activePnl = isHistorical
     ? statsCalc.reduce((s, p) => s + p.pnl, 0)
-    : margin * (totalRoi / 100)
+    : posMargin * (avgRoi / 100)
   const totalPnl = isHistorical ? activePnl : activePnl + slClosedPnl
 
-  // EST. VALUE = 마진 + TOTAL PNL
+  // MARGIN: 오늘은 확정 잔고(전날 최종 잔고)가 기준 / 과거는 당일 포지션 마진
+  const margin   = (!isHistorical && confirmedMargin != null && confirmedMargin > 0)
+    ? confirmedMargin
+    : posMargin
+
+  // EST. VALUE = MARGIN + TOTAL PNL
   const estValue = margin + totalPnl
+
+  // TOTAL ROI = totalPnl / margin × 100
+  const totalRoi = margin > 0 ? (totalPnl / margin) * 100 : avgRoi
 
   // 오늘 날짜이면 부모에게 실시간 PNL 전달 (마스터가 반영할 때까지 계속 유지)
   useEffect(() => {
@@ -1643,7 +1655,10 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
               ${margin.toFixed(2)}
             </div>
             <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
-              {activeCalc.length}건 × ${sizeUsdCfg}
+              {(!isHistorical && confirmedMargin != null && confirmedMargin > 0)
+                ? `확정잔고 기준 (포지션 ${activeCalc.length}건 × $${sizeUsdCfg})`
+                : `${activeCalc.length}건 × $${sizeUsdCfg}`
+              }
             </div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
@@ -1801,6 +1816,7 @@ export default function TradePage() {
   const [allowMockTrade, setAllowMockTrade] = useState(false)
   const [userRole,       setUserRole]       = useState<string | null>(null)
   const [todayAutoPnl,   setTodayAutoPnl]   = useState<number>(0)
+  const [confirmedValue, setConfirmedValue] = useState<number>(0)
   const [searchQ,       setSearchQ]       = useState("")
   type SortOrder = "time" | "roi_desc" | "roi_asc" | "signal"
   const SORT_CYCLE: SortOrder[] = ["time", "roi_desc", "roi_asc", "signal"]
@@ -2159,7 +2175,7 @@ export default function TradePage() {
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} />
+            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} confirmedMargin={confirmedValue} />
           </div>
         </div>
         {/* 청산 기록 */}
@@ -2168,7 +2184,7 @@ export default function TradePage() {
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
-          <LedgerPanel tradeMode={tradeMode} userRole={userRole} todayAutoPnl={todayAutoPnl} />
+          <LedgerPanel tradeMode={tradeMode} userRole={userRole} todayAutoPnl={todayAutoPnl} onConfirmedValue={setConfirmedValue} />
         </div>
       </div>
 
@@ -2211,7 +2227,7 @@ export default function TradePage() {
               <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} />
+              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} confirmedMargin={confirmedValue} />
             </div>
           </div>
           {/* 청산 기록 */}
@@ -2229,7 +2245,7 @@ export default function TradePage() {
             border: `1px solid ${BORDER}`,
             display: tradeMode === "ledger" ? "flex" : "none",
           }}>
-            <LedgerPanel tradeMode={tradeMode} userRole={userRole} todayAutoPnl={todayAutoPnl} />
+            <LedgerPanel tradeMode={tradeMode} userRole={userRole} todayAutoPnl={todayAutoPnl} onConfirmedValue={setConfirmedValue} />
           </div>
         </div>
       </main>
