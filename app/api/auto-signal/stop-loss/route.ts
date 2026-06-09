@@ -41,8 +41,10 @@ export async function POST(req: Request) {
   // closed_roi = -(stop_loss_pct × leverage) 고정
   // 예) stop_loss_pct=5, leverage=10 → -50%
   const leverage    = Number(pos?.leverage ?? cfg?.leverage ?? 1)
+  const sizeUsd     = Number(pos?.size_usd ?? cfg?.size_usd ?? 10)
   const stopLossPct = Number(cfg?.stop_loss_pct ?? 5)
-  const fixedRoi    = -(stopLossPct * leverage)   // e.g. -50%
+  const fixedRoi    = -(stopLossPct * leverage)          // e.g. -50%
+  const fixedPnl    = -(sizeUsd * stopLossPct / 100)     // e.g. -$5.00
 
   const now = new Date().toISOString()
 
@@ -52,8 +54,10 @@ export async function POST(req: Request) {
       is_closed:    true,
       closed_at:    now,
       close_reason: "stop_loss",
-      closed_roi:   fixedRoi,         // SL 임계값으로 고정 (-50%)
+      closed_roi:   fixedRoi,
       closed_price: closed_price ?? null,
+      final_pnl:    fixedPnl,
+      final_roi:    fixedRoi,
     })
     .eq("id", id)
     .eq("is_closed", false)
@@ -62,6 +66,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // 클라이언트에 고정된 ROI 반환해 UI도 즉시 반영
-  return NextResponse.json({ ok: true, closed_roi: fixedRoi })
+  return NextResponse.json({ ok: true, closed_roi: fixedRoi, final_pnl: fixedPnl })
 }

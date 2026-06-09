@@ -555,13 +555,22 @@ function OtherPositionsGroup({
   )
 }
 
-function ClosedPositionsPanel({ refreshKey = 0, tradeMode }: { refreshKey?: number; tradeMode: string }) {
+function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDate, onSelectDate }: {
+  refreshKey?: number
+  tradeMode: string
+  selectedDate?: Date
+  onSelectDate?: (d: Date) => void
+}) {
   const [positions,    setPositions]   = useState<ClosedPos[]>([])
   const [loading,      setLoading]     = useState(true)
   const [stopLossPct,  setStopLossPct] = useState<number | null>(null)
   const [sizeUsdCfg,   setSizeUsdCfg]  = useState<number>(10)
-  const [selectedDate, setSelectedDate] = useState<Date>(() => kstToday())
+  const [innerDate,    setInnerDate]   = useState<Date>(() => kstToday())
   const [, setTick] = useState(0)
+
+  // 부모에서 날짜를 제어하면 부모 날짜 우선 사용
+  const selectedDate = propDate ?? innerDate
+  const setSelectedDate = (d: Date) => { setInnerDate(d); onSelectDate?.(d) }
 
   const dateStr  = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,"0")}-${String(selectedDate.getDate()).padStart(2,"0")}`
   const todayStr = kstTodayStr()
@@ -1041,7 +1050,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0 }: { tradeMode: str
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* 날짜 스트립 */}
+      {/* 날짜 ��트립 */}
       <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
 
       {/* 전체 요약 카드 */}
@@ -1450,14 +1459,17 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
             body:    JSON.stringify({ id: pos.id, closed_price: cur }),
           }).then(async r => {
             if (!r.ok) { closingRef.current.delete(pos.id); return }
-            // 서버가 반환한 고정 ROI 사용 (SL 임계값 고정, 예: -50%)
             const json = await r.json().catch(() => ({}))
             const fixedRoi = json.closed_roi ?? roi
+            const fixedPnl = json.final_pnl  ?? null
+            // UI 즉시 반영
             setPositions(prev => prev.map(p =>
               p.id === pos.id
-                ? { ...p, is_closed: true, close_reason: "stop_loss", closed_roi: fixedRoi, closed_price: cur }
+                ? { ...p, is_closed: true, close_reason: "stop_loss", closed_roi: fixedRoi, closed_price: cur, final_pnl: fixedPnl, final_roi: fixedRoi }
                 : p
             ))
+            // DB 실제 상태로 동기화 (is_closed 반영 확인)
+            fetchPositions()
             onSlClosed?.()
           }).catch(() => { closingRef.current.delete(pos.id) })
         }
@@ -1848,7 +1860,7 @@ export default function TradePage() {
     const token = getToken()
     if (!token) return
     fetchBalance()
-    // 클라이언트 WebSocket 가격�� 쿼리로 전달 — 서버가 Binance 조회 없이 PnL 계산
+    // 클라이언트 WebSocket 가격�� 쿼리로 전달 — 서버가 Binance 조회 ��이 PnL 계산
     const pricesParam = [...priceMapRef.current.entries()]
       .map(([sym, price]) => `${sym}:${price}`).join(",")
     const qs = pricesParam ? `?prices=${encodeURIComponent(pricesParam)}` : ""
@@ -1989,7 +2001,7 @@ export default function TradePage() {
     setSelectedSymbol(symbol)
     setSelectedPrice(price)
     selectedSymbolRef.current = symbol
-    // PC에서도 dialogSymbol을 맞춰줘야 handleOpen이 올바른 심볼을 사용
+    // PC에서도 dialogSymbol을 맞춰줘야 handleOpen이 올바른 심볼을 사��
     setDialogSymbol(symbol)
     dialogSymbolRef.current = symbol
   }, [])
@@ -2152,7 +2164,7 @@ export default function TradePage() {
         </div>
         {/* 청산 기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "closed" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflowY: "auto" }}>
-          <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} />
+          <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
@@ -2209,7 +2221,7 @@ export default function TradePage() {
             display: tradeMode === "closed" ? "flex" : "none",
             overflowY: "auto",
           }}>
-            <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} />
+            <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
           </div>
           {/* 매매기록 */}
           <div className="rounded-2xl flex flex-col h-full" style={{
