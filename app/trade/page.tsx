@@ -555,17 +555,19 @@ function OtherPositionsGroup({
   )
 }
 
-function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDate, onSelectDate }: {
+function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDate, onSelectDate, confirmedMargin = 0 }: {
   refreshKey?: number
   tradeMode: string
   selectedDate?: Date
   onSelectDate?: (d: Date) => void
+  confirmedMargin?: number   // 자동매매와 동일한 확정 잔고 — MARGIN 기준값
 }) {
   const [positions,    setPositions]   = useState<ClosedPos[]>([])
   const [loading,      setLoading]     = useState(true)
   const [stopLossPct,  setStopLossPct] = useState<number | null>(null)
   const [sizeUsdCfg,   setSizeUsdCfg]  = useState<number>(10)
   const [innerDate,    setInnerDate]   = useState<Date>(() => kstToday())
+  const [dateEstValue, setDateEstValue] = useState<number | null>(null)  // 해당 날짜 rebalance est_value
   const [, setTick] = useState(0)
 
   // 부모에서 날짜를 제어하면 부모 날짜 우선 사용
@@ -600,6 +602,19 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
       .catch(() => {})
   }, [])
 
+  // 과거 날짜 선택 시 해당 날짜 rebalance 기록의 est_value fetch
+  // — EST. VALUE를 확정된 최종 잔고로 표시하기 위함
+  useEffect(() => {
+    if (isToday) { setDateEstValue(null); return }
+    fetch("/api/auto-signal/rebalance")
+      .then(r => r.ok ? r.json() : { records: [] })
+      .then(d => {
+        const rec = (d.records ?? []).find((r: { date_label: string; est_value: number }) => r.date_label === dateStr)
+        setDateEstValue(rec ? Number(rec.est_value) : null)
+      })
+      .catch(() => setDateEstValue(null))
+  }, [dateStr, isToday])
+
   // 1초 tick — 실시간 % 갱신
   useEffect(() => {
     const t = setInterval(() => setTick(n => n + 1), 1000)
@@ -613,7 +628,9 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
       {/* 요약 카드 */}
       {(() => {
         const cnt    = positions.length
-        const margin = cnt * sizeUsdCfg
+        // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
+        // confirmedMargin이 없으면 포지션 수 × size_usd 폴백
+        const margin = confirmedMargin > 0 ? confirmedMargin : cnt * sizeUsdCfg
         const slCnt  = positions.filter(p => p.close_reason === "stop_loss").length
         // 포지션별 실제 PNL: size_usd × closed_roi / 100
         // SL도 closed_roi가 있으면 그 값 사용, 없으면 -(stop_loss_pct × leverage) 폴백
@@ -646,7 +663,12 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
         const slCntAdj = perPnl.filter(x => x.isSl).length
         const totalPnl = perPnl.reduce((s, x) => s + x.pnl, 0)
         const avgRoi   = cnt > 0 ? perPnl.reduce((s, x) => s + x.roi, 0) / cnt : 0
-        const estValue = margin + totalPnl
+        // EST. VALUE:
+        //   과거 날짜 + rebalance 기록 있음 → 확정된 최종 잔고(dateEstValue)
+        //   오늘 or rebalance 없음          → 확정 잔고 + 당일 PNL
+        const estValue = (!isToday && dateEstValue != null)
+          ? dateEstValue
+          : margin + totalPnl
         const wins     = positions.filter(p =>
           p.close_reason !== "stop_loss" && p.closed_roi != null && Number(p.closed_roi) > 0
         ).length
@@ -672,7 +694,9 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
                 <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
                   ${margin.toFixed(2)}
                 </div>
-                <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>{cnt}건 × ${sizeUsdCfg}</div>
+                <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+                  {confirmedMargin > 0 ? `확정잔고 기준` : `${cnt}건 × $${sizeUsdCfg}`}
+                </div>
               </div>
               <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>EST. VALUE</div>
@@ -680,7 +704,10 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
                   ${estValue.toFixed(2)}
                 </div>
                 <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
-                  MARGIN + PNL {totalPnl >= 0 ? "+" : ""}{totalPnl.toFixed(2)}
+                  {(!isToday && dateEstValue != null)
+                    ? `확정 잔고 (반영완료)`
+                    : `MARGIN + PNL ${totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}`
+                  }
                 </div>
               </div>
             </div>
@@ -1495,7 +1522,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const normalize = (raw: string) => raw.replace(/\.P$/, "").replace(/\//g, "")
 
   // 통계 계산
-  // - 오늘: liveCache 실���간 가격으로 PnL 계산
+  // - 오늘: liveCache 실�����간 가격으로 PnL 계산
   // - ���거: API가 반환한 final_pnl / final_roi (Binance Klines 종가 기준)
   const posCalc = positions.map(pos => {
     const sym    = normalize(pos.symbol)
@@ -1911,7 +1938,7 @@ export default function TradePage() {
     if (liquidated.length > 0) {
       fetchBalance()
       liquidated.forEach((p: any) =>
-        alert(`[강제청산] ${p.symbol.replace("USDT","")} ${p.direction === "long" ? "롱" : "숏"} ${p.leverage}x 포지션이 강제���� 되었습니다.`)
+        alert(`[강제청산] ${p.symbol.replace("USDT","")} ${p.direction === "long" ? "롱" : "숏"} ${p.leverage}x 포지션이 강제���� 되었���니다.`)
       )
     }
 
@@ -2202,7 +2229,7 @@ export default function TradePage() {
         </div>
         {/* 청산 기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "closed" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflowY: "auto" }}>
-          <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+          <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} selectedDate={selectedDate} onSelectDate={setSelectedDate} confirmedMargin={confirmedValue} />
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
@@ -2259,7 +2286,7 @@ export default function TradePage() {
             display: tradeMode === "closed" ? "flex" : "none",
             overflowY: "auto",
           }}>
-            <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+            <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} selectedDate={selectedDate} onSelectDate={setSelectedDate} confirmedMargin={confirmedValue} />
           </div>
           {/* 매매기록 */}
           <div className="rounded-2xl flex flex-col h-full" style={{
