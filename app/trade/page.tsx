@@ -695,7 +695,10 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
                   ${margin.toFixed(2)}
                 </div>
                 <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
-                  {confirmedMargin > 0 ? `확정잔고 기준` : `${cnt}건 × $${sizeUsdCfg}`}
+                  {confirmedMargin > 0
+                    ? `확정잔고 기준 (${cnt}건 × $${sizeUsdCfg} = $${(cnt * sizeUsdCfg).toLocaleString()})`
+                    : `${cnt}건 × $${sizeUsdCfg}`
+                  }
                 </div>
               </div>
               <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
@@ -1033,7 +1036,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0, onConfirmedValue }
       const hh = String(now.getUTCHours()).padStart(2, "0")
       const mi = String(now.getUTCMinutes()).padStart(2, "0")
       const ss = String(now.getUTCSeconds()).padStart(2, "0")
-      const ampm = now.getUTCHours() < 12 ? "오전" : "오후"
+      const ampm = now.getUTCHours() < 12 ? "���전" : "오후"
       const h12  = now.getUTCHours() % 12 === 0 ? 12 : now.getUTCHours() % 12
       setClosedTime(`${ampm} ${String(h12).padStart(2,"0")}:${mi}:${ss}`)
       setConfirmOpen(false)
@@ -1046,7 +1049,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0, onConfirmedValue }
     }
   }
 
-  // ── 통계 계산 ──────────────────────────────────────────────────────
+  // ── 통계 계산 ──────────────────────────────��───────────────────────
   // 주별: ISO 주 번호(월요일 기준)
   const getWeekKey = (dateLabel: string) => {
     const d = new Date(dateLabel)
@@ -1683,7 +1686,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
             </div>
             <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
               {(!isHistorical && confirmedMargin != null && confirmedMargin > 0)
-                ? `확정잔고 기준 (포지션 ${activeCalc.length}건 × $${sizeUsdCfg})`
+                ? `확정잔고 기준 (${activeCalc.length}건 × $${sizeUsdCfg} = $${(activeCalc.length * sizeUsdCfg).toLocaleString()})`
                 : `${activeCalc.length}건 × $${sizeUsdCfg}`
               }
             </div>
