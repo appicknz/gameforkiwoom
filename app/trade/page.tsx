@@ -1082,12 +1082,12 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0, onConfirmedValue }
   } as React.CSSProperties)
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* 날짜 ��트립 */}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", scrollbarWidth: "none" }}>
+      {/* 날짜 스트립 */}
       <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
 
       {/* 전체 요약 카드 */}
-      <div style={{ padding: "10px 14px 0", flexShrink: 0 }}>
+      <div style={{ padding: "10px 14px 0" }}>
         {/* 헤더 행 */}
         <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
           <div className="flex items-center gap-1.5">
@@ -1166,7 +1166,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0, onConfirmedValue }
           <div className="flex items-center" style={{ flex: 1, background: "rgba(255,255,255,0.06)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", padding: "5px 8px" }}>
             <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginRight: 4 }}>$</span>
             <input type="number" value={inputPnl} onChange={e => setInputPnl(e.target.value)}
-              placeholder="0.00  (손실은 음수)"
+              placeholder="0.00  (손��은 음수)"
               style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)", fontVariantNumeric: "tabular-nums" }} />
           </div>
         </div>
@@ -1198,7 +1198,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0, onConfirmedValue }
       </div>
 
       {/* 기록 목록 */}
-      <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
+      <div>
         {loading ? (
           <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>로딩 중...</div>
         ) : sorted.length === 0 ? (
@@ -2235,7 +2235,7 @@ export default function TradePage() {
           <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} selectedDate={selectedDate} onSelectDate={setSelectedDate} confirmedMargin={confirmedValue} />
         </div>
         {/* 매매기록 */}
-        <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
+        <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflow: "hidden" }}>
           <LedgerPanel tradeMode={tradeMode} userRole={userRole} todayAutoPnl={todayAutoPnl} onConfirmedValue={setConfirmedValue} />
         </div>
       </div>
@@ -2292,7 +2292,7 @@ export default function TradePage() {
             <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} selectedDate={selectedDate} onSelectDate={setSelectedDate} confirmedMargin={confirmedValue} />
           </div>
           {/* 매매기록 */}
-          <div className="rounded-2xl flex flex-col h-full" style={{
+          <div className="rounded-2xl flex flex-col h-full overflow-hidden" style={{
             background: PANEL_BG,
             border: `1px solid ${BORDER}`,
             display: tradeMode === "ledger" ? "flex" : "none",
