@@ -1835,7 +1835,7 @@ export default function TradePage() {
   const [tick,          setTick]          = useState(0)
   const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
   const [selectedDate,  setSelectedDate]  = useState(() => kstToday())
-  const [tradeMode,       setTradeMode]       = useState<"auto" | "closed" | "ledger" | "mock">("auto")
+  const [tradeMode,       setTradeMode]       = useState<"auto" | "closed" | "ledger" | "mock">("ledger")
 
   // 탭 전환 시 날짜를 오늘로 리셋 → DateStrip이 맨 오른쪽으로 스크롤
   const switchTab = (mode: "auto" | "closed" | "ledger" | "mock") => {
