@@ -109,6 +109,23 @@ export async function POST(req: Request) {
 
   const cleanSymbol = symbol.replace(".P", "")
 
+  // 반영(rebalance) 완료 체크 — 당일 rebalance 기록이 있으면 이미 하루 마감된 날
+  // 반영 후에는 어떤 신호가 와도 새 포지션을 생성하지 않음
+  const { data: todayRebalance } = await adminSupabase
+    .from("auto_signal_rebalance")
+    .select("id")
+    .eq("date_label", dateLabel)
+    .limit(1)
+    .single()
+
+  if (todayRebalance) {
+    await logRequest("skipped", 200, body, {
+      ip, symbol, signalType: type,
+      errorMsg: `day already closed (rebalanced): ${dateLabel}`,
+    })
+    return NextResponse.json({ skipped: true, reason: "day_already_closed" })
+  }
+
   // 코드 레벨 중복 체크 — 같은 날 같은 종목+방향이 이미 있으면 스킵
   const { data: existing } = await adminSupabase
     .from("auto_signal_positions")
