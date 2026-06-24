@@ -1,15 +1,10 @@
 import "server-only"
 import { cookies } from "next/headers"
-import { redis } from "@/lib/redis"
+import { adminSupabase } from "@/lib/supabase-admin"
 
 export type AuthResult =
   | { ok: true; userId: string; token: string; role?: string }
   | { ok: false; status: 401; error: string }
-
-/** Redis key: 유저 활성 세션 버전 */
-export function sessionVersionKey(userId: string) {
-  return `session_version:${userId}`
-}
 
 /**
  * JWT를 로컬에서 디코딩 — payload와 버전(sv) 반환
@@ -44,9 +39,15 @@ async function verifyToken(token: string): Promise<{ userId: string; role?: stri
 
   const userId = payload.sub
 
-  // sv(session version) 클레임이 있으면 Redis 버전과 비교
+  // sv(session version) 클레임이 있으면 Supabase profiles.session_version과 비교
   if (payload.sv !== undefined) {
-    const current = await redis.get<number>(sessionVersionKey(userId))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (adminSupabase as any)
+      .from("profiles")
+      .select("session_version")
+      .eq("id", userId)
+      .single()
+    const current: number | null = (data as { session_version?: number } | null)?.session_version ?? null
     if (current !== null && payload.sv < current) return null  // 구버전 세션 — 무효
   }
 

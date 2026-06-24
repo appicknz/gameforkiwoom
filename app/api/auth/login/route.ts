@@ -1,8 +1,6 @@
 export const dynamic = "force-dynamic"
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
-import { redis } from "@/lib/redis"
-import { sessionVersionKey } from "@/lib/auth"
 import jwt from "jsonwebtoken"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
@@ -18,6 +16,8 @@ function getAnonClient() {
   )
 }
 
+type ProfileRow = { id: string; username: string; role: string; session_version: number }
+
 export async function POST(req: Request) {
   const { username, password } = await req.json()
 
@@ -25,16 +25,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "아이디와 비밀번호를 입력해주세요." }, { status: 400 })
   }
 
-  // 1) profiles에서 user_id 조회
-  const { data: profile, error: profileError } = await adminSupabase
+  // 1) profiles에서 user_id 조회 (session_version 포함)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profileRaw, error: profileError } = await (adminSupabase as any)
     .from("profiles")
-    .select("id, username, role")
+    .select("id, username, role, session_version")
     .eq("username", username)
     .single()
 
-  if (profileError || !profile) {
+  if (profileError || !profileRaw) {
     return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 })
   }
+
+  const profile = profileRaw as ProfileRow
 
   // 2) auth.users에서 이메일 조회
   const { data: userData, error: userError } = await adminSupabase.auth.admin.getUserById(profile.id)
@@ -71,13 +74,18 @@ export async function POST(req: Request) {
   }
 
   // session_version 증가 — 기존 세션 무효화 (중복 로그인 방지)
-  const sv = await redis.incr(sessionVersionKey(profile.id))
-  // 30일 후 자동 만료
-  await redis.expire(sessionVersionKey(profile.id), 60 * 60 * 24 * 30)
+  // Redis 대신 Supabase profiles.session_version 컬럼 사용
+  const nextSv = (profile.session_version ?? 1) + 1
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (adminSupabase as any)
+    .from("profiles")
+    .update({ session_version: nextSv })
+    .eq("id", profile.id)
+  const sv = nextSv
 
   // 30일짜리 자체 JWT 발행 (sv 클레임 포함)
   const appToken = jwt.sign(
-    { sub: profile.id, sv, role: (profile as Record<string, unknown>).role ?? "user" },
+    { sub: profile.id, sv, role: profile.role ?? "user" },
     JWT_SECRET,
     { expiresIn: "30d" }
   )
@@ -85,7 +93,7 @@ export async function POST(req: Request) {
   const response = NextResponse.json({
     token: appToken,
     username: profile.username,
-    role: (profile as Record<string, unknown>).role ?? "user",
+    role: profile.role ?? "user",
   })
 
   // HTTP-only 쿠키에도 저장 (30일)
