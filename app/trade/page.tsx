@@ -855,7 +855,10 @@ type LedgerRecord = {
   note:          string
 }
 
-function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0, onConfirmedValue }: { tradeMode: string; userRole: string | null; todayAutoPnl?: number; onConfirmedValue?: (v: number) => void }) {
+// 반영 버튼 사용 허용 username 목록 (역할 승격 없이 해당 기능만 허용)
+const CONFIRM_ALLOWED_USERS = ["mirea2131"]
+
+function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfirmedValue }: { tradeMode: string; userRole: string | null; userName?: string | null; todayAutoPnl?: number; onConfirmedValue?: (v: number) => void }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
@@ -879,7 +882,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0, onConfirmedValue }
   const [closedTime,     setClosedTime]     = useState("")      // 반영 완료 시각 (HH:MM:SS)
 
   const MASTER_ROLES = ["master", "admin"]
-  const isMaster = MASTER_ROLES.includes(userRole ?? "")
+  const isMaster = MASTER_ROLES.includes(userRole ?? "") || CONFIRM_ALLOWED_USERS.includes(userName ?? "")
 
   const authHeaders = () => {
     const tok = getToken()
@@ -1166,7 +1169,7 @@ function LedgerPanel({ tradeMode, userRole, todayAutoPnl = 0, onConfirmedValue }
           <div className="flex items-center" style={{ flex: 1, background: "rgba(255,255,255,0.06)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", padding: "5px 8px" }}>
             <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginRight: 4 }}>$</span>
             <input type="number" value={inputPnl} onChange={e => setInputPnl(e.target.value)}
-              placeholder="0.00  (손��은 음수)"
+              placeholder="0.00  (손실은 음수)"
               style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)", fontVariantNumeric: "tabular-nums" }} />
           </div>
         </div>
@@ -1845,6 +1848,7 @@ export default function TradePage() {
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
   const [allowMockTrade, setAllowMockTrade] = useState(false)
   const [userRole,       setUserRole]       = useState<string | null>(null)
+  const [userName,       setUserName]       = useState<string | null>(null)
   const [todayAutoPnl,   setTodayAutoPnl]   = useState<number>(0)
   const [confirmedValue, setConfirmedValue] = useState<number>(0)
 
@@ -1899,7 +1903,7 @@ export default function TradePage() {
 
   usePriceWorker({})
 
-  // 모��매매 허용 여부 + 사용자 role 조��� (마���트 시 1회)
+  // 모의매매 허용 여부 + 사용자 role 조회 (마운트 시 1회)
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -1911,6 +1915,7 @@ export default function TradePage() {
       setAllowMockTrade(allowed)
       if (!allowed) setTradeMode("auto")
       setUserRole(meData.role ?? null)
+      setUserName(meData.username ?? null)
     }).catch(() => {})
   }, [])
 
@@ -2236,7 +2241,7 @@ export default function TradePage() {
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflow: "hidden" }}>
-          <LedgerPanel tradeMode={tradeMode} userRole={userRole} todayAutoPnl={todayAutoPnl} onConfirmedValue={setConfirmedValue} />
+          <LedgerPanel tradeMode={tradeMode} userRole={userRole} userName={userName} todayAutoPnl={todayAutoPnl} onConfirmedValue={setConfirmedValue} />
         </div>
       </div>
 
@@ -2297,7 +2302,7 @@ export default function TradePage() {
             border: `1px solid ${BORDER}`,
             display: tradeMode === "ledger" ? "flex" : "none",
           }}>
-            <LedgerPanel tradeMode={tradeMode} userRole={userRole} todayAutoPnl={todayAutoPnl} onConfirmedValue={setConfirmedValue} />
+            <LedgerPanel tradeMode={tradeMode} userRole={userRole} userName={userName} todayAutoPnl={todayAutoPnl} onConfirmedValue={setConfirmedValue} />
           </div>
         </div>
       </main>

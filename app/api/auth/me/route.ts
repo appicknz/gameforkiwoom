@@ -16,10 +16,11 @@ export async function GET(req: Request) {
   // 항상 DB에서 role 조회 (JWT 클레임 신뢰 불가)
   const { data } = await adminSupabase
     .from("profiles")
-    .select("role")
+    .select("role, username")
     .eq("id", session.userId)
     .single()
-  const role = data?.role ?? session.role ?? "user"
+  const role     = data?.role     ?? session.role ?? "user"
+  const username = data?.username ?? null
 
-  return NextResponse.json({ role, userId: session.userId })
+  return NextResponse.json({ role, userId: session.userId, username })
 }
