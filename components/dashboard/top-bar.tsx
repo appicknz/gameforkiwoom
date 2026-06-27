@@ -81,13 +81,17 @@ export function TopBar() {
   const [showCuPw, setShowCuPw]       = useState(false)
 
   // 비밀번호 변경
-  const [showPwForm, setShowPwForm] = useState(false)
-  const [newPw, setNewPw] = useState("")
-  const [confirmPw, setConfirmPw] = useState("")
-  const [showNew, setShowNew] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null)
-  const [pwLoading, setPwLoading] = useState(false)
+  const [showPwForm, setShowPwForm]         = useState(false)
+  const [currentPw, setCurrentPw]           = useState("")
+  const [showCurrent, setShowCurrent]       = useState(false)
+  const [currentPwVerified, setCurrentPwVerified] = useState(false)
+  const [currentPwLoading, setCurrentPwLoading]   = useState(false)
+  const [newPw, setNewPw]                   = useState("")
+  const [confirmPw, setConfirmPw]           = useState("")
+  const [showNew, setShowNew]               = useState(false)
+  const [showConfirm, setShowConfirm]       = useState(false)
+  const [pwMsg, setPwMsg]                   = useState<{ text: string; ok: boolean } | null>(null)
+  const [pwLoading, setPwLoading]           = useState(false)
 
   // ── 초기화 + 사이드바 로그인 이벤트 수신: 토큰으로 프로필 + 잔고 복원 ──────
   useEffect(() => {
@@ -182,7 +186,7 @@ export function TopBar() {
     window.dispatchEvent(new CustomEvent("balance:update", { detail: bal }))
   })
 
-  // ── 외부 ��릭 닫기 ──────────────────────────────────────────────
+  // ── 외부 ��릭 닫�� ──────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -264,28 +268,49 @@ export function TopBar() {
   }
 
   // ── 비밀번호 변경 ─────────────────────────────────────────────────
+  // 1단계: 현재 비밀번호 확인
+  const handleVerifyCurrentPw = async () => {
+    setPwMsg(null)
+    if (!currentPw) return setPwMsg({ text: "현재 비밀번호를 입력해주세요.", ok: false })
+    setCurrentPwLoading(true)
+    const token = getToken()
+    const res = await fetch("/api/auth/verify-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ password: currentPw }),
+    })
+    setCurrentPwLoading(false)
+    if (res.ok) {
+      setCurrentPwVerified(true)
+      setPwMsg(null)
+    } else {
+      const d = await res.json()
+      setPwMsg({ text: d.error ?? "현재 비밀번호가 일치하지 않습니다.", ok: false })
+    }
+  }
+
+  // 2단계: 새 비밀번호 변경
   const handlePwChange = async () => {
     setPwMsg(null)
     if (!newPw) return setPwMsg({ text: t("auth.errorPasswordRequired"), ok: false })
     if (newPw.length < 4) return setPwMsg({ text: t("auth.errorPasswordTooShort"), ok: false })
+    if (newPw === currentPw) return setPwMsg({ text: "현재 비밀번호와 다른 비밀번호를 입력해주세요.", ok: false })
     if (newPw !== confirmPw) return setPwMsg({ text: t("auth.errorPasswordMismatch"), ok: false })
 
     setPwLoading(true)
     const token = getToken()
     const res = await fetch("/api/user/profile", {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ newPassword: newPw }),
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
     })
     const d = await res.json()
     setPwLoading(false)
 
     if (res.ok) {
       setPwMsg({ text: t("auth.changePasswordSuccess"), ok: true })
-      setNewPw(""); setConfirmPw(""); setShowPwForm(false)
+      setCurrentPw(""); setNewPw(""); setConfirmPw("")
+      setCurrentPwVerified(false); setShowPwForm(false)
     } else {
       setPwMsg({ text: d.error ?? t("common.error"), ok: false })
     }
@@ -426,7 +451,7 @@ export function TopBar() {
                   {/* 비밀번호 변경 */}
                   <div className="border-b border-border">
                     <button
-                      onClick={() => { setShowPwForm(v => !v); setPwMsg(null) }}
+                      onClick={() => { setShowPwForm(v => !v); setPwMsg(null); setCurrentPw(""); setNewPw(""); setConfirmPw(""); setCurrentPwVerified(false) }}
                       className="flex items-center justify-between w-full px-4 py-3 hover:bg-muted transition-colors"
                     >
                       <div className="flex items-center gap-2 text-sm text-foreground">
@@ -438,37 +463,64 @@ export function TopBar() {
 
                     {showPwForm && (
                       <div className="px-4 pb-3 space-y-2">
-                        <div className="relative">
-                          <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                          <input
-                            type={showNew ? "text" : "password"}
-                            placeholder={t("auth.newPasswordPlaceholder")}
-                            value={newPw}
-                            onChange={e => setNewPw(e.target.value)}
-                            className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                          <button type="button" onClick={() => setShowNew(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
-                            {showNew ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          </button>
-                        </div>
-                        <div className="relative">
-                          <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                          <input
-                            type={showConfirm ? "text" : "password"}
-                            placeholder={t("auth.confirmPasswordPlaceholder")}
-                            value={confirmPw}
-                            onChange={e => setConfirmPw(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && handlePwChange()}
-                            className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                          <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
-                            {showConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          </button>
-                        </div>
-                        {pwMsg && <p className={`text-xs ${pwMsg.ok ? "text-primary" : "text-destructive"}`}>{pwMsg.text}</p>}
-                        <Button className="w-full h-9 text-sm" onClick={handlePwChange} disabled={pwLoading}>
-                          {pwLoading ? t("auth.changePasswordLoading") : t("auth.changePasswordSubmit")}
-                        </Button>
+                        {/* 1단계: 현재 비밀번호 확인 */}
+                        {!currentPwVerified ? (
+                          <>
+                            <div className="relative">
+                              <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                              <input
+                                type={showCurrent ? "text" : "password"}
+                                placeholder="현재 비밀번호"
+                                value={currentPw}
+                                onChange={e => setCurrentPw(e.target.value)}
+                                onKeyDown={e => e.key === "Enter" && handleVerifyCurrentPw()}
+                                className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                              <button type="button" onClick={() => setShowCurrent(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                {showCurrent ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                            {pwMsg && <p className={`text-xs ${pwMsg.ok ? "text-primary" : "text-destructive"}`}>{pwMsg.text}</p>}
+                            <Button className="w-full h-9 text-sm" onClick={handleVerifyCurrentPw} disabled={currentPwLoading}>
+                              {currentPwLoading ? "확인 중..." : "확인"}
+                            </Button>
+                          </>
+                        ) : (
+                          /* 2단계: 새 비밀번호 입력 */
+                          <>
+                            <div className="relative">
+                              <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                              <input
+                                type={showNew ? "text" : "password"}
+                                placeholder={t("auth.newPasswordPlaceholder")}
+                                value={newPw}
+                                onChange={e => setNewPw(e.target.value)}
+                                className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                              <button type="button" onClick={() => setShowNew(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                {showNew ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                            <div className="relative">
+                              <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                              <input
+                                type={showConfirm ? "text" : "password"}
+                                placeholder={t("auth.confirmPasswordPlaceholder")}
+                                value={confirmPw}
+                                onChange={e => setConfirmPw(e.target.value)}
+                                onKeyDown={e => e.key === "Enter" && handlePwChange()}
+                                className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                              <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                {showConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                            {pwMsg && <p className={`text-xs ${pwMsg.ok ? "text-primary" : "text-destructive"}`}>{pwMsg.text}</p>}
+                            <Button className="w-full h-9 text-sm" onClick={handlePwChange} disabled={pwLoading}>
+                              {pwLoading ? t("auth.changePasswordLoading") : t("auth.changePasswordSubmit")}
+                            </Button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
