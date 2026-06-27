@@ -178,7 +178,7 @@ export default function PanelPage() {
   const [profile, setProfile] = useState<{ username: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [adminPw, setAdminPw] = useState<string>(() => {
-    // sessionStorage 캐시 우선, 없���면 admin 역할은 빈 문자열로 시작 (게이트 스���)
+    // sessionStorage 캐시 우선, 없�����면 admin 역할은 빈 문자열로 시작 (게이트 스���)
     if (typeof window !== "undefined") return getCachedPw() ?? ""
     return ""
   })
@@ -449,6 +449,7 @@ export default function PanelPage() {
   const [mockSaving,    setMockSaving]    = useState<string | null>(null)
   const [depositChecks, setDepositChecks] = useState<Record<string, boolean>>({})
   const [depositSaving, setDepositSaving] = useState<string | null>(null)
+  const [pwResetSaving, setPwResetSaving] = useState<string | null>(null)
   const [chargeAmount, setChargeAmount] = useState("")
   const [chargeLoading, setChargeLoading] = useState(false)
   const [chargeMsg, setChargeMsg] = useState<{ text: string; ok: boolean } | null>(null)
@@ -1758,6 +1759,29 @@ export default function PanelPage() {
                                   {depositSaving === user.id ? "..." : "저장"}
                                 </Button>
                               </div>
+                            )}
+                            {/* 비밀번호 초기화 버튼 (master만) */}
+                            {myRole === "master" && (
+                              <Button
+                                size="sm" variant="outline"
+                                className="text-xs gap-1 border-destructive/50 text-destructive hover:bg-destructive/10"
+                                disabled={pwResetSaving === user.id}
+                                onClick={async () => {
+                                  if (!confirm(`${user.username}의 비밀번호를 000000으로 초기화하시겠습니까?`)) return
+                                  setPwResetSaving(user.id)
+                                  const token = getToken()
+                                  const res = await fetch("/api/admin/reset-password-direct", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                    body: JSON.stringify({ userId: user.id }),
+                                  })
+                                  setPwResetSaving(null)
+                                  if (res.ok) alert(`${user.username} 비밀번호가 000000으로 초기화됐습니다.`)
+                                  else { const d = await res.json(); alert(d.error ?? "오류가 발생했습니다.") }
+                                }}
+                              >
+                                {pwResetSaving === user.id ? "..." : "비번초기화"}
+                              </Button>
                             )}
                             <Button
                               size="sm" variant="outline" className="text-xs gap-1"
