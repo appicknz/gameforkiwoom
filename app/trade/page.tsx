@@ -855,8 +855,10 @@ type LedgerRecord = {
   note:          string
 }
 
-// 반영 버튼 사용 허용 username 목록 (역할 승격 없이 해당 기능만 허용)
-const CONFIRM_ALLOWED_USERS = ["mirea2131", "mirea21310"]
+// 반영 버튼 + 수익입력/삭제 모두 허용 username 목록
+const CONFIRM_ALLOWED_USERS = ["mirea2131"]
+// 반영 버튼만 허용 (수익 입력 폼·삭제 버튼은 숨김)
+const CONFIRM_ONLY_USERS = ["mirea21310"]
 
 function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfirmedValue }: { tradeMode: string; userRole: string | null; userName?: string | null; todayAutoPnl?: number; onConfirmedValue?: (v: number) => void }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
@@ -882,7 +884,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
   const [closedTime,     setClosedTime]     = useState("")      // 반영 완료 시각 (HH:MM:SS)
 
   const MASTER_ROLES = ["master", "admin"]
-  const isMaster = MASTER_ROLES.includes(userRole ?? "") || CONFIRM_ALLOWED_USERS.includes(userName ?? "")
+  const isConfirmOnly = CONFIRM_ONLY_USERS.includes(userName ?? "")   // 반영만 가능 (수익입력·삭제 불가)
+  const isMaster = MASTER_ROLES.includes(userRole ?? "") || CONFIRM_ALLOWED_USERS.includes(userName ?? "") || isConfirmOnly
 
   const authHeaders = () => {
     const tok = getToken()
@@ -1158,8 +1161,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
 
       </div>
 
-      {/* 수익 입력 폼 — 마스터 계정만 */}
-      {isMaster && <div style={{ margin: "0 14px 10px", padding: "12px 14px", borderRadius: 10, border: `1px solid rgba(212,175,55,0.15)`, background: "rgba(212,175,55,0.04)", flexShrink: 0 }}>
+      {/* 수익 입력 폼 — 마스터 계정만 (반영 전용 계정 제외) */}
+      {isMaster && !isConfirmOnly && <div style={{ margin: "0 14px 10px", padding: "12px 14px", borderRadius: 10, border: `1px solid rgba(212,175,55,0.15)`, background: "rgba(212,175,55,0.04)", flexShrink: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, marginBottom: 10 }}>
           {`${selectedDate.getMonth()+1}월 ${selectedDate.getDate()}일`} 수익 입력
           {existing && <span style={{ marginLeft: 6, fontSize: 9, color: "rgba(255,255,255,0.3)", fontWeight: 400 }}>기록 있음 — 덮어씁니다</span>}
@@ -1276,7 +1279,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
                       <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
                       <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
                     </div>
-                    {isMaster && (
+                    {isMaster && !isConfirmOnly && (
                       <button onClick={() => handleDelete(rec.id)}
                         style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.6)", fontSize: 11, cursor: "pointer", flexShrink: 0 }}>×</button>
                     )}
@@ -1840,7 +1843,7 @@ export default function TradePage() {
   const [selectedDate,  setSelectedDate]  = useState(() => kstToday())
   const [tradeMode,       setTradeMode]       = useState<"auto" | "closed" | "ledger" | "mock">("ledger")
 
-  // 탭 전환 시 날짜를 오늘로 리셋 → DateStrip이 맨 오른쪽으로 스크롤
+  // 탭 전환 시 날짜를 오늘로 리셋 → DateStrip이 �� 오른쪽으로 스크롤
   const switchTab = (mode: "auto" | "closed" | "ledger" | "mock") => {
     setSelectedDate(kstToday())
     setTradeMode(mode)
