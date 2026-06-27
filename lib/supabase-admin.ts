@@ -30,3 +30,6 @@ export const adminSupabase = new Proxy({} as SupabaseAdminClient, {
     return (getAdminSupabase() as any)[prop]
   },
 })
+
+// auth.admin 체이닝이 필요한 곳에서 직접 사용
+export { getAdminSupabase }

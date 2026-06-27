@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic"
 import "server-only"
-import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
+import { getAdminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const adminSupabase = _adminSupabase as any
+const adminSupabase = getAdminSupabase() as any
 import { verifySession } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
