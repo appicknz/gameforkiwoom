@@ -508,6 +508,16 @@ export function Sidebar() {
   const [gameEnabled, setGameEnabled] = useState(false)
   const [allowTokenDeposit, setAllowTokenDeposit] = useState(false)
 
+  // 강제 비밀번호 변경 모달
+  const [mustChangePw,       setMustChangePw]       = useState(false)
+  const [changePwCurrent,    setChangePwCurrent]    = useState("")
+  const [changePwNew,        setChangePwNew]        = useState("")
+  const [changePwConfirm,    setChangePwConfirm]    = useState("")
+  const [showChangeCurrent,  setShowChangeCurrent]  = useState(false)
+  const [showChangeNew,      setShowChangeNew]      = useState(false)
+  const [changePwMsg,        setChangePwMsg]        = useState<{ text: string; ok: boolean } | null>(null)
+  const [changePwLoading,    setChangePwLoading]    = useState(false)
+
   // 로그인 폼
   const [authTab, setAuthTab]           = useState<"login" | "register">("login")
   const [loginId, setLoginId]           = useState("")
@@ -603,6 +613,15 @@ export function Sidebar() {
       try { localStorage.setItem("app_profile", JSON.stringify({ username: data.username, role: data.role })) } catch {}
       setIsLoggedIn(true); setUsername(data.username)
       setLoginId(""); setLoginPw("")
+      // 강제 비밀번호 변경 여부 확인 (/api/auth/me)
+      try {
+        const meRes = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${data.token}` } })
+        const meData = await meRes.json()
+        if (meData.mustChangePassword) {
+          setMustChangePw(true)
+          setChangePwCurrent(""); setChangePwNew(""); setChangePwConfirm(""); setChangePwMsg(null)
+        }
+      } catch {}
       window.dispatchEvent(new Event("auth:login"))
       window.dispatchEvent(new StorageEvent("storage"))
     } catch { setLoginLoading(false); setLoginMsg({ text: t("auth.errorNetwork"), ok: false }) }
@@ -637,8 +656,87 @@ export function Sidebar() {
     window.location.href = "/"
   }
 
+  const handleChangePw = async () => {
+    setChangePwMsg(null)
+    if (!changePwNew || changePwNew.length < 4) return setChangePwMsg({ text: "새 비밀번호는 4자 이상이어야 합니다.", ok: false })
+    if (changePwNew === "000000") return setChangePwMsg({ text: "000000은 사용할 수 없습니다.", ok: false })
+    if (changePwNew !== changePwConfirm) return setChangePwMsg({ text: "새 비밀번호가 일치하지 않습니다.", ok: false })
+    setChangePwLoading(true)
+    try {
+      const token = getToken()
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ currentPassword: changePwCurrent, newPassword: changePwNew }),
+      })
+      const d = await res.json()
+      if (!res.ok) { setChangePwMsg({ text: d.error ?? "오류가 발생했습니다.", ok: false }); setChangePwLoading(false); return }
+      setChangePwMsg({ text: "비밀번호가 변경되었습니다.", ok: true })
+      setTimeout(() => setMustChangePw(false), 1200)
+    } catch { setChangePwMsg({ text: "네트워크 오류가 발생했습니다.", ok: false }) }
+    setChangePwLoading(false)
+  }
+
   return (
     <>
+      {/* 강제 비밀번호 변경 모달 — 비밀번호 초기화 후 첫 로그인 시 표시 */}
+      {mustChangePw && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-5 mx-4">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Lock className="w-4 h-4 text-primary" />
+                비밀번호 변경 필요
+              </h2>
+              <p className="text-xs text-muted-foreground">비밀번호가 초기화되었습니다. 계속 이용하려면 새 비밀번호를 설정해주세요.</p>
+            </div>
+            <div className="space-y-3">
+              {/* 현재 비밀번호 (000000) */}
+              <div className="relative">
+                <input
+                  type={showChangeCurrent ? "text" : "password"}
+                  placeholder="현재 비밀번호 (000000)"
+                  value={changePwCurrent}
+                  onChange={e => setChangePwCurrent(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-border bg-background px-3 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button type="button" onClick={() => setShowChangeCurrent(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {showChangeCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {/* 새 비밀번호 */}
+              <div className="relative">
+                <input
+                  type={showChangeNew ? "text" : "password"}
+                  placeholder="새 비밀번호 (4자 이상)"
+                  value={changePwNew}
+                  onChange={e => setChangePwNew(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-border bg-background px-3 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button type="button" onClick={() => setShowChangeNew(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {showChangeNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {/* 새 비밀번호 확인 */}
+              <input
+                type="password"
+                placeholder="새 비밀번호 확인"
+                value={changePwConfirm}
+                onChange={e => setChangePwConfirm(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleChangePw()}
+                className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            {changePwMsg && (
+              <p className={`text-xs ${changePwMsg.ok ? "text-primary" : "text-destructive"}`}>{changePwMsg.text}</p>
+            )}
+            <Button className="w-full" disabled={changePwLoading} onClick={handleChangePw}>
+              {changePwLoading ? "변경 중..." : "비밀번호 변경"}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {mobileOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setMobileOpen(false)} />}
 
       <aside className={cn(

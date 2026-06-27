@@ -178,7 +178,7 @@ export default function PanelPage() {
   const [profile, setProfile] = useState<{ username: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [adminPw, setAdminPw] = useState<string>(() => {
-    // sessionStorage 캐시 우선, 없으면 admin 역할은 빈 문자열로 시작 (게이트 스���)
+    // sessionStorage 캐시 우선, 없���면 admin 역할은 빈 문자열로 시작 (게이트 스���)
     if (typeof window !== "undefined") return getCachedPw() ?? ""
     return ""
   })
@@ -2220,7 +2220,7 @@ export default function PanelPage() {
                           <p className="text-[11px] text-muted-foreground mt-1">완���된 환전 누계</p>
                         </div>
                         <div className="p-5">
-                          <p className="text-xs text-muted-foreground mb-1">배팅 수수료</p>
+                          <p className="text-xs text-muted-foreground mb-1">배팅 수��료</p>
                           <p className="text-xl font-bold text-amber-500">₩{myCommBalance.toLocaleString()}</p>
                           <p className="text-[11px] text-muted-foreground mt-1">유저 배팅 수수료 누계</p>
                         </div>
@@ -3163,7 +3163,7 @@ export default function PanelPage() {
                     <p className="text-2xl font-bold text-foreground">{adminMembers.length}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
                     <p className="text-[11px] text-muted-foreground mt-1">현재 잔액 <span className="font-semibold text-foreground">₩{myBalance.toLocaleString()}</span></p>
                   </div>
-                  {/* 내 포인트 잔고 */}
+                  {/* 내 포��트 잔고 */}
                   <div className="bg-card border border-border rounded-xl p-4">
                     <p className="text-xs text-muted-foreground mb-1">내 포인트 잔고</p>
                     <p className="text-2xl font-bold text-foreground">{pointBalance.toLocaleString()}<span className="text-sm font-normal text-muted-foreground ml-1">P</span></p>
@@ -3673,7 +3673,11 @@ export default function PanelPage() {
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                 <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
                   <h3 className="text-sm font-semibold text-foreground">비밀번호 초기화 승인</h3>
-                  <Input type="password" placeholder="새 비��번호 (4자 이상)" value={prNewPw} onChange={e => setPrNewPw(e.target.value)} className="h-9 text-sm" />
+                  <div className="rounded-lg bg-muted/50 border border-border px-4 py-3 space-y-1">
+                    <p className="text-xs text-muted-foreground">초기화 후 임시 비밀번호</p>
+                    <p className="text-lg font-bold tracking-widest text-foreground">000000</p>
+                    <p className="text-xs text-muted-foreground">유저는 로그인 시 반드시 새 비밀번호로 변경해야 합니다.</p>
+                  </div>
                   {prApproveMsg && <p className={`text-xs ${prApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{prApproveMsg.text}</p>}
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => setPrApproveId(null)}>취소</Button>
@@ -3682,13 +3686,13 @@ export default function PanelPage() {
                       const token = getToken()
                       const res = await fetch("/api/admin/password-reset", {
                         method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                        body: JSON.stringify({ requestId: prApproveId, newPassword: prNewPw }),
+                        body: JSON.stringify({ requestId: prApproveId }),
                       })
                       const d = await res.json()
-                      setPrApproveMsg(res.ok ? { text: "초기화 완료", ok: true } : { text: d.error ?? "오류", ok: false })
-                      if (res.ok) { loadPrRequests(); setTimeout(() => setPrApproveId(null), 1200) }
+                      setPrApproveMsg(res.ok ? { text: "000000으로 초기화 완료", ok: true } : { text: d.error ?? "오류", ok: false })
+                      if (res.ok) { loadPrRequests(); setTimeout(() => setPrApproveId(null), 1500) }
                       setPrApproving(false)
-                    }}>��인</Button>
+                    }}>확인</Button>
                   </div>
                 </div>
               </div>
@@ -4697,7 +4701,7 @@ export default function PanelPage() {
           </div>
         )}
 
-        {/* ── 입금 주소 관리 탭 (master 전용) ── */}
+        {/* ── 입금 주��� 관리 탭 (master 전용) ── */}
         {activeTab === "wallets" && myRole === "master" && (
           <div className="p-6 max-w-3xl mx-auto space-y-6">
             <div>

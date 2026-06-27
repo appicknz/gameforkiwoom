@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic"
 import "server-only"
-import { adminSupabase } from "@/lib/supabase-admin"
+import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const adminSupabase = _adminSupabase as any
 import { verifySession } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
@@ -86,21 +88,25 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ success: true })
   }
 
-  if (!newPassword || newPassword.length < 4) {
-    return NextResponse.json({ error: "새 비밀번호는 4자 이상이어야 합니다." }, { status: 400 })
-  }
-
   const { data: prr } = await adminSupabase.from("password_reset_requests")
     .select("*").eq("id", requestId).eq("status", "pending").single()
   if (!prr) return NextResponse.json({ error: "요청을 찾을 수 없습니다." }, { status: 404 })
 
-  // Supabase Auth 비밀번호 변경
+  // 비밀번호를 000000으로 고정 초기화
+  const TEMP_PASSWORD = "000000"
   const { error: pwErr } = await adminSupabase.auth.admin.updateUserById(
-    prr.target_user_id, { password: newPassword }
+    prr.target_user_id, { password: TEMP_PASSWORD }
   )
   if (pwErr) return NextResponse.json({ error: pwErr.message }, { status: 500 })
 
-  // 상태 업데이트
+  // profiles에 bcrypt 해시 업데이트 + 다음 로그인 시 강제 비밀번호 변경 플래그 설정
+  const hash = await bcrypt.hash(TEMP_PASSWORD, 10)
+  await adminSupabase.from("profiles").update({
+    password_hash: hash,
+    must_change_password: true,
+  }).eq("id", prr.target_user_id)
+
+  // 요청 상태 업데이트
   await adminSupabase.from("password_reset_requests").update({
     status: "approved",
     approver_id: auth.userId,
