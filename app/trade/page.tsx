@@ -856,7 +856,7 @@ type LedgerRecord = {
 }
 
 // 반영 버튼 사용 허용 username 목록 (역할 승격 없이 해당 기능만 허용)
-const CONFIRM_ALLOWED_USERS = ["mirea2131"]
+const CONFIRM_ALLOWED_USERS = ["mirea2131", "mirea21310"]
 
 function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfirmedValue }: { tradeMode: string; userRole: string | null; userName?: string | null; todayAutoPnl?: number; onConfirmedValue?: (v: number) => void }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
