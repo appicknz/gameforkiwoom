@@ -1664,7 +1664,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const slPrice = isLong
       ? entry * (1 - 1 / lev)
       : entry * (1 + 1 / lev)
-    // 10% 더 나쁜 방향 (롱이면 더 낮게, 숏이면 더 높게)
+    // 10% 더 나쁜 방향 (롱이면 더 낮게, 숏이면 더 ��게)
     const triggerPrice = isLong
       ? slPrice * 0.90
       : slPrice * 1.10
@@ -2275,14 +2275,14 @@ export default function TradePage() {
               알림
             </a>
           </div>
-          {/* 카테고리 탭 — 균등 25% */}
+          {/* 카테고리 탭 — 균등 배분 / 탭 순서: 모의매매 > 자동매매 > 매매기록 / 청산기록은 역삼1만 */}
           <div className="flex w-full gap-1.5">
             {([
-              { key: "auto",   label: "자동매매", Icon: Bot },
-              { key: "closed", label: "청산 기록", Icon: ListChecks },
-              { key: "ledger", label: "매매기록",  Icon: BookOpen },
-              ...(allowMockTrade ? [{ key: "mock" as const, label: "모의매매", Icon: LineChart }] : []),
-            ] as const).map(({ key, label, Icon }) => (
+              ...(allowMockTrade ? [{ key: "mock" as const,   label: "모의매매", Icon: LineChart }]  : []),
+              { key: "auto"   as const, label: "자동매매", Icon: Bot },
+              { key: "ledger" as const, label: "매매기록",  Icon: BookOpen },
+              ...(userName === "역삼1" ? [{ key: "closed" as const, label: "청산기록", Icon: ListChecks }] : []),
+            ]).map(({ key, label, Icon }) => (
               <button
                 key={key}
                 onClick={() => switchTab(key)}
