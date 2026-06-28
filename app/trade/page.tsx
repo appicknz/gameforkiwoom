@@ -1410,21 +1410,26 @@ interface AutoPos {
   closed_price: number | null
 }
 
-function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl, confirmedMargin }: {
+function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl, confirmedMargin, userRole }: {
   selectedDate: Date
   sortOrder?: "time" | "roi_desc" | "roi_asc" | "signal"
   searchQ?: string
   onSlClosed?: () => void
   onTodayPnl?: (pnl: number) => void
   confirmedMargin?: number   // 전날 확정 잔고 — MARGIN 기준값
+  userRole?: string | null
 }) {
-  const [positions,     setPositions]     = useState<AutoPos[]>([])
-  const [isHistorical,  setIsHistorical]  = useState(false)
-  const [loading,       setLoading]       = useState(true)
-  const [, setTick]       = useState(0)
-  const [stopLossPct,   setStopLossPct]  = useState<number | null>(null)
-  const [sizeUsdCfg,    setSizeUsdCfg]   = useState<number>(10)
-  const [seedCapital,   setSeedCapital]  = useState<number>(640)
+  const [positions,        setPositions]        = useState<AutoPos[]>([])
+  const [isHistorical,     setIsHistorical]     = useState(false)
+  const [loading,          setLoading]          = useState(true)
+  const [, setTick]        = useState(0)
+  const [stopLossPct,      setStopLossPct]      = useState<number | null>(null)
+  const [sizeUsdCfg,       setSizeUsdCfg]       = useState<number>(10)
+  const [seedCapital,      setSeedCapital]       = useState<number>(640)
+  // 강제 청산 모달 state
+  const [forceCloseId,     setForceCloseId]     = useState<string | null>(null)
+  const [forceClosePrice,  setForceClosePrice]  = useState<string>("")
+  const [forceClosing,     setForceClosing]      = useState(false)
   const closingRef = useRef<Set<string>>(new Set())
 
   // KST 기준 오늘 날짜
@@ -1650,6 +1655,57 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     return 0
   })
 
+  // 강제 청산 X 버튼 클릭: 청산가(SL 기준)보다 10% 더 나쁜 방향으로 preset
+  const openForceClose = (pos: typeof posCalc[0]) => {
+    const entry = Number(pos.entry_price)
+    const lev   = Number(pos.leverage ?? 10)
+    const isLong = pos.direction === "long"
+    // SL 청산 기준가: 롱 = entry × (1 - 1/lev), 숏 = entry × (1 + 1/lev)
+    const slPrice = isLong
+      ? entry * (1 - 1 / lev)
+      : entry * (1 + 1 / lev)
+    // 10% 더 나쁜 방향 (롱이면 더 낮게, 숏이면 더 높게)
+    const triggerPrice = isLong
+      ? slPrice * 0.90
+      : slPrice * 1.10
+    setForceCloseId(pos.id)
+    setForceClosePrice(triggerPrice.toFixed(entry < 1 ? 6 : entry < 100 ? 4 : 2))
+  }
+
+  const handleForceClose = async () => {
+    if (!forceCloseId) return
+    const pos   = posCalc.find(p => p.id === forceCloseId)
+    if (!pos) return
+    setForceClosing(true)
+    const price  = parseFloat(forceClosePrice)
+    const entry  = Number(pos.entry_price)
+    const lev    = Number(pos.leverage ?? 10)
+    const sizeUsd = Number(pos.size_usd ?? sizeUsdCfg)
+    const delta  = pos.direction === "long"
+      ? (price - entry) / entry
+      : (entry - price) / entry
+    const closedRoi = delta * lev * 100
+    const tok = typeof window !== "undefined" ? localStorage.getItem("app_token") ?? "" : ""
+    const res = await fetch("/api/auto-signal/positions", {
+      method:  "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+      body:    JSON.stringify({ id: forceCloseId, closed_price: price, closed_roi: closedRoi, reason: "stop_loss" }),
+    })
+    if (res.ok) {
+      setPositions(prev => prev.map(p =>
+        p.id === forceCloseId
+          ? { ...p, is_closed: true, close_reason: "stop_loss", closed_roi: closedRoi, closed_price: price }
+          : p
+      ))
+      onSlClosed?.()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      alert(d.error ?? "강제 청산 실패")
+    }
+    setForceClosing(false)
+    setForceCloseId(null)
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center py-5"
       style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>로딩 중...</div>
@@ -1657,6 +1713,42 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
 
   return (
     <div>
+      {/* 강제 청산 모달 — master 전용 */}
+      {forceCloseId && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-xs shadow-2xl space-y-4 mx-4">
+            <div className="space-y-0.5">
+              <h3 className="text-sm font-bold text-foreground">강제 청산</h3>
+              <p className="text-xs text-muted-foreground">
+                청산 기준가(SL)보다 10% 더 불리한 가격이 자동 입력됩니다.<br />
+                <span style={{ color: "rgba(239,68,68,0.8)" }}>SL CLOSE로 기록되며 TOTAL PNL에서 차감됩니다.</span>
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">청산 현재가 (수정 가능)</label>
+              <input
+                type="number"
+                value={forceClosePrice}
+                onChange={e => setForceClosePrice(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground tabular-nums focus:outline-none focus:ring-1 focus:ring-destructive"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setForceCloseId(null)}
+                className="flex-1 h-9 rounded-lg text-xs font-semibold border border-border text-muted-foreground bg-transparent hover:bg-muted/30 transition-colors"
+              >취소</button>
+              <button
+                onClick={handleForceClose}
+                disabled={forceClosing}
+                className="flex-1 h-9 rounded-lg text-xs font-bold text-white transition-colors disabled:opacity-50"
+                style={{ background: "rgba(239,68,68,0.8)" }}
+              >{forceClosing ? "처리중..." : "청산 확인"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 요약 헤더 */}
       <div className="px-4 py-3" style={{ borderBottom: `1px solid rgba(212,175,55,0.08)` }}>
         <div className="flex items-center justify-between mb-2">
@@ -1777,19 +1869,34 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
                   <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 3, background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>SL 임박</span>
                 )}
               </div>
-              <div className="text-right">
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>IN:{inTime}</div>
-                {pos.hasCur ? (
-                  /* 실시간 가격 수신 중 — 진입가 기준 PnL */
-                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
-                    {pos.pnl >= 0 ? "+" : ""}${pos.pnl.toFixed(3)}
-                  </div>
-                ) : Number(pos.entry_price) > 0 ? (
-                  /* 가격 대기 중 — 0 표시 */
-                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.2)" }}>
-                    $0.000
-                  </div>
-                ) : null}
+              <div className="text-right flex items-start gap-2">
+                <div>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>IN:{inTime}</div>
+                  {pos.hasCur ? (
+                    /* 실시간 가격 수신 중 — 진입가 기준 PnL */
+                    <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
+                      {pos.pnl >= 0 ? "+" : ""}${pos.pnl.toFixed(3)}
+                    </div>
+                  ) : Number(pos.entry_price) > 0 ? (
+                    /* 가격 대기 중 — 0 표시 */
+                    <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.2)" }}>
+                      $0.000
+                    </div>
+                  ) : null}
+                </div>
+                {/* 강제 청산 X 버튼 — master 전용, 오늘 활성 포지션만 */}
+                {userRole === "master" && isToday && !pos.is_closed && (
+                  <button
+                    onClick={e => { e.stopPropagation(); openForceClose(pos) }}
+                    title="강제 청산"
+                    style={{
+                      width: 18, height: 18, borderRadius: 4, border: "none", cursor: "pointer",
+                      background: "rgba(239,68,68,0.18)", color: "rgba(239,68,68,0.85)",
+                      fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0, marginTop: 2,
+                    }}
+                  >×</button>
+                )}
               </div>
             </div>
             {/* 하단행: 진입가 | 현재가(오늘) 또는 종가(과거) | 시그널 */}
@@ -2231,7 +2338,7 @@ export default function TradePage() {
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} confirmedMargin={confirmedValue} />
+              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} confirmedMargin={confirmedValue} userRole={userRole} />
           </div>
         </div>
         {/* 청산 기록 */}
@@ -2283,7 +2390,7 @@ export default function TradePage() {
               <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} confirmedMargin={confirmedValue} />
+            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} confirmedMargin={confirmedValue} userRole={userRole} />
             </div>
           </div>
           {/* 청산 기록 */}
