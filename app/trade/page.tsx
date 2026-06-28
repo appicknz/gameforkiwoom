@@ -1006,19 +1006,15 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
     if (!confirmPw) { setConfirmMsg("비밀번호를 입력해주세요."); return }
     setConfirming(true); setConfirmMsg(null)
     try {
-      // 1. 비밀번호 검증 — 응답에서 새 토큰을 받아 사용 (기존 토큰은 무효화됨)
-      const loginRes = await fetch("/api/auth/login", {
+      // 1. 비밀번호 검증 — 현재 로그인된 계정으로 확인 (하드코딩 제거)
+      const loginRes = await fetch("/api/auth/verify-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "역삼1", password: confirmPw }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken() ?? ""}` },
+        body: JSON.stringify({ password: confirmPw }),
       })
-      if (!loginRes.ok) { setConfirmMsg("비밀번호가 올바르지 않습니다."); return }
+      if (!loginRes.ok) { setConfirmMsg("비밀번호가 올바르지 않습니다."); setConfirming(false); return }
 
-      // 로그인 성공 시 발급된 새 토큰 사용 (session_version 갱신됐으므로 반드시 새 토큰 필요)
-      const loginData = await loginRes.json()
-      const freshTok = loginData.token ?? getToken() ?? ""
-      // localStorage도 업데이트
-      if (loginData.token) localStorage.setItem("app_token", loginData.token)
+      const freshTok = getToken() ?? ""
 
       const kstDate = kstTodayStr()
 

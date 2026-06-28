@@ -13,8 +13,10 @@ const adminSupabase = _adminSupabase as any
 import { NextResponse } from "next/server"
 import { verifySession } from "@/lib/auth"
 
-const MASTER_ROLES = ["master", "admin"]
-const START_DATE   = "2026-05-31"  // 기록 시작일
+const MASTER_ROLES       = ["master", "admin"]
+// 반영 버튼만 허용된 username 목록 (role 승격 없이 POST만 가능)
+const CONFIRM_ONLY_USERS = ["mirea2131", "mirea21310"]
+const START_DATE         = "2026-05-31"  // 기록 시작일
 
 export async function GET(req: Request) {
   // role을 응답에 포함 — 마스터 여부를 클라이언트에서 판단하기 위해
@@ -48,7 +50,19 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await verifySession(req)
   if (!session.ok) return NextResponse.json({ error: session.error }, { status: session.status })
-  if (!MASTER_ROLES.includes(session.role ?? ""))
+
+  // role이 master/admin이거나, 반영 허용 username 목록에 포함된 경우 허용
+  const isMasterRole = MASTER_ROLES.includes(session.role ?? "")
+  let isConfirmAllowed = false
+  if (!isMasterRole) {
+    const { data: prof } = await adminSupabase
+      .from("profiles")
+      .select("username")
+      .eq("id", session.userId)
+      .single()
+    isConfirmAllowed = CONFIRM_ONLY_USERS.includes((prof as { username?: string } | null)?.username ?? "")
+  }
+  if (!isMasterRole && !isConfirmAllowed)
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
 
   const body      = await req.json().catch(() => ({}))
