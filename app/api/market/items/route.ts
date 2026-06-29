@@ -11,6 +11,8 @@ export async function GET(req: Request) {
   const q          = url.searchParams.get("q") ?? ""
   const mine       = url.searchParams.get("mine") === "true"
   const all        = url.searchParams.get("all")  === "true"   // master 전용: 비활성 포함 전체
+  const limit      = Math.min(100, parseInt(url.searchParams.get("limit") ?? "50", 10))
+  const offset     = Math.max(0,   parseInt(url.searchParams.get("offset") ?? "0",  10))
 
   let query = adminSupabase
     .from("market_items")
@@ -52,7 +54,8 @@ export async function GET(req: Request) {
     default:          query = query.order("order_count", { ascending: false })
   }
 
-  const { data, error } = await query
+  // 페이지네이션
+  const { data, error } = await query.range(offset, offset + limit - 1)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // publisher 프로필 별도 조회
@@ -71,7 +74,12 @@ export async function GET(req: Request) {
     profiles: profilesMap[item.publisher_id] ?? null,
   }))
 
-  return NextResponse.json({ items })
+  return NextResponse.json({
+    items,
+    hasMore: items.length === limit,  // limit개가 꽉 찼으면 다음 페이지 존재
+    offset,
+    limit,
+  })
 }
 
 // POST: 상품 등록 (master 전용)

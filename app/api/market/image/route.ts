@@ -29,7 +29,8 @@ export async function GET(req: Request) {
     return new NextResponse(buffer, {
       headers: {
         "Content-Type":  contentType,
-        "Cache-Control": "private, max-age=3600",
+        // 24시간 브라우저 캐시 + CDN(Vercel Edge) 7일 캐시
+        "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400",
       },
     })
   } catch (e: any) {

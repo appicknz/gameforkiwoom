@@ -70,6 +70,10 @@ export default function MarketPage() {
   const [purchasedIds, setPurchasedIds]       = useState<Set<string>>(new Set())
   const [showPurchasedOnly, setShowPurchasedOnly] = useState(false)
   const [usePoint, setUsePoint]               = useState(false)
+  const [hasMore, setHasMore]                 = useState(false)
+  const [loadingMore, setLoadingMore]         = useState(false)
+  const loadMoreOffsetRef                     = useRef<number>(0)
+  const sentinelRef                           = useRef<HTMLDivElement | null>(null)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchItemsRef                 = useRef<(() => void) | null>(null)
 
@@ -221,16 +225,34 @@ export default function MarketPage() {
       .catch(() => {})
   }, [])
 
+  const PAGE_SIZE = 50
+
   const fetchItems = useCallback(async (catId: string, s: string, query: string) => {
     setLoading(true)
-    const params = new URLSearchParams({ sort: s })
+    const params = new URLSearchParams({ sort: s, limit: String(PAGE_SIZE), offset: "0" })
     if (catId !== "all") params.set("category", catId)
     if (query)           params.set("q", query)
     const res  = await fetch(`/api/market/items?${params}`).catch(() => null)
     const data = res ? await res.json() : {}
     setItems(data.items ?? [])
+    setHasMore(data.hasMore ?? false)
+    loadMoreOffsetRef.current = PAGE_SIZE
     setLoading(false)
   }, [])
+
+  const loadMoreItems = useCallback(async (catId: string, s: string, query: string) => {
+    if (loadingMore) return
+    setLoadingMore(true)
+    const params = new URLSearchParams({ sort: s, limit: String(PAGE_SIZE), offset: String(loadMoreOffsetRef.current) })
+    if (catId !== "all") params.set("category", catId)
+    if (query)           params.set("q", query)
+    const res  = await fetch(`/api/market/items?${params}`).catch(() => null)
+    const data = res ? await res.json() : {}
+    setItems(prev => [...prev, ...(data.items ?? [])])
+    setHasMore(data.hasMore ?? false)
+    loadMoreOffsetRef.current += PAGE_SIZE
+    setLoadingMore(false)
+  }, [loadingMore])
 
   // ref를 항상 최신 fetchItems로 유지 (handleBalanceBuy에서 TDZ 없이 참조)
   useEffect(() => {
@@ -241,6 +263,18 @@ export default function MarketPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => fetchItems(activeCat, sort, q), 300)
   }, [activeCat, sort, q, fetchItems])
+
+  // 무한 스크롤 — sentinel div가 뷰포트에 들어오면 다음 페이지 로드
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting && hasMore && !loadingMore) loadMoreItems(activeCat, sort, q) },
+      { rootMargin: "300px" }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, loadingMore, loadMoreItems, activeCat, sort, q])
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -677,6 +711,13 @@ export default function MarketPage() {
                 }}
               />
             ))}
+          </div>
+        )}
+
+        {/* 무한 스크롤 sentinel + 로딩 인디케이터 */}
+        {hasMore && (
+          <div ref={sentinelRef} className="flex justify-center py-6">
+            {loadingMore && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
           </div>
         )}
       </div>
