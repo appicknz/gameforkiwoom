@@ -163,10 +163,22 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── 최종 저장 + SSE 트리거를 하나의 Promise.all로 ─────────
-    const balBefore = (newBalance as number) + betAmount
+    // ── 최종 저장 + SSE 트리거 + odds:current 공유 캐시 갱신 ──
+    const balBefore  = (newBalance as number) + betAmount
+    const currentKey = `odds:current:${type}:${roundNumber}`
+
+    // 배팅마다 odds:current 갱신 → 관리자 패널과 /baka 배당이 항상 동일
+    const currentPayload = {
+      gameType: type,
+      roundNumber,
+      userCount: (userCount as number) ?? 0,
+      pools: poolDataAfter,
+      odds: oddsSnap,
+    }
+
     await Promise.all([
-      redis.set(oddsSnapKey, JSON.stringify(oddsSnap), { ex: ttl }),
+      redis.set(oddsSnapKey,  JSON.stringify(oddsSnap), { ex: ttl }),
+      redis.set(currentKey,   JSON.stringify(currentPayload), { ex: ttl }),
       redis.set(activeBetKey, JSON.stringify({
         roundNumber, gameType: type, side, amount: betAmount,
         oddsAtBet: oddsSnap, placedAt: Date.now(),
