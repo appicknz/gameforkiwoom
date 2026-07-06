@@ -194,7 +194,7 @@ function GameRoundCard({
 
   const modeLabel =
     stats.mode === "pari"   ? "파리뮤추얼" :
-    stats.mode === "hybrid" ? "하이브리드"  : "LP 주도"
+    stats.mode === "hybrid" ? "하이���리드"  : "LP 주도"
   const modeBg =
     stats.mode === "pari"   ? "bg-emerald-500/10 text-emerald-600" :
     stats.mode === "hybrid" ? "bg-amber-500/10 text-amber-600"    :
@@ -1010,6 +1010,33 @@ export function RoundMonitor({
                 <RefreshCw className="w-3 h-3" />
               </Button>
             </div>
+            {/* 합계 통계 */}
+            {(() => {
+              const bacTotal  = bacBets.reduce((s, b) => s + b.amount, 0)
+              const raceTotal = raceBets.reduce((s, b) => s + b.amount, 0)
+              const bacFee    = Math.floor(bacTotal  * 0.20)
+              const raceFee   = Math.floor(raceTotal * 0.20)
+              return (
+                <div className="px-5 py-3 bg-muted/30 border-b border-border grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold text-blue-500">바카라 합계</p>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-xs text-muted-foreground">참여 <span className="font-bold text-foreground">{bacBets.length}명</span></span>
+                      <span className="text-xs text-muted-foreground">배팅 <span className="font-bold text-foreground">{fmt(bacTotal)}</span></span>
+                      <span className="text-xs text-muted-foreground">수수료 <span className="font-bold text-amber-500">{fmt(bacFee)}</span></span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold text-orange-500">레이스 합계</p>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-xs text-muted-foreground">참여 <span className="font-bold text-foreground">{raceBets.length}명</span></span>
+                      <span className="text-xs text-muted-foreground">배팅 <span className="font-bold text-foreground">{fmt(raceTotal)}</span></span>
+                      <span className="text-xs text-muted-foreground">수수료 <span className="font-bold text-amber-500">{fmt(raceFee)}</span></span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
             <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* 바카라 */}
               <div>

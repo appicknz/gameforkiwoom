@@ -148,7 +148,7 @@ export async function POST(request: Request) {
     }
 
     // ── btc_closing_prices에 바카라 결과/점수 upsert (클라이언트 없어도 서버가 저장) ──
-    // lastDigit = 소수점 둘째(d2) → pScore, bankerDigit = 소수점 첫째(d1) → bScore
+    // lastDigit = 소수점 둘째(d2) → pScore, bankerDigit = 소수점 ���째(d1) → bScore
     const bankerDigitForScore = parseInt(decStr[0] ?? "0")   // d1 → 뱅커 끝자리
     const playerDigitForScore = parseInt(decStr[1] ?? "0")   // d2 → 플레이어 끝자리
     await admin.from("btc_closing_prices").upsert({
@@ -493,7 +493,7 @@ export async function POST(request: Request) {
           }).then(() => {}).catch(() => {})
 
           // commission_logs 기록 + 잔고 분배
-          // 지점(admin) 담당자 조회
+          // 지점(admin) 담당자 조��
           const { data: branchRow } = await admin.from("profiles")
             .select("id, branch_admin_id:id")
             .eq("id", branchId).single().catch(() => ({ data: null }))
@@ -715,6 +715,39 @@ export async function POST(request: Request) {
       }
       console.log(`[settle] race round=${prevRaceRoundNumber} winner=${raceWinner} settled=${settleTargetIds.length} users`)
 
+      // ── round_bet_logs: race 라운드 스냅샷 저장 ─────────────────
+      ;(async () => {
+        try {
+          const raceAllBets: Array<{ userId: string; username?: string; side: string; amount: number }> = []
+          const raceProfileMap = new Map<string, string>()
+          if ((raceUserIds as string[]).length > 0) {
+            const { data: rp } = await admin.from("profiles").select("id, username").in("id", raceUserIds as string[])
+            for (const p of rp ?? []) raceProfileMap.set(p.id, p.username)
+          }
+          for (const uid of raceUserIds as string[]) {
+            const betsKey = `bet:bets:race:${prevRaceRoundNumber}:${uid}`
+            const betsRaw = await redis.get<string>(betsKey)
+            if (!betsRaw) continue
+            const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
+            if (bets.raceSide && bets.raceAmount > 0) {
+              raceAllBets.push({ userId: uid, username: raceProfileMap.get(uid) ?? uid, side: bets.raceSide, amount: bets.raceAmount })
+            }
+          }
+          const raceTotalAmount = raceAllBets.reduce((s, b) => s + b.amount, 0)
+          await admin.from("round_bet_logs").upsert({
+            game_type:        "race",
+            round_number:     prevRaceRoundNumber,
+            round_started_at: new Date(prevRaceRoundNumber * 180 * 1000).toISOString(),
+            round_ended_at:   new Date((prevRaceRoundNumber + 1) * 180 * 1000).toISOString(),
+            total_users:      raceAllBets.length,
+            total_amount:     raceTotalAmount,
+            total_fee:        Math.floor(raceTotalAmount * 0.20),
+            winner:           raceWinner,
+            bets:             raceAllBets,
+          }, { onConflict: "game_type,round_number" })
+        } catch (_) { /* round_bet_logs 테이블 미생성 시 무시 */ }
+      })()
+
       // race house_stats 지점별 집계
       const raceBranchAccum: Record<string, { totalBet: number; totalPayout: number }> = {}
       for (const userId of settleTargetIds) {
@@ -842,6 +875,53 @@ export async function POST(request: Request) {
       started_at: new Date((roundNumber - 1) * 30 * 1000).toISOString(),
       ended_at: new Date(roundNumber * 30 * 1000).toISOString(),
     }, { onConflict: "ended_at", ignoreDuplicates: true }).then(() => {}).catch(() => {})
+
+    // ── round_bet_logs: 라운드 전체 배팅 현황 스냅샷 저장 ──────────
+    // 테이블 없으면 에러 무시 (setup-db 실행 후 활성화)
+    ;(async () => {
+      try {
+        // 이번 라운드 전체 유저 bets 수집
+        const allBetEntries: Array<{
+          userId: string; username?: string; side: string; amount: number
+        }> = []
+
+        // 유저 username 일괄 조회
+        const profileMap = new Map<string, string>()
+        if ((userIds as string[]).length > 0) {
+          const { data: profiles } = await admin
+            .from("profiles")
+            .select("id, username")
+            .in("id", userIds as string[])
+          for (const p of profiles ?? []) profileMap.set(p.id, p.username)
+        }
+
+        for (const uid of userIds as string[]) {
+          const betsKey = `bet:bets:baccarat:${roundNumber}:${uid}`
+          const betsRaw = await redis.get<string>(betsKey)
+          if (!betsRaw) continue
+          const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
+          const username = profileMap.get(uid) ?? uid
+          if (bets.baccaratSide && bets.baccaratAmount > 0) {
+            allBetEntries.push({ userId: uid, username, side: bets.baccaratSide, amount: bets.baccaratAmount })
+          }
+        }
+
+        const totalAmount = allBetEntries.reduce((s, b) => s + b.amount, 0)
+        const totalFee    = Math.floor(totalAmount * 0.20)
+
+        await admin.from("round_bet_logs").upsert({
+          game_type:        "baccarat",
+          round_number:     roundNumber,
+          round_started_at: new Date((roundNumber - 1) * 30 * 1000).toISOString(),
+          round_ended_at:   new Date(roundNumber * 30 * 1000).toISOString(),
+          total_users:      allBetEntries.length,
+          total_amount:     totalAmount,
+          total_fee:        totalFee,
+          winner:           baccaratResult,
+          bets:             allBetEntries,
+        }, { onConflict: "game_type,round_number" })
+      } catch (_) { /* round_bet_logs 테이블 미생성 시 무시 */ }
+    })()
 
     console.log(`[settle] round=${roundNumber} baccarat=${baccaratResult} settled=${settlementResults.length} users`)
 

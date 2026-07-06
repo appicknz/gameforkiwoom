@@ -17,6 +17,7 @@ import {
   ShoppingBag,
   BarChart2,
   Wallet,
+  ClipboardList,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useCallback } from "react"
@@ -679,7 +680,7 @@ export function Sidebar() {
 
   return (
     <>
-      {/* 강제 비밀번호 변경 모달 — 비밀번호 초기화 후 첫 로그인 시 표시 */}
+      {/* 강제 비밀번호 변경 모달 — 비밀번호 초기화 후 첫 ��그인 시 표시 */}
       {mustChangePw && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-5 mx-4">
@@ -798,6 +799,19 @@ export function Sidebar() {
                 </div>
               </Link>
             </div>
+            {/* 배팅 현황 */}
+            <Link href="/betting-status" onClick={() => setMobileOpen(false)}>
+              <div className={cn(
+                "rounded-2xl border border-border px-3 py-2.5 flex items-center gap-2.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30",
+                pathname === "/betting-status" && "border-primary/50 bg-secondary/40"
+              )}>
+                <ClipboardList className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">배팅 현황</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">날짜별 배팅 내역</p>
+                </div>
+              </div>
+            </Link>
           </div>}
 
           {/* ② 관리 — 2x2 그리드 */}
