@@ -545,7 +545,8 @@ async function runBetForGame(gameType: "baccarat" | "race") {
   // ── 실제 유저 수 확인 → 14명 고정 유지 ───────────────────────
   // 봇 제외 실제 유저 수를 Redis pool:userSet에서 읽어 14명에서 뺌
   // 실제 유저가 14명 이상이면 봇 배팅 완전 중지 (0명)
-  const TARGET_TOTAL = 14
+  // 바카라 50명, 레이스 50명 — 실제 유저가 참여하면 그만큼 봇 수 감소
+  const TARGET_TOTAL = 50
   const botUserIds = new Set(targetProfiles.map(p => p.id))
   const allUsersInRound = await redis.smembers(userSetKey).catch(() => [] as string[])
   const realUserCount = (allUsersInRound as string[]).filter(id => !botUserIds.has(id)).length
@@ -617,32 +618,44 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       }
     }
   } else {
-    // ── 레이스: 배팅창 50초(10~59초) 안에 자연 분산 ─────────────
-    const SPREAD_BUDGET_MS = 40000
-    const groups: (typeof shuffled)[] = []
-    let idx = 0
-    while (idx < shuffled.length) {
-      const gs = Math.min(2 + Math.floor(Math.random() * 3), shuffled.length - idx)
-      groups.push(shuffled.slice(idx, idx + gs))
-      idx += gs
-    }
-    const delayPerGap = groups.length > 1 ? Math.floor(SPREAD_BUDGET_MS / (groups.length - 1)) : 0
-    const jitter = () => Math.floor((Math.random() - 0.5) * 2 * delayPerGap * 0.3)
-    const raceWaveResults: Awaited<ReturnType<typeof betOne>>[] = []
+    // ── 레이스: 배팅창 50초(10~59초) — 바카라와 동일한 wave + 병렬 구조 ──
+    // 안전 마감: secInRound >= 55 이면 새 wave 시작 안 함 (마감 4초 여유)
+    const RACE_SAFE_CUTOFF = 55
 
-    for (let g = 0; g < groups.length; g++) {
-      if (g === 0) {
-        await new Promise(r => setTimeout(r, Math.floor(Math.random() * 1500)))
-      } else {
-        await new Promise(r => setTimeout(r, Math.max(300, delayPerGap + jitter())))
+    const total = shuffled.length
+    const w1End = Math.round(total * 0.25)
+    const w2End = Math.round(total * 0.50)
+    const w3End = Math.round(total * 0.75)
+
+    const raceWaveSlices = [
+      { users: shuffled.slice(0, w1End),     secTrigger: 10, waveLabel: "wave1" },
+      { users: shuffled.slice(w1End, w2End), secTrigger: 20, waveLabel: "wave2" },
+      { users: shuffled.slice(w2End, w3End), secTrigger: 35, waveLabel: "wave3" },
+      { users: shuffled.slice(w3End),        secTrigger: 47, waveLabel: "wave4" },
+    ]
+
+    for (const wave of raceWaveSlices) {
+      if (wave.users.length === 0) continue
+
+      let phase = isBettingPhase("race")
+      if (!phase.allowed) break
+      if (phase.secInRound >= RACE_SAFE_CUTOFF) break
+
+      if (phase.secInRound < wave.secTrigger) {
+        const remainMs = (wave.secTrigger - phase.secInRound) * 1000
+        const jitter = Math.floor(Math.random() * 800)
+        await new Promise(r => setTimeout(r, remainMs + jitter))
       }
-      const stillOk = isBettingPhase("race")
-      if (!stillOk.allowed) break
-      const grpResults = await Promise.all(groups[g].map(betOne))
-      settled.push(...grpResults)
-      raceWaveResults.push(...grpResults)
+
+      phase = isBettingPhase("race")
+      if (!phase.allowed || phase.secInRound >= RACE_SAFE_CUTOFF) break
+
+      const waveTs = Date.now()
+      // wave 내 전체 유저 병렬 실행 — 순차 그룹 sleep 제거로 마감 초과 방지
+      const waveResults = await Promise.all(wave.users.map(betOne))
+      settled.push(...waveResults)
+      waveLog.push({ waveLabel: wave.waveLabel, ts: waveTs, results: waveResults })
     }
-    waveLog.push({ waveLabel: "분산배팅", ts: Date.now(), results: raceWaveResults })
   }
 
   // ── wave 전체 완료 후: 최종 pool로 odds 일괄 계산 → odds:snap + odds:current 갱신 ──

@@ -287,7 +287,7 @@ function GameRoundCard({
   )
 }
 
-// ── 메인 컴포넌트 ─────────────────────────────────────────────────────────
+// ── 메인 컴���넌트 ─────────────────────────────────────────────────────────
 export function RoundMonitor({
   isSuperAdmin = false,
   branchId,       // 지점관리자: 자기 branch UUID, superadmin: undefined (전체)
@@ -706,7 +706,7 @@ export function RoundMonitor({
     })
     if (res.ok) {
       const d = await res.json()
-      setAbStatus(`봇 계정 생성 완료 — ${d.created}명 신규 생성 (전체 ${d.total}명)`)
+      setAbStatus(`봇 계정 생성 완료 — ${d.created}명 신규 생성 (전�� ${d.total}명)`)
       loadAbUsers()
     }
     setCreatingAccounts(false)
@@ -1078,7 +1078,7 @@ export function RoundMonitor({
                   onClick={handleCreateAccounts} disabled={creatingAccounts}
                 >
                   <Bot className="w-3 h-3" />
-                  {creatingAccounts ? "생성 중..." : "봇 계정 생성 (100명)"}
+                  {creatingAccounts ? "생성 중..." : "봇 계정 생성 (바카라 50 + 레이스 50)"}
                 </Button>
               </div>
             </div>
