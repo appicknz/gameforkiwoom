@@ -85,6 +85,8 @@ export async function POST(request: Request) {
   }
 
   await Promise.all([
+    // TTL을 라운드 전체(roundSec) + 여유 30초로 설정
+    // 빈 풀이어도 seeded 기본 배당이 저장되므로 클라이언트가 마운트 즉시 배당을 받음
     redis.set(currentKey, JSON.stringify(payload), { ex: roundSec + 30 }),
     redis.incr(versionKey),
   ])
