@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   RefreshCw, Download, TrendingUp, TrendingDown, Activity, Info,
-  Play, Square, Wallet, AlertCircle, BarChart3, RotateCcw, Lock, Bot,
+  Play, Square, Wallet, AlertCircle, BarChart3, RotateCcw, Lock, Bot, ChevronDown,
 } from "lucide-react"
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────
@@ -345,6 +345,13 @@ export function RoundMonitor({
   const [abUserTab,        setAbUserTab]        = useState<"baccarat" | "race">("baccarat")
   const [roundBetLogs,    setRoundBetLogs]    = useState<RoundBetLog[]>([])
   const [logTab,          setLogTab]          = useState<"baccarat" | "race">("baccarat")
+  // 접기/펼치기 상태
+  const [botUsersOpen,    setBotUsersOpen]    = useState(false)
+  const [betLogsOpen,     setBetLogsOpen]     = useState(false)
+  // 실시간 일반 유저 배팅 현황
+  interface RealUserBet { userId: string; username: string; gameType: string; side: string; amount: number; round: number; ts: number }
+  const [realUserBets,    setRealUserBets]    = useState<RealUserBet[]>([])
+  const [realUserCount,   setRealUserCount]   = useState<{baccarat: number; race: number}>({baccarat: 0, race: 0})
   const [baccaratPhase,   setBaccaratPhase]   = useState<"정산중" | "배팅가능" | "게임중">("게임중")
   const [racePhase,       setRacePhase]       = useState<"정산중" | "배팅가능" | "게임중">("게임중")
   const [baccaratTimeLeft, setBaccaratTimeLeft] = useState(30)
@@ -379,6 +386,17 @@ export function RoundMonitor({
       if (res.ok) setCombined(await res.json())
     } catch {}
     setRoundLoading(false)
+  }, [])
+
+  // 실시간 일반 유저 배팅 현황 조회 (봇 제외)
+  const loadRealUserBets = useCallback(async () => {
+    try {
+      const res = await fetchWithRefresh("/api/admin/round-stats/real-users")
+      if (!res.ok) return
+      const d = await res.json()
+      setRealUserBets(d.bets ?? [])
+      setRealUserCount(d.counts ?? { baccarat: 0, race: 0 })
+    } catch {}
   }, [])
 
   const loadHouseStats = useCallback(async () => {
@@ -747,7 +765,7 @@ export function RoundMonitor({
 
   // ── useEffect ─────────────────────────────────────────────────
   useEffect(() => {
-    loadRoundStats(); loadHouseStats(); loadLpHistory()
+    loadRoundStats(); loadRealUserBets(); loadHouseStats(); loadLpHistory()
     if (isSuperAdmin) { loadLpState(); loadAbUsers(); loadAbLogs() }
 
     // 자동배팅: 마운트 시 즉시 시작 (isSuperAdmin이면 자동으로 켜짐)
@@ -756,9 +774,10 @@ export function RoundMonitor({
       startRace()
     }
 
-    // 5초마다 라운드 통계 + 봇 잔고 갱신 (배팅 직후 배율·잔고 즉시 반영)
+    // 5초마다 라운드 통계 + 봇 잔고 + 실시간 유저 갱신
     statsRefreshRef.current = setInterval(() => {
       loadRoundStats()
+      loadRealUserBets()
       if (isSuperAdmin) loadAbUsers()
     }, 5_000)
     // 하우스 통계는 30초 간격으로 충분
@@ -850,13 +869,13 @@ export function RoundMonitor({
 
       {/* ════════════════════════════════════════════════════════
           섹션 1 — 현재 라운드 실시간 현황
-      ════════════════════════������══════════════════════════════ */}
+      ════════════════════════════════════════════════════════ */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Activity className="w-4 h-4 text-primary" />
             <div>
-              <h3 className="text-sm font-semibold text-foreground">현재 ��운드 실시간 현황</h3>
+              <h3 className="text-sm font-semibold text-foreground">현재 라운드 실시간 현황</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
                 바카라(30초) + 레이스(3분) &middot; 실시간
                 {isBranchAdmin && <span className="ml-1 text-blue-500">· 내 지점</span>}
@@ -882,6 +901,51 @@ export function RoundMonitor({
             </Button>
           </div>
         </div>
+
+        {/* ── superadmin: LP활성 아래 게임 제어 버튼 ── */}
+        {isSuperAdmin && (
+          <div className="px-5 py-3 border-b border-border bg-muted/30 flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline" size="sm" className="h-7 text-xs gap-1"
+              onClick={handleTopUp} disabled={toppingUp || lowBalanceCount === 0}
+            >
+              <Wallet className="w-3 h-3" />
+              {toppingUp ? "충전 중..." : `잔고 충전${lowBalanceCount > 0 ? ` (${lowBalanceCount}명)` : ""}`}
+            </Button>
+            {/* 바카라 초기화 + 시작/중지 */}
+            <Button
+              variant="outline" size="sm" className="h-7 text-xs gap-1 text-blue-500 border-blue-500/30 hover:bg-blue-500/10"
+              onClick={() => { setResetGameType("baccarat"); setShowResetDialog(true); setResetError(""); setResetPassword("") }}
+            >
+              <RotateCcw className="w-3 h-3" /> 바카라 초기화
+            </Button>
+            {baccaratRunning ? (
+              <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopBaccarat}>
+                <Square className="w-3 h-3" /> 바카라 중지
+              </Button>
+            ) : (
+              <Button size="sm" className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={startBaccarat} disabled={baccaratLoading}>
+                <Play className="w-3 h-3" /> 바카라 시작
+              </Button>
+            )}
+            {/* 레이스 초기화 + 시작/중지 */}
+            <Button
+              variant="outline" size="sm" className="h-7 text-xs gap-1 text-orange-500 border-orange-500/30 hover:bg-orange-500/10"
+              onClick={() => { setResetGameType("race"); setShowResetDialog(true); setResetError(""); setResetPassword("") }}
+            >
+              <RotateCcw className="w-3 h-3" /> 레이스 초기화
+            </Button>
+            {raceRunning ? (
+              <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopRace}>
+                <Square className="w-3 h-3" /> 레이스 중지
+              </Button>
+            ) : (
+              <Button size="sm" className="h-7 text-xs gap-1 bg-orange-600 hover:bg-orange-700 text-white" onClick={startRace} disabled={raceLoading}>
+                <Play className="w-3 h-3" /> 레이스 시작
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* 합산 4칸 */}
         <div className="px-5 pt-4 pb-3">
@@ -919,6 +983,78 @@ export function RoundMonitor({
       </div>
 
       {/* ════════════════════════════════════════════════════════
+          실시간 유저 배팅 현황 (봇 제외)
+      ════════════════════════════════════════════════════════ */}
+      {isSuperAdmin && (() => {
+        const nowSec = Math.floor(Date.now() / 1000)
+        const bacRound  = Math.floor(nowSec / 30)
+        const raceRound = Math.floor(nowSec / 180)
+        const bacBets   = realUserBets.filter(b => b.gameType === "baccarat" && b.round === bacRound)
+        const raceBets  = realUserBets.filter(b => b.gameType === "race"     && b.round === raceRound)
+        const totalReal = realUserCount.baccarat + realUserCount.race
+        return (
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Activity className="w-4 h-4 text-emerald-500" />
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">실시간 유저 배팅 현황</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    봇 제외 · 현재 라운드 실제 참여 {totalReal}명
+                    <span className="ml-2 text-blue-500">바카라 {realUserCount.baccarat}명</span>
+                    <span className="ml-1 text-orange-500">레이스 {realUserCount.race}명</span>
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadRealUserBets} className="h-7 gap-1 text-xs">
+                <RefreshCw className="w-3 h-3" />
+              </Button>
+            </div>
+            <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 바카라 */}
+              <div>
+                <p className="text-xs font-semibold text-blue-500 mb-2">바카라 (현재 라운드 #{bacRound})</p>
+                {bacBets.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-3 text-center">이번 라운드 실제 배팅 없음</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {bacBets.map((b, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs bg-muted/50 rounded-lg px-3 py-2">
+                        <span className="font-medium text-foreground">{b.username}</span>
+                        <span className={`font-semibold ${b.side === "player" ? "text-blue-500" : b.side === "banker" ? "text-red-500" : "text-amber-500"}`}>
+                          {SIDE_LABEL[b.side] ?? b.side}
+                        </span>
+                        <span className="tabular-nums text-foreground font-bold">{fmt(b.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* 레이스 */}
+              <div>
+                <p className="text-xs font-semibold text-orange-500 mb-2">레이스 (현재 라운드 #{raceRound})</p>
+                {raceBets.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-3 text-center">이번 라운드 실제 배팅 없음</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {raceBets.map((b, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs bg-muted/50 rounded-lg px-3 py-2">
+                        <span className="font-medium text-foreground">{b.username}</span>
+                        <span className={`font-semibold ${b.side === "bit" ? "text-blue-500" : b.side === "coin" ? "text-orange-500" : "text-amber-500"}`}>
+                          {SIDE_LABEL[b.side] ?? b.side}
+                        </span>
+                        <span className="tabular-nums text-foreground font-bold">{fmt(b.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ════════════════════════════════════════════════════════
           섹션 2 — 자동배팅 (superadmin 전용)
       ════════════════════════════════════════════════════════ */}
       {isSuperAdmin && (
@@ -930,7 +1066,7 @@ export function RoundMonitor({
                 <TrendingUp className="w-4 h-4 text-primary" />
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">자동배팅 제어</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">홀수=바카라(30초), 짝수=레이스(3분) &middot; 게임별 독립 제어</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">홀수=바카라(30초), 짝수=레이스(3분) &middot; 14명 고정 (실제 유저 참여 시 자동 감소)</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -944,49 +1080,6 @@ export function RoundMonitor({
                   <Bot className="w-3 h-3" />
                   {creatingAccounts ? "생성 중..." : "봇 계정 생성 (100명)"}
                 </Button>
-                <Button
-                  variant="outline" size="sm" className="h-7 text-xs gap-1"
-                  onClick={handleTopUp} disabled={toppingUp || lowBalanceCount === 0}
-                >
-                  <Wallet className="w-3 h-3" />
-                  {toppingUp ? "충전 중..." : `잔고 충전${lowBalanceCount > 0 ? ` (${lowBalanceCount}명)` : ""}`}
-                </Button>
-                {/* 바카라 초기화 + 시작/중지 */}
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline" size="sm" className="h-7 text-xs gap-1 text-blue-500 border-blue-500/30 hover:bg-blue-500/10"
-                    onClick={() => { setResetGameType("baccarat"); setShowResetDialog(true); setResetError(""); setResetPassword("") }}
-                  >
-                    <RotateCcw className="w-3 h-3" /> 바카라 초기화
-                  </Button>
-                  {baccaratRunning ? (
-                    <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopBaccarat}>
-                      <Square className="w-3 h-3" /> 중지
-                    </Button>
-                  ) : (
-                    <Button size="sm" className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={startBaccarat} disabled={baccaratLoading}>
-                      <Play className="w-3 h-3" /> 바카라 시작
-                    </Button>
-                  )}
-                </div>
-                {/* 레이스 초기화 + 시작/중지 */}
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline" size="sm" className="h-7 text-xs gap-1 text-orange-500 border-orange-500/30 hover:bg-orange-500/10"
-                    onClick={() => { setResetGameType("race"); setShowResetDialog(true); setResetError(""); setResetPassword("") }}
-                  >
-                    <RotateCcw className="w-3 h-3" /> 레이스 초기화
-                  </Button>
-                  {raceRunning ? (
-                    <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={stopRace}>
-                      <Square className="w-3 h-3" /> 중지
-                    </Button>
-                  ) : (
-                    <Button size="sm" className="h-7 text-xs gap-1 bg-orange-600 hover:bg-orange-700 text-white" onClick={startRace} disabled={raceLoading}>
-                      <Play className="w-3 h-3" /> 레이스 시작
-                    </Button>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -1186,15 +1279,23 @@ export function RoundMonitor({
               </div>
             )}
 
-            {/* ── 자동배팅 라운드 로그 ── */}
+            {/* ── 자동배팅 라운드 로그 (접기/펼치기) ── */}
             <div className="px-5 pb-5">
-              {/* 탭 */}
-              <div className="flex items-center justify-between mb-3">
+              <button
+                onClick={() => setBetLogsOpen(o => !o)}
+                className="w-full flex items-center justify-between mb-2 group"
+              >
                 <div className="flex items-center gap-1.5">
                   <Activity className="w-3.5 h-3.5 text-muted-foreground" />
                   <span className="text-xs font-semibold text-foreground">라운드별 배팅 로그</span>
                   <span className="text-[10px] text-muted-foreground">최근 20라운드</span>
                 </div>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${betLogsOpen ? "rotate-180" : ""}`} />
+              </button>
+              {betLogsOpen && (
+              <>
+              <div className="flex items-center justify-between mb-3">
+                <div />
                 <div className="flex gap-1">
                   <button
                     onClick={() => setLogTab("baccarat")}
@@ -1325,13 +1426,18 @@ export function RoundMonitor({
                   </div>
                 )
               })()}
+              </>
+              )}
             </div>
           </div>
 
-          {/* 자동배팅 유저 통합 목록 — 최근 배팅 접수 + 누적 통계 */}
+          {/* 자동배팅 유저 통합 목록 — accordion */}
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-              <div>
+            <button
+              onClick={() => setBotUsersOpen(o => !o)}
+              className="w-full px-5 py-3 border-b border-border flex items-center justify-between"
+            >
+              <div className="text-left">
                 <h4 className="text-sm font-semibold text-foreground">자동배팅 유저 현황</h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   이번 라운드 배팅 · 누적 통계 · 잔고 통합
@@ -1340,7 +1446,11 @@ export function RoundMonitor({
                   )}
                 </p>
               </div>
-              <div className="flex gap-1">
+              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${botUsersOpen ? "rotate-180" : ""}`} />
+            </button>
+            {botUsersOpen && (
+              <div>
+              <div className="px-5 pt-3 flex gap-1">
                 <button
                   onClick={() => setAbUserTab("baccarat")}
                   className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${abUserTab === "baccarat" ? "bg-blue-500 text-white" : "text-muted-foreground hover:text-foreground"}`}
@@ -1354,7 +1464,6 @@ export function RoundMonitor({
                   레이스 {raceUsers.length}명
                 </button>
               </div>
-            </div>
 
             {/* 헤더 — 넓은 그리드로 균형있게 배치 */}
             <div className="px-5 py-2.5 bg-muted/50 grid grid-cols-12 gap-3 text-xs text-muted-foreground font-medium border-b border-border">
@@ -1488,6 +1597,8 @@ export function RoundMonitor({
                 )
               })}
             </div>
+              </div>
+            )}
           </div>
 
           {/* 배팅 이력 */}

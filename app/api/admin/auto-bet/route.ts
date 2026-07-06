@@ -584,12 +584,22 @@ async function runBetForGame(gameType: "baccarat" | "race") {
     }
   }
 
-  // ── Fisher-Yates 셔플 ──────────────────────────────────────────
+  // ── 실제 유저 수 확인 → 14명 고정 유지 ───────────────────────
+  // 봇 제외 실제 유저 수를 Redis pool:userSet에서 읽어 14명에서 뺌
+  // 실제 유저가 14명 이상이면 봇 배팅 완전 중지 (0명)
+  const TARGET_TOTAL = 14
+  const botUserIds = new Set(targetProfiles.map(p => p.id))
+  const allUsersInRound = await redis.smembers(userSetKey).catch(() => [] as string[])
+  const realUserCount = (allUsersInRound as string[]).filter(id => !botUserIds.has(id)).length
+  const allowedBotCount = Math.max(0, TARGET_TOTAL - realUserCount)
+
+  // ── Fisher-Yates 셔플 후 허용된 봇 수만 남김 ─────────────────
   const shuffled = [...targetProfiles]
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
   }
+  shuffled.splice(allowedBotCount)  // allowedBotCount 초과분 제거
 
   const settled: Awaited<ReturnType<typeof betOne>>[] = []
   // wave별 결과 추적 (클라이언트 상세 로그용)
