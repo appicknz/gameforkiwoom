@@ -611,9 +611,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       .then(data => {
         if (!data?.activeBet) return
         const { roundNumber, side, amount, oddsAtBet } = data.activeBet
-        // 현재 라운드와 동일한 배팅만 복원 (이미 지난 라운드는 무시)
-        const nowRound = Math.floor(Date.now() / 1000 / 30)
-        if (roundNumber !== nowRound) return
+
+        // 라운드 경계 필터 제거 — 새로고침 타이밍에 따라 nowRound가 roundNumber+1이 될 수 있음
+        // Redis bet:round 키(TTL=라운드길이+여유)가 살아있으면 해당 라운드 배팅을 반드시 복원
+        // settle-me는 resolvedBetsKey를 찾아 정산하므로 라운드 번호가 달라도 올바르게 처리됨
 
         // baccarat 배팅 복원
         if (side === "player" || side === "banker" || side === "tie") {
@@ -621,7 +622,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           betBaccaratAmountRef.current = amount
           setBetBaccarat(side)
           setBetBaccaratAmount(amount)
-          betRoundNumberRef.current = roundNumber
+          betRoundNumberRef.current = roundNumber  // 배팅한 라운드 번호 보존 — 정산 시 사용
           if (oddsAtBet) {
             liveOddsSnapshotRef.current = oddsAtBet
             dbgBetRef.current = {

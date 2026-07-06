@@ -53,9 +53,11 @@ export async function POST(request: Request) {
     const userRoundKey  = `bet:round:${gameType}:${userId}`
     const storedRound   = await redis.get<number>(userRoundKey)
     // storedRound가 있으면 그것을 사용, 없으면 프론트 roundNumber ± 1 까지 시도
+    // storedRound(bet:round Redis 키)가 있으면 그것만 시도
+    // 없으면 프론트에서 넘긴 roundNumber 기준 ±2 탐색 (라운드 경계 새로고침 대응)
     const candidates    = storedRound
       ? [storedRound]
-      : [roundNumber, roundNumber - 1, roundNumber + 1]
+      : [roundNumber, roundNumber - 1, roundNumber - 2, roundNumber + 1]
 
     let betsRaw:       string | null = null
     let resolvedRound: number        = roundNumber
@@ -316,7 +318,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── 잔고 반영 ────────────────────────────────────────────
+    // ── 잔고 반영 ────────────────────────────────────��───────
     let newBalance: number
     if (totalPayout > 0) {
       const { data, error } = await admin.rpc("add_balance_for_payout", {
