@@ -1277,29 +1277,32 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     }
 
     // ── 내 배팅 금액을 포함해 즉시 odds 재계산 ──────────────────────
-    // WS push를 기다리지 않고 배팅 확정 순간 버튼 배당을 갱신
-    // 2천만원 배팅 → 풀이 대폭 변함 → 배당도 즉시 반영되어야 사기 오해 없음
+    // 조건: liveOdds.pools 가 실제 값으로 채워진 경우에만 재계산
+    // pools 가 없으면 계산 불가 → WS push(500ms 내) 수신 시 자동 반영
     if (dialog.type === "baccarat") {
-      const side = dialog.value as "player" | "banker" | "tie"
-      const prevPools = liveOdds?.pools ?? { player: 0, banker: 0, tie: 0 }
-      const newPools = {
-        player: prevPools.player + (side === "player" ? amount : 0),
-        banker: prevPools.banker + (side === "banker" ? amount : 0),
-        tie:    prevPools.tie    + (side === "tie"    ? amount : 0),
-      }
-      const recalc = calcBaccaratOdds(newPools, {} as any, 0)
-      if (recalc.available) {
-        const updated = {
-          player: recalc.playerOdds as number,
-          banker: recalc.bankerOdds as number,
-          tie:    recalc.tieOdds    as number,
-          available: true,
-          mode: recalc.mode as any,
-          pools: newPools,
+      const prevPools = liveOdds?.pools
+      if (prevPools && (prevPools.player + prevPools.banker + prevPools.tie) > 0) {
+        const side = dialog.value as "player" | "banker" | "tie"
+        const newPools = {
+          player: prevPools.player + (side === "player" ? amount : 0),
+          banker: prevPools.banker + (side === "banker" ? amount : 0),
+          tie:    prevPools.tie    + (side === "tie"    ? amount : 0),
         }
-        liveOddsRef.current = updated
-        setLiveOdds(updated)
+        const recalc = calcBaccaratOdds(newPools, {} as any, 0)
+        if (recalc.available) {
+          const updated = {
+            player: recalc.playerOdds as number,
+            banker: recalc.bankerOdds as number,
+            tie:    recalc.tieOdds    as number,
+            available: true,
+            mode: recalc.mode as any,
+            pools: newPools,
+          }
+          liveOddsRef.current = updated
+          setLiveOdds(updated)
+        }
       }
+      // pools 없음 → 재계산 생략, WS push 수신 대기 (500ms 이내)
     }
 
     setPhase("waiting")
@@ -1334,6 +1337,12 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       else if (dialog.type === "baccarat") {
         betBaccaratRef.current = null; setBetBaccarat(null)
         onBetSideTrigger?.(null)
+      }
+      // 잔고 낙관적 차감 롤백 — 서버에서 배팅이 거부됐으므로 원래 잔고로 복원
+      if (balance !== null) {
+        const restoredBalance = balance + amount
+        setBalance(restoredBalance)
+        window.dispatchEvent(new CustomEvent("balance:update", { detail: restoredBalance }))
       }
       setPhase("betting")
     } finally {
