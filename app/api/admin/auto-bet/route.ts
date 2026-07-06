@@ -751,16 +751,17 @@ export async function POST(request: Request) {
     const missing = AUTO_BET_USERNAMES.filter(u => !existingSet.has(u))
 
     let created = 0
-    // 10개씩 병렬 배치 처리 (타임아웃 방지)
-    const BATCH = 10
+    // 5개씩 병렬 배치 처리 (타임아웃 방지)
+    const BATCH = 5
     for (let i = 0; i < missing.length; i += BATCH) {
       const batch = missing.slice(i, i + BATCH)
       await Promise.all(batch.map(async (username) => {
         try {
-          const email = `${username}@auto.bet`
+          // 한글 username은 이메일에 사용 불가 → bot002~bot101@auto.bet 형식
+          const num = parseInt(username.replace("사용자", ""))
+          const email = `bot${String(num).padStart(3, "0")}@auto.bet`
           const { data: authUser, error: authErr } = await adminSupabase.auth.admin.createUser({
             email,
-            // 기존 봇들과 동일한 bcrypt 해시 비밀번호를 직접 주입
             password: "AutoBet@2024!",
             email_confirm: true,
           })
