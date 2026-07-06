@@ -118,103 +118,106 @@ export async function POST(request: Request) {
       if (!merged.raceAmount) merged.raceAmount = betAmount
     }
 
-    // ── 배팅 풀 반영 + 잔고 Redis 갱신을 한 번의 Promise.all로 ──
-    await Promise.all([
-      redis.hincrby(poolKey, side, betAmount),
-      redis.sadd(userSetKey, userId),
-      redis.set(betsKey, JSON.stringify(merged), { ex: ttl }),
-      redis.set(userRoundKey, roundNumber, { ex: ttl }),
-      redis.expire(poolKey, ttl),
-      redis.expire(userSetKey, ttl),
-      redis.set(`balance:${userId}`, newBalance as number, { ex: 3600 }),
-      redis.incr(`balance_version:${userId}`),
-    ])
+    // ── 잔고 차감 성공 → 즉시 응답 후 나머지는 백그라운드 처리 ──
+    // deduct_balance_for_bet RPC 완료 시점에 배팅은 확정됨
+    // 풀 반영 / odds 재계산 / 로그는 응답을 블로킹하지 않음
+    const response = NextResponse.json({ success: true, newBalance })
 
-    // ── odds 재계산 (poolData + userCount 병렬) ─────────────
-    const [poolDataAfter, userCount] = await Promise.all([
-      redis.hgetall(poolKey).catch(() => null),
-      redis.scard(userSetKey).catch(() => 0),
-    ])
+    // ── 백그라운드: 풀 반영 + odds 재계산 + 저장 (fire-and-forget) ──
+    ;(async () => {
+      try {
+        // 1단계: 풀 반영 + 잔고 Redis 캐시 + bets 저장 (모두 병렬)
+        const [poolPlayer, poolBanker, poolTie, poolBit, poolCoin] = await Promise.all([
+          side === "player" ? redis.hincrby(poolKey, "player", betAmount) : redis.hget(poolKey, "player").then(v => parseInt((v as string) ?? "0") || 0),
+          side === "banker" ? redis.hincrby(poolKey, "banker", betAmount) : redis.hget(poolKey, "banker").then(v => parseInt((v as string) ?? "0") || 0),
+          side === "tie"    ? redis.hincrby(poolKey, "tie",    betAmount) : redis.hget(poolKey, "tie").then(v => parseInt((v as string) ?? "0") || 0),
+          side === "bit"    ? redis.hincrby(poolKey, "bit",    betAmount) : redis.hget(poolKey, "bit").then(v => parseInt((v as string) ?? "0") || 0),
+          side === "coin"   ? redis.hincrby(poolKey, "coin",   betAmount) : redis.hget(poolKey, "coin").then(v => parseInt((v as string) ?? "0") || 0),
+        ])
 
-    let oddsSnap: Record<string, number> = {}
-    if (type === "baccarat") {
-      const pool = {
-        player: parseInt((poolDataAfter?.player as string) ?? "0") || 0,
-        banker: parseInt((poolDataAfter?.banker as string) ?? "0") || 0,
-        tie:    parseInt((poolDataAfter?.tie    as string) ?? "0") || 0,
+        // 나머지 Redis ops 병렬
+        const [userCount] = await Promise.all([
+          redis.sadd(userSetKey, userId).then(() => redis.scard(userSetKey)),
+          redis.set(betsKey, JSON.stringify(merged), { ex: ttl }),
+          redis.set(userRoundKey, roundNumber, { ex: ttl }),
+          redis.expire(poolKey, ttl),
+          redis.expire(userSetKey, ttl),
+          redis.set(`balance:${userId}`, newBalance as number, { ex: 3600 }),
+          redis.incr(`balance_version:${userId}`),
+        ])
+
+        // 2단계: odds 재계산 (이미 위에서 pool 값 확보 — 추가 왕복 없음)
+        let oddsSnap: Record<string, number> = {}
+        if (type === "baccarat") {
+          const pool = {
+            player: poolPlayer as number,
+            banker: poolBanker as number,
+            tie:    poolTie    as number,
+          }
+          const r = calcBaccaratOdds(pool, lpConfig, (userCount as number) ?? 0)
+          oddsSnap = {
+            player: typeof r.playerOdds === "number" ? r.playerOdds : 1.95,
+            banker: typeof r.bankerOdds === "number" ? r.bankerOdds : 1.95,
+            tie:    typeof r.tieOdds    === "number" ? r.tieOdds    : 1.95,
+          }
+        } else {
+          const pool = {
+            bit:  poolBit  as number,
+            coin: poolCoin as number,
+            tie:  poolTie  as number,
+          }
+          const r = calcRaceOdds(pool, lpConfig, (userCount as number) ?? 0)
+          oddsSnap = {
+            bit:  typeof r.bitOdds  === "number" ? r.bitOdds  : 1.95,
+            coin: typeof r.coinOdds === "number" ? r.coinOdds : 1.95,
+            tie:  typeof r.tieOdds  === "number" ? r.tieOdds  : 1.95,
+          }
+        }
+
+        // 3단계: 배팅 구간 재확인 후 odds:current / odds_version 갱신
+        const nowSecFinal     = Math.floor(Date.now() / 1000)
+        const secInRoundFinal = nowSecFinal % roundSec
+        const stillBetting = type === "race"
+          ? secInRoundFinal >= 10 && secInRoundFinal < 60
+          : secInRoundFinal >= 5  && secInRoundFinal < 20
+        const isLockZone = type === "race"
+          ? secInRoundFinal >= 57 && secInRoundFinal < 60
+          : secInRoundFinal >= 17 && secInRoundFinal < 20
+
+        const currentKey = `odds:current:${type}:${roundNumber}`
+        const lockedKey  = `odds:locked:${type}:${roundNumber}`
+        const currentPayload = {
+          gameType: type, roundNumber,
+          userCount: (userCount as number) ?? 0,
+          pools: { player: poolPlayer, banker: poolBanker, tie: poolTie, bit: poolBit, coin: poolCoin },
+          odds: oddsSnap,
+        }
+        const balBefore = (newBalance as number) + betAmount
+
+        await Promise.all([
+          redis.set(oddsSnapKey, JSON.stringify(oddsSnap), { ex: ttl }),
+          redis.set(activeBetKey, JSON.stringify({
+            roundNumber, gameType: type, side, amount: betAmount,
+            oddsAtBet: oddsSnap, placedAt: Date.now(),
+          }), { ex: ttl + 10 }),
+          ...(stillBetting ? [
+            redis.set(currentKey, JSON.stringify(currentPayload), { ex: ttl }),
+            redis.incr(`odds_version:${type}`),
+          ] : []),
+          ...(isLockZone ? [redis.set(lockedKey, JSON.stringify(oddsSnap), { ex: 3600 })] : []),
+          adminSupabase.from("balance_transactions").insert({
+            user_id: userId, branch_id: branchId,
+            type: "bet", amount: -betAmount,
+            balance_before: balBefore, balance_after: newBalance,
+            note: "배팅 차감",
+          }),
+        ])
+      } catch (bgErr) {
+        console.error("[bet] background error:", bgErr)
       }
-      const r = calcBaccaratOdds(pool, lpConfig, userCount as number)
-      oddsSnap = {
-        player: typeof r.playerOdds === "number" ? r.playerOdds : 1.95,
-        banker: typeof r.bankerOdds === "number" ? r.bankerOdds : 1.95,
-        tie:    typeof r.tieOdds    === "number" ? r.tieOdds    : 1.95,
-      }
-    } else {
-      const pool = {
-        bit:  parseInt((poolDataAfter?.bit  as string) ?? "0") || 0,
-        coin: parseInt((poolDataAfter?.coin as string) ?? "0") || 0,
-        tie:  parseInt((poolDataAfter?.tie  as string) ?? "0") || 0,
-      }
-      const r = calcRaceOdds(pool, lpConfig, userCount as number)
-      oddsSnap = {
-        bit:  typeof r.bitOdds  === "number" ? r.bitOdds  : 1.95,
-        coin: typeof r.coinOdds === "number" ? r.coinOdds : 1.95,
-        tie:  typeof r.tieOdds  === "number" ? r.tieOdds  : 1.95,
-      }
-    }
+    })()
 
-    // ── 최종 저장 + SSE 트리거 + odds:current 공유 캐시 갱신 ──
-    const balBefore  = (newBalance as number) + betAmount
-    const currentKey = `odds:current:${type}:${roundNumber}`
-    const lockedKey  = `odds:locked:${type}:${roundNumber}`
-
-    // 배팅마다 odds:current 갱신 → 관리자 패널과 /baka 배당이 항상 동일
-    const currentPayload = {
-      gameType: type,
-      roundNumber,
-      userCount: (userCount as number) ?? 0,
-      pools: poolDataAfter,
-      odds: oddsSnap,
-    }
-
-    // ── write 직전 배팅 구간 재확인 ────────────────────────────
-    // deduct_balance RPC + Redis 처리 시간(100~300ms) 동안 secInRound가
-    // 20(게임중)을 넘었을 수 있음 → 그 경우 odds:current / odds_version 갱신 금지
-    const nowSecFinal   = Math.floor(Date.now() / 1000)
-    const secInRoundFinal = nowSecFinal % roundSec
-    const stillBetting = type === "race"
-      ? secInRoundFinal >= 10 && secInRoundFinal < 60
-      : secInRoundFinal >= 5  && secInRoundFinal < 20
-
-    // 배팅 구간 마지막 3초(baccarat: 17~19, race: 57~59)에 odds:locked 저장
-    const isLockZone = type === "race"
-      ? secInRoundFinal >= 57 && secInRoundFinal < 60
-      : secInRoundFinal >= 17 && secInRoundFinal < 20
-    const lockOps: Promise<unknown>[] = isLockZone
-      ? [redis.set(lockedKey, JSON.stringify(oddsSnap), { ex: 3600 })]
-      : []
-
-    await Promise.all([
-      redis.set(oddsSnapKey,  JSON.stringify(oddsSnap), { ex: ttl }),
-      // odds:current 갱신은 여전히 배팅 구간일 때만
-      ...(stillBetting ? [redis.set(currentKey, JSON.stringify(currentPayload), { ex: ttl })] : []),
-      redis.set(activeBetKey, JSON.stringify({
-        roundNumber, gameType: type, side, amount: betAmount,
-        oddsAtBet: oddsSnap, placedAt: Date.now(),
-      }), { ex: ttl + 10 }),
-      // odds_version incr도 배팅 구간 내에만
-      ...(stillBetting ? [redis.incr(`odds_version:${type}`)] : []),
-      ...lockOps,
-      // balance_transactions는 응답에 영향 없으므로 fire-and-forget
-      adminSupabase.from("balance_transactions").insert({
-        user_id: userId, branch_id: branchId,
-        type: "bet", amount: -betAmount,
-        balance_before: balBefore, balance_after: newBalance,
-        note: "배팅 차감",
-      }),
-    ])
-
-    return NextResponse.json({ success: true, newBalance })
+    return response
   } catch (error) {
     console.error("[bet] error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

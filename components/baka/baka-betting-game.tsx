@@ -1218,23 +1218,60 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   const handleConfirmBet = async (amount: number) => {
     if (!dialog) return
-    setIsPlacingBet(true)
-    try {
-      const token = getToken()
-      if (!token) throw new Error("로그인이 필요합니다")
+    const token = getToken()
+    if (!token) return
 
-      const betSide = dialog.type === "baccarat" ? dialog.value : undefined
-      // bets 전체를 함께 전송 → Redis에 저장 → settle API가 읽어 일괄 정산
-      const betsPayload = {
-        direction: dialog.type === "direction" ? dialog.value : (betRef.current ?? undefined),
-        directionAmount: betDirectionAmountRef.current > 0 ? betDirectionAmountRef.current : (dialog.type === "direction" ? amount : undefined),
-        digit: dialog.type === "digit" ? dialog.value : (betDigitRef.current ?? undefined),
-        digitAmount: betDigitAmountRef.current > 0 ? betDigitAmountRef.current : (dialog.type === "digit" ? amount : undefined),
-        parity: dialog.type === "parity" ? dialog.value : (betParityRef.current ?? undefined),
-        parityAmount: betParityAmountRef.current > 0 ? betParityAmountRef.current : (dialog.type === "parity" ? amount : undefined),
-        baccaratSide: dialog.type === "baccarat" ? dialog.value : (betBaccaratRef.current ?? undefined),
-        baccaratAmount: betBaccaratAmountRef.current > 0 ? betBaccaratAmountRef.current : (dialog.type === "baccarat" ? amount : undefined),
-      }
+    const betSide = dialog.type === "baccarat" ? dialog.value : undefined
+    const betsPayload = {
+      direction: dialog.type === "direction" ? dialog.value : (betRef.current ?? undefined),
+      directionAmount: betDirectionAmountRef.current > 0 ? betDirectionAmountRef.current : (dialog.type === "direction" ? amount : undefined),
+      digit: dialog.type === "digit" ? dialog.value : (betDigitRef.current ?? undefined),
+      digitAmount: betDigitAmountRef.current > 0 ? betDigitAmountRef.current : (dialog.type === "digit" ? amount : undefined),
+      parity: dialog.type === "parity" ? dialog.value : (betParityRef.current ?? undefined),
+      parityAmount: betParityAmountRef.current > 0 ? betParityAmountRef.current : (dialog.type === "parity" ? amount : undefined),
+      baccaratSide: dialog.type === "baccarat" ? dialog.value : (betBaccaratRef.current ?? undefined),
+      baccaratAmount: betBaccaratAmountRef.current > 0 ? betBaccaratAmountRef.current : (dialog.type === "baccarat" ? amount : undefined),
+    }
+
+    // ── 낙관적 업데이트: API 응답 전에 즉시 UI 반영 ──────────────
+    if (!basePriceRef.current) {
+      basePriceRef.current = currentPriceRef.current
+      setBasePrice(currentPriceRef.current)
+    }
+    if (dialog.type === "direction") {
+      betRef.current = dialog.value as BetDirection
+      betDirectionAmountRef.current = amount
+      setBetDirection(dialog.value as BetDirection)
+      setBetDirectionAmount(amount)
+    } else if (dialog.type === "digit") {
+      betDigitRef.current = dialog.value as BetDigit
+      betDigitAmountRef.current = amount
+      setBetDigit(dialog.value as BetDigit)
+      setBetDigitAmount(amount)
+    } else if (dialog.type === "parity") {
+      betParityRef.current = dialog.value as BetParity
+      betParityAmountRef.current = amount
+      setBetParity(dialog.value as BetParity)
+      setBetParityAmount(amount)
+    } else if (dialog.type === "baccarat") {
+      betBaccaratRef.current = dialog.value as BetBaccarat
+      betBaccaratAmountRef.current = amount
+      setBetBaccarat(dialog.value as BetBaccarat)
+      setBetBaccaratAmount(amount)
+      onBetSideTrigger?.(dialog.value as "player" | "banker" | "tie")
+    }
+    // 잔고 낙관적 차감
+    if (balance !== null) {
+      const optimisticBalance = balance - amount
+      setBalance(optimisticBalance)
+      window.dispatchEvent(new CustomEvent("balance:update", { detail: optimisticBalance }))
+    }
+    setPhase("waiting")
+    setDialog(null)
+
+    // ── 실제 API 호출 (백그라운드) ─────────────────────────────
+    try {
+      setIsPlacingBet(true)
       const res = await fetch("/api/user/game/bet", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -1247,44 +1284,22 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Bet failed")
 
+      // 서버 확정 잔고로 보정 (낙관적 값과 다를 경우 수정)
       if (typeof data.newBalance === "number") {
         setBalance(data.newBalance)
         window.dispatchEvent(new CustomEvent("balance:update", { detail: data.newBalance }))
       }
-
-      if (!basePriceRef.current) {
-        basePriceRef.current = currentPriceRef.current
-        setBasePrice(currentPriceRef.current)
-      }
-
-      if (dialog.type === "direction") {
-        betRef.current = dialog.value as BetDirection
-        betDirectionAmountRef.current = amount
-        setBetDirection(dialog.value as BetDirection)
-        setBetDirectionAmount(amount)
-      } else if (dialog.type === "digit") {
-        betDigitRef.current = dialog.value as BetDigit
-        betDigitAmountRef.current = amount
-        setBetDigit(dialog.value as BetDigit)
-        setBetDigitAmount(amount)
-      } else if (dialog.type === "parity") {
-        betParityRef.current = dialog.value as BetParity
-        betParityAmountRef.current = amount
-        setBetParity(dialog.value as BetParity)
-        setBetParityAmount(amount)
-      } else if (dialog.type === "baccarat") {
-        betBaccaratRef.current = dialog.value as BetBaccarat
-        betBaccaratAmountRef.current = amount
-        setBetBaccarat(dialog.value as BetBaccarat)
-        setBetBaccaratAmount(amount)
-        // 배팅 사이드를 BaccaratGame에 즉시 전달 (15초 딜 시 카드 분배 기준)
-        onBetSideTrigger?.(dialog.value as "player" | "banker" | "tie")
-      }
-
-      setPhase("waiting")
-      setDialog(null)
     } catch (err) {
       console.error("[v0] BakaBet error:", err)
+      // 실패 시 롤백: 배팅 상태 원복
+      if (dialog.type === "direction") { betRef.current = null; setBetDirection(null) }
+      else if (dialog.type === "digit") { betDigitRef.current = null; setBetDigit(null) }
+      else if (dialog.type === "parity") { betParityRef.current = null; setBetParity(null) }
+      else if (dialog.type === "baccarat") {
+        betBaccaratRef.current = null; setBetBaccarat(null)
+        onBetSideTrigger?.(null)
+      }
+      setPhase("betting")
     } finally {
       setIsPlacingBet(false)
     }
@@ -1389,7 +1404,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
                       : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
                   >없음</button>
                   {(["player", "banker", "tie", "random"] as const).map((opt) => {
-                    const labels: Record<typeof opt, string> = { player: "플레이���", banker: "��커", tie: "타이", random: "랜덤" }
+                    const labels: Record<typeof opt, string> = { player: "플레이���", banker: "����커", tie: "타이", random: "랜덤" }
                     return (
                       <button key={opt}
                         onClick={() => setAutoBet(prev => ({ ...prev, baccarat: opt }))}
