@@ -521,7 +521,7 @@ function accumulateRacePrice(closePrice, closeTime) {
         coinScore += parseInt(dec[1] || "0");
       }
       const winner = bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie";
-      const endTime = prevRound * 180 + 180; // 라운드 종료 시각
+      const endTime = prevRound * 180 + 180; // 라운드 종��� 시각
       saveRaceResultToDB(endTime, prev.lastPrice, bitScore, coinScore, winner);
     }
     // 오래된 라운드 메모리 정리 (2라운드 이상 전)
@@ -755,8 +755,8 @@ async function gatewayPoll() {
   }
 }
 
-// 2초마다 폴링 — 유저 5,000명이 연결해도 Redis 요청은 고정 (유저 수 무관)
-setInterval(gatewayPoll, 2_000)
+// 500ms마다 폴링 — 배팅 즉시 배당 반영 (Redis 요청은 유저 수 무관, 고정 비용)
+setInterval(gatewayPoll, 500)
 
 // ─── heartbeat ──────────────────────────────────────────────────────
 setInterval(() => {

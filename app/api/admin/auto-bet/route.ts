@@ -605,12 +605,33 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       if (!phase.allowed || phase.secInRound >= SAFE_CUTOFF) break
 
       const waveTs = Date.now()
-      // wave 내 전체 유저를 한 번에 병렬 실행 — 그룹 sleep 제거로 타임아웃 방지
       const waveResults = await Promise.all(wave.users.map(betOne))
       settled.push(...waveResults)
       waveLog.push({ waveLabel: wave.waveLabel, ts: waveTs, results: waveResults })
 
-      // wave 사이 짧은 텀 (자연스러운 분산, 다음 wave trigger까지 대기 시간 안에서 처리됨)
+      // wave 완료 즉시 odds:current 갱신 → gatewayPoll(500ms)이 즉시 감지해 WS push
+      if (waveResults.some(r => r.success)) {
+        const [wavePool, waveUserCount] = await Promise.all([
+          redis.hgetall(poolKey).catch(() => null),
+          redis.scard(userSetKey).catch(() => 0),
+        ])
+        const wavePool2 = {
+          player: parseInt((wavePool?.player as string) ?? "0") || 0,
+          banker: parseInt((wavePool?.banker as string) ?? "0") || 0,
+          tie:    parseInt((wavePool?.tie    as string) ?? "0") || 0,
+        }
+        const wr = calcBaccaratOdds(wavePool2, lpConfig, (waveUserCount as number) ?? 0)
+        if (wr.available) {
+          const wavePayload = { gameType, roundNumber, userCount: Number(waveUserCount ?? 0), pools: wavePool2,
+            odds: { player: Number(wr.playerOdds), banker: Number(wr.bankerOdds), tie: Number(wr.tieOdds),
+              lpWeight: wr.lpWeight, mode: wr.mode, available: true } }
+          await Promise.all([
+            redis.set(currentKey, JSON.stringify(wavePayload), { ex: roundSec + 30 }),
+            redis.incr(`odds_version:${gameType}`),
+          ])
+        }
+      }
+
       const nextWave = waveSlices[waveSlices.indexOf(wave) + 1]
       if (nextWave) {
         const phaseAfter = isBettingPhase("baccarat")
@@ -651,10 +672,32 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       if (!phase.allowed || phase.secInRound >= RACE_SAFE_CUTOFF) break
 
       const waveTs = Date.now()
-      // wave 내 전체 유저 병렬 실행 — 순차 그룹 sleep 제거로 마감 초과 방지
       const waveResults = await Promise.all(wave.users.map(betOne))
       settled.push(...waveResults)
       waveLog.push({ waveLabel: wave.waveLabel, ts: waveTs, results: waveResults })
+
+      // wave 완료 즉시 odds:current 갱신 → gatewayPoll(500ms)이 즉시 감지해 WS push
+      if (waveResults.some(r => r.success)) {
+        const [wavePool, waveUserCount] = await Promise.all([
+          redis.hgetall(poolKey).catch(() => null),
+          redis.scard(userSetKey).catch(() => 0),
+        ])
+        const racePool = {
+          bit:  parseInt((wavePool?.bit  as string) ?? "0") || 0,
+          coin: parseInt((wavePool?.coin as string) ?? "0") || 0,
+          tie:  parseInt((wavePool?.tie  as string) ?? "0") || 0,
+        }
+        const wr = calcRaceOdds(racePool, lpConfig, (waveUserCount as number) ?? 0)
+        if (wr.available) {
+          const wavePayload = { gameType, roundNumber, userCount: Number(waveUserCount ?? 0), pools: racePool,
+            odds: { bit: Number(wr.bitOdds), coin: Number(wr.coinOdds), tie: Number(wr.tieOdds),
+              lpWeight: wr.lpWeight, mode: wr.mode, available: true } }
+          await Promise.all([
+            redis.set(currentKey, JSON.stringify(wavePayload), { ex: roundSec + 30 }),
+            redis.incr(`odds_version:${gameType}`),
+          ])
+        }
+      }
     }
   }
 
