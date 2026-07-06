@@ -1097,7 +1097,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     if (!token) return
 
     const placeSingle = async (type: BetType, value: string) => {
-      // baccarat 배팅은 gameType + side + bets를 반드시 포함 — pool 적립 및 odds:final 저장에 필요
+      // baccarat 배팅은 gameType + side + bets를 반드시 ��함 — pool 적립 및 odds:final 저장에 필요
       const betsPayload = type === "baccarat"
         ? { baccaratSide: value, baccaratAmount: cfg.amount }
         : type === "direction"
@@ -1352,11 +1352,11 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
       }}>
 
-        {/* ── 헤더: ��팅 + 라운드 + 자동배팅 버튼 (한 줄) ── */}
+        {/* ── 헤더: 배팅 + 라운드 + 자동배팅 버튼 (한 줄) ── */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           {/* 좌: 타이틀 + 라운드 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>��팅</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: "0.06em", margin: 0 }}>배팅</h3>
             <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 5, background: G.goldFaint, color: G.goldDim, fontWeight: 600 }}>
               #{roundNumber}
             </span>
@@ -1404,7 +1404,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
                       : { background: "transparent", color: G.textDim, border: `1px solid ${G.goldBorder}` }}
                   >없음</button>
                   {(["player", "banker", "tie", "random"] as const).map((opt) => {
-                    const labels: Record<typeof opt, string> = { player: "플레이���", banker: "����커", tie: "타이", random: "랜덤" }
+                    const labels: Record<typeof opt, string> = { player: "플레이어", banker: "뱅커", tie: "타이", random: "랜덤" }
                     return (
                       <button key={opt}
                         onClick={() => setAutoBet(prev => ({ ...prev, baccarat: opt }))}

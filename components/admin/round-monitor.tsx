@@ -194,7 +194,7 @@ function GameRoundCard({
 
   const modeLabel =
     stats.mode === "pari"   ? "파리뮤추얼" :
-    stats.mode === "hybrid" ? "����이브��드"  : "LP 주도"
+    stats.mode === "hybrid" ? "하이브리드"  : "LP 주도"
   const modeBg =
     stats.mode === "pari"   ? "bg-emerald-500/10 text-emerald-600" :
     stats.mode === "hybrid" ? "bg-amber-500/10 text-amber-600"    :
@@ -541,7 +541,7 @@ export function RoundMonitor({
             status: totalFailed === 0 ? "완료" : totalSuccess === 0 ? "실패" : "완료",
           }
           setRoundBetLogs(prev => [newLog, ...prev.filter(l => !(l.round === round && l.gameType === "baccarat"))].slice(0, 20))
-          setAbStatus(`바카라 라운드 #${round} — ${totalSuccess}명 성공 / ${totalFailed}�� 실패 / 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
+          setAbStatus(`바카라 라운드 #${round} — ${totalSuccess}명 성공 / ${totalFailed}명 실패 / 수수료 ${fmt(d.totalFeeThisRound ?? 0)}`)
           loadAbUsers()
         }
       }
@@ -706,7 +706,7 @@ export function RoundMonitor({
     })
     if (res.ok) {
       const d = await res.json()
-      setAbStatus(`봇 계정 생성 완료 — ${d.created}명 신규 생성 (전�� ${d.total}명)`)
+      setAbStatus(`봇 계정 생성 완료 — ${d.created}명 신규 생성 (전체 ${d.total}명)`)
       loadAbUsers()
     }
     setCreatingAccounts(false)
@@ -756,7 +756,7 @@ export function RoundMonitor({
       setShowResetDialog(false); setResetPassword("")
       if (resetGameType === "all" || resetGameType === "baccarat") { setAccumulatedFee(0); setAbStats(null); setAbLogs([]) }
       setLastBetResults(null)
-      const label = resetGameType === "all" ? "전체" : resetGameType === "baccarat" ? "바카��" : "레이스"
+      const label = resetGameType === "all" ? "전체" : resetGameType === "baccarat" ? "바카라" : "레이스"
       setAbStatus(`${label} 초기화 완료 — ${d.reset}명 잔고 1천만원 리셋, 배팅 이력 삭제`)
       loadAbUsers()
     } else { setResetError("초기화 중 오류가 발생했습니다.") }
@@ -1651,7 +1651,7 @@ export function RoundMonitor({
                 onClick={() => setHouseTab("fee")}
                 className={`text-sm font-semibold px-3 py-1 rounded-lg transition-colors ${houseTab === "fee" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
-                {isBranchAdmin ? "내 ��점 수수료" : "지점별 수수료"}
+                {isBranchAdmin ? "내 지점 수수료" : "지점별 수수료"}
               </button>
             </div>
           </div>
@@ -1919,7 +1919,7 @@ export function RoundMonitor({
               <li>누적 수수료, 승률, 수익/손실 통계 초기화</li>
             </ul>
             <p className="text-xs text-muted-foreground mb-2">
-              <span className="font-semibold text-foreground">���삼1</span> 계정 비밀번���를 입력하세요.
+              <span className="font-semibold text-foreground">최고삼1</span> 계정 비밀번호를 입력하세요.
             </p>
             <Input
               type="password" placeholder="비밀번호"
