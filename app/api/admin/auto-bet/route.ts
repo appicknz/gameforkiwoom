@@ -715,6 +715,20 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         ? [redis.set(`odds:locked:${gameType}:${roundNumber}`, JSON.stringify(finalOdds), { ex: 3600 })]
         : []),
     ])
+
+    // wave 완료 후 Railway에 즉시 notify → gatewayPoll 2초 대기 없이 WS push
+    if (stillBettingAfter) {
+      const wsUrl = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
+      const secret = process.env.INTERNAL_SECRET ?? "tasko-internal"
+      if (wsUrl) {
+        const httpUrl = wsUrl.replace(/^wss?:\/\//, (m) => m === "wss://" ? "https://" : "http://")
+        fetch(`${httpUrl}/notify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-internal-secret": secret },
+          body: JSON.stringify({ channel: "odds", gameType }),
+        }).catch(() => {})
+      }
+    }
   }
 
   const results = settled.map(({ fee: _fee, ...rest }) => rest)

@@ -113,16 +113,12 @@ export function calcBaccaratOdds(
 ): OddsResult {
   const total = userPools.player + userPools.banker + userPools.tie
 
-  // 배팅이 없으면 균등풀(1:1:1) 기준 기본 배당 반환 — 화면에 "-" 대신 배당 즉시 표시
+  // 배팅 없으면 미확정 — 첫 배팅 순간 즉시 실시간 배당 표시
   if (total === 0) {
-    const seed = 1000 // 가상 균등풀
-    const [playerOdds, bankerOdds, tieOdds] = calcPariOdds([seed, seed, seed], seed * 3)
     return {
-      playerOdds,
-      bankerOdds,
-      tieOdds,
-      available: true,
-      fee: 0, totalPool: 0, lpSeed: seed, lpWeight: 1, mode: "seeded",
+      playerOdds: null, bankerOdds: null, tieOdds: null,
+      available: false,
+      fee: 0, totalPool: 0, lpSeed: 0, lpWeight: 0, mode: "pending",
     }
   }
 
@@ -154,16 +150,12 @@ export function calcRaceOdds(
 ): RaceOddsResult {
   const total = userPools.bit + userPools.coin + userPools.tie
 
-  // 배팅이 없으면 균등풀(1:1:1) 기준 기본 배당 반환 — 화면에 "-" 대신 배당 즉시 표시
+  // 배팅 없으면 미확정 — 첫 배팅 순간 즉시 실시간 배당 표시
   if (total === 0) {
-    const seed = 1000
-    const [bitOdds, coinOdds, tieOdds] = calcPariOdds([seed, seed, seed], seed * 3)
     return {
-      bitOdds,
-      coinOdds,
-      tieOdds,
-      available: true,
-      fee: 0, totalPool: 0, lpSeed: seed, lpWeight: 1, mode: "seeded",
+      bitOdds: null, coinOdds: null, tieOdds: null,
+      available: false,
+      fee: 0, totalPool: 0, lpSeed: 0, lpWeight: 0, mode: "pending",
     }
   }
 

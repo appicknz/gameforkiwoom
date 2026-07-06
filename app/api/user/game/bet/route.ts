@@ -212,6 +212,22 @@ export async function POST(request: Request) {
             note: "배팅 차감",
           }),
         ])
+
+        // odds_version incr 완료 후 Railway에 즉시 notify
+        // → gatewayPoll 2초 대기 없이 WS push 즉각 발생 → 배팅 즉시 배당 화면 반영
+        if (stillBetting) {
+          const wsUrl = process.env.NEXT_PUBLIC_PRICE_SERVER_URL
+          const secret = process.env.INTERNAL_SECRET ?? "tasko-internal"
+          if (wsUrl) {
+            // wss:// → https://, ws:// → http:// 로 변환
+            const httpUrl = wsUrl.replace(/^wss?:\/\//, (m) => m === "wss://" ? "https://" : "http://")
+            fetch(`${httpUrl}/notify`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-internal-secret": secret },
+              body: JSON.stringify({ channel: "odds", gameType: type }),
+            }).catch(() => {})
+          }
+        }
       } catch (bgErr) {
         console.error("[bet] background error:", bgErr)
       }
