@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { TrendingUp, TrendingDown, Clock, X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp, Shuffle } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import { useGatewayOdds } from "@/hooks/use-gateway"
+import { calcBaccaratOdds } from "@/lib/lp-system"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type BetDirection = "long" | "short" | null
@@ -573,6 +574,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     player: number | null; banker: number | null; tie: number | null
     available?: boolean
     lpWeight?: number; mode?: "seeded" | "decay" | "natural" | "pending"
+    // 파리뮤추얼 재계산용 풀 정보 — 배팅 즉시 프론트에서 odds 갱신에 사용
+    pools?: { player: number; banker: number; tie: number }
   } | null>(null)
 
   // canBet 상태를 ref로 추적 — SSE 클로저 안에서 최신 값 참조용
@@ -580,10 +583,12 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // Railway WS 게이트웨이로 baccarat odds 구독 — available:false 포함 항상 반영
   useGatewayOdds("baccarat", (data: unknown) => {
-    const d = data as { odds?: typeof liveOddsRef.current }
+    const d = data as { odds?: typeof liveOddsRef.current; pools?: { player: number; banker: number; tie: number } }
     if (d.odds) {
-      liveOddsRef.current = d.odds
-      setLiveOdds(d.odds)  // available:false면 버튼에 "-" 표시
+      // pools 정보를 함께 저장 — 내 배팅 후 즉시 재계산 시 기준값으로 사용
+      const withPools = { ...d.odds, pools: d.pools ?? liveOddsRef.current?.pools }
+      liveOddsRef.current = withPools
+      setLiveOdds(withPools)
     }
   })
 
@@ -593,8 +598,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.odds) {
-          liveOddsRef.current = data.odds
-          setLiveOdds(data.odds)
+          // pools 정보도 함께 저장 — 배팅 즉시 재계산 기준값
+          const withPools = { ...data.odds, pools: data.pools ?? undefined }
+          liveOddsRef.current = withPools
+          setLiveOdds(withPools)
         }
       })
       .catch(() => {})
@@ -983,7 +990,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // 30초: 카드 리셋 중복 방��� ref
   const resetTriggeredRoundRef = useRef<number>(-1)
 
-  // 타이머 + rem===30 카드 리셋 + rem===15 딜 시작 트리��
+  // 타��머 + rem===30 카드 리셋 + rem===15 딜 시작 트리��
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Math.floor(Date.now() / 1000)
@@ -1053,8 +1060,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.odds) {
-            liveOddsRef.current = data.odds
-            setLiveOdds(data.odds)
+            const withPools = { ...data.odds, pools: data.pools ?? liveOddsRef.current?.pools }
+            liveOddsRef.current = withPools
+            setLiveOdds(withPools)
           }
         })
         .catch(() => {})
@@ -1267,6 +1275,33 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       setBalance(optimisticBalance)
       window.dispatchEvent(new CustomEvent("balance:update", { detail: optimisticBalance }))
     }
+
+    // ── 내 배팅 금액을 포함해 즉시 odds 재계산 ──────────────────────
+    // WS push를 기다리지 않고 배팅 확정 순간 버튼 배당을 갱신
+    // 2천만원 배팅 → 풀이 대폭 변함 → 배당도 즉시 반영되어야 사기 오해 없음
+    if (dialog.type === "baccarat") {
+      const side = dialog.value as "player" | "banker" | "tie"
+      const prevPools = liveOdds?.pools ?? { player: 0, banker: 0, tie: 0 }
+      const newPools = {
+        player: prevPools.player + (side === "player" ? amount : 0),
+        banker: prevPools.banker + (side === "banker" ? amount : 0),
+        tie:    prevPools.tie    + (side === "tie"    ? amount : 0),
+      }
+      const recalc = calcBaccaratOdds(newPools, {} as any, 0)
+      if (recalc.available) {
+        const updated = {
+          player: recalc.playerOdds as number,
+          banker: recalc.bankerOdds as number,
+          tie:    recalc.tieOdds    as number,
+          available: true,
+          mode: recalc.mode as any,
+          pools: newPools,
+        }
+        liveOddsRef.current = updated
+        setLiveOdds(updated)
+      }
+    }
+
     setPhase("waiting")
     setDialog(null)
 
