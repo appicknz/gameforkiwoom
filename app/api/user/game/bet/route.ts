@@ -177,23 +177,33 @@ export async function POST(request: Request) {
       odds: oddsSnap,
     }
 
-    // 배팅 구간 마지막 3초(baccarat: secInRound 17~19, race: secInRound 57~59)에
-    // odds:locked를 저장 — 이 키가 존재하면 정산·패널이 이 값을 확정 배당으로 사용
+    // ── write 직전 배팅 구간 재확인 ────────────────────────────
+    // deduct_balance RPC + Redis 처리 시간(100~300ms) 동안 secInRound가
+    // 20(게임중)을 넘었을 수 있음 → 그 경우 odds:current / odds_version 갱신 금지
+    const nowSecFinal   = Math.floor(Date.now() / 1000)
+    const secInRoundFinal = nowSecFinal % roundSec
+    const stillBetting = type === "race"
+      ? secInRoundFinal >= 10 && secInRoundFinal < 60
+      : secInRoundFinal >= 5  && secInRoundFinal < 20
+
+    // 배팅 구간 마지막 3초(baccarat: 17~19, race: 57~59)에 odds:locked 저장
     const isLockZone = type === "race"
-      ? secInRound >= 57 && secInRound < 60
-      : secInRound >= 17 && secInRound < 20
+      ? secInRoundFinal >= 57 && secInRoundFinal < 60
+      : secInRoundFinal >= 17 && secInRoundFinal < 20
     const lockOps: Promise<unknown>[] = isLockZone
       ? [redis.set(lockedKey, JSON.stringify(oddsSnap), { ex: 3600 })]
       : []
 
     await Promise.all([
       redis.set(oddsSnapKey,  JSON.stringify(oddsSnap), { ex: ttl }),
-      redis.set(currentKey,   JSON.stringify(currentPayload), { ex: ttl }),
+      // odds:current 갱신은 여전히 배팅 구간일 때만
+      ...(stillBetting ? [redis.set(currentKey, JSON.stringify(currentPayload), { ex: ttl })] : []),
       redis.set(activeBetKey, JSON.stringify({
         roundNumber, gameType: type, side, amount: betAmount,
         oddsAtBet: oddsSnap, placedAt: Date.now(),
       }), { ex: ttl + 10 }),
-      redis.incr(`odds_version:${type}`),
+      // odds_version incr도 배팅 구간 내에만
+      ...(stillBetting ? [redis.incr(`odds_version:${type}`)] : []),
       ...lockOps,
       // balance_transactions는 응답에 영향 없으므로 fire-and-forget
       adminSupabase.from("balance_transactions").insert({

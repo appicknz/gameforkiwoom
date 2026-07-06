@@ -562,19 +562,28 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       }
       const oddsSnapKey = `odds:snap:${gameType}:${roundNumber}:${p.id}`
 
+      // ── write 직전 배팅 구간 재확인 ─────────────────────────────
+      // betOne 실행 도중 시간이 흘러 게임중(secInRound>=20)으로 넘어갔으면
+      // odds:current 갱신과 odds_version incr을 하지 않음
+      // → 클라이언트/패널에 게임중에 배당이 변하는 현상 방지
+      const phaseNow = isBettingPhase(gameType)
+      const stillInBetting = phaseNow.allowed
+
       await Promise.all([
         redis.set(userBetsKey, JSON.stringify(betPayload), { ex: ttl }),
         redis.set(`bet:round:${gameType}:${p.id}`, roundNumber, { ex: ttl }),
         redis.set(`balance:${p.id}`, (newBal ?? 0) as number, { ex: 3600 }),
         redis.incr(`balance_version:${p.id}`),
         redis.set(oddsSnapKey, JSON.stringify(oddsSnapNow), { ex: ttl }),
-        // odds:current 캐시 갱신 먼저 → 그 다음 version incr (Railway poll이 최신 캐시를 읽음)
-        oddsCurrentPayload
+        // odds:current 갱신은 배팅 구간 내에만 수행
+        (stillInBetting && oddsCurrentPayload)
           ? redis.set(currentKey, JSON.stringify(oddsCurrentPayload), { ex: roundSec + 30 })
           : Promise.resolve(),
       ])
-      // 캐시 갱신 완료 후 version incr — Railway 2초 폴링이 새 캐시를 읽어 WS push
-      await redis.incr(`odds_version:${gameType}`)
+      // odds_version incr도 배팅 구간 내에만 — Railway가 게임중에 배당을 push하지 않도록
+      if (stillInBetting) {
+        await redis.incr(`odds_version:${gameType}`)
+      }
 
       const betOdds = oddsSnapNow[side] ?? null
       return { username: p.username, gameType, side, amount, success: true, balance: (newBal ?? 0) as number, round: roundNumber, odds: betOdds, fee: Math.floor(amount * 0.2) }
