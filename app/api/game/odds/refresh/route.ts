@@ -45,7 +45,8 @@ export async function POST(request: Request) {
       const parsed = typeof prevCached === "string" ? JSON.parse(prevCached) : prevCached
       const oddsOnly = parsed?.odds
       if (oddsOnly) {
-        await redis.set(finalKey, JSON.stringify(oddsOnly), { ex: roundSec * 10 })
+        // TTL 3600초(1시간) — 정산이 늦게 도착해도 배당이 만료되지 않도록 충분히 유지
+        await redis.set(finalKey, JSON.stringify(oddsOnly), { ex: 3600 })
       }
     } catch {}
   }

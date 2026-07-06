@@ -77,53 +77,82 @@ export async function POST(request: Request) {
 
     const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
 
-    // ── 확정 배당 계산 ───────────────────────────────────────────
-    // 배팅 마감 후 풀이 고정된 상태에서 settle-me가 호출됨
-    // 같은 포지션에 배팅한 모든 유저는 동일한 최종 풀 기준 배당을 받아야 함
-    // odds:final / odds:snap 의존 완전 제거 — 항상 pool Redis 직접 재계산
+    // ── 확정 배당 조회 ───────────────────────────────────────────
+    // 정산 배당 우선순위:
+    //   1순위: odds:final:{gameType}:{round}  — 배팅 마감 순간 Railway가 고정한 스냅샷
+    //   2순위: odds:current:{gameType}:{round} — 라운드 중 마지막 갱신값
+    //   3순위: pool 직접 재계산 (fallback)
+    // 배팅 구간 종료 시 Railway → odds/refresh → odds:final 저장이 선행되어야 함
     let oddsSnap: { player?: number; banker?: number; tie?: number; bit?: number; coin?: number } = {}
 
-    // 유저 브랜치 LP 설정 조회
-    const { data: profileRow } = await admin
-      .from("profiles").select("branch_id").eq("id", userId).single()
-    let lpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
-    if (profileRow?.branch_id) {
-      const { data: branchRow } = await admin
-        .from("branches")
-        .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
-        .eq("id", profileRow.branch_id).single()
-      if (branchRow) lpConfig = branchToLpConfig(branchRow)
+    const finalKey   = `odds:final:${gameType}:${resolvedRound}`
+    const currentKey = `odds:current:${gameType}:${resolvedRound}`
+
+    const [finalRaw, currentRaw] = await Promise.all([
+      redis.get<string>(finalKey).catch(() => null),
+      redis.get<string>(currentKey).catch(() => null),
+    ])
+
+    const finalCached = finalRaw ?? currentRaw
+    if (finalCached) {
+      try {
+        const parsed = typeof finalCached === "string" ? JSON.parse(finalCached) : finalCached
+        // odds:final은 odds 객체 직접 저장, odds:current는 { odds: {...} } 래핑
+        const o = parsed?.player !== undefined || parsed?.bit !== undefined ? parsed : parsed?.odds
+        if (o) {
+          oddsSnap = o
+        }
+      } catch {}
     }
 
-    const poolKey = `pool:${gameType}:${resolvedRound}`
-    const [poolData, userCount] = await Promise.all([
-      redis.hgetall(poolKey).catch(() => null),
-      redis.scard(`users:${gameType}:${resolvedRound}`).catch(() => 0),
-    ])
-    const safeCount = (userCount as number) ?? 0
+    // fallback: Redis 키가 만료됐거나 없을 때만 pool 직접 재계산
+    const needsFallback = gameType === "baccarat"
+      ? (!oddsSnap.player && !oddsSnap.banker)
+      : (!oddsSnap.bit && !oddsSnap.coin)
 
-    if (gameType === "baccarat") {
-      const pool = {
-        player: parseInt((poolData?.player as string) ?? "0") || 0,
-        banker: parseInt((poolData?.banker as string) ?? "0") || 0,
-        tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
+    if (needsFallback) {
+      // 유저 브랜치 LP 설정 조회
+      const { data: profileRow } = await admin
+        .from("profiles").select("branch_id").eq("id", userId).single()
+      let lpConfig = { ...DEFAULT_LP_CONFIG, enabled: false }
+      if (profileRow?.branch_id) {
+        const { data: branchRow } = await admin
+          .from("branches")
+          .select("lp_enabled, lp_amount_baccarat, lp_amount_race, lp_multiplier_baccarat, lp_multiplier_race")
+          .eq("id", profileRow.branch_id).single()
+        if (branchRow) lpConfig = branchToLpConfig(branchRow)
       }
-      if (pool.player + pool.banker + pool.tie === 0) {
-        return NextResponse.json({ error: "배당 데이터가 만료되었습니다. 관리자에게 문의하세요." }, { status: 422 })
+
+      const poolKey = `pool:${gameType}:${resolvedRound}`
+      const [poolData, userCount] = await Promise.all([
+        redis.hgetall(poolKey).catch(() => null),
+        redis.scard(`users:${gameType}:${resolvedRound}`).catch(() => 0),
+      ])
+      const safeCount = (userCount as number) ?? 0
+
+      if (gameType === "baccarat") {
+        const pool = {
+          player: parseInt((poolData?.player as string) ?? "0") || 0,
+          banker: parseInt((poolData?.banker as string) ?? "0") || 0,
+          tie:    parseInt((poolData?.tie    as string) ?? "0") || 0,
+        }
+        if (pool.player + pool.banker + pool.tie === 0) {
+          return NextResponse.json({ error: "배당 데이터가 만료되었습니다. 관리자에게 문의하세요." }, { status: 422 })
+        }
+        const r = calcBaccaratOdds(pool, lpConfig, safeCount)
+        oddsSnap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
+      } else {
+        const pool = {
+          bit:  parseInt((poolData?.bit  as string) ?? "0") || 0,
+          coin: parseInt((poolData?.coin as string) ?? "0") || 0,
+          tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
+        }
+        if (pool.bit + pool.coin + pool.tie === 0) {
+          return NextResponse.json({ error: "배당 데이터가 만료되었습니다. 관리자에게 문의하세요." }, { status: 422 })
+        }
+        const r = calcRaceOdds(pool, lpConfig, safeCount)
+        oddsSnap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
       }
-      const r = calcBaccaratOdds(pool, lpConfig, safeCount)
-      oddsSnap = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
-    } else {
-      const pool = {
-        bit:  parseInt((poolData?.bit  as string) ?? "0") || 0,
-        coin: parseInt((poolData?.coin as string) ?? "0") || 0,
-        tie:  parseInt((poolData?.tie  as string) ?? "0") || 0,
-      }
-      if (pool.bit + pool.coin + pool.tie === 0) {
-        return NextResponse.json({ error: "배당 데이터가 만료되었습니다. 관리자에게 문의하세요." }, { status: 422 })
-      }
-      const r = calcRaceOdds(pool, lpConfig, safeCount)
-      oddsSnap = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
     }
 
     // ── 당첨금 계산 (백원 단위 내림) ─────────────────────────
