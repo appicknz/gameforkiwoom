@@ -514,79 +514,28 @@ async function runBetForGame(gameType: "baccarat" | "race") {
         return { username: p.username, gameType, side, amount, success: false, error: deductErr.message, balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
       }
 
-      // pool 업데이트 — odds_version incr은 odds:current 캐시 갱신 후 수행
-      await Promise.all([
+      const betPayload = gameType === "baccarat"
+        ? { baccaratSide: side, baccaratAmount: amount }
+        : { raceSide: side, raceAmount: amount }
+      const oddsSnapKey = `odds:snap:${gameType}:${roundNumber}:${p.id}`
+
+      // pool 업데이트 + bets/잔고 저장을 한 번의 Promise.all로 — hgetall/scard 왕복 제거
+      // odds:snap에는 임시 기본값 저장 (wave 완료 후 일괄 odds 갱신은 wave 레벨에서 처리)
+      const [newPoolSide] = await Promise.all([
         redis.hincrby(poolKey, side, amount),
         redis.sadd(userSetKey, p.id),
         redis.expire(poolKey, ttl),
         redis.expire(userSetKey, ttl),
-      ])
-
-      const betPayload = gameType === "baccarat"
-        ? { baccaratSide: side, baccaratAmount: amount }
-        : { raceSide: side, raceAmount: amount }
-      // 배팅 시점 풀로 odds 계산 → 유저별 odds:snap 저장 (settle-me가 이 값으로 정산)
-      const [poolDataNow, userCountNow] = await Promise.all([
-        redis.hgetall(poolKey).catch(() => null),
-        redis.scard(userSetKey).catch(() => 0),
-      ])
-      let oddsSnapNow: Record<string, number> = {}
-      let oddsCurrentPayload: object | null = null
-      if (gameType === "baccarat") {
-        const pool = {
-          player: parseInt((poolDataNow?.player as string) ?? "0") || 0,
-          banker: parseInt((poolDataNow?.banker as string) ?? "0") || 0,
-          tie:    parseInt((poolDataNow?.tie    as string) ?? "0") || 0,
-        }
-        const r = calcBaccaratOdds(pool, lpConfig, (userCountNow as number) ?? 0)
-        oddsSnapNow = { player: Number(r.playerOdds), banker: Number(r.bankerOdds), tie: Number(r.tieOdds) }
-        // 공유 캐시 갱신 → Railway WS가 폴링 시 최신 배당 push
-        oddsCurrentPayload = {
-          gameType, roundNumber, userCount: Number(userCountNow ?? 0), pools: pool,
-          odds: { player: Number(r.playerOdds), banker: Number(r.bankerOdds), tie: Number(r.tieOdds),
-            lpWeight: r.lpWeight, mode: r.mode, available: r.available },
-        }
-      } else {
-        const pool = {
-          bit:  parseInt((poolDataNow?.bit  as string) ?? "0") || 0,
-          coin: parseInt((poolDataNow?.coin as string) ?? "0") || 0,
-          tie:  parseInt((poolDataNow?.tie  as string) ?? "0") || 0,
-        }
-        const r = calcRaceOdds(pool, lpConfig, Number(userCountNow ?? 0))
-        oddsSnapNow = { bit: Number(r.bitOdds), coin: Number(r.coinOdds), tie: Number(r.tieOdds) }
-        oddsCurrentPayload = {
-          gameType, roundNumber, userCount: Number(userCountNow ?? 0), pools: pool,
-          odds: { bit: Number(r.bitOdds), coin: Number(r.coinOdds), tie: Number(r.tieOdds),
-            lpWeight: r.lpWeight, mode: r.mode, available: r.available },
-        }
-      }
-      const oddsSnapKey = `odds:snap:${gameType}:${roundNumber}:${p.id}`
-
-      // ── write 직전 배팅 구간 재확인 ─────────────────────────────
-      // betOne 실행 도중 시간이 흘러 게임중(secInRound>=20)으로 넘어갔으면
-      // odds:current 갱신과 odds_version incr을 하지 않음
-      // → 클라이언트/패널에 게임중에 배당이 변하는 현상 방지
-      const phaseNow = isBettingPhase(gameType)
-      const stillInBetting = phaseNow.allowed
-
-      await Promise.all([
         redis.set(userBetsKey, JSON.stringify(betPayload), { ex: ttl }),
         redis.set(`bet:round:${gameType}:${p.id}`, roundNumber, { ex: ttl }),
         redis.set(`balance:${p.id}`, (newBal ?? 0) as number, { ex: 3600 }),
         redis.incr(`balance_version:${p.id}`),
-        redis.set(oddsSnapKey, JSON.stringify(oddsSnapNow), { ex: ttl }),
-        // odds:current 갱신은 배팅 구간 내에만 수행
-        (stillInBetting && oddsCurrentPayload)
-          ? redis.set(currentKey, JSON.stringify(oddsCurrentPayload), { ex: roundSec + 30 })
-          : Promise.resolve(),
       ])
-      // odds_version incr도 배팅 구간 내에만 — Railway가 게임중에 배당을 push하지 않도록
-      if (stillInBetting) {
-        await redis.incr(`odds_version:${gameType}`)
-      }
 
-      const betOdds = oddsSnapNow[side] ?? null
-      return { username: p.username, gameType, side, amount, success: true, balance: (newBal ?? 0) as number, round: roundNumber, odds: betOdds, fee: Math.floor(amount * 0.2) }
+      // odds:snap은 wave 완료 후 갱신된 pool로 덮어씌워짐 — 여기서는 side/amount만 기록
+      await redis.set(oddsSnapKey, JSON.stringify({ side, amount, pendingOdds: true }), { ex: ttl })
+
+      return { username: p.username, gameType, side, amount, success: true, balance: (newBal ?? 0) as number, round: roundNumber, odds: null, fee: Math.floor(amount * 0.2) }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error"
       return { username: p.username, gameType, side, amount, success: false, error: msg, balance: currentBalance, round: roundNumber, odds: null, fee: 0 }
@@ -616,17 +565,25 @@ async function runBetForGame(gameType: "baccarat" | "race") {
 
   if (gameType === "baccarat") {
     // ── 바카라: wave 기반 배팅 ────────────────────────────────────
-    // wave 1(25초): 30%  wave 2(20초): 15%  wave 3(16초): 15%  wave 4(13초): 나머지
+    // 배팅 구간 5~19초 (14초), 마지막 wave는 13초 이전에 트리거해야
+    // 모든 봇이 게임중(20초) 진입 전에 배팅 완료 가능
+    //
+    // wave 내에서는 그룹 sleep 없이 전체 병렬 실행 — 순차 처리 시
+    // wave4(6명 × ~200ms + 그룹sleep ~400ms × 2) = ~2.4초 초과 위험 제거
+    //
+    // 안전 마감: secInRound >= 17 이면 새 wave/그룹 시작 안 함 (배팅 구간 2초 여유)
+    const SAFE_CUTOFF = 17  // 이 초 이후엔 새 배팅 시도 없음
+
     const total = shuffled.length
     const w1End = Math.round(total * 0.30)
-    const w2End = Math.round(total * 0.45)
-    const w3End = Math.round(total * 0.60)
+    const w2End = Math.round(total * 0.50)
+    const w3End = Math.round(total * 0.70)
 
     const waveSlices = [
-      { users: shuffled.slice(0, w1End),     secTrigger: 5,  waveLabel: "wave1(25초)" },
-      { users: shuffled.slice(w1End, w2End), secTrigger: 10, waveLabel: "wave2(20초)" },
-      { users: shuffled.slice(w2End, w3End), secTrigger: 14, waveLabel: "wave3(16초)" },
-      { users: shuffled.slice(w3End),         secTrigger: 17, waveLabel: "wave4(13초)" },
+      { users: shuffled.slice(0, w1End),     secTrigger: 5,  waveLabel: "wave1" },
+      { users: shuffled.slice(w1End, w2End), secTrigger: 8,  waveLabel: "wave2" },
+      { users: shuffled.slice(w2End, w3End), secTrigger: 11, waveLabel: "wave3" },
+      { users: shuffled.slice(w3End),        secTrigger: 13, waveLabel: "wave4" },
     ]
 
     for (const wave of waveSlices) {
@@ -634,37 +591,30 @@ async function runBetForGame(gameType: "baccarat" | "race") {
 
       let phase = isBettingPhase("baccarat")
       if (!phase.allowed) break
+      // 안전 마감 초과 시 더 이상 배팅하지 않음
+      if (phase.secInRound >= SAFE_CUTOFF) break
 
       if (phase.secInRound < wave.secTrigger) {
         const remainMs = (wave.secTrigger - phase.secInRound) * 1000
-        const jitter = Math.floor(Math.random() * 800)
+        const jitter = Math.floor(Math.random() * 500)
         await new Promise(r => setTimeout(r, remainMs + jitter))
       }
 
       phase = isBettingPhase("baccarat")
-      if (!phase.allowed) break
+      if (!phase.allowed || phase.secInRound >= SAFE_CUTOFF) break
 
       const waveTs = Date.now()
-      const waveResults: Awaited<ReturnType<typeof betOne>>[] = []
-
-      const groups: (typeof shuffled)[] = []
-      let idx2 = 0
-      while (idx2 < wave.users.length) {
-        const gs = Math.min(2 + Math.floor(Math.random() * 3), wave.users.length - idx2)
-        groups.push(wave.users.slice(idx2, idx2 + gs))
-        idx2 += gs
-      }
-      for (const grp of groups) {
-        const stillOk = isBettingPhase("baccarat")
-        if (!stillOk.allowed) break
-        const grpResults = await Promise.all(grp.map(betOne))
-        settled.push(...grpResults)
-        waveResults.push(...grpResults)
-        if (groups.indexOf(grp) < groups.length - 1) {
-          await new Promise(r => setTimeout(r, 200 + Math.floor(Math.random() * 400)))
-        }
-      }
+      // wave 내 전체 유저를 한 번에 병렬 실행 — 그룹 sleep 제거로 타임아웃 방지
+      const waveResults = await Promise.all(wave.users.map(betOne))
+      settled.push(...waveResults)
       waveLog.push({ waveLabel: wave.waveLabel, ts: waveTs, results: waveResults })
+
+      // wave 사이 짧은 텀 (자연스러운 분산, 다음 wave trigger까지 대기 시간 안에서 처리됨)
+      const nextWave = waveSlices[waveSlices.indexOf(wave) + 1]
+      if (nextWave) {
+        const phaseAfter = isBettingPhase("baccarat")
+        if (phaseAfter.secInRound >= SAFE_CUTOFF) break
+      }
     }
   } else {
     // ── 레이스: 배팅창 50초(10~59초) 안에 자연 분산 ─────────────
@@ -693,6 +643,65 @@ async function runBetForGame(gameType: "baccarat" | "race") {
       raceWaveResults.push(...grpResults)
     }
     waveLog.push({ waveLabel: "분산배팅", ts: Date.now(), results: raceWaveResults })
+  }
+
+  // ── wave 전체 완료 후: 최종 pool로 odds 일괄 계산 → odds:snap + odds:current 갱신 ──
+  // betOne에서 hgetall/scard를 제거했으므로 여기서 한 번만 수행 (Redis 왕복 최소화)
+  const phaseAfterWaves = isBettingPhase(gameType)
+  const stillBettingAfter = phaseAfterWaves.allowed
+  if (settled.some(r => r.success)) {
+    const [finalPool, finalUserCount] = await Promise.all([
+      redis.hgetall(poolKey).catch(() => null),
+      redis.scard(userSetKey).catch(() => 0),
+    ])
+    const safeCount = (finalUserCount as number) ?? 0
+    let finalOdds: Record<string, number> = {}
+    let currentPayload: object | null = null
+
+    if (gameType === "baccarat") {
+      const pool = {
+        player: parseInt((finalPool?.player as string) ?? "0") || 0,
+        banker: parseInt((finalPool?.banker as string) ?? "0") || 0,
+        tie:    parseInt((finalPool?.tie    as string) ?? "0") || 0,
+      }
+      const r = calcBaccaratOdds(pool, lpConfig, safeCount)
+      finalOdds = { player: Number(r.playerOdds), banker: Number(r.bankerOdds), tie: Number(r.tieOdds) }
+      currentPayload = { gameType, roundNumber, userCount: safeCount, pools: pool,
+        odds: { ...finalOdds, lpWeight: r.lpWeight, mode: r.mode, available: r.available } }
+    } else {
+      const pool = {
+        bit:  parseInt((finalPool?.bit  as string) ?? "0") || 0,
+        coin: parseInt((finalPool?.coin as string) ?? "0") || 0,
+        tie:  parseInt((finalPool?.tie  as string) ?? "0") || 0,
+      }
+      const r = calcRaceOdds(pool, lpConfig, safeCount)
+      finalOdds = { bit: Number(r.bitOdds), coin: Number(r.coinOdds), tie: Number(r.tieOdds) }
+      currentPayload = { gameType, roundNumber, userCount: safeCount, pools: pool,
+        odds: { ...finalOdds, lpWeight: r.lpWeight, mode: r.mode, available: r.available } }
+    }
+
+    // 성공한 봇 전체의 odds:snap을 최종 odds로 업데이트
+    const snapOps = settled
+      .filter(r => r.success)
+      .map(r => {
+        const snapKey = `odds:snap:${gameType}:${roundNumber}:${targetProfiles.find(p => p.username === r.username)?.id ?? ""}`
+        const snapVal = { ...finalOdds, side: r.side, amount: r.amount }
+        return redis.set(snapKey, JSON.stringify(snapVal), { ex: ttl })
+      })
+
+    const secAfter = Math.floor(Date.now() / 1000) % roundSec
+    const isLockZone = gameType === "race" ? secAfter >= 57 : secAfter >= 17 && secAfter < 20
+
+    await Promise.all([
+      ...snapOps,
+      ...(stillBettingAfter && currentPayload
+        ? [redis.set(currentKey, JSON.stringify(currentPayload), { ex: roundSec + 30 }),
+           redis.incr(`odds_version:${gameType}`)]
+        : []),
+      ...(isLockZone
+        ? [redis.set(`odds:locked:${gameType}:${roundNumber}`, JSON.stringify(finalOdds), { ex: 3600 })]
+        : []),
+    ])
   }
 
   const results = settled.map(({ fee: _fee, ...rest }) => rest)
