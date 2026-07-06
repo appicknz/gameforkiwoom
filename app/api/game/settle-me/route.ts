@@ -79,29 +79,29 @@ export async function POST(request: Request) {
 
     // ── 확정 배당 조회 ───────────────────────────────────────────
     // 정산 배당 우선순위:
-    //   1순위: odds:final:{gameType}:{round}  — 배팅 마감 순간 Railway가 고정한 스냅샷
-    //   2순위: odds:current:{gameType}:{round} — 라운드 중 마지막 갱신값
-    //   3순위: pool 직접 재계산 (fallback)
-    // 배팅 구간 종료 시 Railway → odds/refresh → odds:final 저장이 선행되어야 함
+    //   1순위: odds:locked:{gameType}:{round}  — 배팅 구간 마지막 3초에 bet/route가 저장한 풀 고정값
+    //   2순위: odds:final:{gameType}:{round}   — 라운드 전환 시 Railway가 저장한 스냅샷
+    //   3순위: odds:current:{gameType}:{round} — 라운드 중 마지막 갱신값
+    //   4순위: pool 직접 재계산 (fallback)
     let oddsSnap: { player?: number; banker?: number; tie?: number; bit?: number; coin?: number } = {}
 
+    const lockedKey  = `odds:locked:${gameType}:${resolvedRound}`
     const finalKey   = `odds:final:${gameType}:${resolvedRound}`
     const currentKey = `odds:current:${gameType}:${resolvedRound}`
 
-    const [finalRaw, currentRaw] = await Promise.all([
+    const [lockedRaw, finalRaw, currentRaw] = await Promise.all([
+      redis.get<string>(lockedKey).catch(() => null),
       redis.get<string>(finalKey).catch(() => null),
       redis.get<string>(currentKey).catch(() => null),
     ])
 
-    const finalCached = finalRaw ?? currentRaw
-    if (finalCached) {
+    // odds:locked는 순수 odds 객체, odds:final도 동일, odds:current는 { odds: {...} } 래핑
+    const bestRaw = lockedRaw ?? finalRaw ?? currentRaw
+    if (bestRaw) {
       try {
-        const parsed = typeof finalCached === "string" ? JSON.parse(finalCached) : finalCached
-        // odds:final은 odds 객체 직접 저장, odds:current는 { odds: {...} } 래핑
+        const parsed = typeof bestRaw === "string" ? JSON.parse(bestRaw) : bestRaw
         const o = parsed?.player !== undefined || parsed?.bit !== undefined ? parsed : parsed?.odds
-        if (o) {
-          oddsSnap = o
-        }
+        if (o) oddsSnap = o
       } catch {}
     }
 

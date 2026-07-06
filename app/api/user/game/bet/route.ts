@@ -166,6 +166,7 @@ export async function POST(request: Request) {
     // ── 최종 저장 + SSE 트리거 + odds:current 공유 캐시 갱신 ──
     const balBefore  = (newBalance as number) + betAmount
     const currentKey = `odds:current:${type}:${roundNumber}`
+    const lockedKey  = `odds:locked:${type}:${roundNumber}`
 
     // 배팅마다 odds:current 갱신 → 관리자 패널과 /baka 배당이 항상 동일
     const currentPayload = {
@@ -176,6 +177,15 @@ export async function POST(request: Request) {
       odds: oddsSnap,
     }
 
+    // 배팅 구간 마지막 3초(baccarat: secInRound 17~19, race: secInRound 57~59)에
+    // odds:locked를 저장 — 이 키가 존재하면 정산·패널이 이 값을 확정 배당으로 사용
+    const isLockZone = type === "race"
+      ? secInRound >= 57 && secInRound < 60
+      : secInRound >= 17 && secInRound < 20
+    const lockOps: Promise<unknown>[] = isLockZone
+      ? [redis.set(lockedKey, JSON.stringify(oddsSnap), { ex: 3600 })]
+      : []
+
     await Promise.all([
       redis.set(oddsSnapKey,  JSON.stringify(oddsSnap), { ex: ttl }),
       redis.set(currentKey,   JSON.stringify(currentPayload), { ex: ttl }),
@@ -184,6 +194,7 @@ export async function POST(request: Request) {
         oddsAtBet: oddsSnap, placedAt: Date.now(),
       }), { ex: ttl + 10 }),
       redis.incr(`odds_version:${type}`),
+      ...lockOps,
       // balance_transactions는 응답에 영향 없으므로 fire-and-forget
       adminSupabase.from("balance_transactions").insert({
         user_id: userId, branch_id: branchId,

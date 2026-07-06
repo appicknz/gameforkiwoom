@@ -12,14 +12,20 @@ import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, LpConfig, DEFAULT_LP_
 async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConfig: LpConfig) {
   const poolKey    = `pool:${gameType}:${roundId}`
   const userSetKey = `users:${gameType}:${roundId}`
-  // odds/stream이 저장한 단일 키를 읽음 — 모든 클라이언트·관리자 동일 소스
+  const lockedKey  = `odds:locked:${gameType}:${roundId}`
   const currentKey = `odds:current:${gameType}:${roundId}`
 
-  const [pools, userIds, cachedRaw] = await Promise.all([
+  const [pools, userIds, lockedRaw, cachedRaw] = await Promise.all([
     redis.hgetall(poolKey).catch(() => null),
     redis.smembers(userSetKey).catch(() => []),
+    redis.get<string>(lockedKey).catch(() => null),
     redis.get<string>(currentKey).catch(() => null),
   ])
+
+  // odds:locked가 있으면 배팅 마감 시점 확정값 — 게임중/정산 구간에 배당이 변하지 않도록 고정
+  const resolvedRaw = lockedRaw
+    ? JSON.stringify({ odds: JSON.parse(lockedRaw as string) })
+    : cachedRaw
 
   const poolData = gameType === "baccarat"
     ? {
@@ -36,10 +42,10 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConf
   const userCount = Array.isArray(userIds) ? userIds.length : 0
   const totalBet  = Object.values(poolData).reduce((a, b) => a + b, 0)
 
-  // odds:current 캐시가 있으면 그대로 사용 — /baka, /race와 완전히 동일한 값
-  if (cachedRaw) {
+  // odds:locked(배팅 마감 확정값) 우선, 없으면 odds:current 사용
+  if (resolvedRaw) {
     try {
-      const cached = typeof cachedRaw === "string" ? JSON.parse(cachedRaw) : cachedRaw
+      const cached = typeof resolvedRaw === "string" ? JSON.parse(resolvedRaw) : resolvedRaw
       const oddsResult = cached.odds ?? {}
       const fee = Math.floor(totalBet * 0.2)
       let prediction: Record<string, number> = {}
