@@ -583,9 +583,6 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // Railway WS 게이트웨이로 baccarat odds 구독 — available:false 포함 항상 반영
   useGatewayOdds("baccarat", (data: unknown) => {
-    // 마감중(s=17~19) 구간에는 WS 업데이트 차단
-    // → s=17에 저장된 odds:locked 값과 버튼 표시 배율을 완전히 일치시킴
-    if (isBettingClosingRef.current) return
     const d = data as { odds?: typeof liveOddsRef.current; pools?: { player: number; banker: number; tie: number } }
     if (d.odds) {
       // pools 정보를 함께 저장 — 내 배팅 후 즉시 재계산 시 기준값으로 사용
@@ -1034,11 +1031,6 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // 마감 중 (timeLeft 13→10, s=17~19): 버튼 disabled + 빨간 "마감 중" 표시
   const isBettingClosing = timeLeft <= 13 && timeLeft > 10
-
-  // WS/폴링 프리즈 ref — 마감중에는 odds 업데이트 차단
-  // s=17에 저장된 odds:locked 값과 버튼 표시 배율을 일치시키기 위함
-  const isBettingClosingRef = useRef(false)
-  isBettingClosingRef.current = isBettingClosing
 
   // canBetRef 동기화 + 배팅 시작/마감 로그
   useEffect(() => {
@@ -1563,9 +1555,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
               const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"
               const dimBg = side === "banker" ? "rgba(239,68,68,0.35)" : side === "tie" ? "rgba(34,197,94,0.35)" : "rgba(59,130,246,0.35)"
               const dimBorder = side === "banker" ? "rgba(239,68,68,0.7)" : side === "tie" ? "rgba(34,197,94,0.7)" : "rgba(59,130,246,0.7)"
-              // 마감중: 사이드 고유 색상 유지, opacity만 낮춤
-              const bgStyle = isSelected ? solidBg : dimBg
-              const borderStyle = isSelected ? solidColor : dimBorder
+              // 마감 중(17~19초): amber 경고 톤으로 표시
+              const bgStyle = isSelected ? solidBg
+                : canBet ? dimBg
+                : isBettingClosing ? "rgba(245,158,11,0.15)"
+                : "rgba(255,255,255,0.04)"
+              const borderStyle = isSelected ? solidColor
+                : canBet ? dimBorder
+                : isBettingClosing ? "rgba(245,158,11,0.5)"
+                : "rgba(255,255,255,0.1)"
               return (
                 <button key={side}
                   onClick={() => openDialog("baccarat", side)}
@@ -1573,17 +1571,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
                   className="rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     height: 64,
-                    background: canBet || isSelected ? bgStyle : "rgba(255,255,255,0.04)",
-                    border: `2px solid ${canBet || isSelected ? borderStyle : "rgba(255,255,255,0.1)"}`,
+                    background: bgStyle,
+                    border: `2px solid ${borderStyle}`,
                     color: "#fff",
                   }}>
                   <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.03em" }}>{label}</span>
-                  {/* 배율은 항상 표시 — 마감중에도 확정 배율을 보여줌 */}
-                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
-                  {/* 마감중 빨간 라벨 — 선택된 버튼 제외 */}
-                  {isBettingClosing && !isSelected && (
-                    <span style={{ fontSize: 9, color: "#ef4444", fontWeight: 800, letterSpacing: "0.05em" }}>마감중</span>
-                  )}
+                  {isBettingClosing && !isSelected
+                    ? <span style={{ fontSize: 10, color: "rgba(245,158,11,0.9)", fontWeight: 700 }}>마감 중</span>
+                    : <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
+                  }
                   {isSelected && betBaccaratAmount > 0 && (
                     <span style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>
                       ₩{betBaccaratAmount >= 10000 ? `${betBaccaratAmount / 10000}만` : betBaccaratAmount.toLocaleString()}
