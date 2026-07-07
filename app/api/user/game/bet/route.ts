@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       request.json(),
       verifySession(request),          // body parse와 토큰 검증을 병렬로
     ])
-    const { betAmount, gameType, side, bets: betsPayload } = bodyJson
+    const { betAmount, gameType, side, bets: betsPayload, clientOdds } = bodyJson
 
     if (!betAmount || betAmount <= 0)
       return NextResponse.json({ error: "Invalid bet amount" }, { status: 400 })
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
           redis.incr(`balance_version:${userId}`),
         ])
 
-        // 2단계: odds 재계산 (이미 위에서 pool 값 확보 — 추가 왕복 없음)
+        // 2단���: odds 재계산 (이미 위에서 pool 값 확보 — 추가 왕복 없음)
         let oddsSnap: Record<string, number> = {}
         if (type === "baccarat") {
           const pool = {
@@ -198,7 +198,10 @@ export async function POST(request: Request) {
           redis.set(oddsSnapKey, JSON.stringify(oddsSnap), { ex: ttl }),
           redis.set(activeBetKey, JSON.stringify({
             roundNumber, gameType: type, side, amount: betAmount,
-            oddsAtBet: oddsSnap, placedAt: Date.now(),
+            // clientOdds: 버튼에 표시된 배율 (클라이언트 전송) — 없으면 서버 계산값
+            // settle-me에서 이 값을 1순위로 사용 → 표시 배율 = 정산 배율 100% 보장
+            oddsAtBet: (clientOdds && (clientOdds.player || clientOdds.bit)) ? clientOdds : oddsSnap,
+            placedAt: Date.now(),
           }), { ex: ttl + 10 }),
           ...(stillBetting ? [
             redis.set(currentKey, JSON.stringify(currentPayload), { ex: ttl }),
