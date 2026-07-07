@@ -432,19 +432,6 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
     return (
       <div className="relative w-full h-full">
         <div ref={chartContainerRef} className="w-full h-full" />
-        {ticker && (
-          <div
-            className="absolute bottom-6 left-2 px-1.5 py-0.5 rounded text-[9px] z-10"
-            style={{
-              background: "rgba(9,31,18,0.82)",
-              border: "1px solid rgba(212,175,55,0.12)",
-              color: "rgba(212,175,55,0.45)",
-            }}
-          >
-            <div>거래량: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
-            <div>거래대금: <span style={{ color: "rgba(232,213,163,0.7)", fontWeight: 600 }}>{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
-          </div>
-        )}
       </div>
     )
   }
