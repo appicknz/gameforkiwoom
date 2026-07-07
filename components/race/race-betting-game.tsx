@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { X, RotateCcw, Lock, Unlock, Bot, ChevronDown, ChevronUp } from "lucide-react"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import { useGatewayOdds } from "@/hooks/use-gateway"
+import { calcRaceOdds } from "@/lib/lp-system"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 type BetDirection = "long" | "short" | null
@@ -120,9 +121,13 @@ interface BetDialogProps {
   lockedAmount: number | null
   onLockChange: (locked: boolean, amount: number | null) => void
   canBet: boolean
+  liveOdds?: {
+    bit?: number | null; coin?: number | null; tie?: number | null
+    pools?: { bit: number; coin: number; tie: number }
+  } | null
 }
 
-function RaceBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, locked, lockedAmount, onLockChange, canBet }: BetDialogProps) {
+function RaceBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, locked, lockedAmount, onLockChange, canBet, liveOdds }: BetDialogProps) {
   const [selectedChip, setSelectedChip] = useState<number | null>(null)
   const [amount, setAmount] = useState(0)
 
@@ -142,12 +147,29 @@ function RaceBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
   }
 
   const meta = selectedValue ? LABEL_MAP[selectedValue] : null
-  const expectedPayout = (() => {
-    if (!selectedValue || amount <= 0) return 0
-    if (selectedValue === "coin") return Math.floor(amount * 2)
-    if (selectedValue === "bit") return Math.floor(amount * 1.95)
-    if (selectedValue === "tie") return Math.floor(amount * 9)
-    return Math.floor(amount * PAYOUT_RATIO)
+
+  // 내 배팅 포함 예상 배율 계산 — 실제 정산 배율과 일치
+  const { previewOdds, expectedPayout } = (() => {
+    if (!selectedValue || amount <= 0) return { previewOdds: null, expectedPayout: 0 }
+
+    const side = selectedValue as "bit" | "coin" | "tie"
+    const pools = liveOdds?.pools
+
+    if (pools) {
+      const newPools = {
+        bit:  pools.bit  + (side === "bit"  ? amount : 0),
+        coin: pools.coin + (side === "coin" ? amount : 0),
+        tie:  pools.tie  + (side === "tie"  ? amount : 0),
+      }
+      const result = calcRaceOdds(newPools, { enabled: false, lpAmountBaccarat: 0, lpAmountRace: 0, lpMultiplierBaccarat: 1, lpMultiplierRace: 1 }, 0)
+      const odds = side === "bit" ? result.bitOdds : side === "coin" ? result.coinOdds : result.tieOdds
+      if (odds !== null) return { previewOdds: odds, expectedPayout: Math.floor(amount * odds) }
+    }
+
+    const fallbackOdds = side === "bit" ? liveOdds?.bit : side === "coin" ? liveOdds?.coin : liveOdds?.tie
+    if (fallbackOdds) return { previewOdds: fallbackOdds, expectedPayout: Math.floor(amount * fallbackOdds) }
+
+    return { previewOdds: null, expectedPayout: 0 }
   })()
 
   if (!open) return null
@@ -184,8 +206,10 @@ function RaceBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
                 style={{ color: balance !== null && amount > balance ? "#ef4444" : amount > 0 ? (meta?.color ?? G.gold) : G.textDim }}>
                 ₩{amount.toLocaleString()}
               </span>
-              {amount > 0 && balance !== null && amount <= balance && (
-                <span className="text-[10px]" style={{ color: G.goldDim }}>→ ₩{expectedPayout.toLocaleString()} 예상</span>
+              {amount > 0 && balance !== null && amount <= balance && expectedPayout > 0 && (
+                <span className="text-[10px]" style={{ color: G.goldDim }}>
+                  {previewOdds !== null ? `${previewOdds.toFixed(2)}x` : ""} → ₩{expectedPayout.toLocaleString()} 예상
+                </span>
               )}
               {balance !== null && amount > balance && <span className="text-[10px] text-red-500">잔고 부족</span>}
             </div>
@@ -407,14 +431,16 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   const [liveOdds, setLiveOdds] = useState<{
     bit: number | null; coin: number | null; tie: number | null
     available?: boolean; mode?: "seeded" | "decay" | "natural" | "pending"
+    pools?: { bit: number; coin: number; tie: number }
   } | null>(null)
 
   // Railway WS 게이트웨이로 race odds 구독 — available:false 포함 항상 반영
   useGatewayOdds("race", (data: unknown) => {
-    const d = data as { odds?: typeof liveOddsRef.current }
+    const d = data as { odds?: typeof liveOddsRef.current; pools?: { bit: number; coin: number; tie: number } }
     if (d.odds) {
-      liveOddsRef.current = d.odds
-      setLiveOdds(d.odds)
+      const withPools = { ...d.odds, pools: d.pools ?? liveOddsRef.current?.pools }
+      liveOddsRef.current = withPools
+      setLiveOdds(withPools)
     }
   })
 
@@ -533,8 +559,9 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.odds) {
-            liveOddsRef.current = data.odds
-            setLiveOdds(data.odds)
+            const withPools = { ...data.odds, pools: data.pools ?? liveOddsRef.current?.pools }
+            liveOddsRef.current = withPools
+            setLiveOdds(withPools)
           }
         })
         .catch(() => {})
@@ -989,6 +1016,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
         onClose={() => setDialog(null)} onConfirm={handleConfirmBet}
         isLoading={isPlacingBet} balance={balance} locked={locked} lockedAmount={lockedAmount}
         onLockChange={(l, a) => { setLocked(l); setLockedAmount(a) }} canBet={canBet}
+        liveOdds={liveOdds}
       />
       <RaceResultSheet result={lastResult} open={showResultSheet} onClose={() => setShowResultSheet(false)} />
     </>

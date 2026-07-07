@@ -142,9 +142,14 @@ interface BetDialogProps {
   lockedAmount: number | null
   onLockChange: (locked: boolean, amount: number | null) => void
   canBet: boolean
+  // 실시간 풀 정보 — 내 배팅 포함 예상 배율 계산에 사용
+  liveOdds?: {
+    player?: number | null; banker?: number | null; tie?: number | null
+    pools?: { player: number; banker: number; tie: number }
+  } | null
 }
 
-function BakaBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, locked, lockedAmount, onLockChange, canBet }: BetDialogProps) {
+function BakaBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoading, balance, locked, lockedAmount, onLockChange, canBet, liveOdds }: BetDialogProps) {
   const [selectedChip, setSelectedChip] = useState<number | null>(null)
   const [amount, setAmount] = useState(0)
 
@@ -167,13 +172,30 @@ function BakaBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
 
   const meta = selectedValue ? LABEL_MAP[selectedValue] : null
 
-  // 예상 배당 계산
-  const expectedPayout = (() => {
-    if (!selectedValue || amount <= 0) return 0
-    if (selectedValue === "player") return Math.floor(amount * 2)
-    if (selectedValue === "banker") return Math.floor(amount * 1.95)
-    if (selectedValue === "tie") return Math.floor(amount * 9)
-    return Math.floor(amount * PAYOUT_RATIO)
+  // 내 배팅 포함 예상 배율 계산 — 실제 정산 배율과 일치
+  const { previewOdds, expectedPayout } = (() => {
+    if (!selectedValue || amount <= 0) return { previewOdds: null, expectedPayout: 0 }
+
+    const side = selectedValue as "player" | "banker" | "tie"
+    const pools = liveOdds?.pools
+
+    if (pools) {
+      // 내 배팅을 해당 사이드 풀에 더해서 배당 재계산
+      const newPools = {
+        player: pools.player + (side === "player" ? amount : 0),
+        banker: pools.banker + (side === "banker" ? amount : 0),
+        tie:    pools.tie    + (side === "tie"    ? amount : 0),
+      }
+      const result = calcBaccaratOdds(newPools, { enabled: false, lpAmountBaccarat: 0, lpAmountRace: 0, lpMultiplierBaccarat: 1, lpMultiplierRace: 1 }, 0)
+      const odds = side === "player" ? result.playerOdds : side === "banker" ? result.bankerOdds : result.tieOdds
+      if (odds !== null) return { previewOdds: odds, expectedPayout: Math.floor(amount * odds) }
+    }
+
+    // pools 없으면 현재 liveOdds 값으로 fallback
+    const fallbackOdds = side === "player" ? liveOdds?.player : side === "banker" ? liveOdds?.banker : liveOdds?.tie
+    if (fallbackOdds) return { previewOdds: fallbackOdds, expectedPayout: Math.floor(amount * fallbackOdds) }
+
+    return { previewOdds: null, expectedPayout: 0 }
   })()
 
   if (!open) return null
@@ -224,9 +246,9 @@ function BakaBetDialog({ open, betType, selectedValue, onClose, onConfirm, isLoa
                 style={{ color: balance !== null && amount > balance ? "#ef4444" : amount > 0 ? (meta?.color ?? G.gold) : G.textDim }}>
                 ₩{amount.toLocaleString()}
               </span>
-              {amount > 0 && balance !== null && amount <= balance && (
+              {amount > 0 && balance !== null && amount <= balance && expectedPayout > 0 && (
                 <span className="text-[10px]" style={{ color: G.goldDim }}>
-                  → ₩{expectedPayout.toLocaleString()} 예상
+                  {previewOdds !== null ? `${previewOdds.toFixed(2)}x` : ""} → ₩{expectedPayout.toLocaleString()} 예상
                 </span>
               )}
               {balance !== null && amount > balance && (
@@ -645,7 +667,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       .catch(() => {})
   }, [])
 
-  // 자동 배팅
+  // 자동 ���팅
   const [autoBet, setAutoBet] = useState<AutoBetConfig>(DEFAULT_AUTO_BET)
   const [autoBetOpen, setAutoBetOpen] = useState(false)
   const [autoBetRounds, setAutoBetRounds] = useState(0)
@@ -1587,6 +1609,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         lockedAmount={lockedAmount}
         onLockChange={(l, a) => { setLocked(l); setLockedAmount(a) }}
         canBet={canBet}
+        liveOdds={liveOdds}
       />
       <BakaResultSheet
         result={lastResult}
