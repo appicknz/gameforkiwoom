@@ -1155,7 +1155,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         const snap = liveOddsRef.current
         const side = value as BetBaccarat
         const oddsForSide = side === "player" ? snap?.player : side === "banker" ? snap?.banker : snap?.tie
-        // 이후 LOG 2/3에서 참조할 수 있도록 ��도 ref에 보존
+        // 이후 LOG 2/3에서 참조할 수 있���록 ��도 ref에 보존
         dbgBetRef.current = { round: betRoundNumberRef.current, side, amount: cfg.amount, oddsAtBet: oddsForSide, oddsSnap: snap }
         console.log(`%c[배팅완료] 라운드#${betRoundNumberRef.current}`, "color:#4fc3f7;font-weight:bold", {
           side,
@@ -1276,6 +1276,13 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       window.dispatchEvent(new CustomEvent("balance:update", { detail: optimisticBalance }))
     }
 
+    // ── 버튼에 표시된 배율 캡처 (재계산으로 덮어쓰기 전에 저장) ────────
+    // clientOdds: 유저가 버튼 클릭 시점에 실제로 본 배율 → 서버 oddsAtBet으로 저장
+    // 반드시 liveOddsRef 재계산(아래) 보다 먼저 캡처해야 함
+    const clientOddsSnapshot = liveOddsRef.current
+      ? { player: liveOddsRef.current.player, banker: liveOddsRef.current.banker, tie: liveOddsRef.current.tie }
+      : undefined
+
     // ── 내 배팅 금액을 포함해 즉시 odds 재계산 ──────────────────────
     // 조건: liveOdds.pools 가 실제 값으로 채워진 경우에만 재계산
     // pools 가 없으면 계산 불가 → WS push(500ms 내) 수신 시 자동 반영
@@ -1318,15 +1325,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           betAmount: amount,
           bets: betsPayload,
           ...(betSide ? { gameType: "baccarat", side: betSide } : {}),
-          // 버튼에 표시된 배율을 서버로 전송 → 서버가 oddsAtBet으로 저장
-          // settle-me에서 이 값을 1순위로 사용하여 표시 배율과 정산 배율 100% 일치
-          clientOdds: liveOddsRef.current
-            ? {
-                player: liveOddsRef.current.player,
-                banker: liveOddsRef.current.banker,
-                tie:    liveOddsRef.current.tie,
-              }
-            : undefined,
+          // 버튼 클릭 시점 배율 스냅샷 전송 (재계산 전에 캡처된 값)
+          clientOdds: clientOddsSnapshot,
         }),
       })
       const data = await res.json()
