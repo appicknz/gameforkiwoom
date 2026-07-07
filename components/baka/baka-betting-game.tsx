@@ -527,7 +527,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 
 // ─── 메인 게임 컴포넌트 ─────────────────────────────────────────────────────
 interface BakaBettingGameProps {
-  /** 30초(라���드 전환) 시점: 카드 리셋 트리거 — BaccaratGame에 새 라운드 준비 요청 */
+  /** 30초(라�����드 전환) 시점: 카드 리셋 트리거 — BaccaratGame에 새 라운드 준비 요청 */
   onResetCards?: () => void
   /** 25초 시�������: 카드 공개 + 배팅 오픈 트리거 */
   onStartDealTrigger?: () => void
@@ -581,8 +581,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // canBet 상태를 ref로 추적 — SSE 클로저 안에서 최신 값 참조용
   const canBetRef = useRef(false)
 
+  // 마감중(s=17~19) 여부를 ref로 추적 — WS 콜백 클로저에서 최신 값 참조용
+  // s=17에 풀이 확정되므로 그 이후 WS 업데이트를 차단해 버튼 배당을 프리즈함
+  const isBettingClosingRef = useRef(false)
+
   // Railway WS 게이트웨이로 baccarat odds 구독 — available:false 포함 항상 반영
   useGatewayOdds("baccarat", (data: unknown) => {
+    // 마감중(s=17~19)에는 WS 업데이트 차단 — 버튼 배당을 s=17 시점으로 고정
+    // 이 구간에 들어온 다른 유저 배팅으로 풀이 바뀌어도 표시 배당은 변하지 않음
+    if (isBettingClosingRef.current) return
     const d = data as { odds?: typeof liveOddsRef.current; pools?: { player: number; banker: number; tie: number } }
     if (d.odds) {
       // pools 정보를 함께 저장 — 내 배팅 후 즉시 재계산 시 기준값으로 사용
@@ -1031,6 +1038,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // 마감 중 (timeLeft 13→10, s=17~19): 버튼 disabled + 빨간 "마감 중" 표시
   const isBettingClosing = timeLeft <= 13 && timeLeft > 10
+  // ref 동기화 — WS 콜백 클로저에서 최신 값을 읽기 위함
+  isBettingClosingRef.current = isBettingClosing
 
   // canBetRef 동기화 + 배팅 시작/마감 로그
   useEffect(() => {
@@ -1155,7 +1164,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         setBasePrice(currentPriceRef.current)
       }
 
-      // ── LOG 1: ��팅 완료 ────────────────────────────────────
+      // ── LOG 1: ��팅 완료 ───────────��────────────────────────
       if (type === "baccarat") {
         const snap = liveOddsRef.current
         const side = value as BetBaccarat

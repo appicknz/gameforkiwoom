@@ -182,9 +182,11 @@ export async function POST(request: Request) {
         const stillBetting = type === "race"
           ? secInRoundFinal >= 10 && secInRoundFinal < 63
           : secInRoundFinal >= 5  && secInRoundFinal < 23
+        // isLockZone: 프론트 마감(s=17) 이후 구간 — 이 구간에 들어온 배팅이 풀을 확정시킴
+        // 기존 locked가 없을 때만 저장 (첫 배팅이 풀 고정 기준점)
         const isLockZone = type === "race"
-          ? secInRoundFinal >= 60 && secInRoundFinal < 63
-          : secInRoundFinal >= 20 && secInRoundFinal < 23
+          ? secInRoundFinal >= 57 && secInRoundFinal < 63
+          : secInRoundFinal >= 17 && secInRoundFinal < 23
 
         const currentKey = `odds:current:${type}:${roundNumber}`
         const lockedKey  = `odds:locked:${type}:${roundNumber}`
@@ -206,7 +208,12 @@ export async function POST(request: Request) {
             redis.set(currentKey, JSON.stringify(currentPayload), { ex: ttl }),
             redis.incr(`odds_version:${type}`),
           ] : []),
-          ...(isLockZone ? [redis.set(lockedKey, JSON.stringify(oddsSnap), { ex: 3600 })] : []),
+          // odds:locked: isLockZone이거나 아직 저장 안 됐으면 현재 풀로 저장
+          // → 어느 시점에 배팅해도 그 배팅이 반영된 풀이 확정 배율로 쓰임
+          ...(isLockZone
+            ? [redis.set(lockedKey, JSON.stringify(oddsSnap), { ex: 3600 })]
+            : [redis.set(lockedKey, JSON.stringify(oddsSnap), { ex: 3600, nx: true })]
+          ),
           adminSupabase.from("balance_transactions").insert({
             user_id: userId, branch_id: branchId,
             type: "bet", amount: -betAmount,
