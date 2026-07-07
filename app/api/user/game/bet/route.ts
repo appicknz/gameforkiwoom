@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       request.json(),
       verifySession(request),          // body parse와 토큰 검증을 병렬로
     ])
-    const { betAmount, gameType, side, bets: betsPayload, clientOdds } = bodyJson
+    const { betAmount, gameType, side, bets: betsPayload } = bodyJson
 
     if (!betAmount || betAmount <= 0)
       return NextResponse.json({ error: "Invalid bet amount" }, { status: 400 })
@@ -198,9 +198,8 @@ export async function POST(request: Request) {
           redis.set(oddsSnapKey, JSON.stringify(oddsSnap), { ex: ttl }),
           redis.set(activeBetKey, JSON.stringify({
             roundNumber, gameType: type, side, amount: betAmount,
-            // clientOdds: 버튼에 표시된 배율 (클라이언트 전송) — 없으면 서버 계산값
-            // settle-me에서 이 값을 1순위로 사용 → 표시 배율 = 정산 배율 100% 보장
-            oddsAtBet: (clientOdds && (clientOdds.player || clientOdds.bit)) ? clientOdds : oddsSnap,
+            // 내 배팅이 반영된 후 서버가 계산한 배율 — 수학적으로 정확한 정산 기준
+            oddsAtBet: oddsSnap,
             placedAt: Date.now(),
           }), { ex: ttl + 10 }),
           ...(stillBetting ? [
