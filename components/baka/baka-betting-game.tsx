@@ -583,6 +583,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // Railway WS 게이트웨이로 baccarat odds 구독 — available:false 포함 항상 반영
   useGatewayOdds("baccarat", (data: unknown) => {
+    // 마감중(s=17~19) 구간에는 WS 업데이트 차단
+    // → s=17에 저장된 odds:locked 값과 버튼 표시 배율을 완전히 일치시킴
+    if (isBettingClosingRef.current) return
     const d = data as { odds?: typeof liveOddsRef.current; pools?: { player: number; banker: number; tie: number } }
     if (d.odds) {
       // pools 정보를 함께 저장 — 내 배팅 후 즉시 재계산 시 기준값으로 사용
@@ -1031,6 +1034,11 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // 마감 중 (timeLeft 13→10, s=17~19): 버튼 disabled + 빨간 "마감 중" 표시
   const isBettingClosing = timeLeft <= 13 && timeLeft > 10
+
+  // WS/폴링 프리즈 ref — 마감중에는 odds 업데이트 차단
+  // s=17에 저장된 odds:locked 값과 버튼 표시 배율을 일치시키기 위함
+  const isBettingClosingRef = useRef(false)
+  isBettingClosingRef.current = isBettingClosing
 
   // canBetRef 동기화 + 배팅 시작/마감 로그
   useEffect(() => {
