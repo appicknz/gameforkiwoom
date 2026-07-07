@@ -1555,15 +1555,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
               const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"
               const dimBg = side === "banker" ? "rgba(239,68,68,0.35)" : side === "tie" ? "rgba(34,197,94,0.35)" : "rgba(59,130,246,0.35)"
               const dimBorder = side === "banker" ? "rgba(239,68,68,0.7)" : side === "tie" ? "rgba(34,197,94,0.7)" : "rgba(59,130,246,0.7)"
-              // 마감 중(17~19초): amber 경고 톤으로 표시
-              const bgStyle = isSelected ? solidBg
-                : canBet ? dimBg
-                : isBettingClosing ? "rgba(245,158,11,0.15)"
-                : "rgba(255,255,255,0.04)"
-              const borderStyle = isSelected ? solidColor
-                : canBet ? dimBorder
-                : isBettingClosing ? "rgba(245,158,11,0.5)"
-                : "rgba(255,255,255,0.1)"
+              // 마감중: 사이드 고유 색상 유지, opacity만 낮춤
+              const bgStyle = isSelected ? solidBg : dimBg
+              const borderStyle = isSelected ? solidColor : dimBorder
               return (
                 <button key={side}
                   onClick={() => openDialog("baccarat", side)}
@@ -1571,15 +1565,17 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
                   className="rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     height: 64,
-                    background: bgStyle,
-                    border: `2px solid ${borderStyle}`,
+                    background: canBet || isSelected ? bgStyle : "rgba(255,255,255,0.04)",
+                    border: `2px solid ${canBet || isSelected ? borderStyle : "rgba(255,255,255,0.1)"}`,
                     color: "#fff",
                   }}>
                   <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.03em" }}>{label}</span>
-                  {isBettingClosing && !isSelected
-                    ? <span style={{ fontSize: 10, color: "rgba(245,158,11,0.9)", fontWeight: 700 }}>마감 중</span>
-                    : <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
-                  }
+                  {/* 배율은 항상 표시 — 마감중에도 확정 배율을 보여줌 */}
+                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
+                  {/* 마감중 빨간 라벨 — 선택된 버튼 제외 */}
+                  {isBettingClosing && !isSelected && (
+                    <span style={{ fontSize: 9, color: "#ef4444", fontWeight: 800, letterSpacing: "0.05em" }}>마감중</span>
+                  )}
                   {isSelected && betBaccaratAmount > 0 && (
                     <span style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>
                       ₩{betBaccaratAmount >= 10000 ? `${betBaccaratAmount / 10000}만` : betBaccaratAmount.toLocaleString()}

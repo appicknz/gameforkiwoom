@@ -37,6 +37,18 @@ async function redisMGet(keys) {
   return arr.map(r => r?.result ?? null)
 }
 
+async function redisSet(key, value, exSeconds) {
+  if (!REDIS_URL || !REDIS_TOKEN) return
+  const cmd = exSeconds
+    ? ["SET", key, typeof value === "string" ? value : JSON.stringify(value), "EX", exSeconds]
+    : ["SET", key, typeof value === "string" ? value : JSON.stringify(value)]
+  await fetch(`${REDIS_URL}/pipeline`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify([cmd]),
+  }).catch(() => {})
+}
+
 async function redisLRange(key, start, stop) {
   if (!REDIS_URL || !REDIS_TOKEN) return []
   const res = await fetch(`${REDIS_URL}/lrange/${encodeURIComponent(key)}/${start}/${stop}`, {
@@ -521,7 +533,7 @@ function accumulateRacePrice(closePrice, closeTime) {
         coinScore += parseInt(dec[1] || "0");
       }
       const winner = bitScore > coinScore ? "bit" : coinScore > bitScore ? "coin" : "tie";
-      const endTime = prevRound * 180 + 180; // 라운드 종��� 시각
+      const endTime = prevRound * 180 + 180; // 라운드 종����� 시각
       saveRaceResultToDB(endTime, prev.lastPrice, bitScore, coinScore, winner);
     }
     // 오래된 라운드 메모리 정리 (2라운드 이상 전)
@@ -734,16 +746,41 @@ async function gatewayPoll() {
       }
     }
 
-    // ── 3) odds 버전 체크 ─────────────────────────────────────
+    // ── 3) odds 버전 체크 + 배팅 마감 시 자동 lock ──────────────
+    const nowSecGw = Math.floor(Date.now() / 1000)
     for (const gt of ["baccarat", "race"]) {
       const subs = oddsSubs.get(gt)
+      const roundSec   = gt === "race" ? 180 : 30
+      // 프론트 마감 기준 초 (바카라 s=17, 레이스 s=57)
+      const lockAtSec  = gt === "race" ? 57 : 17
+      const secInRound = nowSecGw % roundSec
+      const rn         = Math.floor(nowSecGw / roundSec)
+      const lockKey    = `odds:locked:${gt}:${rn}`
+
+      // 배팅 마감 구간(lockAtSec ~ lockAtSec+3) 진입 시 odds:current → odds:locked 복사
+      // 이미 저장된 경우 덮어쓰지 않음 (첫 진입 1회만)
+      if (secInRound >= lockAtSec && secInRound < lockAtSec + 3) {
+        const alreadyLocked = await redisGet(lockKey)
+        if (!alreadyLocked) {
+          const currentRaw = await redisGet(`odds:current:${gt}:${rn}`)
+          if (currentRaw) {
+            try {
+              const parsed  = typeof currentRaw === "string" ? JSON.parse(currentRaw) : currentRaw
+              // odds:locked는 순수 odds 객체만 저장 (settle-me 1순위 참조)
+              const oddsObj = parsed?.odds ?? (parsed?.player !== undefined || parsed?.bit !== undefined ? parsed : null)
+              if (oddsObj) {
+                await redisSet(lockKey, JSON.stringify(oddsObj), 3600)
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
       if (!subs || subs.size === 0) continue
       const ver = Number(await redisGet(`odds_version:${gt}`) ?? 0)
       if (ver !== lastOddsVersions[gt]) {
         lastOddsVersions[gt] = ver
-        const roundSec = gt === "race" ? 180 : 30
-        const rn       = Math.floor(Math.floor(Date.now() / 1000) / roundSec)
-        const cached   = await redisGet(`odds:current:${gt}:${rn}`)
+        const cached = await redisGet(`odds:current:${gt}:${rn}`)
         if (cached) {
           const parsed = typeof cached === "string" ? JSON.parse(cached) : cached
           pushOdds(gt, parsed)
