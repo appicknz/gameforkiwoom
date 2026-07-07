@@ -527,7 +527,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 
 // ─── 메인 게임 컴포넌트 ─────────────────────────────────────────────────────
 interface BakaBettingGameProps {
-  /** 30초(라운드 전환) 시점: 카드 리셋 트리거 — BaccaratGame에 새 라운드 준비 요청 */
+  /** 30초(라���드 전환) 시점: 카드 리셋 트리거 — BaccaratGame에 새 라운드 준비 요청 */
   onResetCards?: () => void
   /** 25초 시�������: 카드 공개 + 배팅 오픈 트리거 */
   onStartDealTrigger?: () => void
@@ -1029,11 +1029,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     return s >= 5 && s < 17
   })()
 
-  // 배팅 마감 중 (s=17~19): 버튼 disabled이지만 "마감 중" 텍스트 표시
-  const isBettingClosing = (() => {
-    const s = Math.floor(Date.now() / 1000) % 30
-    return s >= 17 && s < 20
-  })()
+  // 마감 중 (timeLeft 13→10, s=17~19): 버튼 disabled + 빨간 "마감 중" 표시
+  const isBettingClosing = timeLeft <= 13 && timeLeft > 10
 
   // canBetRef 동기화 + 배팅 시작/마감 로그
   useEffect(() => {
@@ -1158,7 +1155,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         setBasePrice(currentPriceRef.current)
       }
 
-      // ── LOG 1: 배팅 완료 ────────────────────────────────────
+      // ── LOG 1: ��팅 완료 ────────────────────────────────────
       if (type === "baccarat") {
         const snap = liveOddsRef.current
         const side = value as BetBaccarat
@@ -1378,21 +1375,25 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const isUp = priceDiff !== null && priceDiff >= 0
 
   // 페이즈별 타이머 계산 (서버 기준: s=now%30)
-  // 정산(5s):  s=0~4   → rem=30~26 → timeLeft>25
-  // 배팅(15s): s=5~19  → rem=25~11 → timeLeft>10 && <=25
-  // 게임중(10s): s=20~29 → rem=10~1  → timeLeft<=10
+  // 정산(5s):  s=0~4   → rem>25
+  // 배팅(12s): s=5~16  → rem 25→13
+  // 마감중(3s): s=17~19 → rem 13→10
+  // 게임중(10s): s=20~29 → rem 10→0
     const currentPhaseLabel = timeLeft > 25 ? "정산 중"
-      : timeLeft > 10 ? "배팅 가능"
+      : timeLeft > 13 ? "배팅 가능"
+      : timeLeft > 10 ? "마감 중"
       : "게임 중"
-    const currentPhaseDuration = timeLeft > 25 ? 5 : timeLeft > 10 ? 15 : 10
+    const currentPhaseDuration = timeLeft > 25 ? 5 : timeLeft > 13 ? 12 : timeLeft > 10 ? 3 : 10
     const currentPhaseLeft = timeLeft > 25 ? timeLeft - 25
+      : timeLeft > 13 ? timeLeft - 13
       : timeLeft > 10 ? timeLeft - 10
       : timeLeft
   const timerPercent = (currentPhaseLeft / currentPhaseDuration) * 100
     const timerColor = timeLeft > 25 ? "#60a5fa"   // 정산 — 파랑
-      : timeLeft > 10 ? "#10b981"                  // 배팅 가능 — 초록
+      : timeLeft > 13 ? "#10b981"                  // 배팅 가능 — 초록
+      : timeLeft > 10 ? "#ef4444"                  // 마감 중 — 빨강
       : timeLeft > 3  ? "#f97316"                  // 게임 중 — 주황
-    : "#ef4444"                                  // 막판 — 빨강
+      : "#ef4444"                                  // 막판 — 빨강
   const timerLabel = currentPhaseLabel
 
   return (
