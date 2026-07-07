@@ -46,19 +46,19 @@ export async function POST(request: Request) {
     const userId = authResult.userId
 
     // ── 배팅 구간 서버 검증 ─────────────────────────────────────
+    // nowSec을 단 한 번만 읽어 phase 검증과 roundNumber 계산을 동일 시점으로 고정
+    // 두 번 읽으면 경계(secInRound=19→0)에서 roundNumber가 N+1이 되는 레이스 컨디션 발생
     const nowSec     = Math.floor(Date.now() / 1000)
     const type       = (gameType ?? "baccarat") as "baccarat" | "race"
     const roundSec   = type === "race" ? 180 : 30
     const secInRound = nowSec % roundSec
+    const roundNumber = Math.floor(nowSec / roundSec)   // phase 검증 직전 동일 nowSec 사용
+
     const inBettingPhase = type === "race"
       ? secInRound >= 10 && secInRound < 60
       : secInRound >= 5  && secInRound < 20
     if (!inBettingPhase)
       return NextResponse.json({ error: "Betting is closed for this round" }, { status: 400 })
-
-    const roundNumber = type === "race"
-      ? Math.floor(nowSec / 180)
-      : Math.floor(nowSec / 30)
     const ttl = 3600
 
     const poolKey     = `pool:${type}:${roundNumber}`
