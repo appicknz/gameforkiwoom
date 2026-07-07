@@ -54,9 +54,11 @@ export async function POST(request: Request) {
     const secInRound = nowSec % roundSec
     const roundNumber = Math.floor(nowSec / roundSec)   // phase 검증 직전 동일 nowSec 사용
 
+    // 서버는 s<23까지 허용 — 프론트가 s=17에 마감하므로 17~22 사이 요청은
+    // 네트워크/처리 지연으로 늦게 도착한 정상 배팅이므로 수용
     const inBettingPhase = type === "race"
-      ? secInRound >= 10 && secInRound < 60
-      : secInRound >= 5  && secInRound < 20
+      ? secInRound >= 10 && secInRound < 63
+      : secInRound >= 5  && secInRound < 23
     if (!inBettingPhase)
       return NextResponse.json({ error: "Betting is closed for this round" }, { status: 400 })
     const ttl = 3600
@@ -178,11 +180,11 @@ export async function POST(request: Request) {
         const nowSecFinal     = Math.floor(Date.now() / 1000)
         const secInRoundFinal = nowSecFinal % roundSec
         const stillBetting = type === "race"
-          ? secInRoundFinal >= 10 && secInRoundFinal < 60
-          : secInRoundFinal >= 5  && secInRoundFinal < 20
+          ? secInRoundFinal >= 10 && secInRoundFinal < 63
+          : secInRoundFinal >= 5  && secInRoundFinal < 23
         const isLockZone = type === "race"
-          ? secInRoundFinal >= 57 && secInRoundFinal < 60
-          : secInRoundFinal >= 17 && secInRoundFinal < 20
+          ? secInRoundFinal >= 60 && secInRoundFinal < 63
+          : secInRoundFinal >= 20 && secInRoundFinal < 23
 
         const currentKey = `odds:current:${type}:${roundNumber}`
         const lockedKey  = `odds:locked:${type}:${roundNumber}`

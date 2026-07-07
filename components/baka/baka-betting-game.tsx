@@ -1024,7 +1024,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // SSE 서버와 동일한 UTC 기준으로 계산 — timeLeft 기반 오차 제거
   const canBet = (() => {
     const s = Math.floor(Date.now() / 1000) % 30
-    return s >= 5 && s < 20
+    // 서버 처리 지연(~2~3초) 감안해 마감 3초 전(s=17)에 미리 닫음
+    // 서버는 s<23까지 허용하므로 s=17~19에 들어온 기존 배팅도 정상 처리됨
+    return s >= 5 && s < 17
+  })()
+
+  // 배팅 마감 중 (s=17~19): 버튼 disabled이지만 "마감 중" 텍스트 표시
+  const isBettingClosing = (() => {
+    const s = Math.floor(Date.now() / 1000) % 30
+    return s >= 17 && s < 20
   })()
 
   // canBetRef 동기화 + 배팅 시작/마감 로그
@@ -1155,7 +1163,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         const snap = liveOddsRef.current
         const side = value as BetBaccarat
         const oddsForSide = side === "player" ? snap?.player : side === "banker" ? snap?.banker : snap?.tie
-        // 이후 LOG 2/3에서 참조할 수 있도록 별도 ref에 보존
+        // 이후 LOG 2/3에서 참조할 수 있도록 ���도 ref에 보존
         dbgBetRef.current = { round: betRoundNumberRef.current, side, amount: cfg.amount, oddsAtBet: oddsForSide, oddsSnap: snap }
         console.log(`%c[배팅완료] 라운드#${betRoundNumberRef.current}`, "color:#4fc3f7;font-weight:bold", {
           side,
@@ -1546,6 +1554,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
               const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"
               const dimBg = side === "banker" ? "rgba(239,68,68,0.35)" : side === "tie" ? "rgba(34,197,94,0.35)" : "rgba(59,130,246,0.35)"
               const dimBorder = side === "banker" ? "rgba(239,68,68,0.7)" : side === "tie" ? "rgba(34,197,94,0.7)" : "rgba(59,130,246,0.7)"
+              // 마감 중(17~19초): amber 경고 톤으로 표시
+              const bgStyle = isSelected ? solidBg
+                : canBet ? dimBg
+                : isBettingClosing ? "rgba(245,158,11,0.15)"
+                : "rgba(255,255,255,0.04)"
+              const borderStyle = isSelected ? solidColor
+                : canBet ? dimBorder
+                : isBettingClosing ? "rgba(245,158,11,0.5)"
+                : "rgba(255,255,255,0.1)"
               return (
                 <button key={side}
                   onClick={() => openDialog("baccarat", side)}
@@ -1553,12 +1570,15 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
                   className="rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     height: 64,
-                    background: isSelected ? solidBg : canBet ? dimBg : "rgba(255,255,255,0.04)",
-                    border: `2px solid ${isSelected ? solidColor : canBet ? dimBorder : "rgba(255,255,255,0.1)"}`,
+                    background: bgStyle,
+                    border: `2px solid ${borderStyle}`,
                     color: "#fff",
                   }}>
                   <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.03em" }}>{label}</span>
-                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
+                  {isBettingClosing && !isSelected
+                    ? <span style={{ fontSize: 10, color: "rgba(245,158,11,0.9)", fontWeight: 700 }}>마감 중</span>
+                    : <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
+                  }
                   {isSelected && betBaccaratAmount > 0 && (
                     <span style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>
                       ₩{betBaccaratAmount >= 10000 ? `${betBaccaratAmount / 10000}만` : betBaccaratAmount.toLocaleString()}
