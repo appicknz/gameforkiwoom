@@ -172,13 +172,10 @@ export async function GET(request: Request) {
       buildStats("race",     String(curRaceId - 1),     lpConfig),
     ])
 
-    // 명시적 roundId 지정이 없으면 배팅이 있는 라운드 우선
-    const baccarat = qRoundId
-      ? curBaccarat
-      : (curBaccarat.totalBet === 0 && prevBaccarat.totalBet > 0 ? prevBaccarat : curBaccarat)
-    const race = qRoundId
-      ? curRace
-      : (curRace.totalBet === 0 && prevRace.totalBet > 0 ? prevRace : curRace)
+    // 항상 현재 라운드를 주 데이터로 사용 — 이전 라운드로 대체하지 않음
+    // (이전 동작: 현재 라운드 배팅 없으면 이전 라운드 표시 → /baka와 라운드 번호 불일치 원인)
+    const baccarat = qRoundId ? curBaccarat : curBaccarat
+    const race     = qRoundId ? curRace     : curRace
 
     return NextResponse.json({ baccarat, race })
   } catch (error) {

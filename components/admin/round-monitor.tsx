@@ -172,12 +172,13 @@ const SIDE_COLOR: Record<string, string> = {
 
 // ── 게임 카드 (바카라 or 레이스) ──────────────────────────�����───────────────
 function GameRoundCard({
-  stats, title, phase, timeLeft,
+  stats, title, phase, timeLeft, currentRound,
 }: {
   stats: RoundStats
   title: string
   phase: "정산중" | "배팅가능" | "게임중"
   timeLeft: number
+  currentRound: number  // 로컬 시계 기준 현재 라운드 번호 (stats.round와 다를 수 있음)
 }) {
   const isBaccarat = stats.gameType === "baccarat"
   const sides = isBaccarat
@@ -194,7 +195,7 @@ function GameRoundCard({
 
   const modeLabel =
     stats.mode === "pari"   ? "파리뮤추얼" :
-    stats.mode === "hybrid" ? "하이���리드"  : "LP 주도"
+    stats.mode === "hybrid" ? "하이�����리드"  : "LP 주도"
   const modeBg =
     stats.mode === "pari"   ? "bg-emerald-500/10 text-emerald-600" :
     stats.mode === "hybrid" ? "bg-amber-500/10 text-amber-600"    :
@@ -226,7 +227,11 @@ function GameRoundCard({
         <div>
           <p className="text-xs font-semibold text-foreground">{title}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            라운드 #{stats.round} &middot; {stats.userCount}명 참여
+            라운드 #{currentRound}
+            {stats.round !== String(currentRound) && (
+              <span className="ml-1 text-amber-500">(데이터: #{stats.round})</span>
+            )}
+            &nbsp;&middot;&nbsp;{stats.userCount}명 참여
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -977,8 +982,8 @@ export function RoundMonitor({
 
         {/* 바카라 + 레이스 */}
         <div className="px-5 pb-5 flex flex-col md:flex-row gap-4">
-          <GameRoundCard stats={baccaratStats} title="바카라"           phase={baccaratPhase} timeLeft={baccaratTimeLeft} />
-          <GameRoundCard stats={raceStats}     title="레이스 (3분 라운드)" phase={racePhase}     timeLeft={raceTimeLeft}     />
+          <GameRoundCard stats={baccaratStats} title="바카라"           phase={baccaratPhase} timeLeft={baccaratTimeLeft} currentRound={Math.floor(Date.now() / 1000 / 30)} />
+          <GameRoundCard stats={raceStats}     title="레이스 (3분 라운드)" phase={racePhase}     timeLeft={raceTimeLeft}     currentRound={Math.floor(Date.now() / 1000 / 180)} />
         </div>
       </div>
 
