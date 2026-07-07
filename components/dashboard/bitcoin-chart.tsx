@@ -536,17 +536,7 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
             </div>
           </div>
 
-          {/* 거래량 오버레이 */}
-          {ticker && (
-            <div style={{
-              position: "absolute", bottom: 28, left: 8,
-              padding: "3px 6px", borderRadius: 4, fontSize: 10, zIndex: 10,
-              background: "rgba(19,23,34,0.85)", color: "rgba(160,160,160,0.6)",
-            }}>
-              <div>거래량: <span style={{ color: "#d1d4dc", fontWeight: 600 }}>{ticker.volume.toLocaleString("en-US", { maximumFractionDigits: 0 })} BTC</span></div>
-              <div>거래대금: <span style={{ color: "#d1d4dc", fontWeight: 600 }}>{formatQuoteVolume(ticker.quoteAssetVolume)}</span></div>
-            </div>
-          )}
+
         </div>
       )}
     </div>
