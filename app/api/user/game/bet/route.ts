@@ -54,11 +54,9 @@ export async function POST(request: Request) {
     const secInRound = nowSec % roundSec
     const roundNumber = Math.floor(nowSec / roundSec)   // phase 검증 직전 동일 nowSec 사용
 
-    // 서버는 s<23까지 허용 — 프론트가 s=17에 마감하므로 17~22 사이 요청은
-    // 네트워크/처리 지연으로 늦게 도착한 정상 배팅이므로 수용
     const inBettingPhase = type === "race"
-      ? secInRound >= 10 && secInRound < 63
-      : secInRound >= 5  && secInRound < 23
+      ? secInRound >= 10 && secInRound < 60
+      : secInRound >= 5  && secInRound < 20
     if (!inBettingPhase)
       return NextResponse.json({ error: "Betting is closed for this round" }, { status: 400 })
     const ttl = 3600
@@ -180,13 +178,11 @@ export async function POST(request: Request) {
         const nowSecFinal     = Math.floor(Date.now() / 1000)
         const secInRoundFinal = nowSecFinal % roundSec
         const stillBetting = type === "race"
-          ? secInRoundFinal >= 10 && secInRoundFinal < 63
-          : secInRoundFinal >= 5  && secInRoundFinal < 23
-        // isLockZone: 프론트 마감(s=17) 이후 구간 — 이 구간에 들어온 배팅이 풀을 확정시킴
-        // 기존 locked가 없을 때만 저장 (첫 배팅이 풀 고정 기준점)
+          ? secInRoundFinal >= 10 && secInRoundFinal < 60
+          : secInRoundFinal >= 5  && secInRoundFinal < 20
         const isLockZone = type === "race"
-          ? secInRoundFinal >= 57 && secInRoundFinal < 63
-          : secInRoundFinal >= 17 && secInRoundFinal < 23
+          ? secInRoundFinal >= 57 && secInRoundFinal < 60
+          : secInRoundFinal >= 17 && secInRoundFinal < 20
 
         const currentKey = `odds:current:${type}:${roundNumber}`
         const lockedKey  = `odds:locked:${type}:${roundNumber}`
@@ -208,12 +204,7 @@ export async function POST(request: Request) {
             redis.set(currentKey, JSON.stringify(currentPayload), { ex: ttl }),
             redis.incr(`odds_version:${type}`),
           ] : []),
-          // odds:locked: isLockZone이거나 아직 저장 안 됐으면 현재 풀로 저장
-          // → 어느 시점에 배팅해도 그 배팅이 반영된 풀이 확정 배율로 쓰임
-          ...(isLockZone
-            ? [redis.set(lockedKey, JSON.stringify(oddsSnap), { ex: 3600 })]
-            : [redis.set(lockedKey, JSON.stringify(oddsSnap), { ex: 3600, nx: true })]
-          ),
+          ...(isLockZone ? [redis.set(lockedKey, JSON.stringify(oddsSnap), { ex: 3600 })] : []),
           adminSupabase.from("balance_transactions").insert({
             user_id: userId, branch_id: branchId,
             type: "bet", amount: -betAmount,

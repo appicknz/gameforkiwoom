@@ -527,7 +527,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
 
 // ─── 메인 게임 컴포넌트 ─────────────────────────────────────────────────────
 interface BakaBettingGameProps {
-  /** 30초(라�����드 전환) 시점: 카드 리셋 트리거 — BaccaratGame에 새 라운드 준비 요청 */
+  /** 30초(라운드 전환) 시점: 카드 리셋 트리거 — BaccaratGame에 새 라운드 준비 요청 */
   onResetCards?: () => void
   /** 25초 시�������: 카드 공개 + 배팅 오픈 트리거 */
   onStartDealTrigger?: () => void
@@ -581,15 +581,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // canBet 상태를 ref로 추적 — SSE 클로저 안에서 최신 값 참조용
   const canBetRef = useRef(false)
 
-  // 마감중(s=17~19) 여부를 ref로 추적 — WS 콜백 클로저에서 최신 값 참조용
-  // s=17에 풀이 확정되므로 그 이후 WS 업데이트를 차단해 버튼 배당을 프리즈함
-  const isBettingClosingRef = useRef(false)
-
   // Railway WS 게이트웨이로 baccarat odds 구독 — available:false 포함 항상 반영
   useGatewayOdds("baccarat", (data: unknown) => {
-    // 마감중(s=17~19)에는 WS 업데이트 차단 — 버튼 배당을 s=17 시점으로 고정
-    // 이 구간에 들어온 다른 유저 배팅으로 풀이 바뀌어도 표시 배당은 변하지 않음
-    if (isBettingClosingRef.current) return
     const d = data as { odds?: typeof liveOddsRef.current; pools?: { player: number; banker: number; tie: number } }
     if (d.odds) {
       // pools 정보를 함께 저장 — 내 배팅 후 즉시 재계산 시 기준값으로 사용
@@ -1031,15 +1024,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   // SSE 서버와 동일한 UTC 기준으로 계산 — timeLeft 기반 오차 제거
   const canBet = (() => {
     const s = Math.floor(Date.now() / 1000) % 30
-    // 서버 처리 지연(~2~3초) 감안해 마감 3초 전(s=17)에 미리 닫음
-    // 서버는 s<23까지 허용하므로 s=17~19에 들어온 기존 배팅도 정상 처리됨
-    return s >= 5 && s < 17
+    return s >= 5 && s < 20
   })()
-
-  // 마감 중 (timeLeft 13→10, s=17~19): 버튼 disabled + 빨간 "마감 중" 표시
-  const isBettingClosing = timeLeft <= 13 && timeLeft > 10
-  // ref 동기화 — WS 콜백 클로저에서 최신 값을 읽기 위함
-  isBettingClosingRef.current = isBettingClosing
 
   // canBetRef 동기화 + 배팅 시작/마감 로그
   useEffect(() => {
@@ -1164,12 +1150,12 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         setBasePrice(currentPriceRef.current)
       }
 
-      // ── LOG 1: ��팅 완료 ───────────��────────────────────────
+      // ── LOG 1: 배팅 완료 ────────────────────────────────────
       if (type === "baccarat") {
         const snap = liveOddsRef.current
         const side = value as BetBaccarat
         const oddsForSide = side === "player" ? snap?.player : side === "banker" ? snap?.banker : snap?.tie
-        // 이후 LOG 2/3에서 참조할 수 있도록 ���도 ref에 보존
+        // 이후 LOG 2/3에서 참조할 수 있도록 별도 ref에 보존
         dbgBetRef.current = { round: betRoundNumberRef.current, side, amount: cfg.amount, oddsAtBet: oddsForSide, oddsSnap: snap }
         console.log(`%c[배팅완료] 라운드#${betRoundNumberRef.current}`, "color:#4fc3f7;font-weight:bold", {
           side,
@@ -1384,25 +1370,21 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   const isUp = priceDiff !== null && priceDiff >= 0
 
   // 페이즈별 타이머 계산 (서버 기준: s=now%30)
-  // 정산(5s):  s=0~4   → rem>25
-  // 배팅(12s): s=5~16  → rem 25→13
-  // 마감중(3s): s=17~19 → rem 13→10
-  // 게임중(10s): s=20~29 → rem 10→0
+  // 정산(5s):  s=0~4   → rem=30~26 → timeLeft>25
+  // 배팅(15s): s=5~19  → rem=25~11 → timeLeft>10 && <=25
+  // 게임중(10s): s=20~29 → rem=10~1  → timeLeft<=10
     const currentPhaseLabel = timeLeft > 25 ? "정산 중"
-      : timeLeft > 13 ? "배팅 가능"
-      : timeLeft > 10 ? "마감 중"
+      : timeLeft > 10 ? "배팅 가능"
       : "게임 중"
-    const currentPhaseDuration = timeLeft > 25 ? 5 : timeLeft > 13 ? 12 : timeLeft > 10 ? 3 : 10
+    const currentPhaseDuration = timeLeft > 25 ? 5 : timeLeft > 10 ? 15 : 10
     const currentPhaseLeft = timeLeft > 25 ? timeLeft - 25
-      : timeLeft > 13 ? timeLeft - 13
       : timeLeft > 10 ? timeLeft - 10
       : timeLeft
   const timerPercent = (currentPhaseLeft / currentPhaseDuration) * 100
     const timerColor = timeLeft > 25 ? "#60a5fa"   // 정산 — 파랑
-      : timeLeft > 13 ? "#10b981"                  // 배팅 가능 — 초록
-      : timeLeft > 10 ? "#ef4444"                  // 마감 중 — 빨강
+      : timeLeft > 10 ? "#10b981"                  // 배팅 가능 — 초록
       : timeLeft > 3  ? "#f97316"                  // 게임 중 — 주황
-      : "#ef4444"                                  // 막판 — 빨강
+    : "#ef4444"                                  // 막판 — 빨강
   const timerLabel = currentPhaseLabel
 
   return (
@@ -1564,15 +1546,6 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
               const solidBg = side === "banker" ? "rgba(239,68,68,0.85)" : side === "tie" ? "rgba(34,197,94,0.85)" : "rgba(59,130,246,0.85)"
               const dimBg = side === "banker" ? "rgba(239,68,68,0.35)" : side === "tie" ? "rgba(34,197,94,0.35)" : "rgba(59,130,246,0.35)"
               const dimBorder = side === "banker" ? "rgba(239,68,68,0.7)" : side === "tie" ? "rgba(34,197,94,0.7)" : "rgba(59,130,246,0.7)"
-              // 마감 중(17~19초): amber 경고 톤으로 표시
-              const bgStyle = isSelected ? solidBg
-                : canBet ? dimBg
-                : isBettingClosing ? "rgba(245,158,11,0.15)"
-                : "rgba(255,255,255,0.04)"
-              const borderStyle = isSelected ? solidColor
-                : canBet ? dimBorder
-                : isBettingClosing ? "rgba(245,158,11,0.5)"
-                : "rgba(255,255,255,0.1)"
               return (
                 <button key={side}
                   onClick={() => openDialog("baccarat", side)}
@@ -1580,15 +1553,12 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
                   className="rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 disabled:opacity-40"
                   style={{
                     height: 64,
-                    background: bgStyle,
-                    border: `2px solid ${borderStyle}`,
+                    background: isSelected ? solidBg : canBet ? dimBg : "rgba(255,255,255,0.04)",
+                    border: `2px solid ${isSelected ? solidColor : canBet ? dimBorder : "rgba(255,255,255,0.1)"}`,
                     color: "#fff",
                   }}>
                   <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.03em" }}>{label}</span>
-                  {isBettingClosing && !isSelected
-                    ? <span style={{ fontSize: 10, color: "rgba(245,158,11,0.9)", fontWeight: 700 }}>마감 중</span>
-                    : <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
-                  }
+                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)" }}>{payout}</span>
                   {isSelected && betBaccaratAmount > 0 && (
                     <span style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>
                       ₩{betBaccaratAmount >= 10000 ? `${betBaccaratAmount / 10000}만` : betBaccaratAmount.toLocaleString()}

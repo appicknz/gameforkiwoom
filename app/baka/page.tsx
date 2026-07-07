@@ -336,8 +336,7 @@ export default function BakaPage() {
               {/* 게임 상태 박스 — 중앙, /race VerticalTimer 스타일 */}
               {(() => {
                 const { timeLeft } = gameStatus
-                // 페이즈 구조: 정산(5s) rem>25 / 배팅(12s) rem 25→13 / 마감중(3s) rem 13→10 / 게임중(10s) rem 10→0
-                // 프론트 배팅 마감 = s=17 (timeLeft=13), 서버는 s<23까지 허용 (처리 지연 버퍼)
+                // 페이즈 구조: 정산(5s) rem 30→25 / 배팅(15s) rem 25→10 / 게임중(10s) rem 10→0
                 const phases = [
                   {
                     label: "정산",
@@ -349,19 +348,11 @@ export default function BakaPage() {
                   },
                   {
                     label: "배팅",
-                    duration: 12,
-                    active: timeLeft <= 25 && timeLeft > 13,
-                    countdown: timeLeft <= 25 && timeLeft > 13 ? timeLeft - 13 : 12,
+                    duration: 15,
+                    active: timeLeft <= 25 && timeLeft > 10,
+                    countdown: timeLeft <= 25 && timeLeft > 10 ? timeLeft - 10 : 15,
                     color: "#10b981",
-                    pct: timeLeft <= 25 && timeLeft > 13 ? (timeLeft - 13) / 12 : 0,
-                  },
-                  {
-                    label: "마감중",
-                    duration: 3,
-                    active: timeLeft <= 13 && timeLeft > 10,
-                    countdown: timeLeft <= 13 && timeLeft > 10 ? timeLeft - 10 : 3,
-                    color: "#ef4444",
-                    pct: timeLeft <= 13 && timeLeft > 10 ? (timeLeft - 10) / 3 : 0,
+                    pct: timeLeft <= 25 && timeLeft > 10 ? (timeLeft - 10) / 15 : 0,
                   },
                   {
                     label: "게임중",
@@ -382,9 +373,9 @@ export default function BakaPage() {
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: Math.round(3 * S),
+                    gap: Math.round(4 * S),
                   }}>
-                    {/* 4단계 세로 블록: 정산 / 배팅 / 마감중 / 게임중 */}
+                    {/* 3단계 세로 블록 */}
                     {phases.map((p) => (
                       <div
                         key={p.label}
