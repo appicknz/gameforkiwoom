@@ -354,7 +354,7 @@ export function RoundMonitor({
   const [botUsersOpen,    setBotUsersOpen]    = useState(false)
   const [betLogsOpen,     setBetLogsOpen]     = useState(false)
   // 실시간 일반 유저 배팅 현황
-  interface RealUserBet { userId: string; username: string; gameType: string; side: string; amount: number; round: number; ts: number }
+  interface RealUserBet { userId: string; username: string; gameType: string; side: string; amount: number; round: number; ts: number; oddsAtBet?: Record<string, number> | null }
   const [realUserBets,    setRealUserBets]    = useState<RealUserBet[]>([])
   const [realUserCount,   setRealUserCount]   = useState<{baccarat: number; race: number}>({baccarat: 0, race: 0})
   const [baccaratPhase,   setBaccaratPhase]   = useState<"정산중" | "배팅가능" | "게임중">("게임중")
@@ -1050,15 +1050,47 @@ export function RoundMonitor({
                   <p className="text-xs text-muted-foreground py-3 text-center">이번 라운드 실제 배팅 없음</p>
                 ) : (
                   <div className="space-y-1.5">
-                    {bacBets.map((b, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs bg-muted/50 rounded-lg px-3 py-2">
-                        <span className="font-medium text-foreground">{b.username}</span>
-                        <span className={`font-semibold ${b.side === "player" ? "text-blue-500" : b.side === "banker" ? "text-red-500" : "text-amber-500"}`}>
-                          {SIDE_LABEL[b.side] ?? b.side}
-                        </span>
-                        <span className="tabular-nums text-foreground font-bold">{fmt(b.amount)}</span>
-                      </div>
-                    ))}
+                    {bacBets.map((b, i) => {
+                      // 현재 라운드 배당 (baccaratStats.odds에서)
+                      const liveOdds = baccaratStats.odds?.[b.side] ?? null
+                      // 배팅 시점 lock 배율
+                      const lockedOdds = b.oddsAtBet?.[b.side] ?? null
+                      // 일치 여부: 소수점 2자리 기준 비교
+                      const match = lockedOdds !== null && liveOdds !== null
+                        ? Math.abs(lockedOdds - liveOdds) < 0.01
+                        : null
+                      return (
+                        <div key={i} className="text-xs bg-muted/50 rounded-lg px-3 py-2 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-foreground">{b.username}</span>
+                            <span className={`font-semibold ${b.side === "player" ? "text-blue-500" : b.side === "banker" ? "text-red-500" : "text-amber-500"}`}>
+                              {SIDE_LABEL[b.side] ?? b.side}
+                            </span>
+                            <span className="tabular-nums text-foreground font-bold">{fmt(b.amount)}</span>
+                          </div>
+                          {/* lock 배율 vs 현재 배율 비교 */}
+                          <div className="flex items-center gap-2 text-[10px]">
+                            <span className="text-muted-foreground">
+                              lock&nbsp;
+                              <span className="font-bold text-foreground">
+                                {lockedOdds !== null ? `${lockedOdds.toFixed(2)}x` : "—"}
+                              </span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              현재&nbsp;
+                              <span className="font-bold text-foreground">
+                                {liveOdds !== null ? `${liveOdds.toFixed(2)}x` : "—"}
+                              </span>
+                            </span>
+                            {match !== null && (
+                              <span className={`font-bold ${match ? "text-emerald-500" : "text-red-500"}`}>
+                                {match ? "일치" : "불일치"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -1932,7 +1964,7 @@ export function RoundMonitor({
       ══════════��═════════════════��═══════════════════════════ */}
 
 
-      {/* ��═══════��═══════════════════════════════════════════════
+      {/* ��═══════��═════════════════════════��═════════════════════
           전체 초기화 다이얼로그
       ══════════���══════���═���════════════════════════════════════ */}
       {showResetDialog && (

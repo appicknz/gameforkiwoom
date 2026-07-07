@@ -69,15 +69,28 @@ export async function GET(request: Request) {
     ((profilesRes.data ?? []) as { id: string; username: string }[]).map(p => [p.id, p.username])
   )
 
-  // 배팅 데이터 조회
+  // 배팅 데이터 조회 (bet:bets + bet:active oddsAtBet 함께 반환)
   const buildBets = async (ids: string[], gameType: "baccarat" | "race", round: number) => {
     const bets = await Promise.all(ids.map(async id => {
-      const raw = await redis.get<string>(`bet:bets:${gameType}:${round}:${id}`).catch(() => null)
+      const [raw, activeRaw] = await Promise.all([
+        redis.get<string>(`bet:bets:${gameType}:${round}:${id}`).catch(() => null),
+        redis.get<string>(`bet:active:${gameType}:${round}:${id}`).catch(() => null),
+      ])
       if (!raw) return null
       const b = typeof raw === "string" ? JSON.parse(raw) : raw
       const side   = b.baccaratSide ?? b.raceSide ?? null
       const amount = b.baccaratAmount ?? b.raceAmount ?? 0
       if (!side) return null
+
+      // bet:active에서 배팅 시점 lock된 배율 추출
+      let oddsAtBet: Record<string, number> | null = null
+      if (activeRaw) {
+        try {
+          const active = typeof activeRaw === "string" ? JSON.parse(activeRaw) : activeRaw
+          if (active?.oddsAtBet) oddsAtBet = active.oddsAtBet
+        } catch {}
+      }
+
       return {
         userId: id,
         username: profileMap[id] ?? id,
@@ -86,6 +99,7 @@ export async function GET(request: Request) {
         amount,
         round,
         ts: Date.now(),
+        oddsAtBet, // 배팅 시점 lock 배율 (null이면 이전 방식으로 처리)
       }
     }))
     return bets.filter(Boolean)
