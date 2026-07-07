@@ -7,25 +7,16 @@ import { calcBaccaratOdds, calcRaceOdds, branchToLpConfig, LpConfig, DEFAULT_LP_
 
 
 // 한 게임 타입의 라운드 현황 계산
-// odds:current 캐시(odds/stream이 계산한 값)를 우선 사용 → 단일 소스
-// 캐시 없을 때만 직접 계산 (fallback)
+// pool:hash를 직접 읽어 즉시 계산 — odds:current(Railway 500ms 지연)를 사용하지 않음
+// 이렇게 해야 배팅 직후 관리자 패널 배당이 유저 버튼 배당과 100% 일치
 async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConfig: LpConfig) {
   const poolKey    = `pool:${gameType}:${roundId}`
   const userSetKey = `users:${gameType}:${roundId}`
-  const lockedKey  = `odds:locked:${gameType}:${roundId}`
-  const currentKey = `odds:current:${gameType}:${roundId}`
 
-  const [pools, userIds, lockedRaw, cachedRaw] = await Promise.all([
+  const [pools, userIds] = await Promise.all([
     redis.hgetall(poolKey).catch(() => null),
     redis.smembers(userSetKey).catch(() => []),
-    redis.get<string>(lockedKey).catch(() => null),
-    redis.get<string>(currentKey).catch(() => null),
   ])
-
-  // odds:locked가 있으면 배팅 마감 시점 확정값 — 게임중/정산 구간에 배당이 변하지 않도록 고정
-  const resolvedRaw = lockedRaw
-    ? JSON.stringify({ odds: JSON.parse(lockedRaw as string) })
-    : cachedRaw
 
   const poolData = gameType === "baccarat"
     ? {
@@ -42,43 +33,7 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConf
   const userCount = Array.isArray(userIds) ? userIds.length : 0
   const totalBet  = Object.values(poolData).reduce((a, b) => a + b, 0)
 
-  // odds:locked(배팅 마감 확정값) 우선, 없으면 odds:current 사용
-  if (resolvedRaw) {
-    try {
-      const cached = typeof resolvedRaw === "string" ? JSON.parse(resolvedRaw) : resolvedRaw
-      const oddsResult = cached.odds ?? {}
-      const fee = Math.floor(totalBet * 0.2)
-      let prediction: Record<string, number> = {}
-      if (gameType === "baccarat") {
-        const o = oddsResult as { player: number; banker: number; tie: number }
-        const p = poolData as { player: number; banker: number; tie: number }
-        prediction = {
-          playerProfit: Math.floor(fee + totalBet - p.player * (o.player ?? 1)),
-          bankerProfit: Math.floor(fee + totalBet - p.banker * (o.banker ?? 1)),
-          tieProfit:    Math.floor(fee + totalBet - p.tie    * (o.tie    ?? 1)),
-        }
-      } else {
-        const o = oddsResult as { bit: number; coin: number; tie: number }
-        const p = poolData as { bit: number; coin: number; tie: number }
-        prediction = {
-          bitProfit:  Math.floor(fee + totalBet - p.bit  * (o.bit  ?? 1)),
-          coinProfit: Math.floor(fee + totalBet - p.coin * (o.coin ?? 1)),
-          tieProfit:  Math.floor(fee + totalBet - p.tie  * (o.tie  ?? 1)),
-        }
-      }
-      return {
-        round: roundId, gameType,
-        timestamp: new Date().toISOString(),
-        pools: poolData, userCount, totalBet,
-        lpAmount: 0, fee, feeRate: 0.20,
-        mode: (oddsResult.mode ?? "pari") as "lp-dominant" | "hybrid" | "pari",
-        odds: oddsResult,
-        prediction,
-      }
-    } catch {}
-  }
-
-  // fallback: 캐시 없을 때 직접 계산 (첫 SSE 연결 전 등)
+  // 항상 실제 pool로 직접 계산 — Railway odds:current(500ms 지연) 사용 안 함
   let mode: "lp-dominant" | "hybrid" | "pari" = "lp-dominant"
   let effectiveLP = 0
   let prediction: Record<string, number> = {}
@@ -164,7 +119,7 @@ export async function GET(request: Request) {
 
     const qRoundId = url.searchParams.get("roundId")
 
-    // 현재 + 이전 라운드를 동시에 조회 — odds:current 단일 키 읽음
+    // 현재 + 이전 라운드를 ��시에 조회 — odds:current 단일 키 읽음
     const [curBaccarat, prevBaccarat, curRace, prevRace] = await Promise.all([
       buildStats("baccarat", String(curBaccaratId),     lpConfig),
       buildStats("baccarat", String(curBaccaratId - 1), lpConfig),
