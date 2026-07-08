@@ -354,6 +354,18 @@ export function RoundMonitor({
   const [botUsersOpen,    setBotUsersOpen]    = useState(false)
   const [betLogsOpen,     setBetLogsOpen]     = useState(false)
   // 실시간 일반 유저 배팅 현황
+  interface RealUserBetDebug {
+    serverOddsAfterBet: Record<string, number> | null
+    finalOdds: Record<string, number> | null
+    settledOdds: number | null
+    payout: number | null
+    result: "win" | "lose" | null
+    settleSource: string | null
+    oddsSource: string | null
+    placedAt: string | null
+    settledAt: string | null
+    pools: Record<string, number> | null
+  }
   interface RealUserBet {
     userId: string; username: string; gameType: string; side: string
     amount: number; round: number; ts: number
@@ -362,6 +374,7 @@ export function RoundMonitor({
     settleOdds: number | null
     winAmount: number | null
     gameResult: string | null
+    debug: RealUserBetDebug | null
   }
   const [realUserBets,    setRealUserBets]    = useState<RealUserBet[]>([])
   const [realUserCount,   setRealUserCount]   = useState<{baccarat: number; race: number}>({baccarat: 0, race: 0})
@@ -1045,20 +1058,58 @@ export function RoundMonitor({
             ? <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">환급</span>
             : <span className="text-[10px] text-muted-foreground px-1.5 py-0.5">진행중</span>
 
+          const dbg = b.debug
+          // 버튼 배당: 배팅 직후 서버 계산 (serverOddsAfterBet) — 버튼에 표시된 배당과 가장 가까운 값
+          const btnOdds = dbg?.serverOddsAfterBet?.[b.side] ?? null
+          // 확정 배당: 실제 정산에 사용된 배당
+          const finalOddsVal = dbg?.settledOdds ?? b.settleOdds
+          // 실제 수령액
+          const actualPayout = dbg?.payout ?? b.winAmount
+
           return (
-            <div key={i} className="flex items-center gap-2 text-xs bg-muted/40 rounded-lg px-3 py-2">
-              <span className="font-medium text-foreground w-20 truncate">{b.username}</span>
-              <span className={`font-semibold shrink-0 ${sideColor}`}>{SIDE_LABEL[b.side] ?? b.side}</span>
-              <span className="tabular-nums text-foreground font-bold ml-auto">{fmt(b.amount)}</span>
-              {b.settleOdds !== null && (
-                <span className="text-muted-foreground text-[11px] shrink-0">
-                  <span className="font-bold text-foreground">{b.settleOdds.toFixed(2)}x</span>
-                </span>
-              )}
-              {b.winAmount !== null && b.result === "win" && (
-                <span className="text-emerald-400 text-[11px] font-bold shrink-0">{fmt(b.winAmount)}</span>
-              )}
-              <span className="shrink-0">{resultBadge}</span>
+            <div key={i} className="text-xs bg-muted/40 rounded-lg px-3 py-2 space-y-1.5">
+              {/* 메인 행: 유저명 / 선택 / 배팅액 / 결과 */}
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-foreground w-20 truncate">{b.username}</span>
+                <span className={`font-semibold shrink-0 ${sideColor}`}>{SIDE_LABEL[b.side] ?? b.side}</span>
+                <span className="tabular-nums text-foreground font-bold ml-auto">{fmt(b.amount)}</span>
+                <span className="shrink-0">{resultBadge}</span>
+              </div>
+              {/* 배당 추적 행 */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-1 border-l-2 border-border">
+                {btnOdds !== null && (
+                  <span className="text-[10px] text-muted-foreground">
+                    배팅후 서버: <span className="font-bold text-foreground">{btnOdds.toFixed(2)}x</span>
+                  </span>
+                )}
+                {finalOddsVal !== null && (
+                  <span className="text-[10px] text-muted-foreground">
+                    확정배당: <span className={`font-bold ${btnOdds !== null && Math.abs(finalOddsVal - btnOdds) > 0.01 ? "text-amber-400" : "text-foreground"}`}>
+                      {finalOddsVal.toFixed(2)}x
+                    </span>
+                    {btnOdds !== null && Math.abs(finalOddsVal - btnOdds) > 0.01 && (
+                      <span className="text-amber-400 ml-0.5">(차이 {(finalOddsVal - btnOdds).toFixed(2)})</span>
+                    )}
+                  </span>
+                )}
+                {actualPayout !== null && (
+                  <span className="text-[10px] text-muted-foreground">
+                    수령: <span className={`font-bold ${b.result === "win" ? "text-emerald-400" : "text-red-400"}`}>
+                      {fmt(actualPayout)}
+                    </span>
+                  </span>
+                )}
+                {dbg?.oddsSource && (
+                  <span className="text-[10px] text-muted-foreground/60">
+                    [{dbg.oddsSource}]
+                  </span>
+                )}
+                {dbg?.settleSource && (
+                  <span className="text-[10px] text-muted-foreground/60">
+                    {dbg.settleSource === "settle-me/route.ts" ? "클라이언트정산" : "서버정산"}
+                  </span>
+                )}
+              </div>
             </div>
           )
         }

@@ -318,7 +318,35 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── 잔고 반영 ────────────────────────────────────��───────
+    // ── 디버그 로그 업데이트: settle-me 정산 완료 기록 ──────────
+    if (gameType === "baccarat" && bets.baccaratSide) {
+      const debugLogKey = `bet:debug:baccarat:${resolvedRound}:${userId}`
+      const existingLog = await redis.get<string>(debugLogKey).catch(() => null)
+      const side = bets.baccaratSide as string
+      const patchLog = {
+        finalOdds: oddsSnap,
+        settledOdds: (oddsSnap as Record<string, number>)[side] ?? null,
+        payout: totalPayout,
+        result: side === baccaratResult ? "win" : "lose",
+        settledAt: new Date().toISOString(),
+        baccaratResult,
+        settleSource: "settle-me/route.ts",
+        // 어떤 Redis 키에서 odds를 가져왔는지 기록
+        oddsSource: finalRaw ? "odds:final" : lockedRaw ? "odds:locked" : currentRaw ? "odds:current" : "pool_fallback",
+      }
+      if (existingLog) {
+        try {
+          const log = typeof existingLog === "string" ? JSON.parse(existingLog) : existingLog
+          Object.assign(log, patchLog)
+          await redis.set(debugLogKey, JSON.stringify(log), { ex: 3600 }).catch(() => {})
+        } catch {}
+      } else {
+        // 로그가 없으면 새로 생성 (배팅 후 TTL 만료 등)
+        await redis.set(debugLogKey, JSON.stringify({ userId, gameType, resolvedRound, side, ...patchLog }), { ex: 3600 }).catch(() => {})
+      }
+    }
+
+    // ── 잔고 반영 ────────────────────────────────────────────
     let newBalance: number
     if (totalPayout > 0) {
       const { data, error } = await admin.rpc("add_balance_for_payout", {

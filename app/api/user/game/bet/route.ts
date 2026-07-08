@@ -174,6 +174,28 @@ export async function POST(request: Request) {
           }
         }
 
+        // ── 디버그 로그: 버튼 배당 vs 서버 계산 배당 추적 ──────────
+        // settle 시 실제 정산 배당(odds:final)과 비교하기 위해 저장
+        const debugLogKey = `bet:debug:${type}:${roundNumber}:${userId}`
+        const debugLog = {
+          userId,
+          gameType: type,
+          roundNumber,
+          side,
+          betAmount,
+          // 배팅 직후 서버가 계산한 배당 (내 배팅 포함 후 풀 기준)
+          serverOddsAfterBet: oddsSnap,
+          // 배팅 시점 pool 상태
+          pools: { player: poolPlayer, banker: poolBanker, tie: poolTie, bit: poolBit, coin: poolCoin },
+          placedAt: new Date().toISOString(),
+          // 이 시점에는 아직 finalOdds/settledOdds 없음 — settle 시 업데이트됨
+          finalOdds: null,
+          settledOdds: null,
+          payout: null,
+          result: null,
+        }
+        redis.set(debugLogKey, JSON.stringify(debugLog), { ex: 3600 }).catch(() => {})
+
         // 3단계: 배팅 구간 재확인 후 odds:current / odds_version 갱신
         const nowSecFinal     = Math.floor(Date.now() / 1000)
         const secInRoundFinal = nowSecFinal % roundSec
@@ -194,14 +216,20 @@ export async function POST(request: Request) {
         }
         const balBefore = (newBalance as number) + betAmount
 
+        // odds:final — 배팅이 들어올 때마다 항상 갱신 (배팅 구간 여부 무관)
+        // settle/route.ts가 이 값을 1순위로 사용 → 마지막 배팅까지 반영된 확정 배당
+        // TTL 3600초: 정산이 늦게 도착해도 만료되지 않도록 충분히 유지
+        const finalKey = `odds:final:${type}:${roundNumber}`
+
         await Promise.all([
           redis.set(oddsSnapKey, JSON.stringify(oddsSnap), { ex: ttl }),
           redis.set(activeBetKey, JSON.stringify({
             roundNumber, gameType: type, side, amount: betAmount,
-            // 내 배팅이 반영된 후 서버가 계산한 배율 — 수학적으로 정확한 정산 기준
             oddsAtBet: oddsSnap,
             placedAt: Date.now(),
           }), { ex: ttl + 10 }),
+          // odds:final 항상 갱신 — 버튼/관리자 패널/정산 모두 이 단일 소스 사용
+          redis.set(finalKey, JSON.stringify(oddsSnap), { ex: 3600 }),
           ...(stillBetting ? [
             redis.set(currentKey, JSON.stringify(currentPayload), { ex: ttl }),
             redis.incr(`odds_version:${type}`),

@@ -82,6 +82,19 @@ export async function GET(request: Request) {
   )
 
   // 라운드별 배팅 데이터 조회
+  type DebugLog = {
+    serverOddsAfterBet: Record<string, number> | null  // 배팅 직후 서버 계산 배당
+    finalOdds: Record<string, number> | null           // 정산에 사용된 확정 배당
+    settledOdds: number | null                         // 해당 side 정산 배당
+    payout: number | null                              // 실제 지급액
+    result: "win" | "lose" | null
+    settleSource: string | null                        // "settle/route.ts" or "settle-me/route.ts"
+    oddsSource: string | null                          // "odds:final" | "odds:locked" | "odds:current" | "pool_fallback"
+    placedAt: string | null
+    settledAt: string | null
+    pools: Record<string, number> | null               // 배팅 시점 pool 상태
+  }
+
   type BetEntry = {
     userId: string; username: string; gameType: string
     side: string; amount: number; round: number; ts: number
@@ -89,6 +102,7 @@ export async function GET(request: Request) {
     settleOdds: number | null
     winAmount: number | null
     gameResult: string | null
+    debug: DebugLog | null
   }
 
   const buildRoundBets = async (
@@ -120,14 +134,38 @@ export async function GET(request: Request) {
     }
 
     const bets = await Promise.all(realIds.map(async id => {
-      const raw = await redis.get<string>(`bet:bets:${gameType}:${round}:${id}`).catch(() => null)
+      const [raw, debugRaw] = await Promise.all([
+        redis.get<string>(`bet:bets:${gameType}:${round}:${id}`).catch(() => null),
+        redis.get<string>(`bet:debug:${gameType}:${round}:${id}`).catch(() => null),
+      ])
       if (!raw) return null
       const b = typeof raw === "string" ? JSON.parse(raw) : raw
       const side   = b.baccaratSide ?? b.raceSide ?? null
       const amount = b.baccaratAmount ?? b.raceAmount ?? 0
       if (!side) return null
 
-      const settleOdds = finalOdds[side] ?? null
+      // 디버그 로그 파싱
+      let debug: DebugLog | null = null
+      if (debugRaw) {
+        try {
+          const d = typeof debugRaw === "string" ? JSON.parse(debugRaw) : debugRaw
+          debug = {
+            serverOddsAfterBet: d.serverOddsAfterBet ?? null,
+            finalOdds:     d.finalOdds     ?? null,
+            settledOdds:   d.settledOdds   ?? null,
+            payout:        d.payout        ?? null,
+            result:        d.result        ?? null,
+            settleSource:  d.settleSource  ?? null,
+            oddsSource:    d.oddsSource    ?? null,
+            placedAt:      d.placedAt      ?? null,
+            settledAt:     d.settledAt     ?? null,
+            pools:         d.pools         ?? null,
+          }
+        } catch {}
+      }
+
+      // 표시용 settleOdds: 디버그 로그 확정 배당 > odds:final > null 순
+      const settleOdds = debug?.settledOdds ?? finalOdds[side] ?? null
 
       // 승패 계산
       let result: "win" | "lose" | "tie_refund" | null = null
@@ -135,10 +173,10 @@ export async function GET(request: Request) {
       if (gameWinner !== null) {
         if (side === gameWinner) {
           result = "win"
-          winAmount = settleOdds !== null ? Math.floor(amount * settleOdds) : null
+          winAmount = debug?.payout ?? (settleOdds !== null ? Math.floor(amount * settleOdds) : null)
         } else if (gameWinner === "tie" && (side === "player" || side === "banker" || side === "bit" || side === "coin")) {
           result = "tie_refund"
-          winAmount = amount // 원금 반환
+          winAmount = amount
         } else {
           result = "lose"
           winAmount = 0
@@ -157,6 +195,7 @@ export async function GET(request: Request) {
         settleOdds,
         winAmount,
         gameResult: gameWinner,
+        debug,
       } as BetEntry
     }))
 

@@ -157,7 +157,7 @@ export async function POST(request: Request) {
       baccarat_result: baccaratResult,
       b_score: bankerDigitForScore,
       p_score: playerDigitForScore,
-      b_raw_sum: bankerDigitForScore,  // 서버에서는 한 장 기준(끝자리)
+      b_raw_sum: bankerDigitForScore,  // 서버���서는 한 장 기준(끝자리)
       p_raw_sum: playerDigitForScore,
     }, { onConflict: "time" }).catch(() => {})
 
@@ -378,6 +378,24 @@ export async function POST(request: Request) {
         if (historyRows.length > 0) {
           await admin.from("bet_history").insert(historyRows).then(() => {}).catch(() => {})
         }
+      }
+
+      // ── 디버그 로그 업데이트: 정산 완료 정보 기록 ──────────────
+      const debugLogKey = `bet:debug:baccarat:${roundNumber}:${userId}`
+      const existingLog = await redis.get<string>(debugLogKey).catch(() => null)
+      if (existingLog) {
+        try {
+          const log = typeof existingLog === "string" ? JSON.parse(existingLog) : existingLog
+          const side = bets.baccaratSide as string
+          log.finalOdds = roundFinalOdds
+          log.settledOdds = roundFinalOdds ? roundFinalOdds[side] ?? null : null
+          log.payout = totalPayout
+          log.result = bets.baccaratSide === baccaratResult ? "win" : "lose"
+          log.settledAt = new Date().toISOString()
+          log.baccaratResult = baccaratResult
+          log.settleSource = "settle/route.ts"
+          await redis.set(debugLogKey, JSON.stringify(log), { ex: 3600 }).catch(() => {})
+        } catch {}
       }
 
       // 당첨금 지급 (atomic RPC)
