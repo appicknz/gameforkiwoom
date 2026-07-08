@@ -157,7 +157,7 @@ export async function POST(request: Request) {
       baccarat_result: baccaratResult,
       b_score: bankerDigitForScore,
       p_score: playerDigitForScore,
-      b_raw_sum: bankerDigitForScore,  // 서버�������서는 한 장 기준(끝자리)
+      b_raw_sum: bankerDigitForScore,  // 서버���������서는 한 장 기준(끝자리)
       p_raw_sum: playerDigitForScore,
     }, { onConflict: "time" }).catch(() => {})
 
@@ -172,7 +172,7 @@ export async function POST(request: Request) {
       baccaratResult,
       settledAt: Date.now(),
     }
-    await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 600 })
+    await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 86400 })
 
     // ── race 결과 저장 ────���────────────────────────────────────
     // 현재 라운드의 첫 번째 tick = 직전 라운드가 방금 종료됨 → 직전 라운드 집계 후 저장
@@ -233,7 +233,7 @@ export async function POST(request: Request) {
           bitScore,
           coinScore,
           settledAt: Date.now(),
-        }), { ex: 600 }).catch(() => {})
+        }), { ex: 86400 }).catch(() => {})
       }
     }
 
@@ -670,7 +670,7 @@ export async function POST(request: Request) {
         }
       }
 
-      // ── 디버그 로그 업데이트: 정산 완료 정보 기록 ──────────────
+      // ── 디버그 로그 업데이트: 정산 완료 정보 ���록 ──────────────
       const debugLogKey = `bet:debug:baccarat:${roundNumber}:${userId}`
       const existingLog = await redis.get<string>(debugLogKey).catch(() => null)
       if (existingLog) {
