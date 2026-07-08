@@ -1051,7 +1051,8 @@ export function RoundMonitor({
                 ) : (
                   <div className="space-y-1.5">
                     {bacBets.map((b, i) => {
-                      const lockedOdds = b.oddsAtBet?.[b.side] ?? null
+                      // settle/route.ts와 동일한 소스: 버튼 표시 배당 = 정산 배당
+                      const settleOdds = baccaratStats.odds?.[b.side] ?? null
                       return (
                         <div key={i} className="flex items-center justify-between text-xs bg-muted/50 rounded-lg px-3 py-2">
                           <span className="font-medium text-foreground">{b.username}</span>
@@ -1060,7 +1061,7 @@ export function RoundMonitor({
                           </span>
                           <span className="tabular-nums text-foreground font-bold">{fmt(b.amount)}</span>
                           <span className="text-muted-foreground text-[11px]">
-                            정산&nbsp;<span className="font-bold text-foreground">{lockedOdds !== null ? `${lockedOdds.toFixed(2)}x` : "—"}</span>
+                            배당&nbsp;<span className="font-bold text-foreground">{settleOdds !== null ? `${settleOdds.toFixed(2)}x` : "—"}</span>
                           </span>
                         </div>
                       )
@@ -1076,7 +1077,7 @@ export function RoundMonitor({
                 ) : (
                   <div className="space-y-1.5">
                     {raceBets.map((b, i) => {
-                      const lockedOdds = b.oddsAtBet?.[b.side] ?? null
+                      const settleOdds = raceStats.odds?.[b.side] ?? null
                       return (
                         <div key={i} className="flex items-center justify-between text-xs bg-muted/50 rounded-lg px-3 py-2">
                           <span className="font-medium text-foreground">{b.username}</span>
@@ -1085,7 +1086,7 @@ export function RoundMonitor({
                           </span>
                           <span className="tabular-nums text-foreground font-bold">{fmt(b.amount)}</span>
                           <span className="text-muted-foreground text-[11px]">
-                            정산&nbsp;<span className="font-bold text-foreground">{lockedOdds !== null ? `${lockedOdds.toFixed(2)}x` : "—"}</span>
+                            배당&nbsp;<span className="font-bold text-foreground">{settleOdds !== null ? `${settleOdds.toFixed(2)}x` : "—"}</span>
                           </span>
                         </div>
                       )
@@ -1535,7 +1536,7 @@ export function RoundMonitor({
                 const isCurrentRoundResult = lsCreatedSec >= currentRoundStartSec
 
                 // 현재 라운드 배팅 중 → 결과 미확정
-                // 현재 라운드 정산 완료 → 결과 표시
+                // 현재 라운드 정산 완료 → 결과 표��
                 // 직전 라운드 이전 → 표시 안 함
                 const showResult = isCurrentRoundResult && !u.currentBet
                 const resultLabel = showResult
