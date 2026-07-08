@@ -354,7 +354,15 @@ export function RoundMonitor({
   const [botUsersOpen,    setBotUsersOpen]    = useState(false)
   const [betLogsOpen,     setBetLogsOpen]     = useState(false)
   // 실시간 일반 유저 배팅 현황
-  interface RealUserBet { userId: string; username: string; gameType: string; side: string; amount: number; round: number; ts: number; oddsAtBet?: Record<string, number> | null }
+  interface RealUserBet {
+    userId: string; username: string; gameType: string; side: string
+    amount: number; round: number; ts: number
+    oddsAtBet?: Record<string, number> | null
+    result: "win" | "lose" | "tie_refund" | null
+    settleOdds: number | null
+    winAmount: number | null
+    gameResult: string | null
+  }
   const [realUserBets,    setRealUserBets]    = useState<RealUserBet[]>([])
   const [realUserCount,   setRealUserCount]   = useState<{baccarat: number; race: number}>({baccarat: 0, race: 0})
   const [baccaratPhase,   setBaccaratPhase]   = useState<"정산중" | "배팅가능" | "게임중">("게임중")
@@ -988,15 +996,111 @@ export function RoundMonitor({
       </div>
 
       {/* ════════════════════════════════════════════════════════
-          실시간 유저 배팅 현황 (봇 제외)
+          실시간 유저 배팅 현황 (봇 제외) — 라운드별 결과 포함
       ════════════════════════════════════════════════════════ */}
       {isSuperAdmin && (() => {
-        const nowSec = Math.floor(Date.now() / 1000)
-        const bacRound  = Math.floor(nowSec / 30)
-        const raceRound = Math.floor(nowSec / 180)
-        const bacBets   = realUserBets.filter(b => b.gameType === "baccarat" && b.round === bacRound)
-        const raceBets  = realUserBets.filter(b => b.gameType === "race"     && b.round === raceRound)
-        const totalReal = realUserCount.baccarat + realUserCount.race
+        const nowSec     = Math.floor(Date.now() / 1000)
+        const curBacRound  = Math.floor(nowSec / 30)
+        const curRaceRound = Math.floor(nowSec / 180)
+        const totalReal  = realUserCount.baccarat + realUserCount.race
+
+        // 라운드별 그룹핑
+        const bacByRound  = new Map<number, typeof realUserBets>()
+        const raceByRound = new Map<number, typeof realUserBets>()
+        realUserBets.forEach(b => {
+          if (b.gameType === "baccarat") {
+            if (!bacByRound.has(b.round))  bacByRound.set(b.round,  [])
+            bacByRound.get(b.round)!.push(b)
+          } else {
+            if (!raceByRound.has(b.round)) raceByRound.set(b.round, [])
+            raceByRound.get(b.round)!.push(b)
+          }
+        })
+        // 최신 라운드 먼저
+        const bacRoundsSorted  = Array.from(bacByRound.keys()).sort((a, b) => b - a)
+        const raceRoundsSorted = Array.from(raceByRound.keys()).sort((a, b) => b - a)
+
+        // 게임 결과 레이블
+        const GAME_RESULT_LABEL: Record<string, string> = {
+          player: "PLAYER WIN", banker: "BANKER WIN", tie: "TIE",
+          bit: "BIT WIN", coin: "COIN WIN",
+        }
+        const RESULT_COLOR: Record<string, string> = {
+          player: "text-blue-500", banker: "text-red-500", tie: "text-amber-500",
+          bit: "text-blue-500", coin: "text-orange-500",
+        }
+
+        const renderBetRow = (b: (typeof realUserBets)[0], i: number) => {
+          const sideColor = b.side === "player" ? "text-blue-500"
+            : b.side === "banker" ? "text-red-500"
+            : b.side === "bit"    ? "text-blue-500"
+            : b.side === "coin"   ? "text-orange-500"
+            : "text-amber-500"
+
+          const resultBadge = b.result === "win"
+            ? <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">WIN</span>
+            : b.result === "lose"
+            ? <span className="text-[10px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">LOSS</span>
+            : b.result === "tie_refund"
+            ? <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">환급</span>
+            : <span className="text-[10px] text-muted-foreground px-1.5 py-0.5">진행중</span>
+
+          return (
+            <div key={i} className="flex items-center gap-2 text-xs bg-muted/40 rounded-lg px-3 py-2">
+              <span className="font-medium text-foreground w-20 truncate">{b.username}</span>
+              <span className={`font-semibold shrink-0 ${sideColor}`}>{SIDE_LABEL[b.side] ?? b.side}</span>
+              <span className="tabular-nums text-foreground font-bold ml-auto">{fmt(b.amount)}</span>
+              {b.settleOdds !== null && (
+                <span className="text-muted-foreground text-[11px] shrink-0">
+                  <span className="font-bold text-foreground">{b.settleOdds.toFixed(2)}x</span>
+                </span>
+              )}
+              {b.winAmount !== null && b.result === "win" && (
+                <span className="text-emerald-400 text-[11px] font-bold shrink-0">{fmt(b.winAmount)}</span>
+              )}
+              <span className="shrink-0">{resultBadge}</span>
+            </div>
+          )
+        }
+
+        const renderRoundBlock = (
+          round: number,
+          bets: typeof realUserBets,
+          label: string,
+          labelColor: string,
+          isCurrent: boolean,
+        ) => {
+          const gameResult = bets[0]?.gameResult ?? null
+          const totalBet   = bets.reduce((s, b) => s + b.amount, 0)
+          return (
+            <div key={round} className="border border-border/50 rounded-xl overflow-hidden">
+              {/* 라운드 헤더 */}
+              <div className="px-3 py-2 bg-muted/30 flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-bold ${labelColor}`}>{label} #{round}</span>
+                  {isCurrent && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-semibold">진행중</span>
+                  )}
+                  {gameResult && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted ${RESULT_COLOR[gameResult] ?? "text-foreground"}`}>
+                      {GAME_RESULT_LABEL[gameResult] ?? gameResult.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-muted-foreground">참여 <span className="font-bold text-foreground">{bets.length}명</span></span>
+                  <span className="text-[10px] text-muted-foreground">배팅 <span className="font-bold text-foreground">{fmt(totalBet)}</span></span>
+                  <span className="text-[10px] text-muted-foreground">수수료 <span className="font-bold text-amber-500">{fmt(Math.floor(totalBet * 0.2))}</span></span>
+                </div>
+              </div>
+              {/* 배팅 목록 */}
+              <div className="px-3 py-2 space-y-1.5">
+                {bets.map((b, i) => renderBetRow(b, i))}
+              </div>
+            </div>
+          )
+        }
+
         return (
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
@@ -1015,91 +1119,34 @@ export function RoundMonitor({
                 <RefreshCw className="w-3 h-3" />
               </Button>
             </div>
-            {/* 합계 통계 */}
-            {(() => {
-              const bacTotal  = bacBets.reduce((s, b) => s + b.amount, 0)
-              const raceTotal = raceBets.reduce((s, b) => s + b.amount, 0)
-              const bacFee    = Math.floor(bacTotal  * 0.20)
-              const raceFee   = Math.floor(raceTotal * 0.20)
-              return (
-                <div className="px-5 py-3 bg-muted/30 border-b border-border grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-semibold text-blue-500">바카라 합계</p>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-xs text-muted-foreground">참여 <span className="font-bold text-foreground">{bacBets.length}명</span></span>
-                      <span className="text-xs text-muted-foreground">배팅 <span className="font-bold text-foreground">{fmt(bacTotal)}</span></span>
-                      <span className="text-xs text-muted-foreground">수수료 <span className="font-bold text-amber-500">{fmt(bacFee)}</span></span>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-semibold text-orange-500">레이스 합계</p>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-xs text-muted-foreground">참여 <span className="font-bold text-foreground">{raceBets.length}명</span></span>
-                      <span className="text-xs text-muted-foreground">배팅 <span className="font-bold text-foreground">{fmt(raceTotal)}</span></span>
-                      <span className="text-xs text-muted-foreground">수수료 <span className="font-bold text-amber-500">{fmt(raceFee)}</span></span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })()}
-            <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* 바카라 */}
-              <div>
-                <p className="text-xs font-semibold text-blue-500 mb-2">바카라 (현재 라운드 #{bacRound})</p>
-                {bacBets.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-3 text-center">이번 라운드 실제 배팅 없음</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {bacBets.map((b, i) => {
-                      // settle/route.ts와 동일한 소스: 버튼 표시 배당 = 정산 배당
-                      const settleOdds = baccaratStats.odds?.[b.side] ?? null
-                      return (
-                        <div key={i} className="flex items-center justify-between text-xs bg-muted/50 rounded-lg px-3 py-2">
-                          <span className="font-medium text-foreground">{b.username}</span>
-                          <span className={`font-semibold ${b.side === "player" ? "text-blue-500" : b.side === "banker" ? "text-red-500" : "text-amber-500"}`}>
-                            {SIDE_LABEL[b.side] ?? b.side}
-                          </span>
-                          <span className="tabular-nums text-foreground font-bold">{fmt(b.amount)}</span>
-                          <span className="text-muted-foreground text-[11px]">
-                            배당&nbsp;<span className="font-bold text-foreground">{settleOdds !== null ? `${settleOdds.toFixed(2)}x` : "—"}</span>
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-blue-500">바카라</p>
+                {bacRoundsSorted.length === 0
+                  ? <p className="text-xs text-muted-foreground py-3 text-center">배팅 기록 없음</p>
+                  : bacRoundsSorted.map(r =>
+                      renderRoundBlock(r, bacByRound.get(r)!, "바카라", "text-blue-500", r === curBacRound)
+                    )
+                }
               </div>
               {/* 레이스 */}
-              <div>
-                <p className="text-xs font-semibold text-orange-500 mb-2">레이스 (현재 라운드 #{raceRound})</p>
-                {raceBets.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-3 text-center">이번 라운드 실제 배팅 없음</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {raceBets.map((b, i) => {
-                      const settleOdds = raceStats.odds?.[b.side] ?? null
-                      return (
-                        <div key={i} className="flex items-center justify-between text-xs bg-muted/50 rounded-lg px-3 py-2">
-                          <span className="font-medium text-foreground">{b.username}</span>
-                          <span className={`font-semibold ${b.side === "bit" ? "text-blue-500" : b.side === "coin" ? "text-orange-500" : "text-amber-500"}`}>
-                            {SIDE_LABEL[b.side] ?? b.side}
-                          </span>
-                          <span className="tabular-nums text-foreground font-bold">{fmt(b.amount)}</span>
-                          <span className="text-muted-foreground text-[11px]">
-                            배당&nbsp;<span className="font-bold text-foreground">{settleOdds !== null ? `${settleOdds.toFixed(2)}x` : "—"}</span>
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-orange-500">레이스</p>
+                {raceRoundsSorted.length === 0
+                  ? <p className="text-xs text-muted-foreground py-3 text-center">배팅 기록 없음</p>
+                  : raceRoundsSorted.map(r =>
+                      renderRoundBlock(r, raceByRound.get(r)!, "레이스", "text-orange-500", r === curRaceRound)
+                    )
+                }
               </div>
             </div>
           </div>
         )
       })()}
 
-      {/* ════════════════════════════════════════════════════════
+      {/* ════════════════════════════════���═══════════════════════
           섹션 2 — 자동배팅 (superadmin 전용)
       ════════════════════════════════════════════════════════ */}
       {isSuperAdmin && (

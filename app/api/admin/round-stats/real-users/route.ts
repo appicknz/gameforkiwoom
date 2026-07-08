@@ -32,63 +32,117 @@ async function requireAdmin(req: Request): Promise<boolean> {
   return !!profile && adminRoles.includes(profile.role)
 }
 
-// 봇 유저명 패턴 — "사용자2" ~ "사용자101"
+// 봇 유저명 패턴
 const BOT_USERNAMES = new Set(Array.from({ length: 100 }, (_, i) => `사용자${i + 2}`))
+
+// 최근 N개 라운드 (현재 포함)
+const ROUND_HISTORY = 10
 
 export async function GET(request: Request) {
   const ok = await requireAdmin(request)
   if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const nowSec     = Math.floor(Date.now() / 1000)
-  const bacRound   = Math.floor(nowSec / 30)
-  const raceRound  = Math.floor(nowSec / 180)
+  const nowSec      = Math.floor(Date.now() / 1000)
+  const curBacRound = Math.floor(nowSec / 30)
+  const curRaceRound = Math.floor(nowSec / 180)
 
-  // 현재 라운드 참여 유저 목록 (Redis Set)
-  const [bacMembers, raceMembers] = await Promise.all([
-    redis.smembers(`users:baccarat:${bacRound}`).catch(() => [] as string[]),
-    redis.smembers(`users:race:${raceRound}`).catch(() => [] as string[]),
-  ])
+  // 조회할 라운드 범위
+  const bacRounds  = Array.from({ length: ROUND_HISTORY }, (_, i) => curBacRound  - i)
+  const raceRounds = Array.from({ length: ROUND_HISTORY }, (_, i) => curRaceRound - i)
 
-  // 봇 userId 목록 조회
+  // 봇 userId 목록
   const allBotProfiles = await adminSupabase
     .from("profiles")
     .select("id, username")
     .in("username", Array.from(BOT_USERNAMES))
   const botIds = new Set((allBotProfiles.data ?? []).map((p: { id: string }) => p.id))
 
-  // 실제 유저만 필터
-  const realBacIds  = (bacMembers  as string[]).filter(id => !botIds.has(id))
-  const realRaceIds = (raceMembers as string[]).filter(id => !botIds.has(id))
+  // 각 라운드 참여 유저 목록 + 게임 결과 + odds:final 병렬 조회
+  const [bacMembersAll, raceMembersAll, bacResultsAll, raceResultsAll, bacOddsAll, raceOddsAll] = await Promise.all([
+    Promise.all(bacRounds.map(r  => redis.smembers(`users:baccarat:${r}`).catch(() => [] as string[]))),
+    Promise.all(raceRounds.map(r => redis.smembers(`users:race:${r}`).catch(() => [] as string[]))),
+    Promise.all(bacRounds.map(r  => redis.get<string>(`game:result:baccarat:${r}`).catch(() => null))),
+    Promise.all(raceRounds.map(r => redis.get<string>(`game:result:race:${r}`).catch(() => null))),
+    Promise.all(bacRounds.map(r  => redis.get<string>(`odds:final:baccarat:${r}`).catch(() => null))),
+    Promise.all(raceRounds.map(r => redis.get<string>(`odds:final:race:${r}`).catch(() => null))),
+  ])
 
-  // 실제 유저 프로필 조회
-  const allRealIds = [...new Set([...realBacIds, ...realRaceIds])]
-  const profilesRes = allRealIds.length > 0
-    ? await adminSupabase.from("profiles").select("id, username").in("id", allRealIds)
+  // 전체 실제 유저 ID 수집
+  const allRealIds = new Set<string>()
+  bacMembersAll.forEach(members => (members as string[]).filter(id => !botIds.has(id)).forEach(id => allRealIds.add(id)))
+  raceMembersAll.forEach(members => (members as string[]).filter(id => !botIds.has(id)).forEach(id => allRealIds.add(id)))
+
+  // 프로필 조회
+  const allRealIdsArr = Array.from(allRealIds)
+  const profilesRes = allRealIdsArr.length > 0
+    ? await adminSupabase.from("profiles").select("id, username").in("id", allRealIdsArr)
     : { data: [] }
   const profileMap = Object.fromEntries(
     ((profilesRes.data ?? []) as { id: string; username: string }[]).map(p => [p.id, p.username])
   )
 
-  // 배팅 데이터 조회 (bet:bets + bet:active oddsAtBet 함께 반환)
-  const buildBets = async (ids: string[], gameType: "baccarat" | "race", round: number) => {
-    const bets = await Promise.all(ids.map(async id => {
-      const [raw, activeRaw] = await Promise.all([
-        redis.get<string>(`bet:bets:${gameType}:${round}:${id}`).catch(() => null),
-        redis.get<string>(`bet:active:${gameType}:${round}:${id}`).catch(() => null),
-      ])
+  // 라운드별 배팅 데이터 조회
+  type BetEntry = {
+    userId: string; username: string; gameType: string
+    side: string; amount: number; round: number; ts: number
+    result: "win" | "lose" | "tie_refund" | null
+    settleOdds: number | null
+    winAmount: number | null
+    gameResult: string | null
+  }
+
+  const buildRoundBets = async (
+    ids: string[],
+    gameType: "baccarat" | "race",
+    round: number,
+    gameResultRaw: string | null,
+    oddsRaw: string | null,
+  ): Promise<BetEntry[]> => {
+    const realIds = ids.filter(id => !botIds.has(id))
+    if (realIds.length === 0) return []
+
+    // 게임 결과 파싱
+    let gameWinner: string | null = null
+    if (gameResultRaw) {
+      try {
+        const parsed = typeof gameResultRaw === "string" ? JSON.parse(gameResultRaw) : gameResultRaw
+        gameWinner = parsed.baccaratResult ?? parsed.raceWinner ?? null
+      } catch {}
+    }
+
+    // 확정 배당 파싱
+    let finalOdds: Record<string, number> = {}
+    if (oddsRaw) {
+      try {
+        const parsed = typeof oddsRaw === "string" ? JSON.parse(oddsRaw) : oddsRaw
+        finalOdds = parsed?.player !== undefined || parsed?.bit !== undefined ? parsed : (parsed?.odds ?? {})
+      } catch {}
+    }
+
+    const bets = await Promise.all(realIds.map(async id => {
+      const raw = await redis.get<string>(`bet:bets:${gameType}:${round}:${id}`).catch(() => null)
       if (!raw) return null
       const b = typeof raw === "string" ? JSON.parse(raw) : raw
       const side   = b.baccaratSide ?? b.raceSide ?? null
       const amount = b.baccaratAmount ?? b.raceAmount ?? 0
       if (!side) return null
 
-      // bet:active에서 배팅 시점 lock된 배율 추출
-      let oddsAtBet: Record<string, number> | null = null
-      if (activeRaw) {
-        try {
-          const active = typeof activeRaw === "string" ? JSON.parse(activeRaw) : activeRaw
-          if (active?.oddsAtBet) oddsAtBet = active.oddsAtBet
-        } catch {}
+      const settleOdds = finalOdds[side] ?? null
+
+      // 승패 계산
+      let result: "win" | "lose" | "tie_refund" | null = null
+      let winAmount: number | null = null
+      if (gameWinner !== null) {
+        if (side === gameWinner) {
+          result = "win"
+          winAmount = settleOdds !== null ? Math.floor(amount * settleOdds) : null
+        } else if (gameWinner === "tie" && (side === "player" || side === "banker" || side === "bit" || side === "coin")) {
+          result = "tie_refund"
+          winAmount = amount // 원금 반환
+        } else {
+          result = "lose"
+          winAmount = 0
+        }
       }
 
       return {
@@ -99,22 +153,37 @@ export async function GET(request: Request) {
         amount,
         round,
         ts: Date.now(),
-        oddsAtBet, // 배팅 시점 lock 배율 (null이면 이전 방식으로 처리)
-      }
+        result,
+        settleOdds,
+        winAmount,
+        gameResult: gameWinner,
+      } as BetEntry
     }))
-    return bets.filter(Boolean)
+
+    return bets.filter(Boolean) as BetEntry[]
   }
 
-  const [bacBets, raceBets] = await Promise.all([
-    buildBets(realBacIds,  "baccarat", bacRound),
-    buildBets(realRaceIds, "race",     raceRound),
+  // 바카라 / 레이스 전체 라운드 배팅 병렬 조회
+  const [allBacBets, allRaceBets] = await Promise.all([
+    Promise.all(bacRounds.map((r, i) =>
+      buildRoundBets(bacMembersAll[i] as string[], "baccarat", r, bacResultsAll[i], bacOddsAll[i])
+    )),
+    Promise.all(raceRounds.map((r, i) =>
+      buildRoundBets(raceMembersAll[i] as string[], "race", r, raceResultsAll[i], raceOddsAll[i])
+    )),
   ])
 
+  // 현재 라운드 참여자 수 (봇 제외)
+  const realBacCount  = (bacMembersAll[0]  as string[]).filter(id => !botIds.has(id)).length
+  const realRaceCount = (raceMembersAll[0] as string[]).filter(id => !botIds.has(id)).length
+
   return NextResponse.json({
-    bets: [...bacBets, ...raceBets],
+    bets: [...allBacBets.flat(), ...allRaceBets.flat()],
     counts: {
-      baccarat: realBacIds.length,
-      race:     realRaceIds.length,
+      baccarat: realBacCount,
+      race:     realRaceCount,
     },
+    bacRounds,
+    raceRounds,
   })
 }
