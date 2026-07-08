@@ -641,7 +641,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         if (!data?.activeBet) return
         const { roundNumber, side, amount, oddsAtBet } = data.activeBet
 
-        // 라��드 경계 필터 제거 — 새로고침 타이밍에 따라 nowRound가 roundNumber+1이 될 수 있음
+        // 라���드 경계 필터 제거 — 새로고침 타이밍에 따라 nowRound가 roundNumber+1이 될 수 있음
         // Redis bet:round 키(TTL=라운드길이+여유)가 살아있으면 해당 라운드 배팅을 반드시 복원
         // settle-me는 resolvedBetsKey를 찾아 정산하므로 라운드 번호가 달라도 올바르게 처리됨
 
@@ -802,7 +802,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       body: JSON.stringify({ basePrice: effectiveBase, closePrice, baccaratResult: serverBacResult }),
     }).catch(() => { })
 
-    // 4) 배팅 없으면 기준가 업���이트 후 종료
+    // 4) 배팅 ��으면 기준가 업���이트 후 종료
     const hasBet = betRef.current || betDigitRef.current || betParityRef.current || betBaccaratRef.current
     if (!hasBet) {
       setBasePrice(price)
@@ -967,7 +967,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           .catch(err => console.error("[baka:settle error]", err))
       }
 
-      // 베팅 상태 초기화 (다음 라운드 준비)
+      // 베팅 상태 초기화 (다음 라운드 준��)
       betRef.current = null; betDigitRef.current = null
       betParityRef.current = null; betBaccaratRef.current = null
       betDirectionAmountRef.current = 0; betDigitAmountRef.current = 0
@@ -1565,11 +1565,14 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           <div className="grid grid-cols-3 gap-1.5">
             {(["banker", "tie", "player"] as const).map((side) => {
               const isSelected = betBaccarat === side
-              // liveOdds는 ���팅 구간에만 갱신되므로 그대로 사용하면 게임중 동결됨
               const oddsAvailable = liveOdds?.available !== false
-              const oddsVal = (liveOdds && oddsAvailable)
-                ? (side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie)
-                : null
+              // 배팅 완료 후 선택된 버튼: liveOdds가 WS로 계속 바뀌므로 배팅 시점 스냅샷 사용
+              // 미선택 버튼: liveOdds 실시간 값 표시
+              const oddsVal = isSelected && liveOddsSnapshotRef.current
+                ? (side === "player" ? liveOddsSnapshotRef.current.player : side === "banker" ? liveOddsSnapshotRef.current.banker : liveOddsSnapshotRef.current.tie)
+                : (liveOdds && oddsAvailable)
+                  ? (side === "player" ? liveOdds.player : side === "banker" ? liveOdds.banker : liveOdds.tie)
+                  : null
               const payout = oddsVal != null ? `${(oddsVal as number).toFixed(2)}x` : "-"
               const label = side === "banker" ? "뱅커" : side === "tie" ? "타이" : "플레이어"
               const solidColor = side === "banker" ? "#ef4444" : side === "tie" ? "#22c55e" : "#3b82f6"

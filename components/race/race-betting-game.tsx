@@ -452,7 +452,8 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   const betDigitAmountRef = useRef(0)
   const betParityAmountRef = useRef(0)
   const betRaceAmountRef = useRef(0)
-  const liveOddsRef = useRef<typeof liveOdds>(null)    // 항상 최신 liveOdds (클로저 stale 방지)
+  const liveOddsRef = useRef<typeof liveOdds>(null)          // 항상 최신 liveOdds (클로저 stale 방지)
+  const liveOddsSnapshotRef = useRef<typeof liveOdds>(null)  // 배팅 시점 고정 스냅샷
   const canBetRef = useRef(false)                      // canBet 최신값 ref (SSE 클로저용)
   const basePriceRef = useRef<number | null>(null)
   const roundRef = useRef<number>(0)
@@ -692,6 +693,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
     betParityRef.current = null; betRaceRef.current = null
     betDirectionAmountRef.current = 0; betDigitAmountRef.current = 0
     betParityAmountRef.current = 0; betRaceAmountRef.current = 0
+    liveOddsSnapshotRef.current = null  // 새 라운드 시작 — 스냅샷 초기화
     setBetDirection(null); setBetDigit(null); setBetParity(null); setBetRace(null)
     setBetDirectionAmount(0); setBetDigitAmount(0); setBetParityAmount(0); setBetRaceAmount(0)
     setBasePrice(currentPriceRef.current); basePriceRef.current = currentPriceRef.current
@@ -839,7 +841,11 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       if (dialog.type === "direction") { betRef.current = dialog.value as BetDirection; betDirectionAmountRef.current = amount; setBetDirection(dialog.value as BetDirection); setBetDirectionAmount(amount) }
       else if (dialog.type === "digit") { betDigitRef.current = dialog.value as BetDigit; betDigitAmountRef.current = amount; setBetDigit(dialog.value as BetDigit); setBetDigitAmount(amount) }
       else if (dialog.type === "parity") { betParityRef.current = dialog.value as BetParity; betParityAmountRef.current = amount; setBetParity(dialog.value as BetParity); setBetParityAmount(amount) }
-      else if (dialog.type === "race") { betRaceRef.current = dialog.value as BetRace; betRaceAmountRef.current = amount; setBetRace(dialog.value as BetRace); setBetRaceAmount(amount) }
+      else if (dialog.type === "race") {
+        betRaceRef.current = dialog.value as BetRace; betRaceAmountRef.current = amount
+        setBetRace(dialog.value as BetRace); setBetRaceAmount(amount)
+        liveOddsSnapshotRef.current = liveOddsRef.current  // 배팅 시점 배당 고정
+      }
       setPhase("waiting"); setDialog(null)
     } catch (err) {
       console.error("[v0] RaceBet error:", err)
@@ -859,11 +865,14 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       <div className="grid grid-cols-3 gap-1.5">
         {(["bit", "tie", "coin"] as const).map((side) => {
           const isSelected = betRace === side
-          // liveOdds는 배팅 구간에만 갱신되므로 그대로 사용하면 게임중 동결됨
           const oddsAvailable = liveOdds?.available !== false
-          const oddsVal = (liveOdds && oddsAvailable)
-            ? (side === "bit" ? liveOdds.bit : side === "coin" ? liveOdds.coin : liveOdds.tie)
-            : null
+          // 배팅 완료 후 선택된 버튼: WS가 계속 바꾸므로 배팅 시점 스냅샷 사용
+          // 미선택 버튼: liveOdds 실시간 값 표시
+          const oddsVal = isSelected && liveOddsSnapshotRef.current
+            ? (side === "bit" ? liveOddsSnapshotRef.current.bit : side === "coin" ? liveOddsSnapshotRef.current.coin : liveOddsSnapshotRef.current.tie)
+            : (liveOdds && oddsAvailable)
+              ? (side === "bit" ? liveOdds.bit : side === "coin" ? liveOdds.coin : liveOdds.tie)
+              : null
           const payout = oddsVal != null ? `${(oddsVal as number).toFixed(2)}x` : "-"
           const label = side === "bit" ? "BIT팀" : side === "tie" ? "TIE" : "COIN팀"
           const solidBg = side === "bit" ? BIT_BG : side === "coin" ? COIN_BG : "rgba(34,197,94,0.85)"
