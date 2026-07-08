@@ -647,51 +647,23 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         if (side !== "player" && side !== "banker" && side !== "tie") return
 
         const nowRound = Math.floor(Date.now() / 1000 / 30)
-        const isSameRound = roundNumber === nowRound
+        // GET API가 현재 라운드 키만 반환하므로 항상 같은 라운드여야 함
+        // 혹시라도 다른 라운드가 오면 아무것도 하지 않음 — Railway가 정산 보장
+        if (roundNumber !== nowRound) return
 
-        if (isSameRound) {
-          // 현재 진행중인 라운드 — ref + UI 복원
-          betBaccaratRef.current = side
-          betBaccaratAmountRef.current = amount
-          betRoundNumberRef.current = roundNumber
-          if (oddsAtBet) {
-            liveOddsSnapshotRef.current = oddsAtBet
-            dbgBetRef.current = {
-              round: roundNumber, side, amount,
-              oddsAtBet: oddsAtBet[side] ?? null, oddsSnap: oddsAtBet,
-            }
+        // 현재 라운드 — ref + UI 복원
+        betBaccaratRef.current = side
+        betBaccaratAmountRef.current = amount
+        betRoundNumberRef.current = roundNumber
+        if (oddsAtBet) {
+          liveOddsSnapshotRef.current = oddsAtBet
+          dbgBetRef.current = {
+            round: roundNumber, side, amount,
+            oddsAtBet: oddsAtBet[side] ?? null, oddsSnap: oddsAtBet,
           }
-          setBetBaccarat(side)
-          setBetBaccaratAmount(amount)
-        } else {
-          // 이미 끝난 라운드 — ref 복원 없이 즉시 settle-me 호출
-          // game:result:baccarat:{round} 에서 closePrice + baccaratResult 조회
-          fetch(`/api/game/result?type=baccarat&round=${roundNumber}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-            .then(r => r.ok ? r.json() : null)
-            .then(result => {
-              if (!result?.closePrice) return
-              return fetch("/api/game/settle-me", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body: JSON.stringify({
-                  closePrice:      result.closePrice,
-                  basePrice:       result.basePrice ?? result.closePrice,
-                  roundNumber,
-                  gameType:        "baccarat",
-                  baccaratResult:  result.baccaratResult,
-                }),
-              }).then(r => r.json())
-            })
-            .then(d => {
-              if (d && typeof d.balance === "number") {
-                setBalance(d.balance)
-                window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
-              }
-            })
-            .catch(() => {})
         }
+        setBetBaccarat(side)
+        setBetBaccaratAmount(amount)
       })
       .catch(() => {})
   }, [])
@@ -803,7 +775,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       }>).detail
       dealCompleteResultRef.current = result
       dealCompleteScoreRef.current = { pScore, bScore }
-      // DB 저장 (빅로드용)
+      // DB 저장 (빅로���용)
       fetch("/api/closing-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1327,7 +1299,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       window.dispatchEvent(new CustomEvent("balance:update", { detail: optimisticBalance }))
     }
 
-    // ── 내 배팅 금액을 포함해 즉시 odds 재계산 ──────────────────────
+    // ── 내 배팅 금액을 포함해 즉시 odds 재계산 ──────────────────��───
     // 조건: liveOdds.pools 가 실제 값으로 채워진 경우에만 재계산
     // pools 가 없으면 계산 불가 → WS push(500ms 내) 수신 시 자동 반영
     if (dialog.type === "baccarat") {

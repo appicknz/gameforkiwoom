@@ -18,12 +18,9 @@ export async function GET(req: Request) {
   const nowSec = Math.floor(Date.now() / 1000)
   const currentRound = Math.floor(nowSec / roundInterval)
 
-  // 현재 라운드 + 직전 라운드 모두 확인 (정산 구간에 새로고침 대비)
-  const [cur, prev] = await Promise.all([
-    redis.get(`bet:active:${gameType}:${currentRound}:${userId}`),
-    redis.get(`bet:active:${gameType}:${currentRound - 1}:${userId}`),
-  ])
-  const raw = cur ?? prev
+  // 현재 라운드만 확인 — Railway settle이 모든 정산을 보장하므로
+  // 직전 라운드 배팅을 클라이언트에 내려보내면 다음 라운드 결과로 오정산됨
+  const raw = await redis.get(`bet:active:${gameType}:${currentRound}:${userId}`)
   if (!raw) return NextResponse.json({ activeBet: null })
   const activeBet = typeof raw === "string" ? JSON.parse(raw) : raw
   return NextResponse.json({ activeBet })

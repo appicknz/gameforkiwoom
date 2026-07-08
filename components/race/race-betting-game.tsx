@@ -474,7 +474,7 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
   }, [])
 
   // ── 마운트 시 활성 배팅 복원 (새로고침 대응) ─────────────────
-  // 같은 라운드 → ref + UI 복원, 라운드 종료 이벤트에서 정산됨
+  // 같은 라운드 → ref + UI 복원, 라운드 종료 이벤트에서 정산��
   // 이미 끝난 라운드 → game:result에서 결과 조회 후 즉시 settle-me 호출
   useEffect(() => {
     const token = getToken()
@@ -574,12 +574,11 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
         if (side !== "bit" && side !== "coin" && side !== "tie") return
 
         const nowRound = Math.floor(Date.now() / 1000 / 180)
-        if (roundNumber !== nowRound) {
-          // 이미 끝난 라운드 — Railway가 정산 완료. 아무것도 복원하지 않음
-          return
-        }
+        // GET API가 현재 라운드 키만 반환하므로 항상 같은 라운드여야 함
+        // 다른 라운드가 오면 아무것도 하지 않음 — Railway가 정산 보장
+        if (roundNumber !== nowRound) return
 
-        // 같은 라운드 — ref + UI 복원
+        // 현재 라운드 — ref + UI 복원
         betRaceRef.current = side
         betRaceAmountRef.current = amount
         if (oddsAtBet) liveOddsSnapshotRef.current = oddsAtBet
