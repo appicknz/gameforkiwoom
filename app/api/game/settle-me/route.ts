@@ -80,31 +80,57 @@ export async function POST(request: Request) {
     const bets = typeof betsRaw === "string" ? JSON.parse(betsRaw) : betsRaw
 
     // ── 확정 배당 조회 ───────────────────────────────────────────
-    // settle/route.ts(실제 정산)와 동일한 우선순위 사용:
-    //   1순위: odds:final:{gameType}:{round}   — 라운드 전환 시 Railway가 저장한 확정값
-    //          → settle도 이 값으로 모든 유저 동일 정산
-    //   2순위: odds:locked:{gameType}:{round}  — 배팅 lock zone 풀 기반값
-    //   3순위: odds:current:{gameType}:{round} — 라운드 중 마지막 갱신값
-    //   4순위: pool 직접 재계산 (fallback)
+    // 우선순위:
+    //   1순위: bet:active의 oddsAtBet — 배팅 시점 서버 계산값, 라운드 번호 오염 없음
+    //   2순위: odds:final:{gameType}:{resolvedRound} — Railway가 라운드 전환 시 기록
+    //   3순위: odds:locked:{gameType}:{resolvedRound}
+    //   4순위: odds:current:{gameType}:{resolvedRound}
+    //   5순위: pool 직접 재계산 (fallback)
     let oddsSnap: { player?: number; banker?: number; tie?: number; bit?: number; coin?: number } = {}
+    let oddsSource = "unknown"
 
+    // 1순위: bet:active에 저장된 oddsAtBet (배팅 직후 서버 계산, resolvedRound로 키 조회)
+    const activeBetKey = `bet:active:${gameType}:${resolvedRound}:${userId}`
+    const activeBetRaw = await redis.get<string>(activeBetKey).catch(() => null)
+    if (activeBetRaw) {
+      try {
+        const activeBet = typeof activeBetRaw === "string" ? JSON.parse(activeBetRaw) : activeBetRaw
+        if (activeBet?.oddsAtBet) {
+          oddsSnap = activeBet.oddsAtBet
+          oddsSource = "bet:active(oddsAtBet)"
+        }
+      } catch {}
+    }
+
+    // 2~4순위: bet:active에 odds 없을 때만 Redis keys 조회
     const finalKey   = `odds:final:${gameType}:${resolvedRound}`
     const lockedKey  = `odds:locked:${gameType}:${resolvedRound}`
     const currentKey = `odds:current:${gameType}:${resolvedRound}`
+    let finalRaw: string | null = null
+    let lockedRaw: string | null = null
+    let currentRaw: string | null = null
 
-    const [finalRaw, lockedRaw, currentRaw] = await Promise.all([
-      redis.get<string>(finalKey).catch(() => null),
-      redis.get<string>(lockedKey).catch(() => null),
-      redis.get<string>(currentKey).catch(() => null),
-    ])
+    const noOddsYet = gameType === "baccarat"
+      ? (!oddsSnap.player && !oddsSnap.banker)
+      : (!oddsSnap.bit && !oddsSnap.coin)
 
-    const bestRaw = finalRaw ?? lockedRaw ?? currentRaw
-    if (bestRaw) {
-      try {
-        const parsed = typeof bestRaw === "string" ? JSON.parse(bestRaw) : bestRaw
-        const o = parsed?.player !== undefined || parsed?.bit !== undefined ? parsed : parsed?.odds
-        if (o) oddsSnap = o
-      } catch {}
+    if (noOddsYet) {
+      ;[finalRaw, lockedRaw, currentRaw] = await Promise.all([
+        redis.get<string>(finalKey).catch(() => null),
+        redis.get<string>(lockedKey).catch(() => null),
+        redis.get<string>(currentKey).catch(() => null),
+      ])
+      const bestRaw = finalRaw ?? lockedRaw ?? currentRaw
+      if (bestRaw) {
+        try {
+          const parsed = typeof bestRaw === "string" ? JSON.parse(bestRaw) : bestRaw
+          const o = parsed?.player !== undefined || parsed?.bit !== undefined ? parsed : parsed?.odds
+          if (o) {
+            oddsSnap = o
+            oddsSource = finalRaw ? "odds:final" : lockedRaw ? "odds:locked" : "odds:current"
+          }
+        } catch {}
+      }
     }
 
     // fallback: Redis 키가 만료됐거나 없을 때만 pool 직접 재계산
@@ -332,7 +358,7 @@ export async function POST(request: Request) {
         baccaratResult,
         settleSource: "settle-me/route.ts",
         // 어떤 Redis 키에서 odds를 가져왔는지 기록
-        oddsSource: finalRaw ? "odds:final" : lockedRaw ? "odds:locked" : currentRaw ? "odds:current" : "pool_fallback",
+        oddsSource: oddsSource === "unknown" ? "pool_fallback" : oddsSource,
       }
       if (existingLog) {
         try {
