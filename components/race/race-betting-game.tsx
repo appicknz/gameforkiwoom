@@ -473,6 +473,64 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
   }, [])
 
+  // ── 마운트 시 활성 배팅 복원 (새로고침 대응) ─────────────────
+  // 같은 라운드 → ref + UI 복원, 라운드 종료 이벤트에서 정산됨
+  // 이미 끝난 라운드 → game:result에서 결과 조회 후 즉시 settle-me 호출
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch("/api/user/game/bet?type=race", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.activeBet) return
+        const { roundNumber, side, amount, oddsAtBet } = data.activeBet
+        if (side !== "bit" && side !== "coin" && side !== "tie") return
+
+        const nowRound = Math.floor(Date.now() / 1000 / 180)
+        const isSameRound = roundNumber === nowRound
+
+        if (isSameRound) {
+          // 현재 진행중인 라운드 — ref + UI 복원
+          betRaceRef.current = side
+          betRaceAmountRef.current = amount
+          if (oddsAtBet) liveOddsSnapshotRef.current = oddsAtBet
+          setBetRace(side)
+          setBetRaceAmount(amount)
+        } else {
+          // 이미 끝난 라운드 — 즉시 settle-me 호출
+          fetch(`/api/game/result?type=race&round=${roundNumber}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then(r => r.ok ? r.json() : null)
+            .then(result => {
+              if (!result?.closePrice && !result?.bitScore) return
+              return fetch("/api/game/settle-me", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                  closePrice: result.closePrice ?? 0,
+                  basePrice:  result.closePrice ?? 0,
+                  roundNumber,
+                  gameType:   "race",
+                  bitScore:   result.bitScore ?? 0,
+                  coinScore:  result.coinScore ?? 0,
+                }),
+              }).then(r => r.json())
+            })
+            .then(d => {
+              if (d && typeof d.balance === "number") {
+                setBalance(d.balance)
+                window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
+              }
+            })
+            .catch(() => {})
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     const handler = (e: Event) => {
       const v = (e as CustomEvent<number>).detail

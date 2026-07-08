@@ -630,9 +630,10 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   }, [])
 
   // ── 마운트 시 활성 배팅 복원 (새로고침 대응) ─────────────────
-  // 규칙: 배팅한 라운드가 현재 라운드와 같을 때만 복원
-  //       다른 라운드(이미 끝난 라운드)의 배팅은 Railway settle이 이미 처리했으므로
-  //       ref/state 복원 없이 클리어 — 다음 라운드에 settle-me 재호출 방지
+  // 규칙:
+  //   같은 라운드 → ref + UI 복원, 라운드 종료 이벤트에서 정산됨
+  //   이미 끝난 라운드 → game:result에서 결과 조회 후 즉시 settle-me 호출
+  //                      (Railway settle이 실패/지연됐을 때 보장)
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -643,33 +644,53 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       .then(data => {
         if (!data?.activeBet) return
         const { roundNumber, side, amount, oddsAtBet } = data.activeBet
+        if (side !== "player" && side !== "banker" && side !== "tie") return
 
-        if (side === "player" || side === "banker" || side === "tie") {
-          const nowRound = Math.floor(Date.now() / 1000 / 30)
-          const isSameRound = roundNumber === nowRound
+        const nowRound = Math.floor(Date.now() / 1000 / 30)
+        const isSameRound = roundNumber === nowRound
 
-          if (!isSameRound) {
-            // 이미 끝난 라운드 — Railway가 정산 완료. 클라이언트는 아무것도 하지 않음
-            // bet:active 키는 TTL로 자연 만료됨
-            return
-          }
-
-          // 같은 라운드 — ref + UI 모두 복원
+        if (isSameRound) {
+          // 현재 진행중인 라운드 — ref + UI 복원
           betBaccaratRef.current = side
           betBaccaratAmountRef.current = amount
           betRoundNumberRef.current = roundNumber
           if (oddsAtBet) {
             liveOddsSnapshotRef.current = oddsAtBet
             dbgBetRef.current = {
-              round: roundNumber,
-              side,
-              amount,
-              oddsAtBet: oddsAtBet[side] ?? null,
-              oddsSnap: oddsAtBet,
+              round: roundNumber, side, amount,
+              oddsAtBet: oddsAtBet[side] ?? null, oddsSnap: oddsAtBet,
             }
           }
           setBetBaccarat(side)
           setBetBaccaratAmount(amount)
+        } else {
+          // 이미 끝난 라운드 — ref 복원 없이 즉시 settle-me 호출
+          // game:result:baccarat:{round} 에서 closePrice + baccaratResult 조회
+          fetch(`/api/game/result?type=baccarat&round=${roundNumber}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then(r => r.ok ? r.json() : null)
+            .then(result => {
+              if (!result?.closePrice) return
+              return fetch("/api/game/settle-me", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                  closePrice:      result.closePrice,
+                  basePrice:       result.basePrice ?? result.closePrice,
+                  roundNumber,
+                  gameType:        "baccarat",
+                  baccaratResult:  result.baccaratResult,
+                }),
+              }).then(r => r.json())
+            })
+            .then(d => {
+              if (d && typeof d.balance === "number") {
+                setBalance(d.balance)
+                window.dispatchEvent(new CustomEvent("balance:update", { detail: d.balance }))
+              }
+            })
+            .catch(() => {})
         }
       })
       .catch(() => {})
