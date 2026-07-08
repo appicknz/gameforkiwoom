@@ -38,15 +38,31 @@ export async function POST(request: Request) {
     const wonDigit:     "under" | "over" = d2 <= 4 ? "under" : "over"
     const wonParity:    "odd"   | "even" = d2 % 2 === 0 ? "even" : "odd"
 
-    // 바카라: 카드 3장 합산 끝자리(pScore, bScore)로만 승패 판정 — fallback 없음
-    // 클라이언트가 반드시 전달해야 함
+    // 바카라 승패 판정:
+    //   1순위: clientBaccaratResult 직접 전달 (새로고침 후 game:result 키에서 복원한 경우)
+    //   2순위: pScore/bScore 계산 (정상 게임 종료 시 클라이언트가 전달)
+    //   3순위: game:result Redis 키에서 조회 (fallback)
+    let baccaratResult: "player" | "banker" | "tie"
     if (gameType === "baccarat") {
-      if (typeof clientPScore !== "number" || typeof clientBScore !== "number") {
-        return NextResponse.json({ error: "카드 합산 점수(pScore, bScore) 누락" }, { status: 400 })
+      if (clientBaccaratResult === "player" || clientBaccaratResult === "banker" || clientBaccaratResult === "tie") {
+        baccaratResult = clientBaccaratResult
+      } else if (typeof clientPScore === "number" && typeof clientBScore === "number") {
+        baccaratResult = clientPScore > clientBScore ? "player" : clientBScore > clientPScore ? "banker" : "tie"
+      } else {
+        // fallback: game:result Redis 키에서 직접 조회
+        const resultRaw = await redis.get<string>(`game:result:baccarat:${roundNumber}`).catch(() => null)
+        if (resultRaw) {
+          try {
+            const r = typeof resultRaw === "string" ? JSON.parse(resultRaw) : resultRaw
+            baccaratResult = r.baccaratResult ?? "tie"
+          } catch { baccaratResult = "tie" }
+        } else {
+          return NextResponse.json({ error: "카드 합산 점수(pScore, bScore) 또는 baccaratResult 누락" }, { status: 400 })
+        }
       }
+    } else {
+      baccaratResult = "tie" // race에서는 사용 안 함
     }
-    const baccaratResult: "player" | "banker" | "tie" =
-      clientPScore > clientBScore ? "player" : clientBScore > clientPScore ? "banker" : "tie"
 
     // ── 유저 배팅 내역 조회 ──────────────────────────────────
     // 저장된 roundNumber를 우선 사용 (프론트에서 넘긴 값이 라운드 경계에서 틀릴 수 있음)

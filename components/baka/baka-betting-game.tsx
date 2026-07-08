@@ -630,6 +630,9 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
   }, [])
 
   // ── 마운트 시 활성 배팅 복원 (새로고침 대응) ─────────────────
+  // 규칙: 배팅한 라운드가 현재 라운드와 같을 때만 복원
+  //       다른 라운드(이미 끝난 라운드)의 배팅은 Railway settle이 이미 처리했으므로
+  //       ref/state 복원 없이 클리어 — 다음 라운드에 settle-me 재호출 방지
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -641,16 +644,17 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
         if (!data?.activeBet) return
         const { roundNumber, side, amount, oddsAtBet } = data.activeBet
 
-        // 라���드 경계 필터 제거 — 새로고침 타이밍에 따라 nowRound가 roundNumber+1이 될 수 있음
-        // Redis bet:round 키(TTL=라운드길이+여유)가 살아있으면 해당 라운드 배팅을 반드시 복원
-        // settle-me는 resolvedBetsKey를 찾아 정산하므로 라운드 번호가 달라도 올바르게 처리됨
-
-        // baccarat 배팅 복원
         if (side === "player" || side === "banker" || side === "tie") {
           const nowRound = Math.floor(Date.now() / 1000 / 30)
           const isSameRound = roundNumber === nowRound
 
-          // 내부 정산용 ref는 항상 복원 (settle-me가 라운드 번호로 찾아 정산)
+          if (!isSameRound) {
+            // 이미 끝난 라운드 — Railway가 정산 완료. 클라이언트는 아무것도 하지 않음
+            // bet:active 키는 TTL로 자연 만료됨
+            return
+          }
+
+          // 같은 라운드 — ref + UI 모두 복원
           betBaccaratRef.current = side
           betBaccaratAmountRef.current = amount
           betRoundNumberRef.current = roundNumber
@@ -664,12 +668,8 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
               oddsSnap: oddsAtBet,
             }
           }
-
-          // UI 버튼 활성화는 같은 라운드일 때만 — 다른 라운드면 새 라운드에 중복 배팅 발생
-          if (isSameRound) {
-            setBetBaccarat(side)
-            setBetBaccaratAmount(amount)
-          }
+          setBetBaccarat(side)
+          setBetBaccaratAmount(amount)
         }
       })
       .catch(() => {})
@@ -1078,7 +1078,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
     const was = prevCanBetRef.current
     prevCanBetRef.current = canBet
     if (!canBet || was) return
-    // 자동배팅 플래그만 초기화 — liveOdds는 리셋하지 않음(WS/폴링으로 덮어씀)
+    // 자동배팅 플래그만 초��화 — liveOdds는 리셋하지 않음(WS/폴링으로 덮어씀)
     autoBetFiredRef.current = false
   }, [canBet])
 

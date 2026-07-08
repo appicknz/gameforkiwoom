@@ -405,9 +405,14 @@ export async function POST(request: Request) {
       await admin.from("bet_history").insert(allHistoryRows).catch(() => {})
     }
 
-    // ── 당첨금 지급 + 잔고 동기화 병렬 ─────────────────────
+    // ── 당첨금 지급 + 잔고 동기화 + bet:active 삭제 병렬 ────
+    // bet:active 삭제: 정산 완료 후 클라이언트 마운트 복원 시 이 키를 보고
+    // 다음 라운드에 settle-me 재호출하는 버그를 방지
     await Promise.all(
       userBetDataList.map(async ({ userId, totalPayout }) => {
+        // 정산 완료 즉시 bet:active 삭제 (TTL 만료 전에 클린업)
+        redis.del(`bet:active:baccarat:${roundNumber}:${userId}`).catch(() => {})
+
         if (totalPayout > 0) {
           const { data: newBalance, error } = await admin
             .rpc("add_balance_for_payout", { p_user_id: userId, p_amount: totalPayout })
@@ -670,7 +675,7 @@ export async function POST(request: Request) {
         }
       }
 
-      // ── 디버그 로그 업데이트: 정산 완료 정보 ���록 ──────────────
+      // ── 디버그 로그 업데이트: 정산 완�� 정보 ���록 ──────────────
       const debugLogKey = `bet:debug:baccarat:${roundNumber}:${userId}`
       const existingLog = await redis.get<string>(debugLogKey).catch(() => null)
       if (existingLog) {
@@ -851,9 +856,10 @@ export async function POST(request: Request) {
         await admin.from("bet_history").insert(raceHistoryRows).catch(() => {})
       }
 
-      // ── race 당첨금 지급 + 잔고 동기화 병렬 ────────────────
+      // ── race 당첨금 지급 + 잔고 동기화 + bet:active 삭제 병렬 ──
       await Promise.all(
         raceUserBetDataList.map(async ({ userId, totalPayout }) => {
+          redis.del(`bet:active:race:${prevRaceRoundNumber}:${userId}`).catch(() => {})
           if (totalPayout > 0) {
             const { data: newBal, error } = await admin
               .rpc("add_balance_for_payout", { p_user_id: userId, p_amount: totalPayout })
@@ -970,7 +976,7 @@ export async function POST(request: Request) {
       ended_at: new Date(roundNumber * 30 * 1000).toISOString(),
     }, { onConflict: "ended_at", ignoreDuplicates: true }).then(() => {}).catch(() => {})
 
-    // ── round_bet_logs: 라운드 전체 배팅 현황 스냅샷 저장 ──────────
+    // ── round_bet_logs: 라운드 전체 배팅 현황 스냅샷 저장 ──��───────
     // 테이블 없으면 에러 무시 (setup-db 실행 후 활성화)
     ;(async () => {
       try {

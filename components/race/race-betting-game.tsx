@@ -500,6 +500,37 @@ export function RaceBettingGame({ onStatusChange, onPriceChange, onScoreChange }
       .catch(() => {})
   }, [])
 
+  // ── 마운트 시 활성 배팅 복원 (새로고침 대응) ─────────────────
+  // 규칙: 배팅한 라운드(180초 단위)가 현재 라운드와 같을 때만 복원
+  //       이미 끝난 라운드의 배팅은 Railway settle이 처리했으므로 복원하지 않음
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch("/api/user/game/bet?type=race", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.activeBet) return
+        const { roundNumber, side, amount, oddsAtBet } = data.activeBet
+        if (side !== "bit" && side !== "coin" && side !== "tie") return
+
+        const nowRound = Math.floor(Date.now() / 1000 / 180)
+        if (roundNumber !== nowRound) {
+          // 이미 끝난 라운드 — Railway가 정산 완료. 아무것도 복원하지 않음
+          return
+        }
+
+        // 같은 라운드 — ref + UI 복원
+        betRaceRef.current = side
+        betRaceAmountRef.current = amount
+        if (oddsAtBet) liveOddsSnapshotRef.current = oddsAtBet
+        setBetRace(side)
+        setBetRaceAmount(amount)
+      })
+      .catch(() => {})
+  }, [])
+
   // 3분(180초) 타이머. 라운드: Math.floor(now/180)
   // 페이즈: 0~9초=정산, 10~59초=배팅, 60~179초=게임중
   const prevRoundRef = useRef<number>(-1)
