@@ -184,11 +184,10 @@ export async function POST(request: Request) {
           side,
           betAmount,
           // 배팅 직후 서버가 계산한 배당 (내 배팅 포함 후 풀 기준)
+          // 이 값은 참고용 — 실제 정산은 라운드 종료 후 Railway가 기록한 odds:final 사용
           serverOddsAfterBet: oddsSnap,
-          // 배팅 시점 pool 상태
           pools: { player: poolPlayer, banker: poolBanker, tie: poolTie, bit: poolBit, coin: poolCoin },
           placedAt: new Date().toISOString(),
-          // 이 시점에는 아직 finalOdds/settledOdds 없음 — settle 시 업데이트됨
           finalOdds: null,
           settledOdds: null,
           payout: null,
@@ -216,11 +215,6 @@ export async function POST(request: Request) {
         }
         const balBefore = (newBalance as number) + betAmount
 
-        // odds:final — 배팅이 들어올 때마다 항상 갱신 (배팅 구간 여부 무관)
-        // settle/route.ts가 이 값을 1순위로 사용 → 마지막 배팅까지 반영된 확정 배당
-        // TTL 3600초: 정산이 늦게 도착해도 만료되지 않도록 충분히 유지
-        const finalKey = `odds:final:${type}:${roundNumber}`
-
         await Promise.all([
           redis.set(oddsSnapKey, JSON.stringify(oddsSnap), { ex: ttl }),
           redis.set(activeBetKey, JSON.stringify({
@@ -228,8 +222,7 @@ export async function POST(request: Request) {
             oddsAtBet: oddsSnap,
             placedAt: Date.now(),
           }), { ex: ttl + 10 }),
-          // odds:final 항상 갱신 — 버튼/관리자 패널/정산 모두 이 단일 소스 사용
-          redis.set(finalKey, JSON.stringify(oddsSnap), { ex: 3600 }),
+          // odds:final은 Railway odds/refresh만 기록 — 배팅마다 덮어쓰면 서로 다른 유저 개인 배당이 충돌함
           ...(stillBetting ? [
             redis.set(currentKey, JSON.stringify(currentPayload), { ex: ttl }),
             redis.incr(`odds_version:${type}`),
