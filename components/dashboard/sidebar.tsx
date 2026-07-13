@@ -508,6 +508,9 @@ export function Sidebar() {
   const [sellerRole, setSellerRole] = useState<string | null>(null)
   const [gameEnabled, setGameEnabled] = useState(false)
   const [allowTokenDeposit, setAllowTokenDeposit] = useState(false)
+  const [menuGroup1, setMenuGroup1] = useState(false) // 모의매매, 자동매매, 오늘의 비트
+  const [menuGroup2, setMenuGroup2] = useState(true)  // 마켓, 구매내역, 판매관리, 정산관리
+  const [menuGroup3, setMenuGroup3] = useState(false) // 비트바카, 비트토토, 배팅현황
 
   // 강제 비밀번호 변경 모달
   const [mustChangePw,       setMustChangePw]       = useState(false)
@@ -577,13 +580,20 @@ export function Sidebar() {
         } catch {
           setGameEnabled(false)
         }
-        // 토큰 입금 허용 여부
+        // 토큰 입금 허용 여부 + 메뉴 그룹
         try {
-          const pRes = await fetch("/api/user/profile", {
-            headers: { Authorization: `Bearer ${token}` },
-          })
+          const [pRes, mgRes] = await Promise.all([
+            fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }),
+            fetch("/api/user/menu-groups", { headers: { Authorization: `Bearer ${token}` } }),
+          ])
           const pData = await pRes.json()
           setAllowTokenDeposit(!!pData?.profile?.allow_token_deposit)
+          if (mgRes.ok) {
+            const mg = await mgRes.json()
+            setMenuGroup1(!!mg.group1)
+            setMenuGroup2(!!mg.group2)
+            setMenuGroup3(!!mg.group3)
+          }
         } catch {
           setAllowTokenDeposit(false)
         }
@@ -592,6 +602,9 @@ export function Sidebar() {
         setSellerRole(null)
         setGameEnabled(false)
         setAllowTokenDeposit(false)
+        setMenuGroup1(false)
+        setMenuGroup2(false)
+        setMenuGroup3(false)
       }
     }
     check()
@@ -680,7 +693,7 @@ export function Sidebar() {
 
   return (
     <>
-      {/* 강제 비밀번호 변경 모달 — 비밀번호 초기화 후 첫 ��그인 시 표시 */}
+      {/* 강제 비밀번호 변경 모달 — ���밀번호 초기화 후 첫 ��그인 시 표시 */}
       {mustChangePw && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-5 mx-4">
@@ -752,157 +765,155 @@ export function Sidebar() {
         {/* 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
 
-          {/* ① 게임 + 자동매매 */}
-          {isLoggedIn && <div className="space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("sidebar.bonusGames")}</p>
-            <div className="grid grid-cols-2 gap-2">
-              {/* 바카라 */}
-              <Link href="/baka" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  pathname === "/baka" && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.baccarat")}</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.baccaratSub")}</p>
-                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} R</p>
-                </div>
-              </Link>
-              {/* 레이스 */}
-              <Link href="/race" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  pathname === "/race" && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.race")}</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.raceSub")}</p>
-                  <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 180).toLocaleString()} R</p>
-                </div>
-              </Link>
-              {/* 모의매매 */}
-              <Link href="/trade" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  pathname === "/trade" && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">모의매매</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">실전 없이 연습</p>
-                </div>
-              </Link>
-              {/* 자동매매 */}
-              <Link href="/trade" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
-                  pathname === "/trade" && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">자동매매</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">시그널 실시간</p>
-                </div>
-              </Link>
-            </div>
-            {/* 배팅 현황 */}
-            <Link href="/betting-status" onClick={() => setMobileOpen(false)}>
-              <div className={cn(
-                "rounded-2xl border border-border px-3 py-2.5 flex items-center gap-2.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30",
-                pathname === "/betting-status" && "border-primary/50 bg-secondary/40"
-              )}>
-                <ClipboardList className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                <div>
-                  <p className="text-[11px] font-bold text-foreground leading-tight">배팅 현황</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">날짜별 배팅 내역</p>
-                </div>
+          {/* ── Group 1: 모의매매 · 자동매매 · 오늘의 비트 ── */}
+          {isLoggedIn && menuGroup1 && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">매매</p>
+              <div className="grid grid-cols-2 gap-2">
+                {/* 모의매매 */}
+                <Link href="/trade" onClick={() => setMobileOpen(false)}>
+                  <div className={cn(
+                    "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                    pathname === "/trade" && "border-primary/50 bg-secondary/40"
+                  )}>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">모의매매</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">실전 없이 연습</p>
+                  </div>
+                </Link>
+                {/* 자동매매 */}
+                <Link href="/trade" onClick={() => setMobileOpen(false)}>
+                  <div className={cn(
+                    "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                    pathname === "/trade" && "border-primary/50 bg-secondary/40"
+                  )}>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">자동매매</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">시그널 실시간</p>
+                  </div>
+                </Link>
               </div>
-            </Link>
-          </div>}
-
-          {/* ② 관리 — 2x2 그리드 */}
-          <div className="border-t border-border pt-3 space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("sidebar.manage")}</p>
-            <div className="grid grid-cols-2 gap-2">
-              {/* 마켓 */}
-              <Link href="/market" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
-                  (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
-                    <ShoppingCart className="w-3 h-3 text-primary shrink-0" />
-                    {t("nav.market")}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
-                </div>
-              </Link>
-              {/* 구매내역 */}
-              <Link href="/purchases" onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
-                  pathname === "/purchases" && "border-primary/50 bg-secondary/40"
-                )}>
-                  <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
-                    <ShoppingBag className="w-3 h-3 text-primary shrink-0" />
-                    {t("nav.purchases")}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.purchasesSub")}</p>
-                </div>
-              </Link>
-              {/* 판매관리 — seller 이상만 */}
-              {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) ? (
-                <Link href="/seller" onClick={() => setMobileOpen(false)}>
-                  <div className={cn(
-                    "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
-                    pathname === "/seller" && "border-primary/50 bg-secondary/40"
-                  )}>
-                    <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
-                      <BarChart2 className="w-3 h-3 text-primary shrink-0" />
-                      {t("nav.seller")}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.sellerSub")}</p>
-                  </div>
-                </Link>
-              ) : (
-                <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-1 opacity-40 cursor-not-allowed h-full">
-                  <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
-                    <BarChart2 className="w-3 h-3 text-primary shrink-0" />
-                    {t("nav.seller")}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("sidebar.sellerRequired")}</p>
-                </div>
-              )}
-              {/* 정산관리 — seller 이상만 */}
-              {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) ? (
-                <Link href="/settlement" onClick={() => setMobileOpen(false)}>
-                  <div className={cn(
-                    "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
-                    pathname === "/settlement" && "border-primary/50 bg-secondary/40"
-                  )}>
-                    <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
-                      <Wallet className="w-3 h-3 text-primary shrink-0" />
-                      {t("nav.settlementNav")}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.settlementSub")}</p>
-                  </div>
-                </Link>
-              ) : (
-                <div className="rounded-2xl border border-border/50 p-3 flex flex-col gap-1 opacity-40 cursor-not-allowed h-full">
-                  <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
-                    <Wallet className="w-3 h-3 text-primary shrink-0" />
-                    {t("nav.settlementNav")}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{t("sidebar.sellerRequired")}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ③ 오늘의 비트 + 달력 + 토큰QR — 로그인 유저 전체 표시 */}
-          {isLoggedIn && (
-            <>
+              {/* 오늘의 비트 */}
               <div className="border-t border-border pt-3">
                 <TradeStatsMini />
               </div>
-              <div className="border-t border-border pt-3">
-                <DepositQRWidget isLoggedIn={isLoggedIn} />
+            </div>
+          )}
+
+          {/* ── Group 2: 마켓 · 구매내역 · 판매관리 · 정산관리 ── */}
+          {(!isLoggedIn || menuGroup2) && (
+            <div className={cn("space-y-2", isLoggedIn && menuGroup1 && "border-t border-border pt-3")}>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("sidebar.manage")}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {/* 마켓 */}
+                <Link href="/market" onClick={() => setMobileOpen(false)}>
+                  <div className={cn(
+                    "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
+                    (pathname === "/market" || pathname === "/") && "border-primary/50 bg-secondary/40"
+                  )}>
+                    <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                      <ShoppingCart className="w-3 h-3 text-primary shrink-0" />
+                      {t("nav.market")}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
+                  </div>
+                </Link>
+                {/* 구매내역 — 로그인 시만 */}
+                {isLoggedIn && (
+                  <Link href="/purchases" onClick={() => setMobileOpen(false)}>
+                    <div className={cn(
+                      "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
+                      pathname === "/purchases" && "border-primary/50 bg-secondary/40"
+                    )}>
+                      <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                        <ShoppingBag className="w-3 h-3 text-primary shrink-0" />
+                        {t("nav.purchases")}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.purchasesSub")}</p>
+                    </div>
+                  </Link>
+                )}
+                {/* 판매관리 — seller 이상 + 로그인 */}
+                {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) && (
+                  <Link href="/seller" onClick={() => setMobileOpen(false)}>
+                    <div className={cn(
+                      "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
+                      pathname === "/seller" && "border-primary/50 bg-secondary/40"
+                    )}>
+                      <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                        <BarChart2 className="w-3 h-3 text-primary shrink-0" />
+                        {t("nav.seller")}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.sellerSub")}</p>
+                    </div>
+                  </Link>
+                )}
+                {/* 정산관리 — seller 이상 + 로그인 */}
+                {isLoggedIn && sellerRole && SELLER_ROLES.includes(sellerRole) && (
+                  <Link href="/settlement" onClick={() => setMobileOpen(false)}>
+                    <div className={cn(
+                      "rounded-2xl border border-border p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/40 h-full",
+                      pathname === "/settlement" && "border-primary/50 bg-secondary/40"
+                    )}>
+                      <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                        <Wallet className="w-3 h-3 text-primary shrink-0" />
+                        {t("nav.settlementNav")}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.settlementSub")}</p>
+                    </div>
+                  </Link>
+                )}
               </div>
-            </>
+            </div>
+          )}
+
+          {/* ── Group 3: 비트바카 · 비트토토 · 배팅현황 ── */}
+          {isLoggedIn && menuGroup3 && (
+            <div className={cn("space-y-2", "border-t border-border pt-3")}>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("sidebar.bonusGames")}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {/* 비트바카 */}
+                <Link href="/baka" onClick={() => setMobileOpen(false)}>
+                  <div className={cn(
+                    "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                    pathname === "/baka" && "border-primary/50 bg-secondary/40"
+                  )}>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.baccarat")}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.baccaratSub")}</p>
+                    <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 30).toLocaleString()} R</p>
+                  </div>
+                </Link>
+                {/* 비트토토 */}
+                <Link href="/race" onClick={() => setMobileOpen(false)}>
+                  <div className={cn(
+                    "rounded-2xl border border-border p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30 h-full",
+                    pathname === "/race" && "border-primary/50 bg-secondary/40"
+                  )}>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">{t("nav.race")}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.raceSub")}</p>
+                    <p className="text-[9px] text-muted-foreground/60 tabular-nums mt-auto">#{Math.floor(Date.now() / 1000 / 180).toLocaleString()} R</p>
+                  </div>
+                </Link>
+              </div>
+              {/* 배팅 현황 */}
+              <Link href="/betting-status" onClick={() => setMobileOpen(false)}>
+                <div className={cn(
+                  "rounded-2xl border border-border px-3 py-2.5 flex items-center gap-2.5 cursor-pointer transition-all duration-200 hover:bg-secondary/60 hover:border-primary/30",
+                  pathname === "/betting-status" && "border-primary/50 bg-secondary/40"
+                )}>
+                  <ClipboardList className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <div>
+                    <p className="text-[11px] font-bold text-foreground leading-tight">배팅 현황</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">날짜별 배팅 내역</p>
+                  </div>
+                </div>
+              </Link>
+            </div>
+          )}
+
+          {/* 입금 QR — 로그인 유저 */}
+          {isLoggedIn && (
+            <div className="border-t border-border pt-3">
+              <DepositQRWidget isLoggedIn={isLoggedIn} />
+            </div>
           )}
 
         </div>
