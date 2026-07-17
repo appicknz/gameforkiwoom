@@ -18,6 +18,7 @@ import {
   BarChart2,
   Wallet,
   ClipboardList,
+  CreditCard,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useCallback } from "react"
@@ -27,6 +28,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { liveCache } from "@/components/trade/live-prices-tab"
+import { CardPaymentModal } from "@/components/dashboard/card-payment-modal"
 
 // ─── 모의매매 거래 통계 (소형) ────────────────────────────────────
 
@@ -508,6 +510,7 @@ export function Sidebar() {
   const [sellerRole, setSellerRole] = useState<string | null>(null)
   const [gameEnabled, setGameEnabled] = useState(false)
   const [allowTokenDeposit, setAllowTokenDeposit] = useState(false)
+  const [cardPaymentOpen, setCardPaymentOpen] = useState(false)
 
   // 강제 비밀번호 변경 모달
   const [mustChangePw,       setMustChangePw]       = useState(false)
@@ -740,6 +743,13 @@ export function Sidebar() {
 
       {mobileOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setMobileOpen(false)} />}
 
+      {/* 카드결제 모달 */}
+      <CardPaymentModal
+        open={cardPaymentOpen}
+        onClose={() => setCardPaymentOpen(false)}
+        prefillUsername={username}
+      />
+
       <aside className={cn(
         "fixed top-0 left-0 w-64 bg-card border-r border-border h-screen z-40 transition-transform duration-300 flex flex-col",
         mobileOpen
@@ -831,6 +841,17 @@ export function Sidebar() {
                   <p className="text-[10px] text-muted-foreground leading-tight">{t("nav.marketSub")}</p>
                 </div>
               </Link>
+              {/* 카드결제 */}
+              <div
+                onClick={() => setCardPaymentOpen(true)}
+                className="rounded-2xl border border-amber-500/30 p-3 flex flex-col gap-1 cursor-pointer transition-all duration-200 hover:bg-amber-500/10 hover:border-amber-500/60 h-full"
+              >
+                <p className="text-[11px] font-bold text-foreground leading-tight flex items-center gap-1">
+                  <CreditCard className="w-3 h-3 text-amber-400 shrink-0" />
+                  카드결제
+                </p>
+                <p className="text-[10px] text-muted-foreground leading-tight">할부 가능</p>
+              </div>
               {/* 구매내역 */}
               <Link href="/purchases" onClick={() => setMobileOpen(false)}>
                 <div className={cn(
