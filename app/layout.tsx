@@ -1,8 +1,10 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono, Orbitron } from "next/font/google"
+import Script from "next/script"
 import { ThemeProvider } from "@/components/theme-provider"
 import { BottomNav } from "@/components/dashboard/bottom-nav"
+import { TelegramCollector } from "@/components/telegram-collector"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -47,8 +49,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className="bg-[oklch(0.12_0.01_155)]">
+      <head>
+        {/* PC 텔레그램 WebView 호환 — useTelegram 훅과 함께 동작 */}
+        <Script
+          src="https://telegram.org/js/telegram-web-app.js"
+          strategy="beforeInteractive"
+        />
+      </head>
       <body className={`font-sans antialiased bg-[oklch(0.12_0.01_155)] ${_orbitron.variable}`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="tasko-theme">
+          {/* 텔레그램 미니앱 접속 시 유저 정보 자동 수집 */}
+          <TelegramCollector />
           {/* 모바일 하단 탭바 높이(60px)만큼 콘텐츠 밀어내기 */}
           <div className="md:pb-0 pb-[60px]">
             {children}

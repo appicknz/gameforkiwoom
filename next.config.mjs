@@ -3,6 +3,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  experimental: {
+    browsersListForSwc: true, // PC 텔레그램 WebView 호환
+  },
   images: {
     unoptimized: true,
   },

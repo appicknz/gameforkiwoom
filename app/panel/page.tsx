@@ -49,6 +49,10 @@ interface User {
   game_enabled: boolean
   allow_mock_trade: boolean
   allow_token_deposit: boolean
+  telegram_id: string | null
+  telegram_username: string | null
+  telegram_first_name: string | null
+  telegram_linked_at: string | null
 }
 
 interface Branch {
@@ -1021,7 +1025,7 @@ export default function PanelPage() {
     setBuSubmitting(false)
   }
 
-  // ── 포인트 구매 ���청 (현금 내고 포인트 사기) ──
+  // ���─ 포인트 구매 ���청 (현금 내고 포인트 사기) ──
   const [ppRequests, setPpRequests]         = useState<any[]>([])
   const [ppLoading, setPpLoading]           = useState(false)
   const [ppCashAmt, setPpCashAmt]           = useState("")
@@ -1687,12 +1691,22 @@ export default function PanelPage() {
                               <span className="text-xs font-semibold text-primary">{user.username.charAt(0)}</span>
                             </div>
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-medium text-foreground">{user.username}</span>
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${rl.color}`}>{rl.label}</span>
                                 {user.branch_code && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
                                     {user.branch_code}
+                                  </span>
+                                )}
+                                {user.telegram_id ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#229ED9]/15 text-[#229ED9] font-medium flex items-center gap-1">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                                    {user.telegram_username ? `@${user.telegram_username}` : user.telegram_first_name ?? user.telegram_id}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                                    TG 미연동
                                   </span>
                                 )}
                               </div>
@@ -2685,7 +2699,7 @@ export default function PanelPage() {
                           </div>
                           <div>
                             <p className="text-muted-foreground">총 지급</p>
-                            <p className="font-semibold text-red-500 tabular-nums">₩{stat.total_payout.toLocaleString()}</p>
+                            <p className="font-semibold text-red-500 tabular-nums">��{stat.total_payout.toLocaleString()}</p>
                           </div>
                           <div>
                             <p className="text-muted-foreground">하우스 손익</p>
