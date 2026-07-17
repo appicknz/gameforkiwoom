@@ -17,6 +17,7 @@ import LangSwitcher from "@/components/lang-switcher"
 import { useTranslation } from "@/lib/i18n"
 import { useRouter } from "next/navigation"
 import { TopupModal } from "@/components/dashboard/topup-modal"
+import { useTelegram } from "@/hooks/use-telegram"
 
 const STORAGE_KEY = "app_token"
 const PROFILE_KEY = "app_profile"
@@ -47,6 +48,35 @@ export function TopBar() {
 
   const [authTab, setAuthTab] = useState<"login" | "register">("login")
   const [kickMsg, setKickMsg] = useState<string | null>(null)
+
+  // 텔레그램 미니앱
+  const { tgUser, initData } = useTelegram()
+  const isTelegramEnv = !!(tgUser || initData)
+  const [tgLoginLoading, setTgLoginLoading] = useState(false)
+  const [tgLoginMsg, setTgLoginMsg] = useState<string | null>(null)
+
+  const handleTelegramLogin = async () => {
+    setTgLoginLoading(true)
+    setTgLoginMsg(null)
+    try {
+      const res = await fetch("/api/auth/telegram-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setTgLoginMsg(data.error ?? "로그인에 실패했습니다.")
+        setTgLoginLoading(false)
+        return
+      }
+      saveToken(data.token)
+      window.location.reload()
+    } catch {
+      setTgLoginMsg("네트워크 오류가 발생했습니다.")
+      setTgLoginLoading(false)
+    }
+  }
 
   // 로그인 폼
   const [loginUsername, setLoginUsername] = useState("")
@@ -603,6 +633,35 @@ export function TopBar() {
                 </>
               ) : (
                 <>
+                  {/* 텔레그램 미니앱 환경이면 텔레그램 로그인 버튼 우선 표시 */}
+                  {isTelegramEnv && (
+                    <div className="px-4 pt-3 pb-2">
+                      <button
+                        onClick={handleTelegramLogin}
+                        disabled={tgLoginLoading}
+                        className="w-full flex items-center justify-center gap-2 h-10 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-60"
+                        style={{ background: "#229ED9" }}
+                      >
+                        {tgLoginLoading ? (
+                          <span>로그인 중...</span>
+                        ) : (
+                          <>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                            </svg>
+                            텔레그램으로 로그인
+                          </>
+                        )}
+                      </button>
+                      {tgLoginMsg && <p className="text-xs text-destructive mt-1.5 text-center">{tgLoginMsg}</p>}
+                      <div className="flex items-center gap-2 mt-3">
+                        <div className="flex-1 h-px bg-border" />
+                        <span className="text-[10px] text-muted-foreground">또는</span>
+                        <div className="flex-1 h-px bg-border" />
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex border-b border-border">
                     <button
                       onClick={() => { setAuthTab("login"); setLoginMsg(null) }}
