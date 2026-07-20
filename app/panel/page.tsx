@@ -53,6 +53,9 @@ interface User {
   telegram_username: string | null
   telegram_first_name: string | null
   telegram_linked_at: string | null
+  menu_group1: boolean
+  menu_group2: boolean
+  menu_group3: boolean
 }
 
 interface Branch {
@@ -453,6 +456,8 @@ export default function PanelPage() {
   const [mockSaving,    setMockSaving]    = useState<string | null>(null)
   const [depositChecks, setDepositChecks] = useState<Record<string, boolean>>({})
   const [depositSaving, setDepositSaving] = useState<string | null>(null)
+  const [groupChecks,   setGroupChecks]   = useState<Record<string, { g1: boolean; g2: boolean; g3: boolean }>>({})
+  const [groupSaving,   setGroupSaving]   = useState<string | null>(null)
   const [pwResetSaving, setPwResetSaving] = useState<string | null>(null)
   const [chargeAmount, setChargeAmount] = useState("")
   const [chargeLoading, setChargeLoading] = useState(false)
@@ -624,6 +629,11 @@ export default function PanelPage() {
       setUsers(loaded)
       setMockChecks(Object.fromEntries(loaded.map(u => [u.id, u.allow_mock_trade ?? false])))
       setDepositChecks(Object.fromEntries(loaded.map(u => [u.id, u.allow_token_deposit ?? false])))
+      setGroupChecks(Object.fromEntries(loaded.map(u => [u.id, {
+        g1: u.menu_group1 ?? false,
+        g2: u.menu_group2 ?? true,
+        g3: u.menu_group3 ?? false,
+      }])))
     }
     setUsersLoading(false)
   }, [myUserId])
@@ -1772,6 +1782,40 @@ export default function PanelPage() {
                                 >
                                   {depositSaving === user.id ? "..." : "저장"}
                                 </Button>
+                                {/* 메뉴 그룹 */}
+                                <div className="flex items-center gap-1 border-l border-border pl-2 ml-1">
+                                  {(["g1", "g2", "g3"] as const).map((gk, i) => (
+                                    <label key={gk} className="flex items-center gap-1 cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={groupChecks[user.id]?.[gk] ?? (gk === "g2")}
+                                        onChange={e => setGroupChecks(prev => ({
+                                          ...prev,
+                                          [user.id]: { ...(prev[user.id] ?? { g1: false, g2: true, g3: false }), [gk]: e.target.checked },
+                                        }))}
+                                        className="w-3.5 h-3.5 accent-primary rounded"
+                                      />
+                                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">G{i + 1}</span>
+                                    </label>
+                                  ))}
+                                  <Button
+                                    size="sm" variant="outline" className="h-7 px-2 text-[10px]"
+                                    disabled={groupSaving === user.id}
+                                    onClick={async () => {
+                                      setGroupSaving(user.id)
+                                      const token = getToken()
+                                      const g = groupChecks[user.id] ?? { g1: false, g2: true, g3: false }
+                                      await fetch("/api/admin/menu-groups", {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                        body: JSON.stringify({ userId: user.id, group1: g.g1, group2: g.g2, group3: g.g3 }),
+                                      })
+                                      setGroupSaving(null)
+                                    }}
+                                  >
+                                    {groupSaving === user.id ? "..." : "메뉴"}
+                                  </Button>
+                                </div>
                               </div>
                             )}
                             {/* 비밀번호 초기화 버튼 (master만) */}

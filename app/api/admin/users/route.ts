@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
   let query = adminSupabase
     .from("profiles")
-    .select("id, username, role, created_at, branch_code, game_enabled, allow_mock_trade, allow_token_deposit, telegram_id, telegram_username, telegram_first_name, telegram_linked_at")
+    .select("id, username, role, created_at, branch_code, game_enabled, allow_mock_trade, allow_token_deposit, telegram_id, telegram_username, telegram_first_name, telegram_linked_at, menu_group1, menu_group2, menu_group3")
     .order("created_at", { ascending: false })
 
   // branch_admin은 자기 지점 회원만 조회 (특정 지점 필터 가능)
