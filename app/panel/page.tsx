@@ -631,7 +631,7 @@ export default function PanelPage() {
       setDepositChecks(Object.fromEntries(loaded.map(u => [u.id, u.allow_token_deposit ?? false])))
       setGroupChecks(Object.fromEntries(loaded.map(u => [u.id, {
         g1: u.menu_group1 ?? false,
-        g2: u.menu_group2 ?? true,
+        g2: u.menu_group2 ?? false,
         g3: u.menu_group3 ?? false,
       }])))
     }
@@ -2445,7 +2445,7 @@ export default function PanelPage() {
                   <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
                 </div>
               ) : branches.length === 0 ? (
-                <p className="py-10 text-center text-sm text-muted-foreground">생성된 지점이 없습니다.</p>
+                <p className="py-10 text-center text-sm text-muted-foreground">생성된 지점��� 없습니다.</p>
               ) : myRole === "branch_admin" ? (
                 /* 총판: 큰 카드형 그리드 */
                 <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -4210,7 +4210,7 @@ export default function PanelPage() {
                       : "bg-muted text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {p === "all" ? "전체" : p === "month" ? "이번달" : "지난달"}
+                  {p === "all" ? "전체" : p === "month" ? "이번���" : "지난달"}
                 </button>
               ))}
               <button

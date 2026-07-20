@@ -510,7 +510,7 @@ export function Sidebar() {
   const [allowTokenDeposit, setAllowTokenDeposit] = useState(false)
   // 메뉴 그룹 활성화 상태
   const [menuGroup1, setMenuGroup1] = useState(false) // 모의매매, 자동매매, 오늘의 비트
-  const [menuGroup2, setMenuGroup2] = useState(true)  // 마켓, 구매내역, 판매관리, 정산관리
+  const [menuGroup2, setMenuGroup2] = useState(false) // 마켓, 구매내역, 판매관리, 정산관리
   const [menuGroup3, setMenuGroup3] = useState(false) // 비트바카, 비트토토, 배팅현황
 
   // 강제 비밀번호 변경 모달
@@ -592,7 +592,7 @@ export function Sidebar() {
           if (mgRes.ok) {
             const mg = await mgRes.json()
             setMenuGroup1(!!mg.group1)
-            setMenuGroup2(mg.group2 !== false) // 기본 true
+            setMenuGroup2(!!mg.group2)
             setMenuGroup3(!!mg.group3)
           }
         } catch {
