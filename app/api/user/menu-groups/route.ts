@@ -18,8 +18,7 @@ function getUserIdFromToken(req: Request): string | null {
 export async function GET(req: Request) {
   const userId = getUserIdFromToken(req)
   if (!userId) {
-    // 비로그인: 기본값 반환 (마켓/카드결제만)
-    return NextResponse.json({ group1: false, group2: true, group3: false })
+    return NextResponse.json({ group1: false, group2: false, group3: false })
   }
 
   const { data, error } = await supabase
@@ -29,12 +28,12 @@ export async function GET(req: Request) {
     .single()
 
   if (error || !data) {
-    return NextResponse.json({ group1: false, group2: true, group3: false })
+    return NextResponse.json({ group1: false, group2: false, group3: false })
   }
 
   return NextResponse.json({
-    group1: data.menu_group1 ?? false,
-    group2: data.menu_group2 ?? true,
-    group3: data.menu_group3 ?? false,
+    group1: !!data.menu_group1,
+    group2: !!data.menu_group2,
+    group3: !!data.menu_group3,
   })
 }
