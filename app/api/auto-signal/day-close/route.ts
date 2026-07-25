@@ -54,11 +54,19 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
   }
 
-  // KST 어제 날짜 (자정 호출 기준 — 방금 끝난 날)
-  const kstNow    = new Date(Date.now() + 9 * 60 * 60 * 1000)
-  const kstYest   = new Date(kstNow)
-  kstYest.setDate(kstYest.getDate() - 1)
-  const dateLabel = kstYest.toISOString().slice(0, 10)
+  // ?date=YYYY-MM-DD 파라미터로 소급 실행 가능 (관리자 전용)
+  const url       = new URL(req.url)
+  const dateParam = url.searchParams.get("date")
+  let dateLabel: string
+  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    dateLabel = dateParam
+  } else {
+    // KST 어제 날짜 (자정 호출 기준 — 방금 끝난 날)
+    const kstNow  = new Date(Date.now() + 9 * 60 * 60 * 1000)
+    const kstYest = new Date(kstNow)
+    kstYest.setDate(kstYest.getDate() - 1)
+    dateLabel = kstYest.toISOString().slice(0, 10)
+  }
 
   // 해당 날짜의 활성 포지션 조회
   const { data: positions, error: fetchErr } = await adminSupabase

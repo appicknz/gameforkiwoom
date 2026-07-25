@@ -4646,29 +4646,62 @@ export default function PanelPage() {
               </div>
 
               {/* 수동 리밸런싱 스냅샷 */}
-              <div className="border-t border-border pt-4 flex items-center gap-3">
-                <button
-                  disabled={rebalSaving}
-                  onClick={async () => {
-                    if (!confirm("오늘 날짜로 리밸런싱 스냅샷을 수동 저장합니까?")) return
-                    setRebalSaving(true); setRebalMsg(null)
-                    try {
+              <div className="border-t border-border pt-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    disabled={rebalSaving}
+                    onClick={async () => {
+                      if (!confirm("오늘 날짜로 리밸런싱 스냅샷을 수동 저장합니까?")) return
+                      setRebalSaving(true); setRebalMsg(null)
+                      try {
+                        const tok = localStorage.getItem("app_token") ?? ""
+                        const res = await fetch("/api/auto-signal/rebalance", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                          body: JSON.stringify({ note: "수동 리밸런싱" }),
+                        })
+                        const d = await res.json()
+                        setRebalMsg(res.ok
+                          ? `저장됐습니다. EST. VALUE $${d.est_value?.toFixed(2) ?? "-"} / PNL ${d.daily_pnl >= 0 ? "+" : ""}$${d.daily_pnl?.toFixed(2) ?? "-"}`
+                          : (d.error ?? "오류"))
+                      } finally { setRebalSaving(false) }
+                    }}
+                    className="h-8 px-4 rounded-lg bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50">
+                    {rebalSaving ? "저장 중..." : "오늘 스냅샷 저장"}
+                  </button>
+                  {rebalMsg && <span className="text-xs text-muted-foreground">{rebalMsg}</span>}
+                </div>
+
+                {/* 소급 자정 마감 실행 (누락된 날짜 복구용) */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">소급 마감:</span>
+                  <input
+                    type="date"
+                    id="retroDateInput"
+                    defaultValue="2026-07-25"
+                    className="h-8 px-2 rounded-lg bg-secondary border border-border text-xs text-foreground"
+                  />
+                  <button
+                    onClick={async () => {
+                      const dateVal = (document.getElementById("retroDateInput") as HTMLInputElement)?.value
+                      if (!dateVal) return
+                      if (!confirm(`${dateVal} 날짜로 자정 마감(포지션 종가 기록 + 스냅샷)을 실행합니까?`)) return
                       const tok = localStorage.getItem("app_token") ?? ""
-                      const res = await fetch("/api/auto-signal/rebalance", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                        body: JSON.stringify({ note: "수동 리밸런싱" }),
+                      const res = await fetch(`/api/auto-signal/day-close?date=${dateVal}`, {
+                        headers: { "x-internal-secret": "tasko-internal", Authorization: `Bearer ${tok}` },
                       })
                       const d = await res.json()
-                      setRebalMsg(res.ok
-                        ? `저장됐습니다. EST. VALUE $${d.est_value?.toFixed(2) ?? "-"} / PNL ${d.daily_pnl >= 0 ? "+" : ""}$${d.daily_pnl?.toFixed(2) ?? "-"}`
-                        : (d.error ?? "오류"))
-                    } finally { setRebalSaving(false) }
-                  }}
-                  className="h-8 px-4 rounded-lg bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50">
-                  {rebalSaving ? "저장 중..." : "오늘 스냅샷 저장"}
-                </button>
-                {rebalMsg && <span className="text-xs text-muted-foreground">{rebalMsg}</span>}
+                      if (res.ok) {
+                        alert(`완료: ${dateVal}\n마감 포지션 ${d.closed_count}개\nPNL $${d.daily_pnl?.toFixed(2) ?? "-"}\nEST. VALUE $${d.est_value?.toFixed(2) ?? "-"}`)
+                      } else {
+                        alert(`오류: ${d.error ?? "실패"}`)
+                      }
+                    }}
+                    className="h-8 px-4 rounded-lg bg-amber-500/20 border border-amber-500/40 text-xs font-semibold text-amber-400 hover:bg-amber-500/30 transition-colors">
+                    소급 실행
+                  </button>
+                  <span className="text-[10px] text-muted-foreground">누락된 날짜의 포지션 종가 기록 + 스냅샷을 수동으로 생성합니다</span>
+                </div>
               </div>
             </div>
 
