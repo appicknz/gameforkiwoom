@@ -36,6 +36,8 @@ const CHUNK_SIZE = 100
 
 export interface LiveTickerData extends TickerData {}
 
+const SYMBOL_TTL_MS = 10 * 60 * 1000 // 10분마다 심볼 목록 갱신
+
 export const liveCache: {
   symbols: string[]
   tickers: Map<string, TickerData>
@@ -45,6 +47,7 @@ export const liveCache: {
   connectedCount: number
   totalChunks: number
   initialized: boolean
+  symbolsLoadedAt: number
 } = {
   symbols: [],
   tickers: new Map(),
@@ -54,6 +57,7 @@ export const liveCache: {
   connectedCount: 0,
   totalChunks: 0,
   initialized: false,
+  symbolsLoadedAt: 0,
 }
 
 const _cache = liveCache  // backward-compat alias
@@ -105,16 +109,32 @@ function openChunk(chunk: string[], idx: number) {
 }
 
 async function initCache() {
-  if (_cache.initialized) return
+  // 이미 초기화됐고 TTL 내라면 스킵
+  if (_cache.initialized && Date.now() - _cache.symbolsLoadedAt < SYMBOL_TTL_MS) return
   _cache.initialized = true
 
   try {
     const res  = await fetch("https://fapi.binance.com/fapi/v1/exchangeInfo")
     const json = await res.json()
-    _cache.symbols = (json.symbols ?? [])
+    const newSymbols = (json.symbols ?? [])
       .filter((s: any) => s.status === "TRADING" && s.quoteAsset === "USDT" && s.contractType === "PERPETUAL")
       .map((s: any) => s.symbol as string)
       .sort()
+
+    // 심볼 목록이 바뀐 경우 WebSocket 재연결
+    const changed = newSymbols.length !== _cache.symbols.length ||
+      newSymbols.some((s, i) => s !== _cache.symbols[i])
+
+    _cache.symbols = newSymbols
+    _cache.symbolsLoadedAt = Date.now()
+
+    if (changed && _cache.sockets.length > 0) {
+      // 기존 소켓 전부 닫고 재연결
+      _cache.sockets.forEach(ws => { try { ws.close() } catch {} })
+      _cache.sockets = []
+      _cache.connectedCount = 0
+      _cache.totalChunks = 0
+    }
   } catch (e) {
     // fetch 실패 — initialized 해제 후 3초 뒤 재시도
     _cache.initialized = false
@@ -137,6 +157,9 @@ async function initCache() {
   _cache.flushTimer = setInterval(() => {
     notifyListeners()
   }, 500)
+
+  // 10분마다 심볼 목록 재조회 (신규 상장 반영)
+  setInterval(() => { initCache() }, SYMBOL_TTL_MS)
 }
 
 import { cn } from "@/lib/utils"
