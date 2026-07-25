@@ -112,11 +112,7 @@ async function initCache() {
     const res  = await fetch("https://fapi.binance.com/fapi/v1/exchangeInfo")
     const json = await res.json()
     _cache.symbols = (json.symbols ?? [])
-      .filter((s: any) =>
-        s.status === "TRADING" &&
-        s.quoteAsset === "USDT" &&
-        (s.contractType === "PERPETUAL" || s.contractType === "PERPETUAL_DELIVERING")
-      )
+      .filter((s: any) => s.status === "TRADING" && s.quoteAsset === "USDT" && s.contractType === "PERPETUAL")
       .map((s: any) => s.symbol as string)
       .sort()
   } catch (e) {
