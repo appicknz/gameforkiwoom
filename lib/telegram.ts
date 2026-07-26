@@ -35,8 +35,6 @@ export async function sendTelegramMessage(
 
 // ── 바카라 배팅 채널 전용 함수들 ────────────────────────────────────
 
-const BETTING_CHAT_ID = process.env.TELEGRAM_BETTING_CHANNEL_ID ?? ""
-
 /** 라운드 시작 시 배팅 버튼 메시지 전송 */
 export async function sendBaccaratBettingMessage(params: {
   roundNumber: number
@@ -44,8 +42,12 @@ export async function sendBaccaratBettingMessage(params: {
   playerOdds: number
   tieOdds: number
 }): Promise<{ ok: boolean; messageId?: number }> {
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  if (!token || !BETTING_CHAT_ID) return { ok: false }
+  const token   = process.env.TELEGRAM_BOT_TOKEN
+  const chatId  = process.env.TELEGRAM_BETTING_CHANNEL_ID
+  if (!token || !chatId) {
+    console.error("[telegram/betting] BOT_TOKEN or BETTING_CHANNEL_ID not set")
+    return { ok: false }
+  }
 
   const { roundNumber, bankerOdds, playerOdds, tieOdds } = params
 
@@ -65,7 +67,7 @@ export async function sendBaccaratBettingMessage(params: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: BETTING_CHAT_ID,
+        chat_id: chatId,
         text,
         parse_mode: "HTML",
         reply_markup: { inline_keyboard },
@@ -92,8 +94,9 @@ export async function sendBaccaratResultMessage(params: {
   tieOdds: number
   betSummary: { banker: number; player: number; tie: number } // 배팅 인원수
 }): Promise<boolean> {
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  if (!token || !BETTING_CHAT_ID) return false
+  const token  = process.env.TELEGRAM_BOT_TOKEN
+  const chatId = process.env.TELEGRAM_BETTING_CHANNEL_ID
+  if (!token || !chatId) return false
 
   const { roundNumber, result, bankerOdds, playerOdds, tieOdds, betSummary } = params
 
@@ -117,7 +120,7 @@ export async function sendBaccaratResultMessage(params: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: BETTING_CHAT_ID,
+        chat_id: chatId,
         text,
         parse_mode: "HTML",
       }),

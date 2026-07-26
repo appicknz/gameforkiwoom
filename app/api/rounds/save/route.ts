@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 import { adminSupabase as admin } from "@/lib/supabase-admin"
 import { NextResponse } from "next/server"
+import { sendBaccaratResultMessage, sendBaccaratBettingMessage } from "@/lib/telegram"
 
 /**
  * 30초 라운드 종료 시 결과를 rounds 테이블에 저장 (인증 불필요)
@@ -32,7 +34,8 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (!existing) {
-      const { error } = await admin
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (admin as any)
         .from("rounds")
         .insert({
           base_price: basePrice,
@@ -44,6 +47,32 @@ export async function POST(request: Request) {
         })
       if (error) throw error
     }
+
+    // ── 텔레그램 채널: 결과 + 다음 라운드 배팅 버튼 전송 ──────────────
+    const currentRound = Math.floor(Date.now() / 1000 / 30)
+    ;(async () => {
+      try {
+        // 이번 라운드 결과 메시지
+        await sendBaccaratResultMessage({
+          roundNumber: currentRound - 1,
+          result:      baccaratResult,
+          bankerOdds:  1.95,
+          playerOdds:  1.95,
+          tieOdds:     8.0,
+          betSummary:  { banker: 0, player: 0, tie: 0 },
+        })
+        // 다음 라운드 배팅 버튼
+        await sendBaccaratBettingMessage({
+          roundNumber: currentRound,
+          bankerOdds:  1.95,
+          playerOdds:  1.95,
+          tieOdds:     8.0,
+        })
+      } catch (e) {
+        console.error("[rounds/save] telegram send error:", e)
+      }
+    })()
+    // ──────────────────────────────────────────────────────────────
 
     return NextResponse.json({ success: true, baccaratResult, lastDigit })
   } catch (err) {
