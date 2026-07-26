@@ -951,7 +951,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
 
   // 전체 누적 (오름차순)
   const sorted      = [...records].sort((a, b) => a.date_label.localeCompare(b.date_label))
-  const firstSeed   = seedCapital
+  // 초기 시드: 첫 번째 rebalance 기록의 seed_capital (없으면 settings의 seed_capital 폴백)
+  const firstSeed   = sorted.length > 0 ? Number(sorted[0].seed_capital) : seedCapital
   // 마지막 확정 잔고 (저장된 기록 기준)
   const confirmedValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : seedCapital
   // 부모에 확정 잔고 전달 (AutoSignalPanel MARGIN 기준값으로 사용)
@@ -1130,27 +1131,34 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
         </div>
 
         {/* 수익 분배 카드 (1/2, 2/2) */}
-        {totalPnl > 0 && (() => {
-          const KRW_RATE = 1450
-          const half = totalPnl / 2
-          const halfKrw = (half * KRW_RATE).toFixed(2)
-          const totalKrw = (totalPnl * KRW_RATE).toFixed(2)
+        {(() => {
+          const KRW_RATE = krwRate
+          const half     = totalPnl / 2
+          const halfKrw  = half * KRW_RATE
+          const totalKrw = totalPnl * KRW_RATE
+          const hasProfit = totalPnl > 0
           return (
             <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
               <div style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", fontWeight: 600, marginBottom: 6 }}>
-                수익 분배 (총 {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)} ≈ {Number(totalKrw).toLocaleString("ko-KR", { minimumFractionDigits: 2 })}원)
+                수익 분배 (총 {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)} ≈ {Math.round(totalKrw).toLocaleString("ko-KR")}원)
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {[1, 2].map(n => (
-                  <div key={n} style={{ background: "rgba(212,175,55,0.06)", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
-                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", marginBottom: 2 }}>{n}/2</div>
-                    <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>${half.toFixed(2)}</div>
-                    <div className="tabular-nums" style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
-                      {Number(halfKrw).toLocaleString("ko-KR", { minimumFractionDigits: 2 })}원
+              {!hasProfit ? (
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", textAlign: "center", padding: "6px 0" }}>
+                  누적 수익이 없습니다.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {[1, 2].map(n => (
+                    <div key={n} style={{ background: "rgba(212,175,55,0.06)", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
+                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", marginBottom: 2 }}>{n}/2</div>
+                      <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>${half.toFixed(2)}</div>
+                      <div className="tabular-nums" style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
+                        {Math.round(halfKrw).toLocaleString("ko-KR")}원
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })()}
@@ -1899,7 +1907,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
                 )}
               </div>
             </div>
-            {/* 하단행: 진입가 | 현재가(오늘) 또는 종가(과거) | 시그널 */}
+            {/* 하단행: 진입가 | 현재가(오늘) 또는 종가(과���) | 시그널 */}
             <div className="flex items-center gap-3 mt-0.5" style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
               <span>
                 진입:{" "}
