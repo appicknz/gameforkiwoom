@@ -4506,12 +4506,13 @@ export default function PanelPage() {
 
             {/* 서브탭 네비게이션 */}
             <div className="flex gap-1 border-b border-border pb-0">
-              {([["signal", "시그널 매매"], ["order", "자동주문"]] as const).map(([key, label]) => (
+              {([["signal", "시그널 매매"], ["order", "자동주문"], ["logs", "주문로그"]] as const).map(([key, label]) => (
                 <button
                   key={key}
                   onClick={() => {
                     setAutoSubTab(key)
                     if (key === "order" && !tradingLoaded) loadTradingData()
+                    if (key === "logs" && !orderLogsLoaded) loadOrderLogs()
                   }}
                   className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     autoSubTab === key
@@ -5000,6 +5001,116 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   </div>
                 )}
 
+              </div>
+            )}
+
+            {/* ── 주문로그 서브탭 ── */}
+            {autoSubTab === "logs" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-foreground">TVM 주문 전송 로그</h2>
+                  <button
+                    onClick={loadOrderLogs}
+                    disabled={orderLogsLoading}
+                    className="h-7 px-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
+                    {orderLogsLoading ? "로딩 중..." : "새로고침"}
+                  </button>
+                </div>
+
+                {!orderLogsLoaded && (
+                  <div className="rounded-xl border border-border p-5 text-center text-xs text-muted-foreground">
+                    로딩 중...
+                  </div>
+                )}
+
+                {orderLogsLoaded && orderLogs.length === 0 && (
+                  <div className="rounded-xl border border-border p-5 text-center text-xs text-muted-foreground">
+                    주문 로그가 없습니다. 시그널이 수신되면 자동으로 기록됩니다.
+                  </div>
+                )}
+
+                {orderLogsLoaded && orderLogs.length > 0 && (
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    {/* 요약 통계 */}
+                    {(() => {
+                      const total   = orderLogs.length
+                      const success = orderLogs.filter(l => l.ok).length
+                      const fail    = total - success
+                      return (
+                        <div className="flex items-center gap-6 px-5 py-3 border-b border-border bg-secondary/20 text-xs">
+                          <span className="text-muted-foreground">총 <span className="text-foreground font-semibold">{total}</span>건</span>
+                          <span className="text-green-400 font-semibold">성공 {success}건</span>
+                          <span className="text-red-400 font-semibold">실패 {fail}건</span>
+                        </div>
+                      )
+                    })()}
+
+                    {orderLogs.map(log => (
+                      <div key={log.id} className={`flex items-start gap-3 px-5 py-3 border-t border-border text-xs ${log.ok ? "" : "bg-red-500/3"}`}>
+                        {/* 상태 뱃지 */}
+                        <span className={`mt-0.5 shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${log.ok ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
+                          {log.ok ? "OK" : "FAIL"}
+                        </span>
+
+                        {/* 심볼·방향·계정 */}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-foreground">{log.symbol}</span>
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                              log.direction?.toUpperCase() === "LONG"
+                                ? "bg-green-500/10 text-green-400"
+                                : "bg-red-500/10 text-red-400"
+                            }`}>{log.direction}</span>
+                            {log.account_name && (
+                              <span className="text-muted-foreground">{log.account_name}</span>
+                            )}
+                            {log.tvm_status && (
+                              <span className="text-muted-foreground">HTTP {log.tvm_status}</span>
+                            )}
+                          </div>
+
+                          {/* 에러 메시지 */}
+                          {log.error_msg && (
+                            <p className="text-red-400 text-[11px]">{log.error_msg}</p>
+                          )}
+
+                          {/* TVM 응답 */}
+                          {log.tvm_response && (
+                            <p className="text-muted-foreground text-[10px] font-mono truncate max-w-lg">{log.tvm_response}</p>
+                          )}
+
+                          {/* TVM 구문 (토글 없이 truncate) */}
+                          {log.tvm_str && (
+                            <p className="text-[10px] font-mono text-muted-foreground/60 truncate max-w-lg">{log.tvm_str.slice(0, 120)}...</p>
+                          )}
+                        </div>
+
+                        {/* 시간 */}
+                        <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">
+                          {new Date(log.created_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* DB 테이블 없을 경우 안내 */}
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-400/80 space-y-1">
+                  <p className="font-semibold">Supabase SQL Editor에서 아래 테이블이 생성되어 있어야 합니다:</p>
+                  <pre className="text-[10px] text-muted-foreground bg-secondary p-3 rounded overflow-auto">{`CREATE TABLE IF NOT EXISTS auto_trading_logs (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at   TIMESTAMPTZ DEFAULT now(),
+  position_id  UUID,
+  symbol       TEXT,
+  direction    TEXT,
+  account_name TEXT,
+  tvm_str      TEXT,
+  tvm_status   INT,
+  tvm_response TEXT,
+  ok           BOOL NOT NULL DEFAULT false,
+  error_msg    TEXT
+);`}</pre>
+                </div>
               </div>
             )}
 

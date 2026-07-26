@@ -5,12 +5,11 @@ import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
 import { NextResponse } from "next/server"
-import { verifyToken } from "@/lib/auth"
+import { verifySession } from "@/lib/auth"
 
 export async function GET(req: Request) {
-  const token = req.headers.get("Authorization")?.replace("Bearer ", "")
-  const user  = token ? await verifyToken(token) : null
-  if (!user || user.role !== "master") {
+  const session = await verifySession(req)
+  if (!session || !["master", "admin"].includes(session.role ?? "")) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
