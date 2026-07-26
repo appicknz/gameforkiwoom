@@ -227,7 +227,7 @@ export async function POST(request: Request) {
           winner:     raceWinner,
         }, { onConflict: "time" }).catch(() => {})
 
-        // 중복 방지 플래그 (10분 TTL)
+        // 중복 방지 플래그 (10�� TTL)
         await redis.set(`settled:race:${prevRaceRound}`, 1, { ex: 600 }).catch(() => {})
 
         // Redis 결과 캐시
@@ -971,7 +971,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── rounds 테이블 기록 (라운드당 1회, ended_at 기준 upsert로 중복 방지) ───
+    // ── rounds 테이블 기록 (라운드당 1회, ended_at 기준 upsert로 중복 방지) ─��─
     await admin.from("rounds").upsert({
       base_price: basePrice,
       result_price: resolvedClose,
@@ -1080,7 +1080,7 @@ export async function POST(request: Request) {
 
       // 채널에 결과 메시지 전송
       const tgOdds = roundFinalOdds ?? { banker: 1.95, player: 1.95, tie: 8.0 }
-      await sendBaccaratResultMessage({
+      const resultOk = await sendBaccaratResultMessage({
         roundNumber,
         result:     baccaratResult,
         bankerOdds: tgOdds.banker,
@@ -1088,16 +1088,33 @@ export async function POST(request: Request) {
         tieOdds:    tgOdds.tie,
         betSummary,
       })
+      // 결과 전송 로그
+      await admin.from("telegram_send_logs" as never).insert({
+        round_number: roundNumber,
+        type: "result",
+        ok: resultOk,
+        error_msg: resultOk ? null : "sendBaccaratResultMessage returned false",
+        payload: { baccaratResult, betSummary, env_set: !!process.env.TELEGRAM_BOT_TOKEN },
+      } as never).catch(() => {})
 
       // 채널에 다음 라운드 배팅 버튼 전송
-      await sendBaccaratBettingMessage({
+      const bettingRes = await sendBaccaratBettingMessage({
         roundNumber: roundNumber + 1,
         bankerOdds:  tgOdds.banker,
         playerOdds:  tgOdds.player,
         tieOdds:     tgOdds.tie,
       })
+      // 배팅 버튼 전송 로그
+      await admin.from("telegram_send_logs" as never).insert({
+        round_number: roundNumber + 1,
+        type: "betting_button",
+        ok: bettingRes.ok,
+        tg_message_id: bettingRes.messageId ?? null,
+        error_msg: bettingRes.ok ? null : "sendBaccaratBettingMessage returned false",
+        payload: { odds: tgOdds, env_set: !!process.env.TELEGRAM_BOT_TOKEN, channel: process.env.TELEGRAM_BETTING_CHANNEL_ID },
+      } as never).catch(() => {})
 
-      console.log(`[settle/telegram] 채널 전송 완료 round=${roundNumber} -> next=${roundNumber + 1}`)
+      console.log(`[settle/telegram] round=${roundNumber} result=${resultOk} betting_button=${bettingRes.ok} next=${roundNumber + 1}`)
     } catch (tgErr) {
       console.error("[settle/telegram] 오류:", tgErr)
     }

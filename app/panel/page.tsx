@@ -218,7 +218,7 @@ export default function PanelPage() {
   const [rebalMsg,         setRebalMsg]         = useState<string | null>(null)
 
   // 자동주문 서브탭 state
-  const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs">("signal")
+  const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs" | "tg">("signal")
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -528,6 +528,61 @@ export default function PanelPage() {
   const [tgBetSaving,   setTgBetSaving]   = useState<string | null>(null)
   const [tgWebhookInfo,    setTgWebhookInfo]    = useState<string | null>(null)
   const [tgWebhookLoading, setTgWebhookLoading] = useState(false)
+
+  // 텔레그램 주문 탭 state
+  type TgSendLog = {
+    id: string; created_at: string; round_number: number; type: "betting_button" | "result"
+    ok: boolean; tg_message_id: number | null; error_msg: string | null
+    payload: Record<string, unknown> | null
+  }
+  const [tgSendLogs,       setTgSendLogs]       = useState<TgSendLog[]>([])
+  const [tgSendLogsLoaded, setTgSendLogsLoaded] = useState(false)
+  const [tgSendLogsLoading, setTgSendLogsLoading] = useState(false)
+  const [tgTableExists,    setTgTableExists]    = useState<boolean | null>(null)
+  const [tgTestResult,     setTgTestResult]     = useState<string | null>(null)
+  const [tgTestLoading,    setTgTestLoading]    = useState(false)
+  const [tgSetupSql,       setTgSetupSql]       = useState<string | null>(null)
+
+  const loadTgSendLogs = async () => {
+    const token = getToken(); if (!token) return
+    setTgSendLogsLoading(true)
+    const res  = await fetch("/api/telegram/send-logs", { headers: { Authorization: `Bearer ${token}` } })
+    const data = await res.json()
+    setTgSendLogs(data.logs ?? [])
+    setTgTableExists(data.tableExists ?? false)
+    setTgSendLogsLoaded(true)
+    setTgSendLogsLoading(false)
+  }
+
+  const runTgTest = async (type: "betting_button" | "result") => {
+    const token = getToken(); if (!token) return
+    setTgTestLoading(true); setTgTestResult(null)
+    const res  = await fetch("/api/telegram/send-test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ type }),
+    })
+    const data = await res.json()
+    if (data.ok) {
+      setTgTestResult(`전송 성공 — round=${data.roundNumber} / BOT=${data.env?.botToken ? "설정됨" : "미설정"} / CHANNEL=${data.env?.channelId}`)
+    } else {
+      setTgTestResult(`전송 실패 — BOT=${data.env?.botToken ? "설정됨" : "미설정"} / CHANNEL=${data.env?.channelId}`)
+    }
+    setTgTestLoading(false)
+    // 로그 새로고침
+    setTimeout(loadTgSendLogs, 800)
+  }
+
+  const fetchTgSetupSql = async () => {
+    const token = getToken(); if (!token) return
+    const res  = await fetch("/api/telegram/send-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "setup" }),
+    })
+    const data = await res.json()
+    setTgSetupSql(data.sql ?? null)
+  }
   const [depositChecks, setDepositChecks] = useState<Record<string, boolean>>({})
   const [depositSaving, setDepositSaving] = useState<string | null>(null)
   const [groupChecks,   setGroupChecks]   = useState<Record<string, { g1: boolean; g2: boolean; g3: boolean }>>({})
@@ -1789,7 +1844,7 @@ export default function PanelPage() {
                                       <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
                                       {user.telegram_username ? `@${user.telegram_username}` : user.telegram_first_name ?? user.telegram_id}
                                     </span>
-                                    {/* 텔레그램 고정 주문금액 설정 */}
+                                    {/* 텔레그램 고��� 주문금액 설정 */}
                                     {myRole === "master" && (
                                       <span className="flex items-center gap-1">
                                         <input
@@ -2029,7 +2084,7 @@ export default function PanelPage() {
                   value={newBranchCode}
                   onChange={e => setNewBranchCode(e.target.value.toUpperCase())}
                 />
-                {/* 총판 검색 (필��) */}
+                {/* ���판 검색 (필��) */}
                 <div className="relative">
                   <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
                   <Input
@@ -2455,7 +2510,7 @@ export default function PanelPage() {
                     </button>
                   </div>
 
-                  {/* 현재 입력 금액 표시 */}
+                  {/* 현재 입��� 금액 표시 */}
                   {Number(baChargeAmt) > 0 && (
                     <div className="mb-3 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-sm font-bold text-primary">
                       ₩{Number(baChargeAmt).toLocaleString()}
@@ -2871,7 +2926,7 @@ export default function PanelPage() {
                           <div>
                             <p className="text-muted-foreground">미수금 수수료</p>
                             <p className={`font-bold tabular-nums ${pending > 0 ? "text-orange-500" : "text-muted-foreground"}`}>
-                              ₩{pending.toLocaleString()}
+                              ���{pending.toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -4013,7 +4068,7 @@ export default function PanelPage() {
             {calSelectedDate && memberDetail && (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="px-5 py-4 border-b border-border">
-                  <h2 className="text-sm font-semibold text-foreground">{calSelectedDate} 지점별 회원 상세</h2>
+                  <h2 className="text-sm font-semibold text-foreground">{calSelectedDate} 지점별 회원 상���</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">{memberDetail.branch} · {memberDetail.members?.length ?? 0}명</p>
                 </div>
 
@@ -4550,13 +4605,14 @@ export default function PanelPage() {
 
             {/* 서브탭 네비게이션 */}
             <div className="flex gap-1 border-b border-border pb-0">
-              {([["signal", "시그널 매매"], ["order", "자동주문"], ["logs", "주문로그"]] as const).map(([key, label]) => (
+              {([["signal", "시그널 매매"], ["order", "자동주문"], ["logs", "주문로그"], ["tg", "텔레그램 주문"]] as const).map(([key, label]) => (
                 <button
                   key={key}
                   onClick={() => {
                     setAutoSubTab(key)
                     if (key === "order" && !tradingLoaded) loadTradingData()
                     if (key === "logs" && !orderLogsLoaded) loadOrderLogs()
+                    if (key === "tg" && !tgSendLogsLoaded) loadTgSendLogs()
                   }}
                   className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     autoSubTab === key
@@ -5097,6 +5153,125 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   </div>
                 )}
 
+              </div>
+            )}
+
+            {/* ── 텔레그램 주문 서브탭 ── */}
+            {autoSubTab === "tg" && (
+              <div className="space-y-4">
+
+                {/* 환경변수 + 수동 테스트 */}
+                <div className="rounded-xl border border-border p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-foreground">채널 배팅 버튼 전송 테스트</h2>
+                    <button
+                      onClick={loadTgSendLogs}
+                      disabled={tgSendLogsLoading}
+                      className="h-7 px-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
+                      {tgSendLogsLoading ? "로딩 중..." : "로그 새로고침"}
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      disabled={tgTestLoading}
+                      onClick={() => runTgTest("betting_button")}
+                      className="h-8 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
+                      {tgTestLoading ? "전송 중..." : "배팅 버튼 테스트 전송"}
+                    </button>
+                    <button
+                      disabled={tgTestLoading}
+                      onClick={() => runTgTest("result")}
+                      className="h-8 px-4 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
+                      결과 메시지 테스트 전송
+                    </button>
+                  </div>
+
+                  {tgTestResult && (
+                    <p className={`text-xs font-mono px-3 py-2 rounded-lg border ${tgTestResult.includes("성공") ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"}`}>
+                      {tgTestResult}
+                    </p>
+                  )}
+                </div>
+
+                {/* DB 테이블 없을 때 안내 */}
+                {tgTableExists === false && (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                    <p className="text-xs font-semibold text-amber-400">telegram_send_logs 테이블이 없습니다. Supabase SQL Editor에서 아래 SQL을 실행하세요.</p>
+                    {tgSetupSql ? (
+                      <pre className="text-[10px] font-mono text-muted-foreground bg-secondary p-3 rounded overflow-auto whitespace-pre-wrap">{tgSetupSql}</pre>
+                    ) : (
+                      <button
+                        onClick={fetchTgSetupSql}
+                        className="h-7 px-3 rounded-lg bg-amber-500/20 border border-amber-500/30 text-xs text-amber-400 hover:bg-amber-500/30 transition-colors">
+                        SQL 보기
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* 전송 로그 테이블 */}
+                {tgSendLogsLoaded && tgTableExists && (
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    {tgSendLogs.length === 0 ? (
+                      <div className="p-5 text-center text-xs text-muted-foreground">
+                        전송 로그 없음 — settle이 호출되면 자동 기록됩니다.
+                      </div>
+                    ) : (
+                      <>
+                        {/* 요약 */}
+                        {(() => {
+                          const total   = tgSendLogs.length
+                          const success = tgSendLogs.filter(l => l.ok).length
+                          return (
+                            <div className="flex items-center gap-6 px-5 py-3 border-b border-border bg-secondary/20 text-xs">
+                              <span className="text-muted-foreground">최근 <span className="text-foreground font-semibold">{total}</span>건</span>
+                              <span className="text-green-400 font-semibold">성공 {success}건</span>
+                              <span className="text-red-400 font-semibold">실패 {total - success}건</span>
+                            </div>
+                          )
+                        })()}
+                        {tgSendLogs.map(log => (
+                          <div key={log.id} className={`flex items-start gap-3 px-5 py-3 border-t border-border text-xs ${log.ok ? "" : "bg-red-500/3"}`}>
+                            {/* 타입 + 상태 */}
+                            <div className="flex flex-col gap-1 shrink-0">
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${log.ok ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
+                                {log.ok ? "OK" : "FAIL"}
+                              </span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded ${log.type === "betting_button" ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"}`}>
+                                {log.type === "betting_button" ? "배팅버튼" : "결과"}
+                              </span>
+                            </div>
+
+                            {/* 내용 */}
+                            <div className="flex-1 min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-foreground">Round {log.round_number}</span>
+                                {log.tg_message_id && (
+                                  <span className="text-muted-foreground font-mono">msg_id={log.tg_message_id}</span>
+                                )}
+                                {log.payload && (log.payload as Record<string,unknown>).env_set === false && (
+                                  <span className="text-red-400 text-[10px] font-semibold">BOT_TOKEN 미설정</span>
+                                )}
+                                {log.payload && (log.payload as Record<string,unknown>).channel && (
+                                  <span className="text-muted-foreground text-[10px] font-mono">{String((log.payload as Record<string,unknown>).channel)}</span>
+                                )}
+                              </div>
+                              {log.error_msg && (
+                                <p className="text-red-400 text-[11px]">{log.error_msg}</p>
+                              )}
+                            </div>
+
+                            {/* 시간 */}
+                            <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">
+                              {new Date(log.created_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
