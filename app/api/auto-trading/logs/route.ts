@@ -9,7 +9,7 @@ import { verifySession } from "@/lib/auth"
 
 export async function GET(req: Request) {
   const session = await verifySession(req)
-  if (!session || !["master", "admin"].includes(session.role ?? "")) {
+  if (!session.ok || !["master", "admin"].includes(session.role ?? "")) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
