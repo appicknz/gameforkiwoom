@@ -172,5 +172,96 @@ export async function POST(req: Request) {
 
   await logRequest("ok", 200, body, { ip, symbol, signalType: type })
 
+  // ── 자동주문 전송 ──────────────────────────────────────────────
+  // 포지션 저장 성공 후, 자동주문이 활성화된 경우 TVM 주문 전송
+  // 실패해도 웹훅 응답에는 영향 없음 (fire-and-forget with logging)
+  ;(async () => {
+    try {
+      const [{ data: tradingGs }, { data: tradingAccounts }] = await Promise.all([
+        adminSupabase
+          .from("auto_trading_global_settings")
+          .select("webhook_url, enabled")
+          .eq("id", 1)
+          .single(),
+        adminSupabase
+          .from("auto_trading_accounts")
+          .select("id, account_name, auth_token, leverage, base_amount, take_profit_enabled, take_profit_percent, stop_loss_enabled, stop_loss_percent")
+          .eq("enabled", true),
+      ])
+
+      if (!tradingGs?.enabled || !tradingGs?.webhook_url) return
+      if (!tradingAccounts?.length) return
+
+      const webhookUrl = tradingGs.webhook_url
+
+      // TVM 심볼 변환: BTCUSDT → BTC/USDT
+      function toTvmSymbol(sym: string): string {
+        const clean = sym.replace("BINANCE:", "").replace(".P", "")
+        if (clean.endsWith("USDT")) return clean.slice(0, -4) + "/USDT"
+        return clean
+      }
+
+      // TVM 구문 조립
+      function buildTvm(params: {
+        account: string; symbol: string; side: string
+        amount: number; leverage: number
+        tpPct?: number | null; slPct?: number | null; token: string
+      }): string {
+        const json: Record<string, unknown> = {
+          exchange:    "binance-futures",
+          account:     params.account,
+          symbol:      params.symbol,
+          type:        "market",
+          side:        params.side,
+          open_order:  "cancel",
+          same_order:  "skip",
+          leverage:    params.leverage,
+          margin_type: "cross",
+          amount:      params.amount,
+          amount_type: "usdt",
+          token:       params.token,
+        }
+        if (params.tpPct) json.tp_pct = params.tpPct
+        if (params.slPct) json.sl_pct = params.slPct
+        return `TVM:${JSON.stringify(json)}:MVT`
+      }
+
+      const tvmSymbol = toTvmSymbol(cleanSymbol)
+      const side      = direction.toUpperCase() === "SHORT" ? "sell" : "buy"
+
+      // 활성화된 계정 전체에 주문 전송
+      const results = await Promise.allSettled(
+        tradingAccounts.map(async (acc: Record<string, unknown>) => {
+          const tvm = buildTvm({
+            account:  acc.account_name as string,
+            symbol:   tvmSymbol,
+            side,
+            amount:   Number(acc.base_amount),
+            leverage: Number(acc.leverage),
+            tpPct:    acc.take_profit_enabled ? (acc.take_profit_percent as number) : null,
+            slPct:    acc.stop_loss_enabled   ? (acc.stop_loss_percent   as number) : null,
+            token:    acc.auth_token as string,
+          })
+
+          const res = await fetch(webhookUrl, {
+            method:  "POST",
+            headers: { "Content-Type": "text/plain" },
+            body:    tvm,
+            signal:  AbortSignal.timeout(10000),
+          })
+          const resBody = await res.text()
+          console.log(`[auto-trading] ${acc.account_name} → ${res.status} ${resBody.slice(0, 80)}`)
+          return { account: acc.account_name, status: res.status, ok: res.ok }
+        })
+      )
+
+      const summary = results.map(r => r.status === "fulfilled" ? r.value : { error: (r.reason as Error)?.message })
+      console.log(`[auto-trading] ${cleanSymbol} ${direction} 주문 전송 완료:`, JSON.stringify(summary))
+    } catch (e) {
+      console.error("[auto-trading] 자동주문 전송 중 오류:", e)
+    }
+  })()
+  // ─────────────────────────────────────────────────────────────
+
   return NextResponse.json({ ok: true, id: data.id })
 }
