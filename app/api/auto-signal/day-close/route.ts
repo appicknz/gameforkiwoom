@@ -15,7 +15,6 @@ const adminSupabase = _adminSupabase as any
 import { NextResponse } from "next/server"
 
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
-const CRON_SECRET     = process.env.CRON_SECRET ?? ""
 const BINANCE_BASE    = "https://fapi.binance.com"
 
 /** Binance Futures 현재가 일괄 조회 */
@@ -40,33 +39,17 @@ async function getBinancePrices(symbols: string[]): Promise<Map<string, number>>
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization") ?? ""
-  const bearer     = authHeader.replace("Bearer ", "")
-  const xInternal  = req.headers.get("x-internal-secret") ?? ""
-
-  // Vercel Cron: Authorization: Bearer <CRON_SECRET>
-  // 수동 호출: x-internal-secret 헤더 또는 Bearer tasko-internal
-  const validCron     = CRON_SECRET && bearer === CRON_SECRET
-  const validInternal = bearer === INTERNAL_SECRET || xInternal === INTERNAL_SECRET
-  // CRON_SECRET 미설정 시에는 내부 시크릿만으로도 허용 (개발 환경)
-  const validNoCron   = !CRON_SECRET && (bearer === INTERNAL_SECRET || xInternal === INTERNAL_SECRET)
-
-  if (!validCron && !validInternal && !validNoCron) {
+  const secret     = req.headers.get("x-internal-secret") ?? authHeader.replace("Bearer ", "")
+  const cronSecret = process.env.CRON_SECRET ?? INTERNAL_SECRET
+  if (secret !== cronSecret && secret !== INTERNAL_SECRET) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
   }
 
-  // ?date=YYYY-MM-DD 파라미터로 소급 실행 가능 (관리자 전용)
-  const url       = new URL(req.url)
-  const dateParam = url.searchParams.get("date")
-  let dateLabel: string
-  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-    dateLabel = dateParam
-  } else {
-    // KST 어제 날짜 (자정 호출 기준 — 방금 끝난 날)
-    const kstNow  = new Date(Date.now() + 9 * 60 * 60 * 1000)
-    const kstYest = new Date(kstNow)
-    kstYest.setDate(kstYest.getDate() - 1)
-    dateLabel = kstYest.toISOString().slice(0, 10)
-  }
+  // KST 어제 날짜 (자정 호출 기준 — 방금 끝난 날)
+  const kstNow    = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const kstYest   = new Date(kstNow)
+  kstYest.setDate(kstYest.getDate() - 1)
+  const dateLabel = kstYest.toISOString().slice(0, 10)
 
   // 해당 날짜의 활성 포지션 조회
   const { data: positions, error: fetchErr } = await adminSupabase

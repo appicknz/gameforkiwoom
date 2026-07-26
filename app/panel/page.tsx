@@ -215,57 +215,6 @@ export default function PanelPage() {
   const [seedMsg,          setSeedMsg]          = useState<string | null>(null)
   const [rebalSaving,      setRebalSaving]      = useState(false)
   const [rebalMsg,         setRebalMsg]         = useState<string | null>(null)
-
-  // 자동주문 서브탭 state
-  const [autoSubTab, setAutoSubTab] = useState<"signal" | "order">("signal")
-  type TradingAccount = {
-    id: string; account_name: string; auth_token: string; leverage: number
-    base_amount: number; enabled: boolean
-    take_profit_enabled: boolean; take_profit_percent: number | null
-    stop_loss_enabled: boolean;   stop_loss_percent: number | null
-    memo: string
-  }
-  type TradingSettings = { id: number; webhook_url: string; enabled: boolean }
-  const [tradingAccounts,    setTradingAccounts]    = useState<TradingAccount[]>([])
-  const [tradingSettings,    setTradingSettings]    = useState<TradingSettings | null>(null)
-  const [tradingSettingsEdit, setTradingSettingsEdit] = useState<{ webhook_url: string; enabled: boolean } | null>(null)
-  const [tradingLoaded,      setTradingLoaded]      = useState(false)
-  const [tradingSetupMsg,    setTradingSetupMsg]    = useState<string | null>(null)
-  const [tradingSettingsSaving, setTradingSettingsSaving] = useState(false)
-  const [tradingSettingsMsg, setTradingSettingsMsg] = useState<string | null>(null)
-  // 계정 추가/수정 폼
-  const [accFormOpen,   setAccFormOpen]   = useState(false)
-  const [accEditTarget, setAccEditTarget] = useState<TradingAccount | null>(null)
-  const [accForm, setAccForm] = useState({
-    account_name: "", auth_token: "", leverage: "20", base_amount: "100",
-    enabled: true, take_profit_enabled: false, take_profit_percent: "",
-    stop_loss_enabled: false, stop_loss_percent: "", memo: "",
-  })
-  const [accSaving, setAccSaving]   = useState(false)
-  const [accMsg,    setAccMsg]      = useState<string | null>(null)
-  // 테스트 주문
-  const [testAccountId,  setTestAccountId]  = useState("")
-  const [testSymbol,     setTestSymbol]     = useState("BTCUSDT")
-  const [testDirection,  setTestDirection]  = useState<"LONG" | "SHORT">("LONG")
-  const [testAction,     setTestAction]     = useState<"open" | "close">("open")
-  const [testLoading,    setTestLoading]    = useState(false)
-  const [testResult,     setTestResult]     = useState<Record<string, unknown> | null>(null)
-
-  const loadTradingData = async () => {
-    const tok = localStorage.getItem("app_token") ?? ""
-    const [resAcc, resCfg] = await Promise.all([
-      fetch("/api/auto-trading/accounts",  { headers: { Authorization: `Bearer ${tok}` } }),
-      fetch("/api/auto-trading/settings",  { headers: { Authorization: `Bearer ${tok}` } }),
-    ])
-    if (resAcc.ok) { const d = await resAcc.json(); setTradingAccounts(d.accounts ?? []) }
-    if (resCfg.ok) {
-      const d = await resCfg.json()
-      setTradingSettings(d)
-      setTradingSettingsEdit({ webhook_url: d.webhook_url ?? "", enabled: !!d.enabled })
-    }
-    setTradingLoaded(true)
-  }
-
   // 지갑 복구 (master 전용)
   const [walletRepairLoading, setWalletRepairLoading] = useState(false)
   const [walletRepairResult, setWalletRepairResult]   = useState<{ repairedCount: number; skippedCount: number; repaired: { id: string; username: string; oldAddress: string | null; newAddress: string }[] } | null>(null)
@@ -1327,7 +1276,7 @@ export default function PanelPage() {
         </div>
       </header>
 
-      {/* ── 총판 전용: 지점 계정생성 ���달 ── */}
+      {/* ── 총판 전용: 지점 계정생성 모달 ── */}
       {baCreateOpen && myRole === "branch_admin" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-6 shadow-xl">
@@ -2679,7 +2628,7 @@ export default function PanelPage() {
               ) : (
                 <div className="divide-y divide-border">
                   {lpHistory.map(tx => {
-                    const poolLabel: Record<string, string> = { long_short: "롱/숏", under_over: "���더/오버", odd_even: "홀/짝" }
+                    const poolLabel: Record<string, string> = { long_short: "롱/숏", under_over: "언더/오버", odd_even: "홀/짝" }
                     const sideLabel = tx.side === "a" ? "A (롱·언더·홀)" : "B (숏·오버·짝)"
                     return (
                       <div key={tx.id} className="px-5 py-3 flex items-center justify-between text-sm">
@@ -4060,7 +4009,7 @@ export default function PanelPage() {
                 <Shield className="w-4 h-4 text-primary" /> 관리자 계정 생성
               </h2>
               <p className="text-xs text-muted-foreground mb-5">
-                대총판 · 총판 · 지�� 계정을 직접 생성합니다. 생성 후 해당 계정으�� 로그인하면 각 역할에 맞는 탭이 표시됩니다.
+                대총판 · 총판 · 지점 계정을 직접 생성합니다. 생성 후 해당 계정으�� 로그인하면 각 역할에 맞는 탭이 표시됩니다.
               </p>
 
               {/* 역할 선택 */}
@@ -4486,509 +4435,6 @@ export default function PanelPage() {
         {activeTab === "auto_trade" && myRole === "master" && (
           <div className="p-6 space-y-6 max-w-5xl mx-auto">
 
-            {/* 서브탭 네비게이션 */}
-            <div className="flex gap-1 border-b border-border pb-0">
-              {([["signal", "시그널 매매"], ["order", "자동주문"]] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => {
-                    setAutoSubTab(key)
-                    if (key === "order" && !tradingLoaded) loadTradingData()
-                  }}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                    autoSubTab === key
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* ── 자동주문 서브탭 ── */}
-            {autoSubTab === "order" && (
-              <div className="space-y-6">
-
-                {/* 테이블 미생성 시 초기화 버튼 */}
-                {!tradingLoaded && (
-                  <div className="rounded-xl border border-border p-5 flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground">자동주문 데이터를 불러오는 중...</span>
-                  </div>
-                )}
-
-                {tradingLoaded && tradingAccounts.length === 0 && !tradingSettings?.webhook_url && (
-                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5 space-y-3">
-                    <p className="text-sm text-amber-400 font-semibold">최초 설정 필요</p>
-                    <p className="text-xs text-muted-foreground">
-                      DB 테이블이 없으면 아래 버튼을 눌러 생성하세요. 이미 존재하면 스킵됩니다.
-                    </p>
-                    <button
-                      onClick={async () => {
-                        setTradingSetupMsg(null)
-                        const tok = localStorage.getItem("app_token") ?? ""
-                        const res = await fetch("/api/auto-trading/setup", { method: "POST", headers: { Authorization: `Bearer ${tok}` } })
-                        const d = await res.json()
-                        setTradingSetupMsg(d.message ?? d.error ?? "완료")
-                        if (d.ok) loadTradingData()
-                      }}
-                      className="h-8 px-4 rounded-lg bg-amber-500/20 border border-amber-500/40 text-xs font-semibold text-amber-400 hover:bg-amber-500/30 transition-colors">
-                      DB 테이블 초기화
-                    </button>
-                    {tradingSetupMsg && <p className="text-xs text-muted-foreground">{tradingSetupMsg}</p>}
-                    {tradingSetupMsg?.includes("실패") && (
-                      <pre className="text-[10px] text-muted-foreground bg-secondary p-3 rounded overflow-auto max-h-40 whitespace-pre-wrap">
-{`CREATE TABLE IF NOT EXISTS auto_trading_global_settings (
-  id INT PRIMARY KEY DEFAULT 1,
-  webhook_url TEXT NOT NULL DEFAULT '',
-  enabled BOOL NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-INSERT INTO auto_trading_global_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
-
-CREATE TABLE IF NOT EXISTS auto_trading_accounts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  account_name TEXT NOT NULL UNIQUE,
-  auth_token TEXT NOT NULL DEFAULT '',
-  leverage INT NOT NULL DEFAULT 20,
-  base_amount NUMERIC NOT NULL DEFAULT 100,
-  enabled BOOL NOT NULL DEFAULT true,
-  take_profit_enabled BOOL NOT NULL DEFAULT false,
-  take_profit_percent NUMERIC DEFAULT NULL,
-  stop_loss_enabled BOOL NOT NULL DEFAULT false,
-  stop_loss_percent NUMERIC DEFAULT NULL,
-  memo TEXT DEFAULT '',
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);`}
-                      </pre>
-                    )}
-                  </div>
-                )}
-
-                {/* 글로벌 설정 */}
-                {tradingLoaded && tradingSettingsEdit && (
-                  <div className="rounded-xl border border-border p-5 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-sm font-semibold text-foreground">글로벌 설정</h2>
-                      <button
-                        onClick={() => setTradingSettingsEdit({ webhook_url: tradingSettings?.webhook_url ?? "", enabled: !!tradingSettings?.enabled })}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                        초기화
-                      </button>
-                    </div>
-
-                    <div className="space-y-3">
-                      {/* Webhook URL */}
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">TVM Webhook URL</label>
-                        <input
-                          type="text"
-                          value={tradingSettingsEdit.webhook_url}
-                          onChange={e => setTradingSettingsEdit(s => s ? { ...s, webhook_url: e.target.value } : s)}
-                          placeholder="https://tvm.example.com/webhook/..."
-                          className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-xs font-mono text-foreground"
-                        />
-                        <p className="text-[10px] text-muted-foreground">TVM 서비스에서 발급받은 웹훅 URL. 주문이 이 URL로 POST됩니다.</p>
-                      </div>
-
-                      {/* 활성화 토글 */}
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-muted-foreground">자동주문 활성화</span>
-                        <button
-                          onClick={() => setTradingSettingsEdit(s => s ? { ...s, enabled: !s.enabled } : s)}
-                          className={`h-7 px-4 rounded-lg text-xs font-semibold border transition-colors ${
-                            tradingSettingsEdit.enabled
-                              ? "bg-primary/20 border-primary text-primary"
-                              : "bg-secondary border-border text-muted-foreground"
-                          }`}>
-                          {tradingSettingsEdit.enabled ? "ON" : "OFF"}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <button
-                        disabled={tradingSettingsSaving}
-                        onClick={async () => {
-                          if (!tradingSettingsEdit) return
-                          setTradingSettingsSaving(true); setTradingSettingsMsg(null)
-                          const tok = localStorage.getItem("app_token") ?? ""
-                          const res = await fetch("/api/auto-trading/settings", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                            body: JSON.stringify(tradingSettingsEdit),
-                          })
-                          const d = await res.json()
-                          if (res.ok) { setTradingSettings(d); setTradingSettingsMsg("저장됐습니다.") }
-                          else setTradingSettingsMsg(d.error ?? "오류")
-                          setTradingSettingsSaving(false)
-                        }}
-                        className="h-8 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
-                        {tradingSettingsSaving ? "저장 중..." : "설정 저장"}
-                      </button>
-                      {tradingSettingsMsg && <span className="text-xs text-muted-foreground">{tradingSettingsMsg}</span>}
-                    </div>
-                  </div>
-                )}
-
-                {/* 계정 목록 */}
-                {tradingLoaded && (
-                  <div className="rounded-xl border border-border overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-secondary/30">
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-sm font-semibold text-foreground">바이낸스 계정 ({tradingAccounts.length})</h2>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setAccEditTarget(null)
-                          setAccForm({ account_name: "", auth_token: "", leverage: "20", base_amount: "100", enabled: true, take_profit_enabled: false, take_profit_percent: "", stop_loss_enabled: false, stop_loss_percent: "", memo: "" })
-                          setAccMsg(null)
-                          setAccFormOpen(true)
-                        }}
-                        className="h-7 px-3 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors">
-                        + 계정 추가
-                      </button>
-                    </div>
-
-                    {tradingAccounts.length === 0 && (
-                      <div className="py-8 text-center text-xs text-muted-foreground">
-                        등록된 계정이 없습니다. 계정을 추가하세요.
-                      </div>
-                    )}
-
-                    {tradingAccounts.map(acc => (
-                      <div key={acc.id} className="flex items-center gap-3 px-5 py-3 border-t border-border hover:bg-secondary/10">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-foreground">{acc.account_name}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${acc.enabled ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"}`}>
-                              {acc.enabled ? "ON" : "OFF"}
-                            </span>
-                            {acc.memo && <span className="text-xs text-muted-foreground truncate">{acc.memo}</span>}
-                          </div>
-                          <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
-                            <span>레버리지 {acc.leverage}x</span>
-                            <span>주문금액 ${acc.base_amount}</span>
-                            {acc.take_profit_enabled && acc.take_profit_percent && <span className="text-green-500">TP {acc.take_profit_percent}%</span>}
-                            {acc.stop_loss_enabled   && acc.stop_loss_percent   && <span className="text-red-400">SL {acc.stop_loss_percent}%</span>}
-                            <span className="font-mono text-[10px]">{acc.auth_token.slice(0, 8)}...</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {/* 활성/비활성 토글 */}
-                          <button
-                            onClick={async () => {
-                              const tok = localStorage.getItem("app_token") ?? ""
-                              const res = await fetch("/api/auto-trading/accounts", {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                                body: JSON.stringify({ id: acc.id, enabled: !acc.enabled }),
-                              })
-                              if (res.ok) setTradingAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, enabled: !a.enabled } : a))
-                            }}
-                            className={`h-7 px-3 rounded-lg text-xs font-semibold border transition-colors ${
-                              acc.enabled ? "bg-primary/20 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
-                            }`}>
-                            {acc.enabled ? "ON" : "OFF"}
-                          </button>
-                          {/* 수정 */}
-                          <button
-                            onClick={() => {
-                              setAccEditTarget(acc)
-                              setAccForm({
-                                account_name: acc.account_name,
-                                auth_token: acc.auth_token,
-                                leverage: String(acc.leverage),
-                                base_amount: String(acc.base_amount),
-                                enabled: acc.enabled,
-                                take_profit_enabled: acc.take_profit_enabled,
-                                take_profit_percent: acc.take_profit_percent != null ? String(acc.take_profit_percent) : "",
-                                stop_loss_enabled: acc.stop_loss_enabled,
-                                stop_loss_percent: acc.stop_loss_percent != null ? String(acc.stop_loss_percent) : "",
-                                memo: acc.memo ?? "",
-                              })
-                              setAccMsg(null)
-                              setAccFormOpen(true)
-                            }}
-                            className="h-7 px-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors">
-                            수정
-                          </button>
-                          {/* 삭제 */}
-                          <button
-                            onClick={async () => {
-                              if (!confirm(`${acc.account_name} 계정을 삭제합니까?`)) return
-                              const tok = localStorage.getItem("app_token") ?? ""
-                              const res = await fetch("/api/auto-trading/accounts", {
-                                method: "DELETE",
-                                headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                                body: JSON.stringify({ id: acc.id }),
-                              })
-                              if (res.ok) setTradingAccounts(prev => prev.filter(a => a.id !== acc.id))
-                            }}
-                            className="flex items-center justify-center w-7 h-7 rounded-lg bg-secondary hover:bg-destructive/20 transition-colors">
-                            <Trash2 className="w-3 h-3 text-muted-foreground" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 계정 추가/수정 폼 */}
-                {accFormOpen && (
-                  <div className="rounded-xl border border-border p-5 space-y-4 bg-secondary/10">
-                    <h3 className="text-sm font-semibold text-foreground">
-                      {accEditTarget ? `계정 수정: ${accEditTarget.account_name}` : "계정 추가"}
-                    </h3>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">계정명 (TVM account name)</label>
-                        <input
-                          value={accForm.account_name}
-                          onChange={e => setAccForm(s => ({ ...s, account_name: e.target.value }))}
-                          placeholder="myBinanceAccount"
-                          className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">인증 토큰 (TVM auth_token)</label>
-                        <input
-                          type="password"
-                          value={accForm.auth_token}
-                          onChange={e => setAccForm(s => ({ ...s, auth_token: e.target.value }))}
-                          placeholder="TVM에서 발급받은 토큰"
-                          className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">레버리지 (배수)</label>
-                        <input type="number" step={1} placeholder="예: 10, 20, 50" value={accForm.leverage}
-                          onChange={e => setAccForm(s => ({ ...s, leverage: e.target.value }))}
-                          className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">주문 금액 (USDT)</label>
-                        <input type="number" step={1} placeholder="예: 10, 50, 100" value={accForm.base_amount}
-                          onChange={e => setAccForm(s => ({ ...s, base_amount: e.target.value }))}
-                          className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
-                      </div>
-                    </div>
-
-                    {/* TP / SL */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => setAccForm(s => ({ ...s, take_profit_enabled: !s.take_profit_enabled }))}
-                            className={`h-6 px-2 rounded text-[11px] font-semibold border transition-colors ${accForm.take_profit_enabled ? "bg-green-500/15 border-green-500/40 text-green-400" : "bg-secondary border-border text-muted-foreground"}`}>
-                            TP
-                          </button>
-                          <span className="text-xs text-muted-foreground">테이크프로핏 (LONG 진입 시 적용)</span>
-                        </div>
-                        {accForm.take_profit_enabled && (
-                          <div className="relative">
-                            <input type="number" min={0.1} step={0.1} placeholder="예: 5" value={accForm.take_profit_percent}
-                              onChange={e => setAccForm(s => ({ ...s, take_profit_percent: e.target.value }))}
-                              className="w-full h-8 px-3 pr-6 rounded-lg bg-secondary border border-border text-sm text-foreground" />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => setAccForm(s => ({ ...s, stop_loss_enabled: !s.stop_loss_enabled }))}
-                            className={`h-6 px-2 rounded text-[11px] font-semibold border transition-colors ${accForm.stop_loss_enabled ? "bg-red-500/15 border-red-500/40 text-red-400" : "bg-secondary border-border text-muted-foreground"}`}>
-                            SL
-                          </button>
-                          <span className="text-xs text-muted-foreground">스탑로스 (SHORT 진입 시 적용)</span>
-                        </div>
-                        {accForm.stop_loss_enabled && (
-                          <div className="relative">
-                            <input type="number" min={0.1} step={0.1} placeholder="예: 3" value={accForm.stop_loss_percent}
-                              onChange={e => setAccForm(s => ({ ...s, stop_loss_percent: e.target.value }))}
-                              className="w-full h-8 px-3 pr-6 rounded-lg bg-secondary border border-border text-sm text-foreground" />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">메모</label>
-                      <input value={accForm.memo} onChange={e => setAccForm(s => ({ ...s, memo: e.target.value }))}
-                        placeholder="내부 메모"
-                        className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <button
-                        disabled={accSaving}
-                        onClick={async () => {
-                          setAccSaving(true); setAccMsg(null)
-                          const tok = localStorage.getItem("app_token") ?? ""
-                          const payload = {
-                            ...(accEditTarget ? { id: accEditTarget.id } : {}),
-                            account_name:        accForm.account_name,
-                            auth_token:          accForm.auth_token,
-                            leverage:            Number(accForm.leverage),
-                            base_amount:         Number(accForm.base_amount),
-                            enabled:             accForm.enabled,
-                            take_profit_enabled: accForm.take_profit_enabled,
-                            take_profit_percent: accForm.take_profit_enabled && accForm.take_profit_percent ? Number(accForm.take_profit_percent) : null,
-                            stop_loss_enabled:   accForm.stop_loss_enabled,
-                            stop_loss_percent:   accForm.stop_loss_enabled && accForm.stop_loss_percent ? Number(accForm.stop_loss_percent) : null,
-                            memo:                accForm.memo,
-                          }
-                          const res = await fetch("/api/auto-trading/accounts", {
-                            method: accEditTarget ? "PATCH" : "POST",
-                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                            body: JSON.stringify(payload),
-                          })
-                          const d = await res.json()
-                          if (res.ok) {
-                            const acc = d.account
-                            if (accEditTarget) {
-                              setTradingAccounts(prev => prev.map(a => a.id === acc.id ? acc : a))
-                            } else {
-                              setTradingAccounts(prev => [...prev, acc])
-                            }
-                            setAccFormOpen(false)
-                            setAccEditTarget(null)
-                          } else {
-                            setAccMsg(d.error ?? "오류")
-                          }
-                          setAccSaving(false)
-                        }}
-                        className="h-8 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
-                        {accSaving ? "저장 중..." : accEditTarget ? "수정 저장" : "계정 추가"}
-                      </button>
-                      <button onClick={() => { setAccFormOpen(false); setAccEditTarget(null) }}
-                        className="h-8 px-4 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors">
-                        취소
-                      </button>
-                      {accMsg && <span className="text-xs text-destructive">{accMsg}</span>}
-                    </div>
-                  </div>
-                )}
-
-                {/* 테스트 도구 */}
-                {tradingLoaded && tradingAccounts.length > 0 && (
-                  <div className="rounded-xl border border-border p-5 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-sm font-semibold text-foreground">���스트 주문</h2>
-                      <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">실제 주문 전송됨</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      선택한 계정으로 TVM 포맷의 실제 주문을 전송합니다. 테스트 전 소액으로 먼저 확인하세요.
-                    </p>
-
-                    <div className="grid grid-cols-4 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">계정</label>
-                        <select value={testAccountId} onChange={e => setTestAccountId(e.target.value)}
-                          className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-xs text-foreground">
-                          <option value="">선택</option>
-                          {tradingAccounts.filter(a => a.enabled).map(a => (
-                            <option key={a.id} value={a.id}>{a.account_name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">심볼</label>
-                        <input value={testSymbol} onChange={e => setTestSymbol(e.target.value.toUpperCase())}
-                          placeholder="BTCUSDT"
-                          className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-xs text-foreground font-mono" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">방향</label>
-                        <div className="flex gap-1">
-                          {(["LONG", "SHORT"] as const).map(d => (
-                            <button key={d} onClick={() => setTestDirection(d)}
-                              className={`flex-1 h-8 rounded-lg text-xs font-semibold border transition-colors ${
-                                testDirection === d
-                                  ? d === "LONG" ? "bg-green-500/15 border-green-500/40 text-green-400" : "bg-red-500/15 border-red-500/40 text-red-400"
-                                  : "bg-secondary border-border text-muted-foreground"
-                              }`}>
-                              {d}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">액션</label>
-                        <div className="flex gap-1">
-                          {(["open", "close"] as const).map(a => (
-                            <button key={a} onClick={() => setTestAction(a)}
-                              className={`flex-1 h-8 rounded-lg text-xs font-semibold border transition-colors ${
-                                testAction === a ? "bg-primary/20 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
-                              }`}>
-                              {a === "open" ? "진입" : "청산"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      disabled={testLoading || !testAccountId || !testSymbol}
-                      onClick={async () => {
-                        if (!confirm(`${testSymbol} ${testDirection} ${testAction === "open" ? "진입" : "청산"} 주문을 전송합니까?\n실제 바이낸스 계정에 주문이 실행됩니다.`)) return
-                        setTestLoading(true); setTestResult(null)
-                        const tok = localStorage.getItem("app_token") ?? ""
-                        const res = await fetch("/api/auto-trading/test-order", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                          body: JSON.stringify({
-                            account_id: testAccountId,
-                            symbol:     testSymbol,
-                            direction:  testDirection,
-                            action:     testAction,
-                          }),
-                        })
-                        const d = await res.json()
-                        setTestResult(d)
-                        setTestLoading(false)
-                      }}
-                      className="h-8 px-5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-xs font-semibold text-amber-400 hover:bg-amber-500/30 transition-colors disabled:opacity-50">
-                      {testLoading ? "전송 중..." : "테스트 주문 전송"}
-                    </button>
-
-                    {testResult && (
-                      <div className={`rounded-lg p-3 space-y-2 border text-xs ${testResult.ok ? "bg-green-500/5 border-green-500/20" : "bg-red-500/5 border-red-500/20"}`}>
-                        <div className="flex items-center gap-2">
-                          <span className={`font-semibold ${testResult.ok ? "text-green-400" : "text-red-400"}`}>
-                            {testResult.ok ? "전송 성공" : "전송 실패"}
-                          </span>
-                          <span className="text-muted-foreground">HTTP {String(testResult.tvm_status)}</span>
-                        </div>
-                        {testResult.tvm_str && (
-                          <div className="space-y-1">
-                            <p className="text-muted-foreground">전송된 TVM 문자열:</p>
-                            <pre className="bg-secondary p-2 rounded text-[10px] overflow-auto break-all whitespace-pre-wrap">{String(testResult.tvm_str)}</pre>
-                          </div>
-                        )}
-                        {testResult.tvm_body && (
-                          <div className="space-y-1">
-                            <p className="text-muted-foreground">TVM 응답:</p>
-                            <pre className="bg-secondary p-2 rounded text-[10px] overflow-auto">{String(testResult.tvm_body)}</pre>
-                          </div>
-                        )}
-                        {testResult.error && (
-                          <p className="text-red-400">{String(testResult.error)}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-              </div>
-            )}
-
-            {/* ── 시그널 매매 서브탭 (기존 내용) ── */}
-            {autoSubTab === "signal" && (
-            <div className="space-y-6">
-
             {/* 설정 카드 */}
             <div className="rounded-xl border border-border p-5 space-y-4">
               <h2 className="text-sm font-semibold text-foreground">자동매매 설정</h2>
@@ -5200,62 +4646,29 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               </div>
 
               {/* 수동 리밸런싱 스냅샷 */}
-              <div className="border-t border-border pt-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <button
-                    disabled={rebalSaving}
-                    onClick={async () => {
-                      if (!confirm("오늘 날짜로 리밸런싱 스냅샷을 수동 저장합니까?")) return
-                      setRebalSaving(true); setRebalMsg(null)
-                      try {
-                        const tok = localStorage.getItem("app_token") ?? ""
-                        const res = await fetch("/api/auto-signal/rebalance", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                          body: JSON.stringify({ note: "수동 리밸런싱" }),
-                        })
-                        const d = await res.json()
-                        setRebalMsg(res.ok
-                          ? `저장됐습니다. EST. VALUE $${d.est_value?.toFixed(2) ?? "-"} / PNL ${d.daily_pnl >= 0 ? "+" : ""}$${d.daily_pnl?.toFixed(2) ?? "-"}`
-                          : (d.error ?? "오류"))
-                      } finally { setRebalSaving(false) }
-                    }}
-                    className="h-8 px-4 rounded-lg bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50">
-                    {rebalSaving ? "저장 중..." : "오늘 스냅샷 저장"}
-                  </button>
-                  {rebalMsg && <span className="text-xs text-muted-foreground">{rebalMsg}</span>}
-                </div>
-
-                {/* 소급 자정 마감 실행 (누락된 날짜 복구용) */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">소급 마감:</span>
-                  <input
-                    type="date"
-                    id="retroDateInput"
-                    defaultValue="2026-07-25"
-                    className="h-8 px-2 rounded-lg bg-secondary border border-border text-xs text-foreground"
-                  />
-                  <button
-                    onClick={async () => {
-                      const dateVal = (document.getElementById("retroDateInput") as HTMLInputElement)?.value
-                      if (!dateVal) return
-                      if (!confirm(`${dateVal} 날짜로 자정 마감(포지션 종가 기록 + 스냅샷)을 실행합니까?`)) return
+              <div className="border-t border-border pt-4 flex items-center gap-3">
+                <button
+                  disabled={rebalSaving}
+                  onClick={async () => {
+                    if (!confirm("오늘 날짜로 리밸런싱 스냅샷을 수동 저장합니까?")) return
+                    setRebalSaving(true); setRebalMsg(null)
+                    try {
                       const tok = localStorage.getItem("app_token") ?? ""
-                      const res = await fetch(`/api/auto-signal/day-close?date=${dateVal}`, {
-                        headers: { "x-internal-secret": "tasko-internal", Authorization: `Bearer ${tok}` },
+                      const res = await fetch("/api/auto-signal/rebalance", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                        body: JSON.stringify({ note: "수동 리밸런싱" }),
                       })
                       const d = await res.json()
-                      if (res.ok) {
-                        alert(`완료: ${dateVal}\n마감 포지션 ${d.closed_count}개\nPNL $${d.daily_pnl?.toFixed(2) ?? "-"}\nEST. VALUE $${d.est_value?.toFixed(2) ?? "-"}`)
-                      } else {
-                        alert(`오류: ${d.error ?? "실패"}`)
-                      }
-                    }}
-                    className="h-8 px-4 rounded-lg bg-amber-500/20 border border-amber-500/40 text-xs font-semibold text-amber-400 hover:bg-amber-500/30 transition-colors">
-                    소급 실행
-                  </button>
-                  <span className="text-[10px] text-muted-foreground">누락된 날짜의 포지션 종가 기록 + 스냅샷을 수동으로 생성합니다</span>
-                </div>
+                      setRebalMsg(res.ok
+                        ? `저장됐습니다. EST. VALUE $${d.est_value?.toFixed(2) ?? "-"} / PNL ${d.daily_pnl >= 0 ? "+" : ""}$${d.daily_pnl?.toFixed(2) ?? "-"}`
+                        : (d.error ?? "오류"))
+                    } finally { setRebalSaving(false) }
+                  }}
+                  className="h-8 px-4 rounded-lg bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50">
+                  {rebalSaving ? "저장 중..." : "오늘 스냅샷 저장"}
+                </button>
+                {rebalMsg && <span className="text-xs text-muted-foreground">{rebalMsg}</span>}
               </div>
             </div>
 
@@ -5367,13 +4780,10 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               )}
             </div>
 
-            </div>
-            )}
-
           </div>
         )}
 
-        {/* ── 입금 주소 관리 탭 (master 전용) ── */}
+        {/* ── 입금 주��� 관리 탭 (master 전용) ── */}
         {activeTab === "wallets" && myRole === "master" && (
           <div className="p-6 max-w-3xl mx-auto space-y-6">
             <div>
@@ -5423,7 +4833,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 {walletRepairResult.repaired.length > 0 && (
                   <div className="rounded-xl border border-border overflow-hidden">
                     <div className="grid grid-cols-[1fr_2fr_2fr] gap-0 text-[11px] font-semibold text-muted-foreground bg-secondary/40 px-4 py-2">
-                      <span>유저���</span>
+                      <span>유저명</span>
                       <span>기존 주소</span>
                       <span>새 주소</span>
                     </div>
