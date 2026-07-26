@@ -179,7 +179,7 @@ export async function POST(request: Request) {
     }
     await redis.set(`game:result:baccarat:${roundNumber}`, JSON.stringify(resultPayload), { ex: 86400 })
 
-    // ── race 결과 저장 ────���────────────────────────────────────
+    // ── race 결과 저장 ────���───────────────────���────────────────
     // 현재 라운드의 첫 번째 tick = 직전 라운드가 방금 종료됨 → 직전 라운드 집계 후 저장
     if (isFirstTickOfRound) {
       const prevRaceRound   = raceRoundNumber - 1
@@ -1030,108 +1030,77 @@ export async function POST(request: Request) {
 
     console.log(`[settle] round=${roundNumber} baccarat=${baccaratResult} settled=${settlementResults.length} users`)
 
-    // ── 텔레그램 채널 배팅 정산 ─────────────────────────────────────
-    ;(async () => {
-      try {
-        // 이번 라운드 텔레그램 배팅 유저 목록
-        const tgUserIds: string[] = await redis.smembers(`tg_users:${roundNumber}`).catch(() => [])
-        const tgPool = await redis.hgetall<Record<string, string>>(`tg_pool:${roundNumber}`).catch(() => null)
+    // ── 텔레그램 채널 배팅 정산 + 결과/배팅 버튼 전송 ─────────────────
+    try {
+      const TG_ODDS: Record<string, number> = { banker: 1.95, player: 1.95, tie: 8.0 }
+      const betSummary = { banker: 0, player: 0, tie: 0 }
 
-        const betSummary = { banker: 0, player: 0, tie: 0 }
+      // 이번 라운드 DB 배팅 정산
+      const { data: tgBets } = await admin
+        .from("telegram_bets")
+        .select("id, user_id, telegram_id, side, amount, settled")
+        .eq("round_number", roundNumber)
+        .eq("settled", false)
+        .catch(() => ({ data: null }))
 
-        if (tgUserIds.length > 0) {
-          // DB에서 배팅 내역 조회
-          const { data: tgBets } = await admin
-            .from("telegram_bets")
-            .select("id, user_id, telegram_id, side, amount, settled")
-            .eq("round_number", roundNumber)
-            .eq("settled", false)
-
-          if (tgBets && tgBets.length > 0) {
-            // 배팅 집계
-            for (const b of tgBets) {
-              if (b.side in betSummary) betSummary[b.side as keyof typeof betSummary]++
-            }
-
-            // 고정 배당률
-            const TG_ODDS: Record<string, number> = { banker: 1.95, player: 1.95, tie: 8.0 }
-
-            // 각 배팅자 정산
-            await Promise.allSettled(tgBets.map(async (bet) => {
-              const won = bet.side === baccaratResult
-              // 타이 시 player/banker는 배팅금 반환 (PUSH)
-              const isPush = baccaratResult === "tie" && (bet.side === "player" || bet.side === "banker")
-
-              let payout = 0
-              if (won) {
-                payout = Math.floor(Number(bet.amount) * TG_ODDS[bet.side])
-              } else if (isPush) {
-                payout = Number(bet.amount) // 원금 반환
-              }
-
-              // 당첨/반환 시 잔고 지급
-              if (payout > 0) {
-                const { data: newBal } = await admin
-                  .rpc("add_balance_for_payout", { p_user_id: bet.user_id, p_amount: payout })
-                  .catch(() => ({ data: null }))
-
-                if (typeof newBal === "number") {
-                  await Promise.all([
-                    redis.set(`balance:${bet.user_id}`, newBal, { ex: 3600 }),
-                    redis.incr(`balance_version:${bet.user_id}`),
-                  ]).catch(() => {})
-                }
-
-                // 개인 DM
-                const sideLabel: Record<string, string> = { banker: "뱅커", player: "플레이어", tie: "타이" }
-                const resultMsg = won
-                  ? `당첨! +${payout.toLocaleString("ko-KR")}원 (${TG_ODDS[bet.side]}x)`
-                  : `타이 무승부 — 원금 ${payout.toLocaleString("ko-KR")}원 반환`
-                await sendDirectMessage(
-                  bet.telegram_id,
-                  `Round <b>${roundNumber}</b> 결과: <b>${sideLabel[baccaratResult]}</b>\n` +
-                  `내 배팅: ${sideLabel[bet.side]} — ${resultMsg}`,
-                ).catch(() => {})
-              } else {
-                // 패배
-                const sideLabel: Record<string, string> = { banker: "뱅커", player: "플레이어", tie: "타이" }
-                await sendDirectMessage(
-                  bet.telegram_id,
-                  `Round <b>${roundNumber}</b> 결과: <b>${sideLabel[baccaratResult]}</b>\n` +
-                  `내 배팅: ${sideLabel[bet.side]} — 낙첨 (-${Number(bet.amount).toLocaleString("ko-KR")}원)`,
-                ).catch(() => {})
-              }
-
-              // settled = true 업데이트
-              await admin.from("telegram_bets").update({ settled: true, payout }).eq("id", bet.id)
-            }))
-          }
+      if (tgBets && tgBets.length > 0) {
+        for (const b of tgBets) {
+          if (b.side in betSummary) betSummary[b.side as keyof typeof betSummary]++
         }
 
-        // 결과 메시지 전송
-        const finalOdds = roundFinalOdds ?? { banker: 1.95, player: 1.95, tie: 8.0 }
-        await sendBaccaratResultMessage({
-          roundNumber,
-          result: baccaratResult,
-          bankerOdds: finalOdds.banker,
-          playerOdds: finalOdds.player,
-          tieOdds:    finalOdds.tie,
-          betSummary,
-        }).catch(() => {})
+        await Promise.allSettled(tgBets.map(async (bet) => {
+          const won    = bet.side === baccaratResult
+          const isPush = baccaratResult === "tie" && (bet.side === "player" || bet.side === "banker")
+          let payout   = 0
+          if (won)    payout = Math.floor(Number(bet.amount) * TG_ODDS[bet.side])
+          else if (isPush) payout = Number(bet.amount)
 
-        // 다음 라운드 배팅 버튼 메시지 전송
-        const nextRound = roundNumber + 1
-        await sendBaccaratBettingMessage({
-          roundNumber: nextRound,
-          bankerOdds:  finalOdds.banker,
-          playerOdds:  finalOdds.player,
-          tieOdds:     finalOdds.tie,
-        }).catch(() => {})
+          if (payout > 0) {
+            const { data: newBal } = await admin
+              .rpc("add_balance_for_payout", { p_user_id: bet.user_id, p_amount: payout })
+              .catch(() => ({ data: null }))
+            if (typeof newBal === "number") {
+              await Promise.all([
+                redis.set(`balance:${bet.user_id}`, newBal, { ex: 3600 }),
+                redis.incr(`balance_version:${bet.user_id}`),
+              ]).catch(() => {})
+            }
+          }
 
-      } catch (tgErr) {
-        console.error("[settle/telegram] 채널 배팅 정산 오류:", tgErr)
+          const sideLabel: Record<string, string> = { banker: "뱅커", player: "플레이어", tie: "타이" }
+          const dmMsg = won
+            ? `Round <b>${roundNumber}</b> 결과: <b>${sideLabel[baccaratResult]}</b>\n내 배팅: ${sideLabel[bet.side]} — 당첨! +${Math.floor(Number(bet.amount) * TG_ODDS[bet.side]).toLocaleString("ko-KR")}원`
+            : isPush
+            ? `Round <b>${roundNumber}</b> 결과: <b>${sideLabel[baccaratResult]}</b>\n내 배팅: ${sideLabel[bet.side]} — 타이 무승부, 원금 반환`
+            : `Round <b>${roundNumber}</b> 결과: <b>${sideLabel[baccaratResult]}</b>\n내 배팅: ${sideLabel[bet.side]} — 낙첨 (-${Number(bet.amount).toLocaleString("ko-KR")}원)`
+          await sendDirectMessage(bet.telegram_id, dmMsg).catch(() => {})
+          await admin.from("telegram_bets").update({ settled: true, payout }).eq("id", bet.id).catch(() => {})
+        }))
       }
-    })()
+
+      // 채널에 결과 메시지 전송
+      const tgOdds = roundFinalOdds ?? { banker: 1.95, player: 1.95, tie: 8.0 }
+      await sendBaccaratResultMessage({
+        roundNumber,
+        result:     baccaratResult,
+        bankerOdds: tgOdds.banker,
+        playerOdds: tgOdds.player,
+        tieOdds:    tgOdds.tie,
+        betSummary,
+      })
+
+      // 채널에 다음 라운드 배팅 버튼 전송
+      await sendBaccaratBettingMessage({
+        roundNumber: roundNumber + 1,
+        bankerOdds:  tgOdds.banker,
+        playerOdds:  tgOdds.player,
+        tieOdds:     tgOdds.tie,
+      })
+
+      console.log(`[settle/telegram] 채널 전송 완료 round=${roundNumber} -> next=${roundNumber + 1}`)
+    } catch (tgErr) {
+      console.error("[settle/telegram] 오류:", tgErr)
+    }
     // ──────────────────────────────────────────────────────────────
 
     return NextResponse.json({
