@@ -189,8 +189,37 @@ export async function POST(req: Request) {
           .eq("enabled", true),
       ])
 
-      if (!tradingGs?.enabled || !tradingGs?.webhook_url) return
-      if (!tradingAccounts?.length) return
+      // 자동주문 비활성화 또는 URL 없음 → 로그 기록 후 종료
+      if (!tradingGs?.enabled || !tradingGs?.webhook_url) {
+        await adminSupabase.from("auto_trading_logs").insert({
+          position_id:   data.id,
+          symbol:        cleanSymbol,
+          direction,
+          account_name:  null,
+          tvm_str:       null,
+          tvm_status:    null,
+          tvm_response:  null,
+          ok:            false,
+          error_msg:     !tradingGs?.enabled
+            ? "자동주문 비활성화 (global settings enabled=false)"
+            : "webhook_url 미설정",
+        })
+        return
+      }
+      if (!tradingAccounts?.length) {
+        await adminSupabase.from("auto_trading_logs").insert({
+          position_id:   data.id,
+          symbol:        cleanSymbol,
+          direction,
+          account_name:  null,
+          tvm_str:       null,
+          tvm_status:    null,
+          tvm_response:  null,
+          ok:            false,
+          error_msg:     "활성화된 계정 없음",
+        })
+        return
+      }
 
       const webhookUrl = tradingGs.webhook_url
 
@@ -243,15 +272,41 @@ export async function POST(req: Request) {
             token:    acc.auth_token as string,
           })
 
-          const res = await fetch(webhookUrl, {
-            method:  "POST",
-            headers: { "Content-Type": "text/plain" },
-            body:    tvm,
-            signal:  AbortSignal.timeout(10000),
+          let resStatus = 0
+          let resBody   = ""
+          let orderOk   = false
+          let errMsg: string | null = null
+
+          try {
+            const res = await fetch(webhookUrl, {
+              method:  "POST",
+              headers: { "Content-Type": "text/plain" },
+              body:    tvm,
+              signal:  AbortSignal.timeout(10000),
+            })
+            resStatus = res.status
+            resBody   = await res.text()
+            orderOk   = res.ok
+          } catch (fetchErr) {
+            errMsg  = (fetchErr as Error).message
+            orderOk = false
+          }
+
+          // DB 로그 저장
+          await adminSupabase.from("auto_trading_logs").insert({
+            position_id:   data.id,
+            symbol:        cleanSymbol,
+            direction,
+            account_name:  acc.account_name,
+            tvm_str:       tvm,
+            tvm_status:    resStatus || null,
+            tvm_response:  resBody.slice(0, 500) || null,
+            ok:            orderOk,
+            error_msg:     errMsg,
           })
-          const resBody = await res.text()
-          console.log(`[auto-trading] ${acc.account_name} → ${res.status} ${resBody.slice(0, 80)}`)
-          return { account: acc.account_name, status: res.status, ok: res.ok }
+
+          console.log(`[auto-trading] ${acc.account_name} → ${resStatus} ${resBody.slice(0, 80)}`)
+          return { account: acc.account_name, status: resStatus, ok: orderOk }
         })
       )
 

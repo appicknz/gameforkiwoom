@@ -217,7 +217,7 @@ export default function PanelPage() {
   const [rebalMsg,         setRebalMsg]         = useState<string | null>(null)
 
   // 자동주문 서브탭 state
-  const [autoSubTab, setAutoSubTab] = useState<"signal" | "order">("signal")
+  const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs">("signal")
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -250,6 +250,24 @@ export default function PanelPage() {
   const [testAction,     setTestAction]     = useState<"open" | "close">("open")
   const [testLoading,    setTestLoading]    = useState(false)
   const [testResult,     setTestResult]     = useState<Record<string, unknown> | null>(null)
+  // 주문 로그
+  type OrderLog = {
+    id: string; created_at: string; symbol: string; direction: string
+    account_name: string | null; tvm_str: string | null; tvm_status: number | null
+    tvm_response: string | null; ok: boolean; error_msg: string | null; position_id: string | null
+  }
+  const [orderLogs,       setOrderLogs]       = useState<OrderLog[]>([])
+  const [orderLogsLoaded, setOrderLogsLoaded] = useState(false)
+  const [orderLogsLoading, setOrderLogsLoading] = useState(false)
+
+  const loadOrderLogs = async () => {
+    setOrderLogsLoading(true)
+    const tok = localStorage.getItem("app_token") ?? ""
+    const res = await fetch("/api/auto-trading/logs?limit=100", { headers: { Authorization: `Bearer ${tok}` } })
+    if (res.ok) { const d = await res.json(); setOrderLogs(d.logs ?? []) }
+    setOrderLogsLoaded(true)
+    setOrderLogsLoading(false)
+  }
 
   const loadTradingData = async () => {
     const tok = localStorage.getItem("app_token") ?? ""
