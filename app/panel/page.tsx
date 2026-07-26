@@ -1327,7 +1327,7 @@ export default function PanelPage() {
         </div>
       </header>
 
-      {/* ── 총판 전용: 지점 계정생성 모달 ── */}
+      {/* ── 총판 전용: 지점 계정생성 ���달 ── */}
       {baCreateOpen && myRole === "branch_admin" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-6 shadow-xl">
@@ -2679,7 +2679,7 @@ export default function PanelPage() {
               ) : (
                 <div className="divide-y divide-border">
                   {lpHistory.map(tx => {
-                    const poolLabel: Record<string, string> = { long_short: "롱/숏", under_over: "언더/오버", odd_even: "홀/짝" }
+                    const poolLabel: Record<string, string> = { long_short: "롱/숏", under_over: "���더/오버", odd_even: "홀/짝" }
                     const sideLabel = tx.side === "a" ? "A (롱·언더·홀)" : "B (숏·오버·짝)"
                     return (
                       <div key={tx.id} className="px-5 py-3 flex items-center justify-between text-sm">
@@ -4060,7 +4060,7 @@ export default function PanelPage() {
                 <Shield className="w-4 h-4 text-primary" /> 관리자 계정 생성
               </h2>
               <p className="text-xs text-muted-foreground mb-5">
-                대총판 · 총판 · 지점 계정을 직접 생성합니다. 생성 후 해당 계정으�� 로그인하면 각 역할에 맞는 탭이 표시됩니다.
+                대총판 · 총판 · 지�� 계정을 직접 생성합니다. 생성 후 해당 계정으�� 로그인하면 각 역할에 맞는 탭이 표시됩니다.
               </p>
 
               {/* 역할 선택 */}
@@ -4763,14 +4763,14 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">레버리지</label>
-                        <input type="number" min={1} max={125} value={accForm.leverage}
+                        <label className="text-xs text-muted-foreground">레버리지 (배수)</label>
+                        <input type="number" step={1} placeholder="예: 10, 20, 50" value={accForm.leverage}
                           onChange={e => setAccForm(s => ({ ...s, leverage: e.target.value }))}
                           className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">주문 금액 (USDT)</label>
-                        <input type="number" min={1} value={accForm.base_amount}
+                        <input type="number" step={1} placeholder="예: 10, 50, 100" value={accForm.base_amount}
                           onChange={e => setAccForm(s => ({ ...s, base_amount: e.target.value }))}
                           className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
                       </div>
@@ -4876,7 +4876,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 {tradingLoaded && tradingAccounts.length > 0 && (
                   <div className="rounded-xl border border-border p-5 space-y-4">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-sm font-semibold text-foreground">테스트 주문</h2>
+                      <h2 className="text-sm font-semibold text-foreground">���스트 주문</h2>
                       <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">실제 주문 전송됨</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -5423,7 +5423,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 {walletRepairResult.repaired.length > 0 && (
                   <div className="rounded-xl border border-border overflow-hidden">
                     <div className="grid grid-cols-[1fr_2fr_2fr] gap-0 text-[11px] font-semibold text-muted-foreground bg-secondary/40 px-4 py-2">
-                      <span>유저명</span>
+                      <span>유저���</span>
                       <span>기존 주소</span>
                       <span>새 주소</span>
                     </div>
