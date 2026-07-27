@@ -529,6 +529,22 @@ export default function PanelPage() {
   const [tgWebhookInfo,    setTgWebhookInfo]    = useState<string | null>(null)
   const [tgWebhookLoading, setTgWebhookLoading] = useState(false)
 
+  // 날짜별 수익/손실/청산 통계
+  type DailyStat = { date: string; profit: number; loss: number; liq: number; total: number; liqRate: number }
+  const [dailyStats,       setDailyStats]       = useState<DailyStat[]>([])
+  const [dailyStatsLoaded, setDailyStatsLoaded] = useState(false)
+  const [dailyStatsLoading, setDailyStatsLoading] = useState(false)
+
+  const loadDailyStats = async () => {
+    setDailyStatsLoading(true)
+    const token = getToken(); if (!token) return
+    const res  = await fetch("/api/auto-signal/daily-stats", { headers: { Authorization: `Bearer ${token}` } })
+    const data = await res.json()
+    setDailyStats(data.stats ?? [])
+    setDailyStatsLoaded(true)
+    setDailyStatsLoading(false)
+  }
+
   // 텔레그램 주문 탭 state
   type TgSendLog = {
     id: string; created_at: string; round_number: number; type: "betting_button" | "result"
@@ -1178,7 +1194,7 @@ export default function PanelPage() {
   const [ppApproveMsg, setPpApproveMsg]     = useState<{ text: string; ok: boolean } | null>(null)
   const [ppApproving, setPpApproving]       = useState(false)
 
-  // ── 포인트 충전 요청 (임시계정 생성) ──
+  // ── 포인트 충전 요청 (임��계정 생성) ──
   const [pcRequests, setPcRequests]         = useState<any[]>([])
   const [pcLoading, setPcLoading]           = useState(false)
   const [pcPointAmt, setPcPointAmt]         = useState("")
@@ -1329,8 +1345,8 @@ export default function PanelPage() {
   // admin(지점)은 로그인 인증 자체가 본인 확인 — 비밀번호 게이트 불필요
   if (!adminPw && myRole !== "admin") {
     const isBranchAdmin = myRole === "branch_admin"
-    const pwLabel = isBranchAdmin ? "본인 비밀번호" : "마스터 비밀번���"
-    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력���세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
+    const pwLabel = isBranchAdmin ? "본인 비밀번���" : "마스터 비밀번���"
+    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력���세요." : "관리 작업을 위해 마스터 비밀번��를 입력하세요."
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -1503,7 +1519,7 @@ export default function PanelPage() {
               </button>
             </div>
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              총판��게 요청이 전달되며, 승인 후 계정이 ��성됩니다.<br />
+              총판��게 요청이 전달되며, ��인 후 계정이 ��성됩니다.<br />
               수량이 2 이상이면 ID 뒤에 번호가 자동으로 붙습니다. (예: user01, user02)
             </p>
             <div className="space-y-3 mb-4">
@@ -2702,7 +2718,7 @@ export default function PanelPage() {
                     <Input placeholder="아이디" value={buUsername} onChange={e => setBuUsername(e.target.value)} className="h-9 text-sm" />
                     <Input placeholder="비밀번호" type="password" value={buPassword} onChange={e => setBuPassword(e.target.value)} className="h-9 text-sm" />
                     <Input placeholder="수량 (최대 50)" type="number" min={1} max={50} value={buCount} onChange={e => setBuCount(e.target.value)} className="h-9 text-sm" />
-                    <Input placeholder="메모 (선택)" value={buMemo} onChange={e => setBuMemo(e.target.value)} className="h-9 text-sm" />
+                    <Input placeholder="메모 (���택)" value={buMemo} onChange={e => setBuMemo(e.target.value)} className="h-9 text-sm" />
                   </div>
                   {buMsg && <p className={`text-xs mb-2 ${buMsg.ok ? "text-primary" : "text-destructive"}`}>{buMsg.text}</p>}
                   <Button size="sm" className="gap-1.5 text-sm" disabled={buSubmitting || !buUsername.trim() || !buPassword.trim()} onClick={() => handleBulkUserCreate(selectedBranch.code)}>
@@ -4337,7 +4353,7 @@ export default function PanelPage() {
               <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center">
                 <ImageIcon className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">업로드된 카드 이미지가 없습니다.</p>
-                <p className="text-xs text-muted-foreground mt-1">위�� &quot;이미지 추가&quot; ��튼으로 업로���하세요.</p>
+                <p className="text-xs text-muted-foreground mt-1">위��� &quot;이미지 추가&quot; ��튼으로 업로���하세요.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -4610,6 +4626,7 @@ export default function PanelPage() {
                   key={key}
                   onClick={() => {
                     setAutoSubTab(key)
+                    if (key === "signal" && !dailyStatsLoaded) loadDailyStats()
                     if (key === "order" && !tradingLoaded) loadTradingData()
                     if (key === "logs" && !orderLogsLoaded) loadOrderLogs()
                     if (key === "tg" && !tgSendLogsLoaded) loadTgSendLogs()
@@ -5388,6 +5405,90 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
             {/* ── 시그널 매매 서브탭 (기존 내용) ── */}
             {autoSubTab === "signal" && (
             <div className="space-y-6">
+
+            {/* 날짜별 수익/손실/청산 통계 */}
+            <div className="rounded-xl border border-border overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-secondary/20">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">날짜별 수익 / 손실 / 청산 현황</h2>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">청산율 = 청산 ÷ (수익+손실+청산) × 100</p>
+                </div>
+                <button
+                  onClick={loadDailyStats}
+                  disabled={dailyStatsLoading}
+                  className="h-7 px-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
+                  {dailyStatsLoading ? "로딩..." : "새로고침"}
+                </button>
+              </div>
+
+              {!dailyStatsLoaded ? (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  {dailyStatsLoading ? "데이터 로딩 중..." : "새로고침 버튼을 눌러 데이터를 불러오세요."}
+                </div>
+              ) : dailyStats.length === 0 ? (
+                <div className="p-6 text-center text-xs text-muted-foreground">데이터 없음</div>
+              ) : (
+                <>
+                  {/* 전체 합계 */}
+                  {(() => {
+                    const gp  = dailyStats.reduce((s, d) => s + d.profit, 0)
+                    const gl  = dailyStats.reduce((s, d) => s + d.loss, 0)
+                    const gliq = dailyStats.reduce((s, d) => s + d.liq, 0)
+                    const gt  = gp + gl + gliq
+                    const gr  = gt > 0 ? ((gliq / gt) * 100).toFixed(1) : "0.0"
+                    return (
+                      <div className="grid grid-cols-5 gap-0 px-5 py-3 border-b border-border bg-primary/5 text-xs font-semibold">
+                        <span className="text-foreground">전체 합계</span>
+                        <span className="text-center text-emerald-500">{gp.toLocaleString()}</span>
+                        <span className="text-center text-red-400">{gl.toLocaleString()}</span>
+                        <span className="text-center text-orange-400">{gliq.toLocaleString()}</span>
+                        <span className={`text-right font-bold ${Number(gr) >= 30 ? "text-red-400" : Number(gr) >= 15 ? "text-orange-400" : "text-muted-foreground"}`}>
+                          {gr}%
+                        </span>
+                      </div>
+                    )
+                  })()}
+
+                  {/* 헤더 */}
+                  <div className="grid grid-cols-5 gap-0 px-5 py-2 border-b border-border text-[10px] font-semibold text-muted-foreground bg-secondary/10">
+                    <span>날짜</span>
+                    <span className="text-center">수익</span>
+                    <span className="text-center">손실</span>
+                    <span className="text-center">청산</span>
+                    <span className="text-right">청산율</span>
+                  </div>
+
+                  {/* 행 — 최신 날짜 위로 */}
+                  {[...dailyStats].reverse().map(d => (
+                    <div key={d.date}
+                      className={`grid grid-cols-5 gap-0 px-5 py-2.5 border-t border-border text-xs items-center ${d.liqRate >= 50 ? "bg-red-500/3" : ""}`}>
+                      <span className="font-mono text-muted-foreground tabular-nums">{d.date.slice(5)}</span>
+                      <span className={`text-center font-semibold tabular-nums ${d.profit > 0 ? "text-emerald-500" : "text-muted-foreground/40"}`}>
+                        {d.profit > 0 ? d.profit : "-"}
+                      </span>
+                      <span className={`text-center font-semibold tabular-nums ${d.loss > 0 ? "text-red-400" : "text-muted-foreground/40"}`}>
+                        {d.loss > 0 ? d.loss : "-"}
+                      </span>
+                      <span className={`text-center font-semibold tabular-nums ${d.liq > 0 ? "text-orange-400" : "text-muted-foreground/40"}`}>
+                        {d.liq > 0 ? d.liq : "-"}
+                      </span>
+                      <div className="flex items-center justify-end gap-2">
+                        {/* 청산율 바 */}
+                        <div className="w-16 h-1.5 rounded-full bg-secondary overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${d.liqRate >= 50 ? "bg-red-400" : d.liqRate >= 20 ? "bg-orange-400" : "bg-muted-foreground/30"}`}
+                            style={{ width: `${Math.min(d.liqRate, 100)}%` }}
+                          />
+                        </div>
+                        <span className={`text-right tabular-nums font-semibold w-10 ${d.liqRate >= 50 ? "text-red-400" : d.liqRate >= 20 ? "text-orange-400" : "text-muted-foreground"}`}>
+                          {d.liqRate.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
 
             {/* 설정 카드 */}
             <div className="rounded-xl border border-border p-5 space-y-4">
