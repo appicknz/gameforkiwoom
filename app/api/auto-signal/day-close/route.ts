@@ -18,23 +18,53 @@ const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
 const CRON_SECRET     = process.env.CRON_SECRET ?? ""
 const BINANCE_BASE    = "https://fapi.binance.com"
 
-/** Binance Futures 현재가 일괄 조회 */
+/** Binance Futures 현재가 일괄 조회 (전체 ticker → 개별 fallback → 최근 klines fallback) */
 async function getBinancePrices(symbols: string[]): Promise<Map<string, number>> {
-  const map = new Map<string, number>()
+  const map     = new Map<string, number>()
+  const needed  = new Set(symbols.map(s => s.replace(/\.P$/, "").toUpperCase()))
+
+  // 1차: 전체 ticker 한 번에
   try {
-    // fapi/v1/ticker/price — 전체 심볼 한 번에 (배열 응답)
-    const res  = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price`, { cache: "no-store" })
-    if (!res.ok) return map
-    const data: { symbol: string; price: string }[] = await res.json()
-    const needed = new Set(symbols.map(s => s.replace(/\.P$/, "").toUpperCase()))
-    for (const row of data) {
-      if (needed.has(row.symbol)) {
-        map.set(row.symbol, parseFloat(row.price))
+    const res = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price`, { cache: "no-store" })
+    if (res.ok) {
+      const data: { symbol: string; price: string }[] = await res.json()
+      for (const row of data) {
+        if (needed.has(row.symbol)) map.set(row.symbol, parseFloat(row.price))
       }
     }
-  } catch {
-    // 가격 조회 실패 시 빈 맵 반환 — 해당 포지션은 closed_roi null로 저장
+  } catch { /* fallback으로 이어짐 */ }
+
+  // 2차: 전체 조회 실패 or 일부 심볼 누락 → 개별 심볼 조회
+  const missing = [...needed].filter(s => !map.has(s))
+  if (missing.length > 0) {
+    await Promise.all(missing.map(async sym => {
+      try {
+        const res = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price?symbol=${sym}`, { cache: "no-store" })
+        if (res.ok) {
+          const d: { price: string } = await res.json()
+          if (d.price) map.set(sym, parseFloat(d.price))
+        }
+      } catch { /* 이 심볼 가격 조회 실패 */ }
+    }))
   }
+
+  // 3차: 개별 조회도 실패한 심볼 → 최근 1분봉 klines로 fallback
+  const stillMissing = [...needed].filter(s => !map.has(s))
+  if (stillMissing.length > 0) {
+    await Promise.all(stillMissing.map(async sym => {
+      try {
+        const res = await fetch(
+          `${BINANCE_BASE}/fapi/v1/klines?symbol=${sym}&interval=1m&limit=1`,
+          { cache: "no-store" }
+        )
+        if (res.ok) {
+          const d: [number, string, string, string, string][] = await res.json()
+          if (d?.[0]?.[4]) map.set(sym, parseFloat(d[0][4])) // index 4 = close
+        }
+      } catch { /* 이 심볼 klines 조회도 실패 */ }
+    }))
+  }
+
   return map
 }
 

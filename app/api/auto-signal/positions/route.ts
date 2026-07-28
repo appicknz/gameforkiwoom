@@ -147,19 +147,52 @@ export async function DELETE(req: Request) {
     if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
 
     if (activePos && activePos.length > 0) {
-      // Binance 현재가 일괄 조회
+      // Binance 현재가 일괄 조회 (전체 ticker → 개별 fallback → klines fallback)
       const BINANCE_BASE = "https://fapi.binance.com"
       const priceMap = new Map<string, number>()
+      const needed = new Set<string>(activePos.map((p: { symbol: string }) => p.symbol.replace(/\.P$/, "").toUpperCase()))
+
+      // 1차: 전체 ticker
       try {
-        const res  = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price`, { cache: "no-store" })
+        const res = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price`, { cache: "no-store" })
         if (res.ok) {
           const data: { symbol: string; price: string }[] = await res.json()
-          const needed = new Set(activePos.map((p: { symbol: string }) => p.symbol.replace(/\.P$/, "").toUpperCase()))
           for (const row of data) {
             if (needed.has(row.symbol)) priceMap.set(row.symbol, parseFloat(row.price))
           }
         }
-      } catch { /* 가격 조회 실패 시 null로 저장 */ }
+      } catch { /* fallback으로 이어짐 */ }
+
+      // 2차: 누락 심볼 개별 조회
+      const missing = [...needed].filter(s => !priceMap.has(s))
+      if (missing.length > 0) {
+        await Promise.all(missing.map(async sym => {
+          try {
+            const res = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price?symbol=${sym}`, { cache: "no-store" })
+            if (res.ok) {
+              const d: { price: string } = await res.json()
+              if (d.price) priceMap.set(sym, parseFloat(d.price))
+            }
+          } catch { /* 개별 조회 실패 */ }
+        }))
+      }
+
+      // 3차: 여전히 누락이면 최근 1분봉 klines
+      const stillMissing = [...needed].filter(s => !priceMap.has(s))
+      if (stillMissing.length > 0) {
+        await Promise.all(stillMissing.map(async sym => {
+          try {
+            const res = await fetch(
+              `${BINANCE_BASE}/fapi/v1/klines?symbol=${sym}&interval=1m&limit=1`,
+              { cache: "no-store" }
+            )
+            if (res.ok) {
+              const d: [number, string, string, string, string][] = await res.json()
+              if (d?.[0]?.[4]) priceMap.set(sym, parseFloat(d[0][4]))
+            }
+          } catch { /* klines 조회도 실패 */ }
+        }))
+      }
 
       // 포지션별 개별 업데이트 (closed_price, closed_roi 포함)
       await Promise.all(
