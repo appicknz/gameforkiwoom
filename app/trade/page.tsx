@@ -570,6 +570,14 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
   const [dateEstValue, setDateEstValue] = useState<number | null>(null)  // 해당 날짜 rebalance est_value
   const [, setTick] = useState(0)
 
+  type DailySnapshot = {
+    date_label: string; close_type: string; snapped_at: string
+    margin: number; est_value: number; total_pnl: number; total_roi: number
+    sl_pnl: number; sl_count: number
+    position_count: number; profit_count: number; loss_count: number; liq_count: number
+  }
+  const [snapshot, setSnapshot] = useState<DailySnapshot | null>(null)
+
   // 부모에서 날짜를 제어하면 부모 날짜 우선 사용
   const selectedDate = propDate ?? innerDate
   const setSelectedDate = (d: Date) => { setInnerDate(d); onSelectDate?.(d) }
@@ -615,6 +623,15 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
       .catch(() => setDateEstValue(null))
   }, [dateStr, isToday])
 
+  // 과거 날짜 선택 시 daily_snapshot fetch — 고정 수치 표시용
+  useEffect(() => {
+    if (isToday) { setSnapshot(null); return }
+    fetch(`/api/auto-signal/snapshots?date=${dateStr}`)
+      .then(r => r.ok ? r.json() : { snapshot: null })
+      .then(d => setSnapshot(d.snapshot ?? null))
+      .catch(() => setSnapshot(null))
+  }, [dateStr, isToday])
+
   // 1초 tick — 실시간 % 갱신
   useEffect(() => {
     const t = setInterval(() => setTick(n => n + 1), 1000)
@@ -627,15 +644,79 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
       <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
       {/* 요약 카드 */}
       {(() => {
-        const cnt    = positions.length
+        const cnt = positions.length
+
+        // ── 과거 날짜 + 스냅샷 있으면 고정값으로 표시 ──────────────
+        if (!isToday && snapshot) {
+          const sp       = snapshot
+          const pnlColor = sp.total_pnl >= 0 ? UP_COLOR : DOWN_COLOR
+          const roiColor = sp.total_roi >= 0 ? UP_COLOR : DOWN_COLOR
+          return (
+            <div style={{ padding: "8px 12px", borderBottom: `1px solid rgba(212,175,55,0.1)`, flexShrink: 0 }}>
+              <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+                <div className="flex items-center gap-1.5">
+                  <PulseDot />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: GOLD }}>청산 기록 ({sp.position_count}건)</span>
+                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>
+                    수익 {sp.profit_count} / 손실 {sp.loss_count} / 청산 {sp.liq_count}
+                  </span>
+                </div>
+                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>
+                  스냅샷 {sp.close_type === "day_close" ? "(자정 자동)" : "(반영)"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2" style={{ marginBottom: 6 }}>
+                <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>MARGIN</div>
+                  <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
+                    ${Number(sp.margin).toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>확정 시작 잔고</div>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>EST. VALUE</div>
+                  <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>
+                    ${Number(sp.est_value).toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+                    MARGIN + PNL {sp.total_pnl >= 0 ? "+" : ""}{Number(sp.total_pnl).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL ROI</div>
+                  <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: roiColor }}>
+                    {sp.total_roi >= 0 ? "+" : ""}{Number(sp.total_roi).toFixed(2)}%
+                  </div>
+                </div>
+                <div style={{ background: sp.sl_count > 0 ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>SL CLOSE</div>
+                  <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: sp.sl_count === 0 ? "rgba(255,255,255,0.25)" : DOWN_COLOR }}>
+                    {sp.sl_count === 0 ? "-" : `$${Number(sp.sl_pnl).toFixed(2)}`}
+                  </div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+                    {sp.sl_count > 0
+                      ? `${sp.sl_count}건 × $${Math.abs(Number(sp.sl_pnl) / sp.sl_count).toFixed(2)}`
+                      : "청산 없음"}
+                  </div>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL PNL</div>
+                  <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>
+                    {sp.total_pnl >= 0 ? "+" : ""}${Number(sp.total_pnl).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        }
+        // ─────────────────────────────────────────────────────────────
+
+        // ── 오늘 or 스냅샷 없는 날 — 기존 실시간 계산 ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
         // confirmedMargin이 없으면 포지션 수 × size_usd 폴백
         const margin = confirmedMargin > 0 ? confirmedMargin : cnt * sizeUsdCfg
-        const slCnt  = positions.filter(p => p.close_reason === "stop_loss").length
-        // 포지션별 실제 PNL: size_usd × closed_roi / 100
-        // SL도 closed_roi가 있으면 그 값 사용, 없으면 -(stop_loss_pct × leverage) 폴백
-        // 오늘: liveCache 실시간 우선 (SL 포함 전체)
-        // 과거: final_roi(Klines) → closed_roi(DB) → liveCache 폴백
         const perPnl = positions.map(p => {
           const entry  = Number(p.entry_price)
           const symKey = p.symbol.replace(/\.P$/, "").replace(/\//g, "")
@@ -644,7 +725,6 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
           const sz     = Number(p.size_usd ?? sizeUsdCfg)
           let roi: number
           if (isToday && cur > 0 && entry > 0) {
-            // 오늘: 항상 실시간 가격으로 계산
             const delta = p.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry
             roi = delta * lev * 100
           } else if (!isToday && p.final_roi != null) {
@@ -663,9 +743,6 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
         const slCntAdj = perPnl.filter(x => x.isSl).length
         const totalPnl = perPnl.reduce((s, x) => s + x.pnl, 0)
         const avgRoi   = cnt > 0 ? perPnl.reduce((s, x) => s + x.roi, 0) / cnt : 0
-        // EST. VALUE:
-        //   과거 날짜 + rebalance 기록 있음 → 확정된 최종 잔고(dateEstValue)
-        //   오늘 or rebalance 없음          → 확정 잔고 + 당일 PNL
         const estValue = (!isToday && dateEstValue != null)
           ? dateEstValue
           : margin + totalPnl

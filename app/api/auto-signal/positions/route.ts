@@ -13,6 +13,7 @@ import "server-only"
 import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
+import { saveDailySnapshot } from "@/lib/save-daily-snapshot"
 import { NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
 import { getDayCloseMap } from "@/lib/binance-klines"
@@ -221,6 +222,26 @@ export async function DELETE(req: Request) {
         })
       )
     }
+
+    // 반영 버튼(confirmed_by_master) 시 스냅샷 저장
+    if ((body.reason ?? "manual") === "confirmed_by_master" && activePos && activePos.length > 0) {
+      const dateLabel = todayKST()
+      // 설정에서 margin 기준값(seed_capital) 조회
+      const { data: cfg } = await adminSupabase
+        .from("auto_signal_settings")
+        .select("seed_capital, stop_loss_pct, size_usd, leverage")
+        .eq("id", 1)
+        .single()
+      await saveDailySnapshot({
+        dateLabel,
+        closeType:   "confirmed_by_master",
+        margin:      Number(cfg?.seed_capital ?? 0),
+        cfgSizeUsd:  Number(cfg?.size_usd     ?? 10),
+        cfgLeverage: Number(cfg?.leverage     ?? 10),
+        cfgSlPct:    Number(cfg?.stop_loss_pct ?? 5),
+      }).catch(e => console.error("[positions/DELETE] snapshot save error:", e))
+    }
+
     return NextResponse.json({ ok: true, closed: "all", count: activePos?.length ?? 0 })
   }
 

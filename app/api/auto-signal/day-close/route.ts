@@ -12,6 +12,7 @@ import "server-only"
 import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
+import { saveDailySnapshot } from "@/lib/save-daily-snapshot"
 import { NextResponse } from "next/server"
 
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
@@ -248,6 +249,16 @@ export async function GET(req: Request) {
     .from("auto_signal_settings")
     .update({ seed_capital: estValue })
     .eq("id", 1)
+
+  // 일일 스냅샷 저장 — 과거 날짜 클릭 시 이 값으로 표시
+  await saveDailySnapshot({
+    dateLabel:   dateLabel,
+    closeType:   "day_close",
+    margin:      baseBalance,
+    cfgSizeUsd:  cfgSizeUsd,
+    cfgLeverage: cfgLeverage,
+    cfgSlPct:    cfgStopLossPct,
+  }).catch(e => console.error("[day-close] snapshot save error:", e))
 
   return NextResponse.json({
     ok:           true,
