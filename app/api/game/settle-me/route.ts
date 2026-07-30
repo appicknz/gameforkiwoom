@@ -356,7 +356,7 @@ export async function POST(request: Request) {
       }
 
       if (historyRows.length > 0) {
-        await admin.from("bet_history").insert(historyRows).then(() => {}).catch(() => {})
+        try { await admin.from("bet_history").insert(historyRows) } catch { /* ignore */ }
       }
     }
 

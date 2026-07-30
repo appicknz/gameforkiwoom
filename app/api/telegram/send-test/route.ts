@@ -39,15 +39,17 @@ export async function POST(req: Request) {
   const ok = typeof result === "boolean" ? result : result.ok
 
   // 로그 기록 시도 (테이블 없으면 무시)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (admin as any).from("telegram_send_logs").insert({
-    round_number: rn,
-    type,
-    ok,
-    tg_message_id: typeof result === "object" ? (result.messageId ?? null) : null,
-    error_msg: ok ? null : "send failed",
-    payload: { source: "manual_test", by: session.userId },
-  }).catch(() => {})
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any).from("telegram_send_logs").insert({
+      round_number: rn,
+      type,
+      ok,
+      tg_message_id: typeof result === "object" ? (result.messageId ?? null) : null,
+      error_msg: ok ? null : "send failed",
+      payload: { source: "manual_test", by: session.userId },
+    })
+  } catch { /* 테이블 없으면 무시 */ }
 
   return NextResponse.json({
     ok,

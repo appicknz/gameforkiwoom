@@ -407,7 +407,7 @@ export async function POST(request: Request) {
       }
     }
     if (allHistoryRows.length > 0) {
-      await admin.from("bet_history").insert(allHistoryRows).catch(() => {})
+      try { await admin.from("bet_history").insert(allHistoryRows) } catch { /* ignore */ }
     }
 
     // ── 당첨금 지급 + 잔고 동기화 + bet:active 삭제 병렬 ────
@@ -538,8 +538,8 @@ export async function POST(request: Request) {
 
       // bulk insert + 병렬 RPC
       await Promise.all([
-        feeLogRows.length        > 0 ? admin.from("fee_logs").insert(feeLogRows).catch(() => {})               : Promise.resolve(),
-        commissionLogRows.length > 0 ? admin.from("commission_logs").insert(commissionLogRows).catch(() => {}) : Promise.resolve(),
+        feeLogRows.length        > 0 ? admin.from("fee_logs").insert(feeLogRows).then(() => {}).catch(() => {})               : Promise.resolve(),
+        commissionLogRows.length > 0 ? admin.from("commission_logs").insert(commissionLogRows).then(() => {}).catch(() => {}) : Promise.resolve(),
         ...commissionPayouts.map(fn => fn()),
         ...Object.entries(branchAccum).map(([bId, acc]) => {
           const fee    = Math.floor(acc.totalBet * 0.20)
@@ -676,7 +676,7 @@ export async function POST(request: Request) {
         }
 
         if (historyRows.length > 0) {
-          await admin.from("bet_history").insert(historyRows).then(() => {}).catch(() => {})
+          try { await admin.from("bet_history").insert(historyRows) } catch { /* ignore */ }
         }
       }
 
@@ -858,7 +858,7 @@ export async function POST(request: Request) {
         }
       }
       if (raceHistoryRows.length > 0) {
-        await admin.from("bet_history").insert(raceHistoryRows).catch(() => {})
+        try { await admin.from("bet_history").insert(raceHistoryRows) } catch { /* ignore */ }
       }
 
       // ── race 당첨금 지급 + 잔고 동기화 + bet:active 삭제 병렬 ──
@@ -956,8 +956,8 @@ export async function POST(request: Request) {
           }
         }
         await Promise.all([
-          raceFeeRows.length  > 0 ? admin.from("fee_logs").insert(raceFeeRows).catch(() => {})               : Promise.resolve(),
-          raceCommRows.length > 0 ? admin.from("commission_logs").insert(raceCommRows).catch(() => {})       : Promise.resolve(),
+          raceFeeRows.length  > 0 ? admin.from("fee_logs").insert(raceFeeRows).then(() => {}).catch(() => {})               : Promise.resolve(),
+          raceCommRows.length > 0 ? admin.from("commission_logs").insert(raceCommRows).then(() => {}).catch(() => {})       : Promise.resolve(),
           ...raceCommPayouts.map(fn => fn()),
           ...Object.entries(raceBranchAccum).map(([bId, acc]) => {
             const fee    = Math.floor(acc.totalBet * 0.20)
@@ -971,7 +971,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── rounds 테이블 기록 (라운드당 1회, ended_at 기준 upsert로 중복 방지) ─��─
+    // ── rounds 테이블 기록 (라운드당 1회, ended_at 기준 upsert로 중복 방지) ����─
     await admin.from("rounds").upsert({
       base_price: basePrice,
       result_price: resolvedClose,

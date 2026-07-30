@@ -208,11 +208,11 @@ export async function POST(request: Request) {
       if (historyRows.length === 0) return
 
       // bet_history INSERT
-      await admin.from("bet_history").insert(historyRows).catch(() => {})
+      try { await admin.from("bet_history").insert(historyRows) } catch { /* ignore */ }
 
       // 잔고 업데이트
       if (totalPayout > 0) {
-        await admin.rpc("add_balance_for_payout", { p_user_id: p.id, p_amount: totalPayout }).catch(() => {})
+        try { await admin.rpc("add_balance_for_payout", { p_user_id: p.id, p_amount: totalPayout }) } catch { /* ignore */ }
       }
 
       // Redis 배팅 키 삭제 (재정산 방지)
