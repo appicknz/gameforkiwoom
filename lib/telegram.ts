@@ -75,9 +75,10 @@ export async function sendBaccaratBettingMessage(params: {
     })
     const data = await res.json()
     if (!data.ok) {
-      console.error("[telegram/betting] sendBettingMessage error:", data.description)
+      console.error("[telegram/betting] sendBettingMessage error:", data.description, "| chatId:", chatId, "| token_prefix:", token.slice(0, 10))
       return { ok: false }
     }
+    console.log("[telegram/betting] sent ok, messageId:", data.result?.message_id)
     return { ok: true, messageId: data.result?.message_id }
   } catch (err) {
     console.error("[telegram/betting] fetch error:", err)
