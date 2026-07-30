@@ -150,7 +150,7 @@ export async function getAllManagers() {
 export async function submitPayRequest(data: {
   siteId:            string
   amount:            number
-  managerId:         string
+  managerId:         string | null | undefined
   walletAddress?:    string
   chain?:            string
   telegramId?:       string
@@ -167,14 +167,15 @@ export async function submitPayRequest(data: {
     chain:            data.chain ?? "TRX",
     telegramInput:    data.telegramInput,
     amount:           data.amount,
-    managerId:        data.managerId,
+    managerId:        data.managerId ?? null,
     telegramId:       data.telegramId,
     telegramUsername: data.telegramUsername,
     status:           "pending",
     settlementStatus: "pending",
   })
 
-  // 관리자 텔레그램 알림
+  // 관리자 텔레그램 알림 (managerId가 있을 때만)
+  if (!data.managerId) return { ok: true, requestId: id }
   const [mgr] = await payDb.select().from(payManagers).where(eq(payManagers.id, data.managerId))
   if (mgr?.telegramBotToken && mgr.telegramChatId) {
     const who = data.telegramUsername

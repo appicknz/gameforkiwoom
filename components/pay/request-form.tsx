@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { submitPayRequest, getManagerByCode } from "@/lib/pay/actions"
-import { CheckCircle2 } from "lucide-react"
+import { CheckCircle2, HelpCircle, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const AMOUNTS = [10000, 30000, 50000, 100000, 300000, 500000]
@@ -43,7 +43,8 @@ export function PayRequestForm({
   isAnonymous,
   onDone,
 }: Props) {
-  const [siteId,        setSiteId]        = useState("")
+  const [tgTooltipOpen, setTgTooltipOpen] = useState(false)
+  const tooltipRef = useRef<HTMLDivElement>(null)
   const [walletAddress, setWalletAddress] = useState("")
   const [chain,         setChain]         = useState("TRX")
   const [amount,        setAmount]        = useState<number>(0)
@@ -85,18 +86,16 @@ export function PayRequestForm({
   const needsTgInput       = isAnonymous && !tgUser && !knownTgId
 
   const handleSubmit = async () => {
-    if (!siteId.trim())        { setError("사이트 아이디를 입력해주세요."); return }
     if (!walletAddress.trim()) { setError("지갑 주소를 입력해주세요."); return }
     if (!finalAmount || finalAmount < 10000) { setError("금액을 선택하거나 입력해주세요. (최소 10,000원)"); return }
-    if (!managerId)            { setError("관리자 코드가 유효하지 않습니다."); return }
     if (needsTgInput && !tgInput.trim()) { setError("텔레그램 아이디를 입력해주세요."); return }
 
     setLoading(true); setError("")
     try {
       await submitPayRequest({
-        siteId:           siteId.trim(),
+        siteId:           resolvedTgUsername ?? resolvedTgId ?? tgInput.trim() ?? "unknown",
         amount:           finalAmount,
-        managerId,
+        managerId:        managerId ?? "",
         walletAddress:    walletAddress.trim(),
         chain,
         telegramId:       resolvedTgId,
@@ -130,18 +129,6 @@ export function PayRequestForm({
 
   return (
     <div className="flex flex-col gap-4 py-2">
-
-      {/* 사이트 아이디 */}
-      <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">사이트 아이디</label>
-        <input
-          type="text"
-          value={siteId}
-          onChange={e => setSiteId(e.target.value)}
-          placeholder="사이트에서 사용하는 아이디"
-          className="w-full h-11 px-3.5 rounded-xl border border-border bg-secondary/40 text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-        />
-      </div>
 
       {/* 체인 선택 */}
       <div>
@@ -212,15 +199,45 @@ export function PayRequestForm({
         )}
       </div>
 
-      {/* 익명 유저 텔레그램 ID 입력 */}
+      {/* 텔레그램 ID 입력 (익명 유저) */}
       {needsTgInput && (
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-            텔레그램 아이디
-            <span className="ml-1 text-muted-foreground/60">(완료 알림 수신용)</span>
-          </label>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <label className="text-xs font-medium text-muted-foreground">텔레그램 아이디</label>
+            <span className="text-muted-foreground/60 text-xs">(완료 알림 수신용)</span>
+            {/* 물음표 툴팁 버튼 */}
+            <div className="relative ml-auto" ref={tooltipRef}>
+              <button
+                type="button"
+                onClick={() => setTgTooltipOpen(v => !v)}
+                className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="텔레그램 ID 확인 방법"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+              {tgTooltipOpen && (
+                <div className="absolute right-0 bottom-6 z-50 w-64 rounded-xl border border-border bg-popover shadow-xl p-3.5 text-xs text-muted-foreground leading-relaxed">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold text-foreground">텔레그램 ID 확인 방법</span>
+                    <button onClick={() => setTgTooltipOpen(false)} className="text-muted-foreground hover:text-foreground">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1.5">
+                    <li>텔레그램 앱을 엽니다.</li>
+                    <li>설정(Settings) 메뉴로 이동합니다.</li>
+                    <li><span className="text-foreground font-medium">Username</span> 항목에서<br/>본인의 사용자명을 확인합니다.</li>
+                    <li>@ 없이 입력하시면 됩니다.<br/>예: <span className="font-mono text-foreground">bvs_official</span></li>
+                  </ol>
+                  <p className="mt-2 text-[10px] text-muted-foreground/70">
+                    Username이 없는 경우 텔레그램 설정에서 먼저 만들어주세요.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
           <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm select-none">@</span>
             <input
               type="text"
               value={tgInput}
@@ -256,7 +273,7 @@ export function PayRequestForm({
       {/* 신청 버튼 */}
       <button
         onClick={handleSubmit}
-        disabled={loading || !managerId}
+        disabled={loading}
         className="w-full h-12 rounded-2xl bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 transition-all active:scale-[0.98] mt-1"
       >
         {loading ? "신청 중..." : "충전 신청하기"}
