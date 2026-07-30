@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { useTheme } from "@/components/theme-provider"
-import { Lock, Eye, EyeOff, Moon } from "lucide-react"
+import { Lock, Eye, EyeOff, Moon, Home, BarChart2, ShoppingBag, Store, Landmark, ChevronRight } from "lucide-react"
 
 function getToken() {
   if (typeof window === "undefined") return null
@@ -138,6 +139,32 @@ export function SettingsContent() {
             {pwLoading ? "변경 중..." : "비밀번호 변경"}
           </Button>
         </div>
+      </Card>
+
+      {/* 메뉴 */}
+      <Card className="p-1 overflow-hidden">
+        {[
+          { label: "홈",      icon: Home,       href: "/market" },
+          { label: "구매내역", icon: ShoppingBag, href: "/purchases" },
+          { label: "판매관리", icon: Store,       href: "/seller" },
+          { label: "정산관리", icon: Landmark,    href: "/settlement" },
+          { label: "시그널",  icon: BarChart2,   href: "/trade" },
+        ].map((item, i, arr) => {
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/60 transition-colors ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}
+            >
+              <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                <Icon className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <span className="text-sm font-medium text-foreground flex-1">{item.label}</span>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </Link>
+          )
+        })}
       </Card>
 
     </div>

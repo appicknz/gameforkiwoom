@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono, Orbitron } from "next/font/google"
 import Script from "next/script"
 import { ThemeProvider } from "@/components/theme-provider"
-import { BottomNav } from "@/components/dashboard/bottom-nav"
 import { TelegramCollector } from "@/components/telegram-collector"
 import "./globals.css"
 
@@ -60,11 +59,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="tasko-theme">
           {/* 텔레그램 미니앱 접속 시 유저 정보 자동 수집 */}
           <TelegramCollector />
-          {/* 모바일 하단 탭바 높이(60px)만큼 콘텐츠 밀어내기 */}
-          <div className="md:pb-0 pb-[60px]">
-            {children}
-          </div>
-          <BottomNav />
+          {children}
         </ThemeProvider>
       </body>
     </html>
