@@ -7,6 +7,7 @@ import { verifySession } from "@/lib/auth"
 import { sendBaccaratBettingMessage, sendBaccaratResultMessage } from "@/lib/telegram"
 
 export async function POST(req: Request) {
+  try {
   const session = await verifySession(req)
   if (!session.ok || !["master", "admin"].includes(session.role ?? "")) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
@@ -57,4 +58,11 @@ export async function POST(req: Request) {
       channelId: process.env.TELEGRAM_BETTING_CHANNEL_ID ?? "NOT SET",
     },
   })
+  } catch (err) {
+    console.error("[v0] send-test uncaught error:", err)
+    return NextResponse.json({
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    }, { status: 500 })
+  }
 }

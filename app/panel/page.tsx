@@ -573,20 +573,27 @@ export default function PanelPage() {
   const runTgTest = async (type: "betting_button" | "result") => {
     const token = getToken(); if (!token) return
     setTgTestLoading(true); setTgTestResult(null)
-    const res  = await fetch("/api/telegram/send-test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ type }),
-    })
-    const data = await res.json()
-    if (data.ok) {
-      setTgTestResult(`전송 성공 — round=${data.roundNumber} / BOT=${data.env?.botToken ? "설정됨" : "미설정"} / CHANNEL=${data.env?.channelId}`)
-    } else {
-      setTgTestResult(`전송 실패 — BOT=${data.env?.botToken ? "설정됨" : "미설정"} / CHANNEL=${data.env?.channelId}`)
+    try {
+      const res  = await fetch("/api/telegram/send-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type }),
+      })
+      const text = await res.text()
+      const data = text ? JSON.parse(text) : {}
+      if (!res.ok) {
+        setTgTestResult(`오류 HTTP ${res.status} — ${data.error ?? text}`)
+      } else if (data.ok) {
+        setTgTestResult(`전송 성공 — round=${data.roundNumber} / BOT=${data.env?.botToken ? "설정됨" : "미설정"} / CHANNEL=${data.env?.channelId}`)
+      } else {
+        setTgTestResult(`전송 실패 — BOT=${data.env?.botToken ? "설정됨" : "미설정"} / CHANNEL=${data.env?.channelId}`)
+      }
+      setTimeout(loadTgSendLogs, 800)
+    } catch (e) {
+      setTgTestResult(`네트워크 오류 — ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setTgTestLoading(false)
     }
-    setTgTestLoading(false)
-    // 로그 새로고침
-    setTimeout(loadTgSendLogs, 800)
   }
 
   const fetchTgSetupSql = async () => {
@@ -636,7 +643,7 @@ export default function PanelPage() {
         setMyRole(role)
         setMyBranchCode(data.profile?.branch_code ?? null)
         setProfile({ username: data.profile?.username ?? "", role })
-        // 역할에 맞는 기�� 탭으로 자동 이동
+        // 역할에 맞는 기�� 탭���로 자동 이동
         if (DEFAULT_TAB[role]) setActiveTab(DEFAULT_TAB[role])
         setLoading(false)
         // 역할별 초기 데이터 로드
@@ -2477,7 +2484,7 @@ export default function PanelPage() {
                   return (
                     <div className="bg-card border border-border rounded-xl overflow-hidden">
                       <div className="px-5 py-3 border-b border-border">
-                        <h3 className="text-sm font-semibold text-foreground">누적 통계</h3>
+                        <h3 className="text-sm font-semibold text-foreground">누적 ��계</h3>
                       </div>
                       <div className="grid grid-cols-3 divide-x divide-border">
                         <div className="p-5">
@@ -3946,7 +3953,7 @@ export default function PanelPage() {
                   </div>
                   {prApproveMsg && <p className={`text-xs ${prApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{prApproveMsg.text}</p>}
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setPrApproveId(null)}>취소</Button>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setPrApproveId(null)}>���소</Button>
                     <Button size="sm" className="flex-1" disabled={prApproving} onClick={async () => {
                       setPrApproving(true); setPrApproveMsg(null)
                       const token = getToken()
@@ -5465,7 +5472,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 {autoMsg && <span className="text-xs text-muted-foreground">{autoMsg}</span>}
               </div>
 
-              {/* 시그널 타입별 방향 설정 */}
+              {/* 시그널 타입별 방�� 설정 */}
               {signalRules.length > 0 && (
                 <div className="rounded-xl border border-border overflow-hidden mt-2">
                   <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center gap-2">

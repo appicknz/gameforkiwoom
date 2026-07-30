@@ -412,24 +412,29 @@ export function RoundMonitor({
   const runTgTest = async (type: "betting_button" | "result") => {
     const token = getToken(); if (!token) return
     setTgTestLoading(true); setTgTestResult(null)
-    const res  = await fetchWithRefresh("/api/telegram/send-test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type }),
-    })
-    if (!res.ok) {
-      setTgTestResult(`오류 — HTTP ${res.status}`)
+    try {
+      const res = await fetchWithRefresh("/api/telegram/send-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      })
+      const text = await res.text()
+      const data = text ? JSON.parse(text) : {}
+      if (!res.ok) {
+        setTgTestResult(`오류 HTTP ${res.status} — ${data.error ?? text}`)
+      } else {
+        setTgTestResult(
+          data.ok
+            ? `전송 성공 — Round ${data.roundNumber} / CHANNEL=${data.env?.channelId}`
+            : `전송 실패 — BOT=${data.env?.botToken ? "설정됨" : "미설정"} / CHANNEL=${data.env?.channelId ?? "미설정"} / ${data.error ?? ""}`
+        )
+      }
+      setTimeout(loadTgLogs, 800)
+    } catch (e) {
+      setTgTestResult(`네트워크 오류 — ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
       setTgTestLoading(false)
-      return
     }
-    const data = await res.json()
-    setTgTestResult(
-      data.ok
-        ? `전송 성공 — Round ${data.roundNumber} / CHANNEL=${data.env?.channelId}`
-        : `전송 실패 — BOT=${data.env?.botToken ? "설정됨" : "미설정"} / CHANNEL=${data.env?.channelId ?? "미설정"}`
-    )
-    setTgTestLoading(false)
-    setTimeout(loadTgLogs, 800)
   }
 
   // 새 라운드 시작(배팅가능 진입) 시 자동 전송
@@ -1145,7 +1150,7 @@ export function RoundMonitor({
               </div>
             ) : tgLogs.length === 0 ? (
               <div className="px-4 py-3 text-xs text-muted-foreground">
-                전송 로그 없음 — 자동 전송이 ON이면 새 라운드마다 자동 기록됩니다.
+                전송 로그 없음 — 자동 전송이 ON��면 새 라운드마다 자동 기록됩니다.
               </div>
             ) : (
               <div className="divide-y divide-border max-h-48 overflow-y-auto">
