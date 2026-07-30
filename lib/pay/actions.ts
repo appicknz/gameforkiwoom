@@ -148,19 +148,24 @@ export async function getAllManagers() {
 // ── 미니앱: 신청 접수 ─────────────────────────────────────────────────────────
 
 export async function submitPayRequest(data: {
-  siteId:       string
-  referralCode: string
-  amount:       number
-  managerId:    string
-  telegramId?:  string
+  siteId:            string
+  amount:            number
+  managerId:         string
+  walletAddress?:    string
+  chain?:            string
+  telegramId?:       string
   telegramUsername?: string
+  telegramInput?:    string  // 익명 유저가 직접 입력한 텔레그램 아이디
 }) {
   const id = nanoid()
 
   await payDb.insert(payRequests).values({
     id,
     siteId:           data.siteId,
-    referralCode:     data.referralCode,
+    referralCode:     "",
+    walletAddress:    data.walletAddress,
+    chain:            data.chain ?? "TRX",
+    telegramInput:    data.telegramInput,
     amount:           data.amount,
     managerId:        data.managerId,
     telegramId:       data.telegramId,
@@ -172,10 +177,15 @@ export async function submitPayRequest(data: {
   // 관리자 텔레그램 알림
   const [mgr] = await payDb.select().from(payManagers).where(eq(payManagers.id, data.managerId))
   if (mgr?.telegramBotToken && mgr.telegramChatId) {
+    const who = data.telegramUsername
+      ? `@${data.telegramUsername}`
+      : data.telegramInput
+        ? `입력: ${data.telegramInput}`
+        : data.telegramId ?? "미니앱"
     await sendPayTelegramMessage(
       mgr.telegramBotToken,
       mgr.telegramChatId,
-      `<b>새 충전 신청</b>\n사이트 ID: <code>${data.siteId}</code>\n추천코드: <code>${data.referralCode}</code>\n금액: <b>${data.amount.toLocaleString("ko-KR")}원</b>\n신청자: ${data.telegramUsername ? "@" + data.telegramUsername : data.telegramId ?? "미니앱"}`,
+      `<b>새 충전 신청</b>\n사이트 ID: <code>${data.siteId}</code>\n체인: <b>${data.chain ?? "TRX"}</b>\n지갑: <code>${data.walletAddress ?? "-"}</code>\n금액: <b>${data.amount.toLocaleString("ko-KR")}원</b>\n신청자: ${who}`,
       [[
         { text: "확인 완료", callback_data: `pay_confirm:${id}` },
         { text: "거절",     callback_data: `pay_reject:${id}` },
@@ -189,4 +199,15 @@ export async function submitPayRequest(data: {
 export async function getManagerByCode(code: string) {
   const rows = await payDb.select().from(payManagers).where(eq(payManagers.uniqueCode, code))
   return rows[0] ?? null
+}
+
+/** 모달 임베드용: 환경변수 코드 or 첫 번째 관리자 반환 */
+export async function getDefaultManager() {
+  const defaultCode = process.env.PAY_DEFAULT_MANAGER_CODE
+  if (defaultCode) {
+    const rows = await payDb.select().from(payManagers).where(eq(payManagers.uniqueCode, defaultCode))
+    if (rows[0]) return rows[0]
+  }
+  const all = await payDb.select().from(payManagers).orderBy(payManagers.createdAt).limit(1)
+  return all[0] ?? null
 }

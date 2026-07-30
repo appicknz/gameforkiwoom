@@ -23,7 +23,7 @@ const STORAGE_KEY = "app_token"
 const PROFILE_KEY = "app_profile"
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin", "admin"]
 
-interface Profile { username: string; role: string; branch_code?: string | null }
+interface Profile { username: string; role: string; branch_code?: string | null; telegram_id?: string | null }
 
 function saveToken(token: string) {
   try { localStorage.setItem(STORAGE_KEY, token) } catch {}
@@ -138,7 +138,7 @@ export function TopBar() {
           const d = await pr.json()
           if (d.profile) {
             const role = d.profile.role
-            setProfile({ username: d.profile.username, role, branch_code: d.profile.branch_code ?? null })
+            setProfile({ username: d.profile.username, role, branch_code: d.profile.branch_code ?? null, telegram_id: d.profile.telegram_id ?? null })
             setIsLoggedIn(true)
           }
         }
@@ -872,6 +872,8 @@ export function TopBar() {
     <TopupModal
       open={topupOpen}
       onClose={() => setTopupOpen(false)}
+      username={profile?.username}
+      telegramId={profile?.telegram_id ?? undefined}
     />
     </>
   )
