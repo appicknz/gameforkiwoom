@@ -51,8 +51,9 @@ function parseTelegramUser(initData: string) {
 export async function POST(req: Request) {
   const { initData } = await req.json()
 
+  // initData가 없으면 임시 닉네임으로 익명 계정 즉시 생성
   if (!initData) {
-    return NextResponse.json({ error: "initData가 없습니다." }, { status: 400 })
+    return handleAnonymousLogin()
   }
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "봇 설정 오류" }, { status: 500 })
   }
 
-  // 개발 환경에서는 검증 생략 허용 (initData가 "dev_mode"인 경우)
+  // 서명 검증 (개발 환경 제외)
   const isDev = process.env.NODE_ENV !== "production"
   const isValid = isDev || verifyTelegramInitData(initData, botToken)
   if (!isValid) {
@@ -68,8 +69,9 @@ export async function POST(req: Request) {
   }
 
   const tgUser = parseTelegramUser(initData)
+  // tgUser가 없어도 익명 처리 (PC 텔레그램 등 initData는 있지만 user 파싱 실패)
   if (!tgUser?.id) {
-    return NextResponse.json({ error: "텔레그램 유저 정보 없음" }, { status: 400 })
+    return handleAnonymousLogin()
   }
 
   const telegramId = String(tgUser.id)
@@ -198,4 +200,71 @@ export async function POST(req: Request) {
     maxAge: 60 * 60 * 24 * 30,
   })
   return response
+}
+
+// 텔레그램 initData 없이 버튼만 눌렀을 때: 임의 닉네임 익명 계정 즉시 생성
+async function handleAnonymousLogin(): Promise<NextResponse> {
+  const uid = randomUUID()
+  const suffix = uid.replace(/-/g, "").slice(0, 6)
+  const username = `user_${suffix}`
+  const email    = `${uid}@noreply.app`
+  const password = randomUUID()
+
+  const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { username },
+  })
+  if (authError || !authData?.user) {
+    return NextResponse.json({ error: "계정 생성 실패: " + (authError?.message ?? "") }, { status: 500 })
+  }
+
+  const userId = authData.user.id
+  const role   = "user"
+
+  // HD 지갑 주소 할당
+  let walletIndex: number | null = null
+  let walletAddress: string | null = null
+  if (process.env.SOLANA_HD_SEED) {
+    const { data: maxRow } = await adminSupabase
+      .from("profiles").select("wallet_index")
+      .not("wallet_index", "is", null)
+      .order("wallet_index", { ascending: false })
+      .limit(1).single()
+    walletIndex = (maxRow?.wallet_index ?? -1) + 1
+    walletAddress = deriveWalletAddress(walletIndex)
+  }
+
+  const profileData: Record<string, unknown> = {
+    id: userId,
+    username,
+    role,
+  }
+  if (walletIndex !== null) profileData.wallet_index = walletIndex
+  if (walletAddress !== null) profileData.wallet_address = walletAddress
+
+  const { error: profileError } = await adminSupabase.from("profiles").upsert(profileData)
+  if (profileError) {
+    await adminSupabase.auth.admin.deleteUser(userId)
+    return NextResponse.json({ error: "프로필 저장 실패: " + profileError.message }, { status: 500 })
+  }
+
+  await adminSupabase.from("balances").upsert({ user_id: userId, amount: 0 })
+
+  const appToken = jwt.sign(
+    { sub: userId, sv: 1, role },
+    JWT_SECRET,
+    { expiresIn: "30d" }
+  )
+
+  const res = NextResponse.json({ token: appToken, username, role })
+  res.cookies.set("app_token", appToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  })
+  return res
 }
