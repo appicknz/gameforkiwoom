@@ -174,24 +174,103 @@ export async function submitPayRequest(data: {
     settlementStatus: "pending",
   })
 
-  // 관리자 텔레그램 알림 (managerId가 있을 때만)
-  if (!data.managerId) return { ok: true, requestId: id }
-  const [mgr] = await payDb.select().from(payManagers).where(eq(payManagers.id, data.managerId))
-  if (mgr?.telegramBotToken && mgr.telegramChatId) {
-    const who = data.telegramUsername
-      ? `@${data.telegramUsername}`
-      : data.telegramInput
-        ? `입력: ${data.telegramInput}`
-        : data.telegramId ?? "미니앱"
-    await sendPayTelegramMessage(
-      mgr.telegramBotToken,
-      mgr.telegramChatId,
-      `<b>새 충전 신청</b>\n사이트 ID: <code>${data.siteId}</code>\n체인: <b>${data.chain ?? "TRX"}</b>\n지갑: <code>${data.walletAddress ?? "-"}</code>\n금액: <b>${data.amount.toLocaleString("ko-KR")}원</b>\n신청자: ${who}`,
-      [[
-        { text: "확인 완료", callback_data: `pay_confirm:${id}` },
-        { text: "거절",     callback_data: `pay_reject:${id}` },
-      ]],
-    )
+  // ── dissig.com 외부 웹훅 호출 ──────────────────────────────────────
+  const webhookUrl = process.env.WEBHOOK_URL ?? "https://www.dissig.com/api/webhooks/order"
+  const applyAt = new Date().toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "long",
+    day: "numeric", hour: "2-digit", minute: "2-digit",
+  })
+  const tgWho = data.telegramUsername
+    ? `@${data.telegramUsername}`
+    : data.telegramInput
+      ? `@${data.telegramInput}`
+      : data.telegramId ?? ""
+
+  const webhookPayload = {
+    applyNo:       id,
+    siteId:        tgWho,          // 사이트 ID 대신 텔레그램 계정 전달
+    recommendCode: "",
+    amount:        String(data.amount),
+    telegram:      tgWho,
+    applyAt,
+    walletAddress: data.walletAddress ?? "",
+    chain:         data.chain ?? "TRX",
+  }
+
+  const webhookHeaders: Record<string, string> = { "Content-Type": "application/json" }
+  if (process.env.WEBHOOK_SECRET) webhookHeaders["x-webhook-secret"] = process.env.WEBHOOK_SECRET
+
+  // webhook 응답에서 계정 정보 추출 (dissig이 email/password/link 반환)
+  let webhookAccount: { email?: string; password?: string; link?: string } | null = null
+  let webhookRawRes = ""
+  try {
+    const webhookRes = await fetch(webhookUrl, {
+      method: "POST",
+      headers: webhookHeaders,
+      body: JSON.stringify(webhookPayload),
+    })
+    webhookRawRes = await webhookRes.text()
+    try {
+      const parsed = JSON.parse(webhookRawRes)
+      if (parsed?.email || parsed?.password || parsed?.link) {
+        webhookAccount = {
+          email:    parsed.email,
+          password: parsed.password,
+          link:     parsed.link ?? parsed.purchaseLink ?? parsed.url,
+        }
+      }
+    } catch { /* JSON 파싱 실패 무시 */ }
+
+    // webhook 결과 DB 저장
+    await payDb.update(payRequests)
+      .set({ webhookData: JSON.stringify({ status: webhookRes.ok ? "success" : `failed_${webhookRes.status}`, response: webhookRawRes }) })
+      .where(eq(payRequests.id, id))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    await payDb.update(payRequests)
+      .set({ webhookData: JSON.stringify({ status: "error", error: msg }) })
+      .where(eq(payRequests.id, id))
+  }
+
+  // ── 텔레그램 알림 ──────────────────────────────────────────────────
+  const time = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })
+  const amountStr = data.amount.toLocaleString("ko-KR")
+
+  // 기본 주문 정보
+  let msgBody =
+    `<b>새 충전 신청</b>\n\n` +
+    `신청번호: <code>${id}</code>\n` +
+    `금액: <b>${amountStr}원</b>\n` +
+    `신청자 텔레그램: ${tgWho || "-"}\n` +
+    `신청일시: ${time}\n\n` +
+    `체인: <b>${data.chain ?? "TRX"}</b>\n` +
+    `지갑 주소: <code>${data.walletAddress ?? "-"}</code>`
+
+  // dissig이 계정 정보를 반환한 경우 추가
+  if (webhookAccount?.email || webhookAccount?.password || webhookAccount?.link) {
+    msgBody += `\n\n<b>생성된 계정 정보</b>`
+    if (webhookAccount.email)    msgBody += `\n이메일: <code>${webhookAccount.email}</code>`
+    if (webhookAccount.password) msgBody += `\n비밀번호: <code>${webhookAccount.password}</code>`
+    if (webhookAccount.link)     msgBody += `\n\n구매 링크:\n${webhookAccount.link}`
+  }
+
+  const buttons = [[
+    { text: "확인 완료", callback_data: `pay_confirm:${id}` },
+    { text: "거절",     callback_data: `pay_reject:${id}` },
+  ]]
+
+  // 관리자 채널 알림
+  if (data.managerId) {
+    const [mgr] = await payDb.select().from(payManagers).where(eq(payManagers.id, data.managerId))
+    if (mgr?.telegramBotToken && mgr.telegramChatId) {
+      await sendPayTelegramMessage(mgr.telegramBotToken, mgr.telegramChatId, msgBody, buttons)
+    }
+  }
+
+  // 마스터 채널 알림
+  const ms = await getMasterSettings()
+  if (ms?.telegramBotToken && ms.telegramChatId) {
+    await sendPayTelegramMessage(ms.telegramBotToken, ms.telegramChatId, msgBody, buttons)
   }
 
   return { ok: true, requestId: id }
