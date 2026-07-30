@@ -1,10 +1,30 @@
+// ── 텔레그램 설정 ────────────────────────────────────────────────
+// env 파일이 sync로 덮어쓰이는 경우를 대비해 상수로 fallback 고정
+const FALLBACK_BOT_TOKEN      = "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
+const FALLBACK_BETTING_CHANNEL = "-1004471984422"
+
+function getBotToken(): string {
+  const v = process.env.TELEGRAM_BOT_TOKEN
+  // 구버전 토큰이 env에 세팅돼 있는 경우 fallback 사용
+  if (!v || v.startsWith("8902120234") || v === "undefined") return FALLBACK_BOT_TOKEN
+  return v
+}
+
+function getBettingChannelId(): string {
+  const v = process.env.TELEGRAM_BETTING_CHANNEL_ID
+  if (!v || v === "undefined") return FALLBACK_BETTING_CHANNEL
+  return v
+}
+
+// ── 공용 메시지 전송 ─────────────────────────────────────────────
+
 export async function sendTelegramMessage(
   message: string,
   botToken?: string,
   chatId?: string,
 ) {
   const token = botToken ?? process.env.TELEGRAM_BOT_TOKEN
-  const chat = chatId ?? process.env.TELEGRAM_CHAT_ID
+  const chat  = chatId  ?? process.env.TELEGRAM_CHAT_ID
 
   if (!token || !chat) {
     console.error("[telegram] BOT_TOKEN or CHAT_ID not configured")
@@ -42,12 +62,10 @@ export async function sendBaccaratBettingMessage(params: {
   playerOdds: number
   tieOdds: number
 }): Promise<{ ok: boolean; messageId?: number }> {
-  const token   = process.env.TELEGRAM_BOT_TOKEN   ?? process.env.NEXT_PUBLIC_TG_BOT_TOKEN   ?? "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
-  const chatId  = process.env.TELEGRAM_BETTING_CHANNEL_ID ?? process.env.NEXT_PUBLIC_TG_BETTING_CHANNEL_ID ?? "-1004471984422"
-  if (!token || !chatId) {
-    console.error("[telegram/betting] BOT_TOKEN or BETTING_CHANNEL_ID not set")
-    return { ok: false }
-  }
+  const token  = getBotToken()
+  const chatId = getBettingChannelId()
+
+  console.log("[telegram/betting] token_prefix:", token.slice(0, 10), "chatId:", chatId)
 
   const { roundNumber, bankerOdds, playerOdds, tieOdds } = params
 
@@ -57,9 +75,9 @@ export async function sendBaccaratBettingMessage(params: {
     `아래 버튼을 눌러 배팅하세요. 라운드당 1회만 가능합니다.`
 
   const inline_keyboard = [[
-    { text: `🔵 뱅커  ${bankerOdds.toFixed(2)}x`, callback_data: `bet:banker:${roundNumber}` },
-    { text: `🟢 플레이어  ${playerOdds.toFixed(2)}x`, callback_data: `bet:player:${roundNumber}` },
-    { text: `🟡 타이  ${tieOdds.toFixed(2)}x`, callback_data: `bet:tie:${roundNumber}` },
+    { text: `🔵 뱅커  ${bankerOdds.toFixed(2)}x`,      callback_data: `bet:banker:${roundNumber}` },
+    { text: `🟢 플레이어  ${playerOdds.toFixed(2)}x`,  callback_data: `bet:player:${roundNumber}` },
+    { text: `🟡 타이  ${tieOdds.toFixed(2)}x`,          callback_data: `bet:tie:${roundNumber}` },
   ]]
 
   try {
@@ -75,7 +93,7 @@ export async function sendBaccaratBettingMessage(params: {
     })
     const data = await res.json()
     if (!data.ok) {
-      console.error("[telegram/betting] sendBettingMessage error:", data.description, "| chatId:", chatId, "| token_prefix:", token.slice(0, 10))
+      console.error("[telegram/betting] sendBettingMessage error:", data.description, "| chatId:", chatId)
       return { ok: false }
     }
     console.log("[telegram/betting] sent ok, messageId:", data.result?.message_id)
@@ -93,11 +111,10 @@ export async function sendBaccaratResultMessage(params: {
   bankerOdds: number
   playerOdds: number
   tieOdds: number
-  betSummary: { banker: number; player: number; tie: number } // 배팅 인원수
+  betSummary: { banker: number; player: number; tie: number }
 }): Promise<boolean> {
-  const token  = process.env.TELEGRAM_BOT_TOKEN   ?? "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
-  const chatId = process.env.TELEGRAM_BETTING_CHANNEL_ID ?? "-1004471984422"
-  if (!token || !chatId) return false
+  const token  = getBotToken()
+  const chatId = getBettingChannelId()
 
   const { roundNumber, result, bankerOdds, playerOdds, tieOdds, betSummary } = params
 
@@ -108,7 +125,7 @@ export async function sendBaccaratResultMessage(params: {
   }
 
   const wonOdds = result === "banker" ? bankerOdds : result === "player" ? playerOdds : tieOdds
-  const total = betSummary.banker + betSummary.player + betSummary.tie
+  const total   = betSummary.banker + betSummary.player + betSummary.tie
 
   const text =
     `🏁 <b>Round ${roundNumber} 결과</b>\n\n` +
@@ -140,8 +157,7 @@ export async function sendBaccaratResultMessage(params: {
 
 /** callback_query 응답 (버튼 클릭 피드백) */
 export async function answerCallbackQuery(callbackQueryId: string, text: string, showAlert = false): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  if (!token) return
+  const token = getBotToken()
   await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -151,8 +167,7 @@ export async function answerCallbackQuery(callbackQueryId: string, text: string,
 
 /** 개인 DM으로 배팅 결과 전송 */
 export async function sendDirectMessage(telegramId: string, text: string): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  if (!token) return
+  const token = getBotToken()
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
