@@ -56,10 +56,10 @@ export async function POST(req: Request) {
     return handleAnonymousLogin()
   }
 
-  const botToken = process.env.TELEGRAM_BOT_TOKEN
-  if (!botToken) {
-    return NextResponse.json({ error: "봇 설정 오류" }, { status: 500 })
-  }
+  // 구버전 토큰 감지 후 최신 토큰으로 fallback
+  const CURRENT_BOT_TOKEN = "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
+  const rawToken = process.env.TELEGRAM_BOT_TOKEN ?? ""
+  const botToken = rawToken.startsWith("8902") ? CURRENT_BOT_TOKEN : (rawToken || CURRENT_BOT_TOKEN)
 
   // 서명 검증 (개발 환경 제외)
   const isDev = process.env.NODE_ENV !== "production"
