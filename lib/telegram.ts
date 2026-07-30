@@ -42,8 +42,8 @@ export async function sendBaccaratBettingMessage(params: {
   playerOdds: number
   tieOdds: number
 }): Promise<{ ok: boolean; messageId?: number }> {
-  const token   = process.env.TELEGRAM_BOT_TOKEN
-  const chatId  = process.env.TELEGRAM_BETTING_CHANNEL_ID
+  const token   = process.env.TELEGRAM_BOT_TOKEN   ?? process.env.NEXT_PUBLIC_TG_BOT_TOKEN   ?? "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
+  const chatId  = process.env.TELEGRAM_BETTING_CHANNEL_ID ?? process.env.NEXT_PUBLIC_TG_BETTING_CHANNEL_ID ?? "-1004471984422"
   if (!token || !chatId) {
     console.error("[telegram/betting] BOT_TOKEN or BETTING_CHANNEL_ID not set")
     return { ok: false }
@@ -94,8 +94,8 @@ export async function sendBaccaratResultMessage(params: {
   tieOdds: number
   betSummary: { banker: number; player: number; tie: number } // 배팅 인원수
 }): Promise<boolean> {
-  const token  = process.env.TELEGRAM_BOT_TOKEN
-  const chatId = process.env.TELEGRAM_BETTING_CHANNEL_ID
+  const token  = process.env.TELEGRAM_BOT_TOKEN   ?? "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
+  const chatId = process.env.TELEGRAM_BETTING_CHANNEL_ID ?? "-1004471984422"
   if (!token || !chatId) return false
 
   const { roundNumber, result, bankerOdds, playerOdds, tieOdds, betSummary } = params
