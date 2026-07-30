@@ -218,7 +218,7 @@ export default function PanelPage() {
   const [rebalMsg,         setRebalMsg]         = useState<string | null>(null)
 
   // 자동주문 서브탭 state
-  const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs" | "tg">("signal")
+  const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs">("signal")
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -636,7 +636,7 @@ export default function PanelPage() {
         setMyRole(role)
         setMyBranchCode(data.profile?.branch_code ?? null)
         setProfile({ username: data.profile?.username ?? "", role })
-        // 역할에 맞는 기본 탭으로 자동 이동
+        // 역할에 맞는 기�� 탭으로 자동 이동
         if (DEFAULT_TAB[role]) setActiveTab(DEFAULT_TAB[role])
         setLoading(false)
         // 역할별 초기 데이터 로드
@@ -3369,7 +3369,7 @@ export default function PanelPage() {
               </div>
             </div>}
 
-            {/* 계정 활성화 모달 */}
+            {/* 계정 ���성화 모달 */}
             {pcActivateId && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                 <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
@@ -4621,7 +4621,7 @@ export default function PanelPage() {
 
             {/* 서브탭 네비게이션 */}
             <div className="flex gap-1 border-b border-border pb-0">
-              {([["signal", "시그널 매매"], ["order", "자동주문"], ["logs", "주문로그"], ["tg", "텔레그램 주문"]] as const).map(([key, label]) => (
+              {([["signal", "시그널 매매"], ["order", "자동주문"], ["logs", "주문로그"]] as const).map(([key, label]) => (
                 <button
                   key={key}
                   onClick={() => {
@@ -4629,7 +4629,6 @@ export default function PanelPage() {
                     if (key === "signal" && !dailyStatsLoaded) loadDailyStats()
                     if (key === "order" && !tradingLoaded) loadTradingData()
                     if (key === "logs" && !orderLogsLoaded) loadOrderLogs()
-                    if (key === "tg" && !tgSendLogsLoaded) loadTgSendLogs()
                   }}
                   className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     autoSubTab === key
@@ -4641,7 +4640,7 @@ export default function PanelPage() {
               ))}
             </div>
 
-            {/* ── 자동주문 서브탭 ── */}
+            {/* ─�� 자동주문 서브탭 ── */}
             {autoSubTab === "order" && (
               <div className="space-y-6">
 
@@ -5170,125 +5169,6 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   </div>
                 )}
 
-              </div>
-            )}
-
-            {/* ── 텔레그램 주문 서브탭 ── */}
-            {autoSubTab === "tg" && (
-              <div className="space-y-4">
-
-                {/* 환경변수 + 수동 테스트 */}
-                <div className="rounded-xl border border-border p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-foreground">채널 배팅 버튼 전송 테스트</h2>
-                    <button
-                      onClick={loadTgSendLogs}
-                      disabled={tgSendLogsLoading}
-                      className="h-7 px-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
-                      {tgSendLogsLoading ? "로딩 중..." : "로그 새로고침"}
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      disabled={tgTestLoading}
-                      onClick={() => runTgTest("betting_button")}
-                      className="h-8 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
-                      {tgTestLoading ? "전송 중..." : "배팅 버튼 테스트 전송"}
-                    </button>
-                    <button
-                      disabled={tgTestLoading}
-                      onClick={() => runTgTest("result")}
-                      className="h-8 px-4 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
-                      결과 메시지 테스트 전송
-                    </button>
-                  </div>
-
-                  {tgTestResult && (
-                    <p className={`text-xs font-mono px-3 py-2 rounded-lg border ${tgTestResult.includes("성공") ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"}`}>
-                      {tgTestResult}
-                    </p>
-                  )}
-                </div>
-
-                {/* DB 테이블 없을 때 안내 */}
-                {tgTableExists === false && (
-                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
-                    <p className="text-xs font-semibold text-amber-400">telegram_send_logs 테이블이 없습니다. Supabase SQL Editor에서 아래 SQL을 실행하세요.</p>
-                    {tgSetupSql ? (
-                      <pre className="text-[10px] font-mono text-muted-foreground bg-secondary p-3 rounded overflow-auto whitespace-pre-wrap">{tgSetupSql}</pre>
-                    ) : (
-                      <button
-                        onClick={fetchTgSetupSql}
-                        className="h-7 px-3 rounded-lg bg-amber-500/20 border border-amber-500/30 text-xs text-amber-400 hover:bg-amber-500/30 transition-colors">
-                        SQL 보기
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* 전송 로그 테이블 */}
-                {tgSendLogsLoaded && tgTableExists && (
-                  <div className="rounded-xl border border-border overflow-hidden">
-                    {tgSendLogs.length === 0 ? (
-                      <div className="p-5 text-center text-xs text-muted-foreground">
-                        전송 로그 없음 — settle이 호출되면 자동 기록됩니다.
-                      </div>
-                    ) : (
-                      <>
-                        {/* 요약 */}
-                        {(() => {
-                          const total   = tgSendLogs.length
-                          const success = tgSendLogs.filter(l => l.ok).length
-                          return (
-                            <div className="flex items-center gap-6 px-5 py-3 border-b border-border bg-secondary/20 text-xs">
-                              <span className="text-muted-foreground">최근 <span className="text-foreground font-semibold">{total}</span>건</span>
-                              <span className="text-green-400 font-semibold">성공 {success}건</span>
-                              <span className="text-red-400 font-semibold">실패 {total - success}건</span>
-                            </div>
-                          )
-                        })()}
-                        {tgSendLogs.map(log => (
-                          <div key={log.id} className={`flex items-start gap-3 px-5 py-3 border-t border-border text-xs ${log.ok ? "" : "bg-red-500/3"}`}>
-                            {/* 타입 + 상태 */}
-                            <div className="flex flex-col gap-1 shrink-0">
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${log.ok ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
-                                {log.ok ? "OK" : "FAIL"}
-                              </span>
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded ${log.type === "betting_button" ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"}`}>
-                                {log.type === "betting_button" ? "배팅버튼" : "결과"}
-                              </span>
-                            </div>
-
-                            {/* 내용 */}
-                            <div className="flex-1 min-w-0 space-y-0.5">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-semibold text-foreground">Round {log.round_number}</span>
-                                {log.tg_message_id && (
-                                  <span className="text-muted-foreground font-mono">msg_id={log.tg_message_id}</span>
-                                )}
-                                {log.payload && (log.payload as Record<string,unknown>).env_set === false && (
-                                  <span className="text-red-400 text-[10px] font-semibold">BOT_TOKEN 미설정</span>
-                                )}
-                                {log.payload && (log.payload as Record<string,unknown>).channel && (
-                                  <span className="text-muted-foreground text-[10px] font-mono">{String((log.payload as Record<string,unknown>).channel)}</span>
-                                )}
-                              </div>
-                              {log.error_msg && (
-                                <p className="text-red-400 text-[11px]">{log.error_msg}</p>
-                              )}
-                            </div>
-
-                            {/* 시간 */}
-                            <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">
-                              {new Date(log.created_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                            </span>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
             )}
 

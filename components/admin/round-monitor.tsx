@@ -391,6 +391,76 @@ export function RoundMonitor({
   const raceLastBetRound     = useRef<number>(-1)
   const statsRefreshRef      = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // ── 텔레그램 배팅 버튼 전송 ─────────────────────────────────────
+  type TgLog = { id: number; ok: boolean; round_number: number; type: string; tg_message_id: number | null; error_msg: string | null; created_at: string }
+  const [tgAutoEnabled,  setTgAutoEnabled]  = useState(false)   // 새 라운드 자동 전송 ON/OFF
+  const [tgLogs,         setTgLogs]         = useState<TgLog[]>([])
+  const [tgLogsLoaded,   setTgLogsLoaded]   = useState(false)
+  const [tgTestLoading,  setTgTestLoading]  = useState(false)
+  const [tgTestResult,   setTgTestResult]   = useState<string | null>(null)
+  const tgLastRound      = useRef<number>(-1)   // 자동 전송한 마지막 라운드
+
+  const loadTgLogs = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    const res = await fetchWithRefresh("/api/telegram/send-logs")
+    if (!res.ok) return
+    const data = await res.json()
+    setTgLogs(data.logs ?? [])
+    setTgLogsLoaded(true)
+  }, [])
+
+  const runTgTest = async (type: "betting_button" | "result") => {
+    const token = getToken(); if (!token) return
+    setTgTestLoading(true); setTgTestResult(null)
+    const res  = await fetchWithRefresh("/api/telegram/send-test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    })
+    if (!res.ok) {
+      setTgTestResult(`오류 — HTTP ${res.status}`)
+      setTgTestLoading(false)
+      return
+    }
+    const data = await res.json()
+    setTgTestResult(
+      data.ok
+        ? `전송 성공 — Round ${data.roundNumber} / CHANNEL=${data.env?.channelId}`
+        : `전송 실패 — BOT=${data.env?.botToken ? "설정됨" : "미설정"} / CHANNEL=${data.env?.channelId ?? "미설정"}`
+    )
+    setTgTestLoading(false)
+    setTimeout(loadTgLogs, 800)
+  }
+
+  // 새 라운드 시작(배팅가능 진입) 시 자동 전송
+  const sendTgBettingAuto = useCallback(async (roundNumber: number) => {
+    if (tgLastRound.current === roundNumber) return
+    tgLastRound.current = roundNumber
+    const token = getToken(); if (!token) return
+    await fetchWithRefresh("/api/telegram/send-test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "betting_button", roundNumber }),
+    })
+    setTimeout(loadTgLogs, 1000)
+  }, [loadTgLogs])
+
+  // 텔레그램 자동 전송 — 자동배팅 인터벌과 별개 독립 감지
+  // tgAutoEnabled ON이면 자동배팅 실행 여부와 무관하게 새 라운드 감지
+  useEffect(() => {
+    if (!tgAutoEnabled) return
+    const tid = setInterval(() => {
+      const nowSec     = Math.floor(Date.now() / 1000)
+      const round      = Math.floor(nowSec / 30)
+      const secInRound = nowSec % 30
+      // 배팅 가능 구간(10~11초) 진입 직후 1회 전송
+      if (secInRound >= 10 && secInRound <= 11) {
+        sendTgBettingAuto(round)
+      }
+    }, 500)
+    return () => clearInterval(tid)
+  }, [tgAutoEnabled, sendTgBettingAuto])
+
   // ── 데이터 로드 ──────────────��────────────────────────────────
   const loadLpState = useCallback(async () => {
     const token = getToken(); if (!token) return
@@ -689,6 +759,10 @@ export function RoundMonitor({
           baccaratLastBetRound.current = round
           runBaccaratBet()
         }
+      }
+      // 새 라운드 배팅 가능 구간 진입 시 텔레그램 배팅 버튼 자동 전송
+      if (tgAutoEnabled && phase === "배팅가능") {
+        sendTgBettingAuto(round)
       }
     }, 500)
   }
@@ -1006,6 +1080,95 @@ export function RoundMonitor({
           <GameRoundCard stats={baccaratStats} title="바카라"           phase={baccaratPhase} timeLeft={baccaratTimeLeft} currentRound={Math.floor(Date.now() / 1000 / 30)} />
           <GameRoundCard stats={raceStats}     title="레이스 (3분 라운드)" phase={racePhase}     timeLeft={raceTimeLeft}     currentRound={Math.floor(Date.now() / 1000 / 180)} />
         </div>
+
+        {/* ── 텔레그램 배팅 버튼 ── */}
+        <div className="px-5 pb-5">
+          <div className="rounded-xl border border-border overflow-hidden">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/20">
+              <div className="flex items-center gap-3">
+                <Bot className="w-4 h-4 text-primary" />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">텔레그램 배팅 버튼</p>
+                  <p className="text-[10px] text-muted-foreground">새 라운드 시작 시 채널에 배팅 버튼 메시지 자동 전송</p>
+                </div>
+              </div>
+              {/* 자동 전송 토글 */}
+              <button
+                onClick={() => {
+                  const next = !tgAutoEnabled
+                  setTgAutoEnabled(next)
+                  if (next && !tgLogsLoaded) loadTgLogs()
+                }}
+                className={`flex items-center gap-1.5 h-7 px-3 rounded-full text-xs font-semibold border transition-colors ${
+                  tgAutoEnabled
+                    ? "bg-primary/15 border-primary/30 text-primary"
+                    : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+                }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${tgAutoEnabled ? "bg-primary animate-pulse" : "bg-muted-foreground"}`} />
+                {tgAutoEnabled ? "자동 전송 ON" : "자동 전송 OFF"}
+              </button>
+            </div>
+
+            {/* 수동 테스트 버튼 */}
+            <div className="px-4 py-3 flex items-center gap-2 border-b border-border">
+              <button
+                disabled={tgTestLoading}
+                onClick={() => runTgTest("betting_button")}
+                className="h-7 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {tgTestLoading ? "전송 중..." : "배팅 버튼 테스트"}
+              </button>
+              <button
+                disabled={tgTestLoading}
+                onClick={() => runTgTest("result")}
+                className="h-7 px-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
+                결과 테스트
+              </button>
+              <button
+                onClick={loadTgLogs}
+                className="h-7 px-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto">
+                로그 새로고침
+              </button>
+            </div>
+
+            {/* 테스트 결과 */}
+            {tgTestResult && (
+              <div className={`px-4 py-2 text-xs font-mono border-b border-border ${tgTestResult.includes("성공") ? "bg-green-500/8 text-green-400" : "bg-red-500/8 text-red-400"}`}>
+                {tgTestResult}
+              </div>
+            )}
+
+            {/* 로그 */}
+            {!tgLogsLoaded ? (
+              <div className="px-4 py-3 text-xs text-muted-foreground">
+                로그를 보려면 새로고침 버튼을 누르세요.
+              </div>
+            ) : tgLogs.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-muted-foreground">
+                전송 로그 없음 — 자동 전송이 ON이면 새 라운드마다 자동 기록됩니다.
+              </div>
+            ) : (
+              <div className="divide-y divide-border max-h-48 overflow-y-auto">
+                {tgLogs.slice(0, 20).map(log => (
+                  <div key={log.id} className={`flex items-center gap-3 px-4 py-2 text-xs ${log.ok ? "" : "bg-red-500/3"}`}>
+                    <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${log.ok ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
+                      {log.ok ? "OK" : "FAIL"}
+                    </span>
+                    <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded ${log.type === "betting_button" ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"}`}>
+                      {log.type === "betting_button" ? "배팅버튼" : "결과"}
+                    </span>
+                    <span className="text-foreground font-semibold">Round {log.round_number}</span>
+                    {log.tg_message_id && <span className="text-muted-foreground font-mono">msg={log.tg_message_id}</span>}
+                    {log.error_msg && <span className="text-red-400">{log.error_msg}</span>}
+                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground tabular-nums">
+                      {new Date(log.created_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ════════════════════════════════════════════════════════
@@ -1197,7 +1360,7 @@ export function RoundMonitor({
         )
       })()}
 
-      {/* ════════════════════════════════���═══════════════════════
+      {/* ════════════════════════════════���═══════════════��═══════
           섹션 2 — 자동배팅 (superadmin 전용)
       ════════════════════════════════════════════════════════ */}
       {isSuperAdmin && (
@@ -1320,7 +1483,7 @@ export function RoundMonitor({
                           <p className="text-sm font-black tabular-nums text-amber-500">{fmt(raceFee)}</p>
                         </div>
                       </div>
-                      {/* 시드 대비 손익 */}
+                      {/* 시��� 대비 손익 */}
                       <div className="flex items-center justify-between bg-background/60 rounded-lg px-3 py-2">
                         <div>
                           <p className="text-[10px] text-muted-foreground">총 잔고</p>
