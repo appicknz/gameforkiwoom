@@ -399,6 +399,37 @@ export function RoundMonitor({
   const [tgTestLoading,  setTgTestLoading]  = useState(false)
   const [tgTestResult,   setTgTestResult]   = useState<string | null>(null)
   const tgLastRound      = useRef<number>(-1)   // 자동 전송한 마지막 라운드
+  const [webhookUrl,     setWebhookUrl]     = useState<string | null>(null)
+  const [webhookLoading, setWebhookLoading] = useState(false)
+  const [webhookResult,  setWebhookResult]  = useState<string | null>(null)
+
+  const checkWebhook = useCallback(async () => {
+    const token = getToken(); if (!token) return
+    const res = await fetchWithRefresh("/api/telegram/set-webhook")
+    if (!res.ok) return
+    const data = await res.json()
+    setWebhookUrl(data.url ?? "")
+  }, [])
+
+  const registerWebhook = async () => {
+    const token = getToken(); if (!token) return
+    setWebhookLoading(true); setWebhookResult(null)
+    try {
+      const res  = await fetchWithRefresh("/api/telegram/set-webhook", { method: "POST" })
+      const text = await res.text()
+      const data = text ? JSON.parse(text) : {}
+      if (data.ok) {
+        setWebhookUrl(data.webhookUrl)
+        setWebhookResult(`등록 완료 — ${data.webhookUrl}`)
+      } else {
+        setWebhookResult(`실패 — ${data.description ?? data.error ?? "알 수 없는 오류"}`)
+      }
+    } catch (e) {
+      setWebhookResult(`오류 — ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setWebhookLoading(false)
+    }
+  }
 
   const loadTgLogs = useCallback(async () => {
     const token = getToken(); if (!token) return
@@ -458,8 +489,8 @@ export function RoundMonitor({
       const nowSec     = Math.floor(Date.now() / 1000)
       const round      = Math.floor(nowSec / 30)
       const secInRound = nowSec % 30
-      // 배팅 가능 구간(10~11초) 진입 직후 1회 전송
-      if (secInRound >= 10 && secInRound <= 11) {
+      // 배팅 가능 구간 시작(5~6초) 직후 1회 전송
+      if (secInRound >= 5 && secInRound <= 6) {
         sendTgBettingAuto(round)
       }
     }, 500)
@@ -1115,6 +1146,28 @@ export function RoundMonitor({
               </button>
             </div>
 
+            {/* Webhook 상태 */}
+            <div className="px-4 py-2.5 flex items-center gap-3 border-b border-border bg-secondary/10 text-xs">
+              <span className="text-muted-foreground shrink-0">Webhook:</span>
+              {webhookUrl === null
+                ? <button onClick={checkWebhook} className="text-primary underline underline-offset-2">상태 확인</button>
+                : webhookUrl
+                  ? <span className="text-green-400 truncate max-w-xs font-mono">{webhookUrl}</span>
+                  : <span className="text-red-400 font-semibold">미등록</span>
+              }
+              <button
+                onClick={registerWebhook}
+                disabled={webhookLoading}
+                className="ml-auto shrink-0 h-6 px-2.5 rounded-md bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 text-[11px]">
+                {webhookLoading ? "등록 중..." : "Webhook 재등록"}
+              </button>
+            </div>
+            {webhookResult && (
+              <div className={`px-4 py-1.5 text-[11px] font-mono border-b border-border ${webhookResult.includes("완료") ? "bg-green-500/8 text-green-400" : "bg-red-500/8 text-red-400"}`}>
+                {webhookResult}
+              </div>
+            )}
+
             {/* 수동 테스트 버튼 */}
             <div className="px-4 py-3 flex items-center gap-2 border-b border-border">
               <button
@@ -1146,7 +1199,7 @@ export function RoundMonitor({
             {/* 로그 */}
             {!tgLogsLoaded ? (
               <div className="px-4 py-3 text-xs text-muted-foreground">
-                로그를 보려면 새로고침 버튼을 누르세요.
+                ���그를 보려면 새로고침 버튼을 누르세요.
               </div>
             ) : tgLogs.length === 0 ? (
               <div className="px-4 py-3 text-xs text-muted-foreground">
@@ -1389,7 +1442,7 @@ export function RoundMonitor({
                   onClick={handleCreateAccounts} disabled={creatingAccounts}
                 >
                   <Bot className="w-3 h-3" />
-                  {creatingAccounts ? "생성 중..." : "봇 계정 생성 (바카라 50 + 레이스 50)"}
+                  {creatingAccounts ? "생성 중..." : "봇 계정 ��성 (바카라 50 + 레이스 50)"}
                 </Button>
               </div>
             </div>

@@ -12,17 +12,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  if (!token) {
-    return NextResponse.json({ error: "TELEGRAM_BOT_TOKEN 미설정" }, { status: 500 })
-  }
+  const token = process.env.TELEGRAM_BOT_TOKEN ?? "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
+  // 요청 호스트에서 동적으로 URL 구성 (배포 URL이 바뀌어도 항상 올바른 URL)
+  const host    = req.headers.get("host") ?? process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
+  const appUrl  = host ? (host.startsWith("http") ? host : `https://${host}`) : null
   if (!appUrl) {
-    return NextResponse.json({ error: "NEXT_PUBLIC_APP_URL 미설정" }, { status: 500 })
+    return NextResponse.json({ error: "앱 URL을 확인할 수 없습니다" }, { status: 500 })
   }
 
-  const webhookUrl = `${appUrl.startsWith("http") ? appUrl : `https://${appUrl}`}/api/telegram/betting-webhook`
+  const webhookUrl = `${appUrl}/api/telegram/betting-webhook`
 
   const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     method: "POST",
@@ -45,8 +44,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  if (!token) return NextResponse.json({ error: "TELEGRAM_BOT_TOKEN 미설정" }, { status: 500 })
+  const token = process.env.TELEGRAM_BOT_TOKEN ?? "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
 
   const res  = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)
   const data = await res.json()

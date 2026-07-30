@@ -116,14 +116,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true })
     }
 
-    // 잔고 차감 (atomic)
+    // 잔고 차감 (atomic RPC 우선, 없으면 직접 update)
     const { error: deductErr } = await admin.rpc("deduct_balance_for_bet", {
       p_user_id: userId,
       p_amount:  betAmount,
     })
 
     if (deductErr) {
-      // RPC 없는 경우 직접 업데이트
+      // INSUFFICIENT_BALANCE는 잔고 부족 — 더 이상 진행 불가
+      if (deductErr.message?.includes("INSUFFICIENT_BALANCE")) {
+        await answerCallbackQuery(
+          callbackQueryId,
+          `잔고가 부족합니다. 현재 잔고: ${currentBalance.toLocaleString("ko-KR")}원`,
+          true,
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      // RPC 자체가 없는 경우 직접 update fallback
       const { error: updateErr } = await admin
         .from("balances")
         .update({ amount: currentBalance - betAmount })
