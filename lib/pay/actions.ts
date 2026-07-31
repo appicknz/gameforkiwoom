@@ -270,6 +270,26 @@ export async function submitPayRequest(data: {
     { text: "거절",     callback_data: `pay_reject:${id}` },
   ]]
 
+  // ── 봇 → 유저 먼저 메시지 전송 (양방향 채널 확보) ────────────────────
+  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? ""
+  if (BOT_TOKEN && data.telegramId) {
+    // pay_members에서 bot_chat_id 조회
+    const [member] = await payDb.select().from(payMembers)
+      .where(eq(payMembers.telegramId, data.telegramId))
+      .limit(1)
+
+    const userChatId = member?.botChatId ?? data.telegramId  // fallback: telegramId === chatId인 경우도 있음
+
+    const userMsg =
+      `<b>충전 신청이 접수되었습니다.</b>\n\n` +
+      `신청번호: <code>${id}</code>\n` +
+      `금액: <b>${data.amount.toLocaleString("ko-KR")}원</b>\n` +
+      `체인: ${data.chain ?? "TRX"} | 지갑: <code>${data.walletAddress ?? "-"}</code>\n\n` +
+      `관리자 확인 후 처리됩니다. 잠시 기다려주세요.`
+
+    await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, []).catch(() => null)
+  }
+
   // 알림을 보낼 채널 목록 수집 (중복 제거)
   const notifyTargets = new Map<string, { token: string; chatId: string }>()
 

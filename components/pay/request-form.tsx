@@ -1,9 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { submitPayRequest, getManagerByCode } from "@/lib/pay/actions"
-import { CheckCircle2, HelpCircle, X } from "lucide-react"
+import { CheckCircle2, HelpCircle, X, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+const BOT_USERNAME = "bitbaka_bot"
 
 const AMOUNTS = [10000, 30000, 50000, 100000, 300000, 500000]
 
@@ -45,6 +47,9 @@ export function PayRequestForm({
 }: Props) {
   const [tgTooltipOpen, setTgTooltipOpen] = useState(false)
   const tooltipRef = useRef<HTMLDivElement>(null)
+  // 봇 시작 여부: "idle" | "waiting" | "confirmed"
+  const [botStarted,    setBotStarted]    = useState<"idle"|"waiting"|"confirmed">("idle")
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [walletAddress, setWalletAddress] = useState("")
   const [chain,         setChain]         = useState("TRX")
   const [amount,        setAmount]        = useState<number>(0)
@@ -84,6 +89,52 @@ export function PayRequestForm({
   const resolvedTgId       = tgUser ? String(tgUser.id) : knownTgId
   const resolvedTgUsername = tgUser?.username ?? knownTgUsername
   const needsTgInput       = isAnonymous && !tgUser && !knownTgId
+
+  // 봇 시작 여부를 서버에서 폴링으로 확인
+  const checkBotStarted = useCallback(async (tgId: string) => {
+    try {
+      const res = await fetch(`/api/pay-bot-check?tgId=${encodeURIComponent(tgId)}`)
+      if (!res.ok) return false
+      const data = await res.json()
+      return !!data.started
+    } catch { return false }
+  }, [])
+
+  const handleBotStart = useCallback(() => {
+    const tgId = resolvedTgId ?? tgInput.trim()
+    if (!tgId) return
+
+    // 딥링크로 봇 열기
+    const startParam = `pay_${tgId}`
+    window.open(`https://t.me/${BOT_USERNAME}?start=${startParam}`, "_blank")
+
+    setBotStarted("waiting")
+
+    // 3초 간격으로 최대 2분 폴링
+    let count = 0
+    pollRef.current = setInterval(async () => {
+      count++
+      const ok = await checkBotStarted(tgId)
+      if (ok) {
+        clearInterval(pollRef.current!)
+        setBotStarted("confirmed")
+      }
+      if (count > 40) clearInterval(pollRef.current!)  // 2분 타임아웃
+    }, 3000)
+  }, [resolvedTgId, tgInput, checkBotStarted])
+
+  // 컴포넌트 언마운트 시 폴링 정리
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
+
+  // 텔레그램 미니앱 환경이면 봇 시작 불필요 (이미 봇과 연결됨)
+  const isTwaEnv = typeof window !== "undefined" &&
+    !!(window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: unknown } } } })
+      .Telegram?.WebApp?.initDataUnsafe?.user
+
+  // 봇 시작 필요 여부: 텔레그램 미니앱이 아니고, tgId가 있을 때
+  const needsBotStart = !isTwaEnv && !!resolvedTgId && botStarted !== "confirmed"
 
   const handleSubmit = async () => {
     if (!walletAddress.trim()) { setError("지갑 주소를 입력해주세요."); return }
@@ -252,13 +303,69 @@ export function PayRequestForm({
         </div>
       )}
 
-      {/* 연동된 텔레그램 표시 */}
+      {/* 봇 시작하기 배너 — 텔레그램 미니앱 환경이 아닐 때만 표시 */}
+      {needsBotStart && (
+        <div className={cn(
+          "rounded-xl border p-3.5 transition-all",
+          botStarted === "waiting"
+            ? "bg-yellow-500/8 border-yellow-500/20"
+            : "bg-blue-500/8 border-blue-500/15"
+        )}>
+          {botStarted === "idle" && (
+            <>
+              <p className="text-xs text-blue-300 mb-2.5 leading-relaxed">
+                충전 완료 알림을 받으려면 봇을 먼저 시작해주세요.
+              </p>
+              <button
+                type="button"
+                onClick={handleBotStart}
+                className="w-full flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold text-white transition-opacity"
+                style={{ background: "#229ED9" }}
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                </svg>
+                @{BOT_USERNAME} 봇 시작하기
+                <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setBotStarted("confirmed")}
+                className="w-full mt-1.5 text-xs text-muted-foreground hover:text-foreground text-center py-1 transition-colors"
+              >
+                이미 시작했어요 (건너뛰기)
+              </button>
+            </>
+          )}
+          {botStarted === "waiting" && (
+            <div className="flex items-center gap-2.5">
+              <div className="w-4 h-4 border-2 border-yellow-400/50 border-t-yellow-400 rounded-full animate-spin shrink-0" />
+              <div>
+                <p className="text-xs text-yellow-300 font-medium">봇 시작 확인 중...</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  텔레그램에서 봇을 시작한 후 돌아오세요.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBotStarted("confirmed")}
+                className="ml-auto text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                건너뛰기
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 확인 완료 or 미니앱 환경 — 연동된 텔레그램 표시 */}
       {!needsTgInput && (resolvedTgUsername || resolvedTgId) && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-500/8 border border-blue-500/15">
           <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" viewBox="0 0 24 24" fill="currentColor">
             <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
           </svg>
           <p className="text-xs text-blue-400">
+            {botStarted === "confirmed" && !isTwaEnv && <span className="text-green-400 mr-1">봇 연결됨</span>}
             {resolvedTgUsername ? `@${resolvedTgUsername}` : resolvedTgId} 으로 완료 알림을 전송합니다.
           </p>
         </div>

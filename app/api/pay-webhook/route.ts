@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { eq, and } from "drizzle-orm"
+import { eq } from "drizzle-orm"
+import { nanoid } from "nanoid"
 import { payDb } from "@/lib/pay/db"
-import { payRequests, payManagers, payMasterSettings } from "@/lib/pay/db/schema"
+import { payRequests, payManagers, payMasterSettings, payMembers } from "@/lib/pay/db/schema"
 import {
   answerPayCallbackQuery,
   editPayMessage,
@@ -13,6 +14,55 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json()
   } catch {
+    return NextResponse.json({ ok: true })
+  }
+
+  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? ""
+
+  // ── /start 커맨드 처리 ──────────────────────────────────────────────
+  const msg = body.message as Record<string, unknown> | undefined
+  if (msg) {
+    const text   = msg.text as string | undefined
+    const from   = msg.from as Record<string, unknown> | undefined
+    const chat   = msg.chat as Record<string, unknown> | undefined
+    const chatId = String(chat?.id ?? "")
+    const tgId   = String(from?.id ?? "")
+    const username  = (from?.username as string) ?? null
+    const firstName = (from?.first_name as string) ?? "사용자"
+
+    if (text?.startsWith("/start")) {
+      // /start pay_<memberId> 파라미터 파싱
+      const param = text.split(" ")[1] ?? ""
+
+      // 해당 telegram_id로 pay_members 조회/생성 후 bot_chat_id 저장
+      const existing = await payDb
+        .select().from(payMembers)
+        .where(eq(payMembers.telegramId, tgId))
+        .limit(1)
+
+      if (existing.length > 0) {
+        await payDb.update(payMembers)
+          .set({ botChatId: chatId, botStartedAt: new Date(), username: username ?? existing[0].username })
+          .where(eq(payMembers.telegramId, tgId))
+      } else {
+        await payDb.insert(payMembers).values({
+          id:           nanoid(),
+          telegramId:   tgId,
+          firstName,
+          username:     username ?? null,
+          botChatId:    chatId,
+          botStartedAt: new Date(),
+        }).onConflictDoNothing()
+      }
+
+      // 봇 → 유저 환영 메시지
+      const welcomeText = username
+        ? `안녕하세요, @${username}님!\n충전 신청이 준비되었습니다.\n앱으로 돌아가서 신청을 완료해주세요.`
+        : `안녕하세요, ${firstName}님!\n충전 신청이 준비되었습니다.\n앱으로 돌아가서 신청을 완료해주세요.`
+
+      await sendPayTelegramMessage(BOT_TOKEN, chatId, welcomeText, [])
+    }
+
     return NextResponse.json({ ok: true })
   }
 

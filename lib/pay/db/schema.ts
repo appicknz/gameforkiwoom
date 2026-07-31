@@ -59,13 +59,15 @@ export const payManagers = pgTable("pay_managers", {
 })
 
 export const payMembers = pgTable("pay_members", {
-  id:         text("id").primaryKey(),
-  telegramId: text("telegram_id").unique(),
-  firstName:  text("first_name").notNull(),
-  lastName:   text("last_name"),
-  username:   text("username"),
-  managerId:  text("manager_id"),
-  createdAt:  timestamp("created_at").notNull().defaultNow(),
+  id:            text("id").primaryKey(),
+  telegramId:    text("telegram_id").unique(),
+  firstName:     text("first_name").notNull(),
+  lastName:      text("last_name"),
+  username:      text("username"),
+  managerId:     text("manager_id"),
+  botChatId:     text("bot_chat_id"),     // 봇과 대화한 실제 chat_id
+  botStartedAt:  timestamp("bot_started_at"), // 봇 /start 한 시각
+  createdAt:     timestamp("created_at").notNull().defaultNow(),
 })
 
 export const payRequests = pgTable("pay_requests", {
