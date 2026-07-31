@@ -259,19 +259,36 @@ export async function submitPayRequest(data: {
     { text: "거절",     callback_data: `pay_reject:${id}` },
   ]]
 
-  // 관리자 채널 알림
+  // 알림을 보낼 채널 목록 수집 (중복 제거)
+  const notifyTargets = new Map<string, { token: string; chatId: string }>()
+
+  // 1) 관리자 채널
   if (data.managerId) {
     const [mgr] = await payDb.select().from(payManagers).where(eq(payManagers.id, data.managerId))
     if (mgr?.telegramBotToken && mgr.telegramChatId) {
-      await sendPayTelegramMessage(mgr.telegramBotToken, mgr.telegramChatId, msgBody, buttons)
+      notifyTargets.set(mgr.telegramChatId, { token: mgr.telegramBotToken, chatId: mgr.telegramChatId })
     }
   }
 
-  // 마스터 채널 알림
+  // 2) 마스터 채널 (DB 설정)
   const ms = await getMasterSettings()
   if (ms?.telegramBotToken && ms.telegramChatId) {
-    await sendPayTelegramMessage(ms.telegramBotToken, ms.telegramChatId, msgBody, buttons)
+    notifyTargets.set(ms.telegramChatId, { token: ms.telegramBotToken, chatId: ms.telegramChatId })
   }
+
+  // 3) 환경변수 fallback — DB에 설정이 없을 때도 항상 전송
+  const envToken  = process.env.TELEGRAM_BOT_TOKEN
+  const envChatId = process.env.TELEGRAM_CHAT_ID
+  if (envToken && envChatId) {
+    notifyTargets.set(envChatId, { token: envToken, chatId: envChatId })
+  }
+
+  // 실제 전송
+  await Promise.allSettled(
+    Array.from(notifyTargets.values()).map(({ token, chatId }) =>
+      sendPayTelegramMessage(token, chatId, msgBody, buttons)
+    )
+  )
 
   return { ok: true, requestId: id }
 }
