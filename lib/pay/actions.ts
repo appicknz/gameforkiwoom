@@ -180,6 +180,17 @@ export async function submitPayRequest(data: {
     timeZone: "Asia/Seoul", year: "numeric", month: "long",
     day: "numeric", hour: "2-digit", minute: "2-digit",
   })
+  // username이 있으면 @username (클릭 가능)
+  // username이 없고 숫자 ID만 있으면 tg://user?id= 딥링크 (클릭 가능)
+  // telegramInput은 직접 입력한 @username
+  const tgWhoDisplay = data.telegramUsername
+    ? `@${data.telegramUsername}`
+    : data.telegramInput
+      ? `@${data.telegramInput}`
+      : data.telegramId
+        ? `<a href="tg://user?id=${data.telegramId}">ID: ${data.telegramId}</a>`
+        : "-"
+  // webhook payload에는 plain text 전달
   const tgWho = data.telegramUsername
     ? `@${data.telegramUsername}`
     : data.telegramInput
@@ -241,7 +252,7 @@ export async function submitPayRequest(data: {
     `<b>새 충전 신청</b>\n\n` +
     `신청번호: <code>${id}</code>\n` +
     `금액: <b>${amountStr}원</b>\n` +
-    `신청자 텔레그램: ${tgWho || "-"}\n` +
+    `신청자 텔레그램: ${tgWhoDisplay}\n` +
     `신청일시: ${time}\n\n` +
     `체인: <b>${data.chain ?? "TRX"}</b>\n` +
     `지갑 주소: <code>${data.walletAddress ?? "-"}</code>`
