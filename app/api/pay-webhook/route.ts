@@ -164,6 +164,70 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  // contact_admin:<requestId> — 유저가 "전송 요청" 버튼 클릭 시 관리자에게 포워딩
+  if (data.startsWith("contact_admin:")) {
+    const requestId = data.split(":")[1]
+    const [req2] = await payDb.select().from(payRequests).where(eq(payRequests.id, requestId))
+
+    if (!req2) {
+      await answerPayCallbackQuery(botToken, callbackQueryId, "신청 정보를 찾을 수 없습니다.")
+      return NextResponse.json({ ok: true })
+    }
+
+    // 버튼을 누른 유저 정보
+    const senderName = (from?.username as string)
+      ? `@${from.username as string}`
+      : `<a href="tg://user?id=${from?.id}">ID: ${from?.id}</a>`
+
+    const adminUsername = "cdpaysys"  // 관리자 텔레그램 username
+    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? botToken
+
+    // 1) 관리자(@cdpaysys)에게 유저 정보 전달
+    const adminMsg =
+      `<b>전송 요청 수신</b>\n\n` +
+      `신청번호: <code>${requestId}</code>\n` +
+      `신청자: ${senderName}\n` +
+      `금액: <b>${req2.amount.toLocaleString("ko-KR")}원</b>\n` +
+      `체인: ${req2.chain ?? "TRX"} | 지갑: <code>${req2.walletAddress ?? "-"}</code>\n\n` +
+      `위 신청자와 직접 대화를 원하시면 아래 버튼을 사용하세요.`
+
+    const adminButtons = [[
+      { text: "대화 시작", url: `tg://user?id=${from?.id}` },
+    ]]
+
+    // 관리자 chat_id 조회 (pay_members에서 username으로)
+    const [adminMember] = await payDb.select().from(payMembers)
+      .where(eq(payMembers.username, adminUsername))
+      .limit(1)
+
+    // 환경변수 TELEGRAM_CHAT_ID 또는 관리자 bot_chat_id 로 전송
+    const adminChatId = adminMember?.botChatId ?? process.env.TELEGRAM_CHAT_ID ?? ""
+    if (adminChatId) {
+      await sendPayTelegramMessage(BOT_TOKEN, adminChatId, adminMsg, adminButtons).catch(() => null)
+    }
+
+    // 2) 유저에게 확인 메시지
+    await answerPayCallbackQuery(botToken, callbackQueryId, "관리자에게 전달되었습니다.")
+
+    // 3) 버튼 텍스트 업데이트 (중복 클릭 방지)
+    if (chatId && messageId) {
+      const currentText = (message?.text as string) ?? ""
+      await editPayMessage(
+        BOT_TOKEN, String(chatId), messageId,
+        currentText + "\n\n<i>관리자에게 전송 요청이 전달되었습니다.</i>",
+        [[{ text: "전송됨", callback_data: "noop" }]],
+      )
+    }
+
+    return NextResponse.json({ ok: true })
+  }
+
+  // noop — 이미 처리된 버튼
+  if (data === "noop") {
+    await answerPayCallbackQuery(botToken, callbackQueryId, "이미 전송된 요청입니다.")
+    return NextResponse.json({ ok: true })
+  }
+
   await answerPayCallbackQuery(botToken, callbackQueryId, "알 수 없는 요청입니다.")
   return NextResponse.json({ ok: true })
 }

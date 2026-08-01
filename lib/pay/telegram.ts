@@ -1,10 +1,14 @@
 const TG_API = "https://api.telegram.org"
 
+type InlineButton =
+  | { text: string; callback_data: string; url?: never }
+  | { text: string; url: string; callback_data?: never }
+
 export async function sendPayTelegramMessage(
   botToken: string,
   chatId: string,
   text: string,
-  inlineKeyboard?: { text: string; callback_data: string }[][],
+  inlineKeyboard?: InlineButton[][],
 ) {
   const body: Record<string, unknown> = {
     chat_id: chatId,
@@ -40,7 +44,7 @@ export async function editPayMessage(
   chatId: string,
   messageId: number,
   text: string,
-  inlineKeyboard?: { text: string; callback_data: string }[][],
+  inlineKeyboard?: InlineButton[][],
 ) {
   const body: Record<string, unknown> = {
     chat_id: chatId,

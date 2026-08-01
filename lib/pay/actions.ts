@@ -287,7 +287,12 @@ export async function submitPayRequest(data: {
       `체인: ${data.chain ?? "TRX"} | 지갑: <code>${data.walletAddress ?? "-"}</code>\n\n` +
       `관리자 확인 후 처리됩니다. 잠시 기다려주세요.`
 
-    await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, []).catch(() => null)
+    // "전송 요청" 버튼: 클릭 시 관리자(@cdpaysys)에게 이 유저 정보를 전달
+    const userButtons = [[
+      { text: "전송 요청", callback_data: `contact_admin:${id}` },
+    ]]
+
+    await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, userButtons).catch(() => null)
   }
 
   // 알림을 보낼 채널 목록 수집 (중복 제거)
