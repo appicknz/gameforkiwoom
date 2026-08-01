@@ -211,10 +211,11 @@ export async function submitPayRequest(data: {
       ? `@${data.telegramInput}`
       : data.telegramId ?? ""
 
-  // 스펙에 맞는 payload (recommendCode 없음, walletAddress/chain 추가)
+  // 스펙에 맞는 payload (recommendCode 빈 문자열, walletAddress/chain 포함)
   const webhookPayload = {
     applyNo:       id,
     siteId,
+    recommendCode: "",                  // 없으면 빈 문자열 (스펙 호환)
     amount:        String(data.amount),
     telegram:      tgWho,
     applyAt,
@@ -237,18 +238,28 @@ export async function submitPayRequest(data: {
     webhookRawRes = await webhookRes.text()
     try {
       const parsed = JSON.parse(webhookRawRes)
-      if (parsed?.email || parsed?.password || parsed?.link) {
+      // dissig이 즉시 응답에 계정 정보를 포함하는 경우
+      if (parsed?.email || parsed?.password || parsed?.link || parsed?.purchaseLink) {
         webhookAccount = {
-          email:    parsed.email,
-          password: parsed.password,
-          link:     parsed.link ?? parsed.purchaseLink ?? parsed.url,
+          email:    parsed.email    ?? parsed.accountEmail,
+          password: parsed.password ?? parsed.accountPassword,
+          link:     parsed.link     ?? parsed.purchaseLink ?? parsed.paymentUrl ?? parsed.url,
         }
       }
     } catch { /* JSON 파싱 실패 무시 */ }
 
-    // webhook 결과 DB 저장
+    // webhook 결과 DB 저장 (copyText는 나중에 병합)
     await payDb.update(payRequests)
-      .set({ webhookData: JSON.stringify({ status: webhookRes.ok ? "success" : `failed_${webhookRes.status}`, response: webhookRawRes }) })
+      .set({ webhookData: JSON.stringify({
+        status:   webhookRes.ok ? "success" : `failed_${webhookRes.status}`,
+        response: webhookRawRes,
+        // 계정 정보가 즉시 반환된 경우 함께 저장
+        ...(webhookAccount ? {
+          purchaseLink:    webhookAccount.link     ?? null,
+          accountEmail:    webhookAccount.email    ?? null,
+          accountPassword: webhookAccount.password ?? null,
+        } : {}),
+      }) })
       .where(eq(payRequests.id, id))
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -292,7 +303,7 @@ export async function submitPayRequest(data: {
       .where(eq(payMembers.telegramId, data.telegramId))
       .limit(1)
 
-    const userChatId = member?.botChatId ?? data.telegramId  // fallback: telegramId === chatId인 경우도 있���
+    const userChatId = member?.botChatId ?? data.telegramId  // fallback: telegramId === chatId인 경우도 있음
 
     const userMsg =
       `<b>충전 신청이 접수되었습니다.</b>\n\n` +
