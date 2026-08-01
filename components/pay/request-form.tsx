@@ -177,10 +177,11 @@ export function PayRequestForm({
           <CheckCircle2 className="w-7 h-7 text-green-400" />
         </div>
         <h3 className="text-lg font-bold text-foreground mb-1">신청 완료</h3>
-        <p className="text-sm text-muted-foreground mb-1">관리자가 확인 후 처리해드립니다.</p>
-        <p className="text-sm text-muted-foreground">
-          신청 금액: <span className="text-foreground font-semibold">{finalAmountDone.toLocaleString("ko-KR")}원</span>
+        <p className="text-sm text-muted-foreground mb-3">관리자가 확인 후 처리해드립니다.</p>
+        <p className="text-sm text-muted-foreground mb-1">
+          신청 금액 : <span className="text-foreground font-semibold">{finalAmountDone.toLocaleString("ko-KR")}원</span>
         </p>
+        <p className="text-sm text-muted-foreground mt-3">수신된 텔레그램 메세지를 확인해 주세요.</p>
       </div>
     )
   }
