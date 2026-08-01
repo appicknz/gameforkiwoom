@@ -5,13 +5,13 @@ import {
   getAllRequests, masterSettleRequest,
   getMasterSettingsAction, saveMasterSettings, getAllManagers,
 } from "@/lib/pay/actions"
-import { RefreshCw, Settings, CheckCircle, Bell, Users } from "lucide-react"
+import { RefreshCw, Settings, CheckCircle, Bell, Users, Send } from "lucide-react"
 
 type Request  = Awaited<ReturnType<typeof getAllRequests>>[number]
 type Manager  = Awaited<ReturnType<typeof getAllManagers>>[number]
 type MasterSettings = Awaited<ReturnType<typeof getMasterSettingsAction>>
 
-type Tab = "requests" | "managers" | "settings"
+type Tab = "requests" | "managers" | "settings" | "telegram"
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pending:           { label: "대기중",   color: "text-yellow-400" },
@@ -33,6 +33,13 @@ export function MasterDashboard() {
   const [chatId,    setChatId]    = useState("")
   const [savingCfg, setSavingCfg] = useState(false)
   const [cfgMsg,    setCfgMsg]    = useState("")
+
+  // 텔레그램 메시지 전송 폼
+  const [tgMessage,    setTgMessage]    = useState("")
+  const [tgBtnText,    setTgBtnText]    = useState("")
+  const [tgBtnUrl,     setTgBtnUrl]     = useState("")
+  const [tgSending,    setTgSending]    = useState(false)
+  const [tgResult,     setTgResult]     = useState<{ ok: boolean; msg: string } | null>(null)
 
   const load = useCallback(async () => {
     setRefreshing(true)
@@ -58,6 +65,28 @@ export function MasterDashboard() {
     setSavingCfg(false)
   }
 
+  const handleSendTelegram = async () => {
+    if (!tgMessage.trim()) return
+    setTgSending(true)
+    setTgResult(null)
+    try {
+      const res = await fetch("/api/pay-send-telegram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: tgMessage,
+          buttonText: tgBtnText.trim() || undefined,
+          buttonUrl:  tgBtnUrl.trim()  || undefined,
+        }),
+      })
+      const data = await res.json()
+      setTgResult({ ok: res.ok, msg: res.ok ? "전송 완료!" : (data.error ?? "전송 실패") })
+    } catch {
+      setTgResult({ ok: false, msg: "네트워크 오류" })
+    }
+    setTgSending(false)
+  }
+
   const pending    = reqs.filter(r => r.status === "pending")
   const confirmed  = reqs.filter(r => r.status === "manager_confirmed")
   const completed  = reqs.filter(r => r.status === "completed")
@@ -79,9 +108,10 @@ export function MasterDashboard() {
       {/* 탭 */}
       <div className="flex border-b border-border">
         {([
-          { key: "requests", label: "신청 목록", icon: CheckCircle },
-          { key: "managers", label: "관리자",    icon: Users },
-          { key: "settings", label: "설정",      icon: Settings },
+          { key: "requests",  label: "신청 목록",   icon: CheckCircle },
+          { key: "managers",  label: "관리자",      icon: Users },
+          { key: "telegram",  label: "텔레그램",    icon: Send },
+          { key: "settings",  label: "설정",        icon: Settings },
         ] as { key: Tab; label: string; icon: React.FC<{ className?: string }> }[]).map(t => {
           const Icon = t.icon
           return (
@@ -198,6 +228,87 @@ export function MasterDashboard() {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {tab === "telegram" && (
+          <div className="flex flex-col gap-4 max-w-lg mx-auto">
+            <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <Send className="w-4 h-4 text-primary" />
+                <p className="text-sm font-semibold text-foreground">메시지 전송</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                충전 채널 <span className="font-mono text-foreground">-1004471984422</span> 로 메시지를 전송합니다.
+              </p>
+
+              {/* 메시지 본문 */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted-foreground font-medium">메시지 내용 <span className="text-red-400">*</span></label>
+                <textarea
+                  value={tgMessage}
+                  onChange={e => setTgMessage(e.target.value)}
+                  placeholder="전송할 메시지를 입력하세요."
+                  rows={5}
+                  className="px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                />
+              </div>
+
+              {/* 버튼 설정 */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted-foreground font-medium">인라인 버튼 (선택)</label>
+                <input
+                  type="text"
+                  value={tgBtnText}
+                  onChange={e => setTgBtnText(e.target.value)}
+                  placeholder="버튼 텍스트 (예: 지금 확인하기)"
+                  className="h-11 px-4 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+                <input
+                  type="text"
+                  value={tgBtnUrl}
+                  onChange={e => setTgBtnUrl(e.target.value)}
+                  placeholder="버튼 URL (예: https://coinrace.live)"
+                  className="h-11 px-4 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+                {(tgBtnText || tgBtnUrl) && (
+                  <p className="text-[11px] text-muted-foreground">
+                    버튼 텍스트와 URL을 모두 입력해야 버튼이 표시됩니다.
+                  </p>
+                )}
+              </div>
+
+              {/* 미리보기 */}
+              {tgMessage && (
+                <div className="rounded-xl border border-border bg-background/60 p-3">
+                  <p className="text-[11px] text-muted-foreground mb-2">미리보기</p>
+                  <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{tgMessage}</p>
+                  {tgBtnText && tgBtnUrl && (
+                    <div className="mt-2.5">
+                      <span className="inline-block px-3 py-1.5 rounded-lg bg-primary/20 border border-primary/30 text-primary text-xs font-medium">
+                        {tgBtnText}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 결과 */}
+              {tgResult && (
+                <p className={`text-sm font-medium ${tgResult.ok ? "text-green-400" : "text-red-400"}`}>
+                  {tgResult.msg}
+                </p>
+              )}
+
+              <button
+                onClick={handleSendTelegram}
+                disabled={tgSending || !tgMessage.trim()}
+                className="h-11 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
+              >
+                <Send className="w-4 h-4" />
+                {tgSending ? "전송 중..." : "텔레그램으로 전송"}
+              </button>
+            </div>
           </div>
         )}
 
