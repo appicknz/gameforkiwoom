@@ -285,10 +285,27 @@ export async function submitPayRequest(data: {
       `신청번호: <code>${id}</code>\n` +
       `금액: <b>${data.amount.toLocaleString("ko-KR")}원</b>\n` +
       `체인: ${data.chain ?? "TRX"} | 지갑: <code>${data.walletAddress ?? "-"}</code>\n\n` +
-      `관리자 확인 후 처리됩니다. 잠시 기다려주세요.\n` +
-      `문의사항은 @cdpaysys 로 연락주세요.`
+      `아래 버튼을 클릭하여 메세지 복사 후 @cdpaysys 로 전달해 주세요. 전송이 시작됩니다.\n` +
+      `<i>*미 전달 시 대기열 그룹에 포함되어 대기 상태로 남습니다.</i>`
 
-    await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, []).catch(() => null)
+    // 복사용 plain text (버튼 클릭 시 봇이 별도 전송)
+    const copyText =
+      `충전 신청이 접수되었습니다.\n\n` +
+      `신청번호: ${id}\n` +
+      `금액: ${data.amount.toLocaleString("ko-KR")}원\n` +
+      `체인: ${data.chain ?? "TRX"} | 지갑: ${data.walletAddress ?? "-"}`
+
+    const userButtons = [[
+      { text: "메세지 복사하기", callback_data: `copy_msg:${id}` },
+    ]]
+
+    await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, userButtons).catch(() => null)
+
+    // 복사용 텍스트를 DB에 저장 (webhook에서 꺼내 쓰기 위해 request note에 보관)
+    await payDb.update(payRequests)
+      .set({ webhookData: JSON.stringify({ copyText }) })
+      .where(eq(payRequests.id, id))
+      .catch(() => null)
   }
 
   // 알림을 보낼 채널 목록 수집 (중복 제거)

@@ -158,6 +158,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  // copy_msg:<requestId> — 유저가 "메세지 복사하기" 버튼 클릭 시 plain text 전송
+  if (data.startsWith("copy_msg:")) {
+    const requestId = data.split(":")[1]
+    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? botToken
+    const [req2] = await payDb.select().from(payRequests).where(eq(payRequests.id, requestId))
+
+    let parsedData: Record<string, string> = {}
+    try { parsedData = JSON.parse(req2?.webhookData ?? "{}") } catch { /* ignore */ }
+    const copyText = parsedData?.copyText
+      ?? (req2
+        ? `충전 신청이 접수되었습니다.\n\n신청번호: ${requestId}\n금액: ${req2.amount.toLocaleString("ko-KR")}원\n체인: ${req2.chain ?? "TRX"} | 지갑: ${req2.walletAddress ?? "-"}`
+        : "신청 정보를 찾을 수 없습니다.")
+
+    // 유저에게 복사하기 쉬운 plain text 메시지 전송
+    await sendPayTelegramMessage(BOT_TOKEN, String(chatId),
+      `아래 메세지를 길게 눌러 복사 후 @cdpaysys 로 전달해 주세요.\n\n${copyText}`,
+      []
+    ).catch(() => null)
+
+    await answerPayCallbackQuery(botToken, callbackQueryId, "메세지가 전송되었습니다.")
+    return NextResponse.json({ ok: true })
+  }
+
   // pay_reject:<id>
   if (data.startsWith("pay_reject:")) {
     const requestId = data.split(":")[1]
