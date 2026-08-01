@@ -41,11 +41,29 @@ export function MasterDashboard() {
   const [tgSending,    setTgSending]    = useState(false)
   const [tgResult,     setTgResult]     = useState<{ ok: boolean; msg: string } | null>(null)
 
+  // 웹훅 설정
+  const [webhookUrl,    setWebhookUrl]    = useState("")
+  const [webhookSecret, setWebhookSecret] = useState("")
+  const [webhookSiteId, setWebhookSiteId] = useState("")
+  const [savingWebhook, setSavingWebhook] = useState(false)
+  const [webhookCfgMsg, setWebhookCfgMsg] = useState("")
+
+  // 웹훅 테스트
+  const [testPayload,   setTestPayload]   = useState("")
+  const [testResult,    setTestResult]    = useState<{ ok: boolean; status: number; body: string } | null>(null)
+  const [testLoading,   setTestLoading]   = useState(false)
+
   const load = useCallback(async () => {
     setRefreshing(true)
     const [r, m, s] = await Promise.all([getAllRequests(), getAllManagers(), getMasterSettingsAction()])
     setReqs(r); setManagers(m); setSettings(s)
-    if (s) { setBotToken(s.telegramBotToken ?? ""); setChatId(s.telegramChatId ?? "") }
+    if (s) {
+      setBotToken(s.telegramBotToken ?? "")
+      setChatId(s.telegramChatId ?? "")
+      setWebhookUrl(s.webhookUrl ?? "")
+      setWebhookSecret(s.webhookSecret ?? "")
+      setWebhookSiteId(s.siteId ?? "")
+    }
     setRefreshing(false)
   }, [])
 
@@ -63,6 +81,50 @@ export function MasterDashboard() {
     await saveMasterSettings({ telegramBotToken: botToken, telegramChatId: chatId })
     setCfgMsg("저장되었습니다.")
     setSavingCfg(false)
+  }
+
+  const handleSaveWebhook = async () => {
+    setSavingWebhook(true); setWebhookCfgMsg("")
+    await saveMasterSettings({
+      telegramBotToken: botToken,
+      telegramChatId:   chatId,
+      webhookUrl:       webhookUrl,
+      webhookSecret:    webhookSecret,
+      siteId:           webhookSiteId,
+    })
+    setWebhookCfgMsg("저장되었습니다.")
+    setSavingWebhook(false)
+  }
+
+  const handleTestWebhook = async () => {
+    setTestLoading(true); setTestResult(null)
+    try {
+      // 기본 테스트 payload 자동 생성
+      const payload = testPayload.trim()
+        ? JSON.parse(testPayload)
+        : {
+            applyNo:       "TEST-" + Date.now(),
+            siteId:        webhookSiteId || "test-site",
+            amount:        "10000",
+            telegram:      "@test_user",
+            applyAt:       new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
+            walletAddress: "test_wallet_address",
+            chain:         "TRX",
+          }
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (webhookSecret) headers["x-webhook-secret"] = webhookSecret
+
+      const res = await fetch("/api/pay-webhook-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: webhookUrl, payload, secret: webhookSecret }),
+      })
+      const data = await res.json()
+      setTestResult({ ok: data.ok, status: data.status, body: data.body })
+    } catch (e) {
+      setTestResult({ ok: false, status: 0, body: String(e) })
+    }
+    setTestLoading(false)
   }
 
   const handleSendTelegram = async () => {
@@ -233,82 +295,98 @@ export function MasterDashboard() {
 
         {tab === "telegram" && (
           <div className="flex flex-col gap-4 max-w-lg mx-auto">
-            <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-4">
+
+            {/* ── 섹션 1: 웹훅 설정 ── */}
+            <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-foreground">외부 웹훅 설정</p>
+              <p className="text-xs text-muted-foreground">충전 신청 시 외부 서버(dissig.com 등)로 전송되는 웹훅을 설정합니다.</p>
+              <div className="flex flex-col gap-2">
+                <input type="text" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)}
+                  placeholder="웹훅 URL (예: https://www.dissig.com/api/webhooks/order)"
+                  className="h-10 px-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                <input type="text" value={webhookSecret} onChange={e => setWebhookSecret(e.target.value)}
+                  placeholder="x-webhook-secret 헤더 값"
+                  className="h-10 px-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                <input type="text" value={webhookSiteId} onChange={e => setWebhookSiteId(e.target.value)}
+                  placeholder="siteId 필드 값 (payload에 포함)"
+                  className="h-10 px-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              </div>
+              {webhookCfgMsg && <p className="text-xs text-green-400">{webhookCfgMsg}</p>}
+              <button onClick={handleSaveWebhook} disabled={savingWebhook}
+                className="h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50">
+                {savingWebhook ? "저장 중..." : "저장"}
+              </button>
+            </div>
+
+            {/* ── 섹션 2: 웹훅 테스트 ── */}
+            <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-foreground">웹훅 테스트</p>
+              <p className="text-xs text-muted-foreground">위 URL로 테스트 payload를 전송하고 응답을 확인합니다. 비워두면 기본 payload가 자동 생성됩니다.</p>
+              <textarea
+                value={testPayload}
+                onChange={e => setTestPayload(e.target.value)}
+                placeholder={`{\n  "applyNo": "TEST-...",\n  "siteId": "${webhookSiteId || "your-site-id"}",\n  "amount": "10000",\n  "telegram": "@test_user",\n  "chain": "TRX",\n  "walletAddress": "..."\n}`}
+                rows={6}
+                className="px-3 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+              />
+              <button onClick={handleTestWebhook} disabled={testLoading || !webhookUrl.trim()}
+                className="h-10 rounded-xl border border-border bg-secondary text-foreground font-semibold text-sm disabled:opacity-50 hover:bg-secondary/80 transition-colors">
+                {testLoading ? "전송 중..." : "테스트 전송"}
+              </button>
+              {testResult && (
+                <div className={`rounded-xl border p-3 text-xs font-mono ${testResult.ok ? "border-green-500/30 bg-green-500/5 text-green-300" : "border-red-500/30 bg-red-500/5 text-red-300"}`}>
+                  <p className="font-semibold mb-1">HTTP {testResult.status} — {testResult.ok ? "성공" : "실패"}</p>
+                  <pre className="whitespace-pre-wrap break-all text-[11px] opacity-80">{testResult.body}</pre>
+                </div>
+              )}
+            </div>
+
+            {/* ── 섹션 3: 채널 메시지 전송 ── */}
+            <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 <Send className="w-4 h-4 text-primary" />
-                <p className="text-sm font-semibold text-foreground">메시지 전송</p>
+                <p className="text-sm font-semibold text-foreground">채널 메시지 전송</p>
               </div>
               <p className="text-xs text-muted-foreground">
                 충전 채널 <span className="font-mono text-foreground">-1004471984422</span> 로 메시지를 전송합니다.
               </p>
-
-              {/* 메시지 본문 */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs text-muted-foreground font-medium">메시지 내용 <span className="text-red-400">*</span></label>
-                <textarea
-                  value={tgMessage}
-                  onChange={e => setTgMessage(e.target.value)}
-                  placeholder="전송할 메시지를 입력하세요."
-                  rows={5}
-                  className="px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                />
-              </div>
-
-              {/* 버튼 설정 */}
+              <textarea
+                value={tgMessage}
+                onChange={e => setTgMessage(e.target.value)}
+                placeholder="전송할 메시지를 입력하세요."
+                rows={4}
+                className="px-3 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+              />
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-muted-foreground font-medium">인라인 버튼 (선택)</label>
-                <input
-                  type="text"
-                  value={tgBtnText}
-                  onChange={e => setTgBtnText(e.target.value)}
+                <input type="text" value={tgBtnText} onChange={e => setTgBtnText(e.target.value)}
                   placeholder="버튼 텍스트 (예: 지금 확인하기)"
-                  className="h-11 px-4 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-                <input
-                  type="text"
-                  value={tgBtnUrl}
-                  onChange={e => setTgBtnUrl(e.target.value)}
+                  className="h-10 px-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                <input type="text" value={tgBtnUrl} onChange={e => setTgBtnUrl(e.target.value)}
                   placeholder="버튼 URL (예: https://coinrace.live)"
-                  className="h-11 px-4 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-                {(tgBtnText || tgBtnUrl) && (
-                  <p className="text-[11px] text-muted-foreground">
-                    버튼 텍스트와 URL을 모두 입력해야 버튼이 표시됩니다.
-                  </p>
-                )}
+                  className="h-10 px-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
               </div>
-
-              {/* 미리보기 */}
               {tgMessage && (
                 <div className="rounded-xl border border-border bg-background/60 p-3">
-                  <p className="text-[11px] text-muted-foreground mb-2">미리보기</p>
+                  <p className="text-[11px] text-muted-foreground mb-1.5">미리보기</p>
                   <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{tgMessage}</p>
                   {tgBtnText && tgBtnUrl && (
-                    <div className="mt-2.5">
-                      <span className="inline-block px-3 py-1.5 rounded-lg bg-primary/20 border border-primary/30 text-primary text-xs font-medium">
-                        {tgBtnText}
-                      </span>
-                    </div>
+                    <span className="inline-block mt-2 px-3 py-1 rounded-lg bg-primary/20 border border-primary/30 text-primary text-xs font-medium">
+                      {tgBtnText}
+                    </span>
                   )}
                 </div>
               )}
-
-              {/* 결과 */}
               {tgResult && (
-                <p className={`text-sm font-medium ${tgResult.ok ? "text-green-400" : "text-red-400"}`}>
-                  {tgResult.msg}
-                </p>
+                <p className={`text-sm font-medium ${tgResult.ok ? "text-green-400" : "text-red-400"}`}>{tgResult.msg}</p>
               )}
-
-              <button
-                onClick={handleSendTelegram}
-                disabled={tgSending || !tgMessage.trim()}
-                className="h-11 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
-              >
+              <button onClick={handleSendTelegram} disabled={tgSending || !tgMessage.trim()}
+                className="h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50">
                 <Send className="w-4 h-4" />
                 {tgSending ? "전송 중..." : "텔레그램으로 전송"}
               </button>
             </div>
+
           </div>
         )}
 
@@ -319,7 +397,7 @@ export function MasterDashboard() {
                 <Bell className="w-4 h-4 text-primary" />
                 <p className="text-sm font-semibold text-foreground">마스터 텔레그램 알림</p>
               </div>
-              <p className="text-xs text-muted-foreground">관리자 확인 완료 시 마스터에게 알림을 보냅니다.</p>
+              <p className="text-xs text-muted-foreground">관리자 확인 완료 시 마스터에��� 알림을 보냅니다.</p>
               <input
                 type="text"
                 value={botToken}

@@ -125,18 +125,23 @@ export async function getMasterSettingsAction() {
 export async function saveMasterSettings(data: {
   telegramBotToken: string
   telegramChatId: string
+  webhookUrl?:     string
+  webhookSecret?:  string
+  siteId?:         string
 }) {
   const existing = await payDb.select().from(payMasterSettings).where(eq(payMasterSettings.id, "1"))
+  const payload = {
+    telegramBotToken: data.telegramBotToken,
+    telegramChatId:   data.telegramChatId,
+    webhookUrl:       data.webhookUrl   ?? null,
+    webhookSecret:    data.webhookSecret ?? null,
+    siteId:           data.siteId       ?? null,
+    updatedAt:        new Date(),
+  }
   if (existing.length === 0) {
-    await payDb.insert(payMasterSettings).values({
-      id: "1",
-      telegramBotToken: data.telegramBotToken,
-      telegramChatId:   data.telegramChatId,
-    })
+    await payDb.insert(payMasterSettings).values({ id: "1", ...payload })
   } else {
-    await payDb.update(payMasterSettings)
-      .set({ telegramBotToken: data.telegramBotToken, telegramChatId: data.telegramChatId, updatedAt: new Date() })
-      .where(eq(payMasterSettings.id, "1"))
+    await payDb.update(payMasterSettings).set(payload).where(eq(payMasterSettings.id, "1"))
   }
   return { ok: true }
 }
@@ -175,14 +180,18 @@ export async function submitPayRequest(data: {
   })
 
   // ── dissig.com 외부 웹훅 호출 ──────────────────────────────────────
-  const webhookUrl = process.env.WEBHOOK_URL ?? "https://www.dissig.com/api/webhooks/order"
+  // 마스터 설정에서 webhookUrl, webhookSecret, siteId 가져오기
+  const masterCfg = await getMasterSettings()
+  const webhookUrl    = masterCfg?.webhookUrl    ?? process.env.WEBHOOK_URL ?? "https://www.dissig.com/api/webhooks/order"
+  const webhookSecret = masterCfg?.webhookSecret ?? process.env.WEBHOOK_SECRET ?? ""
+  const siteId        = masterCfg?.siteId        ?? data.siteId ?? ""
+
   const applyAt = new Date().toLocaleString("ko-KR", {
     timeZone: "Asia/Seoul", year: "numeric", month: "long",
     day: "numeric", hour: "2-digit", minute: "2-digit",
   })
-  // username이 있으면 @username (클릭 가능)
-  // username이 없고 숫자 ID만 있으면 tg://user?id= 딥링크 (클릭 가능)
-  // telegramInput은 직접 입력한 @username
+
+  // 텔레그램 표시용 (HTML)
   const tgWhoDisplay = data.telegramUsername
     ? `@${data.telegramUsername}`
     : data.telegramInput
@@ -190,17 +199,17 @@ export async function submitPayRequest(data: {
       : data.telegramId
         ? `<a href="tg://user?id=${data.telegramId}">ID: ${data.telegramId}</a>`
         : "-"
-  // webhook payload에는 plain text 전달
+  // webhook payload용 plain text
   const tgWho = data.telegramUsername
     ? `@${data.telegramUsername}`
     : data.telegramInput
       ? `@${data.telegramInput}`
       : data.telegramId ?? ""
 
+  // 스펙에 맞는 payload (recommendCode 없음, walletAddress/chain 추가)
   const webhookPayload = {
     applyNo:       id,
-    siteId:        tgWho,          // 사이트 ID 대신 텔레그램 계정 전달
-    recommendCode: "",
+    siteId,
     amount:        String(data.amount),
     telegram:      tgWho,
     applyAt,
@@ -209,7 +218,7 @@ export async function submitPayRequest(data: {
   }
 
   const webhookHeaders: Record<string, string> = { "Content-Type": "application/json" }
-  if (process.env.WEBHOOK_SECRET) webhookHeaders["x-webhook-secret"] = process.env.WEBHOOK_SECRET
+  if (webhookSecret) webhookHeaders["x-webhook-secret"] = webhookSecret
 
   // webhook 응답에서 계정 정보 추출 (dissig이 email/password/link 반환)
   let webhookAccount: { email?: string; password?: string; link?: string } | null = null
