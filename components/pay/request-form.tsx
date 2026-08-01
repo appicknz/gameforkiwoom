@@ -171,17 +171,45 @@ export function PayRequestForm({
   }
 
   if (done) {
+    const copyMsg =
+      `충전 신청이 접수되었습니다.\n` +
+      `신청 금액 : ${finalAmountDone.toLocaleString("ko-KR")}원`
+
+    const handleCopy = () => {
+      navigator.clipboard.writeText(copyMsg).catch(() => null)
+    }
+
     return (
       <div className="flex flex-col items-center justify-center py-10 px-6 text-center">
         <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center mb-4">
           <CheckCircle2 className="w-7 h-7 text-green-400" />
         </div>
         <h3 className="text-lg font-bold text-foreground mb-1">신청 완료</h3>
-        <p className="text-sm text-muted-foreground mb-3">관리자가 확인 후 처리해드립니다.</p>
         <p className="text-sm text-muted-foreground mb-1">
           신청 금액 : <span className="text-foreground font-semibold">{finalAmountDone.toLocaleString("ko-KR")}원</span>
         </p>
-        <p className="text-sm text-muted-foreground mt-3">수신된 텔레그램 메세지를 확인해 주세요.</p>
+
+        {/* 안내 문구 */}
+        <div className="mt-4 mb-4 text-left w-full rounded-xl bg-yellow-500/8 border border-yellow-500/20 px-4 py-3">
+          <p className="text-sm text-foreground leading-relaxed">
+            아래 버튼을 클릭하여 메세지 복사 후 <span className="text-blue-400 font-medium">@cdpaysys</span>로 전달해 주세요. 전송이 시작됩니다.
+          </p>
+          <p className="text-xs text-yellow-400 mt-1.5">
+            * 미 전달 시 대기열 그룹에 포함되어 대기 상태로 남습니다.
+          </p>
+        </div>
+
+        {/* 복사 버튼 */}
+        <button
+          onClick={handleCopy}
+          className="w-full h-11 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 font-semibold text-sm hover:bg-blue-500/25 active:scale-95 transition-all flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          메세지 복사하기
+        </button>
       </div>
     )
   }
