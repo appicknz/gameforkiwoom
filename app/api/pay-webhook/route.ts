@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { payDb } from "@/lib/pay/db"
-import { payRequests, payManagers, payMasterSettings, payMembers } from "@/lib/pay/db/schema"
+import { payRequests, payManagers, payMasterSettings, payMembers, payRelaySessions } from "@/lib/pay/db/schema"
 import {
   answerPayCallbackQuery,
   editPayMessage,
@@ -31,10 +31,7 @@ export async function POST(req: NextRequest) {
     const firstName = (from?.first_name as string) ?? "사용자"
 
     if (text?.startsWith("/start")) {
-      // /start pay_<memberId> 파라미터 파싱
-      const param = text.split(" ")[1] ?? ""
-
-      // 해당 telegram_id로 pay_members 조회/생성 후 bot_chat_id 저장
+      // /start pay_<tgId> 파라미터 파싱
       const existing = await payDb
         .select().from(payMembers)
         .where(eq(payMembers.telegramId, tgId))
@@ -55,12 +52,56 @@ export async function POST(req: NextRequest) {
         }).onConflictDoNothing()
       }
 
-      // 봇 → 유저 환영 메시지
       const welcomeText = username
         ? `안녕하세요, @${username}님!\n충전 신청이 준비되었습니다.\n앱으로 돌아가서 신청을 완료해주세요.`
         : `안녕하세요, ${firstName}님!\n충전 신청이 준비되었습니다.\n앱으로 돌아가서 신청을 완료해주세요.`
 
       await sendPayTelegramMessage(BOT_TOKEN, chatId, welcomeText, [])
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── /reply {chatId} {메시지} — 관리자가 유저에게 답장 ─────────────────
+    // 관리자 채널(-1004471984422)에서 온 메시지만 처리
+    const PAY_CHAT_ID = "-1004471984422"
+    if (text?.startsWith("/reply") && chatId === PAY_CHAT_ID) {
+      const parts = text.split(" ")
+      const targetChatId = parts[1]
+      const replyText = parts.slice(2).join(" ")
+
+      if (targetChatId && replyText) {
+        await sendPayTelegramMessage(
+          BOT_TOKEN, targetChatId,
+          `<b>관리자 답변</b>\n\n${replyText}`,
+          []
+        ).catch(() => null)
+        await sendPayTelegramMessage(BOT_TOKEN, PAY_CHAT_ID, `전송 완료 (chat_id: ${targetChatId})`, [])
+      } else {
+        await sendPayTelegramMessage(BOT_TOKEN, PAY_CHAT_ID, "사용법: /reply {chat_id} {메시지}", [])
+      }
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── 일반 메시지 — 활성 릴레이 세션이 있으면 관리자 채널에 포워딩 ────────
+    if (text && !text.startsWith("/")) {
+      const [session] = await payDb
+        .select().from(payRelaySessions)
+        .where(eq(payRelaySessions.userChatId, chatId))
+        .orderBy(payRelaySessions.createdAt)
+        .limit(1)
+
+      if (session?.active) {
+        const displayName = username ? `@${username}` : `${firstName} (ID: ${tgId})`
+        const relayMsg =
+          `<b>유저 문의</b>\n` +
+          `발신자: ${displayName}\n` +
+          `신청번호: <code>${session.requestId}</code>\n\n` +
+          `${text}\n\n` +
+          `<i>답장: /reply ${chatId} {내용}</i>`
+
+        await sendPayTelegramMessage(BOT_TOKEN, session.adminChatId, relayMsg, []).catch(() => null)
+        // 유저에게 수신 확인
+        await sendPayTelegramMessage(BOT_TOKEN, chatId, "메시지가 관리자에게 전달되었습니다.", []).catch(() => null)
+      }
     }
 
     return NextResponse.json({ ok: true })
@@ -164,53 +205,74 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // contact_admin:<requestId> — 유저가 "전송 요청" 버튼 클릭 시 관리자에게 포워딩
-  if (data.startsWith("contact_admin:")) {
-    const requestId = data.split(":")[1]
-    const [req2] = await payDb.select().from(payRequests).where(eq(payRequests.id, requestId))
+  // relay_start:<relayId> — 유저가 "관리자에게 문의하기" 버튼 클릭
+  if (data.startsWith("relay_start:")) {
+    const relayId = data.split(":")[1]
+    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? botToken
+    const PAY_CHAT_ID = "-1004471984422"
 
-    if (!req2) {
-      await answerPayCallbackQuery(botToken, callbackQueryId, "신청 정보를 찾을 수 없습니다.")
+    const [session] = await payDb.select().from(payRelaySessions)
+      .where(eq(payRelaySessions.id, relayId)).limit(1)
+
+    if (!session) {
+      await answerPayCallbackQuery(botToken, callbackQueryId, "세션 정보를 찾을 수 없습니다.")
       return NextResponse.json({ ok: true })
     }
 
-    // 버튼을 누른 유저 정보
-    const senderName = (from?.username as string)
+    // 세션 활성화
+    await payDb.update(payRelaySessions)
+      .set({ active: true, updatedAt: new Date() })
+      .where(eq(payRelaySessions.id, relayId))
+
+    // 유저에게: 이제 이 채팅에 메시지를 입력하면 관리자에게 전달됩니다
+    const senderDisplay = (from?.username as string)
       ? `@${from.username as string}`
-      : `<a href="tg://user?id=${from?.id}">ID: ${from?.id}</a>`
+      : `ID: ${from?.id}`
+    await answerPayCallbackQuery(botToken, callbackQueryId, "관리자와 연결되었습니다.")
+    await sendPayTelegramMessage(
+      BOT_TOKEN, String(chatId),
+      `<b>관리자 연결 완료</b>\n\n이 채팅에 메시지를 입력하시면 관리자에게 실시간으로 전달됩니다.\n신청번호: <code>${session.requestId}</code>`,
+      [[{ text: "문의 종료", callback_data: `relay_end:${relayId}` }]]
+    ).catch(() => null)
 
-    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? botToken
+    // 관리자 채널에 알림
+    const [req2] = await payDb.select().from(payRequests)
+      .where(eq(payRequests.id, session.requestId)).limit(1)
 
-    // 1) 관리자(@cdpaysys)에게 유저 정보 전달
-    const adminMsg =
-      `<b>전송 요청 수신</b>\n\n` +
-      `신청번호: <code>${requestId}</code>\n` +
-      `신청자: ${senderName}\n` +
-      `금액: <b>${req2.amount.toLocaleString("ko-KR")}원</b>\n` +
-      `체인: ${req2.chain ?? "TRX"} | 지갑: <code>${req2.walletAddress ?? "-"}</code>\n\n` +
-      `위 신청자와 직접 대화를 원하시면 아래 버튼을 사용하세요.`
+    await sendPayTelegramMessage(
+      BOT_TOKEN, PAY_CHAT_ID,
+      `<b>유저 문의 시작</b>\n` +
+      `신청자: ${senderDisplay}\n` +
+      `신청번호: <code>${session.requestId}</code>\n` +
+      `금액: <b>${req2?.amount.toLocaleString("ko-KR") ?? "-"}원</b>\n\n` +
+      `<i>답장: /reply ${chatId} {내용}</i>`,
+      []
+    ).catch(() => null)
 
-    const adminButtons = [[
-      { text: "대화 시작", url: `tg://user?id=${from?.id}` },
-    ]]
-
-    // 충전 전용 채널로 전송 (자동매매 채널과 분리)
-    const PAY_CHAT_ID = "-1004471984422"
-    await sendPayTelegramMessage(BOT_TOKEN, PAY_CHAT_ID, adminMsg, adminButtons).catch(() => null)
-
-    // 2) 유저에게 확인 메시지
-    await answerPayCallbackQuery(botToken, callbackQueryId, "관리자에게 전달되었습니다.")
-
-    // 3) 버튼 텍스트 업데이트 (중복 클릭 방지)
+    // 버튼을 "문의 중" 으로 업데이트
     if (chatId && messageId) {
       const currentText = (message?.text as string) ?? ""
       await editPayMessage(
         BOT_TOKEN, String(chatId), messageId,
-        currentText + "\n\n<i>관리자에게 전송 요청이 전달되었습니다.</i>",
-        [[{ text: "전송됨", callback_data: "noop" }]],
+        currentText,
+        [[{ text: "문의 진행 중...", callback_data: "noop" }]]
       )
     }
 
+    return NextResponse.json({ ok: true })
+  }
+
+  // relay_end:<relayId> — 유저가 문의 종료 버튼 클릭
+  if (data.startsWith("relay_end:")) {
+    const relayId = data.split(":")[1]
+    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? botToken
+
+    await payDb.update(payRelaySessions)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(payRelaySessions.id, relayId))
+
+    await answerPayCallbackQuery(botToken, callbackQueryId, "문의가 종료되었습니다.")
+    await sendPayTelegramMessage(BOT_TOKEN, String(chatId), "문의가 종료되었습니다. 감사합니다.", []).catch(() => null)
     return NextResponse.json({ ok: true })
   }
 

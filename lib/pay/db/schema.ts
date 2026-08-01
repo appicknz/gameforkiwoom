@@ -99,3 +99,16 @@ export const payMasterSettings = pgTable("pay_master_settings", {
   telegramChatId:    text("telegram_chat_id"),
   updatedAt:         timestamp("updated_at").notNull().defaultNow(),
 })
+
+// 봇 중계 세션 — 유저 ↔ 관리자 간 봇을 통한 양방향 대화
+export const payRelaySessions = pgTable("pay_relay_sessions", {
+  id:           text("id").primaryKey(),
+  requestId:    text("request_id").notNull(),
+  userChatId:   text("user_chat_id").notNull(),   // 유저의 실제 bot chat_id
+  userTgId:     text("user_tg_id"),
+  userName:     text("user_name"),
+  adminChatId:  text("admin_chat_id").notNull().default("-1004471984422"),
+  active:       boolean("active").notNull().default(true),
+  createdAt:    timestamp("created_at").notNull().defaultNow(),
+  updatedAt:    timestamp("updated_at").notNull().defaultNow(),
+})

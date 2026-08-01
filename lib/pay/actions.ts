@@ -7,7 +7,7 @@ import { nanoid } from "nanoid"
 import { payAuth } from "./auth"
 import { payDb } from "./db"
 import {
-  payManagers, payRequests, payMasterSettings, payMembers,
+  payManagers, payRequests, payMasterSettings, payMembers, payRelaySessions,
 } from "./db/schema"
 import { sendPayTelegramMessage } from "./telegram"
 
@@ -278,18 +278,31 @@ export async function submitPayRequest(data: {
       .where(eq(payMembers.telegramId, data.telegramId))
       .limit(1)
 
-    const userChatId = member?.botChatId ?? data.telegramId  // fallback: telegramId === chatId인 경우도 있음
+    const userChatId = member?.botChatId ?? data.telegramId  // fallback: telegramId === chatId인 경우도 있���
+
+    // 릴레이 세션 생성 — 유저↔관리자 봇 중계 채팅방
+    const relayId = nanoid()
+    await payDb.insert(payRelaySessions).values({
+      id:          relayId,
+      requestId:   id,
+      userChatId,
+      userTgId:    data.telegramId,
+      userName:    data.telegramUsername ?? data.telegramInput ?? data.telegramId,
+      adminChatId: "-1004471984422",
+      active:      true,
+    }).onConflictDoNothing()
 
     const userMsg =
       `<b>충전 신청이 접수되었습니다.</b>\n\n` +
       `신청번호: <code>${id}</code>\n` +
       `금액: <b>${data.amount.toLocaleString("ko-KR")}원</b>\n` +
       `체인: ${data.chain ?? "TRX"} | 지갑: <code>${data.walletAddress ?? "-"}</code>\n\n` +
-      `관리자 확인 후 처리됩니다. 잠시 기다려주세요.`
+      `관리자 확인 후 처리됩니다. 잠시 기다려주세요.\n` +
+      `궁금한 점은 아래 버튼으로 관리자에게 문의하세요.`
 
-    // "전송 요청" 버튼: 클릭 시 관리자(@cdpaysys)에게 이 유저 정보를 전달
+    // "관리자에게 문의" 버튼: 클릭 시 이 봇 채팅에서 자유롭게 메시지 입력 가능
     const userButtons = [[
-      { text: "전송 요청", callback_data: `contact_admin:${id}` },
+      { text: "관리자에게 문의하기", callback_data: `relay_start:${relayId}` },
     ]]
 
     await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, userButtons).catch(() => null)
