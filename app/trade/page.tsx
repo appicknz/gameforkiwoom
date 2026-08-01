@@ -1908,7 +1908,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
 
       {posCalc.length === 0 && (
         <div className="py-6 text-center" style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>
-          이 날짜에 ���신된 시그널이 없습니다.
+          이 날짜에 확인된 시그널이 없습니다.
         </div>
       )}
 

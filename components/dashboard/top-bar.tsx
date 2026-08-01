@@ -420,23 +420,17 @@ export function TopBar() {
           <Home className="w-4 h-4 text-black" />
         </Link>
 
-        {/* 중앙: 잔고 / 비로그인 안내 */}
+        {/* 중앙: 잔고 */}
         <div className="flex-1 flex justify-center">
-          {isLoggedIn ? (
-            <button
-              onClick={() => setTopupOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border hover:border-primary/60 hover:bg-primary/5 transition-all"
-            >
-              <Wallet className="w-3.5 h-3.5 text-primary shrink-0" />
-              <span className="text-sm font-semibold text-primary tabular-nums">
-                ₩{balance.toLocaleString()}
-              </span>
-            </button>
-          ) : (
-            <span className="text-[10px] text-muted-foreground/50 select-none">
-              환전 또는 출금 기능은 제공되지 않습니다.
+          <button
+            onClick={() => isLoggedIn && setTopupOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border hover:border-primary/60 hover:bg-primary/5 transition-all"
+          >
+            <Wallet className="w-3.5 h-3.5 text-primary shrink-0" />
+            <span className="text-sm font-semibold text-primary tabular-nums">
+              {isLoggedIn ? `₩${balance.toLocaleString()}` : "₩0"}
             </span>
-          )}
+          </button>
         </div>
 
         {/* 우측: 언어 전환 + 로그인 버튼 또는 아바타 */}

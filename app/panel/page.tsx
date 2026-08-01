@@ -1020,7 +1020,7 @@ export default function PanelPage() {
   const [baChargeExpanded, setBaChargeExpanded] = useState(false)
   // 마켓 상품 등록 모달
   const [showUploadModal, setShowUploadModal]   = useState(false)
-  // 총판 전용: 지점이 올린 충전 요청 목록
+  // 총판 전용: ��점이 올린 충전 요청 목록
   const [branchChargeReqs, setBranchChargeReqs]         = useState<any[]>([])
   const [baBranchChargeLoading, setBaBranchChargeLoading] = useState(false)
   const [branchChargeExpanded, setBranchChargeExpanded]   = useState(false)
@@ -1352,8 +1352,8 @@ export default function PanelPage() {
   // admin(지점)은 로그인 인증 자체가 본인 확인 — 비밀번호 게이트 불필요
   if (!adminPw && myRole !== "admin") {
     const isBranchAdmin = myRole === "branch_admin"
-    const pwLabel = isBranchAdmin ? "본인 비밀번���" : "마스터 비밀번���"
-    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력���세요." : "관리 작업을 위해 마스터 비밀번��를 입력하세요."
+    const pwLabel = isBranchAdmin ? "본인 비밀번호" : "마스터 비밀번호"
+    const pwDescription = isBranchAdmin ? "지점 관리 작업을 위해 본인 비밀번호를 입력하세요." : "관리 작업을 위해 마스터 비밀번호를 입력하세요."
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -2179,7 +2179,7 @@ export default function PanelPage() {
                         <p className="text-2xl font-bold text-foreground">{branches.length}<span className="text-sm font-normal text-muted-foreground ml-1">개</span></p>
                         <p className="text-[11px] text-muted-foreground mt-1">현재 잔액 <span className="font-semibold text-foreground">₩{myBalance.toLocaleString()}</span></p>
                       </div>
-                      {/* 대기 중인 충전 — 클릭 시 ��침 */}
+                      {/* 대기 중인 충전 — 클릭 시 ����� */}
                       <button
                         onClick={() => setBaChargeExpanded(v => !v)}
                         className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
@@ -4344,7 +4344,7 @@ export default function PanelPage() {
                   <input ref={cardFileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleCardUpload} />
                   <Button onClick={() => cardFileInputRef.current?.click()} disabled={uploading} className="flex items-center gap-2">
                     <Upload className="w-4 h-4" />
-                    {uploading ? "업로드 중..." : "이미지 추가"}
+                    {uploading ? "업로드 중..." : "이미지 추��"}
                   </Button>
                 </div>
               </div>
