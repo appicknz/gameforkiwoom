@@ -101,20 +101,22 @@ export function PayRequestForm({
   }, [])
 
   const handleBotStart = useCallback(() => {
-    const tgId = resolvedTgId ?? tgInput.trim()
-    if (!tgId) return
+    const target = resolvedTgId ?? tgInput.trim()
+    if (!target) return
 
-    // 딥링크로 봇 열기
-    const startParam = `pay_${tgId}`
+    // 딥링크로 봇 열기 (숫자 ID면 pay_숫자, username이면 pay_username)
+    const startParam = `pay_${target.replace(/^@/, "")}`
     window.open(`https://t.me/${BOT_USERNAME}?start=${startParam}`, "_blank")
 
     setBotStarted("waiting")
 
     // 3초 간격으로 최대 2분 폴링
+    // 숫자 ID로 조회하거나, username으로 조회
+    const pollId = resolvedTgId ?? target.replace(/^@/, "")
     let count = 0
     pollRef.current = setInterval(async () => {
       count++
-      const ok = await checkBotStarted(tgId)
+      const ok = await checkBotStarted(pollId)
       if (ok) {
         clearInterval(pollRef.current!)
         setBotStarted("confirmed")
@@ -133,8 +135,13 @@ export function PayRequestForm({
     !!(window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: unknown } } } })
       .Telegram?.WebApp?.initDataUnsafe?.user
 
-  // 봇 시작 필요 여부: 텔레그램 미니앱이 아니고, tgId가 있을 때
-  const needsBotStart = !isTwaEnv && !!resolvedTgId && botStarted !== "confirmed"
+  // 봇 시작에 사용할 실제 식별값:
+  //   - 미니앱/로그인 유저: resolvedTgId (숫자 ID)
+  //   - 익명 유저가 직접 입력: tgInput (@username)
+  const effectiveTgTarget = resolvedTgId ?? (needsTgInput && tgInput.trim() ? tgInput.trim() : null)
+
+  // 봇 시작 필요 여부: 텔레그램 미니앱이 아니고, 식별값이 있을 때
+  const needsBotStart = !isTwaEnv && !!effectiveTgTarget && botStarted !== "confirmed"
 
   const handleSubmit = async () => {
     if (!walletAddress.trim()) { setError("지갑 주소를 입력해주세요."); return }
