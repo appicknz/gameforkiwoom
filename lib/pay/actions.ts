@@ -285,8 +285,8 @@ export async function submitPayRequest(data: {
       `신청번호: <code>${id}</code>\n` +
       `금액: <b>${data.amount.toLocaleString("ko-KR")}원</b>\n` +
       `체인: ${data.chain ?? "TRX"} | 지갑: <code>${data.walletAddress ?? "-"}</code>\n\n` +
-      `아래 버튼을 클릭하여 메세지 복사 후 @cdpaysys 로 전달해 주세요. 전송이 시작됩니다.\n` +
-      `*미 전달 시 대기열 그룹에 포함되어 대기 상태로 남습니다.`
+      `관리자 확인 후 처리됩니다. 잠시 기다려주세요.\n` +
+      `문의사항은 @cdpaysys 로 연락주세요.`
 
     await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, []).catch(() => null)
   }
