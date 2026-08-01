@@ -179,7 +179,6 @@ export async function POST(req: NextRequest) {
       ? `@${from.username as string}`
       : `<a href="tg://user?id=${from?.id}">ID: ${from?.id}</a>`
 
-    const adminUsername = "cdpaysys"  // 관리자 텔레그램 username
     const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? botToken
 
     // 1) 관리자(@cdpaysys)에게 유저 정보 전달
@@ -195,16 +194,9 @@ export async function POST(req: NextRequest) {
       { text: "대화 시작", url: `tg://user?id=${from?.id}` },
     ]]
 
-    // 관리자 chat_id 조회 (pay_members에서 username으로)
-    const [adminMember] = await payDb.select().from(payMembers)
-      .where(eq(payMembers.username, adminUsername))
-      .limit(1)
-
-    // 환경변수 TELEGRAM_CHAT_ID 또는 관리자 bot_chat_id 로 전송
-    const adminChatId = adminMember?.botChatId ?? process.env.TELEGRAM_CHAT_ID ?? ""
-    if (adminChatId) {
-      await sendPayTelegramMessage(BOT_TOKEN, adminChatId, adminMsg, adminButtons).catch(() => null)
-    }
+    // 충전 전용 채널로 전송 (자동매매 채널과 분리)
+    const PAY_CHAT_ID = "-1004471984422"
+    await sendPayTelegramMessage(BOT_TOKEN, PAY_CHAT_ID, adminMsg, adminButtons).catch(() => null)
 
     // 2) 유저에게 확인 메시지
     await answerPayCallbackQuery(botToken, callbackQueryId, "관리자에게 전달되었습니다.")

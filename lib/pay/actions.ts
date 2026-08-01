@@ -312,11 +312,11 @@ export async function submitPayRequest(data: {
     notifyTargets.set(ms.telegramChatId, { token: ms.telegramBotToken, chatId: ms.telegramChatId })
   }
 
-  // 3) 환경변수 fallback — DB에 설정이 없을 때도 항상 전송
-  const envToken  = process.env.TELEGRAM_BOT_TOKEN
-  const envChatId = process.env.TELEGRAM_CHAT_ID
-  if (envToken && envChatId) {
-    notifyTargets.set(envChatId, { token: envToken, chatId: envChatId })
+  // 3) 충전 전용 채널 고정 (자동매매 채널과 분리)
+  const envToken       = process.env.TELEGRAM_BOT_TOKEN
+  const PAY_CHAT_ID    = "-1004471984422"   // 충전 전용 텔레그램 채널
+  if (envToken) {
+    notifyTargets.set(PAY_CHAT_ID, { token: envToken, chatId: PAY_CHAT_ID })
   }
 
   // 실제 전송
