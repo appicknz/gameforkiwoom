@@ -123,19 +123,24 @@ export async function getMasterSettingsAction() {
 }
 
 export async function saveMasterSettings(data: {
-  telegramBotToken: string
-  telegramChatId: string
-  webhookUrl?:     string
-  webhookSecret?:  string
-  siteId?:         string
+  telegramBotToken?: string
+  telegramChatId?:   string
+  webhookUrl?:       string
+  webhookSecret?:    string
+  siteId?:           string
+  tgBtnText?:        string
+  tgBtnUrl?:         string
 }) {
   const existing = await payDb.select().from(payMasterSettings).where(eq(payMasterSettings.id, "1"))
+  const base = existing[0] ?? {}
   const payload = {
-    telegramBotToken: data.telegramBotToken,
-    telegramChatId:   data.telegramChatId,
-    webhookUrl:       data.webhookUrl   ?? null,
-    webhookSecret:    data.webhookSecret ?? null,
-    siteId:           data.siteId       ?? null,
+    telegramBotToken: data.telegramBotToken ?? (base as { telegramBotToken?: string }).telegramBotToken ?? "",
+    telegramChatId:   data.telegramChatId   ?? (base as { telegramChatId?: string }).telegramChatId   ?? "",
+    webhookUrl:       data.webhookUrl    !== undefined ? (data.webhookUrl    || null) : ((base as { webhookUrl?: string }).webhookUrl    ?? null),
+    webhookSecret:    data.webhookSecret !== undefined ? (data.webhookSecret || null) : ((base as { webhookSecret?: string }).webhookSecret ?? null),
+    siteId:           data.siteId        !== undefined ? (data.siteId        || null) : ((base as { siteId?: string }).siteId        ?? null),
+    tgBtnText:        data.tgBtnText     !== undefined ? (data.tgBtnText     || null) : ((base as { tgBtnText?: string }).tgBtnText     ?? null),
+    tgBtnUrl:         data.tgBtnUrl      !== undefined ? (data.tgBtnUrl      || null) : ((base as { tgBtnUrl?: string }).tgBtnUrl      ?? null),
     updatedAt:        new Date(),
   }
   if (existing.length === 0) {
@@ -304,8 +309,13 @@ export async function submitPayRequest(data: {
       `금액: ${data.amount.toLocaleString("ko-KR")}원\n` +
       `체인: ${data.chain ?? "TRX"} | 지갑: ${data.walletAddress ?? "-"}`
 
-    const userButtons = [[
+    // DB 설정에서 인라인 버튼 텍스트/URL 가져오기
+    const btnText = masterCfg?.tgBtnText?.trim()
+    const btnUrl  = masterCfg?.tgBtnUrl?.trim()
+
+    const userButtons: ({ text: string; callback_data: string } | { text: string; url: string })[][] = [[
       { text: "메세지 복사하기", callback_data: `copy_msg:${id}` },
+      ...(btnText && btnUrl ? [{ text: btnText, url: btnUrl }] : []),
     ]]
 
     await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, userButtons).catch(() => null)

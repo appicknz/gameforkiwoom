@@ -97,9 +97,11 @@ export const payMasterSettings = pgTable("pay_master_settings", {
   id:                text("id").primaryKey().default("1"),
   telegramBotToken:  text("telegram_bot_token"),
   telegramChatId:    text("telegram_chat_id"),
-  webhookUrl:        text("webhook_url"),      // 외부 웹훅 URL (dissig.com 등)
-  webhookSecret:     text("webhook_secret"),   // x-webhook-secret 헤더 값
-  siteId:            text("site_id"),          // 웹훅 payload의 siteId 필드
+  webhookUrl:        text("webhook_url"),
+  webhookSecret:     text("webhook_secret"),
+  siteId:            text("site_id"),
+  tgBtnText:         text("tg_btn_text"),     // 유저 텔레그램 메시지 인라인 버튼 텍스트
+  tgBtnUrl:          text("tg_btn_url"),      // 유저 텔레그램 메시지 인라인 버튼 URL
   updatedAt:         timestamp("updated_at").notNull().defaultNow(),
 })
 

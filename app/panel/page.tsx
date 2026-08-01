@@ -193,7 +193,22 @@ export default function PanelPage() {
   const [pwInput, setPwInput] = useState("")
   const [pwError, setPwError] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "write_requests" | "market" | "wallets" | "auto_trade">("users")
+  // 충전 웹훅 탭 state
+  const [pwWebhookUrl,    setPwWebhookUrl]    = useState("")
+  const [pwWebhookSecret, setPwWebhookSecret] = useState("")
+  const [pwSiteId,        setPwSiteId]        = useState("")
+  const [pwBtnText,       setPwBtnText]       = useState("")
+  const [pwBtnUrl,        setPwBtnUrl]        = useState("")
+  const [pwSaving,        setPwSaving]        = useState(false)
+  const [pwSaveMsg,       setPwSaveMsg]       = useState("")
+  const [pwTestPayload,   setPwTestPayload]   = useState("")
+  const [pwTestResult,    setPwTestResult]    = useState<{ ok: boolean; status: number; body: string } | null>(null)
+  const [pwTestLoading,   setPwTestLoading]   = useState(false)
+  const [pwTgMsg,         setPwTgMsg]         = useState("")
+  const [pwTgSending,     setPwTgSending]     = useState(false)
+  const [pwTgResult,      setPwTgResult]      = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const [activeTab, setActiveTab] = useState<"users" | "branches" | "branches_sa" | "monitor" | "history" | "points" | "cash" | "calendar" | "pnl" | "cards" | "accounts" | "commission" | "write_requests" | "market" | "wallets" | "auto_trade" | "pay_webhook">("users")
   // 자동매매 탭 state
   type AutoSignalPos = {
     id: string; signal_type: string; symbol: string; direction: string
@@ -1020,7 +1035,7 @@ export default function PanelPage() {
   const [baChargeExpanded, setBaChargeExpanded] = useState(false)
   // 마켓 상품 등록 모달
   const [showUploadModal, setShowUploadModal]   = useState(false)
-  // 총판 전용: ��점이 올린 충전 요청 목록
+  // 총판 전용: ���점이 올린 충전 요청 목록
   const [branchChargeReqs, setBranchChargeReqs]         = useState<any[]>([])
   const [baBranchChargeLoading, setBaBranchChargeLoading] = useState(false)
   const [branchChargeExpanded, setBranchChargeExpanded]   = useState(false)
@@ -1762,6 +1777,24 @@ export default function PanelPage() {
               </button>
               <button onClick={() => setActiveTab("write_requests")} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "write_requests" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><UserCheck className="w-4 h-4" /> 글쓰기 신청</button>
               <button onClick={() => setActiveTab("market")}      className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "market"     ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><ShoppingBag className="w-4 h-4" /> 마켓 관리</button>
+              <button onClick={async () => {
+                setActiveTab("pay_webhook")
+                // 저장된 설정 불러오기
+                try {
+                  const res  = await fetch("/api/pay-master-settings")
+                  if (res.ok) {
+                    const d = await res.json()
+                    setPwWebhookUrl(d.webhookUrl ?? "")
+                    setPwWebhookSecret(d.webhookSecret ?? "")
+                    setPwSiteId(d.siteId ?? "")
+                    setPwBtnText(d.tgBtnText ?? "")
+                    setPwBtnUrl(d.tgBtnUrl ?? "")
+                  }
+                } catch { /* ignore */ }
+              }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "pay_webhook" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                충전 웹훅
+              </button>
             </div>
           )}
 
@@ -2009,7 +2042,7 @@ export default function PanelPage() {
                                 </div>
                               </div>
                             )}
-                            {/* 비밀번호 초기화 버튼 (master만) */}
+                            {/* 비밀번호 초기화 ���튼 (master만) */}
                             {myRole === "master" && (
                               <Button
                                 size="sm" variant="outline"
@@ -4068,7 +4101,7 @@ export default function PanelPage() {
                           <span className={`text-xs font-medium ${isToday ? "w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center" : "text-foreground"}`}>{day}</span>
                           {d && (
                             <div className="mt-1 space-y-0.5">
-                              <p className="text-[9px] text-emerald-600 font-medium">+{(d.charge / 10000).toFixed(0)}만</p>
+                              <p className="text-[9px] text-emerald-600 font-medium">+{(d.charge / 10000).toFixed(0)}��</p>
                               {d.exchange > 0 && <p className="text-[9px] text-red-500">-{(d.exchange / 10000).toFixed(0)}만</p>}
                             </div>
                           )}
@@ -4619,6 +4652,117 @@ export default function PanelPage() {
         {activeTab === "market" && myRole === "master" && (
           <div className="p-4">
             <MarketMasterPanel />
+          </div>
+        )}
+
+        {/* ── 충전 웹훅 탭 (master 전용) ── */}
+        {activeTab === "pay_webhook" && myRole === "master" && (
+          <div className="p-4 max-w-lg mx-auto flex flex-col gap-4">
+
+            {/* 섹션 1: 웹훅 설정 */}
+            <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-foreground">외부 웹훅 설정</p>
+              <p className="text-xs text-muted-foreground">충전 신청 시 dissig.com 등 외부 서버로 전송되는 웹훅을 설정합니다.</p>
+              <input type="text" value={pwWebhookUrl} onChange={e => setPwWebhookUrl(e.target.value)}
+                placeholder="웹훅 URL (예: https://www.dissig.com/api/webhooks/order)"
+                className="h-10 px-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              <input type="text" value={pwWebhookSecret} onChange={e => setPwWebhookSecret(e.target.value)}
+                placeholder="x-webhook-secret 헤더 값"
+                className="h-10 px-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              <input type="text" value={pwSiteId} onChange={e => setPwSiteId(e.target.value)}
+                placeholder="siteId 필드 값 (payload에 포함)"
+                className="h-10 px-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              <p className="text-xs text-muted-foreground font-medium mt-1">유저 텔레그램 메시지 인라인 버튼</p>
+              <input type="text" value={pwBtnText} onChange={e => setPwBtnText(e.target.value)}
+                placeholder="버튼 텍스트 (예: 충전 확인하기)"
+                className="h-10 px-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              <input type="text" value={pwBtnUrl} onChange={e => setPwBtnUrl(e.target.value)}
+                placeholder="버튼 URL (예: https://coinrace.live)"
+                className="h-10 px-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              {pwSaveMsg && <p className="text-xs text-green-400">{pwSaveMsg}</p>}
+              <button disabled={pwSaving} onClick={async () => {
+                setPwSaving(true); setPwSaveMsg("")
+                try {
+                  const res = await fetch("/api/pay-master-settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ webhookUrl: pwWebhookUrl, webhookSecret: pwWebhookSecret, siteId: pwSiteId, tgBtnText: pwBtnText, tgBtnUrl: pwBtnUrl }),
+                  })
+                  setPwSaveMsg(res.ok ? "저장되었습니다." : "저장 실패")
+                } catch { setPwSaveMsg("오류 발생") }
+                setPwSaving(false)
+              }} className="h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50">
+                {pwSaving ? "저장 중..." : "저장"}
+              </button>
+            </div>
+
+            {/* 섹션 2: 웹훅 테스트 */}
+            <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-foreground">웹훅 테스트</p>
+              <p className="text-xs text-muted-foreground">위 URL로 테스트 payload를 전송하고 응답을 확인합니다. 비워두면 기본 payload가 자동 생성됩니다.</p>
+              <textarea value={pwTestPayload} onChange={e => setPwTestPayload(e.target.value)}
+                placeholder={`{\n  "applyNo": "TEST-...",\n  "siteId": "${pwSiteId || "your-site-id"}",\n  "amount": "10000",\n  "telegram": "@test_user",\n  "chain": "TRX",\n  "walletAddress": "TR7NHq..."\n}`}
+                rows={7}
+                className="px-3 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" />
+              <button disabled={pwTestLoading || !pwWebhookUrl.trim()} onClick={async () => {
+                setPwTestLoading(true); setPwTestResult(null)
+                try {
+                  const payload = pwTestPayload.trim() ? JSON.parse(pwTestPayload) : {
+                    applyNo: "TEST-" + Date.now(),
+                    siteId:  pwSiteId || "test-site",
+                    amount:  "10000",
+                    telegram: "@test_user",
+                    applyAt: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
+                    walletAddress: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+                    chain:   "TRX",
+                  }
+                  const res  = await fetch("/api/pay-webhook-test", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ url: pwWebhookUrl, payload, secret: pwWebhookSecret }),
+                  })
+                  const d = await res.json()
+                  setPwTestResult({ ok: d.ok, status: d.status, body: d.body })
+                } catch (e) { setPwTestResult({ ok: false, status: 0, body: String(e) }) }
+                setPwTestLoading(false)
+              }} className="h-10 rounded-xl border border-border bg-secondary text-foreground font-semibold text-sm disabled:opacity-50 hover:bg-secondary/80 transition-colors">
+                {pwTestLoading ? "전송 중..." : "테스트 전송"}
+              </button>
+              {pwTestResult && (
+                <div className={`rounded-xl border p-3 text-xs font-mono ${pwTestResult.ok ? "border-green-500/30 bg-green-500/5 text-green-300" : "border-red-500/30 bg-red-500/5 text-red-300"}`}>
+                  <p className="font-semibold mb-1">HTTP {pwTestResult.status} — {pwTestResult.ok ? "성공" : "실패"}</p>
+                  <pre className="whitespace-pre-wrap break-all text-[11px] opacity-80">{pwTestResult.body}</pre>
+                </div>
+              )}
+            </div>
+
+            {/* 섹션 3: 채널 메시지 직접 전송 */}
+            <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-foreground">채널 메시지 전송</p>
+              <p className="text-xs text-muted-foreground">충전 채널 <span className="font-mono text-foreground">-1004471984422</span> 로 메시지를 직접 전송합니다.</p>
+              <textarea value={pwTgMsg} onChange={e => setPwTgMsg(e.target.value)}
+                placeholder="전송할 메시지를 입력하세요."
+                rows={4}
+                className="px-3 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" />
+              {pwTgResult && <p className={`text-sm font-medium ${pwTgResult.ok ? "text-green-400" : "text-red-400"}`}>{pwTgResult.msg}</p>}
+              <button disabled={pwTgSending || !pwTgMsg.trim()} onClick={async () => {
+                setPwTgSending(true); setPwTgResult(null)
+                try {
+                  const res = await fetch("/api/pay-send-telegram", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: pwTgMsg, buttonText: pwBtnText || undefined, buttonUrl: pwBtnUrl || undefined }),
+                  })
+                  const d = await res.json()
+                  setPwTgResult({ ok: res.ok, msg: res.ok ? "전송 완료!" : (d.error ?? "전송 실패") })
+                } catch { setPwTgResult({ ok: false, msg: "네트워크 오류" }) }
+                setPwTgSending(false)
+              }} className="h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                {pwTgSending ? "전송 중..." : "텔레그램으로 전송"}
+              </button>
+            </div>
+
           </div>
         )}
 
