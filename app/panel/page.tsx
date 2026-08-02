@@ -233,7 +233,14 @@ export default function PanelPage() {
   const [rebalMsg,         setRebalMsg]         = useState<string | null>(null)
 
   // 자동주문 서브탭 state
-  const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs">("signal")
+  const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs" | "seed">("signal")
+  const [initialSeed,     setInitialSeed]     = useState<string>("640")
+  const [withdrawAmount,  setWithdrawAmount]  = useState<string>("")
+  const [withdrawnTotal,  setWithdrawnTotal]  = useState<number>(0)
+  const [seedSettingsMsg, setSeedSettingsMsg] = useState<string | null>(null)
+  const [withdrawMsg,     setWithdrawMsg]     = useState<string | null>(null)
+  const [withdrawSaving,  setWithdrawSaving]  = useState(false)
+  const [initialSeedSaving, setInitialSeedSaving] = useState(false)
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -3096,7 +3103,7 @@ export default function PanelPage() {
               </div>
             </div>
 
-            {/* 총판 목록 + 드릴다운 */}
+            {/* ��판 목록 + 드릴다운 */}
             <div className="bg-card border border-border rounded-xl overflow-hidden flex" style={{ minHeight: 400 }}>
 
               {/* 좌: 총판 리스트 */}
@@ -3301,7 +3308,7 @@ export default function PanelPage() {
             {(myRole === "branch_admin" || myRole === "admin") && (
               <div className="bg-card border border-border rounded-xl p-5 space-y-3">
                 <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Wallet className="w-4 h-4 text-primary" /> 포인트 구매 요청</h2>
-                <p className="text-xs text-muted-foreground">현금 금액을 입력하고 요청하면 마스터/대총판이 포인트를 지급합니다.</p>
+                <p className="text-xs text-muted-foreground">현금 금액을 입력하고 요청하면 마스터/대총판이 포인트를 지급���니다.</p>
                 <div className="flex gap-2">
                   <Input placeholder="현금 금액" type="number" value={ppCashAmt} onChange={e => setPpCashAmt(e.target.value)} className="h-9 text-sm w-40" />
                   <Input placeholder="메모 (선택)" value={ppMemo} onChange={e => setPpMemo(e.target.value)} className="h-9 text-sm flex-1" />
@@ -4772,14 +4779,25 @@ export default function PanelPage() {
 
             {/* 서브탭 네비게이션 */}
             <div className="flex gap-1 border-b border-border pb-0">
-              {([["signal", "시그널 매매"], ["order", "자동주문"], ["logs", "주문로그"]] as const).map(([key, label]) => (
+              {([["signal", "시그널 매매"], ["order", "자동주문"], ["logs", "주문로그"], ["seed", "시드설정"]] as const).map(([key, label]) => (
                 <button
                   key={key}
-                  onClick={() => {
+                  onClick={async () => {
                     setAutoSubTab(key)
                     if (key === "signal" && !dailyStatsLoaded) loadDailyStats()
                     if (key === "order" && !tradingLoaded) loadTradingData()
                     if (key === "logs" && !orderLogsLoaded) loadOrderLogs()
+                    if (key === "seed") {
+                      // 현재 설정 불러오기
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      const res = await fetch("/api/auto-signal/settings", { headers: { Authorization: `Bearer ${tok}` } })
+                      if (res.ok) {
+                        const d = await res.json()
+                        if (d.initial_seed  != null) setInitialSeed(String(d.initial_seed))
+                        else if (d.seed_capital != null) setInitialSeed(String(d.seed_capital))
+                        if (d.withdrawn_amount != null) setWithdrawnTotal(Number(d.withdrawn_amount))
+                      }
+                    }
                   }}
                   className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     autoSubTab === key
@@ -6039,6 +6057,123 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               )}
             </div>
           </div>
+
+            {/* ── 시드설정 서브탭 ── */}
+            {autoSubTab === "seed" && (
+              <div className="space-y-4 max-w-md">
+
+                {/* DB 컬럼 초기화 (최초 1회) */}
+                <div className="rounded-xl border border-border/50 bg-secondary/10 px-4 py-3 flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">최초 사용 시 DB 컬럼 초기화가 필요합니다.</p>
+                  <button
+                    onClick={async () => {
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      const res = await fetch("/api/auto-signal/migrate", { method: "POST", headers: { Authorization: `Bearer ${tok}` } })
+                      const d = await res.json()
+                      setSeedSettingsMsg(res.ok ? `초기화 완료: ${d.results?.join(", ")}` : (d.error ?? "오류"))
+                    }}
+                    className="h-7 px-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap">
+                    DB 초기화
+                  </button>
+                </div>
+
+                {/* 초기 시드 설정 카드 */}
+                <div className="rounded-xl border border-border p-5 space-y-4">
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">초기 시드 설정</h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      자동매매 화면에 표시될 초기 시드 금액을 설정합니다. 이 값은 수익률(ROI) 계산의 기준이 됩니다.
+                    </p>
+                  </div>
+                  <div className="flex items-end gap-3">
+                    <div className="space-y-1 flex-1">
+                      <label className="text-xs text-muted-foreground">초기 시드 (USD)</label>
+                      <input
+                        type="number" min={1} step={0.01}
+                        value={initialSeed}
+                        onChange={e => setInitialSeed(e.target.value)}
+                        placeholder="640"
+                        className="w-full h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
+                      />
+                    </div>
+                    <button
+                      disabled={initialSeedSaving}
+                      onClick={async () => {
+                        setInitialSeedSaving(true); setSeedSettingsMsg(null)
+                        try {
+                          const tok = localStorage.getItem("app_token") ?? ""
+                          const res = await fetch("/api/auto-signal/settings", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                            body: JSON.stringify({ initial_seed: Number(initialSeed), seed_capital: Number(initialSeed) }),
+                          })
+                          const d = await res.json()
+                          setSeedSettingsMsg(res.ok ? `저장됨: $${Number(initialSeed).toFixed(2)}` : (d.error ?? "오류"))
+                        } finally { setInitialSeedSaving(false) }
+                      }}
+                      className="h-9 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap">
+                      {initialSeedSaving ? "저장 중..." : "저장"}
+                    </button>
+                  </div>
+                  {seedSettingsMsg && <p className="text-xs text-muted-foreground">{seedSettingsMsg}</p>}
+                </div>
+
+                {/* 출금 카드 */}
+                <div className="rounded-xl border border-border p-5 space-y-4">
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">출금</h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      출금 시 현재 잔고(seed_capital)에서 해당 금액이 차감됩니다.
+                    </p>
+                    {withdrawnTotal > 0 && (
+                      <p className="text-xs text-foreground mt-2">
+                        누적 출금: <span className="font-semibold tabular-nums">${withdrawnTotal.toFixed(2)}</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-end gap-3">
+                    <div className="space-y-1 flex-1">
+                      <label className="text-xs text-muted-foreground">출금 금액 (USD)</label>
+                      <input
+                        type="number" min={1} step={0.01}
+                        value={withdrawAmount}
+                        onChange={e => setWithdrawAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
+                      />
+                    </div>
+                    <button
+                      disabled={withdrawSaving || !withdrawAmount || Number(withdrawAmount) <= 0}
+                      onClick={async () => {
+                        if (!confirm(`$${Number(withdrawAmount).toFixed(2)} 출금 처리합니까? 현재 잔고에서 차감됩니다.`)) return
+                        setWithdrawSaving(true); setWithdrawMsg(null)
+                        try {
+                          const tok = localStorage.getItem("app_token") ?? ""
+                          const res = await fetch("/api/auto-signal/withdraw", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                            body: JSON.stringify({ amount: Number(withdrawAmount) }),
+                          })
+                          const d = await res.json()
+                          if (res.ok) {
+                            setWithdrawMsg(`출금 완료: -$${Number(withdrawAmount).toFixed(2)} | 현재 잔고: $${d.new_balance?.toFixed(2) ?? "-"}`)
+                            setWithdrawnTotal(d.withdrawn_total ?? 0)
+                            setWithdrawAmount("")
+                          } else {
+                            setWithdrawMsg(d.error ?? "오류")
+                          }
+                        } finally { setWithdrawSaving(false) }
+                      }}
+                      className="h-9 px-4 rounded-lg bg-destructive/80 text-white text-xs font-semibold hover:bg-destructive transition-colors disabled:opacity-50 whitespace-nowrap">
+                      {withdrawSaving ? "처리 중..." : "출금"}
+                    </button>
+                  </div>
+                  {withdrawMsg && <p className={`text-xs ${withdrawMsg.includes("완료") ? "text-primary" : "text-destructive"}`}>{withdrawMsg}</p>}
+                </div>
+
+              </div>
+            )}
+
         )}
 
       </main>

@@ -38,8 +38,10 @@ export async function PATCH(req: Request) {
   if (body.size_usd      !== undefined) update.size_usd      = Number(body.size_usd)
   if (body.leverage      !== undefined) update.leverage      = Number(body.leverage)
   if (body.enabled       !== undefined) update.enabled       = Boolean(body.enabled)
-  if (body.stop_loss_pct !== undefined) update.stop_loss_pct = body.stop_loss_pct === null ? null : Number(body.stop_loss_pct)
-  if (body.seed_capital  !== undefined) update.seed_capital  = Number(body.seed_capital)
+  if (body.stop_loss_pct    !== undefined) update.stop_loss_pct    = body.stop_loss_pct === null ? null : Number(body.stop_loss_pct)
+  if (body.seed_capital     !== undefined) update.seed_capital     = Number(body.seed_capital)
+  if (body.initial_seed     !== undefined) update.initial_seed     = Number(body.initial_seed)
+  if (body.withdrawn_amount !== undefined) update.withdrawn_amount = Number(body.withdrawn_amount)
 
   const { data, error } = await adminSupabase
     .from("auto_signal_settings")

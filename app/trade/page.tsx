@@ -941,6 +941,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState(640)
+  const [initialSeedVal, setInitialSeedVal] = useState<number | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date>(() => kstToday())
   const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
   const krwRate = 1450
@@ -983,6 +984,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
     ]).then(([ledger, cfg]) => {
       setRecords(ledger.records ?? [])
       if (cfg?.seed_capital != null) setSeedCapital(Number(cfg.seed_capital))
+      if (cfg?.initial_seed != null) setInitialSeedVal(Number(cfg.initial_seed))
     }).catch(() => {}).finally(() => setLoading(false))
   }
 
@@ -1187,8 +1189,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
         <div className="grid grid-cols-2 gap-2" style={{ marginBottom: 8 }}>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", fontWeight: 600, marginBottom: 2 }}>초기 시드</div>
-            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.95)" }}>${firstSeed.toFixed(2)}</div>
-            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>≈ {Math.round(firstSeed * krwRate).toLocaleString("ko-KR")}원</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.95)" }}>${(initialSeedVal ?? firstSeed).toFixed(2)}</div>
+            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>≈ {Math.round((initialSeedVal ?? firstSeed) * krwRate).toLocaleString("ko-KR")}원</div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div className="flex items-center gap-1.5" style={{ marginBottom: 2 }}>
