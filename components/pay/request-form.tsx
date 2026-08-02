@@ -214,7 +214,7 @@ export function PayRequestForm({
       {/* 지갑 주소 */}
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          지갑 주소 <span className="text-muted-foreground/60">({chain})</span>
+          지��� 주소 <span className="text-muted-foreground/60">({chain})</span>
         </label>
         <input
           type="text"
@@ -236,8 +236,8 @@ export function PayRequestForm({
               className={cn(
                 "h-10 rounded-xl text-sm font-medium border transition-all",
                 amount === a && !customAmount
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-secondary/40 text-muted-foreground hover:text-foreground",
+                  ? "border-primary bg-primary text-black font-semibold"
+                  : "border-border bg-secondary/40 text-foreground hover:text-foreground",
               )}
             >
               {(a / 10000).toLocaleString()}만원

@@ -153,8 +153,8 @@ export function TopupModal({ open, onClose, username, telegramId }: TopupModalPr
                       className={cn(
                         "py-2 rounded-xl text-sm font-medium border transition-all",
                         selected === amt
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+                          ? "border-primary bg-primary text-black font-semibold"
+                          : "border-border text-foreground hover:border-primary/50 hover:text-foreground",
                       )}
                     >
                       ${amt}
@@ -165,8 +165,8 @@ export function TopupModal({ open, onClose, username, telegramId }: TopupModalPr
                     className={cn(
                       "py-2 rounded-xl text-sm font-medium border transition-all",
                       selected === "custom"
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+                        ? "border-primary bg-primary text-black font-semibold"
+                        : "border-border text-foreground hover:border-primary/50 hover:text-foreground",
                     )}
                   >
                     직접 입력
