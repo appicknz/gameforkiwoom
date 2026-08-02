@@ -6053,10 +6053,9 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           <span className="text-primary font-semibold">+{r.creditAmount} R</span>
                         </div>
                       ))}
-                    </div>
+                     </div>
               )}
             </div>
-          </div>
 
             {/* ── 시드설정 서브탭 ── */}
             {autoSubTab === "seed" && (
@@ -6178,6 +6177,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
         )}
 
       </main>
+
     </div>
   )
 }
