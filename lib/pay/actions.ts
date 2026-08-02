@@ -308,7 +308,7 @@ export async function submitPayRequest(data: {
 
   console.log("[v0] BOT_TOKEN present:", !!BOT_TOKEN, "| userChatIdRaw:", userChatIdRaw)
 
-  // 사용자 메시지는 항상 보냄 (telegram 정보가 있으면)
+  // 사용�� 메시지는 항상 보냄 (telegram 정보가 있으면)
   if (userChatIdRaw) {
     // pay_members에서 bot_chat_id 조회 (telegramId가 있을 때만)
     let userChatId = userChatIdRaw
@@ -343,13 +343,10 @@ export async function submitPayRequest(data: {
         `금액: ${data.amount.toLocaleString("ko-KR")}원\n` +
         `체인: ${data.chain ?? "TRX"} | 지갑: ${data.walletAddress ?? "-"}`
 
-      // DB 설정에서 인라인 버튼 텍스트/URL 가져오기
-      const btnText = masterCfg?.tgBtnText?.trim()
-      const btnUrl  = masterCfg?.tgBtnUrl?.trim()
-
+      // 사용자 메시지 버튼: 복사 + 문의
       const userButtons: ({ text: string; callback_data: string } | { text: string; url: string })[][] = [[
         { text: "메세지 복사하기", callback_data: `copy_msg:${id}` },
-        ...(btnText && btnUrl ? [{ text: btnText, url: btnUrl }] : []),
+        { text: "@cdpaysys 문의", url: "https://t.me/cdpaysys" },
       ]]
 
       const userMsgResult = await sendPayTelegramMessage(userBotToken, userChatId, userMsg, userButtons).catch((e) => ({ error: String(e) }))
