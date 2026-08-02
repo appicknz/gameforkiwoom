@@ -331,9 +331,13 @@ export async function submitPayRequest(data: {
 
     await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, userButtons).catch(() => null)
 
-    // 복사용 텍스트를 DB에 저장 (webhook에서 꺼내 쓰기 위해 request note에 보관)
+    // 복사용 텍스트를 기존 webhookData에 병합 저장 (덮어쓰지 않음)
+    const [existing] = await payDb.select({ webhookData: payRequests.webhookData })
+      .from(payRequests).where(eq(payRequests.id, id))
+    let prevData: Record<string, unknown> = {}
+    try { prevData = JSON.parse(existing?.webhookData ?? "{}") } catch { /* ignore */ }
     await payDb.update(payRequests)
-      .set({ webhookData: JSON.stringify({ copyText }) })
+      .set({ webhookData: JSON.stringify({ ...prevData, copyText }) })
       .where(eq(payRequests.id, id))
       .catch(() => null)
   }
