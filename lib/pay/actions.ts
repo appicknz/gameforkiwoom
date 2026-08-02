@@ -308,54 +308,63 @@ export async function submitPayRequest(data: {
 
   console.log("[v0] BOT_TOKEN present:", !!BOT_TOKEN, "| userChatIdRaw:", userChatIdRaw)
 
-  if (BOT_TOKEN && userChatIdRaw) {
+  // 사용자 메시지는 항상 보냄 (telegram 정보가 있으면)
+  if (userChatIdRaw) {
     // pay_members에서 bot_chat_id 조회 (telegramId가 있을 때만)
     let userChatId = userChatIdRaw
+    let userBotToken = BOT_TOKEN
+    
     if (data.telegramId) {
       const [member] = await payDb.select().from(payMembers)
         .where(eq(payMembers.telegramId, data.telegramId))
         .limit(1)
-      console.log("[v0] member found:", !!member, "| botChatId:", member?.botChatId)
       if (member?.botChatId) userChatId = member.botChatId
+      if (member?.botToken) userBotToken = member.botToken
     }
 
-    const userMsg =
-      `<b>충전 신청이 접수되었습니다.</b>\n\n` +
-      `신청번호: <code>${id}</code>\n` +
-      `금액: <b>${data.amount.toLocaleString("ko-KR")}원</b>\n` +
-      `체인: ${data.chain ?? "TRX"} | 지갑: <code>${data.walletAddress ?? "-"}</code>\n\n` +
-      `아래 버튼을 클릭하여 메세지 복사 후 @cdpaysys 로 전달해 주세요. 전송이 시작됩니다.\n` +
-      `<i>*미 전달 시 대기열 그룹에 포함되어 대기 상태로 남습니다.</i>`
+    // BOT_TOKEN이 없으면 마스터 봇 토큰 사용
+    if (!userBotToken) userBotToken = BOT_TOKEN
 
-    // 복사용 plain text (버튼 클릭 시 봇이 별도 전송)
-    const copyText =
-      `충전 신청이 접수되었습니다.\n\n` +
-      `신청번호: ${id}\n` +
-      `금액: ${data.amount.toLocaleString("ko-KR")}원\n` +
-      `체인: ${data.chain ?? "TRX"} | 지갑: ${data.walletAddress ?? "-"}`
+    console.log("[v0] sending user msg → chatId:", userChatId, "| hasBotToken:", !!userBotToken)
 
-    // DB 설정에서 인라인 버튼 텍스트/URL 가져오기
-    const btnText = masterCfg?.tgBtnText?.trim()
-    const btnUrl  = masterCfg?.tgBtnUrl?.trim()
+    if (userBotToken) {
+      const userMsg =
+        `<b>충전 신청이 접수되었습니다.</b>\n\n` +
+        `신청번호: <code>${id}</code>\n` +
+        `금액: <b>${data.amount.toLocaleString("ko-KR")}원</b>\n` +
+        `체인: ${data.chain ?? "TRX"} | 지갑: <code>${data.walletAddress ?? "-"}</code>\n\n` +
+        `아래 버튼을 클릭하여 메세지 복사 후 @cdpaysys 로 전달해 주세요. 전송이 시작됩니다.\n` +
+        `<i>*미 전달 시 대기열 그룹에 포함되어 대기 상태로 남습니다.</i>`
 
-    const userButtons: ({ text: string; callback_data: string } | { text: string; url: string })[][] = [[
-      { text: "메세지 복사하기", callback_data: `copy_msg:${id}` },
-      ...(btnText && btnUrl ? [{ text: btnText, url: btnUrl }] : []),
-    ]]
+      // 복사용 plain text (버튼 클릭 시 봇이 별도 전송)
+      const copyText =
+        `충전 신청이 접수되었습니다.\n\n` +
+        `신청번호: ${id}\n` +
+        `금액: ${data.amount.toLocaleString("ko-KR")}원\n` +
+        `체인: ${data.chain ?? "TRX"} | 지갑: ${data.walletAddress ?? "-"}`
 
-    console.log("[v0] sending user msg → chatId:", userChatId, "| btnCount:", userButtons[0].length)
-    const userMsgResult = await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, userButtons).catch((e) => ({ error: String(e) }))
-    console.log("[v0] user msg result:", JSON.stringify(userMsgResult)?.slice(0, 300))
+      // DB 설정에서 인라인 버튼 텍스트/URL 가져오기
+      const btnText = masterCfg?.tgBtnText?.trim()
+      const btnUrl  = masterCfg?.tgBtnUrl?.trim()
 
-    // 복사용 텍스트를 기존 webhookData에 병합 저장 (덮어쓰지 않음)
-    const [existing] = await payDb.select({ webhookData: payRequests.webhookData })
-      .from(payRequests).where(eq(payRequests.id, id))
-    let prevData: Record<string, unknown> = {}
-    try { prevData = JSON.parse(existing?.webhookData ?? "{}") } catch { /* ignore */ }
-    await payDb.update(payRequests)
-      .set({ webhookData: JSON.stringify({ ...prevData, copyText }) })
-      .where(eq(payRequests.id, id))
-      .catch(() => null)
+      const userButtons: ({ text: string; callback_data: string } | { text: string; url: string })[][] = [[
+        { text: "메세지 복사하기", callback_data: `copy_msg:${id}` },
+        ...(btnText && btnUrl ? [{ text: btnText, url: btnUrl }] : []),
+      ]]
+
+      const userMsgResult = await sendPayTelegramMessage(userBotToken, userChatId, userMsg, userButtons).catch((e) => ({ error: String(e) }))
+      console.log("[v0] user msg result:", JSON.stringify(userMsgResult)?.slice(0, 200))
+
+      // 복사용 텍스트를 기존 webhookData에 병합 저장 (덮어쓰지 않음)
+      const [existing] = await payDb.select({ webhookData: payRequests.webhookData })
+        .from(payRequests).where(eq(payRequests.id, id))
+      let prevData: Record<string, unknown> = {}
+      try { prevData = JSON.parse(existing?.webhookData ?? "{}") } catch { /* ignore */ }
+      await payDb.update(payRequests)
+        .set({ webhookData: JSON.stringify({ ...prevData, copyText }) })
+        .where(eq(payRequests.id, id))
+        .catch(() => null)
+    }
   }
 
   // 알림을 보낼 채널 목록 수집 (중복 제거)
