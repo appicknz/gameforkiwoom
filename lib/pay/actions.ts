@@ -297,13 +297,27 @@ export async function submitPayRequest(data: {
 
   // ── 봇 → 유저 먼저 메시지 전송 (양방향 채널 확보) ────────────────────
   const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? ""
-  if (BOT_TOKEN && data.telegramId) {
-    // pay_members에서 bot_chat_id 조회
-    const [member] = await payDb.select().from(payMembers)
-      .where(eq(payMembers.telegramId, data.telegramId))
-      .limit(1)
 
-    const userChatId = member?.botChatId ?? data.telegramId  // fallback: telegramId === chatId인 경우도 있음
+  // telegramId(숫자 ID) 또는 telegramUsername/telegramInput(@username)으로 chatId 결정
+  const rawUsername = data.telegramUsername ?? data.telegramInput
+  const userChatIdRaw: string | null = (() => {
+    if (data.telegramId) return data.telegramId
+    if (rawUsername) return rawUsername.startsWith("@") ? rawUsername : `@${rawUsername}`
+    return null
+  })()
+
+  console.log("[v0] BOT_TOKEN present:", !!BOT_TOKEN, "| userChatIdRaw:", userChatIdRaw)
+
+  if (BOT_TOKEN && userChatIdRaw) {
+    // pay_members에서 bot_chat_id 조회 (telegramId가 있을 때만)
+    let userChatId = userChatIdRaw
+    if (data.telegramId) {
+      const [member] = await payDb.select().from(payMembers)
+        .where(eq(payMembers.telegramId, data.telegramId))
+        .limit(1)
+      console.log("[v0] member found:", !!member, "| botChatId:", member?.botChatId)
+      if (member?.botChatId) userChatId = member.botChatId
+    }
 
     const userMsg =
       `<b>충전 신청이 접수되었습니다.</b>\n\n` +
@@ -329,7 +343,9 @@ export async function submitPayRequest(data: {
       ...(btnText && btnUrl ? [{ text: btnText, url: btnUrl }] : []),
     ]]
 
-    await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, userButtons).catch(() => null)
+    console.log("[v0] sending user msg → chatId:", userChatId, "| btnCount:", userButtons[0].length)
+    const userMsgResult = await sendPayTelegramMessage(BOT_TOKEN, userChatId, userMsg, userButtons).catch((e) => ({ error: String(e) }))
+    console.log("[v0] user msg result:", JSON.stringify(userMsgResult)?.slice(0, 300))
 
     // 복사용 텍스트를 기존 webhookData에 병합 저장 (덮어쓰지 않음)
     const [existing] = await payDb.select({ webhookData: payRequests.webhookData })
