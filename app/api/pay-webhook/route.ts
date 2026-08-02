@@ -116,7 +116,8 @@ export async function POST(req: NextRequest) {
   const chatId = (message?.chat as Record<string, unknown>)?.id as number
   const messageId = message?.message_id as number
   const from = cbq.from as Record<string, unknown>
-  const botToken = req.headers.get("x-bot-token") ?? ""
+  // 헤더로 넘어오면 사용, 없으면 환경변수 사용 (callback_query는 헤더가 없음)
+  const botToken = req.headers.get("x-bot-token") || process.env.TELEGRAM_BOT_TOKEN || ""
 
   if (!data) {
     return NextResponse.json({ ok: true })
@@ -278,7 +279,7 @@ export async function POST(req: NextRequest) {
       await editPayMessage(
         BOT_TOKEN, String(chatId), messageId,
         currentText,
-        [[{ text: "문의 진행 중...", callback_data: "noop" }]]
+        [[{ text: "문의 진행 ��...", callback_data: "noop" }]]
       )
     }
 
