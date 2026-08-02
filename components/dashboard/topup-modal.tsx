@@ -189,8 +189,8 @@ export function TopupModal({ open, onClose, username, telegramId }: TopupModalPr
                 )}
 
                 {/* 안내 */}
-                <div className="mb-4 px-3 py-2.5 rounded-xl bg-primary/5 border border-primary/20">
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                <div className="mb-4 px-3 py-2.5 rounded-xl bg-primary/20 border border-primary/40">
+                  <p className="text-[11px] text-white leading-relaxed">
                     포인트 전용 제품을 구매하기 위한 충전입니다. 결제완료 후 자동으로 반영됩니다.
                   </p>
                 </div>
