@@ -54,7 +54,7 @@ export function TopBar() {
   const isTelegramEnv = !!(tgUser || initData)
   const [tgLoginLoading, setTgLoginLoading] = useState(false)
   const [tgLoginMsg, setTgLoginMsg] = useState<string | null>(null)
-  const [tgConfirmOpen, setTgConfirmOpen] = useState(false)
+
 
   const handleTelegramLogin = async () => {
     setTgLoginLoading(true)
@@ -452,57 +452,11 @@ export function TopBar() {
             </button>
           ) : (
             <button
-              onClick={() => { setTgLoginMsg(null); setTgConfirmOpen(true) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg text-white transition-opacity hover:opacity-90 active:scale-95"
-              style={{ background: "#229ED9" }}
+              onClick={() => { setAuthTab("login"); setLoginMsg(null); setTgLoginMsg(null); setDropdownOpen(true) }}
+              className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-primary text-black hover:bg-primary/90 transition-colors"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-              </svg>
               {t("auth.login")}
             </button>
-          )}
-
-          {/* 텔레그램 로그인 확인 모달 */}
-          {tgConfirmOpen && !isLoggedIn && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => setTgConfirmOpen(false)}>
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-              <div
-                className="relative w-[calc(100vw-48px)] max-w-[260px] rounded-2xl border border-border bg-background shadow-2xl overflow-hidden"
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="flex flex-col items-center px-4 pt-4 pb-3 gap-1.5">
-                  <p className="text-sm font-bold text-foreground text-center leading-snug">
-                    텔레그램 계정으로<br />즉시 로그인하시겠습니까?
-                  </p>
-                  {tgLoginMsg && (
-                    <p className="text-xs text-destructive text-center">{tgLoginMsg}</p>
-                  )}
-                </div>
-
-                <div className="flex border-t border-border">
-                  <button
-                    onClick={() => {
-                      setTgConfirmOpen(false)
-                      setAuthTab("login")
-                      setLoginMsg(null)
-                      setDropdownOpen(true)
-                    }}
-                    className="flex-1 py-2.5 text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors border-r border-border"
-                  >
-                    아니오
-                  </button>
-                  <button
-                    onClick={async () => { await handleTelegramLogin() }}
-                    disabled={tgLoginLoading}
-                    className="flex-1 py-2.5 text-xs font-bold text-white transition-opacity disabled:opacity-60"
-                    style={{ background: "#229ED9" }}
-                  >
-                    {tgLoginLoading ? "처리 중..." : "네"}
-                  </button>
-                </div>
-              </div>
-            </div>
           )}
 
           {/* 드롭다운 */}
