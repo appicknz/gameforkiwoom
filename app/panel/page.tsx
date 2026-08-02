@@ -344,7 +344,7 @@ export default function PanelPage() {
       })
       const d = await res.json()
       if (res.ok) {
-        setAcMsg({ text: `계정이 생성되었습니다. (${acUsername})`, ok: true })
+        setAcMsg({ text: `계정이 생���되었습니다. (${acUsername})`, ok: true })
         setAcUsername(""); setAcPassword(""); setAcMemo("")
         loadUsers(adminPw)
       } else {
@@ -3304,7 +3304,7 @@ export default function PanelPage() {
         {activeTab === "points" && (
           <div className="space-y-6">
 
-            {/* 포인트 구매 요청 폼 — 총판/지점만 */}
+            {/* 포인트 ��매 요청 폼 — 총판/지점만 */}
             {(myRole === "branch_admin" || myRole === "admin") && (
               <div className="bg-card border border-border rounded-xl p-5 space-y-3">
                 <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Wallet className="w-4 h-4 text-primary" /> 포인트 구매 요청</h2>
@@ -6174,6 +6174,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               </div>
             )}
 
+          </div>
         )}
 
       </main>
@@ -6248,7 +6249,7 @@ function WriteRequestsPanel({ token }: { token: string }) {
       })
       const data = await res.json()
       if (!res.ok) { setMsg({ id: requestId, ok: false, text: data.error ?? "처리 실패" }); return }
-      setMsg({ id: requestId, ok: true, text: action === "approve" ? `승인 완료${pointChecks[requestId] ? " (포인트 카테고리 포함)" : ""}` : "거절 완료" })
+      setMsg({ id: requestId, ok: true, text: action === "approve" ? `승인 완료${pointChecks[requestId] ? " (포인�� 카테고리 포함)" : ""}` : "거절 완료" })
       // 목록 새로고침 (역할 변경 반영)
       await load(filter)
     } catch {
