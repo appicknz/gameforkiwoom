@@ -465,7 +465,7 @@ export function TopBar() {
 
           {/* 텔레그램 로그인 확인 모달 */}
           {tgConfirmOpen && !isLoggedIn && (
-            <div className="fixed inset-0 z-[100] flex items-end justify-center pb-24" onClick={() => setTgConfirmOpen(false)}>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => setTgConfirmOpen(false)}>
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
               <div
                 className="relative w-[calc(100vw-48px)] max-w-[260px] rounded-2xl border border-border bg-background shadow-2xl overflow-hidden"
