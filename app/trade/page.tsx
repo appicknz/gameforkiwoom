@@ -944,7 +944,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
   const [initialSeedVal, setInitialSeedVal] = useState<number | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date>(() => kstToday())
   const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
-  const krwRate = 1450
+  const krwRate = 1420
   const [countdown,    setCountdown]    = useState("")
   // 입력 폼 상태
   const [inputPnl,  setInputPnl]  = useState("")
@@ -1003,7 +1003,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
       const nextSat = new Date(kstNow)
       nextSat.setUTCDate(kstNow.getUTCDate() + daysUntilSat)
       nextSat.setUTCHours(15, 0, 0, 0) // KST 00:00 = UTC 15:00
-      // 이미 지난 경우 다음 �� 토요일로
+      // 이미 지난 경우 다음 ��� 토요일로
       if (nextSat.getTime() <= now.getTime()) {
         nextSat.setUTCDate(nextSat.getUTCDate() + 7)
       }
@@ -2165,7 +2165,7 @@ export default function TradePage() {
       const entry   = Number(p.entry_price)
       const margin  = Number(p.margin)
       const lev     = Number(p.leverage)
-      // 서버가 PnL 0을 반환하면 클라이언트 가격으로 직접 계산
+      // 서버가 PnL 0을 반환하면 클라이언트 ���격으로 직접 계산
       let pnl    = p.unrealized_pnl     ?? 0
       let pnlPct = p.unrealized_pnl_pct ?? 0
       const cur = priceMapRef.current.get(p.symbol) ?? 0
@@ -2277,7 +2277,7 @@ export default function TradePage() {
     }
   }, [])
 
-  // ── 종목 선택 ─────────��────────���─────���───���───────��──────��────────
+  // ── 종목 선택 ─────────��────────���─────���───���─���─────��──────��────────
   // PC: 차트 변경만 (다이얼로그 열지 않음)
   const handlePcSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)
