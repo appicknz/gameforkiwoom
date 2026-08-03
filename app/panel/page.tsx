@@ -234,13 +234,17 @@ export default function PanelPage() {
 
   // 자동주문 서브탭 state
   const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs" | "seed">("signal")
-  const [initialSeed,     setInitialSeed]     = useState<string>("640")
+  const [initialSeed,     setInitialSeed]     = useState<string>("")
   const [withdrawAmount,  setWithdrawAmount]  = useState<string>("")
   const [withdrawnTotal,  setWithdrawnTotal]  = useState<number>(0)
   const [seedSettingsMsg, setSeedSettingsMsg] = useState<string | null>(null)
   const [withdrawMsg,     setWithdrawMsg]     = useState<string | null>(null)
   const [withdrawSaving,  setWithdrawSaving]  = useState(false)
   const [initialSeedSaving, setInitialSeedSaving] = useState(false)
+  type ProfitRow = { id: number; label: string; pct: string }
+  const [profitRows, setProfitRows] = useState<ProfitRow[]>([{ id: 1, label: "", pct: "" }])
+  const [profitSaving, setProfitSaving] = useState(false)
+  const [profitMsg, setProfitMsg] = useState<string | null>(null)
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -4794,8 +4798,14 @@ export default function PanelPage() {
                       if (res.ok) {
                         const d = await res.json()
                         if (d.initial_seed  != null) setInitialSeed(String(d.initial_seed))
-                        else if (d.seed_capital != null) setInitialSeed(String(d.seed_capital))
+                        else setInitialSeed("")
                         if (d.withdrawn_amount != null) setWithdrawnTotal(Number(d.withdrawn_amount))
+                        if (d.profit_dist) {
+                          try {
+                            const parsed = JSON.parse(d.profit_dist)
+                            if (Array.isArray(parsed) && parsed.length > 0) setProfitRows(parsed)
+                          } catch {}
+                        }
                       }
                     }
                   }}
@@ -6031,6 +6041,86 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     </button>
                   </div>
                   {withdrawMsg && <p className={`text-xs ${withdrawMsg.includes("완료") ? "text-primary" : "text-destructive"}`}>{withdrawMsg}</p>}
+                </div>
+
+                {/* 수익 분배 카드 */}
+                <div className="rounded-xl border border-border p-5 space-y-4">
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">수익 분배</h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합계가 100%를 초과하지 않도록 하세요.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {profitRows.map((row, idx) => (
+                      <div key={row.id} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={row.label}
+                          onChange={e => setProfitRows(prev => prev.map(r => r.id === row.id ? { ...r, label: e.target.value } : r))}
+                          placeholder={`항목 ${idx + 1} (예: 운영비)`}
+                          className="flex-1 h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
+                        />
+                        <div className="relative">
+                          <input
+                            type="number" min={0} max={100} step={0.1}
+                            value={row.pct}
+                            onChange={e => setProfitRows(prev => prev.map(r => r.id === row.id ? { ...r, pct: e.target.value } : r))}
+                            placeholder="0"
+                            className="w-24 h-9 px-3 pr-7 rounded-lg bg-secondary border border-border text-sm text-foreground text-right"
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                        </div>
+                        <button
+                          onClick={() => setProfitRows(prev => prev.filter(r => r.id !== row.id))}
+                          disabled={profitRows.length === 1}
+                          className="h-9 w-9 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-destructive hover:border-destructive transition-colors disabled:opacity-30">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 합계 */}
+                  {profitRows.some(r => r.pct) && (
+                    <p className={`text-xs font-medium tabular-nums ${
+                      profitRows.reduce((s, r) => s + (Number(r.pct) || 0), 0) > 100
+                        ? "text-destructive"
+                        : "text-muted-foreground"
+                    }`}>
+                      합계: {profitRows.reduce((s, r) => s + (Number(r.pct) || 0), 0).toFixed(1)}%
+                      {profitRows.reduce((s, r) => s + (Number(r.pct) || 0), 0) > 100 && " (100% 초과)"}
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={() => setProfitRows(prev => [...prev, { id: Date.now(), label: "", pct: "" }])}
+                      className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                      항목 추가
+                    </button>
+                    <button
+                      disabled={profitSaving || profitRows.reduce((s, r) => s + (Number(r.pct) || 0), 0) > 100}
+                      onClick={async () => {
+                        setProfitSaving(true); setProfitMsg(null)
+                        try {
+                          const tok = localStorage.getItem("app_token") ?? ""
+                          const res = await fetch("/api/auto-signal/settings", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                            body: JSON.stringify({ profit_dist: JSON.stringify(profitRows) }),
+                          })
+                          const d = await res.json()
+                          setProfitMsg(res.ok ? "저장됨" : (d.error ?? "오류"))
+                        } finally { setProfitSaving(false) }
+                      }}
+                      className="h-8 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
+                      {profitSaving ? "저장 중..." : "저장"}
+                    </button>
+                    {profitMsg && <span className="text-xs text-muted-foreground">{profitMsg}</span>}
+                  </div>
                 </div>
 
               </div>

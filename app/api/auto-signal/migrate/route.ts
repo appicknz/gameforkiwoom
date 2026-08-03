@@ -33,5 +33,11 @@ export async function POST(req: Request) {
   }).catch(() => ({ error: null }))
   results.push(e2 ? `withdrawn_amount: ${e2.message}` : "withdrawn_amount: ok")
 
+  // profit_dist 컬럼 추가 (JSON 문자열)
+  const { error: e3 } = await adminSupabase.rpc("exec_sql", {
+    sql: "ALTER TABLE auto_signal_settings ADD COLUMN IF NOT EXISTS profit_dist text",
+  }).catch(() => ({ error: null }))
+  results.push(e3 ? `profit_dist: ${e3.message}` : "profit_dist: ok")
+
   return NextResponse.json({ ok: true, results })
 }
