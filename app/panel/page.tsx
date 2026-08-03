@@ -1506,7 +1506,7 @@ export default function PanelPage() {
                 <div className="space-y-3 mb-4">
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점명 <span className="text-muted-foreground font-normal">(구분용)</span></p>
-                    <Input placeholder="예: 역�����1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
+                    <Input placeholder="예: 역������1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
                   </div>
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점코드 <span className="text-muted-foreground font-normal">(로그인 ID)</span></p>
@@ -5642,16 +5642,31 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     setAutoMsg(null)
                     try {
                       const tok = localStorage.getItem("app_token") ?? ""
-                      const res = await fetch("/api/auto-signal/settings", {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                        body: JSON.stringify({
-                          size_usd:      Number(autoSettingsEdit.size_usd),
-                          leverage:      Number(autoSettingsEdit.leverage),
-                          enabled:       autoSettingsEdit.enabled,
-                          stop_loss_pct: autoSettingsEdit.stop_loss_pct === "" ? null : Number(autoSettingsEdit.stop_loss_pct),
+                      const slVal = autoSettingsEdit.stop_loss_pct === "" ? null : Number(autoSettingsEdit.stop_loss_pct)
+                      const [res] = await Promise.all([
+                        // 1) auto_signal_settings 저장
+                        fetch("/api/auto-signal/settings", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                          body: JSON.stringify({
+                            size_usd:      Number(autoSettingsEdit.size_usd),
+                            leverage:      Number(autoSettingsEdit.leverage),
+                            enabled:       autoSettingsEdit.enabled,
+                            stop_loss_pct: slVal,
+                          }),
                         }),
-                      })
+                        // 2) 모든 계정의 base_amount / leverage / stop_loss 동기화
+                        fetch("/api/auto-trading/accounts/sync", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                          body: JSON.stringify({
+                            base_amount:       Number(autoSettingsEdit.size_usd),
+                            leverage:          Number(autoSettingsEdit.leverage),
+                            stop_loss_enabled: slVal !== null,
+                            stop_loss_percent: slVal,
+                          }),
+                        }),
+                      ])
                       const d = await res.json()
                       if (res.ok) { setAutoSettings(d); setAutoMsg("저장됐습니다.") }
                       else setAutoMsg(d.error ?? "오류")
@@ -6079,7 +6094,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">출금</h2>
                     <p className="text-xs text-muted-foreground mt-1">
-                      매매기록 최신 잔고 기준으로 차감되며, 오늘 날짜 레코드로 반영됩니다.
+                      매매기록 최신 잔고 기준으로 차감되며, 오늘 날짜 레코드로 ��영됩니다.
                     </p>
                     <div className="flex items-center gap-4 mt-2">
                       {currentBalance !== null && (
