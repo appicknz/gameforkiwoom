@@ -1506,7 +1506,7 @@ export default function PanelPage() {
                 <div className="space-y-3 mb-4">
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점명 <span className="text-muted-foreground font-normal">(구분용)</span></p>
-                    <Input placeholder="예: 역������1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
+                    <Input placeholder="예: 역�������1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
                   </div>
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점코드 <span className="text-muted-foreground font-normal">(로그인 ID)</span></p>
@@ -4955,7 +4955,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     <div className="flex items-center justify-between">
                       <h2 className="text-sm font-semibold text-foreground">글로벌 설정</h2>
                       <button
-                        onClick={() => setTradingSettingsEdit({ webhook_url: tradingSettings?.webhook_url ?? "", enabled: !!tradingSettings?.enabled })}
+                        onClick={() => tradingSettings && setTradingSettingsEdit({ webhook_url: tradingSettings.webhook_url ?? "", enabled: tradingSettings.enabled })}
                         className="text-xs text-muted-foreground hover:text-foreground transition-colors">
                         초기화
                       </button>
@@ -4997,10 +4997,14 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           if (!tradingSettingsEdit) return
                           setTradingSettingsSaving(true); setTradingSettingsMsg(null)
                           const tok = localStorage.getItem("app_token") ?? ""
+                          // webhook_url 과 enabled 만 명시적으로 전송 (undefined/null 필드 전파 방지)
                           const res = await fetch("/api/auto-trading/settings", {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                            body: JSON.stringify(tradingSettingsEdit),
+                            body: JSON.stringify({
+                              webhook_url: tradingSettingsEdit.webhook_url,
+                              enabled:     tradingSettingsEdit.enabled,
+                            }),
                           })
                           const d = await res.json()
                           if (res.ok) { setTradingSettings(d); setTradingSettingsMsg("저장됐습니다.") }
@@ -5684,7 +5688,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center gap-2">
                     <ArrowLeftRight className="w-4 h-4 text-primary" />
                     <span className="text-sm font-semibold text-foreground">시그널 타입 설정</span>
-                    <span className="text-xs text-muted-foreground">— 방향(롱/숏) 및 활성화</span>
+                    <span className="text-xs text-muted-foreground">— 방향(롱/숏) 및 활���화</span>
                   </div>
                   <div className="divide-y divide-border">
                     {signalRules.map(rule => (
