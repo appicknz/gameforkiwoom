@@ -269,7 +269,7 @@ export default function PanelPage() {
   const [accFormOpen,   setAccFormOpen]   = useState(false)
   const [accEditTarget, setAccEditTarget] = useState<TradingAccount | null>(null)
   const [accForm, setAccForm] = useState({
-    account_name: "", auth_token: "", leverage: "20", base_amount: "100",
+    account_name: "", auth_token: "", leverage: "10", base_amount: "10",
     enabled: true, take_profit_enabled: false, take_profit_percent: "",
     stop_loss_enabled: false, stop_loss_percent: "", memo: "",
   })
@@ -2257,7 +2257,7 @@ export default function PanelPage() {
                       >
                         <p className="text-xs text-muted-foreground mb-1">대기 중인 환전</p>
                         <p className={`text-2xl font-bold ${pendingEx > 0 ? "text-primary" : "text-foreground"}`}>
-                          {pendingEx}<span className="text-sm font-normal text-muted-foreground ml-1">건</span>
+                          {pendingEx}<span className="text-sm font-normal text-muted-foreground ml-1">���</span>
                         </p>
                         <p className="text-[11px] text-primary/70 mt-1">{baExExpanded ? "접기 ▲" : "��록 보기 ▼"}</p>
                       </button>
@@ -2365,7 +2365,7 @@ export default function PanelPage() {
                                           setAcctProcessing(null)
                                           if (res.ok) loadBranches(adminPw)
                                         }}
-                                      >{acctProcessing === r.id ? "처리중..." : "승인"}</Button>
+                                      >{acctProcessing === r.id ? "처리중..." : "���인"}</Button>
                                     </div>
                                   </div>
                                 ))}
@@ -3094,7 +3094,7 @@ export default function PanelPage() {
                 <p className="text-2xl font-bold text-foreground">{saBranchAdmins.length}<span className="text-sm font-normal text-muted-foreground ml-1">개</span></p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">대기 중인 충전</p>
+                <p className="text-xs text-muted-foreground mb-1">대기 중인 ���전</p>
                 <p className="text-2xl font-bold text-primary">{pending.length}<span className="text-sm font-normal text-muted-foreground ml-1">건</span></p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
@@ -3547,7 +3547,7 @@ export default function PanelPage() {
                   {/* 직접 입력 + 메모 + 요청 */}
                   <div className="flex gap-2">
                     <Input
-                      placeholder="직접 입력 (원)"
+                      placeholder="���접 입력 (원)"
                       type="number"
                       value={baChargeAmt}
                       onChange={e => setBaChargeAmt(e.target.value)}
@@ -3760,7 +3760,7 @@ export default function PanelPage() {
                   )}
                 </div>
 
-                {/* 충전/회수 인라인 모달 */}
+                {/* 충전/��수 인라인 모달 */}
                 {branchChargeUserId && (() => {
                   const isWithdraw = branchChargeUserId.startsWith("-")
                   const uid = isWithdraw ? branchChargeUserId.slice(1) : branchChargeUserId
