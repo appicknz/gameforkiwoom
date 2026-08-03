@@ -1179,12 +1179,17 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
             <span style={{ fontSize: 10, fontWeight: 700, color: GOLD }}>매매기록 ({records.length}일)</span>
             <ClockTime />
           </div>
-          <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
-            {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
-            <span style={{ fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.65)", marginLeft: 4 }}>
-              ({totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%)
+          <div style={{ textAlign: "right" }}>
+            <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+              {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
+              <span style={{ fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.65)", marginLeft: 4 }}>
+                ({totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%)
+              </span>
             </span>
-          </span>
+            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", marginTop: 1 }}>
+              {totalPnl >= 0 ? "+" : ""}{Math.round(totalPnl * krwRate).toLocaleString("ko-KR")}원
+            </div>
+          </div>
         </div>
 
         {/* 시드 / 잔고 카드 (원화 포함) */}

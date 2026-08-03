@@ -245,6 +245,7 @@ export default function PanelPage() {
   const [profitRows, setProfitRows] = useState<ProfitRow[]>([{ id: 1, label: "", pct: "" }])
   const [profitSaving, setProfitSaving] = useState(false)
   const [profitMsg, setProfitMsg] = useState<string | null>(null)
+  const [showProfitDist, setShowProfitDist] = useState(false)
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -315,7 +316,7 @@ export default function PanelPage() {
   const [walletRepairLoading, setWalletRepairLoading] = useState(false)
   const [walletRepairResult, setWalletRepairResult]   = useState<{ repairedCount: number; skippedCount: number; repaired: { id: string; username: string; oldAddress: string | null; newAddress: string }[] } | null>(null)
   const [walletRepairError, setWalletRepairError]     = useState<string | null>(null)
-  // 미반영 입금 수동 재처리 (master 전��)
+  // 미반영 입금 수동 재처리 (master 전���)
   const [replaySig, setReplaySig]         = useState("")
   const [replayLoading, setReplayLoading] = useState(false)
   const [replayResult, setReplayResult]   = useState<{ replayed: { owner: string; delta: number; creditAmount: number }[] } | null>(null)
@@ -1023,7 +1024,7 @@ export default function PanelPage() {
     user:         { label: "일반회원",    color: "bg-gray-100 text-gray-600" },
   }
 
-  // ─��� ���판 전용: 지점 드릴다운 + 유저 생성 ──
+  // ─���� ���판 전용: 지점 드릴다운 + 유저 생성 ──
   const [selectedBranch, setSelectedBranch]   = useState<any | null>(null) // 클릭한 지점
   const [branchMembers, setBranchMembers]     = useState<any[]>([])
   const [branchMembersLoading, setBranchMembersLoading] = useState(false)
@@ -5372,7 +5373,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                 {orderLogsLoaded && orderLogs.length === 0 && (
                   <div className="rounded-xl border border-border p-5 text-center text-xs text-muted-foreground">
-                    주문 로그가 없습니다. 시그널이 수���되면 자동으로 기록됩니다.
+                    주문 로그가 없습니다. ��그널이 수���되면 자동으로 기록됩니다.
                   </div>
                 )}
 
@@ -6030,12 +6031,29 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                 {/* 수익 분배 카드 */}
                 <div className="rounded-xl border border-border p-5 space-y-4">
-                  <div>
-                    <h2 className="text-sm font-semibold text-foreground">수익 분배</h2>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합계가 100%를 초과하지 않도록 하세요.
-                    </p>
-                  </div>
+                  <label className="flex items-center justify-between cursor-pointer select-none">
+                    <div>
+                      <h2 className="text-sm font-semibold text-foreground">수익 분배</h2>
+                      {!showProfitDist && (
+                        <p className="text-xs text-muted-foreground mt-0.5">체크하면 분배 항목을 설정할 수 있습니다.</p>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={showProfitDist}
+                        onChange={e => setShowProfitDist(e.target.checked)}
+                        className="sr-only"
+                      />
+                      <div className={`w-10 h-5 rounded-full transition-colors ${showProfitDist ? "bg-primary" : "bg-secondary border border-border"}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-background shadow transition-transform ${showProfitDist ? "translate-x-5" : ""}`} />
+                    </div>
+                  </label>
+
+                  {showProfitDist && <>
+                  <p className="text-xs text-muted-foreground -mt-2">
+                    수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합계가 100%를 초과하지 않도록 하세요.
+                  </p>
 
                   <div className="space-y-2">
                     {profitRows.map((row, idx) => (
@@ -6106,6 +6124,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     </button>
                     {profitMsg && <span className="text-xs text-muted-foreground">{profitMsg}</span>}
                   </div>
+                  </>}
                 </div>
 
               </div>
