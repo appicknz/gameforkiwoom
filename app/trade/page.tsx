@@ -960,6 +960,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
   const [confirming,     setConfirming]     = useState(false)
   const [closedToday,    setClosedToday]    = useState(false)   // 반영 완료 → 금일매매 종료 표시
   const [closedTime,     setClosedTime]     = useState("")      // 반영 완료 시각 (HH:MM:SS)
+  type WithdrawalRecord = { id: number; amount: number; date_label: string; note: string | null }
+  const [withdrawals,    setWithdrawals]    = useState<WithdrawalRecord[]>([])
 
   const MASTER_ROLES = ["master", "admin"]
   const isConfirmOnly = CONFIRM_ONLY_USERS.includes(userName ?? "")   // 반영만 가능 (수익입력·삭제 불가)
@@ -981,10 +983,12 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
     Promise.all([
       fetch("/api/auto-signal/rebalance", { credentials: "include", headers: { Authorization: `Bearer ${getToken() ?? ""}` } }).then(r => r.ok ? r.json() : { records: [] }),
       fetch("/api/auto-signal/settings").then(r => r.ok ? r.json() : null),
-    ]).then(([ledger, cfg]) => {
+      fetch("/api/auto-signal/withdraw", { headers: { Authorization: `Bearer ${getToken() ?? ""}` } }).then(r => r.ok ? r.json() : { withdrawals: [] }),
+    ]).then(([ledger, cfg, wdr]) => {
       setRecords(ledger.records ?? [])
       if (cfg?.seed_capital != null) setSeedCapital(Number(cfg.seed_capital))
       if (cfg?.initial_seed != null) setInitialSeedVal(Number(cfg.initial_seed))
+      setWithdrawals(wdr.withdrawals ?? [])
     }).catch(() => {}).finally(() => setLoading(false))
   }
 
@@ -1176,7 +1180,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
         <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
           <div className="flex items-center gap-1.5">
             <PulseDot />
-            <span style={{ fontSize: 10, fontWeight: 700, color: GOLD }}>매매기록 ({records.length}일)</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: GOLD }}>매매기�� ({records.length}일)</span>
             <ClockTime />
           </div>
           <div className="flex flex-col items-end">
@@ -1352,28 +1356,45 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
               const roi      = seed > 0 ? (pnl / seed) * 100 : 0
               const pnlColor = pnl >= 0 ? UP_COLOR : DOWN_COLOR
               const [, mm, dd] = rec.date_label.split("-")
+              const dayWithdrawals = withdrawals.filter(w => w.date_label === rec.date_label)
               return (
-                <div key={rec.id} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center", background: rec.date_label === dateStr ? "rgba(212,175,55,0.04)" : undefined }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.95)" }}>
-                      {parseInt(mm)}월 {parseInt(dd)}일
-                      {rec.note && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.55)" }}>{rec.note}</span>}
+                <div key={rec.id} style={{ borderBottom: `1px solid rgba(212,175,55,0.04)`, background: rec.date_label === dateStr ? "rgba(212,175,55,0.04)" : undefined }}>
+                  {/* 메인 행 */}
+                  <div style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.95)" }}>
+                        {parseInt(mm)}월 {parseInt(dd)}일
+                        {rec.note && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 400, color: "rgba(255,255,255,0.55)" }}>{rec.note}</span>}
+                      </div>
+                      <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>
+                        시드 ${seed.toFixed(2)} → 잔고 ${estVal.toFixed(2)}
+                      </div>
                     </div>
-                    <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>
-                      시드 ${seed.toFixed(2)} → 잔고 ${estVal.toFixed(2)}
+                    <div className="flex items-center gap-3">
+                      <div style={{ textAlign: "right" }}>
+                        <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
+                        <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
+                        <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
+                      </div>
+                      {isMaster && !isConfirmOnly && (
+                        <button onClick={() => handleDelete(rec.id)}
+                          style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.6)", fontSize: 11, cursor: "pointer", flexShrink: 0 }}>×</button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div style={{ textAlign: "right" }}>
-                      <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: pnlColor }}>{pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}</div>
-                      <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
-                      <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
+                  {/* 출금 기록 */}
+                  {dayWithdrawals.map(w => (
+                    <div key={w.id} style={{ padding: "5px 14px 5px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(239,68,68,0.04)", borderTop: "1px solid rgba(239,68,68,0.08)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ fontSize: 9, color: "rgba(239,68,68,0.7)", fontWeight: 700, letterSpacing: "0.03em" }}>출금</span>
+                        {w.note && <span style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{w.note}</span>}
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div className="tabular-nums" style={{ fontSize: 12, fontWeight: 700, color: "rgba(239,68,68,0.85)" }}>-${Number(w.amount).toFixed(2)}</div>
+                        <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(239,68,68,0.5)" }}>-{Math.round(Number(w.amount) * krwRate).toLocaleString("ko-KR")}원</div>
+                      </div>
                     </div>
-                    {isMaster && !isConfirmOnly && (
-                      <button onClick={() => handleDelete(rec.id)}
-                        style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.6)", fontSize: 11, cursor: "pointer", flexShrink: 0 }}>×</button>
-                    )}
-                  </div>
+                  ))}
                 </div>
               )
             })}
@@ -2211,7 +2232,7 @@ export default function TradePage() {
     if (bal === null) { alert("잔고를 불러오는 중입니다."); return }
     if (amount <= 0 || amount > bal) { alert("잔고가 부족합니다."); return }
 
-    // dialogSymbolRef: 다이얼로그에서 호출 시 항상 올바른 심볼을 가���킴
+    // dialogSymbolRef: 다이얼로그에서 호출 시 항��� 올바른 심볼을 가���킴
     const sym   = dialogSymbolRef.current
     const price = priceMapRef.current.get(sym) ?? 0
 
