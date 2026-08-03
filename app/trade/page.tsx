@@ -1041,8 +1041,10 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
   const todayRecordExists = records.some(r => r.date_label === todayKST)
   const liveValue   = (!todayRecordExists && todayAutoPnl !== 0) ? confirmedValue + todayAutoPnl : confirmedValue
   const latestValue = liveValue
-  const totalPnl    = latestValue - firstSeed
-  const totalRoi    = firstSeed > 0 ? (totalPnl / firstSeed) * 100 : 0
+  // 수익률 기준: initial_seed가 설정된 경우 그것을 기준으로, 없으면 첫 레코드의 seed_capital
+  const baseSeed    = initialSeedVal != null && initialSeedVal > 0 ? initialSeedVal : firstSeed
+  const totalPnl    = latestValue - baseSeed
+  const totalRoi    = baseSeed > 0 ? (totalPnl / baseSeed) * 100 : 0
 
   // 선택 날짜 기존 기록
   const existing = records.find(r => r.date_label === dateStr)
@@ -1379,7 +1381,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
             : weeklyRows.map(([wk, { pnl, days }]) => {
               const startDay = days[0]; const endDay = days[days.length - 1]
               const [,sm,sd] = startDay.split("-"); const [,em,ed] = endDay.split("-")
-              const roiPct = firstSeed > 0 ? (pnl / firstSeed) * 100 : 0
+              const roiPct = baseSeed > 0 ? (pnl / baseSeed) * 100 : 0
               const col = pnl >= 0 ? UP_COLOR : DOWN_COLOR
               return (
                 <div key={wk} style={{ padding: "11px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1404,7 +1406,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
             ? <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>데이터 없음</div>
             : monthlyRows.map(([mk, { pnl, days }]) => {
               const [yy, mm] = mk.split("-")
-              const roiPct = firstSeed > 0 ? (pnl / firstSeed) * 100 : 0
+              const roiPct = baseSeed > 0 ? (pnl / baseSeed) * 100 : 0
               const col = pnl >= 0 ? UP_COLOR : DOWN_COLOR
               return (
                 <div key={mk} style={{ padding: "11px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
