@@ -1003,7 +1003,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
       const nextSat = new Date(kstNow)
       nextSat.setUTCDate(kstNow.getUTCDate() + daysUntilSat)
       nextSat.setUTCHours(15, 0, 0, 0) // KST 00:00 = UTC 15:00
-      // 이미 지난 경우 다음 주 토요일로
+      // 이미 지난 경우 다음 �� 토요일로
       if (nextSat.getTime() <= now.getTime()) {
         nextSat.setUTCDate(nextSat.getUTCDate() + 7)
       }
@@ -1031,9 +1031,9 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
   // 전체 누적 (오름차순)
   const sorted      = [...records].sort((a, b) => a.date_label.localeCompare(b.date_label))
   // 초기 시드: 첫 번째 rebalance 기록의 seed_capital (없으면 settings의 seed_capital 폴백)
-  const firstSeed   = sorted.length > 0 ? Number(sorted[0].seed_capital) : seedCapital
+  const firstSeed   = sorted.length > 0 ? Number(sorted[0].seed_capital) : (seedCapital ?? 0)
   // 마지막 확정 잔고 (저장된 기록 기준)
-  const confirmedValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : seedCapital
+  const confirmedValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : (seedCapital ?? 0)
   // 부모에 확정 잔고 전달 (AutoSignalPanel MARGIN 기준값으로 사용)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { onConfirmedValue?.(confirmedValue) }, [confirmedValue])
@@ -1212,13 +1212,17 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
                 <span style={{ fontSize: 8, fontWeight: 700, padding: "0px 4px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "rgba(34,197,94,0.8)" }}>실시간</span>
               )}
             </div>
-            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>${latestValue.toFixed(2)}</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+              {seedCapital !== null || records.length > 0 ? `$${latestValue.toFixed(2)}` : "—"}
+            </div>
             {!todayRecordExists && todayAutoPnl !== 0 && (
               <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.55)", marginTop: 1 }}>
                 확정 ${confirmedValue.toFixed(2)} + 자동 {todayAutoPnl >= 0 ? "+" : ""}{todayAutoPnl.toFixed(2)}
               </div>
             )}
-            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>≈ {Math.round(latestValue * krwRate).toLocaleString("ko-KR")}원</div>
+            <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>
+              {seedCapital !== null || records.length > 0 ? `≈ ${Math.round(latestValue * krwRate).toLocaleString("ko-KR")}원` : ""}
+            </div>
           </div>
         </div>
 
