@@ -246,8 +246,6 @@ export default function PanelPage() {
   const [profitSaving, setProfitSaving] = useState(false)
   const [profitMsg, setProfitMsg] = useState<string | null>(null)
   const [showProfitDist, setShowProfitDist] = useState(false)
-  const todayKSTStr = (() => { const d = new Date(Date.now() + 9*3600000); return d.toISOString().slice(0,10) })()
-  const [withdrawDate, setWithdrawDate] = useState<string>(todayKSTStr)
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -1023,7 +1021,7 @@ export default function PanelPage() {
     branch_admin: { label: "총판",        color: "bg-blue-100 text-blue-700" },
     admin:        { label: "지점관리자",  color: "bg-orange-100 text-orange-700" },
     seller:       { label: "셀러",        color: "bg-green-100 text-green-700" },
-    user:         { label: "일반��원",    color: "bg-gray-100 text-gray-600" },
+    user:         { label: "일반회원",    color: "bg-gray-100 text-gray-600" },
   }
 
   // ─��� ���판 전용: 지점 드릴다운 + 유저 생성 ──
@@ -3872,7 +3870,7 @@ export default function PanelPage() {
                     body: JSON.stringify({ targetUsername: exTargetId, pointAmount: Number(exPointAmt), memo: exMemo }),
                   })
                   const d = await res.json()
-                  setExMsg(res.ok ? { text: "환전 요청���습니다.", ok: true } : { text: d.error ?? "오류", ok: false })
+                  setExMsg(res.ok ? { text: "환전 요청됐습니다.", ok: true } : { text: d.error ?? "오류", ok: false })
                   if (res.ok) { setExTargetId(""); setExPointAmt(""); setExMemo(""); loadExRequests() }
                   setExSubmitting(false)
                 }}>요청</Button>
@@ -5991,18 +5989,8 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       </p>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">출금 날짜</label>
-                      <input
-                        type="date"
-                        value={withdrawDate}
-                        onChange={e => setWithdrawDate(e.target.value)}
-                        max={todayKSTStr}
-                        className="w-full h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
-                      />
-                    </div>
-                    <div className="space-y-1">
+                  <div className="flex items-end gap-3">
+                    <div className="space-y-1 flex-1">
                       <label className="text-xs text-muted-foreground">출금 금액 (USD)</label>
                       <input
                         type="number" min={1} step={0.01}
@@ -6012,33 +6000,32 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                         className="w-full h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
                       />
                     </div>
+                    <button
+                      disabled={withdrawSaving || !withdrawAmount || Number(withdrawAmount) <= 0}
+                      onClick={async () => {
+                        if (!confirm(`$${Number(withdrawAmount).toFixed(2)} 출금 처리합니까? 현재 잔고에서 차감됩니다.`)) return
+                        setWithdrawSaving(true); setWithdrawMsg(null)
+                        try {
+                          const tok = localStorage.getItem("app_token") ?? ""
+                          const res = await fetch("/api/auto-signal/withdraw", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                            body: JSON.stringify({ amount: Number(withdrawAmount) }),
+                          })
+                          const d = await res.json()
+                          if (res.ok) {
+                            setWithdrawMsg(`출금 완료: -$${Number(withdrawAmount).toFixed(2)} | 현재 잔고: $${d.new_balance?.toFixed(2) ?? "-"}`)
+                            setWithdrawnTotal(d.withdrawn_total ?? 0)
+                            setWithdrawAmount("")
+                          } else {
+                            setWithdrawMsg(d.error ?? "오류")
+                          }
+                        } finally { setWithdrawSaving(false) }
+                      }}
+                      className="h-9 px-4 rounded-lg bg-destructive/80 text-white text-xs font-semibold hover:bg-destructive transition-colors disabled:opacity-50 whitespace-nowrap">
+                      {withdrawSaving ? "처리 중..." : "출금"}
+                    </button>
                   </div>
-                  <button
-                    disabled={withdrawSaving || !withdrawAmount || Number(withdrawAmount) <= 0}
-                    onClick={async () => {
-                      if (!confirm(`${withdrawDate} — $${Number(withdrawAmount).toFixed(2)} 출금 처리합니까?`)) return
-                      setWithdrawSaving(true); setWithdrawMsg(null)
-                      try {
-                        const tok = localStorage.getItem("app_token") ?? ""
-                        const res = await fetch("/api/auto-signal/withdraw", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                          body: JSON.stringify({ amount: Number(withdrawAmount), date_label: withdrawDate }),
-                        })
-                        const d = await res.json()
-                        if (res.ok) {
-                          setWithdrawMsg(`출금 완료: ${withdrawDate} -$${Number(withdrawAmount).toFixed(2)} | 잔고: $${d.new_balance?.toFixed(2) ?? "-"}`)
-                          setWithdrawnTotal(d.withdrawn_total ?? 0)
-                          setWithdrawAmount("")
-                          setWithdrawDate(todayKSTStr)
-                        } else {
-                          setWithdrawMsg(d.error ?? "오류")
-                        }
-                      } finally { setWithdrawSaving(false) }
-                    }}
-                    className="w-full h-9 rounded-lg bg-destructive/80 text-white text-xs font-semibold hover:bg-destructive transition-colors disabled:opacity-50">
-                    {withdrawSaving ? "처리 중..." : "출금"}
-                  </button>
                   {withdrawMsg && <p className={`text-xs ${withdrawMsg.includes("완료") ? "text-primary" : "text-destructive"}`}>{withdrawMsg}</p>}
                 </div>
 
