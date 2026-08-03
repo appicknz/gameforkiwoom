@@ -711,7 +711,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             </div>
           )
         }
-        // ────────────────────────────────────────────────────��────────
+        // ────────────────────────────────────────────────────���────────
 
         // ── 오늘 or 스냅샷 없는 날 — 기존 실시간 계산 ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
@@ -941,7 +941,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState<number | null>(null)
-  const [initialSeedVal, setInitialSeedVal] = useState<number | null>(null)
+  const [initialSeedVal,   setInitialSeedVal]   = useState<number | null>(null)
+  const [showProfitDist,   setShowProfitDist]   = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date>(() => kstToday())
   const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
   const krwRate = 1420
@@ -985,6 +986,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
       setRecords(ledger.records ?? [])
       if (cfg?.seed_capital != null) setSeedCapital(Number(cfg.seed_capital))
       if (cfg?.initial_seed != null) setInitialSeedVal(Number(cfg.initial_seed))
+      setShowProfitDist(Boolean(cfg?.show_profit_dist))
     }).catch(() => {}).finally(() => setLoading(false))
   }
 
@@ -1003,7 +1005,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
       const nextSat = new Date(kstNow)
       nextSat.setUTCDate(kstNow.getUTCDate() + daysUntilSat)
       nextSat.setUTCHours(15, 0, 0, 0) // KST 00:00 = UTC 15:00
-      // 이미 지난 경우 다음 ��� 토요일로
+      // 이미 지난 경우 다음 ���� 토요일로
       if (nextSat.getTime() <= now.getTime()) {
         nextSat.setUTCDate(nextSat.getUTCDate() + 7)
       }
@@ -1226,38 +1228,31 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
           </div>
         </div>
 
-        {/* 수익 분배 카드 (1/2, 2/2) */}
-        {(() => {
-          const KRW_RATE = krwRate
-          const half     = totalPnl / 2
-          const halfKrw  = half * KRW_RATE
-          const totalKrw = totalPnl * KRW_RATE
-          const hasProfit = totalPnl > 0
-          return (
-            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", fontWeight: 600, marginBottom: 6 }}>
-                수익 분배 (총 {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)} ≈ {Math.round(totalKrw).toLocaleString("ko-KR")}원)
-              </div>
-              {!hasProfit ? (
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", textAlign: "center", padding: "6px 0" }}>
-                  누적 수익이 없습니다.
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {[1, 2].map(n => (
-                    <div key={n} style={{ background: "rgba(212,175,55,0.06)", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
-                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", marginBottom: 2 }}>{n}/2</div>
-                      <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>${half.toFixed(2)}</div>
-                      <div className="tabular-nums" style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
-                        {Math.round(halfKrw).toLocaleString("ko-KR")}원
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+        {/* 수익 분배 카드 (1/2, 2/2) — show_profit_dist 설정 시에만 표시 */}
+        {showProfitDist && (
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", fontWeight: 600, marginBottom: 6 }}>
+              수익 분배 (총 {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)} ≈ {Math.round(totalPnl * krwRate).toLocaleString("ko-KR")}원)
             </div>
-          )
-        })()}
+            {totalPnl <= 0 ? (
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", textAlign: "center", padding: "6px 0" }}>
+                누적 수익이 없습니다.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {[1, 2].map(n => (
+                  <div key={n} style={{ background: "rgba(212,175,55,0.06)", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", marginBottom: 2 }}>{n}/2</div>
+                    <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>${(totalPnl / 2).toFixed(2)}</div>
+                    <div className="tabular-nums" style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
+                      {Math.round((totalPnl / 2) * krwRate).toLocaleString("ko-KR")}원
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
 

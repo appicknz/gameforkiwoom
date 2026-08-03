@@ -1506,7 +1506,7 @@ export default function PanelPage() {
                 <div className="space-y-3 mb-4">
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점명 <span className="text-muted-foreground font-normal">(구분용)</span></p>
-                    <Input placeholder="예: 역삼1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
+                    <Input placeholder="예: 역���1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
                   </div>
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점코드 <span className="text-muted-foreground font-normal">(로그인 ID)</span></p>
@@ -4814,6 +4814,7 @@ export default function PanelPage() {
                             if (Array.isArray(parsed) && parsed.length > 0) setProfitRows(parsed)
                           } catch {}
                         }
+                        setShowProfitDist(Boolean(d.show_profit_dist))
                       }
                       if (rebalRes.ok) {
                         const d = await rebalRes.json()
@@ -5989,6 +5990,33 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     </button>
                   </div>
                   {seedSettingsMsg && <p className="text-xs text-muted-foreground">{seedSettingsMsg}</p>}
+
+                  {/* 수익 분배 표시 토글 */}
+                  <div className="flex items-center justify-between pt-1 border-t border-border">
+                    <div>
+                      <p className="text-xs font-medium text-foreground">수익 분배 표시</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">매매기록 화면에 수익 분배 섹션을 표시합니다.</p>
+                    </div>
+                    <label className="relative cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showProfitDist}
+                        onChange={async e => {
+                          const next = e.target.checked
+                          setShowProfitDist(next)
+                          const tok = localStorage.getItem("app_token") ?? ""
+                          await fetch("/api/auto-signal/settings", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                            body: JSON.stringify({ show_profit_dist: next }),
+                          })
+                        }}
+                        className="sr-only"
+                      />
+                      <div className={`w-10 h-5 rounded-full transition-colors ${showProfitDist ? "bg-primary" : "bg-secondary border border-border"}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-background shadow transition-transform ${showProfitDist ? "translate-x-5" : ""}`} />
+                    </label>
+                  </div>
                 </div>
 
                 {/* 입금 카드 */}
@@ -6107,29 +6135,14 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                 {/* 수익 분배 카드 */}
                 <div className="rounded-xl border border-border p-5 space-y-4">
-                  <label className="flex items-center justify-between cursor-pointer select-none">
-                    <div>
-                      <h2 className="text-sm font-semibold text-foreground">수익 분배</h2>
-                      {!showProfitDist && (
-                        <p className="text-xs text-muted-foreground mt-0.5">체크하면 분배 항목을 설정할 수 있습니다.</p>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="checkbox"
-                        checked={showProfitDist}
-                        onChange={e => setShowProfitDist(e.target.checked)}
-                        className="sr-only"
-                      />
-                      <div className={`w-10 h-5 rounded-full transition-colors ${showProfitDist ? "bg-primary" : "bg-secondary border border-border"}`} />
-                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-background shadow transition-transform ${showProfitDist ? "translate-x-5" : ""}`} />
-                    </div>
-                  </label>
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">수익 분배 항목 설정</h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합계가 100%를 초과하지 않도록 하세요.
+                    </p>
+                  </div>
 
                   {showProfitDist && <>
-                  <p className="text-xs text-muted-foreground -mt-2">
-                    수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합계가 100%를 초과하지 않도록 하세요.
-                  </p>
 
                   <div className="space-y-2">
                     {profitRows.map((row, idx) => (

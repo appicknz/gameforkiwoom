@@ -43,6 +43,7 @@ export async function PATCH(req: Request) {
   if (body.initial_seed     !== undefined) update.initial_seed     = Number(body.initial_seed)
   if (body.withdrawn_amount !== undefined) update.withdrawn_amount = Number(body.withdrawn_amount)
   if (body.profit_dist      !== undefined) update.profit_dist      = body.profit_dist
+  if (body.show_profit_dist !== undefined) update.show_profit_dist = Boolean(body.show_profit_dist)
 
   const { data, error } = await adminSupabase
     .from("auto_signal_settings")
