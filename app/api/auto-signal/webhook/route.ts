@@ -72,15 +72,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 
-  // 자동매매 전역 설정 + 시그널 규칙 병렬 조회
-  const [{ data: settings }, { data: rule }] = await Promise.all([
+  // 자동매매 전역 설정 + 시그널 규칙 + TVM 글로벌 설정 병렬 조회
+  const [{ data: settings }, { data: rule }, { data: tradingGs }] = await Promise.all([
     adminSupabase.from("auto_signal_settings").select("size_usd, leverage, enabled").eq("id", 1).single(),
     adminSupabase.from("auto_signal_rules").select("direction, enabled").eq("signal_type", type).single(),
+    adminSupabase.from("auto_trading_global_settings").select("webhook_url, enabled").eq("id", 1).single(),
   ])
 
   if (!settings?.enabled) {
     await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "auto-signal disabled" })
     return NextResponse.json({ skipped: true, reason: "auto-signal disabled" })
+  }
+
+  // TVM 자동주문 비활성화 시 포지션 기록 자체를 하지 않음
+  if (!tradingGs?.enabled) {
+    await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "자동주문 비활성화 (global settings enabled=false) — 포지션 미기록" })
+    return NextResponse.json({ skipped: true, reason: "trading_disabled" })
   }
 
   // 규칙이 있으면 규칙 방향 사용, 없으면 이름에서 추론
@@ -177,20 +184,9 @@ export async function POST(req: Request) {
   // 실패해도 웹훅 응답에는 영향 없음 (fire-and-forget with logging)
   ;(async () => {
     try {
-      const [{ data: tradingGs }, { data: tradingAccounts }] = await Promise.all([
-        adminSupabase
-          .from("auto_trading_global_settings")
-          .select("webhook_url, enabled")
-          .eq("id", 1)
-          .single(),
-        adminSupabase
-          .from("auto_trading_accounts")
-          .select("id, account_name, auth_token, leverage, base_amount, take_profit_enabled, take_profit_percent, stop_loss_enabled, stop_loss_percent")
-          .eq("enabled", true),
-      ])
-
-      // 자동주문 비활성화 또는 URL 없음 → 로그 기록 후 종료
-      if (!tradingGs?.enabled || !tradingGs?.webhook_url) {
+      // tradingGs는 이미 위에서 조회 완료 (enabled=false면 여기까지 오지 않음)
+      // webhook_url 없는 경우만 체크
+      if (!tradingGs?.webhook_url) {
         await adminSupabase.from("auto_trading_logs").insert({
           position_id:   data.id,
           symbol:        cleanSymbol,
@@ -200,12 +196,15 @@ export async function POST(req: Request) {
           tvm_status:    null,
           tvm_response:  null,
           ok:            false,
-          error_msg:     !tradingGs?.enabled
-            ? "자동주문 비활성화 (global settings enabled=false)"
-            : "webhook_url 미설정",
+          error_msg:     "webhook_url 미설정",
         })
         return
       }
+
+      const { data: tradingAccounts } = await adminSupabase
+        .from("auto_trading_accounts")
+        .select("id, account_name, auth_token, leverage, base_amount, take_profit_enabled, take_profit_percent, stop_loss_enabled, stop_loss_percent")
+        .eq("enabled", true)
       if (!tradingAccounts?.length) {
         await adminSupabase.from("auto_trading_logs").insert({
           position_id:   data.id,
