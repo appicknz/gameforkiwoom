@@ -711,7 +711,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             </div>
           )
         }
-        // ─────────────────────────────────────────────────────────────
+        // ────────────────────────────────────────────────────��────────
 
         // ── 오늘 or 스냅샷 없는 날 — 기존 실시간 계산 ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
@@ -1041,8 +1041,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
   const todayRecordExists = records.some(r => r.date_label === todayKST)
   const liveValue   = (!todayRecordExists && todayAutoPnl !== 0) ? confirmedValue + todayAutoPnl : confirmedValue
   const latestValue = liveValue
-  // 수익률 기준: initial_seed가 설정된 경우(0 포함) 그것을 기준으로, 미설정(null)이면 첫 레코드의 seed_capital
-  const baseSeed    = initialSeedVal !== null ? initialSeedVal : firstSeed
+  // 수익률 기준: initial_seed가 양수로 설정된 경우 그것을 기준으로, 미설정(null)이거나 0 이하이면 첫 레코드의 seed_capital 사용
+  const baseSeed    = (initialSeedVal !== null && initialSeedVal > 0) ? initialSeedVal : firstSeed
   const totalPnl    = latestValue - baseSeed
   const totalRoi    = baseSeed > 0 ? (totalPnl / baseSeed) * 100 : 0
 
