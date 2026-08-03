@@ -245,10 +245,10 @@ export default function PanelPage() {
   const [profitRows, setProfitRows] = useState<ProfitRow[]>([{ id: 1, label: "", pct: "" }])
   const [profitSaving, setProfitSaving] = useState(false)
   const [profitMsg, setProfitMsg] = useState<string | null>(null)
-  const [showProfitDist, setShowProfitDist] = useState(false)
-  const [currentBalance, setCurrentBalance] = useState<number | null>(null)
+  const [showProfitDist,    setShowProfitDist]    = useState(false)
+  const [currentBalance,    setCurrentBalance]    = useState<number | null>(null)
   const [seedDepositAmount, setSeedDepositAmount] = useState<string>("")
-  const [seedDepositSaving, setSeedDepositSaving] = useState(false)
+  const [seedDepositSaving, setSeedDepositSaving] = useState<boolean>(false)
   const [seedDepositMsg,    setSeedDepositMsg]    = useState<string | null>(null)
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
@@ -3956,7 +3956,7 @@ export default function PanelPage() {
             {isSuperAdmin && (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-                  <h2 className="text-sm font-semibold text-foreground">비밀번호 초기화 요청 목록</h2>
+                  <h2 className="text-sm font-semibold text-foreground">비밀번호 초기화 요청 목��</h2>
                   <Button variant="ghost" size="sm" onClick={loadPrRequests} disabled={prLoading} className="text-xs gap-1.5">
                     <RefreshCw className={`w-3.5 h-3.5 ${prLoading ? "animate-spin" : ""}`} /> 새로고침
                   </Button>
