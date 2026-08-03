@@ -315,7 +315,7 @@ export default function PanelPage() {
   const [walletRepairLoading, setWalletRepairLoading] = useState(false)
   const [walletRepairResult, setWalletRepairResult]   = useState<{ repairedCount: number; skippedCount: number; repaired: { id: string; username: string; oldAddress: string | null; newAddress: string }[] } | null>(null)
   const [walletRepairError, setWalletRepairError]     = useState<string | null>(null)
-  // 미반영 입금 수동 재처리 (master 전용)
+  // 미반영 입금 수동 재처리 (master 전��)
   const [replaySig, setReplaySig]         = useState("")
   const [replayLoading, setReplayLoading] = useState(false)
   const [replayResult, setReplayResult]   = useState<{ replayed: { owner: string; delta: number; creditAmount: number }[] } | null>(null)
@@ -816,7 +816,7 @@ export default function PanelPage() {
     setUsersLoading(false)
   }, [myUserId])
 
-  // 대총판/총판: 5초마다 충전 요청 목록 + 내 잔고 자동 갱신
+  // ��총판/총판: 5초마다 충전 요청 목록 + 내 잔고 자동 갱신
   useEffect(() => {
     if (myRole !== "super_admin" && myRole !== "branch_admin") return
     const poll = () => {
@@ -1023,7 +1023,7 @@ export default function PanelPage() {
     user:         { label: "일반회원",    color: "bg-gray-100 text-gray-600" },
   }
 
-  // ─��� 총판 전용: 지점 드릴다운 + 유저 생성 ──
+  // ─��� ���판 전용: 지점 드릴다운 + 유저 생성 ──
   const [selectedBranch, setSelectedBranch]   = useState<any | null>(null) // 클릭한 지점
   const [branchMembers, setBranchMembers]     = useState<any[]>([])
   const [branchMembersLoading, setBranchMembersLoading] = useState(false)
@@ -3856,7 +3856,7 @@ export default function PanelPage() {
             {/* 환전 요청 생성 */}
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-primary" /> 환전 요청</h2>
-              <p className="text-xs text-muted-foreground">유�� 아이디와 환전할 포인트를 입력하면 대총판/마스��가 ���인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
+              <p className="text-xs text-muted-foreground">유�� 아이��와 환전할 포인트를 입력하면 대총판/마스��가 ���인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
               <div className="flex gap-2 flex-wrap">
                 <Input placeholder="유저 아이디" value={exTargetId} onChange={e => setExTargetId(e.target.value)} className="h-9 text-sm w-40" />
                 <Input placeholder="포인트 금액" type="number" value={exPointAmt} onChange={e => setExPointAmt(e.target.value)} className="h-9 text-sm w-36" />
@@ -5372,7 +5372,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                 {orderLogsLoaded && orderLogs.length === 0 && (
                   <div className="rounded-xl border border-border p-5 text-center text-xs text-muted-foreground">
-                    주문 로그가 없습니다. 시그널이 수신되면 자동으로 기록됩니다.
+                    주문 로그가 없습니다. 시그널이 수���되면 자동으로 기록됩니다.
                   </div>
                 )}
 
@@ -5724,7 +5724,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               <h2 className="text-sm font-semibold text-foreground">리밸런싱 (시드 관리)</h2>
               <p className="text-xs text-muted-foreground">
                 초기 시드 자본을 설정하고, 수동으로 오늘의 잔고 스냅샷을 매매기록에 저장합니다.<br />
-                자정 cron이 자동으로 저장하지만 수동 저장도 가능합니다.
+                ��정 cron이 자동으로 저장하지만 수동 저장도 가능합니다.
               </p>
 
               {/* 시드 자본 설정 */}
@@ -5933,21 +5933,6 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
             {/* ── 시드설정 서브탭 ── */}
             {autoSubTab === "seed" && (
               <div className="space-y-4 max-w-md pt-2">
-
-                {/* DB 컬럼 초기화 (최초 1회) */}
-                <div className="rounded-xl border border-border/50 bg-secondary/10 px-4 py-3 flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">최초 사용 시 DB 컬럼 초기화가 필요합니다.</p>
-                  <button
-                    onClick={async () => {
-                      const tok = localStorage.getItem("app_token") ?? ""
-                      const res = await fetch("/api/auto-signal/migrate", { method: "POST", headers: { Authorization: `Bearer ${tok}` } })
-                      const d = await res.json()
-                      setSeedSettingsMsg(res.ok ? `초기화 완료: ${d.results?.join(", ")}` : (d.error ?? "오류"))
-                    }}
-                    className="h-7 px-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap">
-                    DB 초기화
-                  </button>
-                </div>
 
                 {/* 초기 시드 설정 카드 */}
                 <div className="rounded-xl border border-border p-5 space-y-4">
