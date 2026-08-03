@@ -245,6 +245,7 @@ export default function PanelPage() {
   const [profitRows, setProfitRows] = useState<ProfitRow[]>([{ id: 1, label: "", pct: "" }])
   const [profitSaving, setProfitSaving] = useState(false)
   const [profitMsg, setProfitMsg] = useState<string | null>(null)
+  const [showProfitDist, setShowProfitDist] = useState(false)
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -315,7 +316,7 @@ export default function PanelPage() {
   const [walletRepairLoading, setWalletRepairLoading] = useState(false)
   const [walletRepairResult, setWalletRepairResult]   = useState<{ repairedCount: number; skippedCount: number; repaired: { id: string; username: string; oldAddress: string | null; newAddress: string }[] } | null>(null)
   const [walletRepairError, setWalletRepairError]     = useState<string | null>(null)
-  // 미반영 입금 수동 재처리 (master 전��)
+  // 미반영 입금 수동 재처리 (master 전���)
   const [replaySig, setReplaySig]         = useState("")
   const [replayLoading, setReplayLoading] = useState(false)
   const [replayResult, setReplayResult]   = useState<{ replayed: { owner: string; delta: number; creditAmount: number }[] } | null>(null)
@@ -816,7 +817,7 @@ export default function PanelPage() {
     setUsersLoading(false)
   }, [myUserId])
 
-  // ��총판/총판: 5초마다 충전 요청 목록 + 내 잔고 자동 갱신
+  // �����판/총판: 5초마다 충전 요청 목록 + 내 잔고 자동 갱신
   useEffect(() => {
     if (myRole !== "super_admin" && myRole !== "branch_admin") return
     const poll = () => {
@@ -2289,7 +2290,7 @@ export default function PanelPage() {
                           <Users className="w-4 h-4 text-primary" />
                           유저 계정 생성 요청
                           {pendingAcct.length > 0 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">{pendingAcct.length}건 대기</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">{pendingAcct.length}�� 대기</span>
                           )}
                         </h3>
                         <div className="flex items-center gap-2">
@@ -5372,7 +5373,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                 {orderLogsLoaded && orderLogs.length === 0 && (
                   <div className="rounded-xl border border-border p-5 text-center text-xs text-muted-foreground">
-                    주문 로그가 없습니다. 시그널이 수���되면 자동으로 기록됩니다.
+                    주문 로그가 없습니다. ��그널이 수���되면 자동으로 기록됩니다.
                   </div>
                 )}
 
@@ -6030,14 +6031,33 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                 {/* 수익 분배 카드 */}
                 <div className="rounded-xl border border-border p-5 space-y-4">
-                  <div>
-                    <h2 className="text-sm font-semibold text-foreground">수익 분배</h2>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합계가 100%를 초과하지 않도록 하세요.
-                    </p>
-                  </div>
+                  {/* 헤더 + 체크박스 */}
+                  <label className="flex items-center justify-between cursor-pointer select-none">
+                    <div>
+                      <h2 className="text-sm font-semibold text-foreground">수익 분배</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        수익 분배 항목을 추가하고 각 비율(%)을 설정합니다.
+                      </p>
+                    </div>
+                    <div
+                      onClick={() => setShowProfitDist(v => !v)}
+                      className="relative ml-4 flex-shrink-0 w-9 h-5 rounded-full border transition-colors cursor-pointer"
+                      style={{
+                        background: showProfitDist ? "var(--color-primary, #22c55e)" : "var(--color-secondary, #1a1a1a)",
+                        borderColor: showProfitDist ? "var(--color-primary, #22c55e)" : "var(--color-border, #333)",
+                      }}
+                    >
+                      <div
+                        className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+                        style={{
+                          left: showProfitDist ? "calc(100% - 18px)" : "2px",
+                          background: showProfitDist ? "#000" : "rgba(255,255,255,0.35)",
+                        }}
+                      />
+                    </div>
+                  </label>
 
-                  <div className="space-y-2">
+                  {showProfitDist && <div className="space-y-2">
                     {profitRows.map((row, idx) => (
                       <div key={row.id} className="flex items-center gap-2">
                         <input
@@ -6106,6 +6126,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     </button>
                     {profitMsg && <span className="text-xs text-muted-foreground">{profitMsg}</span>}
                   </div>
+                  </div>}
                 </div>
 
               </div>
