@@ -247,6 +247,9 @@ export default function PanelPage() {
   const [profitMsg, setProfitMsg] = useState<string | null>(null)
   const [showProfitDist, setShowProfitDist] = useState(false)
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
+  const [depositAmount, setDepositAmount]   = useState<string>("")
+  const [depositSaving, setDepositSaving]   = useState(false)
+  const [depositMsg,    setDepositMsg]      = useState<string | null>(null)
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -5988,6 +5991,59 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   {seedSettingsMsg && <p className="text-xs text-muted-foreground">{seedSettingsMsg}</p>}
                 </div>
 
+                {/* 입금 카드 */}
+                <div className="rounded-xl border border-border p-5 space-y-4">
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">입금</h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      입금 시 오늘 날짜 매매기록에 해당 금액이 가산됩니다.
+                    </p>
+                    {currentBalance !== null && (
+                      <p className="text-xs text-foreground mt-2">
+                        현재 잔고: <span className="font-semibold tabular-nums text-primary">${currentBalance.toFixed(2)}</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-end gap-3">
+                    <div className="space-y-1 flex-1">
+                      <label className="text-xs text-muted-foreground">입금 금액 (USD)</label>
+                      <input
+                        type="number" min={1} step={0.01}
+                        value={depositAmount}
+                        onChange={e => setDepositAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
+                      />
+                    </div>
+                    <button
+                      disabled={depositSaving || !depositAmount || Number(depositAmount) <= 0}
+                      onClick={async () => {
+                        if (!confirm(`$${Number(depositAmount).toFixed(2)} 입금 처리합니까?`)) return
+                        setDepositSaving(true); setDepositMsg(null)
+                        try {
+                          const tok = localStorage.getItem("app_token") ?? ""
+                          const res = await fetch("/api/auto-signal/deposit", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                            body: JSON.stringify({ amount: Number(depositAmount) }),
+                          })
+                          const d = await res.json()
+                          if (res.ok) {
+                            setDepositMsg(`입금 완료: +$${Number(depositAmount).toFixed(2)} | 잔고: $${d.new_balance?.toFixed(2) ?? "-"}`)
+                            setCurrentBalance(d.new_balance ?? null)
+                            setDepositAmount("")
+                          } else {
+                            setDepositMsg(d.error ?? "오류")
+                          }
+                        } finally { setDepositSaving(false) }
+                      }}
+                      className="h-9 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap">
+                      {depositSaving ? "처리 중..." : "입금"}
+                    </button>
+                  </div>
+                  {depositMsg && <p className={`text-xs ${depositMsg.includes("완료") ? "text-primary" : "text-destructive"}`}>{depositMsg}</p>}
+                </div>
+
                 {/* 출금 카드 */}
                 <div className="rounded-xl border border-border p-5 space-y-4">
                   <div>
@@ -6224,7 +6280,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               <div>
                 <h2 className="text-base font-semibold text-foreground">미반영 입금 수동 처리</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  인덱서가 놓친 트랜잭션의 Solana signature를 입력하면 즉시 잔고를 반영합니다.
+                  인덱서가 ��친 트랜잭션의 Solana signature를 입력하면 즉시 잔고를 반영합니다.
                   이미 처리된 signature는 중복 적립되지 않습니다.
                 </p>
               </div>
