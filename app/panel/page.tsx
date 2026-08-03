@@ -246,6 +246,7 @@ export default function PanelPage() {
   const [profitSaving, setProfitSaving] = useState(false)
   const [profitMsg, setProfitMsg] = useState<string | null>(null)
   const [showProfitDist, setShowProfitDist] = useState(false)
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null)
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -2255,7 +2256,7 @@ export default function PanelPage() {
                         <p className={`text-2xl font-bold ${pendingEx > 0 ? "text-primary" : "text-foreground"}`}>
                           {pendingEx}<span className="text-sm font-normal text-muted-foreground ml-1">건</span>
                         </p>
-                        <p className="text-[11px] text-primary/70 mt-1">{baExExpanded ? "접기 ▲" : "목록 보기 ▼"}</p>
+                        <p className="text-[11px] text-primary/70 mt-1">{baExExpanded ? "접기 ▲" : "��록 보기 ▼"}</p>
                       </button>
                       {/* 누적 통계 — 클릭 시 펼침 */}
                       <button
@@ -2774,7 +2775,7 @@ export default function PanelPage() {
                   </div>
                   {buMsg && <p className={`text-xs mb-2 ${buMsg.ok ? "text-primary" : "text-destructive"}`}>{buMsg.text}</p>}
                   <Button size="sm" className="gap-1.5 text-sm" disabled={buSubmitting || !buUsername.trim() || !buPassword.trim()} onClick={() => handleBulkUserCreate(selectedBranch.code)}>
-                    <Plus className="w-3.5 h-3.5" /> {buSubmitting ? "생성 중..." : `${buCount}개 유저 생성`}
+                    <Plus className="w-3.5 h-3.5" /> {buSubmitting ? "생�� 중..." : `${buCount}개 유저 생성`}
                   </Button>
                 </div>
 
@@ -2897,7 +2898,7 @@ export default function PanelPage() {
         {false && (
           <div className="space-y-5">
 
-            {/* 마스터 전체 집계 요약 */}
+            {/* ���스터 전체 집계 요약 */}
             {masterSummary && (
               <div className="bg-card border border-border rounded-2xl p-5">
                 <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -3870,7 +3871,7 @@ export default function PanelPage() {
                     body: JSON.stringify({ targetUsername: exTargetId, pointAmount: Number(exPointAmt), memo: exMemo }),
                   })
                   const d = await res.json()
-                  setExMsg(res.ok ? { text: "환전 요청됐습니다.", ok: true } : { text: d.error ?? "오류", ok: false })
+                  setExMsg(res.ok ? { text: "환전 요청됐습���다.", ok: true } : { text: d.error ?? "오류", ok: false })
                   if (res.ok) { setExTargetId(""); setExPointAmt(""); setExMemo(""); loadExRequests() }
                   setExSubmitting(false)
                 }}>요청</Button>
@@ -4793,11 +4794,14 @@ export default function PanelPage() {
                     if (key === "order" && !tradingLoaded) loadTradingData()
                     if (key === "logs" && !orderLogsLoaded) loadOrderLogs()
                     if (key === "seed") {
-                      // 현재 설정 불러오기
+                      // 현재 설정 + 실제 잔고 불러오기
                       const tok = localStorage.getItem("app_token") ?? ""
-                      const res = await fetch("/api/auto-signal/settings", { headers: { Authorization: `Bearer ${tok}` } })
-                      if (res.ok) {
-                        const d = await res.json()
+                      const [settingsRes, rebalRes] = await Promise.all([
+                        fetch("/api/auto-signal/settings",  { headers: { Authorization: `Bearer ${tok}` } }),
+                        fetch("/api/auto-signal/rebalance", { headers: { Authorization: `Bearer ${tok}` } }),
+                      ])
+                      if (settingsRes.ok) {
+                        const d = await settingsRes.json()
                         if (d.initial_seed  != null) setInitialSeed(String(d.initial_seed))
                         else setInitialSeed("")
                         if (d.withdrawn_amount != null) setWithdrawnTotal(Number(d.withdrawn_amount))
@@ -4806,6 +4810,14 @@ export default function PanelPage() {
                             const parsed = JSON.parse(d.profit_dist)
                             if (Array.isArray(parsed) && parsed.length > 0) setProfitRows(parsed)
                           } catch {}
+                        }
+                      }
+                      if (rebalRes.ok) {
+                        const d = await rebalRes.json()
+                        const recs: { est_value: number; date_label: string }[] = d.records ?? []
+                        if (recs.length > 0) {
+                          const latest = recs.sort((a, b) => b.date_label.localeCompare(a.date_label))[0]
+                          setCurrentBalance(Number(latest.est_value))
                         }
                       }
                     }
@@ -5981,13 +5993,20 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">출금</h2>
                     <p className="text-xs text-muted-foreground mt-1">
-                      출금 시 현재 잔고(seed_capital)에서 해당 금액이 차감됩니다.
+                      매매기록 최신 잔고 기준으로 차감되며, 오늘 날짜 레코드로 반영됩니다.
                     </p>
-                    {withdrawnTotal > 0 && (
-                      <p className="text-xs text-foreground mt-2">
-                        누적 출금: <span className="font-semibold tabular-nums">${withdrawnTotal.toFixed(2)}</span>
-                      </p>
-                    )}
+                    <div className="flex items-center gap-4 mt-2">
+                      {currentBalance !== null && (
+                        <p className="text-xs text-foreground">
+                          현재 잔고: <span className="font-semibold tabular-nums text-primary">${currentBalance.toFixed(2)}</span>
+                        </p>
+                      )}
+                      {withdrawnTotal > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          누적 출금: <span className="font-semibold tabular-nums">${withdrawnTotal.toFixed(2)}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-end gap-3">
                     <div className="space-y-1 flex-1">
@@ -6003,7 +6022,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     <button
                       disabled={withdrawSaving || !withdrawAmount || Number(withdrawAmount) <= 0}
                       onClick={async () => {
-                        if (!confirm(`$${Number(withdrawAmount).toFixed(2)} 출금 처리합니까? 현재 잔고에서 차감됩니다.`)) return
+                        if (!confirm(`$${Number(withdrawAmount).toFixed(2)} 출금 처리합니까? 매매기록에 오늘 날짜 레코드로 반영됩니다.`)) return
                         setWithdrawSaving(true); setWithdrawMsg(null)
                         try {
                           const tok = localStorage.getItem("app_token") ?? ""
@@ -6014,8 +6033,9 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           })
                           const d = await res.json()
                           if (res.ok) {
-                            setWithdrawMsg(`출금 완료: -$${Number(withdrawAmount).toFixed(2)} | 현재 잔고: $${d.new_balance?.toFixed(2) ?? "-"}`)
+                            setWithdrawMsg(`출금 완료: -$${Number(withdrawAmount).toFixed(2)} | 잔고: $${d.new_balance?.toFixed(2) ?? "-"}`)
                             setWithdrawnTotal(d.withdrawn_total ?? 0)
+                            setCurrentBalance(d.new_balance ?? null)
                             setWithdrawAmount("")
                           } else {
                             setWithdrawMsg(d.error ?? "오류")
@@ -6562,7 +6582,7 @@ function GameAccessToggle({
   )
 }
 
-// ─── 역할 변경 컴포넌트 ─────────────────────────────────────────────
+// ─── 역할 변경 컴포넌트 ���────────────────────────────────────────────
 function RoleChanger({
   userId, currentRole, token, roleLabel, onChanged,
 }: {
