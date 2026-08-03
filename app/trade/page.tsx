@@ -1340,7 +1340,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
                       <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{todayAutoPnl >= 0 ? "+" : ""}{Math.round(todayAutoPnl * krwRate).toLocaleString("ko-KR")}원</div>
                       <div className="tabular-nums" style={{ fontSize: 10, color: todayAutoPnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
                     </div>
-                    {isMaster && (
+                    {isMaster && !isConfirmOnly && (
                       <button onClick={() => handleConfirmOpen(todayAutoPnl)}
                         style={{ padding: "4px 10px", borderRadius: 12, border: "none", background: GOLD, color: "#000", fontSize: 10, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
                         반영
@@ -2081,7 +2081,7 @@ export default function TradePage() {
   const [searchQ,       setSearchQ]       = useState("")
   type SortOrder = "time" | "roi_desc" | "roi_asc" | "signal"
   const SORT_CYCLE: SortOrder[] = ["time", "roi_desc", "roi_asc", "signal"]
-  const SORT_LABEL: Record<SortOrder, string> = { time: "시간순", roi_desc: "수익↑", roi_asc: "수익↓", signal: "시그널" }
+  const SORT_LABEL: Record<SortOrder, string> = { time: "���간순", roi_desc: "수익↑", roi_asc: "수익↓", signal: "시그널" }
   const [sortOrder,     setSortOrder]     = useState<SortOrder>("time")
   const cycleSort = () => setSortOrder(prev => {
     const idx = SORT_CYCLE.indexOf(prev)
@@ -2210,7 +2210,7 @@ export default function TradePage() {
     }
   }, [fetchPositions])
 
-  // ── 주문 ���들러 — ref ���용으로 stale closure 완전 차단 ──────────
+  // ── 주문 ���들러 — ref ���용으로 stale closure 완전 차단 ────��─────
   const handleOpen = useCallback(async (dir: Direction, amount: number, leverage: number) => {
     const bal = balanceRef.current
     if (bal === null) { alert("잔고를 불러오는 중입니다."); return }
