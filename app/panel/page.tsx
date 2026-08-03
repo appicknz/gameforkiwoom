@@ -1506,7 +1506,7 @@ export default function PanelPage() {
                 <div className="space-y-3 mb-4">
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점명 <span className="text-muted-foreground font-normal">(구분용)</span></p>
-                    <Input placeholder="예: 역���1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
+                    <Input placeholder="예: 역�����1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
                   </div>
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점코드 <span className="text-muted-foreground font-normal">(로그인 ID)</span></p>
@@ -3956,7 +3956,7 @@ export default function PanelPage() {
             {isSuperAdmin && (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-                  <h2 className="text-sm font-semibold text-foreground">비밀번호 초기화 요청 목��</h2>
+                  <h2 className="text-sm font-semibold text-foreground">비밀���호 초기화 요청 목��</h2>
                   <Button variant="ghost" size="sm" onClick={loadPrRequests} disabled={prLoading} className="text-xs gap-1.5">
                     <RefreshCw className={`w-3.5 h-3.5 ${prLoading ? "animate-spin" : ""}`} /> 새로고침
                   </Button>
@@ -4878,7 +4878,7 @@ export default function PanelPage() {
                               headers: { Authorization: `Bearer ${tok}` },
                             })
                             const d = await res.json()
-                            setTgWebhookInfo(d.ok ? `등록 완료: ${d.webhookUrl}` : `오류: ${d.description ?? d.error}`)
+                            setTgWebhookInfo(d.ok ? `등록 완료: ${d.webhookUrl}` : `���류: ${d.description ?? d.error}`)
                             setTgWebhookLoading(false)
                           }}
                           className="h-7 px-3 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
@@ -5052,7 +5052,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
                             <span>레버리지 {acc.leverage}x</span>
-                            <span>주문금액 ${acc.base_amount}</span>
+                            <span>증거금 ${acc.base_amount} → 포지션 ${Number(acc.base_amount) * Number(acc.leverage)}</span>
                             {acc.take_profit_enabled && acc.take_profit_percent && <span className="text-green-500">TP {acc.take_profit_percent}%</span>}
                             {acc.stop_loss_enabled   && acc.stop_loss_percent   && <span className="text-red-400">SL {acc.stop_loss_percent}%</span>}
                             <span className="font-mono text-[10px]">{acc.auth_token.slice(0, 8)}...</span>
@@ -5152,7 +5152,9 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">주문 금액 (USDT)</label>
+                        <label className="text-xs text-muted-foreground">
+                          증거금 (USDT) — 포지션 크기 = 증거금 × 레버리지
+                        </label>
                         <input type="number" step={1} placeholder="예: 10, 50, 100" value={accForm.base_amount}
                           onChange={e => setAccForm(s => ({ ...s, base_amount: e.target.value }))}
                           className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
@@ -5368,7 +5370,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               </div>
             )}
 
-            {/* ── 주문로그 서브탭 ── */}
+            {/* ── 주���로그 서브탭 ── */}
             {autoSubTab === "logs" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -5590,7 +5592,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               {autoSettingsEdit && (
                 <div className="grid grid-cols-4 gap-4 items-end">
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">주문 금액 (USD)</label>
+                    <label className="text-xs text-muted-foreground">증거금 (USD)</label>
                     <input type="number" min={1} value={autoSettingsEdit.size_usd}
                       onChange={e => setAutoSettingsEdit(s => s ? { ...s, size_usd: e.target.value } : s)}
                       className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
