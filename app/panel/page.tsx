@@ -1506,7 +1506,7 @@ export default function PanelPage() {
                 <div className="space-y-3 mb-4">
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점명 <span className="text-muted-foreground font-normal">(구분용)</span></p>
-                    <Input placeholder="예: 역�������1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
+                    <Input placeholder="예: 역��������1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
                   </div>
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점코드 <span className="text-muted-foreground font-normal">(로그인 ID)</span></p>
@@ -5250,7 +5250,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           setAccSaving(false)
                         }}
                         className="h-8 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
-                        {accSaving ? "저장 중..." : accEditTarget ? "수정 저장" : "계정 추가"}
+                        {accSaving ? "저장 중..." : accEditTarget ? "수정 저장" : "설정 추가"}
                       </button>
                       <button onClick={() => { setAccFormOpen(false); setAccEditTarget(null) }}
                         className="h-8 px-4 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -5265,7 +5265,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 {tradingLoaded && tradingAccounts.length > 0 && (
                   <div className="rounded-xl border border-border p-5 space-y-4">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-sm font-semibold text-foreground">���스트 주문</h2>
+                      <h2 className="text-sm font-semibold text-foreground">테스트 주문</h2>
                       <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">실제 주문 전송됨</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -5395,7 +5395,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                 {orderLogsLoaded && orderLogs.length === 0 && (
                   <div className="rounded-xl border border-border p-5 text-center text-xs text-muted-foreground">
-                    주문 로그가 없습니다. ��그널이 수���되면 자동으로 기록됩니다.
+                    주문 로그가 없습니다. 시그널이 수신되면 자동으로 기록됩니다.
                   </div>
                 )}
 
@@ -6159,7 +6159,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">수익 분배 항목 설정</h2>
                     <p className="text-xs text-muted-foreground mt-1">
-                      수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합계가 100%를 초과하지 않도록 하세요.
+                      수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합���가 100%를 초과하지 않도록 하세요.
                     </p>
                   </div>
 
