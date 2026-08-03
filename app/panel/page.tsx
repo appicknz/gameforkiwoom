@@ -247,9 +247,9 @@ export default function PanelPage() {
   const [profitMsg, setProfitMsg] = useState<string | null>(null)
   const [showProfitDist, setShowProfitDist] = useState(false)
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
-  const [depositAmount, setDepositAmount]   = useState<string>("")
-  const [depositSaving, setDepositSaving]   = useState(false)
-  const [depositMsg,    setDepositMsg]      = useState<string | null>(null)
+  const [seedDepositAmount, setSeedDepositAmount] = useState<string>("")
+  const [seedDepositSaving, setSeedDepositSaving] = useState(false)
+  const [seedDepositMsg,    setSeedDepositMsg]    = useState<string | null>(null)
   type TradingAccount = {
     id: string; account_name: string; auth_token: string; leverage: number
     base_amount: number; enabled: boolean
@@ -1022,7 +1022,7 @@ export default function PanelPage() {
   const roleLabel: Record<string, { label: string; color: string }> = {
     master:       { label: "마스터",      color: "bg-purple-100 text-purple-700" },
     super_admin:  { label: "대총판",      color: "bg-red-100 text-red-700" },
-    branch_admin: { label: "총판",        color: "bg-blue-100 text-blue-700" },
+    branch_admin: { label: "총��",        color: "bg-blue-100 text-blue-700" },
     admin:        { label: "지점관리자",  color: "bg-orange-100 text-orange-700" },
     seller:       { label: "셀러",        color: "bg-green-100 text-green-700" },
     user:         { label: "일반회원",    color: "bg-gray-100 text-gray-600" },
@@ -6009,39 +6009,39 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       <label className="text-xs text-muted-foreground">입금 금액 (USD)</label>
                       <input
                         type="number" min={1} step={0.01}
-                        value={depositAmount}
-                        onChange={e => setDepositAmount(e.target.value)}
+                        value={seedDepositAmount}
+                        onChange={e => setSeedDepositAmount(e.target.value)}
                         placeholder="0.00"
                         className="w-full h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
                       />
                     </div>
                     <button
-                      disabled={depositSaving || !depositAmount || Number(depositAmount) <= 0}
+                      disabled={seedDepositSaving || !seedDepositAmount || Number(seedDepositAmount) <= 0}
                       onClick={async () => {
-                        if (!confirm(`$${Number(depositAmount).toFixed(2)} 입금 처리합니까?`)) return
-                        setDepositSaving(true); setDepositMsg(null)
+                        if (!confirm(`$${Number(seedDepositAmount).toFixed(2)} 입금 처리합니까?`)) return
+                        setSeedDepositSaving(true); setSeedDepositMsg(null)
                         try {
                           const tok = localStorage.getItem("app_token") ?? ""
                           const res = await fetch("/api/auto-signal/deposit", {
                             method: "POST",
                             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                            body: JSON.stringify({ amount: Number(depositAmount) }),
+                            body: JSON.stringify({ amount: Number(seedDepositAmount) }),
                           })
                           const d = await res.json()
                           if (res.ok) {
-                            setDepositMsg(`입금 완료: +$${Number(depositAmount).toFixed(2)} | 잔고: $${d.new_balance?.toFixed(2) ?? "-"}`)
+                            setSeedDepositMsg(`입금 완료: +$${Number(seedDepositAmount).toFixed(2)} | 잔고: $${d.new_balance?.toFixed(2) ?? "-"}`)
                             setCurrentBalance(d.new_balance ?? null)
-                            setDepositAmount("")
+                            setSeedDepositAmount("")
                           } else {
-                            setDepositMsg(d.error ?? "오류")
+                            setSeedDepositMsg(d.error ?? "오류")
                           }
-                        } finally { setDepositSaving(false) }
+                        } finally { setSeedDepositSaving(false) }
                       }}
                       className="h-9 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap">
-                      {depositSaving ? "처리 중..." : "입금"}
+                      {seedDepositSaving ? "처리 중..." : "입금"}
                     </button>
                   </div>
-                  {depositMsg && <p className={`text-xs ${depositMsg.includes("완료") ? "text-primary" : "text-destructive"}`}>{depositMsg}</p>}
+                  {seedDepositMsg && <p className={`text-xs ${seedDepositMsg.includes("완료") ? "text-primary" : "text-destructive"}`}>{seedDepositMsg}</p>}
                 </div>
 
                 {/* 출금 카드 */}
