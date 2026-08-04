@@ -993,23 +993,20 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
   useEffect(() => { load() }, [])
 
 
-  // 다음 토요일 자정(일요일 00:00 KST)까지 카운트���운
+  // 매달 말일 23:59:59 KST까지 카운트다운
   useEffect(() => {
     const calc = () => {
       const now = new Date()
-      // KST = UTC+9
+      // KST 현재 시각
       const kstNow = new Date(now.getTime() + 9 * 3600_000)
-      const day = kstNow.getUTCDay() // 0=일, 6=토
-      // 토요일 23:59:59 → 남은 초 = 자정(일요일 00:00)까지
-      const daysUntilSat = day === 6 ? 0 : (6 - day)
-      const nextSat = new Date(kstNow)
-      nextSat.setUTCDate(kstNow.getUTCDate() + daysUntilSat)
-      nextSat.setUTCHours(15, 0, 0, 0) // KST 00:00 = UTC 15:00
-      // 이미 지난 경우 다음 ���� 토요일로
-      if (nextSat.getTime() <= now.getTime()) {
-        nextSat.setUTCDate(nextSat.getUTCDate() + 7)
-      }
-      const diff = Math.max(0, Math.floor((nextSat.getTime() - now.getTime()) / 1000))
+      const y = kstNow.getUTCFullYear()
+      const mo = kstNow.getUTCMonth() // 0-indexed
+      // 이번 달 말일 23:59:59 KST = UTC 다음날 00:59:59 → 말일+1일 UTC 14:59:59
+      // 정확하게: 말일 자정 KST = UTC 전날 15:00
+      // 말일 다음 달 1일 00:00 KST = UTC 전날 15:00
+      const firstOfNextMonth = new Date(Date.UTC(y, mo + 1, 1, 15, 0, 0, 0)) // 다음달 1일 00:00 KST
+      const target = firstOfNextMonth // 이 순간이 이번 달 말일 자정
+      const diff = Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000))
       const d = Math.floor(diff / 86400)
       const h = Math.floor((diff % 86400) / 3600)
       const m = Math.floor((diff % 3600) / 60)
@@ -1147,7 +1144,13 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
   const weeklyMap = new Map<string, { pnl: number; days: string[] }>()
   const monthlyMap = new Map<string, { pnl: number; days: string[] }>()
 
-  sorted.forEach(r => {
+  // 입금/출금 노트가 포함된 레코드는 매매 수익 집계에서 제외
+  const isDepositOrWithdraw = (note: string) => /입금|출금|deposit|withdraw/i.test(note ?? "")
+
+  // 매매 PNL만 필터링한 레코드 (일별 표시는 원본 그대로, 주별/월별 합산만 제외)
+  const tradeOnlySorted = sorted.filter(r => !isDepositOrWithdraw(r.note ?? ""))
+
+  tradeOnlySorted.forEach(r => {
     const pnl = Number(r.daily_pnl)
     const wk  = getWeekKey(r.date_label)
     const mk  = r.date_label.slice(0, 7)
