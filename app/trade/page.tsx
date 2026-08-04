@@ -937,7 +937,7 @@ const CONFIRM_ALLOWED_USERS = ["mirea2131"]
 // 반영 버튼만 허용 (수익 입력 폼·삭제 버튼은 숨김)
 const CONFIRM_ONLY_USERS = ["mirea21310"]
 
-function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfirmedValue }: { tradeMode: string; userRole: string | null; userName?: string | null; todayAutoPnl?: number; onConfirmedValue?: (v: number) => void }) {
+function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStats, onConfirmedValue }: { tradeMode: string; userRole: string | null; userName?: string | null; todayAutoPnl?: number; autoStats?: AutoStats | null; onConfirmedValue?: (v: number) => void }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState<number | null>(null)
@@ -1254,36 +1254,29 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
           </div>
         )}
 
-        {/* 전략 건강 지표 */}
+        {/* 전략 건강 지표 — 자동매매 포지션 데이터 기반 */}
         {(() => {
+          if (!autoStats) return null
           const MIN_SAMPLE = 50
-          const total      = records.length
+          const { profitCnt: wCnt, lossCnt: lCnt, slClosedCnt: slCnt, slClosedPnl: slPnl, grossWin: gw, grossLoss: gl, total } = autoStats
           if (total === 0) return null
 
           const insufficient = total < MIN_SAMPLE
           const AMBER = "rgba(251,191,36,1)"
 
-          const winDays  = records.filter(r => Number(r.daily_pnl) > 0).length
-          const lossDays = records.filter(r => Number(r.daily_pnl) < 0).length
-          const grossWin  = records.filter(r => Number(r.daily_pnl) > 0).reduce((s, r) => s + Number(r.daily_pnl), 0)
-          const grossLoss = Math.abs(records.filter(r => Number(r.daily_pnl) < 0).reduce((s, r) => s + Number(r.daily_pnl), 0))
-
-          const winRate = winDays / total * 100
-          const pf      = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? 99 : 1
-          // 최근 10일 연속 손실 여부로 모멘텀 계산
-          const recent10 = [...records].sort((a, b) => b.date_label.localeCompare(a.date_label)).slice(0, 10)
-          const recentWin = recent10.filter(r => Number(r.daily_pnl) > 0).length
-          const momentum  = recent10.length > 0 ? recentWin / recent10.length * 100 : 50
+          const winRate = wCnt / total * 100
+          const pf      = gl > 0 ? gw / gl : gw > 0 ? 99 : 1
+          const slDrag  = gw > 0 ? Math.abs(slPnl) / gw * 100 : 0
 
           const wrStatus  = insufficient ? "-" : winRate >= 55 ? "양호" : winRate >= 45 ? "주의" : "위험"
           const wrColor   = insufficient ? "rgba(255,255,255,0.25)" : winRate >= 55 ? UP_COLOR : winRate >= 45 ? AMBER : DOWN_COLOR
           const pfStatus  = insufficient ? "-" : pf >= 1.5 ? "양호" : pf >= 1.0 ? "주의" : "위험"
           const pfColor   = insufficient ? "rgba(255,255,255,0.25)" : pf >= 1.5 ? UP_COLOR : pf >= 1.0 ? AMBER : DOWN_COLOR
-          const moStatus  = insufficient ? "-" : momentum >= 55 ? "양호" : momentum >= 40 ? "주의" : "위험"
-          const moColor   = insufficient ? "rgba(255,255,255,0.25)" : momentum >= 55 ? UP_COLOR : momentum >= 40 ? AMBER : DOWN_COLOR
+          const sdStatus  = insufficient ? "-" : slDrag <= 30 ? "양호" : slDrag <= 70 ? "주의" : "위험"
+          const sdColor   = insufficient ? "rgba(255,255,255,0.25)" : slDrag <= 30 ? UP_COLOR : slDrag <= 70 ? AMBER : DOWN_COLOR
 
-          const statuses    = insufficient ? [] : [wrStatus, pfStatus, moStatus]
-          const overall     = insufficient ? "데이터 부족" : statuses.includes("위험") ? "위험" : statuses.includes("주의") ? "주의" : "양호"
+          const statuses     = insufficient ? [] : [wrStatus, pfStatus, sdStatus]
+          const overall      = insufficient ? "데이터 부족" : statuses.includes("위험") ? "위험" : statuses.includes("주의") ? "주의" : "양호"
           const overallColor = insufficient ? "rgba(255,255,255,0.25)" : overall === "위험" ? DOWN_COLOR : overall === "주의" ? AMBER : UP_COLOR
           const overallBg    = insufficient ? "rgba(255,255,255,0.02)" : overall === "위험" ? "rgba(239,68,68,0.08)" : overall === "주의" ? "rgba(251,191,36,0.06)" : "rgba(34,197,94,0.06)"
 
@@ -1292,7 +1285,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.05em" }}>STRATEGY HEALTH</span>
-                  <span style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{total}일 / 최소 {MIN_SAMPLE}일</span>
+                  <span style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{total}건 / 최소 {MIN_SAMPLE}건</span>
                 </div>
                 <span style={{ fontSize: 9, fontWeight: 800, color: overallColor, padding: "1px 6px", borderRadius: 4, background: `${overallColor}18` }}>
                   {overall}
@@ -1300,14 +1293,14 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
               </div>
               {insufficient && (
                 <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 6, lineHeight: 1.5 }}>
-                  {total}일 기록 — {MIN_SAMPLE}일 이상 누적 시 신뢰도가 높아집니다.
+                  {total}건 기록 — {MIN_SAMPLE}건 이상 누적 시 신뢰도가 높아집니다.
                 </div>
               )}
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>WIN RATE</div>
                   <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: wrColor }}>{winRate.toFixed(1)}%</div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{winDays}승 / {lossDays}패{insufficient ? "" : ` · ${wrStatus}`}</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{wCnt}W / {lCnt + slCnt}L{insufficient ? "" : ` · ${wrStatus}`}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>PROFIT FACTOR</div>
@@ -1315,9 +1308,9 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
                   <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{insufficient ? "참고용" : `${pfStatus} (1.0 기준)`}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>MOMENTUM</div>
-                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: moColor }}>{recent10.length > 0 ? `${recentWin}/${recent10.length}` : "-"}</div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{insufficient ? "참고용" : `최근 10일 ${moStatus}`}</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>SL DRAG</div>
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: sdColor }}>{slDrag.toFixed(0)}%</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{insufficient ? "참고용" : `${sdStatus} (수익 잠식)`}</div>
                 </div>
               </div>
             </div>
@@ -1578,12 +1571,15 @@ interface AutoPos {
   closed_price: number | null
 }
 
-function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl, confirmedMargin, userRole }: {
+type AutoStats = { profitCnt: number; lossCnt: number; slClosedCnt: number; slClosedPnl: number; grossWin: number; grossLoss: number; total: number }
+
+function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl, onStats, confirmedMargin, userRole }: {
   selectedDate: Date
   sortOrder?: "time" | "roi_desc" | "roi_asc" | "signal"
   searchQ?: string
   onSlClosed?: () => void
   onTodayPnl?: (pnl: number) => void
+  onStats?: (s: AutoStats) => void
   confirmedMargin?: number   // 전날 확정 잔고 — MARGIN 기준값
   userRole?: string | null
 }) {
@@ -1814,6 +1810,13 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   useEffect(() => {
     if (isToday) onTodayPnl?.(totalPnl)
   }, [totalPnl, isToday])
+
+  // 자동매매 통계를 부모(→LedgerPanel)로 전달
+  useEffect(() => {
+    const gw = statsCalc.filter(p => p.pnl > 0).reduce((s, p) => s + p.pnl, 0)
+    const gl = Math.abs(statsCalc.filter(p => p.pnl < 0).reduce((s, p) => s + p.pnl, 0)) + Math.abs(slClosedPnl)
+    onStats?.({ profitCnt, lossCnt, slClosedCnt, slClosedPnl, grossWin: gw, grossLoss: gl, total: profitCnt + lossCnt + slClosedCnt })
+  }, [profitCnt, lossCnt, slClosedCnt, slClosedPnl, statsCalc])
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
     if (sortOrder === "roi_desc") return b.roi - a.roi
@@ -2127,6 +2130,7 @@ export default function TradePage() {
   const [userName,       setUserName]       = useState<string | null>(null)
   const [todayAutoPnl,   setTodayAutoPnl]   = useState<number>(0)
   const [confirmedValue, setConfirmedValue] = useState<number>(0)
+  const [autoStats,      setAutoStats]      = useState<AutoStats | null>(null)
 
   // 앱 시작 시 매매기록의 최신 확정 잔고(est_value)를 로드
   // LedgerPanel 탭을 열지 않아도 AutoSignalPanel MARGIN 기준값이 올바르게 설정됨
@@ -2508,7 +2512,7 @@ export default function TradePage() {
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} confirmedMargin={confirmedValue} userRole={userRole} />
+              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} onStats={setAutoStats} confirmedMargin={confirmedValue} userRole={userRole} />
           </div>
         </div>
         {/* 청산 기록 */}
@@ -2517,7 +2521,7 @@ export default function TradePage() {
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflow: "hidden" }}>
-          <LedgerPanel tradeMode={tradeMode} userRole={userRole} userName={userName} todayAutoPnl={todayAutoPnl} onConfirmedValue={setConfirmedValue} />
+          <LedgerPanel tradeMode={tradeMode} userRole={userRole} userName={userName} todayAutoPnl={todayAutoPnl} autoStats={autoStats} onConfirmedValue={setConfirmedValue} />
         </div>
       </div>
 
@@ -2560,7 +2564,7 @@ export default function TradePage() {
               <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} confirmedMargin={confirmedValue} userRole={userRole} />
+            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} onStats={setAutoStats} confirmedMargin={confirmedValue} userRole={userRole} />
             </div>
           </div>
           {/* 청산 기록 */}
@@ -2578,7 +2582,7 @@ export default function TradePage() {
             border: `1px solid ${BORDER}`,
             display: tradeMode === "ledger" ? "flex" : "none",
           }}>
-            <LedgerPanel tradeMode={tradeMode} userRole={userRole} userName={userName} todayAutoPnl={todayAutoPnl} onConfirmedValue={setConfirmedValue} />
+            <LedgerPanel tradeMode={tradeMode} userRole={userRole} userName={userName} todayAutoPnl={todayAutoPnl} autoStats={autoStats} onConfirmedValue={setConfirmedValue} />
           </div>
         </div>
       </main>
