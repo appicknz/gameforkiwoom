@@ -32,7 +32,7 @@ interface TickerData {
   volume24h: number
 }
 
-const CHUNK_SIZE = 100
+const CHUNK_SIZE = 200  // 소켓 수를 줄여 연결 오버헤드 감소
 
 export interface LiveTickerData extends TickerData {}
 
@@ -153,10 +153,10 @@ async function initCache() {
   _cache.totalChunks = chunks.length
   chunks.forEach((chunk, idx) => openChunk(chunk, idx))
 
-  // 500ms마다 리스너에 flush 알림
+  // 100ms마다 리스너에 flush 알림 (체감 속도 개선)
   _cache.flushTimer = setInterval(() => {
     notifyListeners()
-  }, 500)
+  }, 100)
 
   // 10분마다 심볼 목록 재조회 (신규 상장 반영)
   setInterval(() => { initCache() }, SYMBOL_TTL_MS)
