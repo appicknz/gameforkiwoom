@@ -711,7 +711,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             </div>
           )
         }
-        // ────────────────────────────────────────────────────���────────
+        // ────────────────────────────────────────────────────����────────
 
         // ── 오늘 or 스냅샷 없는 날 — 기존 실시간 계산 ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
@@ -1877,7 +1877,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
       return (liveCache.tickers.get(sym)?.price ?? 0) > 0
     }).length
     onStats?.({ profitCnt, lossCnt, slClosedCnt, slClosedPnl, grossWin: gw, grossLoss: gl, total: profitCnt + lossCnt + slClosedCnt, priceLoaded, priceTotal, posLoading: loading })
-  }, [profitCnt, lossCnt, slClosedCnt, slClosedPnl, statsCalc, positions, loading, tick])
+  }, [profitCnt, lossCnt, slClosedCnt, slClosedPnl, statsCalc, positions, loading, liveCache.tickers])
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
     if (sortOrder === "roi_desc") return b.roi - a.roi
