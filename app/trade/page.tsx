@@ -1351,7 +1351,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
       </div>}
 
       {/* 통계 탭 + 카운트다운 한 줄 */}
-      <div className="flex items-center justify-between" style={{ padding: "0 14px 8px", flexShrink: 0 }}>
+      <div className="flex items-center justify-between" style={{ padding: "10px 14px 8px", flexShrink: 0 }}>
         <div className="flex items-center gap-2">
           <button style={statTabStyle(statTab === "daily")}   onClick={() => setStatTab("daily")}>일별</button>
           <button style={statTabStyle(statTab === "weekly")}  onClick={() => setStatTab("weekly")}>주별</button>
