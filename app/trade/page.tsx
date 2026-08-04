@@ -1254,6 +1254,75 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, onConfir
           </div>
         )}
 
+        {/* 전략 건강 지표 */}
+        {(() => {
+          const MIN_SAMPLE = 50
+          const total      = records.length
+          if (total === 0) return null
+
+          const insufficient = total < MIN_SAMPLE
+          const AMBER = "rgba(251,191,36,1)"
+
+          const winDays  = records.filter(r => Number(r.daily_pnl) > 0).length
+          const lossDays = records.filter(r => Number(r.daily_pnl) < 0).length
+          const grossWin  = records.filter(r => Number(r.daily_pnl) > 0).reduce((s, r) => s + Number(r.daily_pnl), 0)
+          const grossLoss = Math.abs(records.filter(r => Number(r.daily_pnl) < 0).reduce((s, r) => s + Number(r.daily_pnl), 0))
+
+          const winRate = winDays / total * 100
+          const pf      = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? 99 : 1
+          // 최근 10일 연속 손실 여부로 모멘텀 계산
+          const recent10 = [...records].sort((a, b) => b.date_label.localeCompare(a.date_label)).slice(0, 10)
+          const recentWin = recent10.filter(r => Number(r.daily_pnl) > 0).length
+          const momentum  = recent10.length > 0 ? recentWin / recent10.length * 100 : 50
+
+          const wrStatus  = insufficient ? "-" : winRate >= 55 ? "양호" : winRate >= 45 ? "주의" : "위험"
+          const wrColor   = insufficient ? "rgba(255,255,255,0.25)" : winRate >= 55 ? UP_COLOR : winRate >= 45 ? AMBER : DOWN_COLOR
+          const pfStatus  = insufficient ? "-" : pf >= 1.5 ? "양호" : pf >= 1.0 ? "주의" : "위험"
+          const pfColor   = insufficient ? "rgba(255,255,255,0.25)" : pf >= 1.5 ? UP_COLOR : pf >= 1.0 ? AMBER : DOWN_COLOR
+          const moStatus  = insufficient ? "-" : momentum >= 55 ? "양호" : momentum >= 40 ? "주의" : "위험"
+          const moColor   = insufficient ? "rgba(255,255,255,0.25)" : momentum >= 55 ? UP_COLOR : momentum >= 40 ? AMBER : DOWN_COLOR
+
+          const statuses    = insufficient ? [] : [wrStatus, pfStatus, moStatus]
+          const overall     = insufficient ? "데이터 부족" : statuses.includes("위험") ? "위험" : statuses.includes("주의") ? "주의" : "양호"
+          const overallColor = insufficient ? "rgba(255,255,255,0.25)" : overall === "위험" ? DOWN_COLOR : overall === "주의" ? AMBER : UP_COLOR
+          const overallBg    = insufficient ? "rgba(255,255,255,0.02)" : overall === "위험" ? "rgba(239,68,68,0.08)" : overall === "주의" ? "rgba(251,191,36,0.06)" : "rgba(34,197,94,0.06)"
+
+          return (
+            <div style={{ marginTop: 8, background: overallBg, borderRadius: 8, padding: "7px 10px", border: `1px solid ${overallColor}22`, opacity: insufficient ? 0.65 : 1 }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.05em" }}>STRATEGY HEALTH</span>
+                  <span style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{total}일 / 최소 {MIN_SAMPLE}일</span>
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 800, color: overallColor, padding: "1px 6px", borderRadius: 4, background: `${overallColor}18` }}>
+                  {overall}
+                </span>
+              </div>
+              {insufficient && (
+                <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 6, lineHeight: 1.5 }}>
+                  {total}일 기록 — {MIN_SAMPLE}일 이상 누적 시 신뢰도가 높아집니다.
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>WIN RATE</div>
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: wrColor }}>{winRate.toFixed(1)}%</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{winDays}승 / {lossDays}패{insufficient ? "" : ` · ${wrStatus}`}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>PROFIT FACTOR</div>
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: pfColor }}>{pf >= 99 ? "∞" : pf.toFixed(2)}</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{insufficient ? "참고용" : `${pfStatus} (1.0 기준)`}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>MOMENTUM</div>
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: moColor }}>{recent10.length > 0 ? `${recentWin}/${recent10.length}` : "-"}</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{insufficient ? "참고용" : `최근 10일 ${moStatus}`}</div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* 수익 입력 폼 — 마스터 계정만 (반영 전용 계정 제외) */}
@@ -1919,84 +1988,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
           </div>
         </div>
 
-        {/* 전략 건강 지표 */}
-        {(() => {
-          const MIN_SAMPLE  = 50
-          const total       = profitCnt + lossCnt + slClosedCnt
-          if (total === 0) return null
 
-          const insufficient = total < MIN_SAMPLE
-
-          // 승률
-          const winRate = profitCnt / total * 100
-
-          // Gross win: 수익 포지션 PNL 합
-          const grossWin  = statsCalc.filter(p => p.pnl > 0).reduce((s, p) => s + p.pnl, 0)
-          // Gross loss: 손실 포지션 PNL + SL 손실 합
-          const grossLoss = Math.abs(statsCalc.filter(p => p.pnl < 0).reduce((s, p) => s + p.pnl, 0))
-                          + Math.abs(slClosedPnl)
-          // Profit Factor
-          const pf = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? 99 : 1
-
-          // SL Drag
-          const slDrag = grossWin > 0 ? Math.abs(slClosedPnl) / grossWin * 100 : 0
-
-          // 샘플 부족 시 판정 비활성화
-          const pfStatus     = insufficient ? "-" : pf >= 1.5 ? "양호" : pf >= 1.0 ? "주의" : "위험"
-          const pfColor      = insufficient ? "rgba(255,255,255,0.25)" : pf >= 1.5 ? UP_COLOR : pf >= 1.0 ? "rgba(251,191,36,1)" : DOWN_COLOR
-          const wrStatus     = insufficient ? "-" : winRate >= 55 ? "양호" : winRate >= 45 ? "주의" : "위험"
-          const wrColor      = insufficient ? "rgba(255,255,255,0.25)" : winRate >= 55 ? UP_COLOR : winRate >= 45 ? "rgba(251,191,36,1)" : DOWN_COLOR
-          const slDragStatus = insufficient ? "-" : slDrag <= 30 ? "양호" : slDrag <= 70 ? "주의" : "위험"
-          const slDragColor  = insufficient ? "rgba(255,255,255,0.25)" : slDrag <= 30 ? UP_COLOR : slDrag <= 70 ? "rgba(251,191,36,1)" : DOWN_COLOR
-
-          // 종합 상태
-          const statuses     = insufficient ? [] : [pfStatus, wrStatus, slDragStatus]
-          const overall      = insufficient ? "데이터 부족" : statuses.includes("위험") ? "위험" : statuses.includes("주의") ? "주의" : "양호"
-          const overallColor = insufficient ? "rgba(255,255,255,0.25)"
-                             : overall === "위험" ? DOWN_COLOR : overall === "주의" ? "rgba(251,191,36,1)" : UP_COLOR
-          const overallBg    = insufficient ? "rgba(255,255,255,0.02)"
-                             : overall === "위험" ? "rgba(239,68,68,0.08)" : overall === "주의" ? "rgba(251,191,36,0.06)" : "rgba(34,197,94,0.06)"
-
-          return (
-            <div style={{ marginTop: 8, background: overallBg, borderRadius: 8, padding: "7px 10px", border: `1px solid ${overallColor}22`, opacity: insufficient ? 0.6 : 1 }}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.05em" }}>STRATEGY HEALTH</span>
-                  <span style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{total}건 / 최소 {MIN_SAMPLE}건 권장</span>
-                </div>
-                <span style={{ fontSize: 9, fontWeight: 800, color: overallColor, padding: "1px 6px", borderRadius: 4, background: `${overallColor}18` }}>
-                  {overall}
-                </span>
-              </div>
-
-              {insufficient && (
-                <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 6, lineHeight: 1.5 }}>
-                  샘플이 {total}건으로 통계 신뢰도가 낮습니다. {MIN_SAMPLE}건 이상 누적 후 판단을 권장합니다.
-                </div>
-              )}
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>WIN RATE</div>
-                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: wrColor }}>{winRate.toFixed(1)}%</div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{profitCnt}W / {lossCnt + slClosedCnt}L {insufficient ? "" : `· ${wrStatus}`}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>PROFIT FACTOR</div>
-                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: pfColor }}>
-                    {pf >= 99 ? "∞" : pf.toFixed(2)}
-                  </div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{insufficient ? "참고용" : `${pfStatus} (1.0 기준)`}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>SL DRAG</div>
-                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: slDragColor }}>{slDrag.toFixed(0)}%</div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{insufficient ? "참고용" : `${slDragStatus} (수익 잠식)`}</div>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
       </div>
 
       {posCalc.length === 0 && (
