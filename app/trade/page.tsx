@@ -1918,6 +1918,71 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
             </div>
           </div>
         </div>
+
+        {/* 전략 건강 지표 */}
+        {(() => {
+          const total  = profitCnt + lossCnt + slClosedCnt
+          if (total === 0) return null
+
+          // 승률
+          const winRate = profitCnt / total * 100
+
+          // Gross win: 수익 포지션 PNL 합
+          const grossWin  = statsCalc.filter(p => p.pnl > 0).reduce((s, p) => s + p.pnl, 0)
+          // Gross loss: 손실 포지션 PNL + SL 손실 합
+          const grossLoss = Math.abs(statsCalc.filter(p => p.pnl < 0).reduce((s, p) => s + p.pnl, 0))
+                          + Math.abs(slClosedPnl)
+          // Profit Factor: 1 이상이면 수익 > 손실
+          const pf = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? 99 : 1
+
+          // SL Drag: SL 손실이 총 gross win 대비 얼마나 갉아먹는지 (%)
+          const slDrag = grossWin > 0 ? Math.abs(slClosedPnl) / grossWin * 100 : 0
+
+          // 상태 판단
+          const pfStatus   = pf >= 1.5 ? "양호" : pf >= 1.0 ? "주의" : "위험"
+          const pfColor    = pf >= 1.5 ? UP_COLOR : pf >= 1.0 ? "rgba(251,191,36,1)" : DOWN_COLOR
+          const wrStatus   = winRate >= 55 ? "양호" : winRate >= 45 ? "주의" : "위험"
+          const wrColor    = winRate >= 55 ? UP_COLOR : winRate >= 45 ? "rgba(251,191,36,1)" : DOWN_COLOR
+          const slDragStatus = slDrag <= 30 ? "양호" : slDrag <= 70 ? "주의" : "위험"
+          const slDragColor  = slDrag <= 30 ? UP_COLOR : slDrag <= 70 ? "rgba(251,191,36,1)" : DOWN_COLOR
+
+          // 종합 상태: 셋 중 가장 나쁜 것
+          const statuses = [pfStatus, wrStatus, slDragStatus]
+          const overall  = statuses.includes("위험") ? "위험" : statuses.includes("주의") ? "주의" : "양호"
+          const overallColor = overall === "위험" ? DOWN_COLOR : overall === "주의" ? "rgba(251,191,36,1)" : UP_COLOR
+          const overallBg    = overall === "위험" ? "rgba(239,68,68,0.08)" : overall === "주의" ? "rgba(251,191,36,0.06)" : "rgba(34,197,94,0.06)"
+
+          return (
+            <div style={{ marginTop: 8, background: overallBg, borderRadius: 8, padding: "7px 10px", border: `1px solid ${overallColor}22` }}>
+              <div className="flex items-center justify-between mb-2">
+                <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.05em" }}>STRATEGY HEALTH</span>
+                <span style={{ fontSize: 9, fontWeight: 800, color: overallColor, padding: "1px 6px", borderRadius: 4, background: `${overallColor}18` }}>{overall}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {/* 승률 */}
+                <div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>WIN RATE</div>
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: wrColor }}>{winRate.toFixed(1)}%</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{profitCnt}W / {lossCnt + slClosedCnt}L</div>
+                </div>
+                {/* Profit Factor */}
+                <div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>PROFIT FACTOR</div>
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: pfColor }}>
+                    {pf >= 99 ? "∞" : pf.toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{pfStatus} (1.0 기준)</div>
+                </div>
+                {/* SL Drag */}
+                <div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 1 }}>SL DRAG</div>
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: slDragColor }}>{slDrag.toFixed(0)}%</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{slDragStatus} (수익 잠식)</div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {posCalc.length === 0 && (
@@ -2210,7 +2275,7 @@ export default function TradePage() {
     }
   }, [fetchPositions])
 
-  // ── 주문 ���들러 — ref ���용으로 stale closure 완��� 차단 ────��─────
+  // ── 주문 ���들러 — ref ���용으로 stale closure 완����� 차단 ────��─────
   const handleOpen = useCallback(async (dir: Direction, amount: number, leverage: number) => {
     const bal = balanceRef.current
     if (bal === null) { alert("잔고를 불러오는 중입니다."); return }
