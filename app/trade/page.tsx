@@ -1625,7 +1625,7 @@ interface AutoPos {
   closed_price: number | null
 }
 
-type AutoStats = { profitCnt: number; lossCnt: number; slClosedCnt: number; slClosedPnl: number; grossWin: number; grossLoss: number; total: number; priceLoaded: number; priceTotal: number; posLoading: boolean }
+type AutoStats = { profitCnt: number; lossCnt: number; slClosedCnt: number; slClosedPnl: number; grossWin: number; grossLoss: number; total: number; totalFee: number; priceLoaded: number; priceTotal: number; posLoading: boolean }
 
 function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl, onStats, confirmedMargin, userRole }: {
   selectedDate: Date
@@ -1708,7 +1708,8 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
         if (cur <= 0 || entry <= 0) return
         const delta  = pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry
         const roi    = delta * (pos.leverage ?? 1) * 100
-        const threshold = -(stopLossPct * (pos.leverage ?? 1))
+        // 청산 기준 ROI -45% 고정 (실제 거래소 청산 -51% 대비 5% 앞서 종료)
+        const threshold = -45
         if (roi <= threshold) {
           closingRef.current.add(pos.id)
           const tok = typeof window !== "undefined" ? localStorage.getItem("app_token") ?? "" : ""
@@ -1795,10 +1796,9 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
         ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
         : 0
       const roi    = delta * lev * 100
-      // PNL은 항상 설정값 기준으로 고정 — DB closed_roi 무시
-      // size_usd × (stop_loss_pct × leverage / 100) = -$5
-      const fixedRoi = stopLossPct != null ? -(stopLossPct * lev) : 0
-      const pnl      = sizeUsd * (fixedRoi / 100)
+      // SL PNL 고정: ROI -45%, 손실 = size_usd × 50% = -$10
+      const fixedRoi = -45
+      const pnl      = -(sizeUsd * 0.5)
       return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
     }
 
@@ -1812,13 +1812,9 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     let roi = delta * lev * 100
     let pnl = sizeUsd * delta * lev
 
-    // 아직 청산 안됐지만 임계값 이하인 경우 PNL 캡
-    if (stopLossPct !== null) {
-      const slRoiThreshold = -(stopLossPct * lev)
-      const slPnlFixed     = sizeUsd * (slRoiThreshold / 100)
-      if (roi < slRoiThreshold) {
-        pnl = slPnlFixed
-      }
+    // 아직 청산 안됐지만 -45% 이하인 경우 PNL 캡 (-$10 = size × 50%)
+    if (roi < -45) {
+      pnl = -(sizeUsd * 0.5)
     }
 
     return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
@@ -1838,12 +1834,16 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   // 포지션 수 × 포지션금액 (부 통계 표시용)
   const posMargin = statsCalc.length * sizeUsdCfg
 
-  // SL 청산 (오늘: 고정값 PNL / 과거: final_roi가 이미 포함돼 있으므로 별도 계산 불필요)
+  // SL 청산 — ROI -45% 고정, PNL = size_usd × 50% (레버리지 10배 기준)
   const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss")
   const slClosedCnt = slClosed.length
   const slClosedPnl = isHistorical
     ? statsCalc.filter(p => p.is_closed && p.close_reason === "stop_loss").reduce((s, p) => s + p.pnl, 0)
-    : slClosed.reduce((s, p) => s - (Number(p.size_usd ?? sizeUsdCfg) * (stopLossPct ?? 5) * Number(p.leverage ?? 10) / 100), 0)
+    : slClosed.reduce((s, p) => s - (Number(p.size_usd ?? sizeUsdCfg) * 0.5), 0)
+
+  // 수수료 누적: 청산된 포지션마다 진입 0.03% + 청산 0.03% = size_usd × 0.06%
+  const closedToday   = positions.filter(p => p.is_closed)
+  const totalFee      = closedToday.reduce((s, p) => s + Number(p.size_usd ?? sizeUsdCfg) * 0.0006, 0)
 
   // TOTAL PNL = 전체 포지션 PNL 합산 (과거: final_roi 기준 / 오늘: 활성PNL + SL고정)
   const activePnl = isHistorical
@@ -1878,7 +1878,8 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
       const sym = p.symbol.replace(/\.P$/, "").replace(/\//g, "")
       return (liveCache.tickers.get(sym)?.price ?? 0) > 0
     }).length
-    onStats?.({ profitCnt, lossCnt, slClosedCnt, slClosedPnl, grossWin: gw, grossLoss: gl, total: profitCnt + lossCnt + slClosedCnt, priceLoaded, priceTotal, posLoading: loading })
+    const tf = positions.filter(p => p.is_closed).reduce((s, p) => s + Number(p.size_usd ?? 20) * 0.0006, 0)
+    onStats?.({ profitCnt, lossCnt, slClosedCnt, slClosedPnl, grossWin: gw, grossLoss: gl, total: profitCnt + lossCnt + slClosedCnt, totalFee: tf, priceLoaded, priceTotal, posLoading: loading })
   }, [profitCnt, lossCnt, slClosedCnt, slClosedPnl, statsCalc, positions, loading, liveCache.tickers])
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
@@ -2029,8 +2030,8 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
             </div>
           </div>
         </div>
-        {/* TOTAL ROI + SL CLOSE + TOTAL PNL */}
-        <div className="grid grid-cols-3 gap-2">
+        {/* TOTAL ROI + SL CLOSE + FEES + TOTAL PNL */}
+        <div className="grid grid-cols-4 gap-2">
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL ROI</div>
             <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalRoi >= 0 ? UP_COLOR : DOWN_COLOR }}>
@@ -2044,6 +2045,15 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
             </div>
             <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
               {slClosedCnt > 0 ? `${slClosedCnt}건 × $${Math.abs(slClosedPnl / slClosedCnt).toFixed(2)}` : "청산 없음"}
+            </div>
+          </div>
+          <div style={{ background: totalFee > 0 ? "rgba(239,68,68,0.04)" : "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>FEES</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalFee === 0 ? "rgba(255,255,255,0.25)" : DOWN_COLOR }}>
+              {totalFee === 0 ? "-" : `-$${totalFee.toFixed(3)}`}
+            </div>
+            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+              {closedToday.length > 0 ? `${closedToday.length}건 × 0.06%` : "수수료 없음"}
             </div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>

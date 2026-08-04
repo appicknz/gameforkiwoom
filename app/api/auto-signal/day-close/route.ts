@@ -164,6 +164,8 @@ export async function GET(req: Request) {
       closedRoi = delta * lev * 100
       finalPnl  = size * (closedRoi / 100)
     }
+    // 수수료: 진입 0.03% + 청산 0.03% = 0.06% × size_usd
+    const fee = size * 0.0006
 
     return adminSupabase
       .from("auto_signal_positions")
@@ -175,6 +177,7 @@ export async function GET(req: Request) {
         closed_roi:   closedRoi,
         final_roi:    closedRoi,
         final_pnl:    finalPnl,
+        fee:          fee,
       })
       .eq("id", pos.id)
   })
@@ -200,33 +203,39 @@ export async function GET(req: Request) {
     })
   }
 
-  // 당일 SL 청산 PNL — final_pnl이 저장돼 있으면 그 값 우선 사용
+  // 당일 SL 청산 PNL + 수수료
   const { data: slPositions } = await adminSupabase
     .from("auto_signal_positions")
-    .select("leverage, size_usd, final_pnl")
+    .select("leverage, size_usd, final_pnl, fee")
     .eq("date_label", dateLabel)
     .eq("close_reason", "stop_loss")
     .eq("is_closed", true)
 
-  const slPnl = (slPositions ?? []).reduce((s: number, p: { leverage: number; size_usd: number; final_pnl: number | null }) => {
+  const slPnl = (slPositions ?? []).reduce((s: number, p: { leverage: number; size_usd: number; final_pnl: number | null; fee: number | null }) => {
     if (p.final_pnl != null) return s + Number(p.final_pnl)
-    const lev  = Number(p.leverage ?? cfgLeverage)
     const size = Number(p.size_usd ?? cfgSizeUsd)
-    return s - (size * cfgStopLossPct * lev / 100)
+    return s - (size * 0.5)   // 45% ROI 청산 = 50% 마진 손실
   }, 0)
 
-  // day_close 포지션들의 PNL — 방금 저장한 final_pnl 기반
+  // day_close 포지션들의 PNL + 수수료
   const { data: dayClosePos } = await adminSupabase
     .from("auto_signal_positions")
-    .select("size_usd, closed_roi, final_pnl")
+    .select("size_usd, closed_roi, final_pnl, fee")
     .eq("date_label", dateLabel)
     .eq("close_reason", "day_close")
     .eq("is_closed", true)
 
-  const dayClosePnl = (dayClosePos ?? []).reduce((s: number, p: { size_usd: number; closed_roi: number | null; final_pnl: number | null }) => {
+  const dayClosePnl = (dayClosePos ?? []).reduce((s: number, p: { size_usd: number; closed_roi: number | null; final_pnl: number | null; fee: number | null }) => {
     if (p.final_pnl != null) return s + Number(p.final_pnl)
     if (p.closed_roi == null) return s
     return s + Number(p.size_usd ?? cfgSizeUsd) * (Number(p.closed_roi) / 100)
+  }, 0)
+
+  // 당일 전체 수수료 (모든 청산 포지션)
+  const allClosed = [...(slPositions ?? []), ...(dayClosePos ?? [])]
+  const dailyFee  = allClosed.reduce((s: number, p: { size_usd: number; fee: number | null }) => {
+    if (p.fee != null) return s + Number(p.fee)
+    return s + Number(p.size_usd ?? cfgSizeUsd) * 0.0006
   }, 0)
 
   const dailyPnl = slPnl + dayClosePnl
@@ -237,9 +246,10 @@ export async function GET(req: Request) {
     .from("auto_signal_rebalance")
     .insert({
       date_label:    dateLabel,
-      seed_capital:  baseBalance,   // 이 날의 시작 잔고 (직전 확정 잔고)
-      est_value:     estValue,      // 이 날의 최종 잔고
+      seed_capital:  baseBalance,
+      est_value:     estValue,
       daily_pnl:     dailyPnl,
+      daily_fee:     dailyFee,
       note:          "day_close (auto)",
       rebalanced_at: now,
     })

@@ -36,10 +36,13 @@ export async function POST(req: Request) {
   // closed_roi = -(stop_loss_pct × leverage) 고정
   // 예) stop_loss_pct=5, leverage=10 → -50%
   const leverage    = Number(pos?.leverage ?? cfg?.leverage ?? 1)
-  const sizeUsd     = Number(pos?.size_usd ?? cfg?.size_usd ?? 10)
-  const stopLossPct = Number(cfg?.stop_loss_pct ?? 5)
-  const fixedRoi    = -(stopLossPct * leverage)          // e.g. -50%
-  const fixedPnl    = -(sizeUsd * stopLossPct / 100)     // e.g. -$5.00
+  const sizeUsd     = Number(pos?.size_usd ?? cfg?.size_usd ?? 20)
+  // 청산 기준: ROI -45% (실제 거래소 청산보다 5% 앞서 종료)
+  const fixedRoi    = -45
+  // PNL: $20 × 50% 손실 = -$10 (레버리지 10배 기준 5% SL × 10 = 50% 마진 손실)
+  const fixedPnl    = -(sizeUsd * 0.5)
+  // 수수료: 진입 0.03% + 청산 0.03% = 0.06% × size_usd
+  const fee         = sizeUsd * 0.0006
 
   const now = new Date().toISOString()
 
@@ -53,6 +56,7 @@ export async function POST(req: Request) {
       closed_price: closed_price ?? null,
       final_pnl:    fixedPnl,
       final_roi:    fixedRoi,
+      fee:          fee,
     })
     .eq("id", id)
     .eq("is_closed", false)
@@ -61,5 +65,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, closed_roi: fixedRoi, final_pnl: fixedPnl })
+  return NextResponse.json({ ok: true, closed_roi: fixedRoi, final_pnl: fixedPnl, fee })
 }
