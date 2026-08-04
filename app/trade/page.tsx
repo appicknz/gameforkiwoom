@@ -2081,7 +2081,7 @@ export default function TradePage() {
   const [searchQ,       setSearchQ]       = useState("")
   type SortOrder = "time" | "roi_desc" | "roi_asc" | "signal"
   const SORT_CYCLE: SortOrder[] = ["time", "roi_desc", "roi_asc", "signal"]
-  const SORT_LABEL: Record<SortOrder, string> = { time: "���간순", roi_desc: "수익↑", roi_asc: "수익↓", signal: "시그널" }
+  const SORT_LABEL: Record<SortOrder, string> = { time: "시간순", roi_desc: "수익↑", roi_asc: "수익↓", signal: "시그널" }
   const [sortOrder,     setSortOrder]     = useState<SortOrder>("time")
   const cycleSort = () => setSortOrder(prev => {
     const idx = SORT_CYCLE.indexOf(prev)
@@ -2210,7 +2210,7 @@ export default function TradePage() {
     }
   }, [fetchPositions])
 
-  // ── 주문 ���들러 — ref ���용으로 stale closure 완전 차단 ────��─────
+  // ── 주문 ���들러 — ref ���용으로 stale closure 완��� 차단 ────��─────
   const handleOpen = useCallback(async (dir: Direction, amount: number, leverage: number) => {
     const bal = balanceRef.current
     if (bal === null) { alert("잔고를 불러오는 중입니다."); return }
