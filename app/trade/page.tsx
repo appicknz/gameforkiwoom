@@ -711,7 +711,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             </div>
           )
         }
-        // ────────────────────────────────────────────────────����────────
+        // ────────────────────────────────────────────────────�����────────
 
         // ── 오늘 or 스냅샷 없는 날 — 기존 실시간 계산 ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
@@ -1737,11 +1737,13 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     return () => clearInterval(check)
   }, [isToday, stopLossPct, positions])
 
-  // 1초 tick → 오늘 날짜일 때만 liveCache 실시간 반영
+  // liveCache flush(100ms)마다 오늘 날짜이면 tick 증가 → PnL 실시간 반영
+  // 1초 interval 대신 liveCache.listeners에 직접 구독해 가격 수신 즉시 갱신
   useEffect(() => {
     if (!isToday) return
-    const t = setInterval(() => setTick(n => n + 1), 1000)
-    return () => clearInterval(t)
+    const fn = () => setTick(n => n + 1)
+    liveCache.listeners.add(fn)
+    return () => { liveCache.listeners.delete(fn) }
   }, [isToday])
 
   const dateLabel = `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일`
@@ -1896,7 +1898,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const slPrice = isLong
       ? entry * (1 - 1 / lev)
       : entry * (1 + 1 / lev)
-    // 10% 더 나쁜 방향 (롱이면 더 낮게, 숏이면 더 ��게)
+    // 10% 더 나쁜 방향 (롱이면 더 ���게, 숏이면 더 ��게)
     const triggerPrice = isLong
       ? slPrice * 0.90
       : slPrice * 1.10
