@@ -1002,7 +1002,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
       const y = kstNow.getUTCFullYear()
       const mo = kstNow.getUTCMonth() // 0-indexed
       // 이번 달 말일 23:59:59 KST = UTC 다음날 00:59:59 → 말일+1일 UTC 14:59:59
-      // 정확하게: 말일 자정 KST = UTC 전날 15:00
+      // 정확하게: 말일 자정 KST = UTC ���날 15:00
       // 말일 다음 달 1일 00:00 KST = UTC 전날 15:00
       const firstOfNextMonth = new Date(Date.UTC(y, mo + 1, 1, 15, 0, 0, 0)) // 다음달 1일 00:00 KST
       const target = firstOfNextMonth // 이 순간이 이번 달 말일 자정
@@ -1259,9 +1259,47 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
         {/* 전략 건강 지표 — 자동매매 포지션 데이터 기반 */}
         {(() => {
-          if (!autoStats) return null
           const MIN_SAMPLE = 50
-          const { profitCnt: wCnt, lossCnt: lCnt, slClosedCnt: slCnt, slClosedPnl: slPnl, grossWin: gw, grossLoss: gl, total } = autoStats
+          // 포지션 로딩 중이거나 아직 stats 없으면 스켈레톤
+          if (!autoStats || autoStats.posLoading) {
+            const pct = autoStats && autoStats.priceTotal > 0 ? Math.round(autoStats.priceLoaded / autoStats.priceTotal * 100) : 0
+            const priceTotal = autoStats?.priceTotal ?? 0
+            const priceLoaded = autoStats?.priceLoaded ?? 0
+            return (
+              <div style={{ marginTop: 8, background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: "7px 10px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.05em" }}>STRATEGY HEALTH</span>
+                    {priceTotal > 0 && (
+                      <span style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>
+                        가격 수신 {priceLoaded}/{priceTotal} ({pct}%)
+                      </span>
+                    )}
+                  </div>
+                  {/* 스켈레톤 뱃지 */}
+                  <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 8px", borderRadius: 4, background: "rgba(255,255,255,0.07)", color: "transparent", animation: "pulse 1.5s ease-in-out infinite" }}>
+                    ——
+                  </span>
+                </div>
+                {priceTotal > 0 && (
+                  <div style={{ marginBottom: 6, background: "rgba(255,255,255,0.06)", borderRadius: 4, height: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: "rgba(255,255,255,0.25)", borderRadius: 4, transition: "width 0.3s" }} />
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-2">
+                  {["WIN RATE", "PROFIT FACTOR", "SL DRAG"].map(label => (
+                    <div key={label}>
+                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 3 }}>{label}</div>
+                      <div style={{ height: 16, borderRadius: 3, background: "rgba(255,255,255,0.07)", width: "60%" }} />
+                      <div style={{ height: 8, borderRadius: 3, background: "rgba(255,255,255,0.04)", width: "80%", marginTop: 3 }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          }
+
+          const { profitCnt: wCnt, lossCnt: lCnt, slClosedCnt: slCnt, slClosedPnl: slPnl, grossWin: gw, grossLoss: gl, total, priceLoaded, priceTotal } = autoStats
           if (total === 0) return null
 
           const insufficient = total < MIN_SAMPLE
@@ -1283,17 +1321,30 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
           const overallColor = insufficient ? "rgba(255,255,255,0.25)" : overall === "위험" ? DOWN_COLOR : overall === "주의" ? AMBER : UP_COLOR
           const overallBg    = insufficient ? "rgba(255,255,255,0.02)" : overall === "위험" ? "rgba(239,68,68,0.08)" : overall === "주의" ? "rgba(251,191,36,0.06)" : "rgba(34,197,94,0.06)"
 
+          const pricePct   = priceTotal > 0 ? Math.round(priceLoaded / priceTotal * 100) : 100
+          const priceReady = priceTotal === 0 || priceLoaded >= priceTotal
+
           return (
             <div style={{ marginTop: 8, background: overallBg, borderRadius: 8, padding: "7px 10px", border: `1px solid ${overallColor}22`, opacity: insufficient ? 0.65 : 1 }}>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.05em" }}>STRATEGY HEALTH</span>
                   <span style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{total}건 / 최소 {MIN_SAMPLE}건</span>
+                  {!priceReady && (
+                    <span style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>
+                      가격 {priceLoaded}/{priceTotal} ({pricePct}%)
+                    </span>
+                  )}
                 </div>
                 <span style={{ fontSize: 9, fontWeight: 800, color: overallColor, padding: "1px 6px", borderRadius: 4, background: `${overallColor}18` }}>
                   {overall}
                 </span>
               </div>
+              {!priceReady && (
+                <div style={{ marginBottom: 6, background: "rgba(255,255,255,0.06)", borderRadius: 4, height: 3, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pricePct}%`, background: overallColor, borderRadius: 4, transition: "width 0.3s", opacity: 0.5 }} />
+                </div>
+              )}
               {insufficient && (
                 <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 6, lineHeight: 1.5 }}>
                   {total}건 기록 — {MIN_SAMPLE}건 이상 누적 시 신뢰도가 높아집니다.
@@ -1574,7 +1625,7 @@ interface AutoPos {
   closed_price: number | null
 }
 
-type AutoStats = { profitCnt: number; lossCnt: number; slClosedCnt: number; slClosedPnl: number; grossWin: number; grossLoss: number; total: number }
+type AutoStats = { profitCnt: number; lossCnt: number; slClosedCnt: number; slClosedPnl: number; grossWin: number; grossLoss: number; total: number; priceLoaded: number; priceTotal: number; posLoading: boolean }
 
 function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl, onStats, confirmedMargin, userRole }: {
   selectedDate: Date
@@ -1818,8 +1869,15 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   useEffect(() => {
     const gw = statsCalc.filter(p => p.pnl > 0).reduce((s, p) => s + p.pnl, 0)
     const gl = Math.abs(statsCalc.filter(p => p.pnl < 0).reduce((s, p) => s + p.pnl, 0)) + Math.abs(slClosedPnl)
-    onStats?.({ profitCnt, lossCnt, slClosedCnt, slClosedPnl, grossWin: gw, grossLoss: gl, total: profitCnt + lossCnt + slClosedCnt })
-  }, [profitCnt, lossCnt, slClosedCnt, slClosedPnl, statsCalc])
+    // 활성 포지션 기준 가격 수신 진행률
+    const activePositions = positions.filter(p => !p.is_closed)
+    const priceTotal  = activePositions.length
+    const priceLoaded = activePositions.filter(p => {
+      const sym = p.symbol.replace(/\.P$/, "").replace(/\//g, "")
+      return (liveCache.tickers.get(sym)?.price ?? 0) > 0
+    }).length
+    onStats?.({ profitCnt, lossCnt, slClosedCnt, slClosedPnl, grossWin: gw, grossLoss: gl, total: profitCnt + lossCnt + slClosedCnt, priceLoaded, priceTotal, posLoading: loading })
+  }, [profitCnt, lossCnt, slClosedCnt, slClosedPnl, statsCalc, positions, loading, tick])
 
   const sortedCalc = [...filteredCalc].sort((a, b) => {
     if (sortOrder === "roi_desc") return b.roi - a.roi
