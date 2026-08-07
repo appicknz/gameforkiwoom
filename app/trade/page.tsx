@@ -1259,37 +1259,32 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
         {/* STRATEGY HEALTH */}
         {(() => {
-          const C_GREEN  = UP_COLOR
-          const C_YELLOW = "rgba(251,191,36,1)"
-          const C_ORANGE = "rgba(249,115,22,1)"
-          const C_RED    = DOWN_COLOR
-          const C_DIM    = "rgba(255,255,255,0.15)"
+          const CG = UP_COLOR
+          const CY = "rgba(251,191,36,1)"
+          const CO = "rgba(249,115,22,1)"
+          const CR = DOWN_COLOR
 
           // ── 스켈레톤 ────────────────────────────────────────────────
           if (!autoStats || autoStats.posLoading) {
-            const pct        = autoStats && autoStats.priceTotal > 0 ? Math.round(autoStats.priceLoaded / autoStats.priceTotal * 100) : 0
-            const priceTotal = autoStats?.priceTotal ?? 0
+            const pct = autoStats && autoStats.priceTotal > 0
+              ? Math.round(autoStats.priceLoaded / autoStats.priceTotal * 100) : 0
             return (
-              <div style={{ marginTop: 8, background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "10px 12px", border: "1px solid rgba(255,255,255,0.05)" }}>
-                <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>STRATEGY HEALTH</span>
-                  {priceTotal > 0 && (
-                    <span style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>가격 수신 중 {pct}%</span>
+              <div style={{ marginTop: 8, background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "12px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.25)", letterSpacing: "0.08em" }}>STRATEGY HEALTH</span>
+                  {autoStats?.priceTotal && autoStats.priceTotal > 0 && (
+                    <span style={{ fontSize: 8, color: "rgba(255,255,255,0.2)" }}>가격 {pct}%</span>
                   )}
                 </div>
-                {priceTotal > 0 && (
+                {autoStats?.priceTotal && autoStats.priceTotal > 0 && (
                   <div style={{ marginBottom: 10, background: "rgba(255,255,255,0.05)", borderRadius: 4, height: 2 }}>
-                    <div style={{ height: "100%", width: `${pct}%`, background: "rgba(255,255,255,0.18)", borderRadius: 4, transition: "width 0.3s" }} />
+                    <div style={{ height: "100%", width: `${pct}%`, background: "rgba(255,255,255,0.15)", borderRadius: 4, transition: "width 0.3s" }} />
                   </div>
                 )}
-                <div className="grid grid-cols-3 gap-3">
-                  {[48, 36, 52].map((w, i) => (
-                    <div key={i}>
-                      <div style={{ height: 8, borderRadius: 3, background: "rgba(255,255,255,0.06)", width: `${w}%`, marginBottom: 6 }} />
-                      <div style={{ height: 20, borderRadius: 4, background: "rgba(255,255,255,0.06)", width: "70%" }} />
-                      <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.04)", width: "90%", marginTop: 5 }} />
-                    </div>
-                  ))}
+                {/* 결론 스켈레톤 */}
+                <div style={{ height: 44, borderRadius: 8, background: "rgba(255,255,255,0.04)", marginBottom: 10 }} />
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[1,2,3].map(i => <div key={i} style={{ flex: 1, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.03)" }} />)}
                 </div>
               </div>
             )
@@ -1297,189 +1292,123 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
           const {
             profitCnt: wCnt, lossCnt: lCnt, slClosedCnt: slCnt, slClosedPnl: slPnl,
-            grossWin: gw, grossLoss: gl, total, avgWin, avgLoss,
+            grossWin: gw, grossLoss: gl, avgWin, avgLoss,
             recent20Gw, recent20Gl, activeRois, activePnls,
             priceLoaded, priceTotal,
           } = autoStats
 
-          if (total === 0 && activeRois.length === 0) return null
-
           const totalClosed = wCnt + lCnt + slCnt
-          const winRate     = totalClosed > 0 ? wCnt / totalClosed * 100 : 0
-          const lossRate    = 100 - winRate
-          const pf          = gl > 0 ? gw / gl : gw > 0 ? 99 : 0
-          const r20pf       = recent20Gl > 0 ? recent20Gw / recent20Gl : recent20Gw > 0 ? 99 : 0
-          const slDrag      = gw > 0 ? Math.abs(slPnl) / gw * 100 : 0
-          const expectancy  = (winRate / 100) * avgWin - (lossRate / 100) * avgLoss
+          if (totalClosed === 0 && activeRois.length === 0) return null
 
-          // 활성 포지션 ROI 히트맵용 버킷
-          // < -30: SL 임박, -30~0: 손실, 0~15: 소폭 수익, > 15: 수익
-          const buckets = {
-            danger:  activeRois.filter(r => r < -30).length,
-            loss:    activeRois.filter(r => r >= -30 && r < 0).length,
-            small:   activeRois.filter(r => r >= 0 && r < 15).length,
-            profit:  activeRois.filter(r => r >= 15).length,
-          }
-          const slRiskPnl  = activePnls.filter((_, i) => activeRois[i] < -30).reduce((s, v) => s + v, 0)
-          const slRiskCnt  = buckets.danger
+          // ── 지표 계산 ──────────────────────────────────────────────
+          const winRate    = totalClosed > 0 ? wCnt / totalClosed * 100 : 0
+          const pf         = gl > 0 ? gw / gl : gw > 0 ? 99 : 0
+          const r20pf      = recent20Gl > 0 ? recent20Gw / recent20Gl : recent20Gw > 0 ? 99 : 0
+          const expectancy = (winRate / 100) * avgWin - ((100 - winRate) / 100) * avgLoss
+          const slDrag     = gw > 0 ? Math.abs(slPnl) / gw * 100 : 0
+
+          // 활성 포지션 버킷
+          const slRiskCnt = activeRois.filter(r => r < -30).length
           const activeTotal = activeRois.length
 
-          // 추세: 최근 20건 PF vs 전체 PF
-          const pfTrendUp   = r20pf > pf * 1.05
-          const pfTrendDown = r20pf < pf * 0.9
+          // PF 기준 결론 (사용자 정의)
+          const verdict =
+            pf >= 1.20 ? { label: "유지",  desc: "전략이 우위에 있습니다",      color: CG, bg: `${CG}12`, border: `${CG}30` } :
+            pf >= 1.00 ? { label: "관찰",  desc: "지표를 주시하며 진입하세요",  color: CY, bg: `${CY}10`, border: `${CY}28` } :
+            pf >= 0.80 ? { label: "관리",  desc: "신규 진입을 줄이세요",        color: CO, bg: `${CO}10`, border: `${CO}28` } :
+                         { label: "종료",  desc: "오늘 매매를 중단하세요",      color: CR, bg: `${CR}12`, border: `${CR}30` }
+
+          const pfC = pf >= 1.20 ? CG : pf >= 1.00 ? CY : pf >= 0.80 ? CO : CR
+          const r20Up   = r20pf > pf * 1.05
+          const r20Down = r20pf < pf * 0.9
 
           const pricePct   = priceTotal > 0 ? Math.round(priceLoaded / priceTotal * 100) : 100
           const priceReady = priceTotal === 0 || priceLoaded >= priceTotal
 
-          // 색상 헬퍼
-          const wrC  = winRate >= 55 ? C_GREEN : winRate >= 48 ? C_YELLOW : C_RED
-          const pfC  = pf >= 1.2 ? C_GREEN : pf >= 1.0 ? C_YELLOW : pf >= 0.8 ? C_ORANGE : C_RED
-          const exC  = expectancy > 0 ? C_GREEN : expectancy > -0.5 ? C_YELLOW : C_RED
-          const slDC = slDrag <= 40 ? C_GREEN : slDrag <= 65 ? C_YELLOW : C_RED
-
           return (
-            <div style={{ marginTop: 8, background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "11px 12px", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ marginTop: 8, background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "12px", border: "1px solid rgba(255,255,255,0.06)" }}>
 
               {/* 헤더 */}
-              <div className="flex items-center justify-between" style={{ marginBottom: !priceReady ? 6 : 10 }}>
-                <div className="flex items-center gap-2">
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>STRATEGY HEALTH</span>
-                  <span style={{ fontSize: 8, color: "rgba(255,255,255,0.18)" }}>{totalClosed}건</span>
-                </div>
-                {!priceReady && (
-                  <span style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>가격 {pricePct}%</span>
-                )}
+              <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>STRATEGY HEALTH</span>
+                <span style={{ fontSize: 8, color: "rgba(255,255,255,0.18)" }}>
+                  {totalClosed}건{!priceReady ? ` · 가격 ${pricePct}%` : ""}
+                </span>
               </div>
 
               {/* 가격 로딩 바 */}
               {!priceReady && (
-                <div style={{ marginBottom: 10, background: "rgba(255,255,255,0.05)", borderRadius: 4, height: 2 }}>
-                  <div style={{ height: "100%", width: `${pricePct}%`, background: "rgba(255,255,255,0.2)", borderRadius: 4, transition: "width 0.3s" }} />
+                <div style={{ marginBottom: 8, background: "rgba(255,255,255,0.05)", borderRadius: 4, height: 2 }}>
+                  <div style={{ height: "100%", width: `${pricePct}%`, background: "rgba(255,255,255,0.18)", borderRadius: 4, transition: "width 0.3s" }} />
                 </div>
               )}
 
-              {/* ── 3대 핵심 지표 ── */}
-              <div className="grid grid-cols-3 gap-3" style={{ marginBottom: 10 }}>
-
-                {/* WIN RATE */}
+              {/* ── 결론 배너 ── */}
+              <div style={{ background: verdict.bg, border: `1px solid ${verdict.border}`, borderRadius: 8, padding: "10px 12px", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.28)", marginBottom: 3, letterSpacing: "0.05em" }}>WIN RATE</div>
-                  <div className="tabular-nums" style={{ fontSize: 22, fontWeight: 900, color: wrC, lineHeight: 1, letterSpacing: "-0.02em" }}>
-                    {winRate.toFixed(1)}%
-                  </div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.22)", marginTop: 4 }}>
-                    {wCnt}W · {lCnt}L · {slCnt}SL
-                  </div>
-                  {/* 승률 바 */}
-                  <div style={{ marginTop: 5, height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden" }}>
-                    <div style={{ height: "100%", display: "flex" }}>
-                      <div style={{ width: `${winRate}%`, background: C_GREEN, borderRadius: "4px 0 0 4px", transition: "width 0.4s" }} />
-                      <div style={{ width: `${lossRate}%`, background: C_RED, borderRadius: "0 4px 4px 0", opacity: 0.5 }} />
-                    </div>
-                  </div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 2, letterSpacing: "0.06em" }}>오늘 전략 판정</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.45)" }}>{verdict.desc}</div>
                 </div>
+                <div className="tabular-nums" style={{ fontSize: 20, fontWeight: 900, color: verdict.color, letterSpacing: "-0.01em" }}>
+                  {verdict.label}
+                </div>
+              </div>
+
+              {/* ── 3개 근거 지표 ── */}
+              <div style={{ display: "flex", gap: 6 }}>
 
                 {/* PROFIT FACTOR */}
-                <div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.28)", marginBottom: 3, letterSpacing: "0.05em" }}>PROFIT FACTOR</div>
+                <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 7, color: "rgba(255,255,255,0.28)", marginBottom: 4, letterSpacing: "0.05em" }}>PROFIT FACTOR</div>
                   <div className="flex items-baseline gap-1">
-                    <span className="tabular-nums" style={{ fontSize: 22, fontWeight: 900, color: pfC, lineHeight: 1, letterSpacing: "-0.02em" }}>
+                    <span className="tabular-nums" style={{ fontSize: 16, fontWeight: 800, color: pfC, lineHeight: 1 }}>
                       {pf >= 99 ? "∞" : pf.toFixed(2)}
                     </span>
-                    {/* 최근 20건 추세 */}
-                    <span style={{ fontSize: 9, color: pfTrendUp ? C_GREEN : pfTrendDown ? C_RED : C_DIM, fontWeight: 700 }}>
-                      {pfTrendUp ? "▲" : pfTrendDown ? "▼" : "–"}
+                    <span style={{ fontSize: 9, fontWeight: 700, color: r20Up ? CG : r20Down ? CR : "rgba(255,255,255,0.2)" }}>
+                      {r20Up ? "▲" : r20Down ? "▼" : "–"}
                     </span>
                   </div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.22)", marginTop: 4 }}>
-                    최근20 <span style={{ color: r20pf >= 1.0 ? C_GREEN : C_ORANGE, fontWeight: 700 }}>
-                      {r20pf >= 99 ? "∞" : r20pf.toFixed(2)}
-                    </span>
+                  <div style={{ fontSize: 7, color: "rgba(255,255,255,0.2)", marginTop: 3 }}>
+                    최근20 · {r20pf >= 99 ? "∞" : r20pf.toFixed(2)}
                   </div>
-                  <div style={{ marginTop: 5, height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden" }}>
+                  {/* PF 단계 바 (0 / 0.8 / 1.0 / 1.2 / 2.5) */}
+                  <div style={{ marginTop: 6, height: 2, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${Math.min(pf / 2.5 * 100, 100)}%`, background: pfC, borderRadius: 4, transition: "width 0.4s" }} />
                   </div>
                 </div>
 
+                {/* WIN RATE */}
+                <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 7, color: "rgba(255,255,255,0.28)", marginBottom: 4, letterSpacing: "0.05em" }}>WIN RATE</div>
+                  <div className="tabular-nums" style={{ fontSize: 16, fontWeight: 800, color: winRate >= 55 ? CG : winRate >= 48 ? CY : CR, lineHeight: 1 }}>
+                    {winRate.toFixed(1)}%
+                  </div>
+                  <div style={{ fontSize: 7, color: "rgba(255,255,255,0.2)", marginTop: 3 }}>
+                    {wCnt}W · {lCnt}L · {slCnt}SL
+                  </div>
+                  <div style={{ marginTop: 6, height: 2, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden", display: "flex" }}>
+                    <div style={{ width: `${winRate}%`, background: CG, transition: "width 0.4s" }} />
+                    <div style={{ width: `${100 - winRate}%`, background: CR, opacity: 0.4 }} />
+                  </div>
+                </div>
+
                 {/* EXPECTANCY */}
-                <div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.28)", marginBottom: 3, letterSpacing: "0.05em" }}>EXPECTANCY</div>
-                  <div className="tabular-nums" style={{ fontSize: 22, fontWeight: 900, color: exC, lineHeight: 1, letterSpacing: "-0.02em" }}>
+                <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 7, color: "rgba(255,255,255,0.28)", marginBottom: 4, letterSpacing: "0.05em" }}>EXPECTANCY</div>
+                  <div className="tabular-nums" style={{ fontSize: 16, fontWeight: 800, color: expectancy > 0 ? CG : expectancy > -0.5 ? CY : CR, lineHeight: 1 }}>
                     {expectancy >= 0 ? "+" : ""}{expectancy.toFixed(2)}
                   </div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.22)", marginTop: 4 }}>
-                    거래당 기대 수익
+                  <div style={{ fontSize: 7, color: "rgba(255,255,255,0.2)", marginTop: 3 }}>
+                    {slRiskCnt > 0
+                      ? <span style={{ color: CR }}>SL임박 {slRiskCnt}개</span>
+                      : `활성 ${activeTotal}개`}
                   </div>
-                  <div style={{ marginTop: 5, height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${Math.min(Math.max((expectancy + 3) / 6 * 100, 0), 100)}%`, background: exC, borderRadius: 4, transition: "width 0.4s" }} />
+                  <div style={{ marginTop: 6, height: 2, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${Math.min(Math.max((expectancy + 3) / 6 * 100, 0), 100)}%`, background: expectancy > 0 ? CG : CR, borderRadius: 4, transition: "width 0.4s" }} />
                   </div>
                 </div>
+
               </div>
-
-              {/* ── 구분선 ── */}
-              <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 9 }} />
-
-              {/* ── 하단 2행: SL DRAG + 활성 포지션 히트맵 ── */}
-              <div className="grid grid-cols-2 gap-3">
-
-                {/* SL DRAG */}
-                <div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.28)", marginBottom: 3, letterSpacing: "0.05em" }}>SL DRAG</div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="tabular-nums" style={{ fontSize: 16, fontWeight: 800, color: slDC }}>{slDrag.toFixed(0)}%</span>
-                    <span style={{ fontSize: 8, color: "rgba(255,255,255,0.22)" }}>{slCnt}건 손절이 수익 잠식</span>
-                  </div>
-                  <div style={{ marginTop: 5, height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${Math.min(slDrag, 100)}%`, background: slDC, borderRadius: 4, transition: "width 0.4s" }} />
-                  </div>
-                </div>
-
-                {/* 활성 포지션 ROI 분포 히트맵 */}
-                <div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.28)", marginBottom: 3, letterSpacing: "0.05em" }}>
-                    LIVE POSITIONS
-                    <span style={{ marginLeft: 4, color: "rgba(255,255,255,0.18)" }}>{activeTotal}개</span>
-                  </div>
-                  {activeTotal > 0 ? (
-                    <>
-                      {/* 히트맵 바 */}
-                      <div style={{ display: "flex", gap: 2, height: 14, borderRadius: 4, overflow: "hidden" }}>
-                        {buckets.danger > 0 && (
-                          <div style={{ flex: buckets.danger, background: C_RED, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <span style={{ fontSize: 7, fontWeight: 800, color: "rgba(0,0,0,0.7)" }}>{buckets.danger}</span>
-                          </div>
-                        )}
-                        {buckets.loss > 0 && (
-                          <div style={{ flex: buckets.loss, background: "rgba(239,68,68,0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <span style={{ fontSize: 7, color: "rgba(255,255,255,0.6)" }}>{buckets.loss}</span>
-                          </div>
-                        )}
-                        {buckets.small > 0 && (
-                          <div style={{ flex: buckets.small, background: "rgba(34,197,94,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <span style={{ fontSize: 7, color: "rgba(255,255,255,0.6)" }}>{buckets.small}</span>
-                          </div>
-                        )}
-                        {buckets.profit > 0 && (
-                          <div style={{ flex: buckets.profit, background: C_GREEN, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <span style={{ fontSize: 7, fontWeight: 800, color: "rgba(0,0,0,0.7)" }}>{buckets.profit}</span>
-                          </div>
-                        )}
-                        {activeTotal === 0 && (
-                          <div style={{ flex: 1, background: "rgba(255,255,255,0.05)" }} />
-                        )}
-                      </div>
-                      <div style={{ fontSize: 7, color: "rgba(255,255,255,0.2)", marginTop: 3, display: "flex", gap: 6 }}>
-                        {buckets.danger > 0 && <span style={{ color: C_RED }}>SL임박 {buckets.danger}</span>}
-                        <span>손실 {buckets.loss}</span>
-                        <span>수익 {buckets.small + buckets.profit}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)" }}>포지션 없음</div>
-                  )}
-                </div>
-              </div>
-
             </div>
           )
         })()}
