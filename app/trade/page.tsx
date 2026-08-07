@@ -711,7 +711,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             </div>
           )
         }
-        // ────────────────────────────────────────────────────������────────
+        // ────────────────────────────────────────────────────�����────────
 
         // ── 오늘 or 스냅샷 없는 날 — 기존 실시간 계산 ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
@@ -1292,16 +1292,15 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
           const {
             profitCnt: wCnt, lossCnt: lCnt, slClosedCnt: slCnt, slClosedPnl: slPnl,
-            grossWin: gw, grossLoss: gl, total, avgWin, avgLoss,
+            grossWin: gw, grossLoss: gl, avgWin, avgLoss,
             recent20Gw, recent20Gl, activeRois, activePnls,
             priceLoaded, priceTotal,
           } = autoStats
 
-          if (total === 0 && activeRois.length === 0) return null
+          const totalClosed = wCnt + lCnt + slCnt
+          if (totalClosed === 0 && activeRois.length === 0) return null
 
           // ── 지표 계산 ──────────────────────────────────────────────
-          // wCnt = winners(pnl>0), lCnt = losers(pnl<0, non-SL), slCnt = SL청산
-          const totalClosed = total
           const winRate    = totalClosed > 0 ? wCnt / totalClosed * 100 : 0
           const pf         = gl > 0 ? gw / gl : gw > 0 ? 99 : 0
           const r20pf      = recent20Gl > 0 ? recent20Gw / recent20Gl : recent20Gw > 0 ? 99 : 0
@@ -1925,19 +1924,27 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
 
   // 자동매매 통계를 부모(→LedgerPanel)로 전달
   useEffect(() => {
-    // posCalc = 오늘 전체 포지션 (활성 + SL청산 포함), pnl 이미 정확히 계산됨
-    // 과거: statsCalc (전체 청산) / 오늘: posCalc 전체 사용
-    const base = isHistorical ? statsCalc : posCalc
+    // statsCalc = 오늘 활성 포지션 / 과거 = 전체 청산 포지션 (SL 포함)
+    // grossLoss: statsCalc의 음수 PNL만 — SL은 이미 statsCalc에 포함되어 있으므로 별도 추가 없음
+    const allClosed = isHistorical
+      ? statsCalc                                          // 과거: statsCalc = 전체 청산
+      : positions.filter(p => p.is_closed).map(p => {     // 오늘: 청산된 포지션만 별도 계산
+          const sizeUsd = Number(p.size_usd ?? sizeUsdCfg)
+          const pnl = p.close_reason === "stop_loss"
+            ? -(sizeUsd * 0.5)
+            : sizeUsd * (Number(p.final_roi ?? p.closed_roi ?? 0) / 100)
+          return { ...p, pnl }
+        })
 
-    const winners = base.filter(p => p.pnl > 0)
-    const losers  = base.filter(p => p.pnl < 0)
+    const winners = allClosed.filter(p => p.pnl > 0)
+    const losers  = allClosed.filter(p => p.pnl < 0)
     const gw      = winners.reduce((s, p) => s + p.pnl, 0)
     const gl      = Math.abs(losers.reduce((s, p) => s + p.pnl, 0))
     const avgWin  = winners.length > 0 ? gw / winners.length : 0
     const avgLoss = losers.length > 0 ? gl / losers.length : 0
 
     // 최근 20건 (시간순 최신)
-    const recent20 = [...base].slice(-20)
+    const recent20 = [...allClosed].slice(-20)
     const r20gw    = recent20.filter(p => p.pnl > 0).reduce((s, p) => s + p.pnl, 0)
     const r20gl    = Math.abs(recent20.filter(p => p.pnl < 0).reduce((s, p) => s + p.pnl, 0))
 
@@ -1959,10 +1966,9 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     }).length
     const tf = positions.filter(p => p.is_closed).reduce((s, p) => s + Number(p.size_usd ?? 20) * 0.0006, 0)
 
-    const totalBase = isHistorical ? statsCalc.length : posCalc.length
     onStats?.({
-      profitCnt: winners.length, lossCnt: losers.filter(p => !p.is_closed || p.close_reason !== "stop_loss").length, slClosedCnt, slClosedPnl,
-      grossWin: gw, grossLoss: gl, total: totalBase,
+      profitCnt, lossCnt, slClosedCnt, slClosedPnl,
+      grossWin: gw, grossLoss: gl, total: profitCnt + lossCnt + slClosedCnt,
       totalFee: tf, avgWin, avgLoss,
       recent20Gw: r20gw, recent20Gl: r20gl,
       activeRois, activePnls,
