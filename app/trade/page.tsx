@@ -1299,6 +1299,29 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
           if (total === 0 && activeRois.length === 0) return null
 
+          // ── 최소 샘플 50건 미달 시 안내만 표시 (지표 왜곡 방지) ──────
+          const MIN_SAMPLE = 50
+          if (total < MIN_SAMPLE) {
+            const pct = Math.round(total / MIN_SAMPLE * 100)
+            return (
+              <div style={{ marginTop: 8, background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "12px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                  <div className="flex items-center gap-2">
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "inline-block" }} />
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>STRATEGY HEALTH</span>
+                  </div>
+                  <span style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>{total}/{MIN_SAMPLE}건</span>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 4, height: 3, marginBottom: 8, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: "rgba(255,255,255,0.2)", borderRadius: 4, transition: "width 0.3s" }} />
+                </div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+                  데이터 {MIN_SAMPLE}건 이상부터 신뢰도 있는 판정이 표시됩니다 (남은 {MIN_SAMPLE - total}건)
+                </div>
+              </div>
+            )
+          }
+
           // ── 지표 계산 ──────────────────────────────────────────────
           // wCnt = winners(pnl>0), lCnt = losers(pnl<0, non-SL), slCnt = SL청산
           const totalClosed = total
@@ -2152,7 +2175,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
 
       {posCalc.length === 0 && (
         <div className="py-6 text-center" style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>
-          이 날짜에 확인된 시그널이 없습니다.
+          ��� 날짜에 확인된 시그널이 없습니다.
         </div>
       )}
 
