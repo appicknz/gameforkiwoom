@@ -1329,12 +1329,18 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
           return (
             <div style={{ marginTop: 8, background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "12px", border: "1px solid rgba(255,255,255,0.06)" }}>
 
-              {/* 헤더 */}
+              {/* 헤더 — 상태색 + 판정 라벨을 오른쪽에 작게 표시 */}
               <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>STRATEGY HEALTH</span>
-                <span style={{ fontSize: 8, color: "rgba(255,255,255,0.18)" }}>
-                  {totalClosed}건{!priceReady ? ` · 가격 ${pricePct}%` : ""}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: verdict.color, display: "inline-block", boxShadow: `0 0 6px ${verdict.color}` }} />
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>STRATEGY HEALTH</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={{ fontSize: 9, fontWeight: 800, color: verdict.color, letterSpacing: "0.02em" }}>{verdict.label}</span>
+                  <span style={{ fontSize: 8, color: "rgba(255,255,255,0.18)" }}>
+                    {totalClosed}건{!priceReady ? ` · 가격 ${pricePct}%` : ""}
+                  </span>
+                </div>
               </div>
 
               {/* 가격 로딩 바 */}
@@ -1344,17 +1350,6 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                 </div>
               )}
 
-              {/* ── 결론 배너 ── */}
-              <div style={{ background: verdict.bg, border: `1px solid ${verdict.border}`, borderRadius: 8, padding: "10px 12px", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginBottom: 2, letterSpacing: "0.06em" }}>오늘 전략 판정</div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.45)" }}>{verdict.desc}</div>
-                </div>
-                <div className="tabular-nums" style={{ fontSize: 20, fontWeight: 900, color: verdict.color, letterSpacing: "-0.01em" }}>
-                  {verdict.label}
-                </div>
-              </div>
-
               {/* ── 3개 근거 지표 ── */}
               <div style={{ display: "flex", gap: 6 }}>
 
@@ -1362,10 +1357,10 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                 <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px" }}>
                   <div style={{ fontSize: 7, color: "rgba(255,255,255,0.28)", marginBottom: 4, letterSpacing: "0.05em" }}>PROFIT FACTOR</div>
                   <div className="flex items-baseline gap-1">
-                    <span className="tabular-nums" style={{ fontSize: 16, fontWeight: 800, color: pfC, lineHeight: 1 }}>
+                    <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: pfC, lineHeight: 1 }}>
                       {pf >= 99 ? "∞" : pf.toFixed(2)}
                     </span>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: r20Up ? CG : r20Down ? CR : "rgba(255,255,255,0.2)" }}>
+                    <span style={{ fontSize: 8, fontWeight: 700, color: r20Up ? CG : r20Down ? CR : "rgba(255,255,255,0.2)" }}>
                       {r20Up ? "▲" : r20Down ? "▼" : "–"}
                     </span>
                   </div>
@@ -1381,7 +1376,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                 {/* WIN RATE */}
                 <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px" }}>
                   <div style={{ fontSize: 7, color: "rgba(255,255,255,0.28)", marginBottom: 4, letterSpacing: "0.05em" }}>WIN RATE</div>
-                  <div className="tabular-nums" style={{ fontSize: 16, fontWeight: 800, color: winRate >= 55 ? CG : winRate >= 48 ? CY : CR, lineHeight: 1 }}>
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: winRate >= 55 ? CG : winRate >= 48 ? CY : CR, lineHeight: 1 }}>
                     {winRate.toFixed(1)}%
                   </div>
                   <div style={{ fontSize: 7, color: "rgba(255,255,255,0.2)", marginTop: 3 }}>
@@ -1396,7 +1391,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                 {/* EXPECTANCY */}
                 <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px" }}>
                   <div style={{ fontSize: 7, color: "rgba(255,255,255,0.28)", marginBottom: 4, letterSpacing: "0.05em" }}>EXPECTANCY</div>
-                  <div className="tabular-nums" style={{ fontSize: 16, fontWeight: 800, color: expectancy > 0 ? CG : expectancy > -0.5 ? CY : CR, lineHeight: 1 }}>
+                  <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: expectancy > 0 ? CG : expectancy > -0.5 ? CY : CR, lineHeight: 1 }}>
                     {expectancy >= 0 ? "+" : ""}{expectancy.toFixed(2)}
                   </div>
                   <div style={{ fontSize: 7, color: "rgba(255,255,255,0.2)", marginTop: 3 }}>
@@ -1843,7 +1838,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const sizeUsd = pos.size_usd ?? 10
     const lev     = pos.leverage ?? 1
 
-    // 스탑���스로 청산된 포지션: 실시간 % 계�� 계산, PNL은 SL 고정값 사용
+    // 스탑���스로 청산된 포��션: 실시간 % 계�� 계산, PNL은 SL 고정값 사용
     if (pos.is_closed && pos.close_reason === "stop_loss") {
       const ticker  = liveCache.tickers.get(sym)
       const cur     = ticker ? ticker.price : 0
