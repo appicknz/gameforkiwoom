@@ -392,7 +392,7 @@ function TradeDialog({
             style={{ background: "rgba(212,175,55,0.06)", border: `1px solid ${BORDER}` }}>
             <div className="flex items-center gap-2">
               <Wallet className="w-3.5 h-3.5" style={{ color: GOLD }} />
-              <span className="text-xs" style={{ color: "rgba(212,175,55,0.6)" }}>사용 가능 ��고</span>
+              <span className="text-xs" style={{ color: "rgba(212,175,55,0.6)" }}>사용 가능 참고</span>
             </div>
             <span className="text-sm font-bold tabular-nums" style={{ color: GOLD }}>
               {balance === null ? "—" : `₩${(balance ?? 0).toLocaleString("ko-KR")}`}
@@ -491,7 +491,7 @@ function PcPositionCard({ pos, onClose, isClosing }: {
         disabled={isClosing}
         className="w-full rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
         style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", padding: "8px 0", minHeight: 32 }}>
-        {isClosing ? "청산 처리중..." : "포�����션 청산"}
+        {isClosing ? "청산 처리중..." : "포지션 청산"}
       </button>
     </div>
   )
@@ -1002,7 +1002,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
       const y = kstNow.getUTCFullYear()
       const mo = kstNow.getUTCMonth() // 0-indexed
       // 이번 달 말일 23:59:59 KST = UTC 다음날 00:59:59 → 말일+1일 UTC 14:59:59
-      // 정확하게: 말일 자정 KST = UTC ���날 15:00
+      // 정확하게: 말일 자정 KST = UTC 전날 15:00
       // 말일 다음 달 1일 00:00 KST = UTC 전날 15:00
       const firstOfNextMonth = new Date(Date.UTC(y, mo + 1, 1, 15, 0, 0, 0)) // 다음달 1일 00:00 KST
       const target = firstOfNextMonth // 이 순간이 이번 달 말일 자정
@@ -1029,7 +1029,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
   // 전체 누적 (오름차순)
   const sorted      = [...records].sort((a, b) => a.date_label.localeCompare(b.date_label))
-  // 초기 시���: 첫 번째 rebalance 기록의 seed_capital (없으면 settings의 seed_capital 폴백)
+  // 초기 시: 첫 번째 rebalance 기록의 seed_capital (없으면 settings의 seed_capital 폴백)
   const firstSeed   = sorted.length > 0 ? Number(sorted[0].seed_capital) : (seedCapital ?? 0)
   // 마지막 확정 잔고 (저장된 기록 기준)
   const confirmedValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : (seedCapital ?? 0)
@@ -1060,7 +1060,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
         body: JSON.stringify({ date_label: dateStr, daily_pnl: pnl, note: inputNote }),
       })
       const json = await res.json()
-      if (!res.ok) { setSaveMsg(json.error ?? "저��� 실패"); return }
+      if (!res.ok) { setSaveMsg(json.error ?? "저장 실패"); return }
       setSaveMsg("저장 완료")
       load()
     } catch { setSaveMsg("저장 실패") } finally { setSaving(false) }
@@ -1119,7 +1119,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
       const hh = String(now.getUTCHours()).padStart(2, "0")
       const mi = String(now.getUTCMinutes()).padStart(2, "0")
       const ss = String(now.getUTCSeconds()).padStart(2, "0")
-      const ampm = now.getUTCHours() < 12 ? "���전" : "오후"
+      const ampm = now.getUTCHours() < 12 ? "오전" : "오후"
       const h12  = now.getUTCHours() % 12 === 0 ? 12 : now.getUTCHours() % 12
       setClosedTime(`${ampm} ${String(h12).padStart(2,"0")}:${mi}:${ss}`)
       setConfirmOpen(false)
@@ -1725,7 +1725,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   useEffect(() => {
     setLoading(true)
     fetchPositions()
-    // 과거 날짜는 갱신 불필요, ���늘만 30초 주기로 갱신
+    // 과거 날짜는 갱신 불필요, 오늘만 30초 주기로 갱신
     if (isToday) {
       const refresh = setInterval(fetchPositions, 30_000)
       return () => clearInterval(refresh)
@@ -2382,7 +2382,7 @@ export default function TradePage() {
     if (liquidated.length > 0) {
       fetchBalance()
       liquidated.forEach((p: any) =>
-        alert(`[강제청산] ${p.symbol.replace("USDT","")} ${p.direction === "long" ? "롱" : "숏"} ${p.leverage}x 포지션이 강제���� 되었���니다.`)
+        alert(`[강제청산] ${p.symbol.replace("USDT","")} ${p.direction === "long" ? "롱" : "숏"} ${p.leverage}x 포지션이 강제 청산 되었습니다.`)
       )
     }
 
@@ -2484,7 +2484,7 @@ export default function TradePage() {
         body:    JSON.stringify({ position_id: id, current_price: price }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { alert(data.error ?? `청산 ���패 (${res.status})`); return }
+      if (!res.ok) { alert(data.error ?? `청산 실패 (${res.status})`); return }
       setBalance(data.newBalance)
       setPositions(prev => prev.filter(p => p.id !== id))
       setLogs(l => [{
