@@ -349,18 +349,19 @@ async function handleSignal2(args: {
 }) {
   const { type, symbol, price, formatted_time_kst, ip, body, logRequest } = args
 
-  const { data: settings2 } = await adminSupabase
-    .from("auto_signal2_settings")
-    .select("size_usd, leverage, enabled, real_order_enabled, stop_loss_pct")
-    .eq("id", 1)
-    .single()
+  const [{ data: settings2 }, { data: rule2 }] = await Promise.all([
+    adminSupabase.from("auto_signal2_settings").select("size_usd, leverage, enabled, real_order_enabled, stop_loss_pct").eq("id", 1).single(),
+    adminSupabase.from("auto_signal_rules").select("direction, enabled").eq("signal_type", type).single(),
+  ])
 
   if (!settings2?.enabled) {
     await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "auto-signal2 disabled" })
     return NextResponse.json({ skipped: true, reason: "auto_signal2_disabled" })
   }
 
-  const direction: string = type.toUpperCase().includes("DOWN") ? "short" : "long"
+  // 방향은 신호 이름이 아니라 auto_signal_rules에 등록된 실제 방향을 따른다 (예: UP2, UP7은 SHORT)
+  // 규칙이 없을 때만 이름 기반 추정으로 폴백
+  const direction: string = rule2?.direction ?? (type.toUpperCase().includes("DOWN") ? "short" : "long")
 
   let signalTime: string
   let dateLabel: string
