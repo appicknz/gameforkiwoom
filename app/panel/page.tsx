@@ -3861,7 +3861,7 @@ export default function PanelPage() {
             {/* 환전 요청 생성 */}
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-primary" /> 환전 요청</h2>
-              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인트를 입력하면 대총판/마스터가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
+              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인트를 ���력하면 대총판/마스터가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
               <div className="flex gap-2 flex-wrap">
                 <Input placeholder="유저 아이디" value={exTargetId} onChange={e => setExTargetId(e.target.value)} className="h-9 text-sm w-40" />
                 <Input placeholder="포인트 금액" type="number" value={exPointAmt} onChange={e => setExPointAmt(e.target.value)} className="h-9 text-sm w-36" />
@@ -3874,7 +3874,7 @@ export default function PanelPage() {
                     body: JSON.stringify({ targetUsername: exTargetId, pointAmount: Number(exPointAmt), memo: exMemo }),
                   })
                   const d = await res.json()
-                  setExMsg(res.ok ? { text: "환전 요청됐습���다.", ok: true } : { text: d.error ?? "오류", ok: false })
+                  setExMsg(res.ok ? { text: "환전 요청됐습니다.", ok: true } : { text: d.error ?? "오류", ok: false })
                   if (res.ok) { setExTargetId(""); setExPointAmt(""); setExMemo(""); loadExRequests() }
                   setExSubmitting(false)
                 }}>요청</Button>
@@ -3887,11 +3887,11 @@ export default function PanelPage() {
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <h2 className="text-sm font-semibold text-foreground">환전 요청 목록</h2>
                 <Button variant="ghost" size="sm" onClick={loadExRequests} disabled={exLoading} className="text-xs gap-1.5">
-                  <RefreshCw className={`w-3.5 h-3.5 ${exLoading ? "animate-spin" : ""}`} /> 새로��침
+                  <RefreshCw className={`w-3.5 h-3.5 ${exLoading ? "animate-spin" : ""}`} /> 새로고침
                 </Button>
               </div>
               <div className="divide-y divide-border">
-                {exRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">���청이 없습니다.</p>}
+                {exRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
                 {exRequests.map((r: any) => (
                   <div key={r.id} className="px-5 py-4 flex items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -3899,7 +3899,7 @@ export default function PanelPage() {
                         <span className="text-sm font-medium text-foreground">{r.target_user?.username}</span>
                         <span className="text-xs font-semibold text-foreground">{r.point_amount?.toLocaleString()} P</span>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-                          {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거��"}
+                          {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거절"}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">요청자: {r.requester?.username} {r.memo ? `· ${r.memo}` : ""}</p>
@@ -3929,10 +3929,10 @@ export default function PanelPage() {
             </div>
             {exApproveMsg && <p className={`text-xs text-center ${exApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{exApproveMsg.text}</p>}
 
-            {/* ���밀번호 초기화 요청 */}
+            {/* 비밀번호 초기화 요청 */}
             {["branch_admin", "admin"].includes(myRole) && (
               <div className="bg-card border border-border rounded-xl p-5 space-y-3">
-                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><KeyRound className="w-4 h-4 text-primary" /> 비밀번호 초기화 ��청</h2>
+                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><KeyRound className="w-4 h-4 text-primary" /> 비밀번호 초기화 요청</h2>
                 <div className="flex gap-2">
                   <Input placeholder="유저 아이디" value={prTargetId} onChange={e => setPrTargetId(e.target.value)} className="h-9 text-sm flex-1" />
                   <Button size="sm" className="h-9 shrink-0" disabled={prSubmitting} onClick={async () => {
@@ -3956,20 +3956,20 @@ export default function PanelPage() {
             {isSuperAdmin && (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-                  <h2 className="text-sm font-semibold text-foreground">비밀���호 초기화 요청 목��</h2>
+                  <h2 className="text-sm font-semibold text-foreground">비밀번호 초기화 요청 목록</h2>
                   <Button variant="ghost" size="sm" onClick={loadPrRequests} disabled={prLoading} className="text-xs gap-1.5">
                     <RefreshCw className={`w-3.5 h-3.5 ${prLoading ? "animate-spin" : ""}`} /> 새로고침
                   </Button>
                 </div>
                 <div className="divide-y divide-border">
-                  {prRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습��다.</p>}
+                  {prRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
                   {prRequests.map((r: any) => (
                     <div key={r.id} className="px-5 py-4 flex items-center justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium text-foreground">{r.target_user?.username}</span>
                           <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-                            {r.status === "pending" ? "대기" : r.status === "approved" ? "���료" : "거절"}
+                            {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거절"}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">요청자: {r.requester?.username}</p>
@@ -3990,7 +3990,7 @@ export default function PanelPage() {
               </div>
             )}
 
-            {/* 비밀번호 초��화 승인 모달 */}
+            {/* 비밀번호 초기화 승인 모달 */}
             {prApproveId && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                 <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
@@ -4002,7 +4002,7 @@ export default function PanelPage() {
                   </div>
                   {prApproveMsg && <p className={`text-xs ${prApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{prApproveMsg.text}</p>}
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setPrApproveId(null)}>���소</Button>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setPrApproveId(null)}>취소</Button>
                     <Button size="sm" className="flex-1" disabled={prApproving} onClick={async () => {
                       setPrApproving(true); setPrApproveMsg(null)
                       const token = getToken()
@@ -4055,7 +4055,7 @@ export default function PanelPage() {
           </div>
         )}
 
-        {/* ────��──────── 매출 달력 탭 ───────────── */}
+        {/* ──────────── 매출 달력 탭 ───────────── */}
         {activeTab === "calendar" && (
           <div className="space-y-6">
 
@@ -4096,7 +4096,7 @@ export default function PanelPage() {
               return (
                 <div className="bg-card border border-border rounded-xl overflow-hidden">
                   <div className="grid grid-cols-7 border-b border-border">
-                    {["��", "월", "화", "수", "목", "금", "토"].map(d => (
+                    {["일", "월", "화", "수", "목", "금", "토"].map(d => (
                       <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
                     ))}
                   </div>
@@ -4117,7 +4117,7 @@ export default function PanelPage() {
                           <span className={`text-xs font-medium ${isToday ? "w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center" : "text-foreground"}`}>{day}</span>
                           {d && (
                             <div className="mt-1 space-y-0.5">
-                              <p className="text-[9px] text-emerald-600 font-medium">+{(d.charge / 10000).toFixed(0)}��</p>
+                              <p className="text-[9px] text-emerald-600 font-medium">+{(d.charge / 10000).toFixed(0)}만</p>
                               {d.exchange > 0 && <p className="text-[9px] text-red-500">-{(d.exchange / 10000).toFixed(0)}만</p>}
                             </div>
                           )}
@@ -4129,8 +4129,8 @@ export default function PanelPage() {
                   <div className="px-5 py-3 border-t border-border bg-muted/30 flex gap-6 text-sm">
                     <span className="text-muted-foreground">월 합계</span>
                     <span className="text-emerald-600 font-semibold">충전 +{calData.reduce((s, r) => s + r.charge_total, 0).toLocaleString()}</span>
-                    <span className="text-red-500 font-semibold">��전 -{calData.reduce((s, r) => s + r.exchange_total, 0).toLocaleString()}</span>
-                    <span className="font-bold text-foreground">���이익 {calData.reduce((s, r) => s + r.net_total, 0).toLocaleString()}</span>
+                    <span className="text-red-500 font-semibold">환전 -{calData.reduce((s, r) => s + r.exchange_total, 0).toLocaleString()}</span>
+                    <span className="font-bold text-foreground">순이익 {calData.reduce((s, r) => s + r.net_total, 0).toLocaleString()}</span>
                   </div>
                 </div>
               )
@@ -4140,7 +4140,7 @@ export default function PanelPage() {
             {calSelectedDate && memberDetail && (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="px-5 py-4 border-b border-border">
-                  <h2 className="text-sm font-semibold text-foreground">{calSelectedDate} 지점별 회원 상���</h2>
+                  <h2 className="text-sm font-semibold text-foreground">{calSelectedDate} 지점별 회원 상세</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">{memberDetail.branch} · {memberDetail.members?.length ?? 0}명</p>
                 </div>
 
@@ -4204,7 +4204,7 @@ export default function PanelPage() {
                                   <th className="py-2 text-left font-medium">라운드</th>
                                   <th className="py-2 text-left font-medium">게임</th>
                                   <th className="py-2 text-left font-medium">배팅</th>
-                                  <th className="py-2 text-right font-medium">배팅��</th>
+                                  <th className="py-2 text-right font-medium">배팅액</th>
                                   <th className="py-2 text-right font-medium">배당</th>
                                   <th className="py-2 text-right font-medium">결과</th>
                                   <th className="py-2 text-right font-medium">수익</th>
@@ -4249,7 +4249,7 @@ export default function PanelPage() {
                 <Shield className="w-4 h-4 text-primary" /> 관리자 계정 생성
               </h2>
               <p className="text-xs text-muted-foreground mb-5">
-                대총판 · 총판 · 지�� 계정을 직접 생성합니다. 생성 후 해당 계정으�� 로그인하면 각 역할에 맞는 탭이 표시됩니다.
+                대총판 · 총판 · 지점 계정을 직접 생성합니다. 생성 후 해당 계정으로 로그인하면 각 역할에 맞는 탭이 표시됩니다.
               </p>
 
               {/* 역할 선택 */}
@@ -4338,7 +4338,7 @@ export default function PanelPage() {
               </div>
               <div className="divide-y divide-border">
                 {users.filter(u => ["super_admin", "branch_admin", "admin"].includes(u.role)).length === 0 ? (
-                  <p className="py-10 text-center text-sm text-muted-foreground">생성�� 관리자 계정이 없습니다.</p>
+                  <p className="py-10 text-center text-sm text-muted-foreground">생성된 관리자 계정이 없습니다.</p>
                 ) : (
                   users
                     .filter(u => ["super_admin", "branch_admin", "admin"].includes(u.role))
@@ -4385,7 +4385,7 @@ export default function PanelPage() {
                   <h2 className="text-sm font-semibold text-foreground mb-1">카드 이미지 관리</h2>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     업로드한 이미지는 순번 순서대로 카드 배경으로 사용됩니다.<br />
-                    각 라운드에서 순번 기반으로 하나가 ��택되어 카��에 오버레이됩니다.<br />
+                    각 라운드에서 순번 기반으로 하나가 선택되어 카드에 오버레이됩니다.<br />
                     JPG, PNG, WebP 파일을 지원합니다.
                   </p>
                 </div>
@@ -4393,7 +4393,7 @@ export default function PanelPage() {
                   <input ref={cardFileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleCardUpload} />
                   <Button onClick={() => cardFileInputRef.current?.click()} disabled={uploading} className="flex items-center gap-2">
                     <Upload className="w-4 h-4" />
-                    {uploading ? "업로드 중..." : "이미지 추��"}
+                    {uploading ? "업로드 중..." : "이미지 추가"}
                   </Button>
                 </div>
               </div>
@@ -4409,14 +4409,14 @@ export default function PanelPage() {
               <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center">
                 <ImageIcon className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">업로드된 카드 이미지가 없습니다.</p>
-                <p className="text-xs text-muted-foreground mt-1">위��� &quot;이미지 추가&quot; ��튼으로 업로���하세요.</p>
+                <p className="text-xs text-muted-foreground mt-1">위의 &quot;이미지 추가&quot; 버튼으로 업로드하세요.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {cardImages.map((img, idx) => (
                   <div key={img.pathname} className="group relative bg-card border border-border rounded-xl overflow-hidden aspect-[3/4]">
                     <div className="absolute top-2 left-2 z-10 bg-black/70 text-white text-xs font-bold px-2 py-0.5 rounded-full">#{idx + 1}</div>
-                    <img src={img.url} alt={`카드 이��지 #${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={img.url} alt={`카드 이미지 #${idx + 1}`} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                       <button
                         onClick={() => handleCardDelete(img.url)}
@@ -4450,7 +4450,7 @@ export default function PanelPage() {
                       : "bg-muted text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {p === "all" ? "전체" : p === "month" ? "이번���" : "지난달"}
+                  {p === "all" ? "전체" : p === "month" ? "이번달" : "지난달"}
                 </button>
               ))}
               <button
@@ -4491,7 +4491,7 @@ export default function PanelPage() {
                     </p>
                   </div>
                   <div className={`border rounded-xl p-5 ${pnlData.net_pnl >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
-                    <p className="text-xs text-muted-foreground mb-1">순 손��</p>
+                    <p className="text-xs text-muted-foreground mb-1">순 손익</p>
                     <p className="text-xs text-muted-foreground mb-2">요율차익 + 수수료 - 환전</p>
                     <p className={`text-2xl font-bold ${pnlData.net_pnl >= 0 ? "text-emerald-600" : "text-red-500"}`}>
                       {pnlData.net_pnl >= 0 ? "+" : ""}{formatBalance(pnlData.net_pnl)}
@@ -4567,7 +4567,7 @@ export default function PanelPage() {
               loadCommRates()
               setCommEditing({})
             } else {
-              setCommMsg({ text: d.error ?? "저장 ��패", ok: false })
+              setCommMsg({ text: d.error ?? "저장 실패", ok: false })
             }
             setCommSaving(false)
           }
@@ -4645,7 +4645,7 @@ export default function PanelPage() {
                 )}
               </div>
 
-              {/* 내 수수료 잔�� */}
+              {/* 내 수수료 잔고 */}
               <div className="bg-card border border-border rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-foreground">내 수수료 잔고</h3>
@@ -4752,7 +4752,7 @@ export default function PanelPage() {
               )}
             </div>
 
-            {/* 섹션 3: 채널 메시지 직접 ���송 */}
+            {/* 섹션 3: 채널 메시지 직접 발송 */}
             <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-3">
               <p className="text-sm font-semibold text-foreground">채널 메시지 전송</p>
               <p className="text-xs text-muted-foreground">충전 채널 <span className="font-mono text-foreground">-1004471984422</span> 로 메시지를 직접 전송합니다.</p>
@@ -4836,7 +4836,7 @@ export default function PanelPage() {
               ))}
             </div>
 
-            {/* ─�� 자동주문 서브탭 ── */}
+            {/* ── 자동주문 서브탭 ── */}
             {autoSubTab === "order" && (
               <div className="space-y-6">
 
@@ -4878,7 +4878,7 @@ export default function PanelPage() {
                               headers: { Authorization: `Bearer ${tok}` },
                             })
                             const d = await res.json()
-                            setTgWebhookInfo(d.ok ? `등록 완료: ${d.webhookUrl}` : `���류: ${d.description ?? d.error}`)
+                            setTgWebhookInfo(d.ok ? `등록 완료: ${d.webhookUrl}` : `오류: ${d.description ?? d.error}`)
                             setTgWebhookLoading(false)
                           }}
                           className="h-7 px-3 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
@@ -5374,7 +5374,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               </div>
             )}
 
-            {/* ── 주���로그 서브탭 ── */}
+            {/* ── 주문로그 서브탭 ── */}
             {autoSubTab === "logs" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -5588,7 +5588,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   </button>
                 </div>
                 <p className="text-[10px] text-muted-foreground">
-                  헤���: <code className="bg-secondary px-1 rounded">x-internal-secret: {"{INTERNAL_SECRET}"}</code>
+                  헤더: <code className="bg-secondary px-1 rounded">x-internal-secret: {"{INTERNAL_SECRET}"}</code>
                 </p>
               </div>
 
@@ -5682,13 +5682,13 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 {autoMsg && <span className="text-xs text-muted-foreground">{autoMsg}</span>}
               </div>
 
-              {/* 시그널 타입별 방�� 설정 */}
+              {/* 시그널 타입별 방향 설정 */}
               {signalRules.length > 0 && (
                 <div className="rounded-xl border border-border overflow-hidden mt-2">
                   <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center gap-2">
                     <ArrowLeftRight className="w-4 h-4 text-primary" />
                     <span className="text-sm font-semibold text-foreground">시그널 타입 설정</span>
-                    <span className="text-xs text-muted-foreground">— 방향(롱/숏) 및 활���화</span>
+                    <span className="text-xs text-muted-foreground">— 방향(롱/숏) 및 활성화</span>
                   </div>
                   <div className="divide-y divide-border">
                     {signalRules.map(rule => (
@@ -5762,7 +5762,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               <h2 className="text-sm font-semibold text-foreground">리밸런싱 (시드 관리)</h2>
               <p className="text-xs text-muted-foreground">
                 초기 시드 자본을 설정하고, 수동으로 오늘의 잔고 스냅샷을 매매기록에 저장합니다.<br />
-                ��정 cron이 자동으로 저장하지만 수동 저장도 가능합니다.
+                고정 cron이 자동으로 저장하지만 수동 저장도 가능합니다.
               </p>
 
               {/* 시드 자본 설정 */}
@@ -6098,7 +6098,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">출금</h2>
                     <p className="text-xs text-muted-foreground mt-1">
-                      매매기록 최신 잔고 기준으로 차감되며, 오늘 날짜 레코드로 ��영됩니다.
+                      매매기록 최신 잔고 기준으로 차감되며, 오늘 날짜 레코드로 반영됩니다.
                     </p>
                     <div className="flex items-center gap-4 mt-2">
                       {currentBalance !== null && (
@@ -6159,7 +6159,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">수익 분배 항목 설정</h2>
                     <p className="text-xs text-muted-foreground mt-1">
-                      수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합���가 100%를 초과하지 않도록 하세요.
+                      수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합계가 100%를 초과하지 않도록 하세요.
                     </p>
                   </div>
 
@@ -6293,7 +6293,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 {walletRepairResult.repaired.length > 0 && (
                   <div className="rounded-xl border border-border overflow-hidden">
                     <div className="grid grid-cols-[1fr_2fr_2fr] gap-0 text-[11px] font-semibold text-muted-foreground bg-secondary/40 px-4 py-2">
-                      <span>유저���</span>
+                      <span>유저명</span>
                       <span>기존 주소</span>
                       <span>새 주소</span>
                     </div>
@@ -6314,7 +6314,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               <div>
                 <h2 className="text-base font-semibold text-foreground">미반영 입금 수동 처리</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  인덱서가 ��친 트랜잭션의 Solana signature를 입력하면 즉시 잔고를 반영합니다.
+                  인덱서가 놓친 트랜잭션의 Solana signature를 입력하면 즉시 잔고를 반영합니다.
                   이미 처리된 signature는 중복 적립되지 않습니다.
                 </p>
               </div>
@@ -6453,8 +6453,8 @@ function WriteRequestsPanel({ token }: { token: string }) {
       })
       const data = await res.json()
       if (!res.ok) { setMsg({ id: requestId, ok: false, text: data.error ?? "처리 실패" }); return }
-      setMsg({ id: requestId, ok: true, text: action === "approve" ? `승인 완료${pointChecks[requestId] ? " (포인�� 카테고리 포함)" : ""}` : "거절 완료" })
-      // 목�� 새로고침 (역할 변경 반영)
+      setMsg({ id: requestId, ok: true, text: action === "approve" ? `승인 완료${pointChecks[requestId] ? " (포인트 카테고리 포함)" : ""}` : "거절 완료" })
+      // 목록 새로고침 (역할 변경 반영)
       await load(filter)
     } catch {
       setMsg({ id: requestId, ok: false, text: "오류 발생" })
@@ -6470,7 +6470,7 @@ function WriteRequestsPanel({ token }: { token: string }) {
     { key: "all",      label: "전체" },
   ]
 
-  const ROLE_LABEL: Record<string, string> = { user: "일반", member: "멤버", admin: "���점", branch_admin: "총판", super_admin: "대총판", master: "마스터" }
+  const ROLE_LABEL: Record<string, string> = { user: "일반", member: "멤버", admin: "지점", branch_admin: "총판", super_admin: "대총판", master: "마스터" }
 
   return (
     <div className="p-6 space-y-5">
@@ -6672,7 +6672,7 @@ function GameAccessToggle({
   )
 }
 
-// ─── 역할 변경 컴포넌트 ���────────────────────────────────────────────
+// ─── 역할 변경 컴포넌트 ────────────────────────────────────────────
 function RoleChanger({
   userId, currentRole, token, roleLabel, onChanged,
 }: {
