@@ -303,3 +303,175 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, id: data.id })
 }
+
+// ─────────────────────────────────────────────────────────────
+// 자동매매2 (역삼1 전용, UP3 제외 신호) — 완전히 분리된 기록/거래 경로
+// 기존 auto_signal_positions/통계에는 절대 영향을 주지 않음
+// ─────────────────────────────────────────────────────────────
+function toTvmSymbol2(sym: string): string {
+  const clean = sym.replace("BINANCE:", "").replace(".P", "")
+  if (clean.endsWith("USDT")) return clean.slice(0, -4) + "/USDT"
+  return clean
+}
+
+function buildTvm2(params: {
+  account: string; symbol: string; side: string
+  amount: number; leverage: number
+  tpPct?: number | null; slPct?: number | null; token: string
+}): string {
+  const json: Record<string, unknown> = {
+    exchange:    "binance-futures",
+    account:     params.account,
+    symbol:      params.symbol,
+    type:        "market",
+    side:        params.side,
+    open_order:  "cancel",
+    same_order:  "skip",
+    leverage:    params.leverage,
+    margin_type: "cross",
+    amount:      params.amount,
+    amount_type: "usdt",
+    token:       params.token,
+  }
+  if (params.tpPct != null) json.tp_pct = params.tpPct
+  if (params.slPct != null) json.sl_pct = params.slPct
+  return `TVM:${JSON.stringify(json)}:MVT`
+}
+
+async function handleSignal2(args: {
+  type: string
+  symbol: string
+  price: string
+  formatted_time_kst?: string
+  ip: string
+  body: Record<string, unknown>
+  logRequest: typeof logRequest
+}) {
+  const { type, symbol, price, formatted_time_kst, ip, body, logRequest } = args
+
+  const { data: settings2 } = await adminSupabase
+    .from("auto_signal2_settings")
+    .select("size_usd, leverage, enabled, real_order_enabled, stop_loss_pct")
+    .eq("id", 1)
+    .single()
+
+  if (!settings2?.enabled) {
+    await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "auto-signal2 disabled" })
+    return NextResponse.json({ skipped: true, reason: "auto_signal2_disabled" })
+  }
+
+  const direction: string = type.toUpperCase().includes("DOWN") ? "short" : "long"
+
+  let signalTime: string
+  let dateLabel: string
+  try {
+    const raw    = formatted_time_kst ?? new Date().toISOString()
+    const kstStr = raw.replace(" ", "T")
+    dateLabel  = kstStr.slice(0, 10)
+    signalTime = new Date(kstStr + "+09:00").toISOString()
+  } catch {
+    signalTime = new Date().toISOString()
+    dateLabel  = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  }
+
+  const cleanSymbol = symbol.replace(".P", "")
+
+  // 중복 체크 — 같은 날 같은 종목+방향
+  const { data: existing2 } = await adminSupabase
+    .from("auto_signal2_positions")
+    .select("id")
+    .eq("symbol",     cleanSymbol)
+    .eq("direction",  direction)
+    .eq("date_label", dateLabel)
+    .maybeSingle()
+
+  if (existing2) {
+    await logRequest("skipped", 200, body, {
+      ip, symbol, signalType: type,
+      errorMsg: `duplicate(signal2): ${cleanSymbol} ${direction} already exists for ${dateLabel} (id: ${existing2.id})`,
+    })
+    return NextResponse.json({ skipped: true, reason: "duplicate_symbol_date_signal2", existing_id: existing2.id })
+  }
+
+  let realOrderSent = false
+
+  // 실주문 토글이 켜져 있을 때만 거래소(TVM)에 주문 전송
+  if (settings2.real_order_enabled) {
+    const { data: tradingGs } = await adminSupabase
+      .from("auto_trading_global_settings")
+      .select("webhook_url, enabled")
+      .eq("id", 1)
+      .single()
+
+    if (tradingGs?.enabled && tradingGs?.webhook_url) {
+      const { data: tradingAccounts } = await adminSupabase
+        .from("auto_trading_accounts")
+        .select("id, account_name, auth_token, leverage, base_amount, take_profit_enabled, take_profit_percent, stop_loss_enabled, stop_loss_percent")
+        .eq("enabled", true)
+
+      if (tradingAccounts?.length) {
+        const tvmSymbol = toTvmSymbol2(cleanSymbol)
+        const side      = direction.toUpperCase() === "SHORT" ? "sell" : "buy"
+        const webhookUrl = tradingGs.webhook_url
+
+        const tvmResults = await Promise.all(
+          tradingAccounts.map(async (acc: Record<string, unknown>) => {
+            const tvm = buildTvm2({
+              account:  acc.account_name as string,
+              symbol:   tvmSymbol,
+              side,
+              amount:   Number(settings2.size_usd ?? acc.base_amount),
+              leverage: Number(settings2.leverage ?? acc.leverage),
+              tpPct:    acc.take_profit_enabled ? (acc.take_profit_percent as number) : null,
+              slPct:    acc.stop_loss_enabled   ? (acc.stop_loss_percent   as number) : null,
+              token:    acc.auth_token as string,
+            })
+            try {
+              const res = await fetch(webhookUrl, {
+                method:  "POST",
+                headers: { "Content-Type": "text/plain" },
+                body:    tvm,
+                signal:  AbortSignal.timeout(10000),
+              })
+              return { ok: res.ok }
+            } catch {
+              return { ok: false }
+            }
+          })
+        )
+        realOrderSent = tvmResults.some(r => r.ok)
+      }
+    }
+  }
+
+  const { data: inserted2, error: err2 } = await adminSupabase
+    .from("auto_signal2_positions")
+    .insert({
+      signal_type:  type,
+      symbol:       cleanSymbol,
+      direction,
+      entry_price:  parseFloat(price),
+      size_usd:     settings2.size_usd,
+      leverage:     settings2.leverage,
+      signal_time:  signalTime,
+      date_label:   dateLabel,
+      is_closed:    false,
+      webhook_raw:  body,
+      real_order:   realOrderSent,
+    })
+    .select("id")
+    .single()
+
+  if (err2) {
+    if (err2.code === "23505") {
+      await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "duplicate(signal2, race)" })
+      return NextResponse.json({ skipped: true, reason: "duplicate_race_signal2" })
+    }
+    await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: `signal2: ${err2.message}` })
+    return NextResponse.json({ error: err2.message }, { status: 500 })
+  }
+
+  await logRequest("ok", 200, body, { ip, symbol, signalType: type, errorMsg: realOrderSent ? "signal2(real_order)" : "signal2(record_only)" })
+
+  return NextResponse.json({ ok: true, id: inserted2.id, signal2: true, real_order: realOrderSent })
+}
