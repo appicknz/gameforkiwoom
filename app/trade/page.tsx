@@ -3112,7 +3112,7 @@ export default function TradePage() {
           <div className="flex w-full gap-1.5">
             {([
               ...(allowMockTrade ? [{ key: "mock" as const,   label: "모의매매", Icon: LineChart }]  : []),
-              { key: "auto"   as const, label: "���동매매", Icon: Bot },
+              { key: "auto"   as const, label: "자동매매", Icon: Bot },
               { key: "ledger" as const, label: "매매기록",  Icon: BookOpen },
               ...(userName === "역삼1" ? [{ key: "auto2" as const, label: "자동매매2", Icon: Bot }] : []),
               ...(userName === "역삼1" ? [{ key: "closed" as const, label: "청산기록", Icon: ListChecks }] : []),
