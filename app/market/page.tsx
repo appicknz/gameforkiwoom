@@ -702,7 +702,7 @@ export default function MarketPage() {
                     link_url:     null,
                     price_krw:    item.price_krw,
                     category_id:  item.category_id,
-                    publisher_id: "", // ���널 내에서 publishers 로드 후 표시
+                    publisher_id: "", // 패널 내에서 publishers 로드 후 표시
                     image_url:    item.image_url,
                     is_active:    true,
                   })

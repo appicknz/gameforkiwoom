@@ -186,7 +186,7 @@ export default function PanelPage() {
   const [profile, setProfile] = useState<{ username: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [adminPw, setAdminPw] = useState<string>(() => {
-    // sessionStorage 캐시 우선, 없�����면 admin 역할은 빈 문자열로 시작 (게이트 스���)
+    // sessionStorage 캐시 우선, 없으면 admin 역할은 빈 문자열로 시작 (게이트 스킵)
     if (typeof window !== "undefined") return getCachedPw() ?? ""
     return ""
   })
@@ -320,7 +320,7 @@ export default function PanelPage() {
   const [walletRepairLoading, setWalletRepairLoading] = useState(false)
   const [walletRepairResult, setWalletRepairResult]   = useState<{ repairedCount: number; skippedCount: number; repaired: { id: string; username: string; oldAddress: string | null; newAddress: string }[] } | null>(null)
   const [walletRepairError, setWalletRepairError]     = useState<string | null>(null)
-  // 미반영 입금 수동 재처리 (master 전���)
+  // 미반영 입금 수동 재처리 (master 전용)
   const [replaySig, setReplaySig]         = useState("")
   const [replayLoading, setReplayLoading] = useState(false)
   const [replayResult, setReplayResult]   = useState<{ replayed: { owner: string; delta: number; creditAmount: number }[] } | null>(null)
@@ -353,7 +353,7 @@ export default function PanelPage() {
       })
       const d = await res.json()
       if (res.ok) {
-        setAcMsg({ text: `계정이 생���되었습니다. (${acUsername})`, ok: true })
+        setAcMsg({ text: `계정이 생성되었습니다. (${acUsername})`, ok: true })
         setAcUsername(""); setAcPassword(""); setAcMemo("")
         loadUsers(adminPw)
       } else {
@@ -674,13 +674,13 @@ export default function PanelPage() {
         setMyRole(role)
         setMyBranchCode(data.profile?.branch_code ?? null)
         setProfile({ username: data.profile?.username ?? "", role })
-        // 역할에 맞는 기�� 탭���로 자동 이동
+        // 역할에 맞는 기본 탭으로 자동 이동
         if (DEFAULT_TAB[role]) setActiveTab(DEFAULT_TAB[role])
         setLoading(false)
         // 역할별 초기 데이터 로드
         const tok = getToken()
         if (!tok) return
-        // 내 잔고 즉시 ��드 (모든 역할)
+        // 내 잔고 즉시 로드 (모든 역할)
         fetch("/api/admin/my-balance", { headers: { Authorization: `Bearer ${tok}` } })
           .then(r => r.ok ? r.json() : null)
           .then(d => { if (d && typeof d.balance === "number") setMyBalance(d.balance) })
@@ -821,7 +821,7 @@ export default function PanelPage() {
     setUsersLoading(false)
   }, [myUserId])
 
-  // ��총판/총판: 5초마다 충전 요청 목록 + 내 잔고 자동 갱신
+  // 대총판/총판: 5초마다 충전 요청 목록 + 내 잔고 자동 갱신
   useEffect(() => {
     if (myRole !== "super_admin" && myRole !== "branch_admin") return
     const poll = () => {
@@ -879,7 +879,7 @@ export default function PanelPage() {
         setBranches(data.branches ?? [])
       }
     } catch (e) {
-      // 응답 파싱 실��� 무시
+      // 응답 파싱 실패 무시
     }
     setBranchesLoading(false)
   }, [myUserId])
@@ -889,7 +889,7 @@ export default function PanelPage() {
   useEffect(() => {
     if (adminPw && myUserId) {
       loadUsers(adminPw)
-      // superadmin: 전체 지점 로��
+      // superadmin: 전체 지점 로드
       // branch_admin: 자기 지점 id 파악을 위해 branches 로드 후 myBranchId 설정
       loadBranches(adminPw).then(() => {
         // branches 상태는 비동기로 업데이트되므로 직접 fetch
@@ -920,7 +920,7 @@ export default function PanelPage() {
     }
     const amount = parseInt(chargeAmount)
     if (!chargeAmount || isNaN(amount) || amount <= 0) {
-      setChargeMsg({ text: "올바른 금액을 ���력하세요.", ok: false })
+      setChargeMsg({ text: "올바른 금액을 입력하세요.", ok: false })
       setChargeLoading(false)
       return
     }
@@ -1022,13 +1022,13 @@ export default function PanelPage() {
   const roleLabel: Record<string, { label: string; color: string }> = {
     master:       { label: "마스터",      color: "bg-purple-100 text-purple-700" },
     super_admin:  { label: "대총판",      color: "bg-red-100 text-red-700" },
-    branch_admin: { label: "총��",        color: "bg-blue-100 text-blue-700" },
+    branch_admin: { label: "총판",        color: "bg-blue-100 text-blue-700" },
     admin:        { label: "지점관리자",  color: "bg-orange-100 text-orange-700" },
     seller:       { label: "셀러",        color: "bg-green-100 text-green-700" },
     user:         { label: "일반회원",    color: "bg-gray-100 text-gray-600" },
   }
 
-  // ─���� ���판 전용: 지점 드릴다운 + 유저 생성 ──
+  // ──── 총판 전용: 지점 드릴다운 + 유저 생성 ──
   const [selectedBranch, setSelectedBranch]   = useState<any | null>(null) // 클릭한 지점
   const [branchMembers, setBranchMembers]     = useState<any[]>([])
   const [branchMembersLoading, setBranchMembersLoading] = useState(false)
@@ -1051,7 +1051,7 @@ export default function PanelPage() {
   const [baChargeExpanded, setBaChargeExpanded] = useState(false)
   // 마켓 상품 등록 모달
   const [showUploadModal, setShowUploadModal]   = useState(false)
-  // 총판 전용: ���점이 올린 충전 요청 목록
+  // 총판 전용: 지점이 올린 충전 요청 목록
   const [branchChargeReqs, setBranchChargeReqs]         = useState<any[]>([])
   const [baBranchChargeLoading, setBaBranchChargeLoading] = useState(false)
   const [branchChargeExpanded, setBranchChargeExpanded]   = useState(false)
@@ -1060,7 +1060,7 @@ export default function PanelPage() {
   const [baExLoading, setBaExLoading]         = useState(false)
   const [baExExpanded, setBaExExpanded]       = useState(false) // 환전 대기 펼침
   const [baStatExpanded, setBaStatExpanded]   = useState(false) // 누적 통계 펼침
-  // 총판 지점에 지급�� 포인트 합계 (point_charge_requests 기준)
+  // 총판 지점에 지급한 포인트 합계 (point_charge_requests 기준)
   const [baTotalCharged, setBaTotalCharged]   = useState(0)
 
   const loadBranchMembers = useCallback(async (branchCode: string) => {
@@ -1124,7 +1124,7 @@ export default function PanelPage() {
     setBranchExLoading(false)
   }, [])
 
-  // ── 유저 계정 생성 요청 모달 (admin 전��) �������
+  // ── 유저 계정 생성 요청 모달 (admin 전용) ──────
   const [adminCreateUserOpen, setAdminCreateUserOpen] = useState(false)
   const [acuUsername, setAcuUsername]   = useState("")
   const [acuPassword, setAcuPassword]   = useState("")
@@ -1218,7 +1218,7 @@ export default function PanelPage() {
     setBuSubmitting(false)
   }
 
-  // ���─ 포인트 구매 ���청 (현금 내고 포인트 사기) ──
+  // ──── 포인트 구매 요청 (현금 내고 포인트 사기) ──
   const [ppRequests, setPpRequests]         = useState<any[]>([])
   const [ppLoading, setPpLoading]           = useState(false)
   const [ppCashAmt, setPpCashAmt]           = useState("")
@@ -1232,7 +1232,7 @@ export default function PanelPage() {
   const [ppApproveMsg, setPpApproveMsg]     = useState<{ text: string; ok: boolean } | null>(null)
   const [ppApproving, setPpApproving]       = useState(false)
 
-  // ── 포인트 충전 요청 (임��계정 생성) ──
+  // ── 포인트 충전 요청 (임시계정 생성) ──
   const [pcRequests, setPcRequests]         = useState<any[]>([])
   const [pcLoading, setPcLoading]           = useState(false)
   const [pcPointAmt, setPcPointAmt]         = useState("")
@@ -1270,7 +1270,7 @@ export default function PanelPage() {
   const [branchExLoading, setBranchExLoading] = useState(false)
   const [branchExExpanded, setBranchExExpanded] = useState(false)
 
-  // ── 환전 ���청 ──
+  // ── 환전 요청 ──
   const [exRequests, setExRequests]         = useState<any[]>([])
   const [exLoading, setExLoading]           = useState(false)
   const [exTargetId, setExTargetId]         = useState("")
@@ -1440,7 +1440,7 @@ export default function PanelPage() {
           {/* 대총판: 총판 계정생성 버튼 */}
           {myRole === "super_admin" && (
             <Button size="sm" onClick={() => setSaOpen(true)} className="gap-1.5 text-xs">
-              <Plus className="w-3.5 h-3.5" /> 총판 계��생성
+              <Plus className="w-3.5 h-3.5" /> 총판 계정생성
             </Button>
           )}
           {myRole === "branch_admin" && (
@@ -1459,7 +1459,7 @@ export default function PanelPage() {
         </div>
       </header>
 
-      {/* ── 총판 전용: 지점 계정생성 ���달 ── */}
+      {/* ── 총판 전용: 지점 계정생성 모달 ── */}
       {baCreateOpen && myRole === "branch_admin" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-6 shadow-xl">
@@ -1493,7 +1493,7 @@ export default function PanelPage() {
                     </div>
                   </div>
                 </div>
-                <p className="text-[11px] text-amber-600">이 화면을 닫으면 비밀번호를 다시 확인할 수 없���니다.</p>
+                <p className="text-[11px] text-amber-600">이 화면을 닫으면 비밀번호를 다시 확인할 수 없습니다.</p>
                 <Button className="w-full" onClick={() => { setBaCreateOpen(false); setBaCreatedInfo(null); setBaNewBranchShowPw(false) }}>
                   확인
                 </Button>
@@ -1506,7 +1506,7 @@ export default function PanelPage() {
                 <div className="space-y-3 mb-4">
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점명 <span className="text-muted-foreground font-normal">(구분용)</span></p>
-                    <Input placeholder="예: 역��������1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
+                    <Input placeholder="예: 역삼1지점" value={baNewBranchName} onChange={e => setBaNewBranchName(e.target.value)} className="h-9 text-sm" />
                   </div>
                   <div>
                     <p className="text-xs font-medium text-foreground mb-1.5">지점코드 <span className="text-muted-foreground font-normal">(로그인 ID)</span></p>
@@ -1517,7 +1517,7 @@ export default function PanelPage() {
                     <div className="relative">
                       <Input
                         type={baNewBranchShowPw ? "text" : "password"}
-                        placeholder="���점 로그인 비밀번호"
+                        placeholder="지점 로그인 비밀번호"
                         value={baNewBranchPw}
                         onChange={e => setBaNewBranchPw(e.target.value)}
                         className="h-9 text-sm pr-9"
@@ -1557,7 +1557,7 @@ export default function PanelPage() {
               </button>
             </div>
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              총판��게 요청이 전달되며, ��인 후 계정이 ��성됩니다.<br />
+              총판에게 요청이 전달되며, 승인 후 계정이 생성됩니다.<br />
               수량이 2 이상이면 ID 뒤에 번호가 자동으로 붙습니다. (예: user01, user02)
             </p>
             <div className="space-y-3 mb-4">
@@ -1587,7 +1587,7 @@ export default function PanelPage() {
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1">메모 (선택)</label>
                 <textarea
-                  placeholder="총���에게 전달할 메모"
+                  placeholder="총판에게 전달할 메모"
                   value={acuMemo}
                   onChange={e => setAcuMemo(e.target.value)}
                   rows={2}
@@ -1658,7 +1658,7 @@ export default function PanelPage() {
               </div>
               <div className="space-y-2 mb-3">
                 <div>
-                  <p className="text-xs font-medium text-foreground mb-1">요율 입력 <span className="text-muted-foreground font-normal">(예: 1.2 �� {cashAmt > 0 ? `₩${Math.floor(cashAmt * 1.2).toLocaleString()}` : "1.2배"} 지급)</span></p>
+                  <p className="text-xs font-medium text-foreground mb-1">요율 입력 <span className="text-muted-foreground font-normal">(예: 1.2 → {cashAmt > 0 ? `₩${Math.floor(cashAmt * 1.2).toLocaleString()}` : "1.2배"} 지급)</span></p>
                   <Input type="number" step="0.01" placeholder="예: 1.2" value={ppApprovePoints} onChange={e => setPpApprovePoints(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
@@ -1668,7 +1668,7 @@ export default function PanelPage() {
               </div>
               {ppApproveMsg && <p className={`text-xs mb-3 ${ppApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{ppApproveMsg.text}</p>}
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => { setPpApproveId(null); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }}>��소</Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => { setPpApproveId(null); setPpApprovePw(""); setPpApprovePoints(""); setPpApproveMsg(null) }}>취소</Button>
                 <Button
                   data-confirm
                   size="sm"
@@ -1724,7 +1724,7 @@ export default function PanelPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-foreground mb-1.5">비밀번호</p>
-                <Input type="password" placeholder="초기 비밀���호 설정" value={saPassword} onChange={e => setSaPassword(e.target.value)} className="h-9 text-sm" />
+                <Input type="password" placeholder="초기 비밀번호 설정" value={saPassword} onChange={e => setSaPassword(e.target.value)} className="h-9 text-sm" />
               </div>
             </div>
             {saMsg && (
@@ -1916,7 +1916,7 @@ export default function PanelPage() {
                                       <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
                                       {user.telegram_username ? `@${user.telegram_username}` : user.telegram_first_name ?? user.telegram_id}
                                     </span>
-                                    {/* 텔레그램 고��� 주문금액 설정 */}
+                                    {/* 텔레그램 고정 주문금액 설정 */}
                                     {myRole === "master" && (
                                       <span className="flex items-center gap-1">
                                         <input
@@ -2058,7 +2058,7 @@ export default function PanelPage() {
                                 </div>
                               </div>
                             )}
-                            {/* 비밀번호 초기화 ���튼 (master만) */}
+                            {/* 비밀번호 초기화 버튼 (master만) */}
                             {myRole === "master" && (
                               <Button
                                 size="sm" variant="outline"
@@ -2156,7 +2156,7 @@ export default function PanelPage() {
                   value={newBranchCode}
                   onChange={e => setNewBranchCode(e.target.value.toUpperCase())}
                 />
-                {/* ���판 검색 (필��) */}
+                {/* 총판 검색 (필터) */}
                 <div className="relative">
                   <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
                   <Input
@@ -2224,11 +2224,11 @@ export default function PanelPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                       {/* 지점 수 */}
                       <div className="bg-card border border-border rounded-xl p-4">
-                        <p className="text-xs text-muted-foreground mb-1">��점 수</p>
+                        <p className="text-xs text-muted-foreground mb-1">지점 수</p>
                         <p className="text-2xl font-bold text-foreground">{branches.length}<span className="text-sm font-normal text-muted-foreground ml-1">개</span></p>
                         <p className="text-[11px] text-muted-foreground mt-1">현재 잔액 <span className="font-semibold text-foreground">₩{myBalance.toLocaleString()}</span></p>
                       </div>
-                      {/* 대기 중인 충전 — 클릭 시 ����� */}
+                      {/* 대기 중인 충전 — 클릭 시 확장 */}
                       <button
                         onClick={() => setBaChargeExpanded(v => !v)}
                         className="bg-card border border-border rounded-xl p-4 text-left hover:bg-muted/30 transition-colors"
@@ -2257,9 +2257,9 @@ export default function PanelPage() {
                       >
                         <p className="text-xs text-muted-foreground mb-1">대기 중인 환전</p>
                         <p className={`text-2xl font-bold ${pendingEx > 0 ? "text-primary" : "text-foreground"}`}>
-                          {pendingEx}<span className="text-sm font-normal text-muted-foreground ml-1">���</span>
+                          {pendingEx}<span className="text-sm font-normal text-muted-foreground ml-1">건</span>
                         </p>
-                        <p className="text-[11px] text-primary/70 mt-1">{baExExpanded ? "접기 ▲" : "��록 보기 ▼"}</p>
+                        <p className="text-[11px] text-primary/70 mt-1">{baExExpanded ? "접기 ▲" : "목록 보기 ▼"}</p>
                       </button>
                       {/* 누적 통계 — 클릭 시 펼침 */}
                       <button
@@ -2317,7 +2317,7 @@ export default function PanelPage() {
                                 <span>요청 ID / 지점</span>
                                 <span className="text-center">수량</span>
                                 <span className="text-center">메모</span>
-                                <span className="text-right">���청일시</span>
+                                <span className="text-right">요청일시</span>
                                 <span className="text-right">처리</span>
                               </div>
                               <div className="divide-y divide-border">
@@ -6454,7 +6454,7 @@ function WriteRequestsPanel({ token }: { token: string }) {
       const data = await res.json()
       if (!res.ok) { setMsg({ id: requestId, ok: false, text: data.error ?? "처리 실패" }); return }
       setMsg({ id: requestId, ok: true, text: action === "approve" ? `승인 완료${pointChecks[requestId] ? " (포인�� 카테고리 포함)" : ""}` : "거절 완료" })
-      // 목록 새로고침 (역할 변경 반영)
+      // 목�� 새로고침 (역할 변경 반영)
       await load(filter)
     } catch {
       setMsg({ id: requestId, ok: false, text: "오류 발생" })
