@@ -2260,6 +2260,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
 }
 
 // ─── 자동매매2 (역삼1 전용, UP3 제외 신호) — 기존 매매기록과 완전히 분리 ───
+// UI/집계 로직은 AutoSignalPanel(자동매매)과 100% 동일하게 유지 — 잔고 기준값만 고정 시드($10,000) 사용
 interface AutoPos2 extends AutoPos {
   final_pnl?:   number | null
   final_roi?:   number | null
@@ -2267,16 +2268,25 @@ interface AutoPos2 extends AutoPos {
   real_order?:  boolean
 }
 
-function AutoSignal2Panel({ selectedDate, searchQ = "", userRole }: {
+function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", userRole }: {
   selectedDate: Date
+  sortOrder?: "time" | "roi_desc" | "roi_asc" | "signal"
   searchQ?: string
   userRole?: string | null
 }) {
-  const [positions,    setPositions]    = useState<AutoPos2[]>([])
-  const [loading,      setLoading]      = useState(true)
-  const [, setTick]                     = useState(0)
-  const [realOrderOn,  setRealOrderOn]  = useState(false)
-  const [toggling,     setToggling]     = useState(false)
+  const [positions,        setPositions]        = useState<AutoPos2[]>([])
+  const [isHistorical,     setIsHistorical]     = useState(false)
+  const [loading,          setLoading]          = useState(true)
+  const [, setTick]        = useState(0)
+  const [stopLossPct,      setStopLossPct]      = useState<number | null>(null)
+  const [sizeUsdCfg,       setSizeUsdCfg]       = useState<number>(10)
+  const [startingBalance,  setStartingBalance]  = useState<number>(10000)
+  const [realOrderOn,      setRealOrderOn]      = useState(false)
+  const [toggling,         setToggling]         = useState(false)
+  // 강제 청산 모달 state
+  const [forceCloseId,     setForceCloseId]     = useState<string | null>(null)
+  const [forceClosePrice,  setForceClosePrice]  = useState<string>("")
+  const [forceClosing,     setForceClosing]     = useState(false)
   const closingRef = useRef<Set<string>>(new Set())
 
   const isMaster = userRole === "master"
@@ -2290,8 +2300,11 @@ function AutoSignal2Panel({ selectedDate, searchQ = "", userRole }: {
 
   const fetchPositions2 = useCallback(() => {
     fetch(`/api/auto-signal2/positions?date=${dateKey}`)
-      .then(r => r.ok ? r.json() : { positions: [] })
-      .then(d => setPositions(d.positions ?? []))
+      .then(r => r.ok ? r.json() : { positions: [], is_historical: false })
+      .then(d => {
+        setPositions(d.positions ?? [])
+        setIsHistorical(d.is_historical ?? false)
+      })
       .finally(() => setLoading(false))
   }, [dateKey])
 
@@ -2304,10 +2317,17 @@ function AutoSignal2Panel({ selectedDate, searchQ = "", userRole }: {
     }
   }, [fetchPositions2, isToday])
 
+  // 스탑로스 + 포지션당 금액 + 시작 잔고 설정 조회 (마운트 시 1회)
   useEffect(() => {
     fetch("/api/auto-signal2/settings")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.real_order_enabled != null) setRealOrderOn(Boolean(d.real_order_enabled)) })
+      .then(d => {
+        if (!d) return
+        if (d.stop_loss_pct      != null) setStopLossPct(Number(d.stop_loss_pct))
+        if (d.size_usd           != null) setSizeUsdCfg(Number(d.size_usd))
+        if (d.starting_balance   != null) setStartingBalance(Number(d.starting_balance))
+        if (d.real_order_enabled != null) setRealOrderOn(Boolean(d.real_order_enabled))
+      })
       .catch(() => {})
   }, [])
 
@@ -2349,19 +2369,40 @@ function AutoSignal2Panel({ selectedDate, searchQ = "", userRole }: {
     return () => { liveCache.listeners.delete(fn) }
   }, [isToday])
 
+  const dateLabel = `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일`
   const normalize = (raw: string) => raw.replace(/\.P$/, "").replace(/\//g, "")
 
   const posCalc = positions.map(pos => {
     const sym   = normalize(pos.symbol)
     const entry = Number(pos.entry_price)
-    const sizeUsd = Number(pos.size_usd ?? 20)
+
+    if (isHistorical) {
+      const sizeUsd  = Number(pos.size_usd ?? sizeUsdCfg)
+      const rawRoi   = pos.final_roi   != null ? Number(pos.final_roi)
+                     : pos.closed_roi  != null ? Number(pos.closed_roi)
+                     : null
+      const rawPrice = pos.close_price != null ? Number(pos.close_price)
+                     : pos.closed_price!= null ? Number(pos.closed_price)
+                     : 0
+      const hasCur = rawRoi !== null
+      const roi    = rawRoi ?? 0
+      const pnl    = sizeUsd * (roi / 100)
+      return { ...pos, sym, cur: rawPrice, hasCur, pnl, roi, delta: 0, isClose: true }
+    }
+
+    const sizeUsd = Number(pos.size_usd ?? sizeUsdCfg)
     const lev     = Number(pos.leverage ?? 10)
 
-    if (pos.is_closed) {
-      const roi = Number(pos.final_roi ?? pos.closed_roi ?? 0)
-      const pnl = Number(pos.final_pnl ?? sizeUsd * (roi / 100))
-      const cur = Number(pos.close_price ?? pos.closed_price ?? 0)
-      return { ...pos, sym, cur, hasCur: cur > 0, roi, pnl }
+    if (pos.is_closed && pos.close_reason === "stop_loss") {
+      const ticker = liveCache.tickers.get(sym)
+      const cur    = ticker ? ticker.price : 0
+      const hasCur = cur > 0 && entry > 0
+      const delta  = hasCur
+        ? (pos.direction === "long" ? (cur - entry) / entry : (entry - cur) / entry)
+        : 0
+      const roi = delta * lev * 100
+      const pnl = -(sizeUsd * 0.5)
+      return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
     }
 
     const ticker = liveCache.tickers.get(sym)
@@ -2373,18 +2414,45 @@ function AutoSignal2Panel({ selectedDate, searchQ = "", userRole }: {
     let roi = delta * lev * 100
     let pnl = sizeUsd * delta * lev
     if (roi < -45) pnl = -(sizeUsd * 0.5)
-    return { ...pos, sym, cur, hasCur, roi, pnl }
+    return { ...pos, sym, cur, hasCur, delta, roi, pnl, isClose: false }
   })
 
-  const filtered = searchQ
-    ? posCalc.filter(p => p.sym.toLowerCase().includes(searchQ.toLowerCase()))
-    : posCalc
+  const statsCalc  = isHistorical ? posCalc : posCalc.filter(p => !p.is_closed)
+  const activeCalc = statsCalc
+  const filteredCalc = searchQ
+    ? activeCalc.filter(p => p.sym.toLowerCase().includes(searchQ.toLowerCase()))
+    : activeCalc
 
-  const total   = posCalc.length
-  const wCnt    = posCalc.filter(p => p.pnl > 0).length
-  const lCnt    = posCalc.filter(p => p.pnl < 0 && p.close_reason !== "stop_loss").length
-  const slCnt   = posCalc.filter(p => p.close_reason === "stop_loss").length
-  const totalPnl = posCalc.reduce((s, p) => s + p.pnl, 0)
+  const avgRoi    = statsCalc.length > 0 ? statsCalc.reduce((s, p) => s + p.roi, 0) / statsCalc.length : 0
+  const profitCnt = statsCalc.filter(p => p.roi > 0).length
+  const lossCnt   = statsCalc.filter(p => p.roi < 0).length
+  const posMargin = statsCalc.length * sizeUsdCfg
+
+  const slClosed    = positions.filter(p => p.is_closed && p.close_reason === "stop_loss")
+  const slClosedCnt = slClosed.length
+  const slClosedPnl = isHistorical
+    ? statsCalc.filter(p => p.is_closed && p.close_reason === "stop_loss").reduce((s, p) => s + p.pnl, 0)
+    : slClosed.reduce((s, p) => s - (Number(p.size_usd ?? sizeUsdCfg) * 0.5), 0)
+
+  const closedToday = positions.filter(p => p.is_closed)
+  const totalFee     = closedToday.reduce((s, p) => s + Number(p.size_usd ?? sizeUsdCfg) * 0.0006, 0)
+
+  const activePnl = isHistorical
+    ? statsCalc.reduce((s, p) => s + p.pnl, 0)
+    : posMargin * (avgRoi / 100)
+  const totalPnl = isHistorical ? activePnl : activePnl + slClosedPnl
+
+  // MARGIN: 고정 시작 잔고($10,000 기준) — 자동매매2는 별도 확정 잔고 원장이 없어 시드값 그대로 사용
+  const margin   = startingBalance > 0 ? startingBalance : posMargin
+  const estValue = margin + totalPnl
+  const totalRoi = margin > 0 ? (totalPnl / margin) * 100 : avgRoi
+
+  const sortedCalc = [...filteredCalc].sort((a, b) => {
+    if (sortOrder === "roi_desc") return b.roi - a.roi
+    if (sortOrder === "roi_asc")  return a.roi - b.roi
+    if (sortOrder === "signal")   return (a.signal_type ?? "").localeCompare(b.signal_type ?? "")
+    return 0
+  })
 
   const toggleRealOrder = async () => {
     if (!isMaster || toggling) return
@@ -2403,85 +2471,293 @@ function AutoSignal2Panel({ selectedDate, searchQ = "", userRole }: {
     }
   }
 
-  const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 4 })
+  // 강제 청산 X 버튼 클릭: 청산가(SL 기준)보다 10% 더 나쁜 방향으로 preset
+  const openForceClose = (pos: typeof posCalc[0]) => {
+    const entry  = Number(pos.entry_price)
+    const lev    = Number(pos.leverage ?? 10)
+    const isLong = pos.direction === "long"
+    const slPrice = isLong ? entry * (1 - 1 / lev) : entry * (1 + 1 / lev)
+    const triggerPrice = isLong ? slPrice * 0.90 : slPrice * 1.10
+    setForceCloseId(pos.id)
+    setForceClosePrice(triggerPrice.toFixed(entry < 1 ? 6 : entry < 100 ? 4 : 2))
+  }
+
+  const handleForceClose = async () => {
+    if (!forceCloseId) return
+    const pos = posCalc.find(p => p.id === forceCloseId)
+    if (!pos) return
+    setForceClosing(true)
+    const price   = parseFloat(forceClosePrice)
+    const entry   = Number(pos.entry_price)
+    const lev     = Number(pos.leverage ?? 10)
+    const delta   = pos.direction === "long" ? (price - entry) / entry : (entry - price) / entry
+    const closedRoi = delta * lev * 100
+    const tok = typeof window !== "undefined" ? localStorage.getItem("app_token") ?? "" : ""
+    const res = await fetch("/api/auto-signal2/positions", {
+      method:  "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+      body:    JSON.stringify({ id: forceCloseId, closed_price: price, closed_roi: closedRoi, reason: "stop_loss" }),
+    })
+    if (res.ok) {
+      setPositions(prev => prev.map(p =>
+        p.id === forceCloseId
+          ? { ...p, is_closed: true, close_reason: "stop_loss", closed_roi: closedRoi, closed_price: price }
+          : p
+      ))
+    } else {
+      const d = await res.json().catch(() => ({}))
+      alert(d.error ?? "강제 청산 실패")
+    }
+    setForceClosing(false)
+    setForceCloseId(null)
+  }
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-5"
+      style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>로딩 중...</div>
+  )
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* 상단: 자동매매2 라벨 + 실주문 토글 (master 전용) */}
-      <div className="flex items-center justify-between" style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="flex items-center gap-2">
-          <span style={{ fontSize: 10, fontWeight: 700, color: GOLD }}>자동매매2</span>
-          <span style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>UP3 제외 신호 · 기록 전용</span>
+    <div>
+      {/* 강제 청산 모달 — master 전용 */}
+      {forceCloseId && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-xs shadow-2xl space-y-4 mx-4">
+            <div className="space-y-0.5">
+              <h3 className="text-sm font-bold text-foreground">강제 청산</h3>
+              <p className="text-xs text-muted-foreground">
+                청산 기준가(SL)보다 10% 더 불리한 가격이 자동 입력됩니다.<br />
+                <span style={{ color: "rgba(239,68,68,0.8)" }}>SL CLOSE로 기록되며 TOTAL PNL에서 차감됩니다.</span>
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">청산 현재가 (수정 가능)</label>
+              <input
+                type="number"
+                value={forceClosePrice}
+                onChange={e => setForceClosePrice(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground tabular-nums focus:outline-none focus:ring-1 focus:ring-destructive"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setForceCloseId(null)}
+                className="flex-1 h-9 rounded-lg text-xs font-semibold border border-border text-muted-foreground bg-transparent hover:bg-muted/30 transition-colors"
+              >취소</button>
+              <button
+                onClick={handleForceClose}
+                disabled={forceClosing}
+                className="flex-1 h-9 rounded-lg text-xs font-bold text-white transition-colors disabled:opacity-50"
+                style={{ background: "rgba(239,68,68,0.8)" }}
+              >{forceClosing ? "처리중..." : "청산 확인"}</button>
+            </div>
+          </div>
         </div>
-        {isMaster && (
-          <button
-            onClick={toggleRealOrder}
-            disabled={toggling}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              fontSize: 9, fontWeight: 700, padding: "4px 8px", borderRadius: 6,
-              background: realOrderOn ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.04)",
-              border: `1px solid ${realOrderOn ? "rgba(34,197,94,0.35)" : "rgba(255,255,255,0.1)"}`,
-              color: realOrderOn ? UP_COLOR : "rgba(255,255,255,0.35)",
-              cursor: toggling ? "default" : "pointer",
-              opacity: toggling ? 0.6 : 1,
-            }}
-          >
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: realOrderOn ? UP_COLOR : "rgba(255,255,255,0.25)" }} />
-            {realOrderOn ? "실주문 ON" : "기록만"}
-          </button>
-        )}
+      )}
+
+      {/* 요약 헤더 */}
+      <div className="px-4 py-3" style={{ borderBottom: `1px solid rgba(212,175,55,0.08)` }}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            {!isHistorical && <PulseDot />}
+            <span style={{ fontSize: 10, fontWeight: 700, color: GOLD }}>자동매매2</span>
+            <span style={{ fontSize: 8, color: "rgba(255,255,255,0.25)" }}>UP3 제외 신호</span>
+            <span style={{ fontSize: 10, fontWeight: 500, color: "rgba(255,255,255,0.5)" }}>{dateLabel}</span>
+            {isHistorical
+              ? <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4, background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)" }}>종가 기준</span>
+              : <ClockTime />
+            }
+          </div>
+          <div className="flex items-center gap-3">
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+              수익 <span style={{ color: UP_COLOR, fontWeight: 700 }}>{profitCnt}</span>
+              {" / "}손실 <span style={{ color: DOWN_COLOR, fontWeight: 700 }}>{lossCnt}</span>
+              {slClosedCnt > 0 && (
+                <> {" / "}청산 <span style={{ color: "rgba(239,68,68,0.7)", fontWeight: 700 }}>{slClosedCnt}</span></>
+              )}
+            </span>
+            {isMaster && (
+              <button
+                onClick={toggleRealOrder}
+                disabled={toggling}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  fontSize: 9, fontWeight: 700, padding: "4px 8px", borderRadius: 6,
+                  background: realOrderOn ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${realOrderOn ? "rgba(34,197,94,0.35)" : "rgba(255,255,255,0.1)"}`,
+                  color: realOrderOn ? UP_COLOR : "rgba(255,255,255,0.35)",
+                  cursor: toggling ? "default" : "pointer",
+                  opacity: toggling ? 0.6 : 1,
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: realOrderOn ? UP_COLOR : "rgba(255,255,255,0.25)" }} />
+                {realOrderOn ? "실주문 ON" : "기록만"}
+              </button>
+            )}
+          </div>
+        </div>
+        {/* MARGIN + EST. VALUE */}
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>MARGIN</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.75)" }}>
+              ${margin.toFixed(2)}
+            </div>
+            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+              시작 잔고 기준 (${startingBalance.toLocaleString()})
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>EST. VALUE</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+              ${estValue.toFixed(2)}
+            </div>
+            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+              MARGIN + PNL {totalPnl >= 0 ? "+" : ""}{totalPnl.toFixed(2)}
+            </div>
+          </div>
+        </div>
+        {/* TOTAL ROI + SL CLOSE + FEES + TOTAL PNL */}
+        <div className="grid grid-cols-4 gap-2">
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL ROI</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalRoi >= 0 ? UP_COLOR : DOWN_COLOR }}>
+              {totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%
+            </div>
+          </div>
+          <div style={{ background: slClosedCnt > 0 ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>SL CLOSE</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: slClosedCnt === 0 ? "rgba(255,255,255,0.25)" : DOWN_COLOR }}>
+              {slClosedCnt === 0 ? "-" : `$${slClosedPnl.toFixed(2)}`}
+            </div>
+            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+              {slClosedCnt > 0 ? `${slClosedCnt}건 × $${Math.abs(slClosedPnl / slClosedCnt).toFixed(2)}` : "청산 없음"}
+            </div>
+          </div>
+          <div style={{ background: totalFee > 0 ? "rgba(239,68,68,0.04)" : "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>FEES</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalFee === 0 ? "rgba(255,255,255,0.25)" : DOWN_COLOR }}>
+              {totalFee === 0 ? "-" : `-$${totalFee.toFixed(3)}`}
+            </div>
+            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+              {closedToday.length > 0 ? `${closedToday.length}건 × 0.06%` : "수수료 없음"}
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginBottom: 2 }}>TOTAL PNL</div>
+            <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
+              {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* 통계 요약 바 */}
-      <div className="flex items-center gap-4" style={{ padding: "8px 14px", fontSize: 9, color: "rgba(255,255,255,0.35)", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-        <span>총 {total}건</span>
-        <span style={{ color: UP_COLOR }}>{wCnt}W</span>
-        <span style={{ color: DOWN_COLOR }}>{lCnt}L</span>
-        <span style={{ color: "rgba(255,255,255,0.3)" }}>{slCnt}SL</span>
-        <span className="tabular-nums" style={{ color: totalPnl >= 0 ? UP_COLOR : DOWN_COLOR, marginLeft: "auto" }}>
-          {totalPnl >= 0 ? "+" : ""}${fmt(totalPnl)}
-        </span>
-      </div>
+      {posCalc.length === 0 && (
+        <div className="py-6 text-center" style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>
+          이 날짜에 확인된 시그널이 없습니다.
+        </div>
+      )}
 
-      {/* 포지션 리스트 */}
-      <div style={{ flex: 1, overflowY: "auto", padding: 10 }}>
-        {loading && (
-          <div style={{ textAlign: "center", padding: 30, fontSize: 11, color: "rgba(255,255,255,0.25)" }}>불러오는 중...</div>
-        )}
-        {!loading && filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: 30, fontSize: 11, color: "rgba(255,255,255,0.25)" }}>이 날짜에 기록된 신호가 없습니다</div>
-        )}
-        {filtered.map(pos => (
-          <div key={pos.id} style={{ padding: "10px 12px", marginBottom: 6, borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
-              <div className="flex items-center gap-2">
-                <span style={{ fontSize: 12, fontWeight: 700 }}>{pos.sym}</span>
-                <span style={{ fontSize: 8, fontWeight: 700, color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR }}>
-                  {pos.direction === "long" ? "LONG" : "SHORT"}
+      {sortedCalc.map(pos => {
+        const roiColor    = pos.roi >= 0 ? UP_COLOR : DOWN_COLOR
+        const inTime      = new Date(pos.signal_time).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
+        const baseSymbol  = pos.symbol.replace(/\.P$/, "").replace("USDT", "")
+        const slThreshold = stopLossPct !== null ? -(stopLossPct * (pos.leverage ?? 1)) : null
+        const isSlWarning = slThreshold !== null && pos.hasCur && pos.roi <= slThreshold * 0.8 && pos.roi > slThreshold
+        const isSlHit     = slThreshold !== null && pos.hasCur && pos.roi <= slThreshold
+
+        return (
+          <div key={pos.id} style={{
+            padding: "10px 14px",
+            borderBottom: `1px solid rgba(212,175,55,0.05)`,
+            background: isSlHit ? "rgba(239,68,68,0.09)" : isSlWarning ? "rgba(239,68,68,0.04)" : undefined,
+          }}>
+            {/* 상단행: 방향뱃지 + 심볼 + 레버리지 + ROI | IN시각 + PnL */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span style={{
+                  width: 18, height: 18, borderRadius: 4, fontSize: 9, fontWeight: 900,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: pos.direction === "long" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+                  color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
+                }}>{pos.direction === "long" ? "L" : "S"}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
+                  {baseSymbol}/USDT
                 </span>
+                <span style={{
+                  padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
+                  background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)",
+                }}>{pos.leverage}x</span>
                 {pos.real_order && (
                   <span style={{ fontSize: 7, fontWeight: 700, color: GOLD, padding: "1px 5px", borderRadius: 4, background: "rgba(212,175,55,0.1)" }}>실주문</span>
                 )}
+                {pos.hasCur && (
+                  <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
+                    {pos.roi >= 0 ? "+" : ""}{pos.roi.toFixed(2)}%
+                  </span>
+                )}
+                {isSlHit && (
+                  <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 3, background: "rgba(239,68,68,0.25)", color: DOWN_COLOR }}>SL 청산</span>
+                )}
+                {isSlWarning && !isSlHit && (
+                  <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 3, background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>SL 임박</span>
+                )}
               </div>
-              <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 700, color: pos.pnl >= 0 ? UP_COLOR : DOWN_COLOR }}>
-                {pos.roi >= 0 ? "+" : ""}{pos.roi.toFixed(2)}%
-              </span>
+              <div className="text-right flex items-start gap-2">
+                <div>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>IN:{inTime}</div>
+                  {pos.hasCur ? (
+                    <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
+                      {pos.pnl >= 0 ? "+" : ""}${pos.pnl.toFixed(3)}
+                    </div>
+                  ) : Number(pos.entry_price) > 0 ? (
+                    <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.2)" }}>
+                      $0.000
+                    </div>
+                  ) : null}
+                </div>
+                {/* 강제 청산 X 버튼 — master 전용, 오늘 활성 포지션만 */}
+                {userRole === "master" && isToday && !pos.is_closed && (
+                  <button
+                    onClick={e => { e.stopPropagation(); openForceClose(pos) }}
+                    title="강제 청산"
+                    style={{
+                      width: 18, height: 18, borderRadius: 4, border: "none", cursor: "pointer",
+                      background: "rgba(239,68,68,0.18)", color: "rgba(239,68,68,0.85)",
+                      fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0, marginTop: 2,
+                    }}
+                  >×</button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-3" style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>
-              <span>진입: ${fmt(pos.entry_price)}</span>
-              {pos.hasCur && <span>{pos.is_closed ? "종가" : "현재"}: ${fmt(pos.cur)}</span>}
-              <span className="tabular-nums" style={{ color: pos.pnl >= 0 ? "rgba(34,197,94,0.7)" : "rgba(239,68,68,0.7)" }}>
-                {pos.pnl >= 0 ? "+" : ""}${fmt(pos.pnl)}
+            {/* 하단행: 진입가 | 현재가(오늘) 또는 종가(과거) | 시그널 */}
+            <div className="flex items-center gap-3 mt-0.5" style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+              <span>
+                진입:{" "}
+                <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  ${fmt(Number(pos.entry_price))}
+                </span>
               </span>
-              {pos.is_closed && pos.close_reason === "stop_loss" && (
-                <span style={{ color: DOWN_COLOR }}>손절청산</span>
+              {pos.hasCur && (
+                <span>
+                  {pos.isClose ? "종가" : "현재"}:{" "}
+                  <span className="tabular-nums" style={{ color: pos.roi >= 0 ? "rgba(34,197,94,0.8)" : "rgba(239,68,68,0.8)" }}>
+                    ${fmt(pos.cur)}
+                  </span>
+                </span>
               )}
-              <span style={{ color: "rgba(212,175,55,0.4)", marginLeft: "auto" }}>{pos.signal_type}</span>
+              {!pos.hasCur && !isHistorical && (
+                <span style={{ color: "rgba(255,255,255,0.2)" }}>가격 수신 대기중...</span>
+              )}
+              {!pos.hasCur && isHistorical && (
+                <span style={{ color: "rgba(255,255,255,0.2)" }}>종가 없음</span>
+              )}
+              <span style={{ color: "rgba(212,175,55,0.4)" }}>{pos.signal_type}</span>
             </div>
           </div>
-        ))}
-      </div>
+        )
+      })}
     </div>
   )
 }
@@ -2797,8 +3073,8 @@ export default function TradePage() {
               )}
             </div>
 
-            {/* 정�� 순환 버튼 — 자동매매 탭일 때만 */}
-            {tradeMode === "auto" && (
+            {/* 정렬 순환 버튼 — 자동매매/자동매매2 탭일 때만 */}
+            {(tradeMode === "auto" || tradeMode === "auto2") && (
               <button
                 onClick={cycleSort}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all shrink-0"
@@ -2836,7 +3112,7 @@ export default function TradePage() {
           <div className="flex w-full gap-1.5">
             {([
               ...(allowMockTrade ? [{ key: "mock" as const,   label: "모의매매", Icon: LineChart }]  : []),
-              { key: "auto"   as const, label: "자동매매", Icon: Bot },
+              { key: "auto"   as const, label: "���동매매", Icon: Bot },
               { key: "ledger" as const, label: "매매기록",  Icon: BookOpen },
               ...(userName === "역삼1" ? [{ key: "auto2" as const, label: "자동매매2", Icon: Bot }] : []),
               ...(userName === "역삼1" ? [{ key: "closed" as const, label: "청산기록", Icon: ListChecks }] : []),
@@ -2905,7 +3181,7 @@ export default function TradePage() {
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignal2Panel selectedDate={selectedDate} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
+              <AutoSignal2Panel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
           </div>
         </div>
         {/* 청산 기록 */}
@@ -2970,7 +3246,7 @@ export default function TradePage() {
               <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-            <AutoSignal2Panel selectedDate={selectedDate} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
+            <AutoSignal2Panel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
             </div>
           </div>
           {/* 청산 기록 */}

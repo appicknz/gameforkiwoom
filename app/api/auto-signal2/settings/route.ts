@@ -40,6 +40,7 @@ export async function PATCH(req: Request) {
   if (body.enabled             !== undefined) update.enabled             = Boolean(body.enabled)
   if (body.real_order_enabled  !== undefined) update.real_order_enabled  = Boolean(body.real_order_enabled)
   if (body.stop_loss_pct       !== undefined) update.stop_loss_pct       = Number(body.stop_loss_pct)
+  if (body.starting_balance    !== undefined) update.starting_balance    = Number(body.starting_balance)
 
   const { data, error } = await adminSupabase
     .from("auto_signal2_settings")
