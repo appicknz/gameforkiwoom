@@ -72,6 +72,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 
+  // UP3를 제외한 모든 신호는 자동매매2(역삼1 전용, 별도 기록)로 분기 — 기존 매매기록/통계에 영향 없음
+  if (type !== "TRIPLE_COMBO_UP3") {
+    return handleSignal2({ type, symbol, price, formatted_time_kst, ip, body, logRequest })
+  }
+
   // 자동매매 전역 설정 + 시그널 규칙 + TVM 글로벌 설정 병렬 조회
   const [{ data: settings }, { data: rule }, { data: tradingGs }] = await Promise.all([
     adminSupabase.from("auto_signal_settings").select("size_usd, leverage, enabled").eq("id", 1).single(),
