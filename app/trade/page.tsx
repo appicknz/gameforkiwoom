@@ -340,7 +340,7 @@ function TradeForm({
   )
 }
 
-// ─── 모바일 주문 다����������� ──────────────────────────────────────────
+// ─── 모바일 주문 다이얼로그 ──────────────────────────────────────────
 function TradeDialog({
   symbol, price, balance, onClose, onOpen, isOpening,
 }: {
@@ -497,7 +497,7 @@ function PcPositionCard({ pos, onClose, isClosing }: {
   )
 }
 
-// ���── 메인 페이지 ────────────────────────────────────────────────────
+// ─── 메인 페이지 ────────────────────────────────────────────────────
 // ─── 청산 기록 패널 ──────────────────────────────────────────────────
 type ClosedPos = {
   id: string
@@ -711,7 +711,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             </div>
           )
         }
-        // ────────────────────────────────────────────────────������────────
+        // ──────────────────────────────────────────────────────────────
 
         // ── 오늘 or 스냅샷 없는 날 — 기존 실시간 계산 ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
@@ -1029,7 +1029,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
   // 전체 누적 (오름차순)
   const sorted      = [...records].sort((a, b) => a.date_label.localeCompare(b.date_label))
-  // 초기 ���: 첫 번째 rebalance 기록의 seed_capital (없으면 settings의 seed_capital 폴백)
+  // 초기 시드: 첫 번째 rebalance 기록의 seed_capital (없으면 settings의 seed_capital 폴백)
   const firstSeed   = sorted.length > 0 ? Number(sorted[0].seed_capital) : (seedCapital ?? 0)
   // 마지막 확정 잔고 (저장된 기록 기준)
   const confirmedValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : (seedCapital ?? 0)
@@ -1132,7 +1132,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
     }
   }
 
-  // ── 통계 계산 ──────────────────────────────��───────────────────────
+  // ── 통계 계산 ────────────────────────────────────────────────────
   // 주별: ISO 주 번호(월요일 기준)
   const getWeekKey = (dateLabel: string) => {
     const d = new Date(dateLabel)
@@ -1646,7 +1646,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
   )
 }
 
-// ─── 자동매매 라이브 패널 ────────────��─────────────��────────────────��─
+// ─── 자동매매 라이브 패널 ────────────────────────────────────────────
 interface AutoPos {
   id:           string
   signal_type:  string
@@ -1751,7 +1751,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const check = setInterval(() => {
       positions.forEach(pos => {
         if (closingRef.current.has(pos.id)) return
-        if (pos.is_closed) return  // 이��� 청산된 포지션은 재트리거 방지
+        if (pos.is_closed) return  // 이미 청산된 포지션은 재트리거 방지
         const entry  = Number(pos.entry_price)
         const sym    = pos.symbol.replace(/\.P$/, "").replace(/\//g, "")
         const ticker = liveCache.tickers.get(sym)
@@ -1804,8 +1804,8 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const normalize = (raw: string) => raw.replace(/\.P$/, "").replace(/\//g, "")
 
   // 통계 계산
-  // - 오늘: liveCache 실�����간 가격으로 PnL 계산
-  // - ���거: API가 반환한 final_pnl / final_roi (Binance Klines 종가 기준)
+  // - 오늘: liveCache 실시간 가격으로 PnL 계산
+  // - 과거: API가 반환한 final_pnl / final_roi (Binance Klines 종가 기준)
   const posCalc = positions.map(pos => {
     const sym    = normalize(pos.symbol)
     const entry  = Number(pos.entry_price)
@@ -1838,7 +1838,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const sizeUsd = pos.size_usd ?? 10
     const lev     = pos.leverage ?? 1
 
-    // 스탑���스로 청산된 포��션: 실시간 % 계�� 계산, PNL은 SL 고정값 사용
+    // 스탑로스로 청산된 포지션: 실시간 %는 계산, PNL은 SL 고정값 사용
     if (pos.is_closed && pos.close_reason === "stop_loss") {
       const ticker  = liveCache.tickers.get(sym)
       const cur     = ticker ? ticker.price : 0
@@ -1892,7 +1892,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     ? statsCalc.filter(p => p.is_closed && p.close_reason === "stop_loss").reduce((s, p) => s + p.pnl, 0)
     : slClosed.reduce((s, p) => s - (Number(p.size_usd ?? sizeUsdCfg) * 0.5), 0)
 
-  // 수수료 누적: 청산된 ���지션마다 진입 0.03% + 청산 0.03% = size_usd × 0.06%
+  // 수수료 누적: 청산된 포지션마다 진입 0.03% + 청산 0.03% = size_usd × 0.06%
   const closedToday   = positions.filter(p => p.is_closed)
   const totalFee      = closedToday.reduce((s, p) => s + Number(p.size_usd ?? sizeUsdCfg) * 0.0006, 0)
 
@@ -1902,7 +1902,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     : posMargin * (avgRoi / 100)
   const totalPnl = isHistorical ? activePnl : activePnl + slClosedPnl
 
-  // MARGIN: 오늘�� 확정 잔고(전날 최종 잔고)가 기준 / 과거는 당일 포지션 마진
+  // MARGIN: 오늘은 확정 잔고(전날 최종 잔고)가 기준 / 과거는 당일 포지션 마진
   const margin   = (!isHistorical && confirmedMargin != null && confirmedMargin > 0)
     ? confirmedMargin
     : posMargin
@@ -1982,7 +1982,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     const slPrice = isLong
       ? entry * (1 - 1 / lev)
       : entry * (1 + 1 / lev)
-    // 10% 더 나쁜 방향 (롱이면 더 ���게, 숏이면 더 ��게)
+    // 10% 더 나쁜 방향 (롱이면 더 낮게, 숏이면 더 높게)
     const triggerPrice = isLong
       ? slPrice * 0.90
       : slPrice * 1.10
@@ -2195,7 +2195,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
                   <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 3, background: "rgba(239,68,68,0.25)", color: DOWN_COLOR }}>SL 청산</span>
                 )}
                 {isSlWarning && !isSlHit && (
-                  <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 3, background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>SL 임���</span>
+                  <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 3, background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>SL 임박</span>
                 )}
               </div>
               <div className="text-right flex items-start gap-2">
@@ -2228,7 +2228,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
                 )}
               </div>
             </div>
-            {/* 하단행: 진입가 | 현재가(오늘) 또는 종가(과���) | 시그널 */}
+            {/* 하단행: 진입가 | 현재가(오늘) 또는 종가(과거) | 시그널 */}
             <div className="flex items-center gap-3 mt-0.5" style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
               <span>
                 진입:{" "}
@@ -2778,7 +2778,7 @@ export default function TradePage() {
   const [selectedDate,  setSelectedDate]  = useState(() => kstToday())
   const [tradeMode,       setTradeMode]       = useState<"auto" | "auto2" | "closed" | "ledger" | "mock">("ledger")
 
-  // 탭 전환 시 날짜를 오늘로 리셋 → DateStrip이 �� 오른쪽으로 스크롤
+  // 탭 전환 시 날짜를 오늘로 리셋 → DateStrip이 맨 오른쪽으로 스크롤
   const switchTab = (mode: "auto" | "auto2" | "closed" | "ledger" | "mock") => {
     setSelectedDate(kstToday())
     setTradeMode(mode)
@@ -2858,7 +2858,7 @@ export default function TradePage() {
     }).catch(() => {})
   }, [])
 
-  // ── 폴링 ─────────────────��──────────────────────────────────────
+  // ── 폴링 ──────────────────────────────────────────────────────────
   const fetchBalance = useCallback(() => {
     const token = getToken()
     if (!token) return
@@ -2872,7 +2872,7 @@ export default function TradePage() {
     const token = getToken()
     if (!token) return
     fetchBalance()
-    // 클라이언트 WebSocket 가격�� 쿼리로 전달 — 서버가 Binance 조회 ��이 PnL 계산
+    // 클라이언트 WebSocket 가격을 쿼리로 전달 — 서버가 Binance 조회 없이 PnL 계산
     const pricesParam = [...priceMapRef.current.entries()]
       .map(([sym, price]) => `${sym}:${price}`).join(",")
     const qs = pricesParam ? `?prices=${encodeURIComponent(pricesParam)}` : ""
@@ -2894,7 +2894,7 @@ export default function TradePage() {
       const entry   = Number(p.entry_price)
       const margin  = Number(p.margin)
       const lev     = Number(p.leverage)
-      // 서버가 PnL 0을 반환하면 클라이언트 ���격으로 직접 계산
+      // 서버가 PnL 0을 반환하면 클라이언트 가격으로 직접 계산
       let pnl    = p.unrealized_pnl     ?? 0
       let pnlPct = p.unrealized_pnl_pct ?? 0
       const cur = priceMapRef.current.get(p.symbol) ?? 0
@@ -2922,7 +2922,7 @@ export default function TradePage() {
     fetchPositions()
 
     // Supabase Realtime — trade_positions 변경 시 즉시 re-fetch
-    // 폴링(3초) 완전 제거 → Vercel Function 호출 ~97% 감���
+    // 폴링(3초) 완전 제거 → Vercel Function 호출 ~97% 감소
     const token = getToken()
     if (!token) return
 
@@ -2944,13 +2944,13 @@ export default function TradePage() {
     }
   }, [fetchPositions])
 
-  // ── 주문 ���들러 — ref ���용으로 stale closure 완����� 차단 ────��─────
+  // ── 주문 핸들러 — ref 사용으로 stale closure 완전 차단 ──────────────
   const handleOpen = useCallback(async (dir: Direction, amount: number, leverage: number) => {
     const bal = balanceRef.current
     if (bal === null) { alert("잔고를 불러오는 중입니다."); return }
     if (amount <= 0 || amount > bal) { alert("잔고가 부족합니다."); return }
 
-    // dialogSymbolRef: 다이얼로그에서 호출 시 항상 올바른 심볼을 ������킴
+    // dialogSymbolRef: 다이얼로그에서 호출 시 항상 올바른 심볼을 가리킴
     const sym   = dialogSymbolRef.current
     const price = priceMapRef.current.get(sym) ?? 0
 
@@ -3006,19 +3006,19 @@ export default function TradePage() {
     }
   }, [])
 
-  // ── 종목 선택 ─────────��────────���─────���───���─���─────��──────��────────
+  // ── 종목 선택 ────────────────────────────────────────────────────
   // PC: 차트 변경만 (다이얼로그 열지 않음)
   const handlePcSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)
     setSelectedSymbol(symbol)
     setSelectedPrice(price)
     selectedSymbolRef.current = symbol
-    // PC에서도 dialogSymbol을 맞춰줘야 handleOpen이 올바른 심볼을 사��
+    // PC에서도 dialogSymbol을 맞춰줘야 handleOpen이 올바른 심볼을 사용
     setDialogSymbol(symbol)
     dialogSymbolRef.current = symbol
   }, [])
 
-  // PC/모바일 모두 ���이얼로그 방식으로 통일
+  // PC/모바일 모두 다이얼로그 방식으로 통일
   const handleMobileSelect = useCallback((symbol: string, price: number) => {
     priceMapRef.current.set(symbol, price)
     setSelectedSymbol(symbol)
@@ -3049,9 +3049,9 @@ export default function TradePage() {
       {/* ══════ 공통 Sticky 검색 + 카테고리 헤더 ══════ */}
       <div className="sticky top-0 z-40 border-b" style={{ background: "rgba(4,10,6,0.97)", borderColor: BORDER, backdropFilter: "blur(12px)" }}>
         <div className="max-w-7xl mx-auto px-4 pt-3 pb-2 space-y-2.5">
-          {/* 검색바 + 우��� 버튼들 */}
+          {/* 검색바 + 우측 버튼들 */}
           <div className="flex items-center gap-2">
-            {/* ���색 입력 */}
+            {/* 검색 입력 */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
               <input
@@ -3166,7 +3166,7 @@ export default function TradePage() {
             positions={positionRows}
           />
         </div>
-        {/* 자동매매: 날짜 스트립 + 포��션 */}
+        {/* 자동매매: 날짜 스트립 + 포지션 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "auto" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
           <div style={{ flexShrink: 0 }}>
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
@@ -3194,7 +3194,7 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* ══����══ PC (lg 이상) ══���═══ */}
+      {/* ══════ PC (lg 이상) ══════ */}
       <main className="hidden lg:block max-w-7xl mx-auto p-4">
         <div style={{ height: "calc(100vh - 172px)", position: "relative" }}>
           {/* LivePricesTab — 항상 mount (소켓 유지), 자동매매 탭에서는 숨김 */}
@@ -3223,7 +3223,7 @@ export default function TradePage() {
               positions={positionRows}
             />
           </div>
-          {/* 자동매매: 날짜 스트립 + 포지션 전체 ���비 */}
+          {/* 자동매매: 날짜 스트립 + 포지션 전체 뷰 */}
           <div className="rounded-2xl flex flex-col h-full" style={{
             background: PANEL_BG,
             border: `1px solid ${BORDER}`,
@@ -3269,7 +3269,7 @@ export default function TradePage() {
         </div>
       </main>
 
-      {/* TradeDialog ��� 모바일/PC 공통 (PC에서는 LivePricesTab 클릭 시 열리지 않음) */}
+      {/* TradeDialog — 모바일/PC 공통 (PC에서는 LivePricesTab 클릭 시 열리지 않음) */}
       {dialogOpen && (
         <TradeDialog
           symbol={dialogSymbol}
