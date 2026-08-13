@@ -545,6 +545,19 @@ export function Sidebar() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 4000) }
 
+  // 모바일 햄버거 버튼(TopBar) → "sidebar:toggle" 이벤트로 개폐
+  // TopBar와 Sidebar가 서로 다른 layout.tsx에서 각자 마운트되므로 prop 전달이 불가능 → 전역 커스텀 이벤트로 연결
+  useEffect(() => {
+    const toggle = () => setMobileOpen(v => !v)
+    window.addEventListener("sidebar:toggle", toggle)
+    return () => window.removeEventListener("sidebar:toggle", toggle)
+  }, [])
+
+  // 라우트 변경 시 모바일 사이드바 자동 닫기
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
   useEffect(() => {
     const check = async () => {
       const token = getToken()
