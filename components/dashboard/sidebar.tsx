@@ -18,6 +18,8 @@ import {
   BarChart2,
   Wallet,
   ClipboardList,
+  Settings,
+  ArrowRight,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useCallback } from "react"
@@ -218,7 +220,7 @@ function TradeStatsMini() {
 
   return (
     <div className="space-y-3">
-      {/* 오늘의 비트 — 헤더 + 스탯 통합 카드 */}
+      {/* 오��의 비트 — 헤더 + 스탯 통합 카드 */}
       {(() => {
         const isDateSelected = !!selectedDate
         const autoCount  = autoCalc.length
@@ -513,7 +515,7 @@ export function Sidebar() {
   const [menuGroup2, setMenuGroup2] = useState(false) // 마켓, 구매내역, 판매관리, 정산관리
   const [menuGroup3, setMenuGroup3] = useState(false) // 비트바카, 비트토토, 배팅현황
 
-  // 강제 비밀번호 변경 모달
+  // ��제 비밀번호 변경 모달
   const [mustChangePw,       setMustChangePw]       = useState(false)
   const [changePwCurrent,    setChangePwCurrent]    = useState("")
   const [changePwNew,        setChangePwNew]        = useState("")
@@ -763,6 +765,98 @@ export function Sidebar() {
       )}>
         {/* 상단 top-bar 높이만큼 여백 */}
         <div className="h-12 border-b border-border shrink-0" />
+
+        {/* 네이버 스타일 계정 카드 — 우측 상단 로그인과 별도로 항상 노출 */}
+        <div className="shrink-0 border-b border-border p-3">
+          {isLoggedIn ? (
+            <div className="rounded-2xl border border-border bg-secondary/35 p-3">
+              <div className="flex items-center gap-3">
+                <div className="relative shrink-0">
+                  <div className="flex size-12 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
+                    <User className="size-5" />
+                  </div>
+                  <Link
+                    href="/settings"
+                    aria-label="계정 설정"
+                    className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <Settings className="size-3" />
+                  </Link>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-sm font-bold text-foreground">{username}님</p>
+                    <Lock className="size-3 shrink-0 text-muted-foreground" aria-label="보호된 계정" />
+                  </div>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{username}</p>
+                  <p className="mt-1 text-[10px] font-medium text-primary">
+                    {sellerRole && SELLER_ROLES.includes(sellerRole) ? "파트너 계정" : "일반 회원"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-background text-xs font-semibold text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+              >
+                로그아웃
+                <ArrowRight className="size-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-border bg-secondary/35 p-3">
+              <div className="mb-3 flex items-center gap-2.5">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
+                  <User className="size-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-foreground">로그인</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">계정으로 서비스를 시작하세요</p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="sr-only" htmlFor="sidebar-login-id">아이디</label>
+                <input
+                  id="sidebar-login-id"
+                  value={loginId}
+                  onChange={e => setLoginId(e.target.value)}
+                  placeholder="아이디"
+                  autoComplete="username"
+                  className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+                />
+                <label className="sr-only" htmlFor="sidebar-login-password">비밀번호</label>
+                <div className="relative">
+                  <input
+                    id="sidebar-login-password"
+                    type={showLoginPw ? "text" : "password"}
+                    value={loginPw}
+                    onChange={e => setLoginPw(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) handleLogin()
+                    }}
+                    placeholder="비밀번호"
+                    autoComplete="current-password"
+                    className="h-9 w-full rounded-lg border border-border bg-background px-3 pr-9 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPw(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showLoginPw ? "비밀번호 숨기기" : "비밀번호 보기"}
+                  >
+                    {showLoginPw ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                  </button>
+                </div>
+                {loginMsg && (
+                  <p className={cn("text-[10px]", loginMsg.ok ? "text-primary" : "text-destructive")}>{loginMsg.text}</p>
+                )}
+                <Button type="button" size="sm" className="h-9 w-full text-xs" disabled={loginLoading} onClick={handleLogin}>
+                  {loginLoading ? "로그인 중..." : "로그인"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
