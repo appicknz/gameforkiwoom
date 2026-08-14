@@ -352,7 +352,7 @@ function TradeStatsMini() {
                 const isToday = dateStr === todayKST
                 const isSel   = dateStr === selectedDate
                 const dotColor = stat ? (stat.pnl >= 0 ? UP : DOWN) : null
-                // 자동매매 dot: 선택��� 날짜이고 포지션이 있으면 표시 (오늘도 포함)
+                // 자동매매 dot: 선택��� 날짜이고 포지션이 있으면 표시 (오늘도 ��함)
                 const showAutoDot = (isSel || isToday) && autoPositions.length > 0
 
                 return (
@@ -501,7 +501,7 @@ function getJwtRole(): string | null {
   } catch { return null }
 }
 
-export function Sidebar() {
+export function Sidebar({ drawerOnly = false }: { drawerOnly?: boolean } = {}) {
   const { t } = useTranslation()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -615,6 +615,12 @@ export function Sidebar() {
     window.addEventListener("storage", check)
     window.addEventListener("auth:login", check)
     return () => { window.removeEventListener("storage", check); window.removeEventListener("auth:login", check) }
+  }, [])
+
+  useEffect(() => {
+    const toggleSidebar = () => setMobileOpen((open) => !open)
+    window.addEventListener("sidebar:toggle", toggleSidebar)
+    return () => window.removeEventListener("sidebar:toggle", toggleSidebar)
   }, [])
 
   const handleLogin = async () => {
@@ -755,13 +761,13 @@ export function Sidebar() {
         </div>
       )}
 
-      {mobileOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setMobileOpen(false)} />}
+      {mobileOpen && <div className="fixed inset-0 z-30 bg-background/70 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />}
 
       <aside className={cn(
         "fixed top-0 left-0 w-64 bg-card border-r border-border h-screen z-40 transition-transform duration-300 flex flex-col",
         mobileOpen
           ? "flex translate-x-0"
-          : "-translate-x-full lg:translate-x-0 hidden lg:flex"
+          : cn("-translate-x-full hidden", !drawerOnly && "lg:translate-x-0 lg:flex")
       )}>
         {/* 상단 top-bar 높이만큼 여백 */}
         <div className="h-12 border-b border-border shrink-0" />
