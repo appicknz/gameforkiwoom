@@ -1338,7 +1338,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
             )
           }
 
-          // ── 지표 계산 ────────────────────────────────────────────��─
+          // ── 지표 계산 ────────────────────────────────────────────���─
           // wCnt = winners(pnl>0), lCnt = losers(pnl<0, non-SL), slCnt = SL청산
           const totalClosed = total
           const winRate    = totalClosed > 0 ? wCnt / totalClosed * 100 : 0
@@ -2481,7 +2481,7 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
     : posMargin * (avgRoi / 100)
   const totalPnl = isHistorical ? activePnl : activePnl + slClosedPnl
 
-  // MARGIN: 고정 시작 잔고($10,000 기준) — 자동매매2는 별도 확정 잔고 원장이 없어 시드값 그대로 사용
+  // MARGIN: 고��� 시작 잔고($10,000 기준) — 자동매매2는 별도 확정 잔고 원장이 없어 시드값 그대로 사용
   const margin   = startingBalance > 0 ? startingBalance : posMargin
   const estValue = margin + totalPnl
   const totalRoi = margin > 0 ? (totalPnl / margin) * 100 : avgRoi
@@ -3117,102 +3117,6 @@ export default function TradePage() {
   return (
     <div className="min-h-screen font-sans"
       style={{ background: "radial-gradient(ellipse at 50% 30%,#0a1a10 0%,#060d09 60%,#040a06 100%)" }}>
-
-      {/* ══════ 공통 Sticky 검색 + 카테고리 헤더 ══════ */}
-      <div className="sticky top-0 z-40 border-b" style={{ background: "rgba(4,10,6,0.97)", borderColor: BORDER, backdropFilter: "blur(12px)" }}>
-        <div className="max-w-7xl mx-auto px-4 pt-3 pb-2 space-y-2.5">
-          {/* 검색바 + 우측 버튼들 */}
-          <div className="flex items-center gap-2">
-            {/* 검색 입력 */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-              <input
-                type="text"
-                placeholder="심볼 검색..."
-                value={searchQ}
-                onChange={e => setSearchQ(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 rounded-lg text-sm focus:outline-none"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: `1px solid ${BORDER}`,
-                  color: "rgba(255,255,255,0.8)",
-                }}
-              />
-              {searchQ && (
-                <button onClick={() => setSearchQ("")} className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <X className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.3)" }} />
-                </button>
-              )}
-            </div>
-
-            {/* 정렬 순환 버튼 — 자동매매/자동매매2 탭일 때만 */}
-            {(tradeMode === "auto" || tradeMode === "auto2") && (
-              <button
-                onClick={cycleSort}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all shrink-0"
-                style={{
-                  background: sortOrder !== "time" ? `rgba(212,175,55,0.15)` : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${sortOrder !== "time" ? "rgba(212,175,55,0.4)" : BORDER}`,
-                  color: sortOrder !== "time" ? GOLD : "rgba(255,255,255,0.5)",
-                }}
-              >
-                {sortOrder === "time"     && <Clock        className="w-3.5 h-3.5" />}
-                {sortOrder === "roi_desc" && <TrendingUp   className="w-3.5 h-3.5" />}
-                {sortOrder === "roi_asc"  && <TrendingDown className="w-3.5 h-3.5" />}
-                {sortOrder === "signal"   && <ArrowUpDown  className="w-3.5 h-3.5" />}
-                {SORT_LABEL[sortOrder]}
-              </button>
-            )}
-
-            {/* 알림 버튼 — 텔레그램 */}
-            <a
-              href="https://t.me/+HHv5pyuGGAw5YTc1"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all"
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: `1px solid ${BORDER}`,
-                color: "rgba(255,255,255,0.5)",
-              }}
-            >
-              <Bell className="w-3.5 h-3.5" />
-              알림
-            </a>
-          </div>
-          {/* 카테고리 탭 — 균등 배분 / 탭 순서: 모의매매 > 자동매매 > 매매기록 / 청산기록은 역삼1만 */}
-          <div className="flex w-full gap-1.5">
-            {([
-              ...(allowMockTrade ? [{ key: "mock" as const,   label: "모의매매", Icon: LineChart }]  : []),
-              { key: "auto"   as const, label: "자동매매", Icon: Bot },
-              { key: "ledger" as const, label: "매매기록",  Icon: BookOpen },
-              ...(userName === "역삼1" ? [{ key: "auto2" as const, label: "자동매매2", Icon: Bot }] : []),
-              ...(userName === "역삼1" ? [{ key: "closed" as const, label: "청산기록", Icon: ListChecks }] : []),
-            ]).map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                onClick={() => switchTab(key)}
-                className="flex items-center justify-center gap-1 py-1.5 rounded-full text-xs font-semibold transition-all"
-                style={{
-                  flex: "1 1 0",
-                  minWidth: 0,
-                  ...(tradeMode === key ? {
-                    background: GOLD,
-                    color: "#000",
-                  } : {
-                    background: "rgba(255,255,255,0.06)",
-                    color: "rgba(255,255,255,0.5)",
-                    border: `1px solid ${BORDER}`,
-                  })
-                }}
-              >
-                <Icon className="w-3 h-3 shrink-0" />
-                <span className="truncate">{label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* ══════ 모바일 (lg 미만) ══════ */}
       <div className="lg:hidden" style={{ height: "calc(100dvh - 148px)", overflow: "hidden", position: "relative" }}>
