@@ -48,14 +48,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className="bg-[oklch(0.12_0.01_155)]">
-      <head>
-        {/* PC 텔레그램 WebView 호환 — useTelegram 훅과 함께 동작 */}
+      <body className={`font-sans antialiased bg-[oklch(0.12_0.01_155)] ${_orbitron.variable}`}>
+        {/* beforeInteractive 외부 스크립트가 v0의 head 주입 스크립트와 순서를 다르게 만들어
+            전체 React 트리를 hydration mismatch로 오인시키므로 hydration 이후에 로드한다. */}
         <Script
           src="https://telegram.org/js/telegram-web-app.js"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
         />
-      </head>
-      <body className={`font-sans antialiased bg-[oklch(0.12_0.01_155)] ${_orbitron.variable}`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="tasko-theme">
           {/* 텔레그램 미니앱 접속 시 유저 정보 자동 수집 */}
           <TelegramCollector />
