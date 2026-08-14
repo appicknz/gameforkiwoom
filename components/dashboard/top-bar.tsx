@@ -7,7 +7,7 @@
  * - 잔고: balance:update 커스텀 이벤트로 betting-game과 동기화
  */
 
-import { Home, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield, GitBranch, Menu } from "lucide-react"
+import { Home, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield, GitBranch } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -33,15 +33,6 @@ function getToken(): string | null {
 }
 function clearToken() {
   try { localStorage.removeItem(STORAGE_KEY) } catch {}
-}
-function roleLabel(role?: string) {
-  switch (role) {
-    case "master":
-    case "super_admin": return "최고관리자"
-    case "branch_admin": return "지점관리자"
-    case "admin": return "관리자"
-    default: return "일반회원"
-  }
 }
 
 export function TopBar() {
@@ -200,7 +191,7 @@ export function TopBar() {
     }
 
     const timer = setInterval(refresh, REFRESH_INTERVAL)
-    // 페이지 로드 후 1분 뒤 첫 갱신 시도 (초기 로드 직후 불필요����� 호출 방지)
+    // 페이지 로드 후 1분 뒤 첫 갱신 시도 (초기 로드 직후 불필요��� 호출 방지)
     const initial = setTimeout(refresh, 60_000)
 
     return () => {
@@ -421,14 +412,7 @@ export function TopBar() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
       <div className="flex h-12 items-center gap-2 px-4">
 
-        {/* 좌측: 모바일 메뉴(사이드바 토글) + 홈 버튼 */}
-        <button
-          onClick={() => window.dispatchEvent(new CustomEvent("sidebar:toggle"))}
-          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-secondary transition-colors shrink-0 lg:hidden"
-          aria-label="메뉴 열기"
-        >
-          <Menu className="w-4.5 h-4.5 text-foreground" />
-        </button>
+        {/* 좌측: 홈 버튼 */}
         <Link
           href="/"
           className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center hover:bg-primary/80 transition-colors shrink-0"
@@ -454,54 +438,28 @@ export function TopBar() {
         <div className="flex items-center gap-2 shrink-0" ref={dropdownRef}>
           <LangSwitcher />
           {isLoggedIn ? (
-            /* 네이버 스타일: 상시 펼쳐진 프로필 카드 (아바타 + 닉네임/등급 한 줄 + 로그아웃) */
-            <div className="flex items-center gap-0.5 pl-1 pr-0.5 py-1 rounded-lg bg-secondary/70 border border-border">
-              <button
-                onClick={() => setDropdownOpen(v => !v)}
-                className="flex items-center gap-1.5 px-1 py-0.5 rounded-md hover:bg-secondary transition-colors"
-                aria-label="프로필 메뉴"
-                aria-expanded={dropdownOpen}
-              >
-                <Avatar className="w-7 h-7 shrink-0">
-                  <AvatarFallback className="bg-primary text-black text-xs font-bold">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="hidden sm:flex flex-col items-start leading-tight max-w-[88px]">
-                  <span className="text-xs font-semibold text-foreground truncate w-full">
-                    {profile?.username ?? "-"}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground truncate w-full">
-                    {roleLabel(profile?.role)}
-                  </span>
-                </span>
-                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0 ${dropdownOpen ? "rotate-180" : ""}`} />
-              </button>
-              <button
-                onClick={handleLogout}
-                aria-label={t("auth.logout") as string}
-                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            /* 네이버 스타일: 게스트 프로필 카드 (아바타 자리 + 안내문 + 로그인 버튼) */
             <button
-              onClick={() => { setAuthTab("login"); setLoginMsg(null); setTgLoginMsg(null); setDropdownOpen(true) }}
-              className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-lg bg-secondary/70 border border-border hover:border-primary/60 hover:bg-primary/5 transition-all"
-              aria-label={t("auth.login") as string}
+              onClick={() => setDropdownOpen(v => !v)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-secondary transition-colors"
+              aria-label="프로필"
             >
-              <Avatar className="w-7 h-7 shrink-0">
-                <AvatarFallback className="bg-muted text-muted-foreground">
-                  <User className="w-3.5 h-3.5" />
+              <Avatar className="w-7 h-7">
+                <AvatarFallback className="bg-primary text-black text-xs font-bold">
+                  {initials}
                 </AvatarFallback>
               </Avatar>
-              <span className="hidden sm:flex flex-col items-start leading-tight">
-                <span className="text-xs font-semibold text-foreground">게스트</span>
-                <span className="text-[10px] text-primary font-medium">{t("auth.login")}</span>
-              </span>
-              <LogIn className="w-3.5 h-3.5 text-primary shrink-0 sm:hidden" />
+              <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+          ) : (
+            <button
+              onClick={() => { setAuthTab("login"); setLoginMsg(null); setTgLoginMsg(null); setDropdownOpen(true) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg text-white hover:opacity-90 transition-opacity active:scale-95"
+              style={{ background: "#229ED9" }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+              </svg>
+              {t("auth.login")}
             </button>
           )}
 
