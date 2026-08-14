@@ -212,58 +212,6 @@ export default function RacePage() {
 
           {/* 왼쪽: 메인 게임 영역 */}
           <div className="lg:col-span-2 space-y-4">
-            {/* 헤더: 현재가 + BIT/COIN 끝자리 배지 */}
-            <div style={{
-              background: "rgba(5,13,10,0.92)",
-              border: "1px solid rgba(212,175,55,0.2)",
-              borderRadius: 16,
-              padding: "10px 16px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}>
-              {/* 왼쪽: 현재가 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>현재가</span>
-                {liveCurrentPrice !== null ? (
-                  <span style={{ fontSize: 15, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
-                    ${liveCurrentPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                ) : (
-                  <span style={{ fontSize: 15, fontWeight: 700, color: GOLD }}>—</span>
-                )}
-              </div>
-              {/* 오른쪽: BIT/COIN 끝자리 배지 */}
-              {liveCurrentPrice !== null && (() => {
-                const dec = liveCurrentPrice.toFixed(2).split(".")[1] ?? "00"
-                const d1 = dec[0] ?? "0"
-                const d2 = dec[1] ?? "0"
-                return (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontSize: 10, color: `${BIT_COLOR}99`, fontWeight: 600 }}>BIT</span>
-                      <span style={{
-                        width: 26, height: 26, borderRadius: "50%",
-                        background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.45)",
-                        display: "inline-flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 12, fontWeight: 800, color: BIT_COLOR,
-                      }}>{d1}</span>
-                    </div>
-                    <span style={{ color: "rgba(212,175,55,0.3)", fontSize: 12 }}>/</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontSize: 10, color: `${COIN_COLOR}99`, fontWeight: 600 }}>COIN</span>
-                      <span style={{
-                        width: 26, height: 26, borderRadius: "50%",
-                        background: "rgba(249,115,22,0.15)", border: "1px solid rgba(249,115,22,0.45)",
-                        display: "inline-flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 12, fontWeight: 800, color: COIN_COLOR,
-                      }}>{d2}</span>
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-
             {/* BigRoad */}
             <div style={{
               background: "rgba(5,15,10,0.92)",
@@ -291,8 +239,38 @@ export default function RacePage() {
 
           </div>
 
-          {/* 오른쪽: 3분 마감 기준가 + 차트 */}
+          {/* 오른쪽: 현재가 요약 + 3분 마감 기준가 */}
           <div className="space-y-4">
+            <div style={{
+              minHeight: 72,
+              background: "rgba(5,13,10,0.92)",
+              border: "1px solid rgba(212,175,55,0.2)",
+              borderRadius: 16,
+              padding: "12px 16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 10, color: "rgba(212,175,55,0.5)", letterSpacing: "0.05em" }}>현재가</span>
+                <span style={{ fontSize: 16, fontWeight: 700, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
+                  {liveCurrentPrice === null ? "—" : `$${liveCurrentPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                </span>
+              </div>
+              {liveCurrentPrice !== null && (() => {
+                const [d1 = "0", d2 = "0"] = (liveCurrentPrice.toFixed(2).split(".")[1] ?? "00").split("")
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 10, color: `${BIT_COLOR}99`, fontWeight: 700 }}>BIT</span>
+                    <span style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.45)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: BIT_COLOR }}>{d1}</span>
+                    <span style={{ color: "rgba(212,175,55,0.3)" }}>/</span>
+                    <span style={{ fontSize: 10, color: `${COIN_COLOR}99`, fontWeight: 700 }}>COIN</span>
+                    <span style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(249,115,22,0.15)", border: "1px solid rgba(249,115,22,0.45)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: COIN_COLOR }}>{d2}</span>
+                  </div>
+                )
+              })()}
+            </div>
+
             {/* BITTOTO 헤더 + 3분 마감 기준가 */}
             <div style={{
               background: "rgba(5,13,10,0.95)",
@@ -319,16 +297,6 @@ export default function RacePage() {
               <RaceClosingPrices />
             </div>
 
-            {/* BitcoinChart — 마감 기준가 아래 */}
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={{
-                border: "1px solid rgba(212,175,55,0.2)",
-                boxShadow: "0 0 50px rgba(212,175,55,0.06)",
-              }}
-            >
-              <BitcoinChart mode="race" />
-            </div>
           </div>
 
         </div>

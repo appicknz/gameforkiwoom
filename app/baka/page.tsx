@@ -265,8 +265,6 @@ export default function BakaPage() {
 
           {/* 왼쪽: BigRoad + 카드 오버레이 */}
           <div className="lg:col-span-2 space-y-4">
-            {/* 헤더: 기준가 왼쪽, 뱅커/플레이어 끝자리 오른쪽 (/race 스타일) */}
-            <BakaHeader />
 
             {/* 실시간 가격 바 */}
             <BakaLivePriceBar />
@@ -499,10 +497,11 @@ export default function BakaPage() {
             />
           </div>
 
-          {/* 오른쪽: 바카라 카드 딜 게임 */}
-          <div>
-            <div
-              className="rounded-2xl overflow-hidden sticky top-4"
+          {/* 오른쪽: 현재가 요약 + 바카라 결과 */}
+          <div className="flex flex-col gap-4">
+          <BakaHeader />
+          <div
+          className="rounded-2xl overflow-hidden"
               style={{
                 border: "1px solid rgba(212,175,55,0.2)",
                 boxShadow: "0 0 50px rgba(212,175,55,0.06)",
