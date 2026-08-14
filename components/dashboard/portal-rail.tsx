@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bot, Flag, Gamepad2, Home, Menu, Store } from "lucide-react"
+import { Bot, Flag, Gamepad2, Home, Store } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const railItems = [
@@ -18,15 +18,6 @@ export function PortalRail() {
 
   return (
     <aside className="fixed bottom-0 left-0 top-12 z-30 hidden w-16 border-r border-border bg-card lg:flex lg:flex-col lg:items-center lg:gap-3 lg:py-4" aria-label="빠른 메뉴">
-      <button
-        type="button"
-        onClick={() => window.dispatchEvent(new CustomEvent("sidebar:toggle"))}
-        className="flex size-10 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
-        aria-label="전체 메뉴 열기"
-      >
-        <Menu className="size-5" />
-      </button>
-      <div className="h-px w-8 bg-border" />
       <nav className="flex flex-col gap-2">
         {railItems.map((item) => {
           const Icon = item.icon

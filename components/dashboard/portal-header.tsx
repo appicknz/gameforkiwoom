@@ -68,7 +68,7 @@ export function PortalHeader() {
   }
 
   return (
-    <section className="border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:px-6 lg:px-8">
+    <section className="px-4 py-3 md:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
         <div className="flex items-center gap-2">
           <form onSubmit={handleSubmit} className="relative min-w-0 flex-1">
@@ -91,14 +91,21 @@ export function PortalHeader() {
               </div>
             )}
           </form>
-          <button type="button" aria-label="알림" className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary md:size-11">
+          <a
+            href="https://t.me/+HHv5pyuGGAw5YTc1"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="텔레그램 알림 채널 열기"
+            title="알림"
+            className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary md:size-11"
+          >
             <Bell className="size-4" aria-hidden="true" />
             <span className="absolute right-2 top-2 size-1.5 rounded-full bg-primary" aria-hidden="true" />
-          </button>
+          </a>
         </div>
 
         <nav aria-label="주요 서비스" className="overflow-x-auto pb-1">
-          <div className="flex min-w-max items-center gap-1.5 md:gap-2">
+          <div className="mx-auto flex min-w-max w-max items-center justify-center gap-1.5 md:gap-2">
             {portalItems.map((item) => {
               const Icon = item.icon
               const active = pathname === item.href && !("mode" in item)
