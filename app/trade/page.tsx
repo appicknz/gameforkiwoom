@@ -1338,7 +1338,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
             )
           }
 
-          // ── 지표 계산 ──────────────────────────────────────────────
+          // ── 지표 계산 ────────────────────────────────────────────��─
           // wCnt = winners(pnl>0), lCnt = losers(pnl<0, non-SL), slCnt = SL청산
           const totalClosed = total
           const winRate    = totalClosed > 0 ? wCnt / totalClosed * 100 : 0
@@ -2822,6 +2822,39 @@ export default function TradePage() {
     setSelectedDate(kstToday())
     setTradeMode(mode)
   }
+
+  useEffect(() => {
+    const selectSymbol = (event: Event) => {
+      const symbol = (event as CustomEvent<string>).detail
+      if (!symbol) return
+      const price = liveCache.tickers.get(symbol)?.price ?? null
+      setSelectedSymbol(symbol)
+      setDialogSymbol(symbol)
+      setSelectedPrice(price)
+      setDialogPrice(price)
+      selectedSymbolRef.current = symbol
+      dialogSymbolRef.current = symbol
+      setTradeMode("mock")
+    }
+    const selectMode = (event: Event) => {
+      const mode = (event as CustomEvent<"auto" | "ledger">).detail
+      if (mode === "auto" || mode === "ledger") switchTab(mode)
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    const initialMode = params.get("mode")
+    const initialSymbol = params.get("symbol")
+    if (initialMode === "auto" || initialMode === "ledger") switchTab(initialMode)
+    if (initialSymbol) selectSymbol(new CustomEvent("trade:symbol", { detail: initialSymbol.toUpperCase() }))
+
+    window.addEventListener("trade:symbol", selectSymbol)
+    window.addEventListener("trade:mode", selectMode)
+    return () => {
+      window.removeEventListener("trade:symbol", selectSymbol)
+      window.removeEventListener("trade:mode", selectMode)
+    }
+  }, [])
+
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
   const [allowMockTrade, setAllowMockTrade] = useState(false)
   const [userRole,       setUserRole]       = useState<string | null>(null)
