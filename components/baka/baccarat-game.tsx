@@ -613,7 +613,7 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
     // 소수점 2자리 추출: toFixed(2) 문자열 파싱 → 부동소수점 오차 없음
     const decStr = closingPrice.toFixed(2).split(".")[1] ?? "00"
     const bankerDigit = parseInt(decStr[0] ?? "0")   // 소수점 첫째 자리 → 뱅커
-    const playerDigit = parseInt(decStr[1] ?? "0")   // 소수점 둘째 자리 → 플레이어
+    const playerDigit = parseInt(decStr[1] ?? "0")   // 소수점 둘째 자리 → 플레이���
 
     // 무늬 seed: 라운드 기반 고정값 → 모든 기기 동일
     const finalSeeded = makeSeededRand(getRoundSeed() + 9999)
@@ -730,17 +730,6 @@ export default function BaccaratGame({ onCardsChange, onStartDealRequest, onFina
       {/* 30초 마감 기준가 */}
       <div style={{ padding: "10px 12px 0" }}>
         <ClosingPrices />
-      </div>
-
-      {/* 차트 — 별도 카드로 분리, 테두리+여백으로 명확히 구분 */}
-      <div style={{ padding: "12px 12px 12px" }}>
-        <div style={{
-          borderRadius: 16,
-          overflow: "hidden",
-          border: "1px solid rgba(212,175,55,0.25)",
-        }}>
-          <BitcoinChart />
-        </div>
       </div>
 
     </div>

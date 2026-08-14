@@ -6,7 +6,6 @@ import { RaceScoreboard } from "@/components/race/race-scoreboard"
 import { RaceBettingGame } from "@/components/race/race-betting-game"
 import { RaceClosingPrices } from "@/components/race/race-closing-prices"
 import { usePriceWorker } from "@/hooks/use-price-worker"
-import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import { BigRoad, type RoadResult } from "@/components/baka/baccarat-game"
 
 const BIT_COLOR = "#3b82f6"
