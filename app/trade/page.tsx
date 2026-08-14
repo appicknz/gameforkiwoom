@@ -1320,7 +1320,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                   <div className="flex items-end justify-between" style={{ marginBottom: 8 }}>
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.72)" }}>
-                        종료 거래 {total} / {MIN_HEALTH_SAMPLE}건
+                        데이터 수집 중 {total} / {MIN_HEALTH_SAMPLE}건
                       </div>
                       <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)", marginTop: 3 }}>
                         {remaining}건 더 쌓이면 전략 평가를 시작합니다
