@@ -1299,6 +1299,45 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
           if (total === 0 && activeRois.length === 0) return null
 
+          // 전략 평가는 종료 거래 50건부터 의미가 있음.
+          // 표본이 부족할 때는 PF·승률·기대값으로 성급한 판정을 내리지 않고 수집 진행률만 표시한다.
+          const MIN_HEALTH_SAMPLE = 50
+          if (total < MIN_HEALTH_SAMPLE) {
+            const samplePct = Math.min(total / MIN_HEALTH_SAMPLE * 100, 100)
+            const remaining = MIN_HEALTH_SAMPLE - total
+
+            return (
+              <div style={{ marginTop: 8, background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "12px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+                  <div className="flex items-center gap-2">
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.25)", display: "inline-block" }} />
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>STRATEGY HEALTH</span>
+                  </div>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.4)" }}>데이터 수집 중</span>
+                </div>
+
+                <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 12px" }}>
+                  <div className="flex items-end justify-between" style={{ marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.72)" }}>
+                        종료 거래 {total} / {MIN_HEALTH_SAMPLE}건
+                      </div>
+                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)", marginTop: 3 }}>
+                        {remaining}건 더 쌓이면 전략 평가를 시작합니다
+                      </div>
+                    </div>
+                    <span className="tabular-nums" style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.32)" }}>
+                      {Math.round(samplePct)}%
+                    </span>
+                  </div>
+                  <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${samplePct}%`, background: "rgba(255,255,255,0.28)", borderRadius: 4, transition: "width 0.4s" }} />
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
           // ── 지표 계산 ──────────────────────────────────────────────
           // wCnt = winners(pnl>0), lCnt = losers(pnl<0, non-SL), slCnt = SL청산
           const totalClosed = total
