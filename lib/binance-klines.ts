@@ -6,7 +6,32 @@
  * - 과거 날짜 응답은 변하지 않으므로 Next.js revalidate 캐시로 Binance 호출을 최소화합니다.
  */
 
-const BINANCE_BASE = "https://fapi.binance.com"
+const BINANCE_FUTURES_BASE = "https://fapi.binance.com"
+// data-api.binance.vision: Binance가 공식으로 제공하는, 지역 차단이 없는 시장데이터 미러.
+// 배포 리전에 따라 fapi.binance.com/api.binance.com이 451(Restricted Location)로 막히는 경우가 있어
+// 이 미러를 1차 소스로 사용하고, 여기 없는 선물 전용 심볼만 fapi로 fallback한다.
+const BINANCE_VISION_BASE = "https://data-api.binance.vision"
+
+async function fetchKline(
+  base: string,
+  path: string,
+  sym: string,
+  startTime: number,
+  endTime: number,
+): Promise<[number, string, string, string, string, ...unknown[]][] | null> {
+  const url = `${base}${path}?symbol=${sym}&interval=1m&startTime=${startTime}&endTime=${endTime}&limit=1`
+  try {
+    const res = await fetch(url, {
+      next: { revalidate: 3600 },  // 과거 데이터는 변하지 않으므로 1시간 캐시
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (!Array.isArray(data) || data.length === 0) return null
+    return data
+  } catch {
+    return null
+  }
+}
 
 export type DayClose = {
   symbol:     string  // BTCUSDT
@@ -34,27 +59,22 @@ export async function getDayClose(
   const startTime = kstEnd.getTime()
 
   const sym = symbol.replace(/\.P$/, "").toUpperCase()
-  const url = `${BINANCE_BASE}/fapi/v1/klines?symbol=${sym}&interval=1m&startTime=${startTime}&endTime=${endTime}&limit=1`
 
-  try {
-    const res = await fetch(url, {
-      next: { revalidate: 3600 },  // 과거 데이터는 변하지 않으므로 1시간 캐시
-    })
-    if (!res.ok) return null
+  // 1차: 지역 차단 없는 spot 미러 (대부분의 심볼이 현물에도 상장돼 있어 커버됨)
+  // 2차: 선물 전용 심볼(예: 1000PEPEUSDT 등)은 spot에 없으므로 fapi로 fallback
+  const data =
+    (await fetchKline(BINANCE_VISION_BASE, "/api/v3/klines", sym, startTime, endTime)) ??
+    (await fetchKline(BINANCE_FUTURES_BASE, "/fapi/v1/klines", sym, startTime, endTime))
 
-    const data: [number, string, string, string, string, ...unknown[]][] = await res.json()
-    if (!Array.isArray(data) || data.length === 0) return null
+  if (!data) return null
 
-    const candle = data[0]
-    // 1분봉 close 가격 = KST 23:59~24:00 사이 마지막 체결가
-    return {
-      symbol:     sym,
-      date:       dateLabel,
-      openPrice:  parseFloat(candle[1] as string),
-      closePrice: parseFloat(candle[4] as string),
-    }
-  } catch {
-    return null
+  const candle = data[0]
+  // 1분봉 close 가격 = KST 23:59~24:00 사이 마지막 체결가
+  return {
+    symbol:     sym,
+    date:       dateLabel,
+    openPrice:  parseFloat(candle[1] as string),
+    closePrice: parseFloat(candle[4] as string),
   }
 }
 

@@ -18,10 +18,13 @@ import { NextResponse } from "next/server"
 
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
 const CRON_SECRET     = process.env.CRON_SECRET ?? ""
-const BINANCE_BASE    = "https://fapi.binance.com"
+const BINANCE_FUTURES_BASE = "https://fapi.binance.com"
+// 배포 리전에서 fapi.binance.com이 451(Restricted Location)로 막히는 경우가 있어
+// 지역 차단이 없는 spot 미러를 1차로 시도한다 (lib/binance-klines.ts와 동일한 전략).
+const BINANCE_VISION_BASE  = "https://data-api.binance.vision"
 
 /**
- * Binance Futures 현재가 일괄 조회 (전체 ticker → 개별 fallback → 최근 klines fallback)
+ * Binance 현재가 일괄 조회 (spot 미러 ticker → futures ticker → 개별 fallback → 최근 klines fallback)
  * ⚠️ 이건 "지금 이 순간"의 라이브 가격이라 자정 크론 실행 시점에 Binance 쪽 순간 오류/지연이 있으면
  *    실패하기 쉽다. 그래서 이 함수는 보조 fallback 용도로만 쓰고, 1차 소스는 getDayCloseMap
  *    (KST 23:59~24:00 확정 1분봉, 사후 조회라 항상 존재함)을 사용한다.
@@ -30,9 +33,9 @@ async function getBinancePrices(symbols: string[]): Promise<Map<string, number>>
   const map     = new Map<string, number>()
   const needed  = new Set(symbols.map(s => s.replace(/\.P$/, "").toUpperCase()))
 
-  // 1차: 전체 ticker 한 번에
+  // 1차: spot 미러 전체 ticker 한 번에 (지역 차단 없음, 대부분의 심볼 커버)
   try {
-    const res = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price`, { cache: "no-store" })
+    const res = await fetch(`${BINANCE_VISION_BASE}/api/v3/ticker/price`, { cache: "no-store" })
     if (res.ok) {
       const data: { symbol: string; price: string }[] = await res.json()
       for (const row of data) {
@@ -41,34 +44,55 @@ async function getBinancePrices(symbols: string[]): Promise<Map<string, number>>
     }
   } catch { /* fallback으로 이어짐 */ }
 
-  // 2차: 전체 조회 실패 or 일부 심볼 누락 → 개별 심볼 조회
+  // 2차: futures 전체 ticker (선물 전용 심볼 등 미러에 없는 것들)
+  const afterVision = [...needed].filter(s => !map.has(s))
+  if (afterVision.length > 0) {
+    try {
+      const res = await fetch(`${BINANCE_FUTURES_BASE}/fapi/v1/ticker/price`, { cache: "no-store" })
+      if (res.ok) {
+        const data: { symbol: string; price: string }[] = await res.json()
+        for (const row of data) {
+          if (needed.has(row.symbol) && !map.has(row.symbol)) map.set(row.symbol, parseFloat(row.price))
+        }
+      }
+    } catch { /* fallback으로 이어짐 */ }
+  }
+
+  // 3차: 그래도 누락 → 개별 심볼 조회 (spot 미러 → futures 순)
   const missing = [...needed].filter(s => !map.has(s))
   if (missing.length > 0) {
     await Promise.all(missing.map(async sym => {
-      try {
-        const res = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price?symbol=${sym}`, { cache: "no-store" })
-        if (res.ok) {
-          const d: { price: string } = await res.json()
-          if (d.price) map.set(sym, parseFloat(d.price))
-        }
-      } catch { /* 이 심볼 가격 조회 실패 */ }
+      for (const base of [
+        { url: `${BINANCE_VISION_BASE}/api/v3/ticker/price?symbol=${sym}` },
+        { url: `${BINANCE_FUTURES_BASE}/fapi/v1/ticker/price?symbol=${sym}` },
+      ]) {
+        try {
+          const res = await fetch(base.url, { cache: "no-store" })
+          if (res.ok) {
+            const d: { price: string } = await res.json()
+            if (d.price) { map.set(sym, parseFloat(d.price)); return }
+          }
+        } catch { /* 다음 소스로 계속 */ }
+      }
     }))
   }
 
-  // 3차: 개별 조회도 실패한 심볼 → 최근 1분봉 klines로 fallback
+  // 4차: 개별 조회도 실패한 심볼 → 최근 1분봉 klines로 fallback (spot 미러 → futures 순)
   const stillMissing = [...needed].filter(s => !map.has(s))
   if (stillMissing.length > 0) {
     await Promise.all(stillMissing.map(async sym => {
-      try {
-        const res = await fetch(
-          `${BINANCE_BASE}/fapi/v1/klines?symbol=${sym}&interval=1m&limit=1`,
-          { cache: "no-store" }
-        )
-        if (res.ok) {
-          const d: [number, string, string, string, string][] = await res.json()
-          if (d?.[0]?.[4]) map.set(sym, parseFloat(d[0][4])) // index 4 = close
-        }
-      } catch { /* 이 심볼 klines 조회도 실패 */ }
+      for (const url of [
+        `${BINANCE_VISION_BASE}/api/v3/klines?symbol=${sym}&interval=1m&limit=1`,
+        `${BINANCE_FUTURES_BASE}/fapi/v1/klines?symbol=${sym}&interval=1m&limit=1`,
+      ]) {
+        try {
+          const res = await fetch(url, { cache: "no-store" })
+          if (res.ok) {
+            const d: [number, string, string, string, string][] = await res.json()
+            if (d?.[0]?.[4]) { map.set(sym, parseFloat(d[0][4])); return } // index 4 = close
+          }
+        } catch { /* 다음 소스로 계속 */ }
+      }
     }))
   }
 
