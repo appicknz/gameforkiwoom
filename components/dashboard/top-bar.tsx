@@ -79,9 +79,9 @@ export function TopBar() {
     }
   }
 
-  // 로그인 폼
-  const [loginUsername, setLoginUsername] = useState("")
-  const [loginPw, setLoginPw] = useState("")
+  // 로그인 폼 — 비제어 입력으로 TopBar 전체의 키 입력별 재렌더링 방지
+  const loginUsernameRef = useRef<HTMLInputElement>(null)
+  const loginPwRef = useRef<HTMLInputElement>(null)
   const [showLoginPw, setShowLoginPw] = useState(false)
   const [loginMsg, setLoginMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [loginLoading, setLoginLoading] = useState(false)
@@ -191,7 +191,7 @@ export function TopBar() {
     }
 
     const timer = setInterval(refresh, REFRESH_INTERVAL)
-    // 페이지 로드 후 1분 뒤 첫 갱신 시도 (초기 로드 직후 불필요��� 호출 방지)
+    // 페이지 로드 후 1분 뒤 첫 갱신 시도 (초기 로드 직후 불필요����� 호출 방지)
     const initial = setTimeout(refresh, 60_000)
 
     return () => {
@@ -231,15 +231,17 @@ export function TopBar() {
   // ── 로그인: 서버 API가 토큰 반환 ─────────────────────────────────
   const handleLogin = async () => {
     setLoginMsg(null)
-    if (!loginUsername.trim()) return setLoginMsg({ text: t("auth.errorUsernameRequired"), ok: false })
-    if (!loginPw) return setLoginMsg({ text: t("auth.errorPasswordRequired"), ok: false })
+    const username = loginUsernameRef.current?.value.trim() ?? ""
+    const password = loginPwRef.current?.value ?? ""
+    if (!username) return setLoginMsg({ text: t("auth.errorUsernameRequired"), ok: false })
+    if (!password) return setLoginMsg({ text: t("auth.errorPasswordRequired"), ok: false })
 
     setLoginLoading(true)
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: loginUsername, password: loginPw }),
+        body: JSON.stringify({ username, password }),
       })
       const data = await res.json()
       setLoginLoading(false)
@@ -652,16 +654,24 @@ export function TopBar() {
                       <>
                         <div className="relative">
                           <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                          <input type="text" placeholder={t("auth.usernamePlaceholder")} value={loginUsername}
-                            onChange={e => setLoginUsername(e.target.value)}
+                          <input
+                            ref={loginUsernameRef}
+                            type="text"
+                            autoComplete="username"
+                            placeholder={t("auth.usernamePlaceholder")}
                             className="w-full h-9 pl-8 pr-3 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
                           />
                         </div>
                         <div className="relative">
                           <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                          <input type={showLoginPw ? "text" : "password"} placeholder={t("auth.passwordPlaceholder")}
-                            value={loginPw} onChange={e => setLoginPw(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && handleLogin()}
+                          <input
+                            ref={loginPwRef}
+                            type={showLoginPw ? "text" : "password"}
+                            autoComplete="current-password"
+                            placeholder={t("auth.passwordPlaceholder")}
+                            onKeyDown={e => {
+                              if (!e.nativeEvent.isComposing && e.keyCode !== 229 && e.key === "Enter") handleLogin()
+                            }}
                             className="w-full h-9 pl-8 pr-9 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/60"
                           />
                           <button type="button" onClick={() => setShowLoginPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">

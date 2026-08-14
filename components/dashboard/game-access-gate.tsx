@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { Lock, ShoppingBag } from "lucide-react"
 
 function getToken() {
@@ -11,18 +11,48 @@ function getToken() {
 export function GameAccessGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<"loading" | "allowed" | "denied" | "guest">("loading")
   const router = useRouter()
+  const pathname = usePathname()
+
+  const checkAccess = useCallback(async (signal?: AbortSignal) => {
+    const token = getToken()
+    if (!token) {
+      setStatus("guest")
+      return
+    }
+
+    setStatus("loading")
+    try {
+      const response = await fetch("/api/user/game-access", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+        signal,
+      })
+      if (!response.ok) throw new Error("Failed to check game access")
+      const data = await response.json()
+      if (!signal?.aborted) setStatus(data.allowed ? "allowed" : "denied")
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) setStatus("denied")
+    }
+  }, [])
 
   useEffect(() => {
-    const token = getToken()
-    if (!token) { setStatus("guest"); return }
+    const controller = new AbortController()
+    void checkAccess(controller.signal)
 
-    fetch("/api/user/game-access", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(d => setStatus(d.allowed ? "allowed" : "denied"))
-      .catch(() => setStatus("denied"))
-  }, [])
+    const refreshAccess = () => void checkAccess()
+    window.addEventListener("auth:login", refreshAccess)
+    window.addEventListener("auth:logout", refreshAccess)
+    window.addEventListener("storage", refreshAccess)
+    window.addEventListener("pageshow", refreshAccess)
+
+    return () => {
+      controller.abort()
+      window.removeEventListener("auth:login", refreshAccess)
+      window.removeEventListener("auth:logout", refreshAccess)
+      window.removeEventListener("storage", refreshAccess)
+      window.removeEventListener("pageshow", refreshAccess)
+    }
+  }, [checkAccess, pathname])
 
   if (status === "loading") {
     return (
