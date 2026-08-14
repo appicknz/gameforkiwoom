@@ -238,6 +238,8 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
     const container = chartContainerRef.current
     // compact(빅로드 내부)일 때는 골드 테마, 일반일 때는 바이낸스 다크 테마
     const chart = createChart(container, {
+      width: container.clientWidth,
+      height: container.clientHeight,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: compact ? "rgba(212,175,55,0.55)" : "rgba(180,180,180,0.75)",
@@ -299,9 +301,15 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
     }
 
     const resizeObserver = new ResizeObserver(() => {
-      // cancelled 체크로 dispose 이후 호출 방지
+      // Big Road 임베드 차트도 부모 보드의 실제 폭과 높이를 함께 따라가야
+      // 시간축이 항상 보드 하단에 고정된다.
       if (!cancelled && chartRef.current && container) {
-        try { chartRef.current.applyOptions({ width: container.clientWidth }) } catch {}
+        try {
+          chartRef.current.applyOptions({
+            width: container.clientWidth,
+            height: container.clientHeight,
+          })
+        } catch {}
       }
     })
     resizeObserver.observe(container)
