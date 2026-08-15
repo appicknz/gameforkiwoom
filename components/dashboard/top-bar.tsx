@@ -56,7 +56,14 @@ export function TopBar() {
   const [tgLoginMsg, setTgLoginMsg] = useState<string | null>(null)
 
 
+  // 텔레그램 앱 밖(일반 브라우저)에서 누르면 미니앱 링크로 이동시켜 앱 안에서 로그인하게 함
+  const TELEGRAM_MINIAPP_URL = "https://t.me/bitbaka_bot/bitbaka"
+
   const handleTelegramLogin = async () => {
+    if (!isTelegramEnv) {
+      window.location.href = TELEGRAM_MINIAPP_URL
+      return
+    }
     setTgLoginLoading(true)
     setTgLoginMsg(null)
     try {
