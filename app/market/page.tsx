@@ -316,7 +316,7 @@ export default function MarketPage() {
                   src={blobImageUrl(selectedItem.image_url)!}
                   alt={selectedItem.title}
                   fill
-                  quality={75}
+                  unoptimized
                   sizes="(max-width: 640px) 100vw, 512px"
                   className="object-cover"
                 />
@@ -349,7 +349,7 @@ export default function MarketPage() {
                   </span>
                   {usePoint && userBalance !== null && userBalance > 0 && selectedItem.price_krw > 0 && (
                     <span className="text-lg font-extrabold text-primary">
-                      {Math.max(0, selectedItem.price_krw - Math.min(userBalance, selectedItem.price_krw)).toLocaleString("ko-KR")}원
+                      {Math.max(0, selectedItem.price_krw - Math.min(userBalance, selectedItem.price_krw)).toLocaleString("ko-KR")}���
                     </span>
                   )}
                   {/* 포인트 사용 버튼 — 로그인 유저 + 잔고 있을 때만 */}
@@ -861,7 +861,7 @@ function MarketItemCard({
               src={blobImageUrl(item.image_url)!}
               alt={item.title}
               fill
-              quality={60}
+              unoptimized
               priority={index < 2}
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1536px) 20vw, 16vw"
               className="object-cover group-hover:scale-105 transition-transform duration-300"

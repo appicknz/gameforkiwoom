@@ -177,7 +177,7 @@ export default function MarketItemPage() {
                 alt={item.title}
                 fill
                 priority
-                quality={75}
+                unoptimized
                 sizes="(max-width: 768px) calc(100vw - 2rem), 416px"
                 className="object-cover"
               />
