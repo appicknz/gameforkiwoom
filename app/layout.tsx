@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono, Orbitron } from "next/font/google"
 import Script from "next/script"
 import { ThemeProvider } from "@/components/theme-provider"
-import { TelegramCollector } from "@/components/telegram-collector"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -56,8 +55,6 @@ export default function RootLayout({
           strategy="afterInteractive"
         />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="tasko-theme">
-          {/* 텔레그램 미니앱 접속 시 유저 정보 자동 수집 */}
-          <TelegramCollector />
           {children}
         </ThemeProvider>
       </body>

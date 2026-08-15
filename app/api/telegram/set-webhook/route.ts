@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { verifySession } from "@/lib/auth"
+import { getBotToken, getTelegramWebhookSecret } from "@/lib/telegram"
 
 /**
  * POST /api/telegram/set-webhook
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const token = process.env.TELEGRAM_BOT_TOKEN ?? "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
+  const token = getBotToken()
 
   // 요청 호스트에서 동적으로 URL 구성 (배포 URL이 바뀌어도 항상 올바른 URL)
   const host    = req.headers.get("host") ?? process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
     body: JSON.stringify({
       url: webhookUrl,
       allowed_updates: ["callback_query", "message"],
+      secret_token: getTelegramWebhookSecret(),
       drop_pending_updates: true,
     }),
   })
@@ -44,7 +46,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const token = process.env.TELEGRAM_BOT_TOKEN ?? "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
+  const token = getBotToken()
 
   const res  = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)
   const data = await res.json()

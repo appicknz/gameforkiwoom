@@ -7,7 +7,7 @@
  * - 잔고: balance:update 커스텀 이벤트로 betting-game과 동기화
  */
 
-import { Home, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield, GitBranch } from "lucide-react"
+import { Home, X, Wallet, User, Lock, Eye, EyeOff, ChevronDown, LogOut, UserPlus, LogIn, Shield, GitBranch, Send, CheckCircle2, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -18,13 +18,18 @@ import { useTranslation } from "@/lib/i18n"
 import { useRouter } from "next/navigation"
 import { TopupModal } from "@/components/dashboard/topup-modal"
 import { useTelegram } from "@/hooks/use-telegram"
- import { TelegramLoginOidcButton } from "@/components/telegram-login-oidc-button"
 
 const STORAGE_KEY = "app_token"
 const PROFILE_KEY = "app_profile"
 const ADMIN_ROLES = ["master", "super_admin", "branch_admin", "admin"]
 
-interface Profile { username: string; role: string; branch_code?: string | null; telegram_id?: string | null }
+interface Profile {
+  username: string
+  role: string
+  branch_code?: string | null
+  telegram_id?: string | null
+  telegram_username?: string | null
+}
 
 function saveToken(token: string) {
   try { localStorage.setItem(STORAGE_KEY, token) } catch {}
@@ -45,6 +50,9 @@ export function TopBar() {
   const [topupOpen, setTopupOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [telegramLinking, setTelegramLinking] = useState(false)
+  const [telegramLinkMsg, setTelegramLinkMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const telegramPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const [authTab, setAuthTab] = useState<"login" | "register">("login")
@@ -56,18 +64,6 @@ export function TopBar() {
   const [tgLoginLoading, setTgLoginLoading] = useState(false)
   const [tgLoginMsg, setTgLoginMsg] = useState<string | null>(null)
 
-
-  // 서버에 실제 설정된 TELEGRAM_BOT_TOKEN 기준 봇 정보를 조회해서 사용.
-  // 하드코딩하면 BotFather에 등록한 봇과 코드가 가리키는 봇이 어긋날 수 있음.
-  // OIDC 로그인 라이브러리의 client_id는 봇의 숫자 id와 동일하다.
-  const [tgBotClientId, setTgBotClientId] = useState<number | null>(null)
-  useEffect(() => {
-    fetch("/api/auth/telegram-bot-info")
-      .then((r) => r.json())
-      .then((d) => setTgBotClientId(typeof d.id === "number" ? d.id : null))
-      .catch(() => setTgBotClientId(null))
-  }, [])
-
   // 미니앱(텔레그램 앱 안) 전용: initData 기반 즉시 로그인
   const handleMiniAppTelegramLogin = async () => {
     setTgLoginLoading(true)
@@ -77,30 +73,6 @@ export function TopBar() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ initData }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setTgLoginMsg(data.error ?? "로그인에 실패했습니다.")
-        setTgLoginLoading(false)
-        return
-      }
-      saveToken(data.token)
-      window.location.reload()
-    } catch {
-      setTgLoginMsg("네트워크 오류가 발생했습니다.")
-      setTgLoginLoading(false)
-    }
-  }
-
-  // 일반 브라우저(미니앱 밖) 전용: 신규 텔레그램 OIDC 로그인(core.telegram.org/bots/telegram-login) 콜백
-  const handleTelegramOidcToken = async (idToken: string) => {
-    setTgLoginLoading(true)
-    setTgLoginMsg(null)
-    try {
-      const res = await fetch("/api/auth/telegram-oidc-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -176,7 +148,13 @@ export function TopBar() {
           const d = await pr.json()
           if (d.profile) {
             const role = d.profile.role
-            setProfile({ username: d.profile.username, role, branch_code: d.profile.branch_code ?? null, telegram_id: d.profile.telegram_id ?? null })
+            setProfile({
+              username: d.profile.username,
+              role,
+              branch_code: d.profile.branch_code ?? null,
+              telegram_id: d.profile.telegram_id ?? null,
+              telegram_username: d.profile.telegram_username ?? null,
+            })
             setIsLoggedIn(true)
           }
         }
@@ -386,7 +364,86 @@ export function TopBar() {
     }
   }
 
-  // ── 로그���웃 ─────────────────────────────────────────────────────
+  const stopTelegramPolling = () => {
+    if (telegramPollRef.current) {
+      clearInterval(telegramPollRef.current)
+      telegramPollRef.current = null
+    }
+  }
+
+  const handleTelegramLink = async () => {
+    const token = getToken()
+    if (!token) return
+
+    setTelegramLinking(true)
+    setTelegramLinkMsg(null)
+    stopTelegramPolling()
+
+    try {
+      const response = await fetch("/api/user/telegram-link", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setTelegramLinkMsg({ text: data.error ?? "연동 링크를 만들 수 없습니다.", ok: false })
+        setTelegramLinking(false)
+        return
+      }
+      if (data.linked) {
+        setProfile((current) => current ? {
+          ...current,
+          telegram_id: current.telegram_id ?? "linked",
+          telegram_username: data.telegramUsername ?? null,
+        } : current)
+        setTelegramLinkMsg({ text: "이미 Telegram과 연동되어 있습니다.", ok: true })
+        setTelegramLinking(false)
+        return
+      }
+
+      const opened = window.open(data.url, "_blank", "noopener,noreferrer")
+      if (!opened) window.location.href = data.url
+      setTelegramLinkMsg({ text: "Telegram에서 시작 버튼을 눌러 연동을 완료해 주세요.", ok: true })
+
+      let attempts = 0
+      telegramPollRef.current = setInterval(async () => {
+        attempts += 1
+        try {
+          const statusResponse = await fetch("/api/user/telegram-link", {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const status = await statusResponse.json()
+          if (statusResponse.ok && status.linked) {
+            stopTelegramPolling()
+            setProfile((current) => current ? {
+              ...current,
+              telegram_id: "linked",
+              telegram_username: status.telegramUsername ?? null,
+            } : current)
+            setTelegramLinkMsg({ text: "Telegram 연동이 완료되었습니다.", ok: true })
+            setTelegramLinking(false)
+          } else if (attempts >= 150) {
+            stopTelegramPolling()
+            setTelegramLinkMsg({ text: "연동 시간이 만료되었습니다. 다시 시도해 주세요.", ok: false })
+            setTelegramLinking(false)
+          }
+        } catch {
+          if (attempts >= 150) {
+            stopTelegramPolling()
+            setTelegramLinkMsg({ text: "연동 상태를 확인할 수 없습니다.", ok: false })
+            setTelegramLinking(false)
+          }
+        }
+      }, 2000)
+    } catch {
+      setTelegramLinkMsg({ text: "네트워크 오류가 발생했습니다.", ok: false })
+      setTelegramLinking(false)
+    }
+  }
+
+  useEffect(() => () => stopTelegramPolling(), [])
+
+  // ── 로그아웃 ─────────────────────────────────────────────────────
   const handleLogout = () => {
     clearToken()
     window.location.reload()
@@ -514,6 +571,40 @@ export function TopBar() {
                       <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <span className="text-sm font-medium text-foreground">{profile?.username ?? "-"}</span>
                     </div>
+                  </div>
+
+                  <div className="border-b border-border px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        {profile?.telegram_id
+                          ? <CheckCircle2 className="size-4" aria-hidden="true" />
+                          : <Send className="size-4" aria-hidden="true" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground">Telegram</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {profile?.telegram_id
+                            ? profile.telegram_username ? `@${profile.telegram_username} 연동됨` : "연동 완료"
+                            : "배팅 알림과 계정 확인에 사용됩니다."}
+                        </p>
+                      </div>
+                      {!profile?.telegram_id && (
+                        <button
+                          type="button"
+                          onClick={handleTelegramLink}
+                          disabled={telegramLinking}
+                          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition-opacity disabled:opacity-60"
+                        >
+                          {telegramLinking && <Loader2 className="size-3 animate-spin" aria-hidden="true" />}
+                          {telegramLinking ? "연동 중" : "연동하기"}
+                        </button>
+                      )}
+                    </div>
+                    {telegramLinkMsg && (
+                      <p className={`mt-2 text-xs ${telegramLinkMsg.ok ? "text-primary" : "text-destructive"}`} role="status">
+                        {telegramLinkMsg.text}
+                      </p>
+                    )}
                   </div>
 
                   {/* 비밀번호 변경 */}
@@ -737,13 +828,6 @@ export function TopBar() {
                               </svg>
                               {tgLoginLoading ? "처리 중..." : "텔레그램으로 바로 시작하기"}
                             </button>
-                          ) : tgBotClientId ? (
-                            <TelegramLoginOidcButton
-                              clientId={tgBotClientId}
-                              onIdToken={handleTelegramOidcToken}
-                              onError={setTgLoginMsg}
-                              disabled={tgLoginLoading}
-                            />
                           ) : null}
                           {tgLoginMsg && <p className="text-xs text-destructive text-center">{tgLoginMsg}</p>}
                         </>
@@ -802,13 +886,6 @@ export function TopBar() {
                               </svg>
                               {tgLoginLoading ? "처리 중..." : "텔레그램으로 바로 시작하기"}
                             </button>
-                          ) : tgBotClientId ? (
-                            <TelegramLoginOidcButton
-                              clientId={tgBotClientId}
-                              onIdToken={handleTelegramOidcToken}
-                              onError={setTgLoginMsg}
-                              disabled={tgLoginLoading}
-                            />
                           ) : null}
                           {tgLoginMsg && <p className="text-xs text-destructive text-center">{tgLoginMsg}</p>}
                         </>

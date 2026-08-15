@@ -1,3 +1,5 @@
+import { createHash, timingSafeEqual } from "node:crypto"
+
 // ── 텔레그램 설정 ────────────────────────────────────────────────
 // env 파일이 sync로 덮어쓰이는 경우를 대비해 상수로 fallback 고정
 const FALLBACK_BOT_TOKEN      = "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
@@ -8,6 +10,18 @@ export function getBotToken(): string {
   // 구버전 토큰이 env에 세팅돼 있는 경우 fallback 사용
   if (!v || v.startsWith("8902120234") || v === "undefined") return FALLBACK_BOT_TOKEN
   return v
+}
+
+export function getTelegramWebhookSecret(): string {
+  const source = process.env.INTERNAL_SECRET ?? getBotToken()
+  return createHash("sha256").update(`telegram-webhook:${source}`).digest("hex")
+}
+
+export function verifyTelegramWebhookSecret(value: string | null): boolean {
+  if (!value) return false
+  const expected = Buffer.from(getTelegramWebhookSecret())
+  const received = Buffer.from(value)
+  return expected.length === received.length && timingSafeEqual(expected, received)
 }
 
 function getBettingChannelId(): string {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { answerCallbackQuery, sendDirectMessage } from "@/lib/telegram"
+import { answerCallbackQuery, sendDirectMessage, verifyTelegramWebhookSecret } from "@/lib/telegram"
 import { Redis } from "@upstash/redis"
 
 const admin = createClient(
@@ -20,8 +20,88 @@ const DEFAULT_BET_AMOUNT = 10000 // 기본 1만원
  * - 배팅 차감은 balances에서 KRW 단위로
  */
 export async function POST(req: Request) {
+  if (!verifyTelegramWebhookSecret(req.headers.get("x-telegram-bot-api-secret-token"))) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   try {
     const body = await req.json()
+
+    const message = body?.message
+    const startMatch = typeof message?.text === "string"
+      ? message.text.trim().match(/^\/start(?:@[A-Za-z0-9_]+)?\s+([A-Za-z0-9_-]{32})$/)
+      : null
+
+    if (startMatch) {
+      const chatId = String(message.chat?.id ?? "")
+      const from = message.from as {
+        id?: number
+        username?: string
+        first_name?: string
+        last_name?: string
+      } | undefined
+
+      if (message.chat?.type !== "private" || !chatId || !from?.id) {
+        return NextResponse.json({ ok: true })
+      }
+
+      const userId = await redis.getdel<string>(`telegram:link:${startMatch[1]}`)
+      if (!userId) {
+        await sendDirectMessage(chatId, "연동 링크가 만료되었거나 이미 사용되었습니다. 웹사이트에서 새 링크를 만들어 주세요.")
+        return NextResponse.json({ ok: true })
+      }
+
+      const telegramId = String(from.id)
+      const { data: owner } = await admin
+        .from("profiles")
+        .select("id, username")
+        .eq("telegram_id", telegramId)
+        .maybeSingle()
+
+      if (owner && owner.id !== userId) {
+        await sendDirectMessage(chatId, "이 Telegram 계정은 이미 다른 회원에게 연동되어 있습니다.")
+        return NextResponse.json({ ok: true })
+      }
+
+      const { data: target } = await admin
+        .from("profiles")
+        .select("username, telegram_id")
+        .eq("id", userId)
+        .single()
+
+      if (!target) {
+        await sendDirectMessage(chatId, "연동할 회원 계정을 찾을 수 없습니다.")
+        return NextResponse.json({ ok: true })
+      }
+
+      if (target.telegram_id && target.telegram_id !== telegramId) {
+        await sendDirectMessage(chatId, "해당 회원은 이미 다른 Telegram 계정과 연동되어 있습니다.")
+        return NextResponse.json({ ok: true })
+      }
+
+      const { error: linkError } = await admin
+        .from("profiles")
+        .update({
+          telegram_id: telegramId,
+          telegram_username: from.username ?? null,
+          telegram_first_name: from.first_name ?? null,
+          telegram_last_name: from.last_name ?? null,
+          telegram_linked_at: new Date().toISOString(),
+        })
+        .eq("id", userId)
+
+      if (linkError) {
+        console.error("[betting-webhook] Telegram link failed:", linkError)
+        await sendDirectMessage(chatId, "계정 연동 중 오류가 발생했습니다. 새 링크로 다시 시도해 주세요.")
+        return NextResponse.json({ ok: true })
+      }
+
+      await sendDirectMessage(
+        chatId,
+        `<b>${target.username}</b> 회원 계정과 Telegram 연동이 완료되었습니다.`,
+      )
+      return NextResponse.json({ ok: true })
+    }
 
     // callback_query 처리
     const cq = body?.callback_query

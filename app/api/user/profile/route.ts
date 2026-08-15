@@ -20,7 +20,7 @@ export async function GET(req: Request) {
 
   const { data: profile } = await adminSupabase
     .from('profiles')
-    .select('id, username, role, created_at, branch_code, allow_mock_trade, allow_token_deposit, telegram_id')
+    .select('id, username, role, created_at, branch_code, allow_mock_trade, allow_token_deposit, telegram_id, telegram_username, telegram_linked_at')
     .eq('id', id)
     .single()
 
