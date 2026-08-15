@@ -18,7 +18,7 @@ import { useTranslation } from "@/lib/i18n"
 import { useRouter } from "next/navigation"
 import { TopupModal } from "@/components/dashboard/topup-modal"
 import { useTelegram } from "@/hooks/use-telegram"
-import { TelegramLoginWidget, type TelegramWidgetAuthUser } from "@/components/telegram-login-widget"
+ import { TelegramLoginOidcButton } from "@/components/telegram-login-oidc-button"
 
 const STORAGE_KEY = "app_token"
 const PROFILE_KEY = "app_profile"
@@ -57,14 +57,15 @@ export function TopBar() {
   const [tgLoginMsg, setTgLoginMsg] = useState<string | null>(null)
 
 
-  // 서버에 실제 설정된 TELEGRAM_BOT_TOKEN 기준 봇 username을 조회해서 사용.
-  // 하드코딩하면 BotFather에 등록한 도메인의 봇과 코드가 가리키는 봇이 어긋날 수 있음.
-  const [tgBotUsername, setTgBotUsername] = useState<string | null>(null)
+  // 서버에 실제 설정된 TELEGRAM_BOT_TOKEN 기준 봇 정보를 조회해서 사용.
+  // 하드코딩하면 BotFather에 등록한 봇과 코드가 가리키는 봇이 어긋날 수 있음.
+  // OIDC 로그인 라이브러리의 client_id는 봇의 숫자 id와 동일하다.
+  const [tgBotClientId, setTgBotClientId] = useState<number | null>(null)
   useEffect(() => {
     fetch("/api/auth/telegram-bot-info")
       .then((r) => r.json())
-      .then((d) => setTgBotUsername(d.username ?? null))
-      .catch(() => setTgBotUsername(null))
+      .then((d) => setTgBotClientId(typeof d.id === "number" ? d.id : null))
+      .catch(() => setTgBotClientId(null))
   }, [])
 
   // 미니앱(텔레그램 앱 안) 전용: initData 기반 즉시 로그인
@@ -91,15 +92,15 @@ export function TopBar() {
     }
   }
 
-  // 일반 브라우저(미니앱 밖) 전용: 공식 로그인 위젯 인증 콜백
-  const handleWidgetTelegramAuth = async (user: TelegramWidgetAuthUser) => {
+  // 일반 브라우저(미니앱 밖) 전용: 신규 텔레그램 OIDC 로그인(core.telegram.org/bots/telegram-login) 콜백
+  const handleTelegramOidcToken = async (idToken: string) => {
     setTgLoginLoading(true)
     setTgLoginMsg(null)
     try {
-      const res = await fetch("/api/auth/telegram-widget-login", {
+      const res = await fetch("/api/auth/telegram-oidc-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(user),
+        body: JSON.stringify({ id_token: idToken }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -736,8 +737,13 @@ export function TopBar() {
                               </svg>
                               {tgLoginLoading ? "처리 중..." : "텔레그램으로 바로 시작하기"}
                             </button>
-                          ) : tgBotUsername ? (
-                            <TelegramLoginWidget botUsername={tgBotUsername} onAuth={handleWidgetTelegramAuth} />
+                          ) : tgBotClientId ? (
+                            <TelegramLoginOidcButton
+                              clientId={tgBotClientId}
+                              onIdToken={handleTelegramOidcToken}
+                              onError={setTgLoginMsg}
+                              disabled={tgLoginLoading}
+                            />
                           ) : null}
                           {tgLoginMsg && <p className="text-xs text-destructive text-center">{tgLoginMsg}</p>}
                         </>
@@ -796,8 +802,13 @@ export function TopBar() {
                               </svg>
                               {tgLoginLoading ? "처리 중..." : "텔레그램으로 바로 시작하기"}
                             </button>
-                          ) : tgBotUsername ? (
-                            <TelegramLoginWidget botUsername={tgBotUsername} onAuth={handleWidgetTelegramAuth} />
+                          ) : tgBotClientId ? (
+                            <TelegramLoginOidcButton
+                              clientId={tgBotClientId}
+                              onIdToken={handleTelegramOidcToken}
+                              onError={setTgLoginMsg}
+                              disabled={tgLoginLoading}
+                            />
                           ) : null}
                           {tgLoginMsg && <p className="text-xs text-destructive text-center">{tgLoginMsg}</p>}
                         </>

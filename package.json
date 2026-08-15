@@ -58,6 +58,7 @@
     "ed25519-hd-key": "^2.0.0",
     "embla-carousel-react": "8.5.1",
     "input-otp": "1.4.1",
+    "jose": "^6.2.9",
     "jsonwebtoken": "^9.0.3",
     "lightweight-charts": "^4.2.2",
     "lucide-react": "^0.454.0",

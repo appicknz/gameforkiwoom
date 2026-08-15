@@ -13,9 +13,14 @@ export async function GET() {
     const res = await fetch(`https://api.telegram.org/bot${token}/getMe`)
     const data = await res.json()
     if (!data.ok || !data.result?.username) {
-      return NextResponse.json({ username: null }, { status: 200 })
+      return NextResponse.json({ username: null, id: null }, { status: 200 })
     }
-    return NextResponse.json({ username: data.result.username as string })
+    // OIDC 로그인 라이브러리의 client_id는 봇의 숫자 ID와 동일하다.
+    // (BotFather Login Widget 메뉴에서 발급되는 Client ID = 봇 토큰 앞부분 숫자)
+    return NextResponse.json({
+      username: data.result.username as string,
+      id: data.result.id as number,
+    })
   } catch {
     return NextResponse.json({ username: null }, { status: 200 })
   }
