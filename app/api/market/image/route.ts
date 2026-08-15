@@ -24,15 +24,16 @@ export async function GET(req: Request) {
     if (!upstream.ok) return NextResponse.json({ error: "이미지 로드 실패" }, { status: 404 })
 
     const contentType = upstream.headers.get("content-type") ?? meta.contentType ?? "image/jpeg"
-    const buffer      = await upstream.arrayBuffer()
-
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type":  contentType,
-        // 24시간 브라우저 캐시 + CDN(Vercel Edge) 7일 캐시
-        "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400",
-      },
+    const headers = new Headers({
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=31536000, s-maxage=31536000, immutable",
     })
+    const contentLength = upstream.headers.get("content-length")
+    const etag = upstream.headers.get("etag")
+    if (contentLength) headers.set("Content-Length", contentLength)
+    if (etag) headers.set("ETag", etag)
+
+    return new NextResponse(upstream.body, { headers })
   } catch (e: any) {
     console.error("[image proxy] error:", e)
     return NextResponse.json({ error: e?.message ?? "이미지 로드 실패" }, { status: 500 })

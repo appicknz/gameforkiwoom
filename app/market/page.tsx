@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import Image from "next/image"
 import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Download, PenLine, AlertCircle, ExternalLink, Lock, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { blobImageUrl } from "@/lib/blob-image"
@@ -311,13 +312,13 @@ export default function MarketPage() {
 
             <div className="relative aspect-video w-full bg-secondary">
               {selectedItem.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={blobImageUrl(selectedItem.image_url)!}
                   alt={selectedItem.title}
-                  loading="eager"
-                  decoding="async"
-                  className="w-full h-full object-cover"
+                  fill
+                  quality={75}
+                  sizes="(max-width: 640px) 100vw, 512px"
+                  className="object-cover"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-6xl">
@@ -856,13 +857,14 @@ function MarketItemCard({
         {/* 이미지 영역 */}
         <div className="relative aspect-square bg-secondary overflow-hidden">
           {item.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={blobImageUrl(item.image_url)!}
               alt={item.title}
-              loading={index < 6 ? "eager" : "lazy"}
-              decoding="async"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              fill
+              quality={60}
+              priority={index < 2}
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1536px) 20vw, 16vw"
+              className="object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-4xl">

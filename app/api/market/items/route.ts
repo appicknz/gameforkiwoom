@@ -74,12 +74,21 @@ export async function GET(req: Request) {
     profiles: profilesMap[item.publisher_id] ?? null,
   }))
 
-  return NextResponse.json({
-    items,
-    hasMore: items.length === limit,  // limit개가 꽉 찼으면 다음 페이지 존재
-    offset,
-    limit,
-  })
+  return NextResponse.json(
+    {
+      items,
+      hasMore: items.length === limit,  // limit개가 꽉 찼으면 다음 페이지 존재
+      offset,
+      limit,
+    },
+    {
+      headers: {
+        "Cache-Control": mine || all
+          ? "private, no-store"
+          : "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    },
+  )
 }
 
 // POST: 상품 등록 (master 전용)

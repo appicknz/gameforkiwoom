@@ -7,7 +7,9 @@ const nextConfig = {
     browsersListForSwc: true, // PC 텔레그램 WebView 호환
   },
   images: {
-    unoptimized: true,
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 2592000,
+    qualities: [60, 75, 85],
   },
   // Next.js 16에서 Turbopack은 serverExternalPackages를 제대로 지원 안 함
   // package.json "dev": "next dev --no-turbopack" 으로 webpack 강제 사용

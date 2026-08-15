@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { blobImageUrl } from "@/lib/blob-image"
 import {
   ArrowLeft, ExternalLink, ShoppingCart, Eye, Users,
@@ -169,15 +170,16 @@ export default function MarketItemPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* 이미지 */}
-          <div className="rounded-2xl overflow-hidden border border-border bg-secondary/20 aspect-square">
+          <div className="relative rounded-2xl overflow-hidden border border-border bg-secondary/20 aspect-square">
             {item.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={blobImageUrl(item.image_url)!}
                 alt={item.title}
-                loading="eager"
-                decoding="async"
-                className="w-full h-full object-cover"
+                fill
+                priority
+                quality={75}
+                sizes="(max-width: 768px) calc(100vw - 2rem), 416px"
+                className="object-cover"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-6xl">

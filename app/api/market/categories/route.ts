@@ -12,7 +12,10 @@ export async function GET() {
     .order("sort_order", { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ categories: data })
+  return NextResponse.json(
+    { categories: data },
+    { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600" } },
+  )
 }
 
 // POST: 카테고리 생성 (master 전용)
