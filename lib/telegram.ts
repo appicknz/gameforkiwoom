@@ -3,7 +3,7 @@
 const FALLBACK_BOT_TOKEN      = "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
 const FALLBACK_BETTING_CHANNEL = "-1004471984422"
 
-function getBotToken(): string {
+export function getBotToken(): string {
   const v = process.env.TELEGRAM_BOT_TOKEN
   // 구버전 토큰이 env에 세팅돼 있는 경우 fallback 사용
   if (!v || v.startsWith("8902120234") || v === "undefined") return FALLBACK_BOT_TOKEN

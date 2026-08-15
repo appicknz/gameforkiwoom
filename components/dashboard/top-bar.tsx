@@ -18,6 +18,7 @@ import { useTranslation } from "@/lib/i18n"
 import { useRouter } from "next/navigation"
 import { TopupModal } from "@/components/dashboard/topup-modal"
 import { useTelegram } from "@/hooks/use-telegram"
+import { TelegramLoginWidget, type TelegramWidgetAuthUser } from "@/components/telegram-login-widget"
 
 const STORAGE_KEY = "app_token"
 const PROFILE_KEY = "app_profile"
@@ -56,14 +57,54 @@ export function TopBar() {
   const [tgLoginMsg, setTgLoginMsg] = useState<string | null>(null)
 
 
-  // "텔레그램으로 로그인" 버튼: 항상 이 미니앱 링크를 실행 (직접 로그인 처리하지 않음)
-  const TELEGRAM_MINIAPP_URL = "https://t.me/bitbaka_bot/bitbaka"
+  const TELEGRAM_BOT_USERNAME = "bitbaka_bot"
 
-  const handleTelegramLogin = () => {
-    // 일부 임베드/샌드박스 환경에서 location.href 이동이 막히는 경우를 대비해
-    // 새 창/탭으로 열고, 실패 시(팝업 차단 등) location.href로 한 번 더 시도
-    const win = window.open(TELEGRAM_MINIAPP_URL, "_blank")
-    if (!win) window.location.href = TELEGRAM_MINIAPP_URL
+  // 미니앱(텔레그램 앱 안) 전용: initData 기반 즉시 로그인
+  const handleMiniAppTelegramLogin = async () => {
+    setTgLoginLoading(true)
+    setTgLoginMsg(null)
+    try {
+      const res = await fetch("/api/auth/telegram-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setTgLoginMsg(data.error ?? "로그인에 실패했습니다.")
+        setTgLoginLoading(false)
+        return
+      }
+      saveToken(data.token)
+      window.location.reload()
+    } catch {
+      setTgLoginMsg("네트워크 오류가 발생했습니다.")
+      setTgLoginLoading(false)
+    }
+  }
+
+  // 일반 브라우저(미니앱 밖) 전용: 공식 로그인 위젯 인증 콜백
+  const handleWidgetTelegramAuth = async (user: TelegramWidgetAuthUser) => {
+    setTgLoginLoading(true)
+    setTgLoginMsg(null)
+    try {
+      const res = await fetch("/api/auth/telegram-widget-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(user),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setTgLoginMsg(data.error ?? "로그인에 실패했습니다.")
+        setTgLoginLoading(false)
+        return
+      }
+      saveToken(data.token)
+      window.location.reload()
+    } catch {
+      setTgLoginMsg("네트워크 오류가 발생했습니다.")
+      setTgLoginLoading(false)
+    }
   }
 
   // 로그인 폼 — 비제어 입력으로 TopBar 전체의 키 입력별 재렌더링 방지
@@ -675,17 +716,21 @@ export function TopBar() {
                             <span className="text-[10px] text-muted-foreground">또는</span>
                             <div className="flex-1 h-px bg-border" />
                           </div>
-                          <button
-                            onClick={handleTelegramLogin}
-                            disabled={tgLoginLoading}
-                            className="w-full flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-60"
-                            style={{ background: "#229ED9" }}
-                          >
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                              <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-                            </svg>
-                            {tgLoginLoading ? "처리 중..." : "텔레그램으로 바로 시작하기"}
-                          </button>
+                          {isTelegramEnv ? (
+                            <button
+                              onClick={handleMiniAppTelegramLogin}
+                              disabled={tgLoginLoading}
+                              className="w-full flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-60"
+                              style={{ background: "#229ED9" }}
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                              </svg>
+                              {tgLoginLoading ? "처리 중..." : "텔레그램으로 바로 시작하기"}
+                            </button>
+                          ) : (
+                            <TelegramLoginWidget botUsername={TELEGRAM_BOT_USERNAME} onAuth={handleWidgetTelegramAuth} />
+                          )}
                           {tgLoginMsg && <p className="text-xs text-destructive text-center">{tgLoginMsg}</p>}
                         </>
                       </>
@@ -731,17 +776,21 @@ export function TopBar() {
                             <span className="text-[10px] text-muted-foreground">또는</span>
                             <div className="flex-1 h-px bg-border" />
                           </div>
-                          <button
-                            onClick={handleTelegramLogin}
-                            disabled={tgLoginLoading}
-                            className="w-full flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-60"
-                            style={{ background: "#229ED9" }}
-                          >
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                              <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-                            </svg>
-                            {tgLoginLoading ? "처리 중..." : "텔레그램으로 바로 시작하기"}
-                          </button>
+                          {isTelegramEnv ? (
+                            <button
+                              onClick={handleMiniAppTelegramLogin}
+                              disabled={tgLoginLoading}
+                              className="w-full flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-60"
+                              style={{ background: "#229ED9" }}
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                              </svg>
+                              {tgLoginLoading ? "처리 중..." : "텔레그램으로 바로 시작하기"}
+                            </button>
+                          ) : (
+                            <TelegramLoginWidget botUsername={TELEGRAM_BOT_USERNAME} onAuth={handleWidgetTelegramAuth} />
+                          )}
                           {tgLoginMsg && <p className="text-xs text-destructive text-center">{tgLoginMsg}</p>}
                         </>
                       </>
