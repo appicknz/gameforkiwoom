@@ -1,16 +1,12 @@
 // ── 텔레그램 설정 ────────────────────────────────────────────────
+// env 파일이 sync로 덮어쓰이는 경우를 대비해 상수로 fallback 고정
+const FALLBACK_BOT_TOKEN      = "8850131651:AAEEvBYRa5dym7lC3To2ajbjLpcVUmMyvlI"
 const FALLBACK_BETTING_CHANNEL = "-1004471984422"
 
-/**
- * 봇 토큰은 반드시 TELEGRAM_BOT_TOKEN 환경변수에서만 읽습니다.
- * (과거 소스에 하드코딩돼 있던 토큰은 노출된 값이라 완전히 제거했습니다 — 반드시 새 토큰을 env에 설정하세요.)
- */
-export function getBotToken(): string {
+function getBotToken(): string {
   const v = process.env.TELEGRAM_BOT_TOKEN
-  if (!v || v === "undefined") {
-    console.error("[telegram] TELEGRAM_BOT_TOKEN 환경변수가 설정되지 않았습니다.")
-    return ""
-  }
+  // 구버전 토큰이 env에 세팅돼 있는 경우 fallback 사용
+  if (!v || v.startsWith("8902120234") || v === "undefined") return FALLBACK_BOT_TOKEN
   return v
 }
 
@@ -18,68 +14,6 @@ function getBettingChannelId(): string {
   const v = process.env.TELEGRAM_BETTING_CHANNEL_ID
   if (!v || v === "undefined") return FALLBACK_BETTING_CHANNEL
   return v
-}
-
-// ── 가입 필수 채널(코인레이스 조인) 설정 ──────────────────────────
-// chat.id는 실제 채널 관리자 등록 후 getUpdates로 확인한 값 (2024-xx 확인)
-const FALLBACK_JOIN_CHANNEL_ID = "-1004354629908"
-
-function getJoinChannelId(): string {
-  const v = process.env.TELEGRAM_JOIN_CHANNEL_ID
-  if (!v || v === "undefined") return FALLBACK_JOIN_CHANNEL_ID
-  return v
-}
-
-/** 딥링크/안내에 노출할 채널 @username (https://t.me/<username>) */
-export function getJoinChannelUsername(): string {
-  return process.env.TELEGRAM_JOIN_CHANNEL_USERNAME || "coinracejoin"
-}
-
-// 봇 @username은 warm 람다 인스턴스 동안 캐시 (getMe 재호출 방지)
-let cachedBotUsername: string | null = null
-
-/** 딥링크(https://t.me/<bot>?start=...) 생성에 필요한 봇 @username 조회 */
-export async function getBotUsername(): Promise<string | null> {
-  if (cachedBotUsername) return cachedBotUsername
-  const token = getBotToken()
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`)
-    const data = await res.json()
-    if (data.ok && data.result?.username) {
-      cachedBotUsername = data.result.username as string
-      return cachedBotUsername
-    }
-    console.error("[telegram] getMe 실패:", data.description)
-    return null
-  } catch (err) {
-    console.error("[telegram] getMe fetch error:", err)
-    return null
-  }
-}
-
-/**
- * 특정 텔레그램 유저가 가입 필수 채널의 멤버인지 확인합니다.
- * 봇이 해당 채널의 관리자로 등록되어 있어야 정상 동작합니다.
- */
-export async function isJoinChannelMember(telegramUserId: number | string): Promise<boolean> {
-  const token  = getBotToken()
-  const chatId = getJoinChannelId()
-  try {
-    const res = await fetch(
-      `https://api.telegram.org/bot${token}/getChatMember?chat_id=${encodeURIComponent(chatId)}&user_id=${telegramUserId}`,
-    )
-    const data = await res.json()
-    if (!data.ok) {
-      console.error("[telegram] getChatMember 실패:", data.description)
-      return false
-    }
-    const status = data.result?.status as string | undefined
-    // creator/administrator/member: 정상 멤버, restricted: 제한은 있지만 여전히 채널 소속
-    return ["creator", "administrator", "member", "restricted"].includes(status ?? "")
-  } catch (err) {
-    console.error("[telegram] getChatMember fetch error:", err)
-    return false
-  }
 }
 
 // ── 공용 메시지 전송 ─────────────────────────────────────────────

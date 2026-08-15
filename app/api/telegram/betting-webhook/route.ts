@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { answerCallbackQuery, sendDirectMessage, getBotToken, isJoinChannelMember, getJoinChannelUsername } from "@/lib/telegram"
-import { linkOrCreateTelegramAccount } from "@/lib/telegram-account-link"
+import { answerCallbackQuery, sendDirectMessage } from "@/lib/telegram"
 import { Redis } from "@upstash/redis"
 
 const admin = createClient(
@@ -12,58 +11,6 @@ const admin = createClient(
 const redis = Redis.fromEnv()
 
 const DEFAULT_BET_AMOUNT = 10000 // 기본 1만원
-
-interface DeepLinkFrom {
-  id: number
-  username?: string
-  first_name?: string
-  last_name?: string
-}
-
-/**
- * PC/웹 로그인 딥링크(/start <token>) 처리.
- * - 채널 가입 여부 확인 → 미가입이면 가입 안내 + "가입 확인" 버튼 전송
- * - 가입 확인되면 계정 연동/생성 후 tglogin:<token>을 "done"으로 갱신
- */
-async function handleDeepLinkStart(from: DeepLinkFrom, token: string) {
-  const key = `tglogin:${token}`
-  const state = await redis.get<{ status: string }>(key)
-  if (!state) {
-    await sendDirectMessage(String(from.id), "로그인 요청이 만료되었습니다. 웹사이트에서 다시 시도해주세요.")
-    return
-  }
-
-  const joined = await isJoinChannelMember(from.id)
-  if (!joined) {
-    await redis.set(key, { status: "join_required", createdAt: Date.now() }, { ex: 300 })
-    const botToken = getBotToken()
-    const channelUrl = `https://t.me/${getJoinChannelUsername()}`
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: from.id,
-        text: "로그인을 완료하려면 먼저 채널에 가입해주세요.",
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "채널 가입하기", url: channelUrl }],
-            [{ text: "가입 확인", callback_data: `checkjoin:${token}` }],
-          ],
-        },
-      }),
-    }).catch(() => {})
-    return
-  }
-
-  try {
-    const { username, role, appToken } = await linkOrCreateTelegramAccount(from)
-    await redis.set(key, { status: "done", createdAt: Date.now(), appToken, username, role }, { ex: 120 })
-    await sendDirectMessage(String(from.id), "✅ 로그인이 완료되었습니다! 웹사이트로 돌아가 주세요.")
-  } catch (err) {
-    console.error("[betting-webhook] deep-link account link error:", err)
-    await sendDirectMessage(String(from.id), "로그인 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-  }
-}
 
 /**
  * 텔레그램 배팅 웹훅
@@ -76,16 +23,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
-    // PC/웹 딥링크 로그인: "/start <token>" 메시지 처리
-    const msg = body?.message
-    if (msg?.text && typeof msg.text === "string" && msg.text.startsWith("/start")) {
-      const token = msg.text.split(" ")[1]?.trim()
-      if (token && msg.from) {
-        await handleDeepLinkStart(msg.from as DeepLinkFrom, token)
-      }
-      return NextResponse.json({ ok: true })
-    }
-
     // callback_query 처리
     const cq = body?.callback_query
     if (!cq) return NextResponse.json({ ok: true })
@@ -93,25 +30,6 @@ export async function POST(req: Request) {
     const callbackQueryId = cq.id as string
     const from = cq.from as { id: number; first_name?: string; username?: string }
     const data = (cq.data ?? "") as string
-
-    // "가입 확인" 버튼: 딥링크 로그인 채널 가입 재확인
-    if (data.startsWith("checkjoin:")) {
-      const token = data.slice("checkjoin:".length)
-      const joined = await isJoinChannelMember(from.id)
-      if (!joined) {
-        await answerCallbackQuery(callbackQueryId, "아직 채널 가입이 확인되지 않았습니다. 가입 후 다시 눌러주세요.", true)
-        return NextResponse.json({ ok: true })
-      }
-      try {
-        const { appToken, username, role } = await linkOrCreateTelegramAccount(from as DeepLinkFrom)
-        await redis.set(`tglogin:${token}`, { status: "done", createdAt: Date.now(), appToken, username, role }, { ex: 120 })
-        await answerCallbackQuery(callbackQueryId, "로그인이 완료되었습니다! 웹사이트로 돌아가 주세요.", false)
-      } catch (err) {
-        console.error("[betting-webhook] checkjoin account link error:", err)
-        await answerCallbackQuery(callbackQueryId, "로그인 처리 중 오류가 발생했습니다.", true)
-      }
-      return NextResponse.json({ ok: true })
-    }
 
     // callback_data 파싱: "bet:banker:1234"
     const parts = data.split(":")
