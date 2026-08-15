@@ -1,41 +1,54 @@
 export const dynamic = "force-dynamic"
+
+import { get } from "@vercel/blob"
 import { NextResponse } from "next/server"
-import { head } from "@vercel/blob"
 
 // GET /api/market/image?url=<blob_url>
-// private Blob → head()로 서명된 downloadUrl을 얻어 스트리밍
+// private Blob을 애플리케이션 경유로 직접 스트리밍합니다.
 export async function GET(req: Request) {
   try {
-    const blobUrl = new URL(req.url).searchParams.get("url")
+    const requestUrl = new URL(req.url)
+    const blobUrl = requestUrl.searchParams.get("url")
     if (!blobUrl) return NextResponse.json({ error: "url 파라미터 필요" }, { status: 400 })
 
-    // blob URL 형식 검증 (보안)
-    if (!blobUrl.startsWith("https://") || !blobUrl.includes("blob.vercel-storage.com")) {
+    const parsedBlobUrl = new URL(blobUrl)
+    if (parsedBlobUrl.protocol !== "https:" || !parsedBlobUrl.hostname.endsWith(".blob.vercel-storage.com")) {
       return NextResponse.json({ error: "유효하지 않은 이미지 URL" }, { status: 400 })
     }
 
-    // head()로 메타데이터 + downloadUrl 획득
-    const meta = await head(blobUrl, { token: process.env.BLOB_READ_WRITE_TOKEN })
+    const pathname = decodeURIComponent(parsedBlobUrl.pathname.replace(/^\//, ""))
+    if (!pathname.startsWith("market-items/")) {
+      return NextResponse.json({ error: "허용되지 않은 이미지 경로" }, { status: 403 })
+    }
 
-    // private blob: Authorization 헤더와 함께 fetch
-    const upstream = await fetch(meta.downloadUrl, {
-      headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+    const result = await get(pathname, {
+      access: "private",
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+      ifNoneMatch: req.headers.get("if-none-match") ?? undefined,
     })
-    if (!upstream.ok) return NextResponse.json({ error: "이미지 로드 실패" }, { status: 404 })
+    if (!result) return NextResponse.json({ error: "이미지를 찾을 수 없습니다" }, { status: 404 })
 
-    const contentType = upstream.headers.get("content-type") ?? meta.contentType ?? "image/jpeg"
-    const headers = new Headers({
-      "Content-Type": contentType,
-      "Cache-Control": "public, max-age=31536000, s-maxage=31536000, immutable",
+    const cacheControl = "public, max-age=604800, s-maxage=2592000, stale-while-revalidate=86400"
+    if (result.statusCode === 304) {
+      return new NextResponse(null, {
+        status: 304,
+        headers: { ETag: result.blob.etag, "Cache-Control": cacheControl },
+      })
+    }
+
+    return new NextResponse(result.stream, {
+      headers: {
+        "Content-Type": result.blob.contentType || "image/jpeg",
+        "Content-Length": String(result.blob.size),
+        ETag: result.blob.etag,
+        "Cache-Control": cacheControl,
+      },
     })
-    const contentLength = upstream.headers.get("content-length")
-    const etag = upstream.headers.get("etag")
-    if (contentLength) headers.set("Content-Length", contentLength)
-    if (etag) headers.set("ETag", etag)
-
-    return new NextResponse(upstream.body, { headers })
-  } catch (e: any) {
-    console.error("[image proxy] error:", e)
-    return NextResponse.json({ error: e?.message ?? "이미지 로드 실패" }, { status: 500 })
+  } catch (error) {
+    console.error("[image proxy] error:", error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "이미지 로드 실패" },
+      { status: 500, headers: { "Cache-Control": "no-store" } },
+    )
   }
 }

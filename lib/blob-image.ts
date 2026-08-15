@@ -8,7 +8,7 @@ export function blobImageUrl(url: string | null | undefined): string | null {
   if (!url) return null
   // private Vercel Blob: 프록시 경유
   if (url.includes(".private.blob.vercel-storage.com")) {
-    return `/api/market/image?url=${encodeURIComponent(url)}`
+    return `/api/market/image?v=3&url=${encodeURIComponent(url)}`
   }
   // Supabase public storage 또는 기타 URL: 직접 사용
   return url
