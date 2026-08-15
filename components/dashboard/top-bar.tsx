@@ -56,37 +56,14 @@ export function TopBar() {
   const [tgLoginMsg, setTgLoginMsg] = useState<string | null>(null)
 
 
-  // 텔레그램 앱 밖(일반 브라우저)에서 누르면 미니앱 링크로 이동시켜 앱 안에서 로그인하게 함
+  // "텔레그램으로 로그인" 버튼: 항상 이 미니앱 링크를 실행 (직접 로그인 처리하지 않음)
   const TELEGRAM_MINIAPP_URL = "https://t.me/bitbaka_bot/bitbaka"
 
-  const handleTelegramLogin = async () => {
-    if (!isTelegramEnv) {
-      // 일부 임베드/샌드박스 환경에서 location.href 이동이 막히는 경우를 대비해
-      // 새 창/탭으로 열고, 실패 시(팝업 차단 등) location.href로 한 번 더 시도
-      const win = window.open(TELEGRAM_MINIAPP_URL, "_blank")
-      if (!win) window.location.href = TELEGRAM_MINIAPP_URL
-      return
-    }
-    setTgLoginLoading(true)
-    setTgLoginMsg(null)
-    try {
-      const res = await fetch("/api/auth/telegram-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ initData }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setTgLoginMsg(data.error ?? "로그인에 실패했습니다.")
-        setTgLoginLoading(false)
-        return
-      }
-      saveToken(data.token)
-      window.location.reload()
-    } catch {
-      setTgLoginMsg("네트워크 오류가 발생했습니다.")
-      setTgLoginLoading(false)
-    }
+  const handleTelegramLogin = () => {
+    // 일부 임베드/샌드박스 환경에서 location.href 이동이 막히는 경우를 대비해
+    // 새 창/탭으로 열고, 실패 시(팝업 차단 등) location.href로 한 번 더 시도
+    const win = window.open(TELEGRAM_MINIAPP_URL, "_blank")
+    if (!win) window.location.href = TELEGRAM_MINIAPP_URL
   }
 
   // 로그인 폼 — 비제어 입력으로 TopBar 전체의 키 입력별 재렌더링 방지
