@@ -5,7 +5,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab, { liveCache } from "@/components/trade/live-prices-tab"
 import SymbolChart from "@/components/trade/symbol-chart"
-import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Bot, LineChart, Clock, ArrowUpDown, Bell, ListChecks, BookOpen } from "lucide-react"
+import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react"
 
 // KST 기준 오늘 날짜를 Date 객체로 반환하는 헬퍼
 // new Date(Date.now() + 9h) 는 UTC Date 객체이므로
@@ -1338,7 +1338,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
             )
           }
 
-          // ── 지표 계산 ────────────────────────────────────────────����─
+          // ── 지표 계산 ───────────────────────────────────────────������─
           // wCnt = winners(pnl>0), lCnt = losers(pnl<0, non-SL), slCnt = SL청산
           const totalClosed = total
           const winRate    = totalClosed > 0 ? wCnt / totalClosed * 100 : 0
@@ -2837,14 +2837,14 @@ export default function TradePage() {
       setTradeMode("mock")
     }
     const selectMode = (event: Event) => {
-      const mode = (event as CustomEvent<"auto" | "ledger">).detail
-      if (mode === "auto" || mode === "ledger") switchTab(mode)
+      const mode = (event as CustomEvent<"auto" | "auto2" | "closed" | "ledger" | "mock">).detail
+      if (["auto", "auto2", "closed", "ledger", "mock"].includes(mode)) switchTab(mode)
     }
 
     const params = new URLSearchParams(window.location.search)
-    const initialMode = params.get("mode")
+    const initialMode = params.get("mode") as "auto" | "auto2" | "closed" | "ledger" | "mock" | null
     const initialSymbol = params.get("symbol")
-    if (initialMode === "auto" || initialMode === "ledger") switchTab(initialMode)
+    if (initialMode && ["auto", "auto2", "closed", "ledger", "mock"].includes(initialMode)) switchTab(initialMode)
     if (initialSymbol) selectSymbol(new CustomEvent("trade:symbol", { detail: initialSymbol.toUpperCase() }))
 
     window.addEventListener("trade:symbol", selectSymbol)
@@ -2914,20 +2914,25 @@ export default function TradePage() {
 
   usePriceWorker({})
 
-  // 모의매매 허용 여부 + 사용자 role 조회 (마운트 시 1회)
+  // 로그인한 모든 사용자는 모의매매를 사용할 수 있으며 사용자 role/name도 함께 조회한다.
   useEffect(() => {
     const token = getToken()
-    if (!token) return
+    if (!token) {
+      setAllowMockTrade(false)
+      return
+    }
     Promise.all([
       fetch("/api/user/profile", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
       fetch("/api/auth/me", { credentials: "include", headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : { role: null }),
     ]).then(([profileData, meData]) => {
-      const allowed = !!profileData?.profile?.allow_mock_trade
-      setAllowMockTrade(allowed)
-      if (!allowed) setTradeMode("auto")
+      const loggedIn = Boolean(profileData?.profile || meData?.username)
+      setAllowMockTrade(loggedIn)
+      if (!loggedIn && tradeMode === "mock") setTradeMode("auto")
       setUserRole(meData.role ?? null)
-      setUserName(meData.username ?? null)
-    }).catch(() => {})
+      setUserName(meData.username ?? profileData?.profile?.username ?? null)
+    }).catch(() => {
+      setAllowMockTrade(false)
+    })
   }, [])
 
   // ── 폴링 ──────────────────────────────────────────────────────────
@@ -3117,102 +3122,6 @@ export default function TradePage() {
   return (
     <div className="min-h-screen font-sans"
       style={{ background: "radial-gradient(ellipse at 50% 30%,#0a1a10 0%,#060d09 60%,#040a06 100%)" }}>
-
-      {/* ══════ 공통 Sticky 검색 + 카테고리 헤더 ══════ */}
-      <div className="sticky top-0 z-40 border-b" style={{ background: "rgba(4,10,6,0.97)", borderColor: BORDER, backdropFilter: "blur(12px)" }}>
-        <div className="max-w-7xl mx-auto px-4 pt-3 pb-2 space-y-2.5">
-          {/* 검색바 + 우측 버튼들 */}
-          <div className="flex items-center gap-2">
-            {/* 검색 입력 */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-              <input
-                type="text"
-                placeholder="심볼 검색..."
-                value={searchQ}
-                onChange={e => setSearchQ(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 rounded-lg text-sm focus:outline-none"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: `1px solid ${BORDER}`,
-                  color: "rgba(255,255,255,0.8)",
-                }}
-              />
-              {searchQ && (
-                <button onClick={() => setSearchQ("")} className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <X className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.3)" }} />
-                </button>
-              )}
-            </div>
-
-            {/* 정렬 순환 버튼 — 자동매매/자동매매2 탭일 때만 */}
-            {(tradeMode === "auto" || tradeMode === "auto2") && (
-              <button
-                onClick={cycleSort}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all shrink-0"
-                style={{
-                  background: sortOrder !== "time" ? `rgba(212,175,55,0.15)` : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${sortOrder !== "time" ? "rgba(212,175,55,0.4)" : BORDER}`,
-                  color: sortOrder !== "time" ? GOLD : "rgba(255,255,255,0.5)",
-                }}
-              >
-                {sortOrder === "time"     && <Clock        className="w-3.5 h-3.5" />}
-                {sortOrder === "roi_desc" && <TrendingUp   className="w-3.5 h-3.5" />}
-                {sortOrder === "roi_asc"  && <TrendingDown className="w-3.5 h-3.5" />}
-                {sortOrder === "signal"   && <ArrowUpDown  className="w-3.5 h-3.5" />}
-                {SORT_LABEL[sortOrder]}
-              </button>
-            )}
-
-            {/* 알림 버튼 — 텔레그램 */}
-            <a
-              href="https://t.me/+HHv5pyuGGAw5YTc1"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all"
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: `1px solid ${BORDER}`,
-                color: "rgba(255,255,255,0.5)",
-              }}
-            >
-              <Bell className="w-3.5 h-3.5" />
-              알림
-            </a>
-          </div>
-          {/* 카테고리 탭 — 균등 배분 / 탭 순서: 모의매매 > 자동매매 > 매매기록 / 자동매매2·청산기록은 역삼1만 */}
-          <div className="flex w-full gap-1.5">
-            {([
-              ...(allowMockTrade ? [{ key: "mock" as const,   label: "모의매매", Icon: LineChart }]  : []),
-              { key: "auto"   as const, label: "자동매매", Icon: Bot },
-              { key: "ledger" as const, label: "매매기록",  Icon: BookOpen },
-              ...(userName === "역삼1" ? [{ key: "auto2" as const, label: "자동매매2", Icon: Bot }] : []),
-              ...(userName === "역삼1" ? [{ key: "closed" as const, label: "청산기록", Icon: ListChecks }] : []),
-            ]).map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                onClick={() => switchTab(key)}
-                className="flex items-center justify-center gap-1 py-1.5 rounded-full text-xs font-semibold transition-all"
-                style={{
-                  flex: "1 1 0",
-                  minWidth: 0,
-                  ...(tradeMode === key ? {
-                    background: GOLD,
-                    color: "#000",
-                  } : {
-                    background: "rgba(255,255,255,0.06)",
-                    color: "rgba(255,255,255,0.5)",
-                    border: `1px solid ${BORDER}`,
-                  })
-                }}
-              >
-                <Icon className="w-3 h-3 shrink-0" />
-                <span className="truncate">{label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* ══════ 모바일 (lg 미만) ══════ */}
       <div className="lg:hidden" style={{ height: "calc(100dvh - 148px)", overflow: "hidden", position: "relative" }}>
