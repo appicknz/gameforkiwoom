@@ -312,13 +312,13 @@ export default function MarketPage() {
 
             <div className="relative aspect-video w-full bg-secondary">
               {selectedItem.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={blobImageUrl(selectedItem.image_url)!}
                   alt={selectedItem.title}
-                  loading="eager"
-                  decoding="async"
-                  className="w-full h-full object-cover"
+                  fill
+                  quality={75}
+                  sizes="(max-width: 640px) 100vw, 512px"
+                  className="object-cover"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-6xl">
@@ -349,7 +349,7 @@ export default function MarketPage() {
                   </span>
                   {usePoint && userBalance !== null && userBalance > 0 && selectedItem.price_krw > 0 && (
                     <span className="text-lg font-extrabold text-primary">
-                      {Math.max(0, selectedItem.price_krw - Math.min(userBalance, selectedItem.price_krw)).toLocaleString("ko-KR")}���
+                      {Math.max(0, selectedItem.price_krw - Math.min(userBalance, selectedItem.price_krw)).toLocaleString("ko-KR")}원
                     </span>
                   )}
                   {/* 포인트 사용 버튼 — 로그인 유저 + 잔고 있을 때만 */}

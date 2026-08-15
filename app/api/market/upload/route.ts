@@ -21,12 +21,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "파일 크기는 10MB 이하여야 합니다." }, { status: 400 })
     }
 
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
+    const isAnimatedGif = file.type === "image/gif"
+    const input = Buffer.from(await file.arrayBuffer())
+    const body = isAnimatedGif
+      ? input
+      : await sharp(input)
+          .rotate()
+          .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+          .webp({ quality: 82, effort: 4 })
+          .toBuffer()
+    const ext = isAnimatedGif ? "gif" : "webp"
     const pathname = `market-items/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
-    const blob = await put(pathname, file, {
+    const blob = await put(pathname, body, {
       access: "private",
-      contentType: file.type,
+      contentType: isAnimatedGif ? "image/gif" : "image/webp",
       token: process.env.BLOB_READ_WRITE_TOKEN,
     })
 
