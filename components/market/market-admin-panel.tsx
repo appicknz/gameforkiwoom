@@ -55,6 +55,25 @@ function getToken() {
   try { return localStorage.getItem("app_token") } catch { return null }
 }
 
+// 서버가 JSON이 아닌 응답(타임아웃/500 HTML 에러 페이지 등)을 반환해도
+// res.json()이 예외를 던지며 원인이 "오류가 발생했습니다"로 뭉개지는 것을 방지합니다.
+async function parseResponse(res: Response): Promise<{ ok: boolean; data: any }> {
+  const text = await res.text()
+  try {
+    return { ok: res.ok, data: text ? JSON.parse(text) : {} }
+  } catch {
+    return {
+      ok: false,
+      data: { error: `서버 응답 오류 (HTTP ${res.status}). 잠시 후 다시 시도해주세요.` },
+    }
+  }
+}
+
+function extractErrorMessage(data: any, fallback: string) {
+  const errVal = data?.error
+  return typeof errVal === "string" ? errVal : (errVal?.message ?? fallback)
+}
+
 export default function MarketAdminPanel({ categories, onClose, onSuccess, editItem, isMaster = false, selfPublisherId }: Props) {
   const isEdit = !!editItem
 
@@ -108,14 +127,18 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
         setUploading(true)
         const fd = new FormData()
         fd.append("file", imageFile)
-        const res  = await fetch("/api/market/upload", {
+        const uploadRes = await fetch("/api/market/upload", {
           method:  "POST",
           headers: { Authorization: `Bearer ${getToken()}` },
           body:    fd,
         })
-        const data = await res.json()
-        image_url  = data.url ?? null
+        const { ok: uploadOk, data: uploadData } = await parseResponse(uploadRes)
         setUploading(false)
+        if (!uploadOk) {
+          setError(extractErrorMessage(uploadData, "이미지 업로드 실패"))
+          return
+        }
+        image_url = uploadData.url ?? null
       }
 
       const token = getToken()
@@ -140,15 +163,14 @@ export default function MarketAdminPanel({ categories, onClose, onSuccess, editI
           data_source_type: form.data_source_type || null,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        const errVal = data.error
-        setError(typeof errVal === "string" ? errVal : (errVal?.message ?? (isEdit ? "수정 실패" : "등록 실패")))
+      const { ok, data } = await parseResponse(res)
+      if (!ok) {
+        setError(extractErrorMessage(data, isEdit ? "수정 실패" : "등록 실패"))
         return
       }
       onSuccess()
-    } catch {
-      setError("오류가 발생했습니다.")
+    } catch (e) {
+      setError(e instanceof Error ? `오류가 발생했습니다: ${e.message}` : "오류가 발생했습니다.")
     } finally {
       setSubmitting(false)
       setUploading(false)

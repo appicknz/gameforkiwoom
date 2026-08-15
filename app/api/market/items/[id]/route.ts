@@ -78,24 +78,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   let stripe_price_id = existingItem?.stripe_price_id
   if (price_krw && price_krw !== existingItem?.price_krw) {
-    const { stripe } = await import("@/lib/stripe")
-    // 기존 price 비활성화
-    if (stripe_price_id) {
-      await stripe.prices.update(stripe_price_id, { active: false }).catch(() => {})
+    try {
+      const { stripe } = await import("@/lib/stripe")
+      // 기존 price 비활성화
+      if (stripe_price_id) {
+        await stripe.prices.update(stripe_price_id, { active: false }).catch(() => {})
+      }
+      // 새 price 생성 (기존 product가 없으면 새로 생성)
+      const product = await stripe.products.create({ name: title ?? "상품" })
+      const newPrice = await stripe.prices.create({
+        product:     product.id,
+        unit_amount: price_krw,
+        currency:    "krw",
+      })
+      stripe_price_id = newPrice.id
+    } catch (e) {
+      console.error("[market/items/:id] stripe error:", e)
+      return NextResponse.json(
+        { error: e instanceof Error ? `결제 상품 수정 실패: ${e.message}` : "결제 상품 수정 실패" },
+        { status: 502 },
+      )
     }
-    // 새 price 생성
-    const { data: fullItem } = await adminSupabase
-      .from("market_items").select("stripe_price_id").eq("id", id).single()
-    const product = await stripe.products.retrieve(
-      // product_id가 없으면 새로 생성
-      "unknown"
-    ).catch(async () => stripe.products.create({ name: title ?? "상품" }))
-    const newPrice = await stripe.prices.create({
-      product:     product.id,
-      unit_amount: price_krw,
-      currency:    "krw",
-    })
-    stripe_price_id = newPrice.id
   }
 
   const updatePayload: Record<string, unknown> = {

@@ -158,13 +158,22 @@ export async function POST(req: Request) {
   }
 
   // Stripe 상품 + 가격 동적 생성
-  const { stripe } = await import("@/lib/stripe")
-  const stripeProduct = await stripe.products.create({ name: title })
-  const stripePrice   = await stripe.prices.create({
-    product:     stripeProduct.id,
-    unit_amount: price_krw,   // 원화 (KRW, 최소 단위 = 1원)
-    currency:    "krw",
-  })
+  let stripePrice: { id: string }
+  try {
+    const { stripe } = await import("@/lib/stripe")
+    const stripeProduct = await stripe.products.create({ name: title })
+    stripePrice = await stripe.prices.create({
+      product:     stripeProduct.id,
+      unit_amount: price_krw,   // 원화 (KRW, 최소 단위 = 1원)
+      currency:    "krw",
+    })
+  } catch (e) {
+    console.error("[market/items] stripe error:", e)
+    return NextResponse.json(
+      { error: e instanceof Error ? `결제 상품 생성 실패: ${e.message}` : "결제 상품 생성 실패" },
+      { status: 502 },
+    )
+  }
 
   const { data, error } = await adminSupabase
     .from("market_items")
