@@ -57,7 +57,15 @@ export function TopBar() {
   const [tgLoginMsg, setTgLoginMsg] = useState<string | null>(null)
 
 
-  const TELEGRAM_BOT_USERNAME = "bitbaka_bot"
+  // 서버에 실제 설정된 TELEGRAM_BOT_TOKEN 기준 봇 username을 조회해서 사용.
+  // 하드코딩하면 BotFather에 등록한 도메인의 봇과 코드가 가리키는 봇이 어긋날 수 있음.
+  const [tgBotUsername, setTgBotUsername] = useState<string | null>(null)
+  useEffect(() => {
+    fetch("/api/auth/telegram-bot-info")
+      .then((r) => r.json())
+      .then((d) => setTgBotUsername(d.username ?? null))
+      .catch(() => setTgBotUsername(null))
+  }, [])
 
   // 미니앱(텔레그램 앱 안) 전용: initData 기반 즉시 로그인
   const handleMiniAppTelegramLogin = async () => {
@@ -383,7 +391,7 @@ export function TopBar() {
     window.location.reload()
   }
 
-  // ── 중복 로그인 감지 폴링 (60초마다) ────────────────────────────
+  // ── 중복 로그인 감지 폴링 (60초마다) ────────���───────────────────
   useEffect(() => {
     const check = async () => {
       const token = getToken()
@@ -728,9 +736,9 @@ export function TopBar() {
                               </svg>
                               {tgLoginLoading ? "처리 중..." : "텔레그램으로 바로 시작하기"}
                             </button>
-                          ) : (
-                            <TelegramLoginWidget botUsername={TELEGRAM_BOT_USERNAME} onAuth={handleWidgetTelegramAuth} />
-                          )}
+                          ) : tgBotUsername ? (
+                            <TelegramLoginWidget botUsername={tgBotUsername} onAuth={handleWidgetTelegramAuth} />
+                          ) : null}
                           {tgLoginMsg && <p className="text-xs text-destructive text-center">{tgLoginMsg}</p>}
                         </>
                       </>
@@ -788,9 +796,9 @@ export function TopBar() {
                               </svg>
                               {tgLoginLoading ? "처리 중..." : "텔레그램으로 바로 시작하기"}
                             </button>
-                          ) : (
-                            <TelegramLoginWidget botUsername={TELEGRAM_BOT_USERNAME} onAuth={handleWidgetTelegramAuth} />
-                          )}
+                          ) : tgBotUsername ? (
+                            <TelegramLoginWidget botUsername={tgBotUsername} onAuth={handleWidgetTelegramAuth} />
+                          ) : null}
                           {tgLoginMsg && <p className="text-xs text-destructive text-center">{tgLoginMsg}</p>}
                         </>
                       </>
