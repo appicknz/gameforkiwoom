@@ -170,16 +170,15 @@ export default function MarketItemPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* 이미지 */}
-          <div className="relative rounded-2xl overflow-hidden border border-border bg-secondary/20 aspect-square">
+          <div className="rounded-2xl overflow-hidden border border-border bg-secondary/20 aspect-square">
             {item.image_url ? (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src={blobImageUrl(item.image_url)!}
                 alt={item.title}
-                fill
-                priority
-                quality={75}
-                sizes="(max-width: 768px) calc(100vw - 2rem), 416px"
-                className="object-cover"
+                loading="eager"
+                decoding="async"
+                className="w-full h-full object-cover"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-6xl">
