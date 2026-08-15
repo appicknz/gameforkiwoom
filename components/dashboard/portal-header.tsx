@@ -1,7 +1,6 @@
 "use client"
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
-import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   Bell, Bot, BookOpen, CircleDollarSign, Flag, Gamepad2, Landmark,
@@ -121,7 +120,7 @@ export function PortalHeader() {
               return "mode" in item ? (
                 <button key={`${item.href}-${item.mode}`} type="button" onClick={() => openTradeMode(item.mode)} className={className}>{content}</button>
               ) : (
-                <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={className}>{content}</Link>
+                <a key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={className}>{content}</a>
               )
             })}
           </div>
