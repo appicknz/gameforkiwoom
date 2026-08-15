@@ -61,7 +61,10 @@ export function TopBar() {
 
   const handleTelegramLogin = async () => {
     if (!isTelegramEnv) {
-      window.location.href = TELEGRAM_MINIAPP_URL
+      // 일부 임베드/샌드박스 환경에서 location.href 이동이 막히는 경우를 대비해
+      // 새 창/탭으로 열고, 실패 시(팝업 차단 등) location.href로 한 번 더 시도
+      const win = window.open(TELEGRAM_MINIAPP_URL, "_blank")
+      if (!win) window.location.href = TELEGRAM_MINIAPP_URL
       return
     }
     setTgLoginLoading(true)
@@ -187,7 +190,7 @@ export function TopBar() {
             saveToken(d.token)
           }
         } else if (res.status === 401) {
-          // 진짜 세션 만료 — ���그아웃 처리
+          // 진짜 세��� 만료 — ���그아웃 처리
           clearToken()
           setIsLoggedIn(false)
           setProfile(null)
@@ -376,7 +379,7 @@ export function TopBar() {
           alert("다른 기기에서 로그인되어 자동 로그아웃되었습니다.")
         }
       } catch {
-        // 네트��크 오류 무시
+        // ���트��크 오류 무시
       }
     }
     const id = setInterval(check, 60_000)
@@ -872,7 +875,7 @@ export function TopBar() {
                   setCuMsg({ text: "요청이 총판에게 전달되었습니다.", ok: true })
                   setCuUsername(""); setCuPassword(""); setCuCount("1"); setCuMemo("")
                 } else {
-                  setCuMsg({ text: d.error ?? "오류가 발생했습니다.", ok: false })
+                  setCuMsg({ text: d.error ?? "오류��� 발생했습니다.", ok: false })
                 }
                 setCuLoading(false)
               }}
