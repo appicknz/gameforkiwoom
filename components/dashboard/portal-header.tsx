@@ -115,10 +115,12 @@ export function PortalHeader() {
   }
 
   function openTradeMode(mode: TradeMode) {
+    const target = `/trade?mode=${mode}`
     if (pathname === "/trade") {
+      router.replace(target, { scroll: false })
       window.dispatchEvent(new CustomEvent("trade:mode", { detail: mode }))
     } else {
-      router.push(`/trade?mode=${mode}`)
+      router.push(target)
     }
   }
 

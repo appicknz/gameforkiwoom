@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useRef, useState, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
 import { supabaseBrowser } from "@/lib/supabase-browser"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab, { liveCache } from "@/components/trade/live-prices-tab"
@@ -711,9 +712,9 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             </div>
           )
         }
-        // ──────────────────────────────────────────────────────────────
+        // ───────────���──────────────────────────────────────────────────
 
-        // ── 오늘 or 스냅샷 없는 날 — 기존 실시간 계산 ────────────────
+        // ── 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
         // confirmedMargin이 없으면 포지션 수 × size_usd 폴백
         const margin = confirmedMargin > 0 ? confirmedMargin : cnt * sizeUsdCfg
@@ -1299,7 +1300,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
           if (total === 0 && activeRois.length === 0) return null
 
-          // 전략 평가는 종료 거래 50건부터 의미가 있음.
+          // 전략 평가는 종료 거래 50건부터 의미가 ���음.
           // 표본이 부족할 때는 PF·승률·기대값으로 성급한 판정을 내리지 않고 수집 진행률만 표시한다.
           const MIN_HEALTH_SAMPLE = 50
           if (total < MIN_HEALTH_SAMPLE) {
@@ -2481,7 +2482,7 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
     : posMargin * (avgRoi / 100)
   const totalPnl = isHistorical ? activePnl : activePnl + slClosedPnl
 
-  // MARGIN: ������ 시작 잔고($10,000 기준) — 자동매매2는 별도 확정 잔고 원장이 없어 시드값 그대로 사용
+  // MARGIN: ������ 시작 잔고($10,000 기준) — 자동매매2��� 별도 확정 잔고 원장이 없어 시드값 그대로 사용
   const margin   = startingBalance > 0 ? startingBalance : posMargin
   const estValue = margin + totalPnl
   const totalRoi = margin > 0 ? (totalPnl / margin) * 100 : avgRoi
@@ -2802,6 +2803,7 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
 }
 
 export default function TradePage() {
+  const searchParams = useSearchParams()
   const [balance,       setBalance]       = useState<number | null>(null)
   const [positions,     setPositions]     = useState<Position[]>([])
   const [logs,          setLogs]          = useState<TradeLog[]>([])
@@ -2854,6 +2856,13 @@ export default function TradePage() {
       window.removeEventListener("trade:mode", selectMode)
     }
   }, [])
+
+  useEffect(() => {
+    const mode = searchParams.get("mode") as "auto" | "auto2" | "closed" | "ledger" | "mock" | null
+    if (mode && ["auto", "auto2", "closed", "ledger", "mock"].includes(mode)) {
+      switchTab(mode)
+    }
+  }, [searchParams])
 
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
   const [allowMockTrade, setAllowMockTrade] = useState(false)
