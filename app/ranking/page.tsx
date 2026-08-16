@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { RefreshCw, Trophy, Medal, Award, TrendingUp, TrendingDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -12,6 +12,17 @@ function getToken(): string | null {
 function fmt(n: number) {
   const sign = n > 0 ? "+" : ""
   return sign + "₩" + Math.round(n).toLocaleString("ko-KR")
+}
+
+// KST 기준 오늘 날짜 (로컬 자정 Date — .getDate()/.getMonth() 안전)
+function kstToday(): Date {
+  const kstStr = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+  const [y, m, d] = kstStr.split("-").map(Number)
+  return new Date(y, m - 1, d)
+}
+
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
 interface RankingRow {
@@ -43,19 +54,100 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="text-sm font-semibold text-muted-foreground tabular-nums">{rank}</span>
 }
 
+// ── 날짜별 랭킹 기록 스트립 ──────────────────────────────────────────
+function RankingDateStrip({
+  selected, onSelect,
+}: { selected: string | null; onSelect: (d: string | null) => void }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const today = kstToday()
+  const todayStr = toDateStr(today)
+
+  const DAYS_BACK = 29
+  const days: Date[] = []
+  for (let i = DAYS_BACK; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(today.getDate() - i)
+    days.push(d)
+  }
+  const DAY_KO = ["일", "월", "화", "수", "목", "금", "토"]
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollLeft = el.scrollWidth
+  }, [])
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div ref={scrollRef} className="flex overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          className={cn(
+            "flex flex-col items-center justify-center gap-1.5 shrink-0 w-14 py-2.5 border-r border-border transition-colors",
+            selected === null ? "bg-primary/10" : "hover:bg-secondary",
+          )}
+        >
+          <span className="text-[9px] font-medium text-muted-foreground">누적</span>
+          <span
+            className={cn(
+              "w-7 h-7 flex items-center justify-center rounded-full text-[10px] font-bold border-2",
+              selected === null ? "border-primary text-primary" : "border-transparent text-muted-foreground",
+            )}
+          >
+            전체
+          </span>
+        </button>
+        {days.map((d) => {
+          const dateStr = toDateStr(d)
+          const isToday = dateStr === todayStr
+          const isSel = dateStr === selected
+          const isSun = d.getDay() === 0
+          const isSat = d.getDay() === 6
+          const dayColor = isSat ? "text-blue-400" : isSun ? "text-red-400" : "text-muted-foreground"
+          return (
+            <button
+              key={dateStr}
+              type="button"
+              onClick={() => onSelect(dateStr)}
+              className="flex flex-col items-center gap-1.5 shrink-0 w-12 py-2.5"
+            >
+              <span className={cn("text-[9px] font-medium", dayColor)}>{DAY_KO[d.getDay()]}</span>
+              <span
+                className={cn(
+                  "w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold border-2 transition-colors",
+                  isToday
+                    ? "border-emerald-500 text-foreground"
+                    : isSel
+                      ? "border-primary/60 bg-primary/10 text-foreground"
+                      : "border-transparent text-muted-foreground",
+                )}
+              >
+                {d.getDate()}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function RankingPage() {
   const [data, setData] = useState<RankingData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loggedIn, setLoggedIn] = useState(true)
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => toDateStr(kstToday()))
 
-  const fetchRanking = useCallback(async () => {
+  const fetchRanking = useCallback(async (date: string | null) => {
     const token = getToken()
     if (!token) { setLoggedIn(false); return }
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/ranking", { headers: { Authorization: `Bearer ${token}` } })
+      const params = date ? `?date=${date}` : ""
+      const res = await fetch(`/api/ranking${params}`, { headers: { Authorization: `Bearer ${token}` } })
       if (res.ok) {
         setData(await res.json())
       } else {
@@ -69,7 +161,7 @@ export default function RankingPage() {
     }
   }, [])
 
-  useEffect(() => { fetchRanking() }, [fetchRanking])
+  useEffect(() => { fetchRanking(selectedDate) }, [fetchRanking, selectedDate])
 
   const top3 = data?.ranking.slice(0, 3) ?? []
   const rest = data?.ranking.slice(3) ?? []
@@ -83,13 +175,22 @@ export default function RankingPage() {
           <div>
             <h1 className="text-lg font-bold text-foreground">랭킹</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              바카라 · 레이스 · 트레이딩 통합 손익 순위
+              바카라 · 레이스 · 트레이딩 통합 손익 순위 · {selectedDate ? `${selectedDate} 기록` : "전체 누적"}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchRanking} disabled={loading} className="h-7 gap-1 text-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchRanking(selectedDate)}
+            disabled={loading}
+            className="h-7 gap-1 text-xs"
+          >
             <RefreshCw className={cn("w-3 h-3", loading && "animate-spin")} />
           </Button>
         </div>
+
+        {/* 날짜별 랭킹 기록 */}
+        <RankingDateStrip selected={selectedDate} onSelect={setSelectedDate} />
 
         {!loggedIn && (
           <div className="rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
@@ -105,7 +206,7 @@ export default function RankingPage() {
 
         {!error && data && data.ranking.length === 0 && (
           <div className="rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-            아직 집계된 랭킹 데이터가 없습니다.
+            {selectedDate ? `${selectedDate}에 집계된 랭킹 데이터가 없습니다.` : "아직 집계된 랭킹 데이터가 없습니다."}
           </div>
         )}
 
