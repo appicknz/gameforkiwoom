@@ -238,6 +238,7 @@ export default function TradingPage() {
             symbol={SYMBOL}
             height={320}
             onPrice={handlePrice}
+            livePrice={currentPrice}
             positions={positions.map((p) => ({
               id: p.id,
               symbol: p.symbol,

@@ -29,18 +29,39 @@ interface PositionLine {
   leverage: number
 }
 
+const INTERVAL_SECONDS: Record<Interval, number> = {
+  "1m": 60, "3m": 180, "5m": 300, "15m": 900,
+  "1h": 3600, "4h": 14400, "1d": 86400, "1w": 604800,
+}
+
+// 심볼 가격 범위에 따라 소수점 자릿수 동적 계산
+function calcPriceFormat(price: number) {
+  if (!price || price <= 0) return { type: "price" as const, precision: 8, minMove: 0.00000001 }
+  if (price >= 1000)  return { type: "price" as const, precision: 2, minMove: 0.01 }
+  if (price >= 1)     return { type: "price" as const, precision: 4, minMove: 0.0001 }
+  if (price >= 0.01)  return { type: "price" as const, precision: 6, minMove: 0.000001 }
+  if (price >= 0.001) return { type: "price" as const, precision: 7, minMove: 0.0000001 }
+  return { type: "price" as const, precision: 8, minMove: 0.00000001 }
+}
+
 interface SymbolChartProps {
   symbol: string
   height?: number
   onPrice?: (price: number) => void
+  /** 앱 전역 단일 가격 소스(Railway usePriceWorker)에서 받은 실시간 가격 —
+   *  거래소 직결 WebSocket이 지역 차단 등으로 끊겨도 이 값으로 캔들을 계속 갱신한다. */
+  livePrice?: number | null
   positions?: PositionLine[]
 }
 
-export default function SymbolChart({ symbol, height = 240, onPrice, positions = [] }: SymbolChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const seriesRef    = useRef<any>(null)
-  const onPriceRef   = useRef(onPrice)
-  const linesRef     = useRef<Map<string, any>>(new Map())
+export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, positions = [] }: SymbolChartProps) {
+  const containerRef  = useRef<HTMLDivElement>(null)
+  const seriesRef      = useRef<any>(null)
+  const priceLineRef   = useRef<any>(null)
+  const onPriceRef     = useRef(onPrice)
+  const linesRef       = useRef<Map<string, any>>(new Map())
+  const currentBarRef  = useRef<{ time: number; open: number; high: number; low: number; close: number } | null>(null)
+  const formatAppliedRef = useRef(false)
 
   const [interval, setInterval] = useState<Interval>("1m")
 
@@ -83,16 +104,6 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
       handleScale: true,
     })
 
-    // 심볼 가격 범위에 따라 소수점 자릿수 동적 계산
-    function calcPriceFormat(price: number) {
-      if (!price || price <= 0) return { type: "price" as const, precision: 8, minMove: 0.00000001 }
-      if (price >= 1000)  return { type: "price" as const, precision: 2, minMove: 0.01 }
-      if (price >= 1)     return { type: "price" as const, precision: 4, minMove: 0.0001 }
-      if (price >= 0.01)  return { type: "price" as const, precision: 6, minMove: 0.000001 }
-      if (price >= 0.001) return { type: "price" as const, precision: 7, minMove: 0.0000001 }
-      return { type: "price" as const, precision: 8, minMove: 0.00000001 }
-    }
-
     const series = chart.addCandlestickSeries({
       upColor:          "#00e676",
       downColor:        "#ff3d57",
@@ -114,6 +125,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
       axisLabelVisible: true,
       title:            "",
     })
+    priceLineRef.current = currentPriceLine
 
     const ro = new ResizeObserver(() => {
       chart.applyOptions({ width: container.clientWidth })
@@ -123,6 +135,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
     // ── 과거 캔들 로드 ────────────────────────────────────────
     let ws: WebSocket | null = null
     let cancelled = false
+    formatAppliedRef.current = false
 
     fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=100`)
       .then(r => r.json())
@@ -138,10 +151,12 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
         series.setData(candles)
         chart.timeScale().fitContent()
         if (candles.length > 0) {
-          const lastClose = candles[candles.length - 1].close
+          const lastBar = candles[candles.length - 1]
           // 실제 가격 기준으로 소수점 정밀도 재설정
-          series.applyOptions({ priceFormat: calcPriceFormat(lastClose) })
-          currentPriceLine.applyOptions({ price: lastClose })
+          series.applyOptions({ priceFormat: calcPriceFormat(lastBar.close) })
+          currentPriceLine.applyOptions({ price: lastBar.close })
+          currentBarRef.current = { ...lastBar }
+          formatAppliedRef.current = true
         }
       })
       .catch(() => {})
@@ -154,14 +169,16 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
         const k = JSON.parse(e.data).k
         if (!k) return
         const close = parseFloat(k.c)
-        series.update({
-          time:  Math.floor(k.t / 1000) as any,
+        const bar = {
+          time:  Math.floor(k.t / 1000),
           open:  parseFloat(k.o),
           high:  parseFloat(k.h),
           low:   parseFloat(k.l),
           close,
-        })
+        }
+        series.update(bar as any)
         currentPriceLine.applyOptions({ price: close })
+        currentBarRef.current = bar
         onPriceRef.current?.(close)
       } catch {}
     }
@@ -177,6 +194,41 @@ export default function SymbolChart({ symbol, height = 240, onPrice, positions =
     }
   // symbol 또는 interval이 바뀔 때마다 차트 전체 재생성
   }, [symbol, interval, height])
+
+  // ── 신뢰 가능한 전역 가격 소스(livePrice)로 캔들 실시간 갱신 ──────
+  // 거래소 직결 WebSocket이 지역 차단 등으로 죽어도 이 값만으로 캔들이 계속 움직인다.
+  useEffect(() => {
+    const series = seriesRef.current
+    const priceLine = priceLineRef.current
+    if (!series || !livePrice || livePrice <= 0) return
+
+    // 거래소 REST 히스토리 로드가 실패(지역 차단 등)해 정밀도가 아직 설정되지 않았다면
+    // 이 실시간 가격 기준으로 대신 설정 — 8자리 기본값으로 축이 뭉개지는 것을 방지
+    if (!formatAppliedRef.current) {
+      try { series.applyOptions({ priceFormat: calcPriceFormat(livePrice) }) } catch {}
+      formatAppliedRef.current = true
+    }
+
+    const intervalSec = INTERVAL_SECONDS[interval]
+    const barTime = Math.floor(Date.now() / 1000 / intervalSec) * intervalSec
+    const prevBar = currentBarRef.current
+
+    const nextBar = !prevBar || barTime > prevBar.time
+      ? { time: barTime, open: livePrice, high: livePrice, low: livePrice, close: livePrice }
+      : {
+          time:  prevBar.time,
+          open:  prevBar.open,
+          high:  Math.max(prevBar.high, livePrice),
+          low:   Math.min(prevBar.low, livePrice),
+          close: livePrice,
+        }
+
+    currentBarRef.current = nextBar
+    try {
+      series.update(nextBar as any)
+      priceLine?.applyOptions({ price: livePrice })
+    } catch { /* 심볼/차트 전환 중 일시적 참조 불일치 무시 */ }
+  }, [livePrice, interval])
 
   // ── 포지션 진입가 라인 동기화 ────────────────────────────────
   useEffect(() => {
