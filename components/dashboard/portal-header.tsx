@@ -3,19 +3,21 @@
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  Bell, Bot, BookOpen, CircleDollarSign, Flag, Gamepad2, Landmark, LineChart,
-  ListChecks, PackageCheck, Search, ShoppingBag, Store, Trophy, WalletCards,
+  BarChart3, Bell, Bot, BookOpen, CircleDollarSign, Flag, Gamepad2, Landmark, LineChart,
+  ListChecks, PackageCheck, Search, ShoppingBag, Store, TrendingUp, Trophy, WalletCards,
 } from "lucide-react"
 import { liveCache } from "@/components/trade/live-prices-tab"
 import { cn } from "@/lib/utils"
 
 const basePortalItems = [
+  { label: "랭킹", href: "/ranking", icon: BarChart3 },
   { label: "바카", href: "/baka", icon: Gamepad2 },
   { label: "레이스", href: "/race", icon: Flag },
+  { label: "트레이딩", href: "/trading", icon: TrendingUp },
+  { label: "마켓", href: "/market", icon: Store },
+  { label: "현황", href: "/betting-status", icon: ListChecks },
   { label: "자동매매", href: "/trade", icon: Bot, mode: "auto" as const },
   { label: "매매기록", href: "/trade", icon: BookOpen, mode: "ledger" as const },
-  { label: "배팅현황", href: "/betting-status", icon: ListChecks },
-  { label: "마켓", href: "/market", icon: Store },
   { label: "구매내역", href: "/purchases", icon: PackageCheck },
   { label: "입금", href: "/deposit", icon: CircleDollarSign },
   { label: "판매관리", href: "/seller", icon: ShoppingBag },
@@ -33,7 +35,9 @@ export function PortalHeader() {
   const [username, setUsername] = useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [, refreshSymbols] = useState(0)
-  const hideSymbolSearch = pathname === "/baka" || pathname === "/race" || pathname === "/betting-status"
+  const hideSymbolSearch =
+    pathname === "/baka" || pathname === "/race" || pathname === "/betting-status" ||
+    pathname === "/trading" || pathname === "/ranking"
 
   useEffect(() => {
     const refresh = () => refreshSymbols((value) => value + 1)
