@@ -208,7 +208,7 @@ export default function BettingStatusPage() {
 
   return (
     <div className="min-h-screen bg-background pt-14 pb-8">
-      <div className="max-w-3xl mx-auto px-4 space-y-4">
+      <div className="max-w-7xl mx-auto px-4 space-y-4">
 
         {/* 헤더 */}
         <div className="flex items-center justify-between pt-4">
@@ -368,7 +368,7 @@ export default function BettingStatusPage() {
                 )}
 
                 <p className="text-[10px] text-muted-foreground text-center">
-                  전체 {data.total.toLocaleString()}건 · 페이지당 10건
+                  전체 {data.total.toLocaleString()}건 · 페이��당 10건
                 </p>
               </>
             )}

@@ -168,7 +168,7 @@ export default function RankingPage() {
 
   return (
     <div className="min-h-screen bg-background pt-14 pb-8">
-      <div className="max-w-2xl mx-auto px-4 space-y-4">
+      <div className="max-w-7xl mx-auto px-4 space-y-4">
 
         {/* 헤더 */}
         <div className="flex items-center justify-between pt-4">
