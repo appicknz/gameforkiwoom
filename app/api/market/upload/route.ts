@@ -17,27 +17,58 @@ export async function POST(req: Request) {
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json({ error: "지원하지 않는 이미지 형식입니다." }, { status: 400 })
     }
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: "파일 크기는 10MB 이하여야 합니다." }, { status: 400 })
+    // Vercel 서버리스 함수(Route Handler)의 요청 본문 크기 제한은 기본 4.5MB.
+    // 10MB로 허용해두면 4.5MB~10MB 사이 파일은 함수 진입 전에 플랫폼 단에서
+    // 잘려 500/413으로 실패하고, 클라이언트에는 이유가 보이지 않는 500만 남는다.
+    // 안전 마진을 두고 4MB로 제한한다.
+    if (file.size > 4 * 1024 * 1024) {
+      return NextResponse.json({ error: "파일 크기는 4MB 이하여야 합니다." }, { status: 400 })
     }
 
     const isAnimatedGif = file.type === "image/gif"
     const input = Buffer.from(await file.arrayBuffer())
-    const body = isAnimatedGif
-      ? input
-      : await sharp(input)
+
+    let body: Buffer
+    if (isAnimatedGif) {
+      body = input
+    } else {
+      try {
+        body = await sharp(input)
           .rotate()
           .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
           .webp({ quality: 82, effort: 4 })
           .toBuffer()
+      } catch (sharpError: any) {
+        console.error("[market/upload] sharp resize failed:", sharpError)
+        return NextResponse.json(
+          { error: `이미지 처리 실패: ${sharpError?.message ?? "알 수 없는 오류"}` },
+          { status: 500 },
+        )
+      }
+    }
+
     const ext = isAnimatedGif ? "gif" : "webp"
     const pathname = `market-items/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
-    const blob = await put(pathname, body, {
-      access: "private",
-      contentType: isAnimatedGif ? "image/gif" : "image/webp",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    })
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.error("[market/upload] BLOB_READ_WRITE_TOKEN is not set")
+      return NextResponse.json({ error: "스토리지 설정 오류(BLOB_READ_WRITE_TOKEN)" }, { status: 500 })
+    }
+
+    let blob
+    try {
+      blob = await put(pathname, body, {
+        access: "private",
+        contentType: isAnimatedGif ? "image/gif" : "image/webp",
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      })
+    } catch (blobError: any) {
+      console.error("[market/upload] blob upload failed:", blobError)
+      return NextResponse.json(
+        { error: `스토리지 업로드 실패: ${blobError?.message ?? "알 수 없는 오류"}` },
+        { status: 500 },
+      )
+    }
 
     return NextResponse.json({ url: blob.url })
   } catch (e: any) {

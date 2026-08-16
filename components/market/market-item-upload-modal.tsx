@@ -61,7 +61,7 @@ export default function MarketItemUploadModal({ onClose, onSuccess }: Props) {
   // 이미지 선택 처리
   const handleFile = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) { setError("이미지 파일만 업로드할 수 있습니다."); return }
-    if (file.size > 10 * 1024 * 1024) { setError("파일 크기는 10MB 이하여야 합니다."); return }
+    if (file.size > 4 * 1024 * 1024) { setError("파일 크기는 4MB 이하여야 합니다."); return }
     setError("")
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
@@ -225,7 +225,7 @@ export default function MarketItemUploadModal({ onClose, onSuccess }: Props) {
                         <ImageIcon className="w-5 h-5 text-muted-foreground" />
                       </div>
                       <p className="text-xs text-muted-foreground">클릭하거나 드래그해서 이미지 추가</p>
-                      <p className="text-[10px] text-muted-foreground/50">JPG, PNG, WebP · 최대 10MB</p>
+                      <p className="text-[10px] text-muted-foreground/50">JPG, PNG, WebP · 최대 4MB</p>
                     </>
                   )}
                 </div>
