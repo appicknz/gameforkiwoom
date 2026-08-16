@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import { TrendingUp, TrendingDown, X, Wallet, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { usePriceWorker } from "@/hooks/use-price-worker"
 
 const SymbolChart = dynamic(() => import("@/components/trade/symbol-chart"), { ssr: false })
 
@@ -74,6 +75,12 @@ export default function TradingPage() {
   useEffect(() => {
     setLoggedIn(Boolean(getToken()))
   }, [])
+
+  // 앱 전역 단일 가격 소스(Railway) — 차트 WS 연결과 무관하게 진입가/평가가는 항상 이 값으로 갱신
+  const handleWorkerPrice = useCallback((price: number) => {
+    setCurrentPrice(price)
+  }, [])
+  usePriceWorker({ onPrice: handleWorkerPrice })
 
   // 1초 tick — 오픈 포지션 실시간 PnL 갱신용
   useEffect(() => {
@@ -193,11 +200,11 @@ export default function TradingPage() {
     : null
 
   return (
-    <div className="min-h-screen bg-background pt-14 pb-8">
+    <div className="min-h-screen bg-background pb-8">
       <div className="max-w-4xl mx-auto px-4 space-y-4">
 
         {/* 헤더 */}
-        <div className="flex items-center justify-between pt-4">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
               BTC 트레이딩
