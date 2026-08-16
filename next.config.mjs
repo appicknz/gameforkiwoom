@@ -22,6 +22,10 @@ const nextConfig = {
     "@supabase/postgrest-js",
     "@supabase/realtime-js",
     "@supabase/storage-js",
+    // sharp은 플랫폼별 네이티브 바이너리(.node)를 사용하므로 webpack이 번들링하면
+    // 배포 환경(Vercel 서버리스 함수)에서 바이너리를 찾지 못해 500 에러가 발생함.
+    // node_modules에서 직접 로드되도록 외부 패키지로 지정.
+    "sharp",
   ],
   // 매 빌드마다 고유 ID 생성 → 캐시 무효화
   generateBuildId: async () => {
