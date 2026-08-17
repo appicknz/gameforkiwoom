@@ -21,6 +21,11 @@ function formatVolume(vol: number): string {
 }
 
 const FAVORITES_KEY = "trading_favorite_symbols"
+const FALLBACK_SYMBOLS = [
+  "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT",
+  "ADAUSDT", "AVAXUSDT", "LINKUSDT", "LTCUSDT", "TRXUSDT", "GASUSDT",
+  "GPSUSDT", "GALAUSDT", "GMTUSDT", "GRTUSDT",
+]
 
 function loadFavorites(): Set<string> {
   if (typeof window === "undefined") return new Set()
@@ -87,11 +92,12 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
     }
   }
 
+  const symbols = Array.from(new Set([...liveCache.symbols, ...FALLBACK_SYMBOLS]))
   const symbolsLoading = liveCache.symbols.length === 0
   const isConnected = liveCache.connectedCount === liveCache.totalChunks && liveCache.totalChunks > 0
   const query = search.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")
 
-  const rows = liveCache.symbols
+  const rows = symbols
     .filter((symbol) => !query || symbol.includes(query))
     .filter((symbol) => tab === "all" || favorites.has(symbol))
     .map((symbol) => liveCache.tickers.get(symbol) ?? { symbol, price: 0, change24h: 0, high24h: 0, low24h: 0, volume24h: 0 })
@@ -146,7 +152,6 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
-              autoFocus
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="종목 검색 (예: BTC, ETH)"
@@ -198,23 +203,13 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {symbolsLoading && (
-            <div className="flex h-full items-center justify-center">
-              <div className="flex flex-col items-center gap-3">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
-                <p className="text-xs text-muted-foreground">로딩 중...</p>
-              </div>
-            </div>
-          )}
-
-          {!symbolsLoading && rows.length === 0 && (
+          {rows.length === 0 && (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               {tab === "favorites" ? "즐겨찾기한 종목이 없습니다." : "검색 결과가 없습니다."}
             </div>
           )}
 
-          {!symbolsLoading &&
-            rows.map((item) => {
+          {rows.map((item) => {
               const isPositive = item.change24h >= 0
               const hasData = item.price > 0
               const isSelected = item.symbol === selectedSymbol
