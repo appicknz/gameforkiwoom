@@ -411,7 +411,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         style={{ position: "absolute", top: 8, right: 8, zIndex: 10, border: 0, borderRadius: 4, background: "rgba(15,23,42,0.9)", color: "#22d3ee", padding: "3px 8px", fontSize: 10, cursor: "pointer" }}
         aria-pressed={showUltimatePlot}
       >
-        BB + Order Block {showUltimatePlot ? "켜짐" : "꺼짐"}
+        보조지표 {showUltimatePlot ? "켜짐" : "꺼짐"}
       </button>
       <div ref={containerRef} className="h-[213px] w-full md:h-80" style={{ width: "100%" }} />
     </div>
