@@ -231,11 +231,7 @@ export function PortalHeader() {
           </div>
           {pathname.startsWith("/market") && (
             <div className="flex min-w-max items-center gap-1 border-t border-border/70 pt-1">
-              {[
-                  ["all", "전체", "🏪"],
-                  ["channel", "채널", "💻"],
-                                  ["points", "포인트 전용", "📦"],
-                ].map(([key, label, icon]) => (
+              {[["points", "마켓", "📦"]].map(([key, label, icon]) => (
                   <button
                     key={key}
                     type="button"

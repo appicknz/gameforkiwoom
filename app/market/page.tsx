@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import Image from "next/image"
 import { Search, TrendingUp, ArrowUpDown, Clock, Flame, Plus, X, Edit2, ShoppingCart, Loader2, Download, PenLine, AlertCircle, ExternalLink, Lock, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -47,7 +47,7 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
   const { t } = useTranslation()
   const [categories, setCategories]   = useState<Category[]>([])
   const [items, setItems]             = useState<Item[]>([])
-  const [activeCat, setActiveCat]     = useState<string>(boardOnly ? "indicator" : "all")
+  const [activeCat, setActiveCat]     = useState<string>(boardOnly ? "board" : "points")
   const [sortIdx, setSortIdx]         = useState<number>(0)
   const sort = SORT_CYCLE[sortIdx].key
   const [q, setQ]                     = useState("")
@@ -78,12 +78,22 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
   const sentinelRef                           = useRef<HTMLDivElement | null>(null)
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchItemsRef                 = useRef<(() => void) | null>(null)
+  const boardCategoryIds = useMemo(() => new Set(categories.filter((category) => {
+    const name = category.name.toLowerCase()
+    return name.includes("지표") || name.includes("indicator") || name.includes("게시판") || name.includes("board") || name.includes("채널") || name.includes("channel")
+  }).map((category) => category.id)), [categories])
+  const isBoardContent = boardOnly || activeCat === "board"
 
   useEffect(() => {
     const handleHeaderSort = () => setSortIdx(0)
     const handleHeaderSearch = (event: Event) => setQ((event as CustomEvent<string>).detail ?? "")
     const handleHeaderCategory = (event: Event) => {
       const key = (event as CustomEvent<string>).detail
+      if (key === "board") {
+        setActiveCat("board")
+        setShowPurchasedOnly(false)
+        return
+      }
       if (key === "all") {
         setActiveCat("all")
         setShowPurchasedOnly(false)
@@ -104,7 +114,7 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
     window.addEventListener("market:search", handleHeaderSearch)
     window.addEventListener("market:category", handleHeaderCategory)
     if (boardOnly || new URLSearchParams(window.location.search).get("category") === "indicator") {
-      handleHeaderCategory(new CustomEvent("market:category", { detail: "indicator" }))
+      handleHeaderCategory(new CustomEvent("market:category", { detail: "board" }))
     }
     return () => {
       window.removeEventListener("market:sort", handleHeaderSort)
@@ -257,7 +267,14 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
   useEffect(() => {
     fetch("/api/market/categories")
       .then(r => r.json())
-      .then(d => setCategories(d.categories ?? []))
+      .then(d => {
+        const nextCategories = d.categories ?? []
+        setCategories(nextCategories)
+        if (!boardOnly) {
+          const pointsCategory = nextCategories.find((category: Category) => category.balance_only)
+          if (pointsCategory) setActiveCat(pointsCategory.id)
+        }
+      })
       .catch(() => {})
   }, [])
 
@@ -266,29 +283,31 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
   const fetchItems = useCallback(async (catId: string, s: string, query: string) => {
     setLoading(true)
     const params = new URLSearchParams({ sort: s, limit: String(PAGE_SIZE), offset: "0" })
-    if (catId !== "all") params.set("category", catId)
+    if (catId !== "all" && catId !== "board") params.set("category", catId)
     if (query)           params.set("q", query)
     const res  = await fetch(`/api/market/items?${params}`).catch(() => null)
     const data = res ? await res.json() : {}
-    setItems(data.items ?? [])
-    setHasMore(data.hasMore ?? false)
+    const nextItems = data.items ?? []
+    setItems(boardOnly || catId === "board" ? nextItems.filter((item: Item) => boardCategoryIds.has(item.category_id)) : nextItems)
+    setHasMore(boardOnly || catId === "board" ? false : (data.hasMore ?? false))
     loadMoreOffsetRef.current = PAGE_SIZE
     setLoading(false)
-  }, [])
+  }, [boardCategoryIds, boardOnly])
 
   const loadMoreItems = useCallback(async (catId: string, s: string, query: string) => {
     if (loadingMore) return
     setLoadingMore(true)
     const params = new URLSearchParams({ sort: s, limit: String(PAGE_SIZE), offset: String(loadMoreOffsetRef.current) })
-    if (catId !== "all") params.set("category", catId)
+    if (catId !== "all" && catId !== "board") params.set("category", catId)
     if (query)           params.set("q", query)
     const res  = await fetch(`/api/market/items?${params}`).catch(() => null)
     const data = res ? await res.json() : {}
-    setItems(prev => [...prev, ...(data.items ?? [])])
-    setHasMore(data.hasMore ?? false)
+    const nextItems = data.items ?? []
+    setItems(prev => [...prev, ...(boardOnly || catId === "board" ? nextItems.filter((item: Item) => boardCategoryIds.has(item.category_id)) : nextItems)])
+    setHasMore(boardOnly || catId === "board" ? false : (data.hasMore ?? false))
     loadMoreOffsetRef.current += PAGE_SIZE
     setLoadingMore(false)
-  }, [loadingMore])
+  }, [loadingMore, boardCategoryIds, boardOnly])
 
   // ref를 항상 최신 fetchItems로 유지 (handleBalanceBuy에서 TDZ 없이 참조)
   useEffect(() => {
@@ -587,7 +606,7 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
         })()}
 
         {/* 지표 카테고리: 기존 상품 데이터를 게시글형 피드로 표시 */}
-        {categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator") || c.name.toLowerCase().includes("게시판") || c.name.toLowerCase().includes("board"))) ? (
+        {isBoardContent ? (
           loading ? <div className="mx-auto max-w-2xl py-20 text-center text-muted-foreground">불러오는 중...</div> : (
             <IndicatorFeed
               items={showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items}
@@ -597,13 +616,13 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
         ) : null}
 
         {/* 상품 그리드 */}
-        {!categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator") || c.name.toLowerCase().includes("게시판") || c.name.toLowerCase().includes("board"))) && loading ? (
+        {!isBoardContent && loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="rounded-xl bg-secondary/40 animate-pulse aspect-[3/4]" />
             ))}
           </div>
-        ) : !categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator") || c.name.toLowerCase().includes("게시판") || c.name.toLowerCase().includes("board"))) ? (
+        ) : !isBoardContent ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {(showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items).length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-24 text-muted-foreground">
