@@ -133,7 +133,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     // Order Block Finder + BB Ultimate Signals의 주요 오버레이
     const makeIndicator = (color: string, width = 1) => chart.addLineSeries({
       color, lineWidth: width as any, lineStyle: 0, lastValueVisible: false,
-      priceLineVisible: false, crosshairMarkerVisible: false,
+      priceLineVisible: false, crosshairMarkerVisible: false, visible: true,
     })
     const ultimatePlot = makeIndicator("#ffffff", 2)
     const bbUpper = makeIndicator("#ff3b30")
@@ -166,7 +166,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     let cancelled = false
     formatAppliedRef.current = false
 
-    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=100`)
+    fetch(`/api/trading/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=100`)
       .then(r => r.json())
       .then((data: any[][]) => {
         if (cancelled) return
@@ -204,6 +204,33 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         bbBasis.setData(bands.map((b) => ({ time: b.time, value: b.basis })))
         bbLower1.setData(bands.map((b) => ({ time: b.time, value: b.lower1 })))
         bbLower.setData(bands.map((b) => ({ time: b.time, value: b.lower })))
+
+        // Pine Script order-block 조건을 캔들 마커로 재현
+        const markers: any[] = []
+        const bullishBlocks: any[] = []
+        const bearishBlocks: any[] = []
+        const periods = 5
+        for (let index = periods + 1; index < candles.length; index += 1) {
+          const base = candles[index - periods - 1]
+          const recent = candles.slice(index - periods, index)
+          const move = Math.abs(candles[index - 1].close - base.close) / base.close * 100
+          const upCount = recent.filter((bar) => bar.close > bar.open).length
+          const downCount = recent.filter((bar) => bar.close < bar.open).length
+          if (base.close < base.open && upCount === periods && move >= 0) {
+            markers.push({ time: candles[index].time, position: "belowBar", color: "#00e676", shape: "arrowUp", text: "Bullish OB" })
+            bullishBlocks.push({ time: candles[index].time, value: base.open })
+          }
+          if (base.close > base.open && downCount === periods && move >= 0) {
+            markers.push({ time: candles[index].time, position: "aboveBar", color: "#ff3d57", shape: "arrowDown", text: "Bearish OB" })
+            bearishBlocks.push({ time: candles[index].time, value: base.open })
+          }
+        }
+        if (typeof series.setMarkers === "function") series.setMarkers(markers)
+        const bullishLine = makeIndicator("#00e676", 3)
+        const bearishLine = makeIndicator("#ff3d57", 3)
+        bullishLine.setData(bullishBlocks)
+        bearishLine.setData(bearishBlocks)
+        indicatorSeriesRef.current.push(bullishLine, bearishLine)
         chart.timeScale().fitContent()
         if (candles.length > 0) {
           const lastBar = candles[candles.length - 1]
