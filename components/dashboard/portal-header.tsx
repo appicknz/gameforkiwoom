@@ -193,7 +193,7 @@ export function PortalHeader() {
           <div className="flex shrink-0 items-center gap-2">
             {headerConfig.actions.map((action) => {
               const Icon = action.icon
-              const className = "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
+              const className = "inline-flex h-9 shrink-0 cursor-pointer touch-manipulation items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
               return action.href ? <a key={action.label} href={action.href} className={className}><Icon className="size-4" aria-hidden="true" /><span className="hidden whitespace-nowrap lg:inline">{action.label}</span></a> : <button key={action.label} type="button" onClick={action.onClick} className={className}><Icon className="size-4" aria-hidden="true" /><span className="hidden whitespace-nowrap lg:inline">{action.label}</span></button>
             })}
           </div>
@@ -211,7 +211,7 @@ export function PortalHeader() {
                 </>
               )
               const className = cn(
-                "group inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all",
+                "group inline-flex h-9 shrink-0 cursor-pointer touch-manipulation items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all",
                 active
                   ? "border-primary bg-primary text-primary-foreground shadow-sm"
                   : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-accent hover:text-foreground",
