@@ -65,6 +65,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
   const formatAppliedRef = useRef(false)
 
   const [interval, setInterval] = useState<Interval>("1m")
+  const [showUltimatePlot, setShowUltimatePlot] = useState(true)
 
   useEffect(() => { onPriceRef.current = onPrice }, [onPrice])
 
@@ -130,12 +131,13 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
 
     // Pine Script Ultimate Plot: 캔들 중간값 (시가 + 종가) / 2
     const ultimatePlot = chart.addLineSeries({
-      color: "#ffffff",
-      lineWidth: 2,
+      color: "#22d3ee",
+      lineWidth: 3,
       lineStyle: 0,
-      lastValueVisible: false,
+      lastValueVisible: true,
       priceLineVisible: false,
       crosshairMarkerVisible: false,
+      title: "Ultimate Plot",
     })
     ultimatePlotRef.current = ultimatePlot
 
@@ -336,6 +338,18 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         ))}
       </div>
 
+      <button
+        type="button"
+        onClick={() => {
+          const next = !showUltimatePlot
+          setShowUltimatePlot(next)
+          ultimatePlotRef.current?.applyOptions({ visible: next })
+        }}
+        style={{ position: "absolute", top: 8, right: 8, zIndex: 10, border: 0, borderRadius: 4, background: "rgba(15,23,42,0.9)", color: "#22d3ee", padding: "3px 8px", fontSize: 10, cursor: "pointer" }}
+        aria-pressed={showUltimatePlot}
+      >
+        Ultimate Plot {showUltimatePlot ? "켜짐" : "꺼짐"}
+      </button>
       <div ref={containerRef} className="h-[213px] w-full md:h-80" style={{ width: "100%" }} />
     </div>
   )
