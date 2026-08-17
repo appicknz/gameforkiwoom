@@ -100,8 +100,18 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         rightOffset: 16,
       },
       watermark: { visible: false },
-      handleScroll: true,
-      handleScale: true,
+      // 확대·축소만 허용하고 드래그/터치 패닝은 비활성화
+      handleScroll: {
+        mouseWheel: false,
+        pressedMouseMove: false,
+        horzTouchDrag: false,
+        vertTouchDrag: false,
+      },
+      handleScale: {
+        axisPressedMouseMove: false,
+        mouseWheel: true,
+        pinch: true,
+      },
     })
 
     const series = chart.addCandlestickSeries({
