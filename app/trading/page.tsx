@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
-import { useSearchParams } from "next/navigation"
-import { TrendingUp, TrendingDown, X, Wallet, RefreshCw } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ChevronDown, TrendingUp, TrendingDown, X, Wallet, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { usePriceWorker } from "@/hooks/use-price-worker"
+import SymbolSelectSheet from "@/components/trade/symbol-select-sheet"
 
 const SymbolChart = dynamic(() => import("@/components/trade/symbol-chart"), { ssr: false })
 
@@ -56,7 +57,9 @@ const PERCENTS = [10, 25, 50, 100]
 
 export default function TradingPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [selectedSymbol, setSelectedSymbol] = useState(() => normalizeSymbol(searchParams.get("symbol")))
+  const [symbolSheetOpen, setSymbolSheetOpen] = useState(false)
   const [balance, setBalance] = useState<number | null>(null)
   const [positions, setPositions] = useState<Position[]>([])
   const [logs, setLogs] = useState<ClosedLog[]>([])
@@ -98,6 +101,15 @@ export default function TradingPage() {
     window.addEventListener("trading:symbol", selectSymbol)
     return () => window.removeEventListener("trading:symbol", selectSymbol)
   }, [])
+
+  const handleSelectSymbol = useCallback((symbol: string) => {
+    const normalized = normalizeSymbol(symbol)
+    setSelectedSymbol(normalized)
+    setCurrentPrice(null)
+    setPositions([])
+    setSymbolSheetOpen(false)
+    router.replace(`/trading?symbol=${encodeURIComponent(normalized)}`, { scroll: false })
+  }, [router])
 
   // 앱 전역 단일 가격 소스(Railway) — 차트 WS 연결과 무관하게 진입가/평가가는 항상 이 값으로 갱신
   const handleWorkerPrice = useCallback((price: number) => {
@@ -228,17 +240,22 @@ export default function TradingPage() {
 
         {/* 헤더 */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
-              {selectedSymbol.replace("USDT", "")} 트레이딩
-              {currentPrice && (
-                <span className="text-sm font-semibold text-primary tabular-nums">
-                  ${fmtPrice(currentPrice)}
-                </span>
-              )}
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">레버리지 매매 · {selectedSymbol.replace("USDT", "/USDT")}</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setSymbolSheetOpen(true)}
+            className="group flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors hover:border-primary/50"
+          >
+            <div>
+              <div className="flex items-center gap-1.5 text-lg font-bold text-foreground">
+                종목 선택
+                <span className="text-sm font-semibold text-muted-foreground">{selectedSymbol.replace("USDT", "/USDT")}</span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-hover:text-foreground" />
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {currentPrice ? `현재가 $${fmtPrice(currentPrice)}` : "레버리지 매매"}
+              </p>
+            </div>
+          </button>
           {loggedIn && (
             <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5">
               <Wallet className="w-3.5 h-3.5 text-muted-foreground" />
@@ -453,6 +470,13 @@ export default function TradingPage() {
           </div>
         )}
       </div>
+
+      <SymbolSelectSheet
+        open={symbolSheetOpen}
+        onOpenChange={setSymbolSheetOpen}
+        selectedSymbol={selectedSymbol}
+        onSelect={handleSelectSymbol}
+      />
     </div>
   )
 }
