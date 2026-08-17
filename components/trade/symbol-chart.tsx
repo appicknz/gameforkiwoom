@@ -136,11 +136,11 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
       priceLineVisible: false, crosshairMarkerVisible: false, visible: true,
     })
     const ultimatePlot = makeIndicator("#ffffff", 2)
-    const bbUpper = makeIndicator("#ff3b30")
-    const bbUpper1 = makeIndicator("#ff8a80")
+    const bbUpper = makeIndicator("#ff0000")
+    const bbUpper1 = makeIndicator("#ff6666")
     const bbBasis = makeIndicator("#ff9900", 2)
-    const bbLower1 = makeIndicator("#8c9eff")
-    const bbLower = makeIndicator("#304ffe")
+    const bbLower1 = makeIndicator("#6666ff")
+    const bbLower = makeIndicator("#0000ff")
     ultimatePlotRef.current = ultimatePlot
     indicatorSeriesRef.current = [ultimatePlot, bbUpper, bbUpper1, bbBasis, bbLower1, bbLower]
 
@@ -206,32 +206,47 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         bbLower1.setData(bands.map((b) => ({ time: b.time, value: b.lower1 })))
         bbLower.setData(bands.map((b) => ({ time: b.time, value: b.lower })))
 
-        // Pine Script order-block 조건을 캔들 마커로 재현
+        // BB Ultimate Signals: ta.crossover/crossunder 및 조건부 신호를 캔들 마커로 재현
         const markers: any[] = []
-        const bullishBlocks: any[] = []
-        const bearishBlocks: any[] = []
+        const wvf: number[] = []
+        const pd = 22
+        const bbl = 20
+        const lb = 50
+        const stdev = (values: number[]) => {
+          if (!values.length) return 0
+          const mean = values.reduce((sum, value) => sum + value, 0) / values.length
+          return Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length)
+        }
+        candles.forEach((candle, index) => {
+          const high = Math.max(...candles.slice(Math.max(0, index - pd + 1), index + 1).map((bar) => bar.close))
+          wvf.push(high > 0 ? ((high - candle.low) / high) * 100 : 0)
+        })
         const periods = 5
-        for (let index = periods + 1; index < candles.length; index += 1) {
-          const base = candles[index - periods - 1]
-          const recent = candles.slice(index - periods, index)
-          const move = Math.abs(candles[index - 1].close - base.close) / base.close * 100
-          const upCount = recent.filter((bar) => bar.close > bar.open).length
-          const downCount = recent.filter((bar) => bar.close < bar.open).length
-          if (base.close < base.open && upCount === periods && move >= 0) {
-            markers.push({ time: candles[index].time, position: "belowBar", color: "#00e676", shape: "arrowUp", text: "Bullish OB" })
-            bullishBlocks.push({ time: candles[index].time, value: base.open })
-          }
-          if (base.close > base.open && downCount === periods && move >= 0) {
-            markers.push({ time: candles[index].time, position: "aboveBar", color: "#ff3d57", shape: "arrowDown", text: "Bearish OB" })
-            bearishBlocks.push({ time: candles[index].time, value: base.open })
-          }
+        for (let index = 1; index < candles.length; index += 1) {
+          const previousPlot = (candles[index - 1].open + candles[index - 1].close) / 2
+          const plot = (candles[index].open + candles[index].close) / 2
+          const previous = bands[index - 1]
+          const current = bands[index]
+          const crossUp = (plot > current.upper && previousPlot <= previous.upper) || (plot > current.lower && previousPlot <= previous.lower)
+          const crossDown = (plot < current.upper && previousPlot >= previous.upper) || (plot < current.lower && previousPlot >= previous.lower)
+          const innerUp = (plot > current.upper1 && previousPlot <= previous.upper1) || (plot > current.lower1 && previousPlot <= previous.lower1)
+          const innerDown = (plot < current.upper1 && previousPlot >= previous.upper1) || (plot < current.lower1 && previousPlot >= previous.lower1)
+          const wvfWindow = wvf.slice(Math.max(0, index - bbl + 1), index + 1)
+          const wvfMid = wvfWindow.reduce((sum, value) => sum + value, 0) / wvfWindow.length
+          const willUpper = wvfMid + 2 * stdev(wvfWindow)
+          const rangeHigh = Math.max(...wvf.slice(Math.max(0, index - lb + 1), index + 1)) * 1.01
+          const willRed = wvf[index] >= willUpper || wvf[index] >= rangeHigh
+          const peak = index >= 2 && candles[index].high > candles[index - 1].high && candles[index].high > candles[index - 2].high && candles[index - 1].high > candles[index - 2].high
+          if (crossUp) markers.push({ time: candles[index].time, position: "belowBar", color: "#00c853", shape: "circle", text: "2σ UP" })
+          if (crossDown) markers.push({ time: candles[index].time, position: "aboveBar", color: "#ff1744", shape: "circle", text: "2σ DOWN" })
+          if (innerUp) markers.push({ time: candles[index].time, position: "belowBar", color: "#b6ff00", shape: "circle", text: "1σ UP" })
+          if (innerDown) markers.push({ time: candles[index].time, position: "aboveBar", color: "#ff9100", shape: "circle", text: "1σ DOWN" })
+          if (plot > current.upper && previousPlot <= previous.upper && willRed) markers.push({ time: candles[index].time, position: "belowBar", color: "#00c853", shape: "square", text: "X 2σ" })
+          if (plot < current.upper && previousPlot >= previous.upper && peak) markers.push({ time: candles[index].time, position: "aboveBar", color: "#ff1744", shape: "square", text: "X 2σ" })
+          if (plot > current.upper1 && previousPlot <= previous.upper1 && willRed) markers.push({ time: candles[index].time, position: "belowBar", color: "#b6ff00", shape: "square", text: "X 1σ" })
+          if (plot < current.upper1 && previousPlot >= previous.upper1 && peak) markers.push({ time: candles[index].time, position: "aboveBar", color: "#ff9100", shape: "square", text: "X 1σ" })
         }
         if (typeof series.setMarkers === "function") series.setMarkers(markers)
-        const bullishLine = makeIndicator("#00e676", 3)
-        const bearishLine = makeIndicator("#ff3d57", 3)
-        bullishLine.setData(bullishBlocks)
-        bearishLine.setData(bearishBlocks)
-        indicatorSeriesRef.current.push(bullishLine, bearishLine)
         chart.timeScale().fitContent()
         if (candles.length > 0) {
           const lastBar = candles[candles.length - 1]
