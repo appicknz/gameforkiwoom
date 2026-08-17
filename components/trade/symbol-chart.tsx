@@ -289,6 +289,23 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
   // symbol 또는 interval이 바뀔 때마다 차트 전체 재생성
   }, [symbol, interval, height])
 
+  // 선택 종목은 전역 BTC 가격 소스와 별개로 서버 프록시에서 현재가를 폴링합니다.
+  useEffect(() => {
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const response = await fetch(`/api/trading/price?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" })
+        if (!response.ok || cancelled) return
+        const data = await response.json()
+        const price = Number(data?.price)
+        if (Number.isFinite(price) && price > 0) onPriceRef.current?.(price)
+      } catch {}
+    }
+    refresh()
+    const timer = window.setInterval(refresh, 2000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [symbol])
+
   // ── 신뢰 가능한 전역 가격 소스(livePrice)로 캔들 실시간 갱신 ──────
   // 거래소 직결 WebSocket이 지역 차단 등으로 죽어도 이 값만으로 캔들이 계속 움직인다.
   useEffect(() => {
