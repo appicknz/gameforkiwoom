@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import {
   BarChart3, Bell, Bot, BookOpen, CircleDollarSign, Flag, Gamepad2, Landmark, LineChart,
   ListChecks, PackageCheck, Search, ShoppingBag, Store, TrendingUp, Trophy, WalletCards,
+  Flame, Pencil, Download, History, RefreshCw, BarChart2, Timer,
 } from "lucide-react"
 import { liveCache } from "@/components/trade/live-prices-tab"
 import { cn } from "@/lib/utils"
@@ -27,6 +28,7 @@ const basePortalItems = [
 ] as const
 
 type TradeMode = "mock" | "auto" | "ledger" | "auto2" | "closed"
+type HeaderAction = { label: string; href?: string; icon: typeof Flame; onClick?: () => void }
 
 export function PortalHeader() {
   const pathname = usePathname()
@@ -76,6 +78,42 @@ export function PortalHeader() {
       window.removeEventListener("auth:logout", loadProfile)
     }
   }, [])
+
+  const headerConfig = useMemo(() => {
+    if (pathname.startsWith("/market")) return {
+      placeholder: "상품 검색...",
+      actions: [
+        { label: "인기순", icon: Flame, onClick: () => window.dispatchEvent(new CustomEvent("market:sort", { detail: "popular" })) },
+        { label: "입금", href: "/deposit", icon: Download },
+        { label: "상품 등록", href: "/seller", icon: Pencil },
+      ] satisfies HeaderAction[],
+    }
+    if (pathname.startsWith("/baka")) return {
+      placeholder: "바카라 기록 검색...",
+      actions: [
+        { label: "현황", href: "/betting-status", icon: BarChart2 },
+        { label: "기록", href: "/ranking", icon: History },
+      ] satisfies HeaderAction[],
+    }
+    if (pathname.startsWith("/race")) return {
+      placeholder: "레이스 검색...",
+      actions: [
+        { label: "현황", href: "/betting-status", icon: Timer },
+        { label: "기록", href: "/ranking", icon: History },
+      ] satisfies HeaderAction[],
+    }
+    if (pathname.startsWith("/trade") || pathname.startsWith("/trading")) return {
+      placeholder: "심볼 검색...",
+      actions: [
+        { label: "새로고침", icon: RefreshCw, onClick: () => window.dispatchEvent(new CustomEvent("trade:refresh")) },
+        { label: "매매기록", href: "/trade?mode=ledger", icon: History },
+      ] satisfies HeaderAction[],
+    }
+    return {
+      placeholder: "메뉴 검색...",
+      actions: [{ label: "새로고침", icon: RefreshCw, onClick: () => window.location.reload() }] satisfies HeaderAction[],
+    }
+  }, [pathname])
 
   const portalItems = useMemo(() => {
     const items: Array<{ label: string; href: string; icon: typeof Bot; mode?: TradeMode }> = [...basePortalItems]
@@ -134,7 +172,7 @@ export function PortalHeader() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="심볼 검색..."
+              placeholder={headerConfig.placeholder}
               aria-label="심볼 검색"
               autoComplete="off"
               autoFocus
@@ -177,6 +215,21 @@ export function PortalHeader() {
             })}
           </div>
           <div className="flex shrink-0 items-center gap-2 border-l border-border pl-3">
+            {headerConfig.actions.map((action) => {
+              const Icon = action.icon
+              const className = "inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-border bg-card px-4 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
+              return action.href ? (
+                <a key={action.label} href={action.href} className={className}>
+                  <Icon className="size-4" aria-hidden="true" />
+                  <span className="hidden whitespace-nowrap lg:inline">{action.label}</span>
+                </a>
+              ) : (
+                <button key={action.label} type="button" onClick={action.onClick} className={className}>
+                  <Icon className="size-4" aria-hidden="true" />
+                  <span className="hidden whitespace-nowrap lg:inline">{action.label}</span>
+                </button>
+              )
+            })}
             <button
               type="button"
               onClick={() => setSearchOpen((open) => !open)}

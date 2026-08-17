@@ -80,6 +80,12 @@ export default function MarketPage() {
   const fetchItemsRef                 = useRef<(() => void) | null>(null)
 
   useEffect(() => {
+    const handleHeaderSort = () => setSortIdx(0)
+    window.addEventListener("market:sort", handleHeaderSort)
+    return () => window.removeEventListener("market:sort", handleHeaderSort)
+  }, [])
+
+  useEffect(() => {
     const jwt = parseJwt()
     setRole(jwt?.role ?? null)
     setUserId(jwt?.sub ?? jwt?.userId ?? null)
