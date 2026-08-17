@@ -92,6 +92,12 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
     }
   }
 
+  function handleSelect(symbol: string) {
+    setSearch("")
+    setTab("all")
+    onSelect(symbol)
+  }
+
   const symbols = Array.from(new Set([...liveCache.symbols, ...FALLBACK_SYMBOLS]))
   const symbolsLoading = liveCache.symbols.length === 0
   const isConnected = liveCache.connectedCount === liveCache.totalChunks && liveCache.totalChunks > 0
@@ -218,7 +224,7 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
                 <button
                   key={item.symbol}
                   type="button"
-                  onClick={() => onSelect(item.symbol)}
+                  onClick={() => handleSelect(item.symbol)}
                   className={cn(
                     "grid w-full shrink-0 grid-cols-[minmax(0,1fr)_80px_64px_56px] items-center gap-2 border-b border-border/50 bg-card px-3 py-3 text-left text-foreground transition-colors sm:grid-cols-[minmax(0,1fr)_90px_72px_64px] sm:gap-3 sm:px-4",
                     isSelected ? "border-l-2 border-l-primary bg-primary/10" : "hover:bg-accent",
