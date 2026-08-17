@@ -530,9 +530,8 @@ export function TopBar() {
           </button>
         </div>
 
-        {/* 우측: 언어 전환 + 로그인 버튼 또는 아바타 */}
+        {/* 우측: 로그인 버튼 또는 아바타 */}
         <div className="flex items-center gap-2 shrink-0" ref={dropdownRef}>
-          <LangSwitcher />
           {isLoggedIn ? (
             <button
               onClick={() => setDropdownOpen(v => !v)}
@@ -750,6 +749,11 @@ export function TopBar() {
                       <span className="ml-auto text-[10px] text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded">{t("sidebar.charge")}</span>
                     </Link>
                   )}
+
+                  {/* 언어 전환 — 로그아웃 바로 위 */}
+                  <div className="border-b border-border px-4 py-2">
+                    <LangSwitcher />
+                  </div>
 
                   {/* 로그아웃 */}
                   <button
