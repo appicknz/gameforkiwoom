@@ -150,10 +150,6 @@ export function PortalHeader() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (pathname.startsWith("/market")) {
-      window.dispatchEvent(new CustomEvent("market:search", { detail: query }))
-      return
-    }
     if (matches[0]) selectSymbol(matches[0])
   }
 
@@ -175,13 +171,7 @@ export function PortalHeader() {
             <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               value={query}
-              onChange={(event) => {
-                const value = event.target.value
-                setQuery(value)
-                if (pathname.startsWith("/market")) {
-                  window.dispatchEvent(new CustomEvent("market:search", { detail: value }))
-                }
-              }}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder={headerConfig.placeholder}
               aria-label="심볼 검색"
               autoComplete="off"
