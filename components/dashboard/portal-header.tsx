@@ -11,12 +11,13 @@ import { initCache, liveCache } from "@/components/trade/live-prices-tab"
 import { cn } from "@/lib/utils"
 
 const basePortalItems = [
-  { label: "랭킹", href: "/ranking", icon: BarChart3 },
   { label: "바카", href: "/baka", icon: Gamepad2 },
   { label: "레이스", href: "/race", icon: Flag },
   { label: "트레이딩", href: "/trading", icon: TrendingUp },
+  { label: "게시판", href: "/market?category=indicator", icon: BookOpen },
   { label: "마켓", href: "/market", icon: Store },
   { label: "현황", href: "/betting-status", icon: ListChecks },
+  { label: "랭킹", href: "/ranking", icon: BarChart3 },
   { label: "자동매매", href: "/trade", icon: Bot, mode: "auto" as const },
   { label: "매매기록", href: "/trade", icon: BookOpen, mode: "ledger" as const },
   { label: "구매내역", href: "/purchases", icon: PackageCheck },
@@ -35,8 +36,13 @@ export function PortalHeader() {
   const router = useRouter()
   const [query, setQuery] = useState("")
   const [searchOpen] = useState(true)
+  const [boardActive, setBoardActive] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
   const [, refreshSymbols] = useState(0)
+  useEffect(() => {
+    setBoardActive(pathname.startsWith("/market") && new URLSearchParams(window.location.search).get("category") === "indicator")
+  }, [pathname])
+
   useEffect(() => {
     const refresh = () => refreshSymbols((value) => value + 1)
     liveCache.listeners.add(refresh)
@@ -203,7 +209,7 @@ export function PortalHeader() {
           <div className="flex min-w-max flex-1 items-center gap-2">
             {portalItems.map((item) => {
               const Icon = item.icon
-              const active = pathname === item.href && !("mode" in item)
+              const active = !("mode" in item) && (item.href === "/market?category=indicator" ? boardActive : pathname === item.href)
               const content = (
                 <>
                   <Icon className="size-4 shrink-0" aria-hidden="true" />
@@ -228,8 +234,7 @@ export function PortalHeader() {
               {[
                   ["all", "전체", "🏪"],
                   ["channel", "채널", "💻"],
-                  ["indicator", "지표", "📚"],
-                  ["points", "포인트 전용", "📦"],
+                                  ["points", "포인트 전용", "📦"],
                 ].map(([key, label, icon]) => (
                   <button
                     key={key}

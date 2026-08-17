@@ -103,6 +103,9 @@ export default function MarketPage() {
     window.addEventListener("market:sort", handleHeaderSort)
     window.addEventListener("market:search", handleHeaderSearch)
     window.addEventListener("market:category", handleHeaderCategory)
+    if (new URLSearchParams(window.location.search).get("category") === "indicator") {
+      handleHeaderCategory(new CustomEvent("market:category", { detail: "indicator" }))
+    }
     return () => {
       window.removeEventListener("market:sort", handleHeaderSort)
       window.removeEventListener("market:search", handleHeaderSearch)
