@@ -132,7 +132,7 @@ export function PortalHeader() {
   }, [username])
 
   function selectSymbol(symbol: string) {
-    setQuery(symbol.replace("USDT", "/USDT"))
+    setQuery("")
     if (pathname === "/trading") {
       router.replace(`/trading?symbol=${encodeURIComponent(symbol)}`, { scroll: false })
       window.dispatchEvent(new CustomEvent("trading:symbol", { detail: symbol }))
@@ -175,14 +175,14 @@ export function PortalHeader() {
               className="h-9 w-full rounded-xl border border-border bg-card pl-9 pr-3 text-xs font-semibold uppercase text-foreground outline-none placeholder:normal-case placeholder:text-muted-foreground focus:border-primary"
             />
             {query.trim() && matches.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-2 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-popover p-2 shadow-2xl sm:grid-cols-4">
+              <div className="absolute left-0 right-0 top-full z-50 mt-2 flex max-h-80 flex-col gap-1 overflow-y-auto rounded-2xl border border-border bg-popover p-2 shadow-2xl">
                 {matches.map((symbol) => (
                   <button
                     key={symbol}
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => selectSymbol(symbol)}
-                    className="rounded-xl px-3 py-2.5 text-left text-sm font-bold text-popover-foreground transition-colors hover:bg-accent hover:text-primary"
+                    className="flex w-full shrink-0 items-center justify-between rounded-xl bg-popover px-3 py-2.5 text-left text-sm font-bold text-foreground transition-colors hover:bg-accent hover:text-primary"
                   >
                     {symbol.replace("USDT", "/USDT")}
                   </button>
