@@ -57,7 +57,7 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
   const [search, setSearch] = useState("")
   const [tab, setTab] = useState<"all" | "favorites">("all")
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites())
-  const [sortKey, setSortKey] = useState<SortKey>("volume24h")
+  const [sortKey, setSortKey] = useState<SortKey>("change24h")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
         type="button"
         onClick={() => handleSort(sortKeyValue)}
         className={cn(
-          "flex items-center gap-0.5 text-xs font-semibold transition-colors",
+          "flex min-h-8 items-center gap-0.5 rounded-md px-1 text-xs font-semibold transition-colors",
           active ? "text-primary" : "text-muted-foreground hover:text-foreground",
         )}
       >
@@ -226,7 +226,7 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
                   type="button"
                   onClick={() => handleSelect(item.symbol)}
                   className={cn(
-                    "grid w-full shrink-0 grid-cols-[minmax(0,1fr)_80px_64px_56px] items-center gap-2 border-b border-border/50 bg-card px-3 py-3 text-left text-foreground transition-colors sm:grid-cols-[minmax(0,1fr)_90px_72px_64px] sm:gap-3 sm:px-4",
+                    "grid w-full shrink-0 grid-cols-[minmax(0,1fr)_80px_64px_56px] items-center gap-2 border-b border-border/50 bg-card px-3 py-4 text-left text-foreground transition-colors sm:grid-cols-[minmax(0,1fr)_90px_72px_64px] sm:gap-3 sm:px-4 sm:py-4",
                     isSelected ? "border-l-2 border-l-primary bg-primary/10" : "hover:bg-accent",
                   )}
                 >
