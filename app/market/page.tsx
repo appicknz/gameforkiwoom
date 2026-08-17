@@ -96,7 +96,7 @@ export default function MarketPage() {
       }
       const category = categories.find((item) => {
         const name = item.name.toLowerCase()
-        return key === "channel" ? name.includes("채널") || name.includes("channel") : name.includes("지표") || name.includes("indicator")
+        return key === "channel" ? name.includes("채널") || name.includes("channel") : name.includes("지표") || name.includes("indicator") || name.includes("게시판") || name.includes("board")
       })
       if (category) setActiveCat(category.id)
     }
@@ -587,7 +587,7 @@ export default function MarketPage() {
         })()}
 
         {/* 지표 카테고리: 기존 상품 데이터를 게시글형 피드로 표시 */}
-        {categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator"))) ? (
+        {categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator") || c.name.toLowerCase().includes("게시판") || c.name.toLowerCase().includes("board"))) ? (
           loading ? <div className="mx-auto max-w-2xl py-20 text-center text-muted-foreground">불러오는 중...</div> : (
             <IndicatorFeed
               items={showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items}
@@ -602,13 +602,13 @@ export default function MarketPage() {
         ) : null}
 
         {/* 상품 그리드 */}
-        {!categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator"))) && loading ? (
+        {!categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator") || c.name.toLowerCase().includes("게시판") || c.name.toLowerCase().includes("board"))) && loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="rounded-xl bg-secondary/40 animate-pulse aspect-[3/4]" />
             ))}
           </div>
-        ) : !categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator"))) ? (
+        ) : !categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator") || c.name.toLowerCase().includes("게시판") || c.name.toLowerCase().includes("board"))) ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {(showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items).length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-24 text-muted-foreground">
@@ -635,7 +635,7 @@ export default function MarketPage() {
                     link_url:     null,
                     price_krw:    item.price_krw,
                     category_id:  item.category_id,
-                    publisher_id: "", // 패널 내에서 publishers 로드 후 표시
+                    publisher_id: "", // ��널 내에서 publishers 로드 후 표시
                     image_url:    item.image_url,
                     is_active:    true,
                   })
