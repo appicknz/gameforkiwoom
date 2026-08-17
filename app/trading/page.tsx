@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronDown, TrendingUp, TrendingDown, X, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import SymbolSelectSheet from "@/components/trade/symbol-select-sheet"
@@ -65,7 +66,8 @@ export default function TradingPage() {
   const [positions, setPositions] = useState<Position[]>([])
   const [logs, setLogs] = useState<ClosedLog[]>([])
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
-  const [direction, setDirection] = useState<Direction>("long")
+  const [direction, setDirection] = useState<Direction | null>(null)
+  const [confirmDirection, setConfirmDirection] = useState<Direction | null>(null)
   const [leverage, setLeverage] = useState(10)
   const [amountInput, setAmountInput] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -163,8 +165,9 @@ export default function TradingPage() {
     setCurrentPrice(price)
   }, [])
 
-  const handleOpen = async () => {
+  const handleOpen = async (requestedDirection: Direction | null = direction) => {
     setError(null)
+    if (!requestedDirection) { setError("롱 또는 숏을 선택해주세요."); return }
     const token = getToken()
     if (!token) { setError("로그인이 필요합니다."); return }
     const amount = Math.round(Number(amountInput))
@@ -178,7 +181,7 @@ export default function TradingPage() {
       const res = await fetch("/api/user/trade/positions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ symbol: selectedSymbol, direction, leverage, amount, current_price: priceRef.current }),
+        body: JSON.stringify({ symbol: selectedSymbol, direction: requestedDirection, leverage, amount, current_price: priceRef.current }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(data.error ?? `진입 실패 (${res.status})`); return }
@@ -188,6 +191,17 @@ export default function TradingPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const requestOpen = (nextDirection: Direction) => {
+    setError(null)
+    setDirection(nextDirection)
+    setConfirmDirection(nextDirection)
+  }
+
+  const confirmOpen = async () => {
+    if (!confirmDirection) return
+    await handleOpen(confirmDirection)
   }
 
   const handleClose = async (pos: Position) => {
@@ -317,7 +331,7 @@ export default function TradingPage() {
             <div className="rounded-xl border border-border bg-card p-4 space-y-4">
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => setDirection("long")}
+                  onClick={() => requestOpen("long")}
                   className={cn(
                     "flex items-center justify-center gap-1.5 rounded-lg border py-2.5 text-sm font-bold transition-colors",
                     direction === "long"
@@ -328,7 +342,7 @@ export default function TradingPage() {
                   <TrendingUp className="w-4 h-4" /> 롱 (상승)
                 </button>
                 <button
-                  onClick={() => setDirection("short")}
+                  onClick={() => requestOpen("short")}
                   className={cn(
                     "flex items-center justify-center gap-1.5 rounded-lg border py-2.5 text-sm font-bold transition-colors",
                     direction === "short"
@@ -403,16 +417,7 @@ export default function TradingPage() {
 
               {error && <p className="text-xs text-destructive">{error}</p>}
 
-              <Button
-                onClick={handleOpen}
-                disabled={submitting || !currentPrice}
-                className={cn(
-                  "w-full h-10 font-bold",
-                  direction === "long" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700",
-                )}
-              >
-                {submitting ? "진입 중..." : direction === "long" ? "롱 진입" : "숏 진입"}
-              </Button>
+              <p className="text-center text-[10px] text-muted-foreground">롱 또는 숏을 선택하면 주문 확인창이 열립니다.</p>
             </div>
 
             {/* 포지션 + 최근 청산 */}
@@ -490,6 +495,28 @@ export default function TradingPage() {
             </div>
           </div>
       </div>
+
+      <Dialog open={confirmDirection !== null} onOpenChange={(open) => !open && setConfirmDirection(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{confirmDirection === "long" ? "롱 주문 확인" : "숏 주문 확인"}</DialogTitle>
+            <DialogDescription>선택한 레버리지와 금액으로 주문을 제출합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 rounded-lg border border-border bg-card p-3 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">종목</span><strong>{selectedSymbol}</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">방향</span><strong className={confirmDirection === "long" ? "text-emerald-500" : "text-red-500"}>{confirmDirection === "long" ? "롱 (상승)" : "숏 (하락)"}</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">레버리지</span><strong>{leverage}x</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">증거금</span><strong>{amountInput ? `₩${Number(amountInput).toLocaleString("ko-KR")}` : "미입력"}</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">현재가</span><strong>${currentPrice ? fmtPrice(currentPrice) : "-"}</strong></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDirection(null)}>취소</Button>
+            <Button onClick={confirmOpen} disabled={submitting || !currentPrice || !amountInput} className={confirmDirection === "long" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"}>
+              {submitting ? "주문 중..." : "확인하고 주문"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SymbolSelectSheet
         open={symbolSheetOpen}
