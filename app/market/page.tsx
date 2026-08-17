@@ -591,13 +591,8 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
           loading ? <div className="mx-auto max-w-2xl py-20 text-center text-muted-foreground">불러오는 중...</div> : (
             <IndicatorFeed
               items={showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items}
-              token={getToken()}
-              onOpen={(item) => {
-                setSelectedItem(item as Item)
-                setBuyErr("")
-                fetch(`/api/market/items/${item.id}/view`, { method: "POST" }).catch(() => {})
-              }}
-            />
+  token={getToken()}
+  />
           )
         ) : null}
 

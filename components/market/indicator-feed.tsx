@@ -16,7 +16,7 @@ type FeedItem = {
 type Comment = { id: string; body: string; created_at: string; profiles?: { username: string } | null }
 type Reaction = { likeCount: number; commentCount: number; shareCount: number; liked: boolean; comments: Comment[]; publisherBalance?: number }
 
-export default function IndicatorFeed({ items, token, onOpen }: { items: FeedItem[]; token: string | null; onOpen: (item: FeedItem) => void }) {
+export default function IndicatorFeed({ items, token }: { items: FeedItem[]; token: string | null }) {
   const [reactions, setReactions] = useState<Record<string, Reaction>>({})
   const [commentOpen, setCommentOpen] = useState<string | null>(null)
   const [commentText, setCommentText] = useState("")
@@ -62,10 +62,10 @@ export default function IndicatorFeed({ items, token, onOpen }: { items: FeedIte
         </header>
         <div className="mt-4">
           <div className="flex items-start gap-4">
-            <button onClick={() => onOpen(item)} className="min-w-0 flex-1 text-left">
+            <div className="min-w-0 flex-1 text-left">
               <h2 className="text-xl font-bold leading-tight text-foreground">{item.title}</h2>
               <p className="mt-3 line-clamp-1 whitespace-pre-wrap text-[15px] leading-7 text-foreground/85">{item.description}</p>
-            </button>
+            </div>
             {image && (
               <button
                 type="button"
