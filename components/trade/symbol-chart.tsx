@@ -168,9 +168,10 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
 
     fetch(`/api/trading/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=100`)
       .then(r => r.json())
-      .then((data: any[][]) => {
+      .then((data: any) => {
         if (cancelled) return
-        const candles = data.map(k => ({
+        if (!Array.isArray(data)) throw new Error("캔들 데이터 형식이 올바르지 않습니다.")
+        const candles = data.filter((k) => Array.isArray(k) && k.length >= 5).map(k => ({
           time:  Math.floor(k[0] / 1000) as any,
           open:  parseFloat(k[1]),
           high:  parseFloat(k[2]),

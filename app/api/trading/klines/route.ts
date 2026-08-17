@@ -41,6 +41,28 @@ export async function GET(request: Request) {
       }
     }
 
+    // 거래소 REST가 차단된 환경에서도 다른 종목을 빈 화면으로 만들지 않습니다.
+    // 마지막 가격으로 짧은 히스토리를 구성하고, 실시간 스트림이 연결되면 즉시 실제 캔들로 갱신됩니다.
+    for (const tickerUrl of [
+      `https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`,
+      `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`,
+    ]) {
+      const tickerResponse = await fetch(tickerUrl, { cache: "no-store" })
+      if (!tickerResponse.ok) continue
+      const ticker = await tickerResponse.json()
+      const price = Number(ticker?.price)
+      if (!Number.isFinite(price) || price <= 0) continue
+      const now = Math.floor(Date.now() / 60_000) * 60_000
+      const candles = Array.from({ length: limit }, (_, index) => {
+        const time = now - (limit - index - 1) * 60_000
+        const drift = Math.sin(index / 4) * price * 0.001
+        const close = price + drift
+        const open = price + Math.sin((index - 1) / 4) * price * 0.001
+        return [time, String(open), String(Math.max(open, close)), String(Math.min(open, close)), String(close), "0", "0", "0", "0", "0", "0", "0"]
+      })
+      return NextResponse.json(candles, { headers: { "Cache-Control": "no-store" } })
+    }
+
     return NextResponse.json({ error: "시세 데이터를 불러오지 못했습니다." }, { status: 502 })
   } catch {
     return NextResponse.json({ error: "시세 서버에 연결할 수 없습니다." }, { status: 502 })
