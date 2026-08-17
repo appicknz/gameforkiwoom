@@ -152,20 +152,23 @@ export function PortalHeader() {
           </form>
         )}
 
-        <nav aria-label="주요 서비스" className="flex items-start gap-3 overflow-x-auto pb-1">
-          <div className="flex min-w-max flex-1 items-center justify-center gap-1.5 md:gap-2">
+        <nav aria-label="주요 서비스" className="flex items-center gap-3 overflow-x-auto rounded-3xl border border-border bg-card/70 p-2 pb-2">
+          <div className="flex min-w-max flex-1 items-center gap-2">
             {portalItems.map((item) => {
               const Icon = item.icon
               const active = pathname === item.href && !("mode" in item)
               const content = (
                 <>
-                  <span className={cn("flex size-9 items-center justify-center rounded-xl border bg-card text-muted-foreground transition-colors group-hover:border-primary/60 group-hover:text-primary", active && "border-primary bg-primary/10 text-primary")}>
-                    <Icon className="size-4" aria-hidden="true" />
-                  </span>
-                  <span className={cn("text-[10px] font-semibold text-muted-foreground", active && "text-primary")}>{item.label}</span>
+                  <Icon className="size-4 shrink-0" aria-hidden="true" />
+                  <span className="whitespace-nowrap">{item.label}</span>
                 </>
               )
-              const className = "group flex w-14 flex-col items-center gap-1 text-center md:w-16"
+              const className = cn(
+                "group inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition-all",
+                active
+                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                  : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-accent hover:text-foreground",
+              )
               return item.mode ? (
                 <button key={`${item.href}-${item.mode}`} type="button" onClick={() => openTradeMode(item.mode!)} className={className}>{content}</button>
               ) : (
@@ -179,9 +182,10 @@ export function PortalHeader() {
               onClick={() => setSearchOpen((open) => !open)}
               aria-label={searchOpen ? "검색 닫기" : "심볼 검색 열기"}
               title="심볼 검색"
-              className={cn("flex size-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary", searchOpen && "border-primary/50 text-primary")}
+              className={cn("flex h-11 items-center gap-2 rounded-2xl border border-border bg-card px-4 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground", searchOpen && "border-primary/50 bg-primary/10 text-primary")}
             >
               <Search className="size-4" aria-hidden="true" />
+              <span className="hidden whitespace-nowrap sm:inline">검색</span>
             </button>
             <a
               href="https://t.me/+HHv5pyuGGAw5YTc1"
@@ -189,10 +193,11 @@ export function PortalHeader() {
               rel="noopener noreferrer"
               aria-label="텔레그램 알림 채널 열기"
               title="알림"
-              className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+              className="relative flex h-11 items-center gap-2 rounded-2xl border border-border bg-card px-4 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
             >
               <Bell className="size-4" aria-hidden="true" />
-              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-primary" aria-hidden="true" />
+              <span className="hidden whitespace-nowrap sm:inline">알림</span>
+              <span className="absolute right-3 top-2 size-1.5 rounded-full bg-primary" aria-hidden="true" />
             </a>
           </div>
         </nav>
