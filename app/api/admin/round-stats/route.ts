@@ -43,7 +43,7 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConf
   if (gameType === "baccarat") {
     const p = poolData as { player: number; banker: number; tie: number }
     const r = calcBaccaratOdds(p, lpConfig, userCount)
-    mode = r.mode; fee = r.fee
+    mode = (r.mode === "pari" || r.mode === "hybrid" || r.mode === "lp-dominant") ? r.mode : "lp-dominant"; fee = r.fee
     effectiveLP = Math.max(0, r.totalPool - totalBet)
     oddsResult = { player: r.playerOdds, banker: r.bankerOdds, tie: r.tieOdds }
     const o = oddsResult as { player: number; banker: number; tie: number }
@@ -55,7 +55,7 @@ async function buildStats(gameType: "baccarat" | "race", roundId: string, lpConf
   } else {
     const p = poolData as { bit: number; coin: number; tie: number }
     const r = calcRaceOdds(p, lpConfig, userCount)
-    mode = r.mode; fee = r.fee
+    mode = (r.mode === "pari" || r.mode === "hybrid" || r.mode === "lp-dominant") ? r.mode : "lp-dominant"; fee = r.fee
     effectiveLP = Math.max(0, r.totalPool - totalBet)
     oddsResult = { bit: r.bitOdds, coin: r.coinOdds, tie: r.tieOdds }
     const o = oddsResult as { bit: number; coin: number; tie: number }

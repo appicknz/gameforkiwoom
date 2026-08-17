@@ -2,9 +2,14 @@ import "server-only"
 import { cookies } from "next/headers"
 import { adminSupabase } from "@/lib/supabase-admin"
 
-export type AuthResult =
-  | { ok: true; userId: string; token: string; role?: string }
-  | { ok: false; status: 401; error: string }
+export type AuthResult = {
+  ok: boolean
+  userId?: string
+  token?: string
+  role?: string
+  status?: number
+  error?: string
+}
 
 /**
  * JWT를 로컬에서 디코딩 — payload와 버전(sv) 반환

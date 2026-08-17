@@ -3,7 +3,9 @@
 import "server-only"
 import { createClient } from "@supabase/supabase-js"
 
-type SupabaseAdminClient = ReturnType<typeof createClient>
+// The project uses tables and RPCs managed outside this repository. Keep the
+// server admin facade structurally flexible until generated database types are synced.
+type SupabaseAdminClient = any
 
 // 서버 프로세스당 싱글톤 — 빌드(SSG) 시점에는 초기화하지 않고 첫 호출 시 lazy 생성
 const globalForSupabase = globalThis as unknown as { _adminSupabase?: SupabaseAdminClient }

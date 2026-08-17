@@ -124,6 +124,8 @@ export async function POST(request: Request) {
     // 직전 라운드가 방금 끝났는지 확인:
     // 이 tick의 closeTime이 현재 라운드의 첫 번째 30초 버킷이면 직전 라운드 정산
     const isFirstTickOfRound = (closeTime % 180) < 30
+  const isLastRaceTick = isFirstTickOfRound
+  const prevRaceRoundNumber = raceRoundNumber - 1
 
     const [racePoolData, raceUserIds] = await Promise.all([
       redis.hgetall(racePoolKey).catch(() => null),
