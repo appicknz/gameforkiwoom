@@ -82,13 +82,33 @@ export default function MarketPage() {
   useEffect(() => {
     const handleHeaderSort = () => setSortIdx(0)
     const handleHeaderSearch = (event: Event) => setQ((event as CustomEvent<string>).detail ?? "")
+    const handleHeaderCategory = (event: Event) => {
+      const key = (event as CustomEvent<string>).detail
+      if (key === "all") {
+        setActiveCat("all")
+        setShowPurchasedOnly(false)
+        return
+      }
+      if (key === "points") {
+        const category = categories.find((item) => item.balance_only)
+        if (category) setActiveCat(category.id)
+        return
+      }
+      const category = categories.find((item) => {
+        const name = item.name.toLowerCase()
+        return key === "channel" ? name.includes("채널") || name.includes("channel") : name.includes("지표") || name.includes("indicator")
+      })
+      if (category) setActiveCat(category.id)
+    }
     window.addEventListener("market:sort", handleHeaderSort)
     window.addEventListener("market:search", handleHeaderSearch)
+    window.addEventListener("market:category", handleHeaderCategory)
     return () => {
       window.removeEventListener("market:sort", handleHeaderSort)
       window.removeEventListener("market:search", handleHeaderSearch)
+      window.removeEventListener("market:category", handleHeaderCategory)
     }
-  }, [])
+  }, [categories])
 
   useEffect(() => {
     const jwt = parseJwt()
