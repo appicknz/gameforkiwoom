@@ -166,7 +166,8 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     let cancelled = false
     formatAppliedRef.current = false
 
-    fetch(`/api/trading/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=100`)
+    const initialCandleLimit = window.innerWidth < 768 ? 25 : 100
+    fetch(`/api/trading/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${initialCandleLimit}`)
       .then(r => r.json())
       .then((data: any) => {
         if (cancelled) return
