@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { put } from "@vercel/blob"
 import { verifySession } from "@/lib/auth"
-import sharp from "sharp"
 
 export async function POST(req: Request) {
   try {
@@ -25,29 +24,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "파일 크기는 4MB 이하여야 합니다." }, { status: 400 })
     }
 
-    const isAnimatedGif = file.type === "image/gif"
+    // 상품 이미지는 공개 카탈로그에 표시되는 정적 자산이므로 원본을 그대로 저장한다.
+    // sharp 같은 네이티브 이미지 모듈을 거치지 않아 Vercel 런타임의 .node 번들 문제를 피한다.
     const input = Buffer.from(await file.arrayBuffer())
-
-    let body: Buffer
-    if (isAnimatedGif) {
-      body = input
-    } else {
-      try {
-        body = await sharp(input)
-          .rotate()
-          .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
-          .webp({ quality: 82, effort: 4 })
-          .toBuffer()
-      } catch (sharpError: any) {
-        console.error("[market/upload] sharp resize failed:", sharpError)
-        return NextResponse.json(
-          { error: `이미지 처리 실패: ${sharpError?.message ?? "알 수 없는 오류"}` },
-          { status: 500 },
-        )
-      }
-    }
-
-    const ext = isAnimatedGif ? "gif" : "webp"
+    const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1]
     const pathname = `market-items/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -57,9 +37,9 @@ export async function POST(req: Request) {
 
     let blob
     try {
-      blob = await put(pathname, body, {
-        access: "private",
-        contentType: isAnimatedGif ? "image/gif" : "image/webp",
+      blob = await put(pathname, input, {
+        access: "public",
+        contentType: file.type,
         token: process.env.BLOB_READ_WRITE_TOKEN,
       })
     } catch (blobError: any) {
