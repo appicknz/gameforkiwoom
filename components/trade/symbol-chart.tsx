@@ -100,14 +100,14 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         borderVisible: false,
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: typeof window !== "undefined" && window.innerWidth < 768 ? 32 : 16,
+        rightOffset: 16,
       },
       watermark: { visible: false },
-      // 좌우 이동과 확대·축소만 허용하고 상하 패닝은 비활성화
+      // 확대·축소만 허용하고 드래그/터치 패닝은 비활성화
       handleScroll: {
         mouseWheel: false,
-        pressedMouseMove: true,
-        horzTouchDrag: true,
+        pressedMouseMove: false,
+        horzTouchDrag: false,
         vertTouchDrag: false,
       },
       handleScale: {

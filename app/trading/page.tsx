@@ -270,7 +270,7 @@ export default function TradingPage() {
               className="group flex h-[72px] items-center gap-2 rounded-xl bg-card px-3 py-1.5 text-left transition-colors hover:bg-accent"
             >
               <div>
-                <div className="flex items-center gap-1 text-xs font-semibold text-foreground md:text-base">
+                <div className="flex items-center gap-1 text-base font-semibold text-foreground">
                   종목 선택
                   <span className="text-sm font-semibold text-muted-foreground">{selectedSymbol.replace("USDT", "/USDT")}</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-hover:text-foreground" />
@@ -283,7 +283,7 @@ export default function TradingPage() {
           ) : (
             <div className="group flex h-[72px] items-center gap-3 rounded-xl bg-card px-3 py-2 text-left">
               <div>
-                <div className="flex items-center gap-1 text-xs font-semibold text-foreground md:text-base">
+                <div className="flex items-center gap-1 text-base font-semibold text-foreground">
                   종목 선택
                   <span className="text-sm font-semibold text-muted-foreground">{selectedSymbol.replace("USDT", "/USDT")}</span>
                 </div>
@@ -292,20 +292,17 @@ export default function TradingPage() {
             </div>
           )}
           <div className="flex h-[72px] items-center gap-2 rounded-xl bg-card px-3 py-1">
-            <div className="hidden text-right md:block">
+            <div className="text-right">
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Total ROI</p>
               <p className={cn("text-sm font-bold tabular-nums", totalPnl >= 0 ? "text-emerald-500" : "text-red-500")}>
                 {totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%
               </p>
             </div>
-            <div className="hidden h-7 w-px bg-border md:block" />
+            <div className="h-7 w-px bg-border" />
             <div className="text-right">
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Total PNL</p>
               <p className={cn("text-sm font-bold tabular-nums", totalPnl >= 0 ? "text-emerald-500" : "text-red-500")}>
                 {fmtWon(totalPnl)}
-              </p>
-              <p className={cn("text-[10px] font-bold tabular-nums md:hidden", totalPnl >= 0 ? "text-emerald-500" : "text-red-500")}>
-                ROI {totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%
               </p>
             </div>
           </div>
