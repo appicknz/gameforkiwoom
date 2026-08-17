@@ -45,7 +45,7 @@ const SIDE_COLOR: Record<string, string> = {
   long: "text-emerald-500", short: "text-red-400",
 }
 
-type GameType = "all" | "baccarat" | "race"
+type GameType = "all" | "baccarat" | "race" | "mock"
 
 interface BetLog {
   id: string
@@ -177,15 +177,24 @@ export default function BettingStatusPage() {
     if (!token) return
     setLoading(true)
     try {
+      if (gameType === "mock") {
+        const params = date ? `?date=${encodeURIComponent(date)}` : ""
+        const res = await fetch(`/api/user/trade/history${params}`, { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) {
+          const json = await res.json()
+          const rows = (json.rows ?? []).map((row: { id: string; created_at: string; direction: string; bet_amount: number; payout: number; result: "win" | "lose" }) => ({
+            id: row.id, created_at: row.created_at, side: row.direction, amount: row.bet_amount, payout: row.payout, result: row.result,
+          }))
+          setData({ logs: rows.slice((p - 1) * 10, p * 10), total: rows.length, page: p, totalPages: Math.max(1, Math.ceil(rows.length / 10)) })
+          setPage(p)
+        }
+        return
+      }
       const params = new URLSearchParams({
-        page:  String(p),
-        limit: "10",
-        ...(date     ? { date }               : {}),
-        ...(gameType !== "all" ? { game_type: gameType } : {}),
+        page: String(p), limit: "10",
+        ...(date ? { date } : {}), ...(gameType !== "all" ? { game_type: gameType } : {}),
       })
-      const res = await fetch(`/api/user/round-bet-logs?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const res = await fetch(`/api/user/round-bet-logs?${params}`, { headers: { Authorization: `Bearer ${token}` } })
       if (res.ok) {
         const json = await res.json()
         setData(json)
@@ -207,11 +216,11 @@ export default function BettingStatusPage() {
   const totalFee    = Math.floor(totalAmount * 0.20)
 
   return (
-    <div className="min-h-screen bg-background pt-14 pb-8">
-      <div className="max-w-7xl mx-auto px-4 space-y-4">
+    <div className="min-h-screen bg-background pb-8">
+      <div className="max-w-7xl mx-auto px-4 space-y-3">
 
         {/* 헤더 */}
-        <div className="flex items-center justify-between pt-4">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-foreground">배팅 현황</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -235,7 +244,7 @@ export default function BettingStatusPage() {
                 <Filter className="w-3 h-3 text-muted-foreground" />
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">게임 유형</span>
               </div>
-              {(["all", "baccarat", "race"] as GameType[]).map(g => (
+              {(["all", "baccarat", "race", "mock"] as GameType[]).map(g => (
                 <button
                   key={g}
                   onClick={() => handleGameType(g)}
@@ -246,7 +255,7 @@ export default function BettingStatusPage() {
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   )}
                 >
-                  {g === "all" ? "전체" : g === "baccarat" ? "바카라" : "레이스"}
+                  {g === "all" ? "전체" : g === "baccarat" ? "바카라" : g === "race" ? "레이스" : "모의매매"}
                 </button>
               ))}
             </div>
@@ -368,7 +377,7 @@ export default function BettingStatusPage() {
                 )}
 
                 <p className="text-[10px] text-muted-foreground text-center">
-                  전체 {data.total.toLocaleString()}건 · 페이��당 10건
+                  전체 {data.total.toLocaleString()}건 · 페이���당 10건
                 </p>
               </>
             )}

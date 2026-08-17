@@ -167,11 +167,11 @@ export default function RankingPage() {
   const rest = data?.ranking.slice(3) ?? []
 
   return (
-    <div className="min-h-screen bg-background pt-14 pb-8">
-      <div className="max-w-7xl mx-auto px-4 space-y-4">
+    <div className="min-h-screen bg-background pb-8">
+      <div className="max-w-7xl mx-auto px-4 space-y-3">
 
         {/* 헤더 */}
-        <div className="flex items-center justify-between pt-4">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-foreground">랭킹</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
