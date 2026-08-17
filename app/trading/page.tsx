@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronDown, TrendingUp, TrendingDown, X, Wallet, RefreshCw } from "lucide-react"
+import { ChevronDown, TrendingUp, TrendingDown, X, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { usePriceWorker } from "@/hooks/use-price-worker"
@@ -236,6 +236,13 @@ export default function TradingPage() {
       : currentPrice * (1 + 1 / leverage)
     : null
 
+  const totals = positions.reduce((sum, position) => {
+    const result = livePnl(position)
+    return { pnl: sum.pnl + result.pnl, margin: sum.margin + Number(position.margin) }
+  }, { pnl: 0, margin: 0 })
+  const totalPnl = totals.pnl
+  const totalRoi = totals.margin > 0 ? (totalPnl / totals.margin) * 100 : 0
+
   return (
     <div className="min-h-screen bg-background pb-8">
       <div className="max-w-7xl mx-auto px-4 space-y-4">
@@ -270,21 +277,22 @@ export default function TradingPage() {
               </div>
             </div>
           )}
-          {loggedIn && (
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5">
-              <Wallet className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-sm font-semibold text-foreground tabular-nums">
-                {balance !== null ? "₩" + balance.toLocaleString("ko-KR") : "..."}
-              </span>
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-1.5">
+            <div className="text-right">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Total ROI</p>
+              <p className={cn("text-sm font-bold tabular-nums", totalPnl >= 0 ? "text-emerald-500" : "text-red-500")}>
+                {totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%
+              </p>
             </div>
-          )}
-        </div>
-
-        {!loggedIn && (
-          <div className="rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-            로그인 후 트레이딩을 이용할 수 있습니다.
+            <div className="h-7 w-px bg-border" />
+            <div className="text-right">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Total PNL</p>
+              <p className={cn("text-sm font-bold tabular-nums", totalPnl >= 0 ? "text-emerald-500" : "text-red-500")}>
+                {fmtWon(totalPnl)}
+              </p>
+            </div>
           </div>
-        )}
+        </div>
 
         {/* 차트 */}
         <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -303,8 +311,7 @@ export default function TradingPage() {
           />
         </div>
 
-        {loggedIn && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
             {/* 주문 패널 */}
             <div className="rounded-xl border border-border bg-card p-4 space-y-4">
@@ -482,7 +489,6 @@ export default function TradingPage() {
               )}
             </div>
           </div>
-        )}
       </div>
 
       <SymbolSelectSheet
