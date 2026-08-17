@@ -59,6 +59,7 @@ export default function TradingPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [selectedSymbol, setSelectedSymbol] = useState(() => normalizeSymbol(searchParams.get("symbol")))
+  const [isMounted, setIsMounted] = useState(false)
   const [symbolSheetOpen, setSymbolSheetOpen] = useState(false)
   const [balance, setBalance] = useState<number | null>(null)
   const [positions, setPositions] = useState<Position[]>([])
@@ -82,6 +83,7 @@ export default function TradingPage() {
   useEffect(() => { positionsRef.current = positions }, [positions])
 
   useEffect(() => {
+    setIsMounted(true)
     setLoggedIn(Boolean(getToken()))
   }, [])
 
@@ -240,22 +242,34 @@ export default function TradingPage() {
 
         {/* 헤더 */}
         <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setSymbolSheetOpen(true)}
-            className="group flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors hover:border-primary/50"
-          >
-            <div>
-              <div className="flex items-center gap-1.5 text-lg font-bold text-foreground">
-                종목 선택
-                <span className="text-sm font-semibold text-muted-foreground">{selectedSymbol.replace("USDT", "/USDT")}</span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-hover:text-foreground" />
+          {isMounted ? (
+            <button
+              type="button"
+              onClick={() => setSymbolSheetOpen(true)}
+              className="group flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors hover:border-primary/50"
+            >
+              <div>
+                <div className="flex items-center gap-1.5 text-lg font-bold text-foreground">
+                  종목 선택
+                  <span className="text-sm font-semibold text-muted-foreground">{selectedSymbol.replace("USDT", "/USDT")}</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-hover:text-foreground" />
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {currentPrice ? `현재가 $${fmtPrice(currentPrice)}` : "레버리지 매매"}
+                </p>
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {currentPrice ? `현재가 $${fmtPrice(currentPrice)}` : "레버리지 매매"}
-              </p>
+            </button>
+          ) : (
+            <div className="group flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left">
+              <div>
+                <div className="flex items-center gap-1.5 text-lg font-bold text-foreground">
+                  종목 선택
+                  <span className="text-sm font-semibold text-muted-foreground">{selectedSymbol.replace("USDT", "/USDT")}</span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">레버리지 매매</p>
+              </div>
             </div>
-          </button>
+          )}
           {loggedIn && (
             <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5">
               <Wallet className="w-3.5 h-3.5 text-muted-foreground" />
