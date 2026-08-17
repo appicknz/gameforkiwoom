@@ -199,7 +199,7 @@ export function PortalHeader() {
           </div>
         </div>
 
-        <nav aria-label="주요 서비스" className="flex flex-col items-stretch gap-1 overflow-x-auto rounded-2xl border border-border bg-card/70 p-1 pb-1">
+        <nav aria-label="주요 서비스" className="flex flex-col items-stretch gap-1 overflow-x-auto p-0">
           <div className="flex min-w-max flex-1 items-center gap-2">
             {portalItems.map((item) => {
               const Icon = item.icon
