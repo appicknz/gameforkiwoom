@@ -63,6 +63,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
   const onPriceRef     = useRef(onPrice)
   const linesRef       = useRef<Map<string, any>>(new Map())
   const currentBarRef  = useRef<{ time: number; open: number; high: number; low: number; close: number } | null>(null)
+  const candlesRef = useRef<{ time: number; open: number; high: number; low: number; close: number }[]>([])
   const formatAppliedRef = useRef(false)
 
   const [interval, setInterval] = useState<Interval>("1m")
@@ -181,6 +182,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
           close: parseFloat(k[4]),
         }))
         series.setData(candles)
+        candlesRef.current = candles
         const isMobile = window.innerWidth < 768
         chart.timeScale().setVisibleLogicalRange({
           from: Math.max(0, candles.length - (isMobile ? mobileVisibleCandles : 60)),
@@ -278,14 +280,21 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
           close,
         }
         series.update(bar as any)
+        const history = candlesRef.current
+        const lastHistory = history[history.length - 1]
+        if (lastHistory?.time === bar.time) history[history.length - 1] = bar
+        else history.push(bar)
+        candlesRef.current = history.slice(-100)
+        const closes = candlesRef.current.slice(-20).map((item) => item.close)
+        const liveBasis = closes.reduce((sum, value) => sum + value, 0) / Math.max(1, closes.length)
+        const liveDeviation = 2 * Math.sqrt(closes.reduce((sum, value) => sum + (value - liveBasis) ** 2, 0) / Math.max(1, closes.length))
+        const liveInner = liveDeviation / 2
         ultimatePlot.update({ time: bar.time as any, value: (bar.open + bar.close) / 2 })
-        const recent = [bar.close]
-        const basis = recent.reduce((sum, value) => sum + value, 0) / recent.length
-        bbBasis.update({ time: bar.time as any, value: basis })
-        bbUpper.update({ time: bar.time as any, value: basis })
-        bbUpper1.update({ time: bar.time as any, value: basis })
-        bbLower1.update({ time: bar.time as any, value: basis })
-        bbLower.update({ time: bar.time as any, value: basis })
+        bbBasis.update({ time: bar.time as any, value: liveBasis })
+        bbUpper.update({ time: bar.time as any, value: liveBasis + liveDeviation })
+        bbUpper1.update({ time: bar.time as any, value: liveBasis + liveInner })
+        bbLower1.update({ time: bar.time as any, value: liveBasis - liveInner })
+        bbLower.update({ time: bar.time as any, value: liveBasis - liveDeviation })
         currentPriceLine.applyOptions({ price: close })
         currentBarRef.current = bar
         onPriceRef.current?.(close)
@@ -299,6 +308,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
       ro.disconnect()
       linesRef.current.clear()
       seriesRef.current = null
+      candlesRef.current = []
       ultimatePlotRef.current = null
       indicatorSeriesRef.current = []
       chart.remove()
@@ -354,7 +364,21 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     currentBarRef.current = nextBar
     try {
       series.update(nextBar as any)
+      const history = candlesRef.current
+      const lastHistory = history[history.length - 1]
+      if (lastHistory?.time === nextBar.time) history[history.length - 1] = nextBar
+      else history.push(nextBar)
+      candlesRef.current = history.slice(-100)
+      const closes = candlesRef.current.slice(-20).map((item) => item.close)
+      const basis = closes.reduce((sum, value) => sum + value, 0) / Math.max(1, closes.length)
+      const deviation = 2 * Math.sqrt(closes.reduce((sum, value) => sum + (value - basis) ** 2, 0) / Math.max(1, closes.length))
+      const inner = deviation / 2
       ultimatePlotRef.current?.update({ time: nextBar.time as any, value: (nextBar.open + nextBar.close) / 2 })
+      indicatorSeriesRef.current[3]?.update({ time: nextBar.time as any, value: basis })
+      indicatorSeriesRef.current[1]?.update({ time: nextBar.time as any, value: basis + deviation })
+      indicatorSeriesRef.current[2]?.update({ time: nextBar.time as any, value: basis + inner })
+      indicatorSeriesRef.current[4]?.update({ time: nextBar.time as any, value: basis - inner })
+      indicatorSeriesRef.current[5]?.update({ time: nextBar.time as any, value: basis - deviation })
       priceLine?.applyOptions({ price: livePrice })
     } catch { /* 심볼/차트 전환 중 일시적 참조 불일치 무시 */ }
   }, [livePrice, interval])
