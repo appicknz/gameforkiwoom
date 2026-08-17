@@ -6,16 +6,25 @@ export async function GET(req: Request) {
   const ids = new URL(req.url).searchParams.get("ids")?.split(",").filter(Boolean) ?? []
   if (!ids.length) return NextResponse.json({ reactions: {} })
 
-  const [{ data: likes }, { data: comments }, { data: shares }] = await Promise.all([
+  const [{ data: likes }, { data: comments }, { data: shares }, { data: items }] = await Promise.all([
     (adminSupabase.from("market_item_likes" as never) as any).select("item_id, user_id").in("item_id", ids),
     (adminSupabase.from("market_item_comments" as never) as any).select("id, item_id, user_id, body, created_at, profiles(username)").in("item_id", ids).order("created_at", { ascending: true }),
     (adminSupabase.from("market_item_shares" as never) as any).select("item_id").in("item_id", ids),
+    adminSupabase.from("market_items").select("id, publisher_id").in("id", ids),
   ])
+
+  const publisherIds = Array.from(new Set((items ?? []).map((item: any) => item.publisher_id).filter(Boolean)))
+  const { data: balances } = publisherIds.length
+    ? await adminSupabase.from("balances").select("user_id, amount").in("user_id", publisherIds)
+    : { data: [] as Array<{ user_id: string; amount: number }> }
+  const balanceByUser = new Map((balances ?? []).map((balance: any) => [balance.user_id, Number(balance.amount ?? 0)]))
 
   const reactions: Record<string, unknown> = {}
   for (const id of ids) {
     const itemLikes = (likes ?? []).filter((x: any) => x.item_id === id)
+    const publisherId = (items ?? []).find((item: any) => item.id === id)?.publisher_id
     reactions[id] = {
+      publisherBalance: publisherId ? balanceByUser.get(publisherId) ?? 0 : 0,
       likeCount: itemLikes.length,
       commentCount: (comments ?? []).filter((x: any) => x.item_id === id).length,
       shareCount: (shares ?? []).filter((x: any) => x.item_id === id).length,
@@ -44,14 +53,16 @@ export async function POST(req: Request) {
   }
 
   if (action === "like") {
-    const { data: existing } = await (adminSupabase.from("market_item_likes" as never) as any).select("item_id").eq("item_id", itemId).eq("user_id", auth.userId).maybeSingle()
-    if (existing) {
-      await (adminSupabase.from("market_item_likes" as never) as any).delete().eq("item_id", itemId).eq("user_id", auth.userId)
-      return NextResponse.json({ liked: false })
+    const { data, error } = await adminSupabase.rpc("reward_market_item_like", {
+      p_item_id: itemId,
+      p_user_id: auth.userId,
+    })
+    if (error) {
+      if (error.message?.includes("ITEM_NOT_FOUND")) return NextResponse.json({ error: "게시글을 찾을 수 없습니다." }, { status: 404 })
+      return NextResponse.json({ error: "좋아요 처리에 실패했습니다." }, { status: 500 })
     }
-    const { error } = await (adminSupabase.from("market_item_likes" as never) as any).insert({ item_id: itemId, user_id: auth.userId })
-    if (error) return NextResponse.json({ error: "좋아요 처리에 실패했습니다." }, { status: 500 })
-    return NextResponse.json({ liked: true })
+    const result = Array.isArray(data) ? data[0] : data
+    return NextResponse.json({ liked: true, alreadyLiked: Boolean(result?.already_liked), publisherBalance: result?.publisher_balance ?? null })
   }
 
   if (action === "share") {

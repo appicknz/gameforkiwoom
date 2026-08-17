@@ -14,7 +14,7 @@ type FeedItem = {
   profiles: { username: string; role: string } | null
 }
 type Comment = { id: string; body: string; created_at: string; profiles?: { username: string } | null }
-type Reaction = { likeCount: number; commentCount: number; shareCount: number; liked: boolean; comments: Comment[] }
+type Reaction = { likeCount: number; commentCount: number; shareCount: number; liked: boolean; comments: Comment[]; publisherBalance?: number }
 
 export default function IndicatorFeed({ items, token, onOpen }: { items: FeedItem[]; token: string | null; onOpen: (item: FeedItem) => void }) {
   const [reactions, setReactions] = useState<Record<string, Reaction>>({})
@@ -38,7 +38,7 @@ export default function IndicatorFeed({ items, token, onOpen }: { items: FeedIte
     if (res.ok) {
       setReactions((prev) => {
         const current = prev[itemId] ?? { likeCount: 0, commentCount: 0, shareCount: 0, liked: false, comments: [] }
-        if (action === "like") return { ...prev, [itemId]: { ...current, liked: data.liked, likeCount: current.likeCount + (data.liked ? 1 : -1) } }
+        if (action === "like") return { ...prev, [itemId]: { ...current, liked: true, likeCount: data.alreadyLiked ? current.likeCount : current.likeCount + 1, publisherBalance: data.publisherBalance ?? current.publisherBalance } }
         if (action === "share") { navigator.clipboard?.writeText(window.location.href); return { ...prev, [itemId]: { ...current, shareCount: current.shareCount + 1 } } }
         if (action === "comment" && data.comment) { setCommentText(""); return { ...prev, [itemId]: { ...current, commentCount: current.commentCount + 1, comments: [...current.comments, data.comment] } } }
         return prev
@@ -56,7 +56,7 @@ export default function IndicatorFeed({ items, token, onOpen }: { items: FeedIte
         <header className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-muted-foreground"><UserRound className="size-6" /></div>
-            <div className="min-w-0"><div className="flex items-center gap-2"><strong className="truncate text-sm text-foreground">{item.profiles?.username ?? "지표 작성자"}</strong><span className="rounded bg-primary/15 px-2 py-0.5 text-[11px] text-primary">팔로우 부자</span></div><p className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleDateString("ko-KR")} · 지표에 남긴 글</p></div>
+            <div className="min-w-0"><div className="flex items-center gap-2"><strong className="truncate text-sm text-foreground">{item.profiles?.username ?? "지표 작성자"}</strong><span className="rounded bg-primary/15 px-2 py-0.5 text-[11px] text-primary">잔고 {reaction.publisherBalance === undefined ? "확인 중" : `${reaction.publisherBalance.toLocaleString("ko-KR")}원`}</span></div><p className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleDateString("ko-KR")} · 지표에 남긴 글</p></div>
           </div>
           <button className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">팔로우</button>
         </header>
