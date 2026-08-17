@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Search, Star, X } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -59,6 +59,7 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites())
   const [sortKey, setSortKey] = useState<SortKey>("change24h")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
+  const touchSelectionRef = useRef(false)
 
   useEffect(() => {
     if (!open) return
@@ -224,7 +225,19 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
                 <button
                   key={item.symbol}
                   type="button"
-                  onClick={() => handleSelect(item.symbol)}
+                  onPointerUp={(event) => {
+                    if (event.pointerType === "touch") {
+                      touchSelectionRef.current = true
+                      handleSelect(item.symbol)
+                    }
+                  }}
+                  onClick={() => {
+                    if (touchSelectionRef.current) {
+                      touchSelectionRef.current = false
+                      return
+                    }
+                    handleSelect(item.symbol)
+                  }}
                   className={cn(
                     "grid w-full shrink-0 grid-cols-[minmax(0,1fr)_80px_64px_56px] items-center gap-2 border-b border-border/50 bg-card px-3 py-4 text-left text-foreground transition-colors sm:grid-cols-[minmax(0,1fr)_90px_72px_64px] sm:gap-3 sm:px-4 sm:py-4",
                     isSelected ? "border-l-2 border-l-primary bg-primary/10" : "hover:bg-accent",
