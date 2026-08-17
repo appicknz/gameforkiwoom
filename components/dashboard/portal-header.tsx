@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  BarChart3, Bell, Bot, BookOpen, CircleDollarSign, Flag, Gamepad2, Landmark, LineChart,
+  BarChart3, Bell, Bot, BookOpen, CircleDollarSign, Flag, Gamepad2, Landmark,
   ListChecks, PackageCheck, Search, ShoppingBag, Store, TrendingUp, Trophy, WalletCards,
   Flame, Pencil, Download, History, RefreshCw, BarChart2, Timer,
 } from "lucide-react"
@@ -27,7 +27,7 @@ const basePortalItems = [
   { label: "지갑", href: "/wallet", icon: WalletCards },
 ] as const
 
-type TradeMode = "mock" | "auto" | "ledger" | "auto2" | "closed"
+type TradeMode = "auto" | "ledger" | "auto2" | "closed"
 type HeaderAction = { label: string; href?: string; icon: typeof Flame; onClick?: () => void }
 
 export function PortalHeader() {
@@ -36,7 +36,6 @@ export function PortalHeader() {
   const [query, setQuery] = useState("")
   const [searchOpen] = useState(true)
   const [username, setUsername] = useState<string | null>(null)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [, refreshSymbols] = useState(0)
   useEffect(() => {
     const refresh = () => refreshSymbols((value) => value + 1)
@@ -48,9 +47,8 @@ export function PortalHeader() {
   const matches = useMemo(() => {
     const normalized = query.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")
     if (!normalized) return []
-    const availableSymbols = liveCache.symbols.length > 0
-      ? liveCache.symbols
-      : ["GASUSDT", "GPSUSDT", "GALAUSDT", "GMTUSDT", "GRTUSDT", "DOGEUSDT", "GOATUSDT"]
+    const fallbackSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "GASUSDT", "GPSUSDT", "GALAUSDT", "GMTUSDT", "GRTUSDT", "DOGEUSDT", "GOATUSDT"]
+    const availableSymbols = Array.from(new Set([...liveCache.symbols, ...fallbackSymbols]))
     return availableSymbols.filter((symbol) => symbol.includes(normalized)).slice(0, 8)
   }, [query, liveCache.symbols.length])
 
@@ -58,7 +56,6 @@ export function PortalHeader() {
     const loadProfile = async () => {
       const token = localStorage.getItem("app_token")
       if (!token) {
-        setIsLoggedIn(false)
         setUsername(null)
         return
       }
@@ -67,15 +64,12 @@ export function PortalHeader() {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!response.ok) {
-          setIsLoggedIn(false)
           setUsername(null)
           return
         }
         const data = await response.json()
-        setIsLoggedIn(Boolean(data.profile))
         setUsername(data.profile?.username ?? null)
       } catch {
-        setIsLoggedIn(false)
         setUsername(null)
       }
     }
@@ -127,10 +121,6 @@ export function PortalHeader() {
 
   const portalItems = useMemo(() => {
     const items: Array<{ label: string; href: string; icon: typeof Bot; mode?: TradeMode }> = [...basePortalItems]
-    const tradeIndex = items.findIndex((item) => item.mode === "auto")
-    if (isLoggedIn) {
-      items.splice(tradeIndex, 0, { label: "모의매매", href: "/trade", icon: LineChart, mode: "mock" })
-    }
     if (username === "역삼1") {
       const ledgerIndex = items.findIndex((item) => item.mode === "ledger")
       items.splice(ledgerIndex + 1, 0,
@@ -139,14 +129,15 @@ export function PortalHeader() {
       )
     }
     return items
-  }, [isLoggedIn, username])
+  }, [username])
 
   function selectSymbol(symbol: string) {
     setQuery(symbol.replace("USDT", "/USDT"))
-    if (pathname === "/trade") {
-      window.dispatchEvent(new CustomEvent("trade:symbol", { detail: symbol }))
+    if (pathname === "/trading") {
+      router.replace(`/trading?symbol=${encodeURIComponent(symbol)}`, { scroll: false })
+      window.dispatchEvent(new CustomEvent("trading:symbol", { detail: symbol }))
     } else {
-      router.push(`/trade?symbol=${encodeURIComponent(symbol)}`)
+      router.push(`/trading?symbol=${encodeURIComponent(symbol)}`)
     }
   }
 

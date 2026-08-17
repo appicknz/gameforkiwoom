@@ -714,7 +714,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
         }
         // ───────────���──────────────────────────────────────────────────
 
-        // ─��� 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
+        // ─����� 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
         // confirmedMargin이 없으면 포지션 수 × size_usd 폴백
         const margin = confirmedMargin > 0 ? confirmedMargin : cnt * sizeUsdCfg
@@ -1100,7 +1100,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
       const kstDate = kstTodayStr()
 
-      // 2. 오늘 매매기록��� PNL 저장
+      // 2. 오늘 매매���록��� PNL 저장
       const saveRes = await fetch("/api/auto-signal/rebalance", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshTok}` },
@@ -2953,7 +2953,7 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
 }
 
 export default function TradePage() {
-  const searchParams = useSearchParams()
+const searchParams = useSearchParams()
   const [balance,       setBalance]       = useState<number | null>(null)
   const [positions,     setPositions]     = useState<Position[]>([])
   const [logs,          setLogs]          = useState<TradeLog[]>([])
@@ -3007,12 +3007,16 @@ export default function TradePage() {
     }
   }, [])
 
-  useEffect(() => {
-    const mode = searchParams.get("mode") as "auto" | "auto2" | "closed" | "ledger" | "mock" | null
-    if (mode && ["auto", "auto2", "closed", "ledger", "mock"].includes(mode)) {
-      switchTab(mode)
-    }
-  }, [searchParams])
+useEffect(() => {
+const mode = searchParams.get("mode") as "auto" | "auto2" | "closed" | "ledger" | "mock" | null
+if (mode === "mock") {
+window.location.replace("/trading")
+return
+}
+if (mode && ["auto", "auto2", "closed", "ledger"].includes(mode)) {
+switchTab(mode)
+}
+}, [searchParams])
 
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
   const [allowMockTrade, setAllowMockTrade] = useState(false)

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
+import { useSearchParams } from "next/navigation"
 import { TrendingUp, TrendingDown, X, Wallet, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -9,7 +10,10 @@ import { usePriceWorker } from "@/hooks/use-price-worker"
 
 const SymbolChart = dynamic(() => import("@/components/trade/symbol-chart"), { ssr: false })
 
-const SYMBOL = "BTCUSDT"
+function normalizeSymbol(value: string | null): string {
+  const symbol = (value ?? "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "")
+  return symbol.endsWith("USDT") ? symbol : `${symbol}USDT`
+}
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null
@@ -51,6 +55,8 @@ const LEVERAGES = [2, 5, 10, 25, 50, 75, 100]
 const PERCENTS = [10, 25, 50, 100]
 
 export default function TradingPage() {
+  const searchParams = useSearchParams()
+  const [selectedSymbol, setSelectedSymbol] = useState(() => normalizeSymbol(searchParams.get("symbol")))
   const [balance, setBalance] = useState<number | null>(null)
   const [positions, setPositions] = useState<Position[]>([])
   const [logs, setLogs] = useState<ClosedLog[]>([])
@@ -76,10 +82,27 @@ export default function TradingPage() {
     setLoggedIn(Boolean(getToken()))
   }, [])
 
+  useEffect(() => {
+    const symbol = normalizeSymbol(searchParams.get("symbol"))
+    setSelectedSymbol(symbol)
+    setCurrentPrice(null)
+    setPositions([])
+  }, [searchParams])
+
+  useEffect(() => {
+    const selectSymbol = (event: Event) => {
+      setSelectedSymbol(normalizeSymbol((event as CustomEvent<string>).detail))
+      setCurrentPrice(null)
+      setPositions([])
+    }
+    window.addEventListener("trading:symbol", selectSymbol)
+    return () => window.removeEventListener("trading:symbol", selectSymbol)
+  }, [])
+
   // 앱 전역 단일 가격 소스(Railway) — 차트 WS 연결과 무관하게 진입가/평가가는 항상 이 값으로 갱신
   const handleWorkerPrice = useCallback((price: number) => {
-    setCurrentPrice(price)
-  }, [])
+    if (selectedSymbol === "BTCUSDT") setCurrentPrice(price)
+  }, [selectedSymbol])
   usePriceWorker({ onPrice: handleWorkerPrice })
 
   // 1초 tick — 오픈 포지션 실시간 PnL 갱신용
@@ -104,15 +127,15 @@ export default function TradingPage() {
   const fetchPositions = useCallback(async () => {
     const token = getToken()
     if (!token) return
-    const priceParam = priceRef.current ? `?prices=${SYMBOL}:${priceRef.current}` : ""
+    const priceParam = priceRef.current ? `?prices=${selectedSymbol}:${priceRef.current}` : ""
     try {
       const res = await fetch(`/api/user/trade/positions${priceParam}`, { headers: { Authorization: `Bearer ${token}` } })
       if (!res.ok) return
       const d = await res.json()
-      const rows: Position[] = (d.positions ?? []).filter((p: Position & { liquidated?: boolean }) => p.symbol === SYMBOL && !("liquidated" in p && p.liquidated))
+      const rows: Position[] = (d.positions ?? []).filter((p: Position & { liquidated?: boolean }) => p.symbol === selectedSymbol && !("liquidated" in p && p.liquidated))
       setPositions(rows)
     } catch {}
-  }, [])
+  }, [selectedSymbol])
 
   useEffect(() => {
     if (!loggedIn) return
@@ -141,7 +164,7 @@ export default function TradingPage() {
       const res = await fetch("/api/user/trade/positions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ symbol: SYMBOL, direction, leverage, amount, current_price: priceRef.current }),
+        body: JSON.stringify({ symbol: selectedSymbol, direction, leverage, amount, current_price: priceRef.current }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(data.error ?? `진입 실패 (${res.status})`); return }
@@ -207,14 +230,14 @@ export default function TradingPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
-              BTC 트레이딩
+              {selectedSymbol.replace("USDT", "")} 트레이딩
               {currentPrice && (
                 <span className="text-sm font-semibold text-primary tabular-nums">
                   ${fmtPrice(currentPrice)}
                 </span>
               )}
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">모의 레버리지 매매 · BTC/USDT 전용</p>
+            <p className="text-xs text-muted-foreground mt-0.5">레버리지 매매 · {selectedSymbol.replace("USDT", "/USDT")}</p>
           </div>
           {loggedIn && (
             <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5">
@@ -228,14 +251,14 @@ export default function TradingPage() {
 
         {!loggedIn && (
           <div className="rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-            로그인 후 모의매매를 이용할 수 있습니다.
+            로그인 후 트레이딩을 이용할 수 있습니다.
           </div>
         )}
 
         {/* 차트 */}
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <SymbolChart
-            symbol={SYMBOL}
+            symbol={selectedSymbol}
             height={320}
             onPrice={handlePrice}
             livePrice={currentPrice}
