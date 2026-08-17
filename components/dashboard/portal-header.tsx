@@ -95,7 +95,7 @@ export function PortalHeader() {
       actions: [
         { label: "인기순", icon: Flame, onClick: () => window.dispatchEvent(new CustomEvent("market:sort", { detail: "popular" })) },
         { label: "입금", href: "/deposit", icon: Download },
-        { label: "상품 등록", href: "/seller", icon: Pencil },
+        { label: "글쓰기", href: "/seller", icon: Pencil },
       ] satisfies HeaderAction[],
     }
     if (pathname.startsWith("/baka")) return {
@@ -103,6 +103,7 @@ export function PortalHeader() {
       actions: [
         { label: "현황", href: "/betting-status", icon: BarChart2 },
         { label: "기록", href: "/ranking", icon: History },
+        { label: "글쓰기", href: "/seller", icon: Pencil },
       ] satisfies HeaderAction[],
     }
     if (pathname.startsWith("/race")) return {
@@ -110,6 +111,7 @@ export function PortalHeader() {
       actions: [
         { label: "현황", href: "/betting-status", icon: Timer },
         { label: "기록", href: "/ranking", icon: History },
+        { label: "글쓰기", href: "/seller", icon: Pencil },
       ] satisfies HeaderAction[],
     }
     if (pathname.startsWith("/trade") || pathname.startsWith("/trading")) return {
@@ -117,11 +119,15 @@ export function PortalHeader() {
       actions: [
         { label: "새로고침", icon: RefreshCw, onClick: () => window.dispatchEvent(new CustomEvent("trade:refresh")) },
         { label: "매매기록", href: "/trade?mode=ledger", icon: History },
+        { label: "글쓰기", href: "/seller", icon: Pencil },
       ] satisfies HeaderAction[],
     }
     return {
       placeholder: "메뉴 검색...",
-      actions: [{ label: "새로고침", icon: RefreshCw, onClick: () => window.location.reload() }] satisfies HeaderAction[],
+      actions: [
+        { label: "새로고침", icon: RefreshCw, onClick: () => window.location.reload() },
+        { label: "글쓰기", href: "/seller", icon: Pencil },
+      ] satisfies HeaderAction[],
     }
   }, [pathname])
 
