@@ -57,6 +57,7 @@ interface SymbolChartProps {
 export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, positions = [] }: SymbolChartProps) {
   const containerRef  = useRef<HTMLDivElement>(null)
   const seriesRef      = useRef<any>(null)
+  const ultimatePlotRef = useRef<any>(null)
   const priceLineRef   = useRef<any>(null)
   const onPriceRef     = useRef(onPrice)
   const linesRef       = useRef<Map<string, any>>(new Map())
@@ -127,6 +128,17 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     })
     seriesRef.current = series
 
+    // Pine Script Ultimate Plot: 캔들 중간값 (시가 + 종가) / 2
+    const ultimatePlot = chart.addLineSeries({
+      color: "#ffffff",
+      lineWidth: 2,
+      lineStyle: 0,
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+    })
+    ultimatePlotRef.current = ultimatePlot
+
     // 현재가를 따라 움직이는 수평선과 우측 가격 라벨
     const currentPriceLine = series.createPriceLine({
       price:            0,
@@ -161,6 +173,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
           close: parseFloat(k[4]),
         }))
         series.setData(candles)
+        ultimatePlot.setData(candles.map((c) => ({ time: c.time, value: (c.open + c.close) / 2 })))
         chart.timeScale().fitContent()
         if (candles.length > 0) {
           const lastBar = candles[candles.length - 1]
@@ -189,6 +202,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
           close,
         }
         series.update(bar as any)
+        ultimatePlot.update({ time: bar.time as any, value: (bar.open + bar.close) / 2 })
         currentPriceLine.applyOptions({ price: close })
         currentBarRef.current = bar
         onPriceRef.current?.(close)
@@ -202,6 +216,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
       ro.disconnect()
       linesRef.current.clear()
       seriesRef.current = null
+      ultimatePlotRef.current = null
       chart.remove()
     }
   // symbol 또는 interval이 바뀔 때마다 차트 전체 재생성
@@ -238,6 +253,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     currentBarRef.current = nextBar
     try {
       series.update(nextBar as any)
+      ultimatePlotRef.current?.update({ time: nextBar.time as any, value: (nextBar.open + nextBar.close) / 2 })
       priceLine?.applyOptions({ price: livePrice })
     } catch { /* 심볼/차트 전환 중 일시적 참조 불일치 무시 */ }
   }, [livePrice, interval])
