@@ -32,13 +32,10 @@ export function PortalHeader() {
   const pathname = usePathname()
   const router = useRouter()
   const [query, setQuery] = useState("")
+  const [searchOpen, setSearchOpen] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [, refreshSymbols] = useState(0)
-  const hideSymbolSearch =
-    pathname === "/baka" || pathname === "/race" || pathname === "/betting-status" ||
-    pathname === "/trading" || pathname === "/ranking"
-
   useEffect(() => {
     const refresh = () => refreshSymbols((value) => value + 1)
     liveCache.listeners.add(refresh)
@@ -131,44 +128,32 @@ export function PortalHeader() {
   return (
     <section className="px-4 py-3 md:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
-        {!hideSymbolSearch && (
-          <div className="flex items-center gap-2">
-            <form onSubmit={handleSubmit} className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="심볼 검색..."
-                aria-label="심볼 검색"
-                autoComplete="off"
-                className="h-10 w-full rounded-xl border border-primary/35 bg-card pl-11 pr-4 text-sm font-semibold uppercase text-foreground outline-none transition-colors placeholder:normal-case placeholder:text-muted-foreground focus:border-primary md:h-11"
-              />
-              {query.trim() && matches.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-2 grid grid-cols-2 gap-1 rounded-xl border border-border bg-popover p-2 shadow-xl sm:grid-cols-4">
-                  {matches.map((symbol) => (
-                    <button key={symbol} type="button" onClick={() => selectSymbol(symbol)} className="rounded-lg px-3 py-2 text-left text-xs font-bold text-popover-foreground transition-colors hover:bg-accent">
-                      {symbol.replace("USDT", "/USDT")}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </form>
-            <a
-              href="https://t.me/+HHv5pyuGGAw5YTc1"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="텔레그램 알림 채널 열기"
-              title="알림"
-              className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary md:size-11"
-            >
-              <Bell className="size-4" aria-hidden="true" />
-              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-primary" aria-hidden="true" />
-            </a>
-          </div>
+        {searchOpen && (
+          <form onSubmit={handleSubmit} className="relative animate-in fade-in slide-in-from-top-2 duration-200">
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="심볼 검색..."
+              aria-label="심볼 검색"
+              autoComplete="off"
+              autoFocus
+              className="h-11 w-full rounded-2xl border border-primary/45 bg-card pl-11 pr-4 text-sm font-semibold uppercase text-foreground outline-none transition-colors placeholder:normal-case placeholder:text-muted-foreground focus:border-primary"
+            />
+            {query.trim() && matches.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-2 grid grid-cols-2 gap-1 rounded-xl border border-border bg-popover p-2 shadow-xl sm:grid-cols-4">
+                {matches.map((symbol) => (
+                  <button key={symbol} type="button" onClick={() => selectSymbol(symbol)} className="rounded-lg px-3 py-2 text-left text-xs font-bold text-popover-foreground transition-colors hover:bg-accent">
+                    {symbol.replace("USDT", "/USDT")}
+                  </button>
+                ))}
+              </div>
+            )}
+          </form>
         )}
 
-        <nav aria-label="주요 서비스" className="overflow-x-auto pb-1">
-          <div className="mx-auto flex min-w-max w-max items-center justify-center gap-1.5 md:gap-2">
+        <nav aria-label="주요 서비스" className="flex items-start gap-3 overflow-x-auto pb-1">
+          <div className="flex min-w-max flex-1 items-center justify-center gap-1.5 md:gap-2">
             {portalItems.map((item) => {
               const Icon = item.icon
               const active = pathname === item.href && !("mode" in item)
@@ -187,6 +172,28 @@ export function PortalHeader() {
                 <a key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={className}>{content}</a>
               )
             })}
+          </div>
+          <div className="flex shrink-0 items-center gap-2 border-l border-border pl-3">
+            <button
+              type="button"
+              onClick={() => setSearchOpen((open) => !open)}
+              aria-label={searchOpen ? "검색 닫기" : "심볼 검색 열기"}
+              title="심볼 검색"
+              className={cn("flex size-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary", searchOpen && "border-primary/50 text-primary")}
+            >
+              <Search className="size-4" aria-hidden="true" />
+            </button>
+            <a
+              href="https://t.me/+HHv5pyuGGAw5YTc1"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="텔레그램 알림 채널 열기"
+              title="알림"
+              className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+            >
+              <Bell className="size-4" aria-hidden="true" />
+              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-primary" aria-hidden="true" />
+            </a>
           </div>
         </nav>
       </div>
