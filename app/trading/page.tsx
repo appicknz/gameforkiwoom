@@ -70,6 +70,7 @@ export default function TradingPage() {
   const [confirmDirection, setConfirmDirection] = useState<Direction | null>(null)
   const [leverage, setLeverage] = useState(10)
   const [amountInput, setAmountInput] = useState("")
+  const [amountPercent, setAmountPercent] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [closingId, setClosingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -186,8 +187,9 @@ export default function TradingPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(data.error ?? `진입 실패 (${res.status})`); return }
       setBalance(data.newBalance)
-      setAmountInput("")
-      await fetchPositions()
+  setAmountInput("")
+  setAmountPercent(null)
+  await fetchPositions()
     } finally {
       setSubmitting(false)
     }
@@ -233,6 +235,7 @@ export default function TradingPage() {
 
   const applyPercent = (pct: number) => {
     const bal = balanceRef.current ?? 0
+    setAmountPercent(pct)
     setAmountInput(String(Math.floor((bal * pct) / 100)))
   }
 
@@ -401,16 +404,38 @@ export default function TradingPage() {
                   type="number"
                   min={0}
                   value={amountInput}
-                  onChange={(e) => setAmountInput(e.target.value)}
+                  onChange={(e) => {
+                    setAmountInput(e.target.value)
+                    setAmountPercent(null)
+                  }}
                   placeholder="금액 입력"
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary tabular-nums"
                 />
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={amountPercent ?? 0}
+                  onChange={(e) => applyPercent(Number(e.target.value))}
+                  className="w-full accent-emerald-500"
+                  aria-label="투자 금액 비율"
+                />
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>잔고 기준 투자 비율</span>
+                  <span className="font-semibold text-emerald-500">{amountPercent ?? 0}%</span>
+                </div>
                 <div className="flex gap-1">
                   {PERCENTS.map((pct) => (
                     <button
                       key={pct}
                       onClick={() => applyPercent(pct)}
-                      className="flex-1 rounded-md border border-border py-1 text-[10px] font-semibold text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+                      className={cn(
+                        "flex-1 rounded-md border py-1 text-[10px] font-semibold transition-colors",
+                        amountPercent === pct
+                          ? "border-emerald-500 bg-emerald-500/15 text-emerald-500"
+                          : "border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-500",
+                      )}
                     >
                       {pct === 100 ? "MAX" : `${pct}%`}
                     </button>
