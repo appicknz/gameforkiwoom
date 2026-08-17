@@ -252,6 +252,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         const k = JSON.parse(e.data).k
         if (!k) return
         const close = parseFloat(k.c)
+        if (!seriesRef.current) return
         const bar = {
           time:  Math.floor(k.t / 1000),
           open:  parseFloat(k.o),

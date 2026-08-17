@@ -10,11 +10,18 @@ export async function GET(request: Request) {
   try {
     const endpoints = [
       `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `https://data-api.binance.vision/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
       `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
     ]
     for (const endpoint of endpoints) {
-      const response = await fetch(endpoint, { cache: "no-store" })
-      if (response.ok) return NextResponse.json(await response.json(), { headers: { "Cache-Control": "no-store" } })
+      try {
+        const response = await fetch(endpoint, {
+          cache: "no-store",
+          signal: AbortSignal.timeout(4000),
+          headers: { Accept: "application/json" },
+        })
+        if (response.ok) return NextResponse.json(await response.json(), { headers: { "Cache-Control": "no-store" } })
+      } catch {}
     }
     // Binance가 지역/네트워크 정책으로 차단된 경우, 앱에 저장된 BTC 마감가로
     // 차트 히스토리를 구성해 최소한의 과거 캔들을 계속 표시합니다.
@@ -45,9 +52,15 @@ export async function GET(request: Request) {
     // 마지막 가격으로 짧은 히스토리를 구성하고, 실시간 스트림이 연결되면 즉시 실제 캔들로 갱신됩니다.
     for (const tickerUrl of [
       `https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`,
+      `https://data-api.binance.vision/api/v3/ticker/price?symbol=${symbol}`,
       `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`,
     ]) {
-      const tickerResponse = await fetch(tickerUrl, { cache: "no-store" })
+      let tickerResponse: Response
+      try {
+        tickerResponse = await fetch(tickerUrl, { cache: "no-store", signal: AbortSignal.timeout(4000) })
+      } catch {
+        continue
+      }
       if (!tickerResponse.ok) continue
       const ticker = await tickerResponse.json()
       const price = Number(ticker?.price)
