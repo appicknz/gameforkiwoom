@@ -202,7 +202,7 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {rows.length === 0 && (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               {tab === "favorites" ? "즐겨찾기한 종목이 없습니다." : "검색 결과가 없습니다."}
@@ -220,11 +220,11 @@ export default function SymbolSelectSheet({ open, onOpenChange, selectedSymbol, 
                   type="button"
                   onClick={() => onSelect(item.symbol)}
                   className={cn(
-                    "flex w-full items-center justify-between border-b border-border/50 px-4 py-3 text-left transition-colors",
+                    "grid w-full shrink-0 grid-cols-[minmax(0,1fr)_80px_64px_56px] items-center gap-2 border-b border-border/50 bg-card px-3 py-3 text-left text-foreground transition-colors sm:grid-cols-[minmax(0,1fr)_90px_72px_64px] sm:gap-3 sm:px-4",
                     isSelected ? "border-l-2 border-l-primary bg-primary/10" : "hover:bg-accent",
                   )}
                 >
-                  <div className="flex min-w-[110px] items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <span onClick={(event) => toggleFavorite(item.symbol, event)} className="cursor-pointer">
                       <Star
                         className={cn(
