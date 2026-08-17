@@ -8,6 +8,7 @@ import { blobImageUrl } from "@/lib/blob-image"
 import MarketAdminPanel, { type EditItem } from "@/components/market/market-admin-panel"
 import DepositDialog from "@/components/deposit-dialog"
 import { useTranslation } from "@/lib/i18n"
+import IndicatorFeed from "@/components/market/indicator-feed"
 
 interface Category { id: string; name: string; icon: string; balance_only?: boolean }
 interface Item {
@@ -349,7 +350,7 @@ export default function MarketPage() {
                   </span>
                   {usePoint && userBalance !== null && userBalance > 0 && selectedItem.price_krw > 0 && (
                     <span className="text-lg font-extrabold text-primary">
-                      {Math.max(0, selectedItem.price_krw - Math.min(userBalance, selectedItem.price_krw)).toLocaleString("ko-KR")}���
+                      {Math.max(0, selectedItem.price_krw - Math.min(userBalance, selectedItem.price_krw)).toLocaleString("ko-KR")}����
                     </span>
                   )}
                   {/* 포인트 사용 버튼 — 로그인 유저 + 잔고 있을 때만 */}
@@ -669,14 +670,29 @@ export default function MarketPage() {
           )
         })()}
 
+        {/* 지표 카테고리: 기존 상품 데이터를 게시글형 피드로 표시 */}
+        {categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator"))) ? (
+          loading ? <div className="mx-auto max-w-2xl py-20 text-center text-muted-foreground">불러오는 중...</div> : (
+            <IndicatorFeed
+              items={showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items}
+              token={getToken()}
+              onOpen={(item) => {
+                setSelectedItem(item as Item)
+                setBuyErr("")
+                fetch(`/api/market/items/${item.id}/view`, { method: "POST" }).catch(() => {})
+              }}
+            />
+          )
+        ) : null}
+
         {/* 상품 그리드 */}
-        {loading ? (
+        {!categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator"))) && loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="rounded-xl bg-secondary/40 animate-pulse aspect-[3/4]" />
             ))}
           </div>
-        ) : (
+        ) : !categories.some(c => c.id === activeCat && (c.name.toLowerCase().includes("지표") || c.name.toLowerCase().includes("indicator"))) ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {(showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items).length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-24 text-muted-foreground">
@@ -713,7 +729,7 @@ export default function MarketPage() {
               />
             ))}
           </div>
-        )}
+        ) : null}
 
         {/* 무한 스크롤 sentinel + 로딩 인디케이터 */}
         {hasMore && (
