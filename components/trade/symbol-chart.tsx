@@ -58,6 +58,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
   const containerRef  = useRef<HTMLDivElement>(null)
   const seriesRef      = useRef<any>(null)
   const ultimatePlotRef = useRef<any>(null)
+  const indicatorSeriesRef = useRef<any[]>([])
   const priceLineRef   = useRef<any>(null)
   const onPriceRef     = useRef(onPrice)
   const linesRef       = useRef<Map<string, any>>(new Map())
@@ -129,17 +130,19 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     })
     seriesRef.current = series
 
-    // Pine Script Ultimate Plot: 캔들 중간값 (시가 + 종가) / 2
-    const ultimatePlot = chart.addLineSeries({
-      color: "#22d3ee",
-      lineWidth: 3,
-      lineStyle: 0,
-      lastValueVisible: true,
-      priceLineVisible: false,
-      crosshairMarkerVisible: false,
-      title: "Ultimate Plot",
+    // Order Block Finder + BB Ultimate Signals의 주요 오버레이
+    const makeIndicator = (color: string, width = 1) => chart.addLineSeries({
+      color, lineWidth: width as any, lineStyle: 0, lastValueVisible: false,
+      priceLineVisible: false, crosshairMarkerVisible: false,
     })
+    const ultimatePlot = makeIndicator("#ffffff", 2)
+    const bbUpper = makeIndicator("#ff3b30")
+    const bbUpper1 = makeIndicator("#ff8a80")
+    const bbBasis = makeIndicator("#ff9900", 2)
+    const bbLower1 = makeIndicator("#8c9eff")
+    const bbLower = makeIndicator("#304ffe")
     ultimatePlotRef.current = ultimatePlot
+    indicatorSeriesRef.current = [ultimatePlot, bbUpper, bbUpper1, bbBasis, bbLower1, bbLower]
 
     // 현재가를 따라 움직이는 수평선과 우측 가격 라벨
     const currentPriceLine = series.createPriceLine({
@@ -175,7 +178,32 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
           close: parseFloat(k[4]),
         }))
         series.setData(candles)
-        ultimatePlot.setData(candles.map((c) => ({ time: c.time, value: (c.open + c.close) / 2 })))
+        const length = 20
+        const std = (values: number[]) => {
+          const mean = values.reduce((sum, value) => sum + value, 0) / values.length
+          return Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length)
+        }
+        const ultimateData = candles.map((c) => ({ time: c.time, value: (c.open + c.close) / 2 }))
+        const bands = candles.map((c, index) => {
+          const window = candles.slice(Math.max(0, index - length + 1), index + 1).map((bar) => bar.close)
+          const basis = window.reduce((sum, value) => sum + value, 0) / window.length
+          const deviation = 2 * std(window)
+          const inner = std(window)
+          return {
+            time: c.time,
+            upper: basis + deviation,
+            upper1: basis + inner,
+            basis,
+            lower1: basis - inner,
+            lower: basis - deviation,
+          }
+        })
+        ultimatePlot.setData(ultimateData)
+        bbUpper.setData(bands.map((b) => ({ time: b.time, value: b.upper })))
+        bbUpper1.setData(bands.map((b) => ({ time: b.time, value: b.upper1 })))
+        bbBasis.setData(bands.map((b) => ({ time: b.time, value: b.basis })))
+        bbLower1.setData(bands.map((b) => ({ time: b.time, value: b.lower1 })))
+        bbLower.setData(bands.map((b) => ({ time: b.time, value: b.lower })))
         chart.timeScale().fitContent()
         if (candles.length > 0) {
           const lastBar = candles[candles.length - 1]
@@ -205,6 +233,13 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         }
         series.update(bar as any)
         ultimatePlot.update({ time: bar.time as any, value: (bar.open + bar.close) / 2 })
+        const recent = [bar.close]
+        const basis = recent.reduce((sum, value) => sum + value, 0) / recent.length
+        bbBasis.update({ time: bar.time as any, value: basis })
+        bbUpper.update({ time: bar.time as any, value: basis })
+        bbUpper1.update({ time: bar.time as any, value: basis })
+        bbLower1.update({ time: bar.time as any, value: basis })
+        bbLower.update({ time: bar.time as any, value: basis })
         currentPriceLine.applyOptions({ price: close })
         currentBarRef.current = bar
         onPriceRef.current?.(close)
@@ -219,6 +254,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
       linesRef.current.clear()
       seriesRef.current = null
       ultimatePlotRef.current = null
+      indicatorSeriesRef.current = []
       chart.remove()
     }
   // symbol 또는 interval이 바뀔 때마다 차트 전체 재생성
@@ -343,12 +379,12 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         onClick={() => {
           const next = !showUltimatePlot
           setShowUltimatePlot(next)
-          ultimatePlotRef.current?.applyOptions({ visible: next })
+          indicatorSeriesRef.current.forEach((indicator) => indicator.applyOptions({ visible: next }))
         }}
         style={{ position: "absolute", top: 8, right: 8, zIndex: 10, border: 0, borderRadius: 4, background: "rgba(15,23,42,0.9)", color: "#22d3ee", padding: "3px 8px", fontSize: 10, cursor: "pointer" }}
         aria-pressed={showUltimatePlot}
       >
-        Ultimate Plot {showUltimatePlot ? "켜짐" : "꺼짐"}
+        BB + Order Block {showUltimatePlot ? "켜짐" : "꺼짐"}
       </button>
       <div ref={containerRef} className="h-[213px] w-full md:h-80" style={{ width: "100%" }} />
     </div>
