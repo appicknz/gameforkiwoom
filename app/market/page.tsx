@@ -81,8 +81,13 @@ export default function MarketPage() {
 
   useEffect(() => {
     const handleHeaderSort = () => setSortIdx(0)
+    const handleHeaderSearch = (event: Event) => setQ((event as CustomEvent<string>).detail ?? "")
     window.addEventListener("market:sort", handleHeaderSort)
-    return () => window.removeEventListener("market:sort", handleHeaderSort)
+    window.addEventListener("market:search", handleHeaderSearch)
+    return () => {
+      window.removeEventListener("market:sort", handleHeaderSort)
+      window.removeEventListener("market:search", handleHeaderSearch)
+    }
   }, [])
 
   useEffect(() => {
@@ -496,124 +501,6 @@ export default function MarketPage() {
         </div>
       )}
 
-      {/* 상단 검색 + 필터 바 */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-3 space-y-3">
-          {/* 검색 + 액션 버튼 */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder={t("market.searchPlaceholder")}
-                value={q}
-                onChange={e => setQ(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              {q && (
-                <button onClick={() => setQ("")} className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <X className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
-              )}
-            </div>
-
-            {/* 정렬 사이클 버튼 — 누를 때마다 순환 */}
-            {(() => {
-              const cur = SORT_CYCLE[sortIdx]
-              const Icon = cur.icon
-              return (
-                <button
-                  onClick={() => setSortIdx(i => (i + 1) % SORT_CYCLE.length)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-xs font-medium text-foreground hover:border-primary/40 hover:text-primary transition-colors shrink-0"
-                  title={t("market.sortPopular")}
-                >
-                  <Icon className="w-3.5 h-3.5 text-primary" />
-                  <span className="hidden sm:inline">{t(cur.tKey)}</span>
-                </button>
-              )
-            })()}
-
-            {/* 토큰 입금 버튼 — 마스터가 허용한 회원만 표시 */}
-            {allowTokenDeposit && (
-              <button
-                onClick={() => setShowDeposit(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors shrink-0"
-                title={t("nav.deposit")}
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{t("market.depositButton")}</span>
-              </button>
-            )}
-
-            {/* + 글쓰기 버튼 — 모두에게 표시, 권한 없으면 신청 모달 */}
-            {/* canWrite: role이 WRITE_ROLES에 있거나, 승인된 write-permission이 있는 경우 */}
-            {(() => {
-              const canWrite = (role && WRITE_ROLES.includes(role)) || writePermStatus === "approved"
-              return (
-            <button
-              onClick={() => {
-                if (!getToken()) { setShowRequestModal(true); return }
-                // 권한 없음: 신청 모달 바로 오픈 (폼 절대 표시 안 함)
-                if (!canWrite) { setShowRequestModal(true); return }
-                setEditItem(null); setShowAdmin(v => !v)
-              }}
-              className={cn(
-                "flex items-center justify-center w-9 h-9 rounded-lg border transition-colors shrink-0",
-                showAdmin && canWrite
-                  ? "bg-primary/15 border-primary/40 text-primary"
-                  : writePermStatus === "pending"
-                  ? "bg-amber-500/10 border-amber-500/40 text-amber-500"
-                  : "bg-secondary border-border text-foreground hover:border-primary/40 hover:text-primary"
-              )}
-              title={
-                canWrite ? t("market.registerProduct") :
-                writePermStatus === "pending" ? t("market.pendingReview") :
-                t("market.requestWrite")
-              }
-            >
-              <PenLine className="w-4 h-4" />
-            </button>
-              )
-            })()}
-          </div>
-
-          {/* 카테고리 탭 */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
-            <button
-              onClick={() => { setActiveCat("all"); setShowPurchasedOnly(false) }}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors shrink-0",
-                activeCat === "all" && !showPurchasedOnly
-                  ? "bg-primary text-black"
-                  : "bg-secondary text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <span>🏪</span> {t("market.all")}
-            </button>
-
-            {categories.filter(c => c.name !== "전체").map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCat(cat.id)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors shrink-0",
-                  activeCat === cat.id
-                    ? "bg-primary text-black"
-                    : "bg-secondary text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <span>{cat.icon}</span> {((): string => {
-                  if (cat.balance_only) return t("categories.pointsOnly") as string
-                  const lower = cat.name.toLowerCase()
-                  if (lower.includes("채널") || lower.includes("channel")) return t("categories.channel") as string
-                  if (lower.includes("지표") || lower.includes("indicator")) return t("categories.indicator") as string
-                  return cat.name
-                })()}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* 글쓰기 패널 — 권한 게이트 */}

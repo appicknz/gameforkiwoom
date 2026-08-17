@@ -166,29 +166,30 @@ export function PortalHeader() {
   return (
     <section className="px-4 py-3 md:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
-        {searchOpen && (
-          <form onSubmit={handleSubmit} className="relative animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value
+                setQuery(value)
+                if (pathname.startsWith("/market")) window.dispatchEvent(new CustomEvent("market:search", { detail: value }))
+              }}
               placeholder={headerConfig.placeholder}
-              aria-label="심볼 검색"
+              aria-label="검색"
               autoComplete="off"
-              autoFocus
-              className="h-11 w-full rounded-2xl border border-primary/45 bg-card pl-11 pr-4 text-sm font-semibold uppercase text-foreground outline-none transition-colors placeholder:normal-case placeholder:text-muted-foreground focus:border-primary"
+              className="h-11 w-full rounded-2xl border border-border bg-card pl-11 pr-4 text-sm font-semibold text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
             />
-            {query.trim() && matches.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-20 mt-2 grid grid-cols-2 gap-1 rounded-xl border border-border bg-popover p-2 shadow-xl sm:grid-cols-4">
-                {matches.map((symbol) => (
-                  <button key={symbol} type="button" onClick={() => selectSymbol(symbol)} className="rounded-lg px-3 py-2 text-left text-xs font-bold text-popover-foreground transition-colors hover:bg-accent">
-                    {symbol.replace("USDT", "/USDT")}
-                  </button>
-                ))}
-              </div>
-            )}
-          </form>
-        )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {headerConfig.actions.map((action) => {
+              const Icon = action.icon
+              const className = "inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-border bg-card px-4 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
+              return action.href ? <a key={action.label} href={action.href} className={className}><Icon className="size-4" aria-hidden="true" /><span className="hidden whitespace-nowrap lg:inline">{action.label}</span></a> : <button key={action.label} type="button" onClick={action.onClick} className={className}><Icon className="size-4" aria-hidden="true" /><span className="hidden whitespace-nowrap lg:inline">{action.label}</span></button>
+            })}
+          </div>
+        </div>
 
         <nav aria-label="주요 서비스" className="flex items-center gap-3 overflow-x-auto rounded-3xl border border-border bg-card/70 p-2 pb-2">
           <div className="flex min-w-max flex-1 items-center gap-2">
@@ -213,35 +214,6 @@ export function PortalHeader() {
                 <a key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={className}>{content}</a>
               )
             })}
-          </div>
-          <div className="flex shrink-0 items-center gap-2 border-l border-border pl-3">
-            {headerConfig.actions.map((action) => {
-              const Icon = action.icon
-              const className = "inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-border bg-card px-4 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
-              return action.href ? (
-                <a key={action.label} href={action.href} className={className}>
-                  <Icon className="size-4" aria-hidden="true" />
-                  <span className="hidden whitespace-nowrap lg:inline">{action.label}</span>
-                </a>
-              ) : (
-                <button key={action.label} type="button" onClick={action.onClick} className={className}>
-                  <Icon className="size-4" aria-hidden="true" />
-                  <span className="hidden whitespace-nowrap lg:inline">{action.label}</span>
-                </button>
-              )
-            })}
-            <a
-              href="https://t.me/+HHv5pyuGGAw5YTc1"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="텔레그램 알림 채널 열기"
-              title="알림"
-              className="relative flex h-11 items-center gap-2 rounded-2xl border border-border bg-card px-4 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-            >
-              <Bell className="size-4" aria-hidden="true" />
-              <span className="hidden whitespace-nowrap sm:inline">알림</span>
-              <span className="absolute right-3 top-2 size-1.5 rounded-full bg-primary" aria-hidden="true" />
-            </a>
           </div>
         </nav>
       </div>
