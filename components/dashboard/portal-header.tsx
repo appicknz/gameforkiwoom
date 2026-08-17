@@ -172,7 +172,8 @@ export function PortalHeader() {
     <section className="px-4 py-3 md:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
         <div className="flex items-center gap-2">
-          <div className="relative min-w-0 flex-1">
+          <div className={cn("relative min-w-0 flex-1", ["/baka", "/race", "/trading"].includes(pathname) && "hidden md:block")}>
+
             <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               value={query}
@@ -202,7 +203,7 @@ export function PortalHeader() {
               </div>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className={cn("flex shrink-0 items-center gap-2", ["/baka", "/race", "/trading"].includes(pathname) && "hidden md:flex")}>
             {headerConfig.actions.map((action) => {
               const Icon = action.icon
               const className = "inline-flex h-9 shrink-0 cursor-pointer touch-manipulation items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
