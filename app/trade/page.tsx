@@ -714,7 +714,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
         }
         // ───────────���──────────────────────────────────────────────────
 
-        // ── 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
+        // ─��� 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
         // confirmedMargin이 없으면 포지션 수 × size_usd 폴백
         const margin = confirmedMargin > 0 ? confirmedMargin : cnt * sizeUsdCfg
@@ -1100,7 +1100,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
       const kstDate = kstTodayStr()
 
-      // 2. 오늘 매매기록에 PNL 저장
+      // 2. 오늘 매매기록��� PNL 저장
       const saveRes = await fetch("/api/auto-signal/rebalance", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshTok}` },
@@ -1173,7 +1173,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", scrollbarWidth: "none" }}>
-      {/* ��짜 스트립 */}
+      {/* ����짜 스트립 */}
       <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
 
       {/* 전체 요약 카드 */}
@@ -1740,6 +1740,10 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
   const [forceClosePrice,  setForceClosePrice]  = useState<string>("")
   const [forceClosing,     setForceClosing]      = useState(false)
   const closingRef = useRef<Set<string>>(new Set())
+  // 진입가 수정 모달 state (master 전용)
+  const [editEntryId,      setEditEntryId]      = useState<string | null>(null)
+  const [editEntryPrice,   setEditEntryPrice]   = useState<string>("")
+  const [editEntrySaving,  setEditEntrySaving]  = useState(false)
 
   // KST 기준 오늘 날짜
   const todayKST = kstTodayStr()
@@ -2064,6 +2068,34 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     setForceCloseId(null)
   }
 
+  // 진입가 클릭: 수정 다이얼로그 오픈 (master 전용, 미청산 포지션만)
+  const openEditEntry = (pos: typeof posCalc[0]) => {
+    if (userRole !== "master" || pos.is_closed) return
+    setEditEntryId(pos.id)
+    setEditEntryPrice(String(pos.entry_price))
+  }
+
+  const handleEditEntry = async () => {
+    if (!editEntryId) return
+    const price = parseFloat(editEntryPrice)
+    if (!Number.isFinite(price) || price <= 0) { alert("올바른 가격을 입력하세요."); return }
+    setEditEntrySaving(true)
+    const tok = typeof window !== "undefined" ? localStorage.getItem("app_token") ?? "" : ""
+    const res = await fetch("/api/auto-signal/positions", {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+      body:    JSON.stringify({ id: editEntryId, entry_price: price }),
+    })
+    if (res.ok) {
+      setPositions(prev => prev.map(p => p.id === editEntryId ? { ...p, entry_price: price } : p))
+    } else {
+      const d = await res.json().catch(() => ({}))
+      alert(d.error ?? "진입가 수정 실패")
+    }
+    setEditEntrySaving(false)
+    setEditEntryId(null)
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center py-5"
       style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>로딩 중...</div>
@@ -2071,6 +2103,39 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
 
   return (
     <div>
+      {/* 진입가 수정 모달 — master 전용 */}
+      {editEntryId && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-xs shadow-2xl space-y-4 mx-4">
+            <div className="space-y-0.5">
+              <h3 className="text-sm font-bold text-foreground">진입가 수정</h3>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">진입가</label>
+              <input
+                type="number"
+                value={editEntryPrice}
+                onChange={e => setEditEntryPrice(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditEntryId(null)}
+                className="flex-1 h-9 rounded-lg text-xs font-semibold border border-border text-muted-foreground bg-transparent hover:bg-muted/30 transition-colors"
+              >취소</button>
+              <button
+                onClick={handleEditEntry}
+                disabled={editEntrySaving}
+                className="flex-1 h-9 rounded-lg text-xs font-bold text-white transition-colors disabled:opacity-50"
+                style={{ background: GOLD }}
+              >{editEntrySaving ? "저장중..." : "저장"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 강제 청산 모달 — master 전용 */}
       {forceCloseId && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -2270,9 +2335,19 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
             </div>
             {/* 하단행: 진입가 | 현재가(오늘) 또는 종가(과거) | 시그널 */}
             <div className="flex items-center gap-3 mt-0.5" style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
-              <span>
+              <span
+                onClick={userRole === "master" && !pos.is_closed ? () => openEditEntry(pos) : undefined}
+                style={userRole === "master" && !pos.is_closed ? { cursor: "pointer" } : undefined}
+              >
                 진입:{" "}
-                <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>
+                <span
+                  className="tabular-nums"
+                  style={{
+                    color: "rgba(255,255,255,0.55)",
+                    textDecoration: userRole === "master" && !pos.is_closed ? "underline dotted" : undefined,
+                    textDecorationColor: "rgba(255,255,255,0.25)",
+                  }}
+                >
                   ${fmt(Number(pos.entry_price))}
                 </span>
               </span>
@@ -2328,6 +2403,10 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
   const [forceClosePrice,  setForceClosePrice]  = useState<string>("")
   const [forceClosing,     setForceClosing]     = useState(false)
   const closingRef = useRef<Set<string>>(new Set())
+  // 진입가 수정 모달 state (master 전용)
+  const [editEntryId,      setEditEntryId]      = useState<string | null>(null)
+  const [editEntryPrice,   setEditEntryPrice]   = useState<string>("")
+  const [editEntrySaving,  setEditEntrySaving]  = useState(false)
 
   const isMaster = userRole === "master"
   const todayKST = kstTodayStr()
@@ -2552,6 +2631,34 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
     setForceCloseId(null)
   }
 
+  // 진입가 클릭: 수정 다이얼로그 오픈 (master 전용, 미청산 포지션만)
+  const openEditEntry = (pos: typeof posCalc[0]) => {
+    if (!isMaster || pos.is_closed) return
+    setEditEntryId(pos.id)
+    setEditEntryPrice(String(pos.entry_price))
+  }
+
+  const handleEditEntry = async () => {
+    if (!editEntryId) return
+    const price = parseFloat(editEntryPrice)
+    if (!Number.isFinite(price) || price <= 0) { alert("올바른 가격을 입력하세요."); return }
+    setEditEntrySaving(true)
+    const tok = typeof window !== "undefined" ? localStorage.getItem("app_token") ?? "" : ""
+    const res = await fetch("/api/auto-signal2/positions", {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+      body:    JSON.stringify({ id: editEntryId, entry_price: price }),
+    })
+    if (res.ok) {
+      setPositions(prev => prev.map(p => p.id === editEntryId ? { ...p, entry_price: price } : p))
+    } else {
+      const d = await res.json().catch(() => ({}))
+      alert(d.error ?? "진입가 수정 실패")
+    }
+    setEditEntrySaving(false)
+    setEditEntryId(null)
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center py-5"
       style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>로딩 중...</div>
@@ -2559,6 +2666,39 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
 
   return (
     <div>
+      {/* 진입가 수정 모달 — master 전용 */}
+      {editEntryId && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-xs shadow-2xl space-y-4 mx-4">
+            <div className="space-y-0.5">
+              <h3 className="text-sm font-bold text-foreground">진입가 수정</h3>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">진입가</label>
+              <input
+                type="number"
+                value={editEntryPrice}
+                onChange={e => setEditEntryPrice(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditEntryId(null)}
+                className="flex-1 h-9 rounded-lg text-xs font-semibold border border-border text-muted-foreground bg-transparent hover:bg-muted/30 transition-colors"
+              >취소</button>
+              <button
+                onClick={handleEditEntry}
+                disabled={editEntrySaving}
+                className="flex-1 h-9 rounded-lg text-xs font-bold text-white transition-colors disabled:opacity-50"
+                style={{ background: GOLD }}
+              >{editEntrySaving ? "저장중..." : "저장"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 강제 청산 모달 — master 전용 */}
       {forceCloseId && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -2773,9 +2913,19 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
             </div>
             {/* 하단행: 진입가 | 현재가(오늘) 또는 종가(과거) | 시그널 */}
             <div className="flex items-center gap-3 mt-0.5" style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
-              <span>
+              <span
+                onClick={isMaster && !pos.is_closed ? () => openEditEntry(pos) : undefined}
+                style={isMaster && !pos.is_closed ? { cursor: "pointer" } : undefined}
+              >
                 진입:{" "}
-                <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>
+                <span
+                  className="tabular-nums"
+                  style={{
+                    color: "rgba(255,255,255,0.55)",
+                    textDecoration: isMaster && !pos.is_closed ? "underline dotted" : undefined,
+                    textDecorationColor: "rgba(255,255,255,0.25)",
+                  }}
+                >
                   ${fmt(Number(pos.entry_price))}
                 </span>
               </span>

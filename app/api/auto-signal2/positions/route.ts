@@ -138,3 +138,33 @@ export async function DELETE(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true, deleted: body.id })
 }
+
+/** PATCH /api/auto-signal2/positions — 진입가 수정 (master 전용, 미청산 포지션만) */
+export async function PATCH(req: Request) {
+  const role = getCallerRole(req)
+  if (!MASTER_ROLES.includes(role ?? "")) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 })
+  }
+
+  const body = await req.json().catch(() => ({}))
+  const { id, entry_price } = body
+  if (!id || entry_price === undefined) {
+    return NextResponse.json({ error: "id, entry_price required" }, { status: 400 })
+  }
+  const price = Number(entry_price)
+  if (!Number.isFinite(price) || price <= 0) {
+    return NextResponse.json({ error: "invalid entry_price" }, { status: 400 })
+  }
+
+  const { data, error } = await adminSupabase
+    .from("auto_signal2_positions")
+    .update({ entry_price: price })
+    .eq("id", id)
+    .eq("is_closed", false)
+    .select("id")
+    .maybeSingle()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: "position not found or already closed" }, { status: 404 })
+  return NextResponse.json({ ok: true, id, entry_price: price })
+}
