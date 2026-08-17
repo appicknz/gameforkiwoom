@@ -468,7 +468,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
           setShowUltimatePlot(next)
           indicatorSeriesRef.current.forEach((indicator) => indicator.applyOptions({ visible: next }))
         }}
-        style={{ position: "absolute", top: 8, right: 8, zIndex: 10, border: 0, borderRadius: 4, background: "rgba(15,23,42,0.9)", color: "#22d3ee", padding: "3px 8px", fontSize: 10, cursor: "pointer" }}
+        style={{ position: "absolute", bottom: 8, right: 8, zIndex: 10, border: 0, borderRadius: 4, background: "rgba(15,23,42,0.9)", color: "#22d3ee", padding: "3px 8px", fontSize: 10, cursor: "pointer" }}
         aria-pressed={showUltimatePlot}
       >
         보조지표 {showUltimatePlot ? "켜짐" : "꺼짐"}
