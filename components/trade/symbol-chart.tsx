@@ -74,7 +74,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     // ── 차트 생성 ─────────────────────────────────────────────
     const chart = createChart(container, {
       width:  container.clientWidth,
-      height,
+      height: container.clientHeight || height,
       layout: {
         background: { type: ColorType.Solid, color: BG },
         textColor: TEXT,
@@ -117,18 +117,20 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     })
     seriesRef.current = series
 
-    // 수평선 없이 축 라벨만 표시 — color를 투명으로, lineWidth를 0으로
+    // 현재가를 따라 움직이는 수평선과 우측 가격 라벨
     const currentPriceLine = series.createPriceLine({
       price:            0,
-      color:            "transparent",
-      lineWidth:        0,
+      color:            "#f5c542",
+      lineWidth:        1,
+      lineStyle:        2,
       axisLabelVisible: true,
-      title:            "",
+      title:            "현재가",
     })
     priceLineRef.current = currentPriceLine
 
     const ro = new ResizeObserver(() => {
-      chart.applyOptions({ width: container.clientWidth })
+      chart.applyOptions({ width: container.clientWidth, height: container.clientHeight })
+      chart.timeScale().fitContent()
     })
     ro.observe(container)
 
@@ -308,7 +310,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         ))}
       </div>
 
-      <div ref={containerRef} style={{ width: "100%", height }} />
+      <div ref={containerRef} className="h-[213px] w-full md:h-80" style={{ width: "100%" }} />
     </div>
   )
 }
