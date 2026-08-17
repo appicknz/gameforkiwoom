@@ -21,6 +21,7 @@ export default function IndicatorFeed({ items, token, onOpen }: { items: FeedIte
   const [commentOpen, setCommentOpen] = useState<string | null>(null)
   const [commentText, setCommentText] = useState("")
   const [busy, setBusy] = useState<string | null>(null)
+  const [expandedImage, setExpandedImage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!items.length) return
@@ -59,7 +60,29 @@ export default function IndicatorFeed({ items, token, onOpen }: { items: FeedIte
           </div>
           <button className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">팔로우</button>
         </header>
-        <button onClick={() => onOpen(item)} className="mt-4 block w-full text-left"><h2 className="text-xl font-bold leading-tight text-foreground">{item.title}</h2><p className="mt-3 whitespace-pre-wrap text-[15px] leading-7 text-foreground/85">{item.description}</p>{image && <img src={image} alt={`${item.title} 분석 차트`} className="mt-5 max-h-[620px] w-full rounded-2xl border border-border object-contain" />}</button>
+        <div className="mt-4">
+          <div className="flex items-start gap-4">
+            <button onClick={() => onOpen(item)} className="min-w-0 flex-1 text-left">
+              <h2 className="text-xl font-bold leading-tight text-foreground">{item.title}</h2>
+              <p className="mt-3 line-clamp-1 whitespace-pre-wrap text-[15px] leading-7 text-foreground/85">{item.description}</p>
+            </button>
+            {image && (
+              <button
+                type="button"
+                onClick={() => setExpandedImage(expandedImage === item.id ? null : item.id)}
+                aria-label={expandedImage === item.id ? "이미지 접기" : "이미지 크게 보기"}
+                className="size-24 shrink-0 overflow-hidden rounded-xl border border-border bg-muted/30 transition hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:size-28"
+              >
+                <img src={image} alt={`${item.title} 분석 차트 썸네일`} className="size-full object-cover" />
+              </button>
+            )}
+          </div>
+          {image && expandedImage === item.id && (
+            <button type="button" onClick={() => setExpandedImage(null)} className="mt-4 block w-full overflow-hidden rounded-2xl border border-border bg-muted/20 text-left">
+              <img src={image} alt={`${item.title} 분석 차트 크게 보기`} className="max-h-[620px] w-full object-contain" />
+            </button>
+          )}
+        </div>
         <div className="mt-4 flex items-center gap-6 text-sm text-muted-foreground"><button onClick={() => sendAction(item.id, "like")} disabled={busy === item.id} className={reaction.liked ? "text-rose-500" : "hover:text-rose-500"}><Heart className={`mr-1 inline size-5 ${reaction.liked ? "fill-current" : ""}`} />{reaction.likeCount}</button><button onClick={() => setCommentOpen(commentOpen === item.id ? null : item.id)} className="hover:text-primary"><MessageCircle className="mr-1 inline size-5" />{reaction.commentCount}</button><button onClick={() => sendAction(item.id, "share")} className="hover:text-primary"><Repeat2 className="mr-1 inline size-5" />{reaction.shareCount}</button><button onClick={() => navigator.clipboard?.writeText(window.location.href)} className="hover:text-primary"><Send className="size-5" /></button></div>
         {commentOpen === item.id && <div className="mt-4 space-y-3 rounded-xl bg-muted/30 p-3">{reaction.comments.map((comment) => <div key={comment.id} className="text-sm"><strong className="mr-2 text-foreground">{comment.profiles?.username ?? "사용자"}</strong><span className="text-muted-foreground">{comment.body}</span></div>)}<form onSubmit={(event) => { event.preventDefault(); void sendAction(item.id, "comment", commentText) }} className="flex gap-2"><input value={commentText} onChange={(event) => setCommentText(event.target.value)} maxLength={1000} placeholder="댓글을 입력하세요" className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none" /><button type="submit" className="rounded-lg bg-primary px-3 text-primary-foreground"><Send className="size-4" /></button></form></div>}
       </article>
