@@ -101,7 +101,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         borderVisible: false,
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: typeof window !== "undefined" && window.innerWidth < 768 ? 32 : 16,
+        rightOffset: typeof window !== "undefined" && window.innerWidth < 768 ? 48 : 16,
       },
       watermark: { visible: false },
       // 좌우 이동과 확대·축소만 허용하고 상하 패닝은 비활성화
@@ -186,7 +186,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         const isMobile = window.innerWidth < 768
         chart.timeScale().setVisibleLogicalRange({
           from: Math.max(0, candles.length - (isMobile ? mobileVisibleCandles : 60)),
-          to: candles.length - 1 + (isMobile ? 2 : 4),
+          to: candles.length - 1 + (isMobile ? 8 : 4),
         })
         const length = 20
         const std = (values: number[]) => {

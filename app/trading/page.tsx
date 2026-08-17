@@ -224,8 +224,10 @@ export default function TradingPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(data.error ?? `청산 실패 (${res.status})`); return }
-      setBalance(data.newBalance)
+      setBalance(Number(data.newBalance))
+      balanceRef.current = Number(data.newBalance)
       setPositions((prev) => prev.filter((p) => p.id !== pos.id))
+      await fetchBalance()
       setLogs((l) => [{
         id: Date.now().toString(),
         direction: pos.direction,

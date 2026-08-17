@@ -240,14 +240,15 @@ export async function DELETE(req: Request) {
   // payout = 마진 + 손익 (최소 0, 청산 시 0)
   const payout = liquidated ? 0 : Math.max(0, Math.round(Number(pos.margin) + pnl))
 
-  // 4) 포지션 상태 업데이트 (fire-and-forget)
-  adminSupabase.from("trade_positions").update({
+  // 4) 포지션 상태 업데이트를 잔고 반영보다 먼저 완료시킵니다.
+  const { error: closeUpdateError } = await adminSupabase.from("trade_positions").update({
     status:     liquidated ? "liquidated" : "closed",
     exit_price: exitPrice,
     pnl,
     pnl_pct:    pnlPct,
     closed_at:  new Date().toISOString(),
-  }).eq("id", position_id).then(() => {}).catch(() => {})
+  }).eq("id", position_id)
+  if (closeUpdateError) return NextResponse.json({ error: "포지션 종료 처리 실패" }, { status: 500 })
 
   // 5) 잔고 계산 — Redis에서 현재 잔고 읽고 payout 더하기
   const cachedBalance = await redis.get(`balance:${userId}`)
@@ -288,23 +289,21 @@ export async function DELETE(req: Request) {
     })
   } catch { /* 기록 실패 무시 */ }
 
-  // balance_transactions + DB 잔고는 fire-and-forget
-  ;(async () => {
-    try {
-      if (payout > 0) {
-        await adminSupabase.rpc("add_balance_for_payout", { p_user_id: userId, p_amount: payout })
-      }
-      await adminSupabase.from("balance_transactions").insert({
-        user_id:        userId,
-        branch_id:      profile?.branch_id ?? null,
-        type:           pnl >= 0 ? "win" : "lose",
-        amount:         payout,
-        balance_before: currentBalance,
-        balance_after:  newBalance,
-        note:           `모의매매 청산 ${pos.symbol} ${pos.direction} ${pos.leverage}x PnL:${pnl >= 0 ? "+" : ""}${pnl}`,
-      })
-    } catch { /* 기록 실패 무시 */ }
-  })()
+  // DB 잔고와 거래 내역 반영을 응답 전에 완료해 새로고침 없이 즉시 일치시킵니다.
+  if (payout > 0) {
+    const { error: payoutError } = await adminSupabase.rpc("add_balance_for_payout", { p_user_id: userId, p_amount: payout })
+    if (payoutError) return NextResponse.json({ error: "잔고 반영 실패" }, { status: 500 })
+  }
+  const { error: transactionError } = await adminSupabase.from("balance_transactions").insert({
+    user_id:        userId,
+    branch_id:      profile?.branch_id ?? null,
+    type:           pnl >= 0 ? "win" : "lose",
+    amount:         payout,
+    balance_before: currentBalance,
+    balance_after:  newBalance,
+    note:           `모의매매 청산 ${pos.symbol} ${pos.direction} ${pos.leverage}x PnL:${pnl >= 0 ? "+" : ""}${pnl}`,
+  })
+  if (transactionError) return NextResponse.json({ error: "거래 내역 반영 실패" }, { status: 500 })
 
   return NextResponse.json({
     success:    true,
