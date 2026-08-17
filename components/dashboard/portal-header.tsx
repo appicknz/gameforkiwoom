@@ -182,7 +182,7 @@ export function PortalHeader() {
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => selectSymbol(symbol)}
-                    className="flex w-full shrink-0 items-center justify-between rounded-xl bg-popover px-3 py-2.5 text-left text-sm font-bold text-foreground transition-colors hover:bg-accent hover:text-primary"
+                    className="flex w-full shrink-0 items-center justify-between rounded-xl bg-popover px-3 py-2.5 text-left text-sm font-bold text-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
                   >
                     {symbol.replace("USDT", "/USDT")}
                   </button>
