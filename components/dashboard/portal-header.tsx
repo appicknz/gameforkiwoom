@@ -34,7 +34,7 @@ export function PortalHeader() {
   const pathname = usePathname()
   const router = useRouter()
   const [query, setQuery] = useState("")
-  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchOpen] = useState(true)
   const [username, setUsername] = useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [, refreshSymbols] = useState(0)
@@ -230,16 +230,6 @@ export function PortalHeader() {
                 </button>
               )
             })}
-            <button
-              type="button"
-              onClick={() => setSearchOpen((open) => !open)}
-              aria-label={searchOpen ? "검색 닫기" : "심볼 검색 열기"}
-              title="심볼 검색"
-              className={cn("flex h-11 items-center gap-2 rounded-2xl border border-border bg-card px-4 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground", searchOpen && "border-primary/50 bg-primary/10 text-primary")}
-            >
-              <Search className="size-4" aria-hidden="true" />
-              <span className="hidden whitespace-nowrap sm:inline">검색</span>
-            </button>
             <a
               href="https://t.me/+HHv5pyuGGAw5YTc1"
               target="_blank"
