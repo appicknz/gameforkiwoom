@@ -157,7 +157,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
 
     const ro = new ResizeObserver(() => {
       chart.applyOptions({ width: container.clientWidth, height: container.clientHeight })
-      chart.timeScale().fitContent()
+      // 리사이즈 시 사용자가 보고 있던 좌우 위치를 유지합니다.
     })
     ro.observe(container)
 
@@ -166,7 +166,8 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     let cancelled = false
     formatAppliedRef.current = false
 
-    const initialCandleLimit = window.innerWidth < 768 ? 25 : 100
+    const initialCandleLimit = 100
+    const mobileVisibleCandles = 25
     fetch(`/api/trading/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${initialCandleLimit}`)
       .then(r => r.json())
       .then((data: any) => {
@@ -180,6 +181,11 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
           close: parseFloat(k[4]),
         }))
         series.setData(candles)
+        const isMobile = window.innerWidth < 768
+        chart.timeScale().setVisibleLogicalRange({
+          from: Math.max(0, candles.length - (isMobile ? mobileVisibleCandles : 60)),
+          to: candles.length - 1 + (isMobile ? 2 : 4),
+        })
         const length = 20
         const std = (values: number[]) => {
           const mean = values.reduce((sum, value) => sum + value, 0) / values.length
@@ -244,8 +250,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
           if (plot < current.upper1 && previousPlot >= previous.upper1 && peak) markers.push({ time: candles[index].time, position: "aboveBar", color: "#ff9100", shape: "square", text: "X 1σ" })
         }
         if (typeof series.setMarkers === "function") series.setMarkers(markers)
-        chart.timeScale().fitContent()
-        if (candles.length > 0) {
+      if (candles.length > 0) {
           const lastBar = candles[candles.length - 1]
           // 실제 가격 기준으로 소수점 정밀도 재설정
           series.applyOptions({ priceFormat: calcPriceFormat(lastBar.close) })
