@@ -253,10 +253,10 @@ export default function TradingPage() {
             <button
               type="button"
               onClick={() => setSymbolSheetOpen(true)}
-              className="group flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors hover:border-primary/50"
+              className="group flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-left transition-colors hover:border-primary/50"
             >
               <div>
-                <div className="flex items-center gap-1.5 text-lg font-bold text-foreground">
+                <div className="flex items-center gap-1 text-base font-bold text-foreground">
                   종목 선택
                   <span className="text-sm font-semibold text-muted-foreground">{selectedSymbol.replace("USDT", "/USDT")}</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-hover:text-foreground" />
@@ -269,7 +269,7 @@ export default function TradingPage() {
           ) : (
             <div className="group flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left">
               <div>
-                <div className="flex items-center gap-1.5 text-lg font-bold text-foreground">
+                <div className="flex items-center gap-1 text-base font-bold text-foreground">
                   종목 선택
                   <span className="text-sm font-semibold text-muted-foreground">{selectedSymbol.replace("USDT", "/USDT")}</span>
                 </div>
@@ -277,7 +277,7 @@ export default function TradingPage() {
               </div>
             </div>
           )}
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-1.5">
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1">
             <div className="text-right">
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Total ROI</p>
               <p className={cn("text-sm font-bold tabular-nums", totalPnl >= 0 ? "text-emerald-500" : "text-red-500")}>

@@ -161,7 +161,7 @@ export function PortalHeader() {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               value={query}
               onChange={(event) => {
@@ -172,7 +172,7 @@ export function PortalHeader() {
               placeholder={headerConfig.placeholder}
               aria-label="검색"
               autoComplete="off"
-              className="h-11 w-full rounded-2xl border border-border bg-card pl-11 pr-4 text-sm font-semibold uppercase text-foreground outline-none placeholder:normal-case placeholder:text-muted-foreground focus:border-primary"
+              className="h-9 w-full rounded-xl border border-border bg-card pl-9 pr-3 text-xs font-semibold uppercase text-foreground outline-none placeholder:normal-case placeholder:text-muted-foreground focus:border-primary"
             />
             {query.trim() && matches.length > 0 && (
               <div className="absolute left-0 right-0 top-full z-50 mt-2 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-popover p-2 shadow-2xl sm:grid-cols-4">
@@ -193,13 +193,13 @@ export function PortalHeader() {
           <div className="flex shrink-0 items-center gap-2">
             {headerConfig.actions.map((action) => {
               const Icon = action.icon
-              const className = "inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-border bg-card px-4 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
+              const className = "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
               return action.href ? <a key={action.label} href={action.href} className={className}><Icon className="size-4" aria-hidden="true" /><span className="hidden whitespace-nowrap lg:inline">{action.label}</span></a> : <button key={action.label} type="button" onClick={action.onClick} className={className}><Icon className="size-4" aria-hidden="true" /><span className="hidden whitespace-nowrap lg:inline">{action.label}</span></button>
             })}
           </div>
         </div>
 
-        <nav aria-label="주요 서비스" className="flex flex-col items-stretch gap-2 overflow-x-auto rounded-3xl border border-border bg-card/70 p-2 pb-2">
+        <nav aria-label="주요 서비스" className="flex flex-col items-stretch gap-1 overflow-x-auto rounded-2xl border border-border bg-card/70 p-1 pb-1">
           <div className="flex min-w-max flex-1 items-center gap-2">
             {portalItems.map((item) => {
               const Icon = item.icon
@@ -211,7 +211,7 @@ export function PortalHeader() {
                 </>
               )
               const className = cn(
-                "group inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition-all",
+                "group inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all",
                 active
                   ? "border-primary bg-primary text-primary-foreground shadow-sm"
                   : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-accent hover:text-foreground",
@@ -224,7 +224,7 @@ export function PortalHeader() {
             })}
           </div>
           {pathname.startsWith("/market") && (
-            <div className="flex min-w-max items-center gap-2 border-t border-border/70 pt-2">
+            <div className="flex min-w-max items-center gap-1 border-t border-border/70 pt-1">
               {[
                   ["all", "전체", "🏪"],
                   ["channel", "채널", "💻"],
@@ -235,7 +235,7 @@ export function PortalHeader() {
                     key={key}
                     type="button"
                     onClick={() => window.dispatchEvent(new CustomEvent("market:category", { detail: key }))}
-                    className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-border bg-card px-4 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
                   >
                     <span aria-hidden="true">{icon}</span>
                     <span className="whitespace-nowrap">{label}</span>
