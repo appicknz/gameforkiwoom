@@ -366,14 +366,17 @@ export default function TradingPage() {
                   <span className="text-[11px] font-medium text-muted-foreground">레버리지</span>
                   <span className="text-sm font-bold text-primary tabular-nums">{leverage}x</span>
                 </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={100}
-                  value={leverage}
+                <div className="-mx-1 px-1 py-1 md:py-0">
+                  <input
+                    type="range"
+                    min={1}
+                    max={100}
+                    value={leverage}
                   onChange={(e) => setLeverage(Number(e.target.value))}
-                  className="w-full accent-primary"
-                />
+                  className="h-8 min-h-8 w-full touch-none accent-primary md:h-5 md:min-h-5"
+                  aria-label="레버리지 배율"
+                  />
+                </div>
                 <div className="flex gap-1">
                   {LEVERAGES.map((lv) => (
                     <button
@@ -411,16 +414,18 @@ export default function TradingPage() {
                   placeholder="금액 입력"
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary tabular-nums"
                 />
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={amountPercent ?? 0}
-                  onChange={(e) => applyPercent(Number(e.target.value))}
-                  className="w-full accent-emerald-500"
-                  aria-label="투자 금액 비율"
-                />
+                <div className="-mx-1 px-1 py-1 md:py-0">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={amountPercent ?? 0}
+                    onChange={(e) => applyPercent(Number(e.target.value))}
+                    className="h-8 min-h-8 w-full touch-none accent-emerald-500 md:h-5 md:min-h-5"
+                    aria-label="투자 금액 비율"
+                  />
+                </div>
                 <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                   <span>잔고 기준 투자 비율</span>
                   <span className="font-semibold text-emerald-500">{amountPercent ?? 0}%</span>
