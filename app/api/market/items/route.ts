@@ -96,36 +96,13 @@ export async function POST(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 })
 
-  // 글쓰기 권한 확인: role 기반 OR write_permissions 승인 기반
-  const WRITE_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
+  // 모든 로그인 사용자가 글을 작성할 수 있습니다. publisher_id는 항상 본인으로 고정합니다.
   const { data: profile } = await adminSupabase
     .from("profiles")
     .select("role, username")
     .eq("id", auth.userId)
     .single()
-
-  const hasRolePermission = profile && WRITE_ROLES.includes(profile.role)
-
-  // role이 없더라도 write_permission_requests 테이블에 approved 상태면 허용
-  let hasApprovedPermission = false
-  let hasPointCategoryPermission = false
-  if (!hasRolePermission) {
-    const { data: perm } = await adminSupabase
-      .from("write_permission_requests" as never)
-      .select("status, allow_point_category")
-      .eq("user_id", auth.userId)
-      .eq("status", "approved")
-      .maybeSingle() as { data: { status: string; allow_point_category: boolean } | null; error: unknown }
-    hasApprovedPermission       = !!perm
-    hasPointCategoryPermission  = !!perm?.allow_point_category
-  } else {
-    // master/admin 등 role 권한자는 포인트 전용 카테고리도 허용
-    hasPointCategoryPermission = true
-  }
-
-  if (!hasRolePermission && !hasApprovedPermission) {
-    return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
-  }
+  const hasPointCategoryPermission = true
 
   const body = await req.json()
   const { title, description, image_url, link_url, price_krw, category_id, content_type, data_source_type } = body

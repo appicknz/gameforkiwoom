@@ -3,32 +3,10 @@ import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { verifySession } from "@/lib/auth"
 
-const SELLER_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
-
 export async function GET(req: Request) {
   const auth = await verifySession(req)
   if (!auth.ok) return NextResponse.json({ error: "인증 필요" }, { status: 401 })
 
-  const { data: profile } = await adminSupabase
-    .from("profiles").select("role").eq("id", auth.userId).single()
-
-  const hasRolePermission = profile && SELLER_ROLES.includes(profile.role)
-
-  // role이 없어도 write_permission_requests approved면 허용
-  let hasApprovedPermission = false
-  if (!hasRolePermission) {
-    const { data: perm } = await adminSupabase
-      .from("write_permission_requests" as never)
-      .select("status")
-      .eq("user_id", auth.userId)
-      .eq("status", "approved")
-      .maybeSingle() as { data: { status: string } | null; error: unknown }
-    hasApprovedPermission = !!perm
-  }
-
-  if (!hasRolePermission && !hasApprovedPermission) {
-    return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
-  }
 
   // 내 상품 목록 (비활성 포함)
   const { data: items } = await adminSupabase

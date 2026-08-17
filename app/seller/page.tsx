@@ -13,8 +13,6 @@ function parseJwt(token: string) {
   try { return JSON.parse(atob(token.split(".")[1])) } catch { return null }
 }
 
-const SELLER_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
-
 // ─── 통계 카드 ──────────────────────────────────────────────────────
 function StatCard({ label, value, sub, icon }: { label: string; value: string; sub?: string; icon: React.ReactNode }) {
   return (
@@ -80,23 +78,8 @@ function SellerPageInner() {
     if (!token) { router.push("/"); return }
     const jwt = parseJwt(token)
     const r = jwt?.role ?? null
-    setRole(r)
+    setRole(r ?? "user")
     setUserId(jwt?.sub ?? jwt?.userId ?? null)
-
-    // role이 SELLER_ROLES에 없으면 write_permission_requests approved 여부 추가 확인
-    if (!r || !SELLER_ROLES.includes(r)) {
-      try {
-        const permRes = await fetch("/api/market/write-permission", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const permData = await permRes.json()
-        if (permData?.request?.status !== "approved") { router.push("/"); return }
-        // approved면 seller로 간주하고 진행
-        setRole("seller")
-      } catch {
-        router.push("/"); return
-      }
-    }
 
     // 카테고리 로드
     fetch("/api/market/categories")
