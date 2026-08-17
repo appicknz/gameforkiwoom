@@ -24,8 +24,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "파일 크기는 4MB 이하여야 합니다." }, { status: 400 })
     }
 
-    // 상품 이미지는 공개 카탈로그에 표시되는 정적 자산이므로 원본을 그대로 저장한다.
-    // sharp 같은 네이티브 이미지 모듈을 거치지 않아 Vercel 런타임의 .node 번들 문제를 피한다.
+    // 현재 Blob 스토어가 private로 설정되어 있으므로 원본을 그대로 private 저장한다.
+    // 화면 표시는 기존 /api/market/image private 프록시가 담당한다.
     const input = Buffer.from(await file.arrayBuffer())
     const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1]
     const pathname = `market-items/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     let blob
     try {
       blob = await put(pathname, input, {
-        access: "public",
+        access: "private",
         contentType: file.type,
         token: process.env.BLOB_READ_WRITE_TOKEN,
       })
