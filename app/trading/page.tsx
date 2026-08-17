@@ -187,9 +187,10 @@ export default function TradingPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(data.error ?? `진입 실패 (${res.status})`); return }
       setBalance(data.newBalance)
-  setAmountInput("")
-  setAmountPercent(null)
-  await fetchPositions()
+      setAmountInput("")
+      setAmountPercent(null)
+      setConfirmDirection(null)
+      await fetchPositions()
     } finally {
       setSubmitting(false)
     }
@@ -203,6 +204,11 @@ export default function TradingPage() {
 
   const confirmOpen = async () => {
     if (!confirmDirection) return
+    const selectedAmount = Math.round(Number(amountInput))
+    if (!Number.isFinite(selectedAmount) || selectedAmount <= 0) {
+      setError("증거금을 선택하거나 입력해주세요.")
+      return
+    }
     await handleOpen(confirmDirection)
   }
 
@@ -539,7 +545,7 @@ export default function TradingPage() {
             <div className="flex justify-between"><span className="text-muted-foreground">종목</span><strong>{selectedSymbol}</strong></div>
             <div className="flex justify-between"><span className="text-muted-foreground">방향</span><strong className={confirmDirection === "long" ? "text-emerald-500" : "text-red-500"}>{confirmDirection === "long" ? "롱 (상승)" : "숏 (하락)"}</strong></div>
             <div className="flex justify-between"><span className="text-muted-foreground">레버리지</span><strong>{leverage}x</strong></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">증거금</span><strong>{amountInput ? `₩${Number(amountInput).toLocaleString("ko-KR")}` : "미입력"}</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">증거금</span><strong>{Number(amountInput) > 0 ? `₩${Number(amountInput).toLocaleString("ko-KR")}` : "미입력"}</strong></div>
             <div className="flex justify-between"><span className="text-muted-foreground">현재가</span><strong>${currentPrice ? fmtPrice(currentPrice) : "-"}</strong></div>
           </div>
           <DialogFooter>
