@@ -238,10 +238,6 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
           const rangeHigh = Math.max(...wvf.slice(Math.max(0, index - lb + 1), index + 1)) * 1.01
           const willRed = wvf[index] >= willUpper || wvf[index] >= rangeHigh
           const peak = index >= 2 && candles[index].high > candles[index - 1].high && candles[index].high > candles[index - 2].high && candles[index - 1].high > candles[index - 2].high
-          if (crossUp) markers.push({ time: candles[index].time, position: "belowBar", color: "#00c853", shape: "circle", text: "2σ UP" })
-          if (crossDown) markers.push({ time: candles[index].time, position: "aboveBar", color: "#ff1744", shape: "circle", text: "2σ DOWN" })
-          if (innerUp) markers.push({ time: candles[index].time, position: "belowBar", color: "#b6ff00", shape: "circle", text: "1σ UP" })
-          if (innerDown) markers.push({ time: candles[index].time, position: "aboveBar", color: "#ff9100", shape: "circle", text: "1σ DOWN" })
           if (plot > current.upper && previousPlot <= previous.upper && willRed) markers.push({ time: candles[index].time, position: "belowBar", color: "#00c853", shape: "square", text: "X 2σ" })
           if (plot < current.upper && previousPlot >= previous.upper && peak) markers.push({ time: candles[index].time, position: "aboveBar", color: "#ff1744", shape: "square", text: "X 2σ" })
           if (plot > current.upper1 && previousPlot <= previous.upper1 && willRed) markers.push({ time: candles[index].time, position: "belowBar", color: "#b6ff00", shape: "square", text: "X 1σ" })
@@ -329,7 +325,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     const priceLine = priceLineRef.current
     if (!series || !livePrice || livePrice <= 0) return
 
-    // 거래소 REST 히스토리 로드가 실패(지역 차단 등)해 정밀도가 아직 설정되지 않았다면
+    // 거래소 REST 히스토리 로��가 실패(지역 차단 등)해 정밀도가 아직 설정되지 않았다면
     // 이 실시간 가격 기준으로 대신 설정 — 8자리 기본값으로 축이 뭉개지는 것을 방지
     if (!formatAppliedRef.current) {
       try { series.applyOptions({ priceFormat: calcPriceFormat(livePrice) }) } catch {}
