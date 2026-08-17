@@ -108,7 +108,7 @@ function openChunk(chunk: string[], idx: number) {
   }
 }
 
-async function initCache() {
+export async function initCache() {
   // 이미 초기화됐고 TTL 내라면 스킵
   if (_cache.initialized && Date.now() - _cache.symbolsLoadedAt < SYMBOL_TTL_MS) return
   _cache.initialized = true

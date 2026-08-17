@@ -7,7 +7,7 @@ import {
   ListChecks, PackageCheck, Search, ShoppingBag, Store, TrendingUp, Trophy, WalletCards,
   Flame, Pencil, Download, History, RefreshCw, BarChart2, Timer,
 } from "lucide-react"
-import { liveCache } from "@/components/trade/live-prices-tab"
+import { initCache, liveCache } from "@/components/trade/live-prices-tab"
 import { cn } from "@/lib/utils"
 
 const basePortalItems = [
@@ -41,8 +41,18 @@ export function PortalHeader() {
   useEffect(() => {
     const refresh = () => refreshSymbols((value) => value + 1)
     liveCache.listeners.add(refresh)
+    void initCache()
     return () => { liveCache.listeners.delete(refresh) }
   }, [])
+
+  const matches = useMemo(() => {
+    const normalized = query.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")
+    if (!normalized) return []
+    const availableSymbols = liveCache.symbols.length > 0
+      ? liveCache.symbols
+      : ["GASUSDT", "GPSUSDT", "GALAUSDT", "GMTUSDT", "GRTUSDT", "DOGEUSDT", "GOATUSDT"]
+    return availableSymbols.filter((symbol) => symbol.includes(normalized)).slice(0, 8)
+  }, [query, liveCache.symbols.length])
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -131,14 +141,6 @@ export function PortalHeader() {
     return items
   }, [isLoggedIn, username])
 
-  const matches = useMemo(() => {
-    const normalized = query.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")
-    if (!normalized) return []
-    return liveCache.symbols
-      .filter((symbol) => symbol.includes(normalized))
-      .slice(0, 8)
-  }, [query, liveCache.symbols.length])
-
   function selectSymbol(symbol: string) {
     setQuery(symbol.replace("USDT", "/USDT"))
     if (pathname === "/trade") {
@@ -179,8 +181,23 @@ export function PortalHeader() {
               placeholder={headerConfig.placeholder}
               aria-label="검색"
               autoComplete="off"
-              className="h-11 w-full rounded-2xl border border-border bg-card pl-11 pr-4 text-sm font-semibold text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+              className="h-11 w-full rounded-2xl border border-border bg-card pl-11 pr-4 text-sm font-semibold uppercase text-foreground outline-none placeholder:normal-case placeholder:text-muted-foreground focus:border-primary"
             />
+            {query.trim() && matches.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-50 mt-2 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-popover p-2 shadow-2xl sm:grid-cols-4">
+                {matches.map((symbol) => (
+                  <button
+                    key={symbol}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => selectSymbol(symbol)}
+                    className="rounded-xl px-3 py-2.5 text-left text-sm font-bold text-popover-foreground transition-colors hover:bg-accent hover:text-primary"
+                  >
+                    {symbol.replace("USDT", "/USDT")}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {headerConfig.actions.map((action) => {
