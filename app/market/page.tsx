@@ -59,7 +59,8 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [buying, setBuying]           = useState(false)
   const [buyErr, setBuyErr]           = useState("")
-  const [tvId, setTvId]               = useState("")
+  const [tvId, setTvId]               = useState<string>("")
+  const asString = (value: string | string[]) => Array.isArray(value) ? (value[0] ?? "") : value
   const [userBalance, setUserBalance] = useState<number | null>(null)
   const [balanceMemo, setBalanceMemo] = useState("")
   // 글쓰기 권한 신청 상태: null=미조회, 'none'=신청없음, 'pending'=대기중, 'approved'=승인됨, 'rejected'=거절됨

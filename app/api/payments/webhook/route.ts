@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       method:   "POST",
       body_raw: data,
       error_msg: rpcErr.message,
-    }).catch(() => {})
+    })
     return NextResponse.json({ error: rpcErr.message }, { status: 500 })
   }
 
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     status:   "nowpayments_processed",
     method:   "POST",
     body_raw: data,
-  }).catch(() => {})
+  })
 
   // Redis 캐시 삭제 → top-bar 잔고 즉시 반영
   try {

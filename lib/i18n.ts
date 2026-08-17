@@ -34,7 +34,7 @@ type DeepValue<T, K extends string> =
     ? A extends keyof T ? DeepValue<T[A], B> : string
     : K extends keyof T ? T[K] : string
 
-function get(obj: Record<string, unknown>, path: string): string | string[] {
+function get(obj: Record<string, unknown>, path: string): string {
   const keys = path.split(".")
   let cur: unknown = obj
   for (const k of keys) {
@@ -42,7 +42,7 @@ function get(obj: Record<string, unknown>, path: string): string | string[] {
     cur = (cur as Record<string, unknown>)[k]
   }
   if (typeof cur === "string") return cur
-  if (Array.isArray(cur) && cur.every(v => typeof v === "string")) return cur as string[]
+  if (Array.isArray(cur) && cur.every(v => typeof v === "string")) return cur.join(" ")
   return path
 }
 
@@ -58,7 +58,7 @@ export function useTranslation() {
   }, [])
 
   const t = useCallback(
-    (key: string, vars?: Record<string, string | number>): string | string[] => {
+    (key: string, vars?: Record<string, string | number>): string => {
       const messages = MESSAGES[locale] as Record<string, unknown>
       let val = get(messages, key)
       // 폴백: 현재 언어에 없으면 ko로
