@@ -683,7 +683,7 @@ export function TopBar() {
                     )}
                   </div>
 
-                  {/* 지점코드 입력 (일반회원만) */}
+                  {/* 지��코드 입력 (일반회원만) */}
                   {profile?.role === "user" && (
                     <div className="border-b border-border">
                       <button
@@ -750,10 +750,12 @@ export function TopBar() {
                     </Link>
                   )}
 
-                  {/* 언어 전환 — 로그아웃 바로 위 */}
-                  <div className="border-b border-border px-4 py-2">
-                    <LangSwitcher />
-                  </div>
+                  {/* 언어 전환 — 로그인 상태에서만, 로그아웃 바로 위 */}
+                  {isLoggedIn && (
+                    <div className="border-b border-border px-4 py-2">
+                      <LangSwitcher />
+                    </div>
+                  )}
 
                   {/* 로그아웃 */}
                   <button
