@@ -300,12 +300,12 @@ export default function TradingPage() {
             </div>
             <div className="hidden h-7 w-px bg-border md:block" />
             <div className="text-right">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Total PNL</p>
+              <p className="hidden text-[10px] font-medium uppercase tracking-wide text-muted-foreground md:block">Total PNL</p>
               <p className={cn("text-sm font-bold tabular-nums", totalPnl >= 0 ? "text-emerald-500" : "text-red-500")}>
                 {fmtWon(totalPnl)}
               </p>
               <p className={cn("text-[10px] font-bold tabular-nums md:hidden", totalPnl >= 0 ? "text-emerald-500" : "text-red-500")}>
-                ROI {totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%
+                TOTAL ROI {totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%
               </p>
             </div>
           </div>
