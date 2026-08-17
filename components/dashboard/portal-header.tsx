@@ -14,7 +14,7 @@ const basePortalItems = [
   { label: "바카", href: "/baka", icon: Gamepad2 },
   { label: "레이스", href: "/race", icon: Flag },
   { label: "트레이딩", href: "/trading", icon: TrendingUp },
-  { label: "게시판", href: "/market?category=indicator", icon: BookOpen },
+  { label: "게시판", href: "/board", icon: BookOpen },
   { label: "마켓", href: "/market", icon: Store },
   { label: "현황", href: "/betting-status", icon: ListChecks },
   { label: "랭킹", href: "/ranking", icon: BarChart3 },
@@ -40,7 +40,7 @@ export function PortalHeader() {
   const [username, setUsername] = useState<string | null>(null)
   const [, refreshSymbols] = useState(0)
   useEffect(() => {
-    setBoardActive(pathname.startsWith("/market") && new URLSearchParams(window.location.search).get("category") === "indicator")
+    setBoardActive(pathname === "/board")
   }, [pathname])
 
   useEffect(() => {
@@ -209,7 +209,7 @@ export function PortalHeader() {
           <div className="flex min-w-max flex-1 items-center gap-2">
             {portalItems.map((item) => {
               const Icon = item.icon
-              const active = !("mode" in item) && (item.href === "/market?category=indicator" ? boardActive : pathname === item.href)
+              const active = !("mode" in item) && (item.href === "/board" ? boardActive : pathname === item.href)
               const content = (
                 <>
                   <Icon className="size-4 shrink-0" aria-hidden="true" />

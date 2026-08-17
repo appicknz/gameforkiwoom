@@ -43,11 +43,11 @@ function parseJwt() {
   } catch { return null }
 }
 
-export default function MarketPage() {
+export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean }) {
   const { t } = useTranslation()
   const [categories, setCategories]   = useState<Category[]>([])
   const [items, setItems]             = useState<Item[]>([])
-  const [activeCat, setActiveCat]     = useState<string>("all")
+  const [activeCat, setActiveCat]     = useState<string>(boardOnly ? "indicator" : "all")
   const [sortIdx, setSortIdx]         = useState<number>(0)
   const sort = SORT_CYCLE[sortIdx].key
   const [q, setQ]                     = useState("")
@@ -103,7 +103,7 @@ export default function MarketPage() {
     window.addEventListener("market:sort", handleHeaderSort)
     window.addEventListener("market:search", handleHeaderSearch)
     window.addEventListener("market:category", handleHeaderCategory)
-    if (new URLSearchParams(window.location.search).get("category") === "indicator") {
+    if (boardOnly || new URLSearchParams(window.location.search).get("category") === "indicator") {
       handleHeaderCategory(new CustomEvent("market:category", { detail: "indicator" }))
     }
     return () => {
