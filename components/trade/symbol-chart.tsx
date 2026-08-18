@@ -169,7 +169,9 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
 
     const initialCandleLimit = 100
     const mobileVisibleCandles = 25
-    fetch(`/api/trading/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${initialCandleLimit}`)
+    const fallbackPrice = Number(livePrice)
+    const priceQuery = Number.isFinite(fallbackPrice) && fallbackPrice > 0 ? `&price=${fallbackPrice}` : ""
+    fetch(`/api/trading/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${initialCandleLimit}${priceQuery}`)
       .then(r => r.json())
       .then((data: any) => {
         if (cancelled) return

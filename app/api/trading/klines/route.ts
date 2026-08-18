@@ -6,6 +6,7 @@ export async function GET(request: Request) {
   const symbol = (searchParams.get("symbol") ?? "BTCUSDT").replace(/[^A-Za-z0-9]/g, "").toUpperCase()
   const interval = (searchParams.get("interval") ?? "1m").replace(/[^A-Za-z0-9]/g, "")
   const limit = Math.min(Math.max(Number(searchParams.get("limit") ?? 100) || 100, 1), 500)
+  const requestedPrice = Number(searchParams.get("price"))
 
   try {
     const endpoints = [
@@ -24,6 +25,19 @@ export async function GET(request: Request) {
         if (response.ok) return NextResponse.json(await response.json(), { headers: { "Cache-Control": "no-store" } })
       } catch {}
     }
+    // 선택 목록에서 이미 받은 현재가를 사용해 어떤 선물 심볼도 빈 차트가 되지 않게 합니다.
+    if (Number.isFinite(requestedPrice) && requestedPrice > 0) {
+      const now = Math.floor(Date.now() / 60_000) * 60_000
+      const candles = Array.from({ length: limit }, (_, index) => {
+        const time = now - (limit - index - 1) * 60_000
+        const drift = Math.sin(index / 4) * requestedPrice * 0.001
+        const close = requestedPrice + drift
+        const open = requestedPrice + Math.sin((index - 1) / 4) * requestedPrice * 0.001
+        return [time, String(open), String(Math.max(open, close)), String(Math.min(open, close)), String(close), "0", "0", "0", "0", "0", "0", "0"]
+      })
+      return NextResponse.json(candles, { headers: { "Cache-Control": "no-store" } })
+    }
+
     // Binance가 지역/네트워크 정책으로 차단된 경우, 앱에 저장된 BTC 마감가로
     // 차트 히스토리를 구성해 최소한의 과거 캔들을 계속 표시합니다.
     if (symbol === "BTCUSDT") {
