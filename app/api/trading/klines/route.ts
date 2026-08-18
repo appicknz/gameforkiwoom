@@ -9,8 +9,9 @@ export async function GET(request: Request) {
 
   try {
     const endpoints = [
-      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      // 공용 데이터 API를 먼저 사용해 지역별 fapi 451/지연 응답을 피합니다.
       `https://data-api.binance.vision/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
       `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
     ]
     for (const endpoint of endpoints) {
@@ -51,8 +52,8 @@ export async function GET(request: Request) {
     // 거래소 REST가 차단된 환경에서도 다른 종목을 빈 화면으로 만들지 않습니다.
     // 마지막 가격으로 짧은 히스토리를 구성하고, 실시간 스트림이 연결되면 즉시 실제 캔들로 갱신됩니다.
     for (const tickerUrl of [
-      `https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`,
       `https://data-api.binance.vision/api/v3/ticker/price?symbol=${symbol}`,
+      `https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`,
       `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`,
     ]) {
       let tickerResponse: Response
