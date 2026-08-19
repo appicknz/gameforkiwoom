@@ -64,6 +64,8 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
   const linesRef       = useRef<Map<string, any>>(new Map())
   const currentBarRef  = useRef<{ time: number; open: number; high: number; low: number; close: number } | null>(null)
   const candlesRef = useRef<{ time: number; open: number; high: number; low: number; close: number }[]>([])
+  const pendingBarRef = useRef<{ time: number; open: number; high: number; low: number; close: number } | null>(null)
+  const historyLoadedRef = useRef(false)
   const formatAppliedRef = useRef(false)
 
   const [interval, setInterval] = useState<Interval>("1m")
@@ -166,13 +168,22 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     let ws: WebSocket | null = null
     let cancelled = false
     formatAppliedRef.current = false
+    historyLoadedRef.current = false
+    pendingBarRef.current = null
 
     const initialCandleLimit = 100
     const mobileVisibleCandles = 25
-    const fallbackPrice = Number(livePrice)
-    const priceQuery = Number.isFinite(fallbackPrice) && fallbackPrice > 0 ? `&price=${fallbackPrice}` : ""
-    fetch(`/api/trading/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${initialCandleLimit}${priceQuery}`)
-      .then(r => r.json())
+    const futuresKlineUrl = `https://fapi.binance.com/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${initialCandleLimit}`
+    // 사용자의 브라우저가 Binance를 직접 접근할 수 있으면 서버 부하 없이 사용하고,
+    // CORS/지역 제한이면 배포된 서버 프록시를 fallback으로 사용합니다.
+    const loadInitialCandles = async () => {
+      const direct = await fetch(futuresKlineUrl, { cache: "no-store" })
+      if (direct.ok) return direct.json()
+      const proxy = await fetch(`/api/trading/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${initialCandleLimit}`, { cache: "no-store" })
+      if (!proxy.ok) throw new Error(`Futures klines unavailable (${direct.status}/${proxy.status})`)
+      return proxy.json()
+    }
+    loadInitialCandles()
       .then((data: any) => {
         if (cancelled) return
         if (!Array.isArray(data)) throw new Error("캔들 데이터 형식이 올바르지 않습니다.")
@@ -185,6 +196,16 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
         }))
         series.setData(candles)
         candlesRef.current = candles
+        historyLoadedRef.current = true
+        if (pendingBarRef.current) {
+          const pending = pendingBarRef.current
+          const last = candles[candles.length - 1]
+          if (!last || pending.time >= last.time) {
+            series.update(pending as any)
+            candlesRef.current = [...candles.filter((c) => c.time !== pending.time), pending].slice(-100)
+          }
+          pendingBarRef.current = null
+        }
         const isMobile = window.innerWidth < 768
         chart.timeScale().setVisibleLogicalRange({
           from: Math.max(0, candles.length - (isMobile ? mobileVisibleCandles : 60)),
@@ -281,6 +302,10 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
           low:   parseFloat(k.l),
           close,
         }
+        if (!historyLoadedRef.current) {
+          pendingBarRef.current = bar
+          return
+        }
         series.update(bar as any)
         const history = candlesRef.current
         const lastHistory = history[history.length - 1]
@@ -311,6 +336,8 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
       linesRef.current.clear()
       seriesRef.current = null
       candlesRef.current = []
+      pendingBarRef.current = null
+      historyLoadedRef.current = false
       ultimatePlotRef.current = null
       indicatorSeriesRef.current = []
       chart.remove()
@@ -335,7 +362,7 @@ export default function SymbolChart({ symbol, height = 240, onPrice, livePrice, 
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [symbol])
 
-  // ── 신뢰 가능한 전역 가격 소스(livePrice)로 캔들 실시간 갱신 ──────
+  // ── 신뢰 가능한 전역 가격 소스(livePrice)로 캔들 실시간 ��신 ──────
   // 거래소 직결 WebSocket이 지역 차단 등으로 죽어도 이 값만으로 캔들이 계속 움직인다.
   useEffect(() => {
     const series = seriesRef.current
