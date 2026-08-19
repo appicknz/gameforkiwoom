@@ -6,10 +6,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "올바르지 않은 종목입니다." }, { status: 400 })
   }
 
+  // 트레이딩 심볼은 USDT 무기한 선물이므로 현물 ticker fallback을 사용하지 않습니다.
   const endpoints = [
     `https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`,
-    `https://data-api.binance.vision/api/v3/ticker/price?symbol=${symbol}`,
-    `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`,
   ]
   for (const endpoint of endpoints) {
     try {
