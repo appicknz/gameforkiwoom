@@ -40,6 +40,7 @@ export function PortalHeader() {
   const [username, setUsername] = useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [menuGroups, setMenuGroups] = useState({ group1: false, group2: false, group3: false })
+  const [authReady, setAuthReady] = useState(false)
   const [, refreshSymbols] = useState(0)
   useEffect(() => {
     setBoardActive(pathname === "/board")
@@ -67,6 +68,7 @@ export function PortalHeader() {
         setUsername(null)
         setIsLoggedIn(false)
         setMenuGroups({ group1: false, group2: false, group3: false })
+        setAuthReady(true)
         return
       }
       setIsLoggedIn(true)
@@ -76,17 +78,23 @@ export function PortalHeader() {
         })
         if (!response.ok) {
           setUsername(null)
+          setIsLoggedIn(false)
+          setMenuGroups({ group1: false, group2: false, group3: false })
+          setAuthReady(true)
           return
         }
         const data = await response.json()
         setUsername(data.profile?.username ?? null)
+        setAuthReady(true)
         const groupsResponse = await fetch("/api/user/menu-groups", {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (groupsResponse.ok) setMenuGroups(await groupsResponse.json())
       } catch {
         setUsername(null)
+        setIsLoggedIn(false)
         setMenuGroups({ group1: false, group2: false, group3: false })
+        setAuthReady(true)
       }
     }
 
@@ -151,7 +159,7 @@ export function PortalHeader() {
     const items: Array<{ label: string; href: string; icon: typeof Bot; mode?: TradeMode }> = basePortalItems.filter((item) => {
       if (publicLabels.has(item.label)) return true
       const requiredGroup = groupForLabel[item.label]
-      return isLoggedIn && !!requiredGroup && menuGroups[requiredGroup]
+      return authReady && isLoggedIn && !!requiredGroup && menuGroups[requiredGroup]
     })
     if (isLoggedIn && username === "역삼1") {
       const ledgerIndex = items.findIndex((item) => item.mode === "ledger")
@@ -161,7 +169,7 @@ export function PortalHeader() {
       )
     }
     return items
-  }, [isLoggedIn, menuGroups, username])
+  }, [authReady, isLoggedIn, menuGroups, username])
 
   function selectSymbol(symbol: string) {
     setQuery("")
