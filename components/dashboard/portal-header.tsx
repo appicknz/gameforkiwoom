@@ -41,7 +41,12 @@ export function PortalHeader() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [menuGroups, setMenuGroups] = useState({ group1: false, group2: false, group3: false })
   const [authReady, setAuthReady] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const [, refreshSymbols] = useState(0)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
   useEffect(() => {
     setBoardActive(pathname === "/board")
   }, [pathname])
@@ -242,7 +247,7 @@ export function PortalHeader() {
 
         <nav aria-label="주요 서비스" className="flex flex-col items-stretch gap-1 overflow-x-auto p-0">
           <div className="flex min-w-max flex-1 items-center gap-2">
-            {portalItems.map((item) => {
+            {mounted && portalItems.map((item) => {
               const Icon = item.icon
               const active = !("mode" in item) && (item.href === "/board" ? boardActive : pathname === item.href)
               const content = (
