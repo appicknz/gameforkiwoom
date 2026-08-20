@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronDown, TrendingUp, TrendingDown, X, RefreshCw } from "lucide-react"
+import { ChevronDown, TrendingUp, TrendingDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -466,9 +466,7 @@ export default function TradingPage() {
               <div className="rounded-xl border border-border bg-card overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
                   <span className="text-xs font-semibold text-foreground">오픈 포지션</span>
-                  <Button variant="ghost" size="sm" onClick={fetchPositions} className="h-6 w-6 p-0">
-                    <RefreshCw className="w-3 h-3 text-muted-foreground" />
-                  </Button>
+
                 </div>
                 {positions.length === 0 ? (
                   <p className="px-4 py-6 text-center text-xs text-muted-foreground">보유 중인 포지션이 없습니다.</p>
