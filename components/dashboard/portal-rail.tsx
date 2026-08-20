@@ -2,14 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bot, Flag, Gamepad2, Home, Store } from "lucide-react"
+import { Flag, Gamepad2, Home, Store } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const railItems = [
   { label: "홈", href: "/", icon: Home },
   { label: "바카", href: "/baka", icon: Gamepad2 },
   { label: "레이스", href: "/race", icon: Flag },
-  { label: "자동매매", href: "/trade", icon: Bot },
   { label: "마켓", href: "/market", icon: Store },
 ] as const
 

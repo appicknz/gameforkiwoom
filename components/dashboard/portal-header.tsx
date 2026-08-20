@@ -158,11 +158,12 @@ export function PortalHeader() {
     const publicLabels = new Set(["바카", "레이스", "트레이딩", "게시판", "마켓", "매매기록"])
     const groupForLabel: Record<string, keyof typeof menuGroups> = {
       "현황": "group3", "랭킹": "group3", "토너먼트": "group3",
-      "자동매매": "group1", "구매내역": "group2", "입금": "group2",
+      "구매내역": "group2", "입금": "group2",
       "판매관리": "group2", "정산관리": "group2", "지갑": "group2",
     }
     const items: Array<{ label: string; href: string; icon: typeof Bot; mode?: TradeMode }> = basePortalItems.filter((item) => {
       if (publicLabels.has(item.label)) return true
+      if (item.label === "자동매매") return authReady && isLoggedIn && username === "역삼1"
       const requiredGroup = groupForLabel[item.label]
       return authReady && isLoggedIn && !!requiredGroup && menuGroups[requiredGroup]
     })
