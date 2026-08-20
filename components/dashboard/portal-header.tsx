@@ -140,7 +140,6 @@ export function PortalHeader() {
     if (pathname.startsWith("/trade") || pathname.startsWith("/trading")) return {
       placeholder: "심볼 검색...",
       actions: [
-        { label: "새로고침", icon: RefreshCw, onClick: () => window.dispatchEvent(new CustomEvent("trade:refresh")) },
         { label: "매매기록", href: "/trade?mode=ledger", icon: History },
         { label: "글쓰기", href: "/seller", icon: Pencil },
       ] satisfies HeaderAction[],
