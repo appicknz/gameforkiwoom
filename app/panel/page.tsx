@@ -216,7 +216,11 @@ export default function PanelPage() {
     signal_time: string; date_label: string; is_closed: boolean
     closed_price: number | null
   }
-  type SignalRule = { signal_type: string; direction: "long" | "short"; enabled: boolean }
+  type SignalRule = {
+    signal_type: string; direction: "long" | "short"; enabled: boolean
+    stop_loss_enabled?: boolean; stop_loss_percent?: number | null
+    take_profit_enabled?: boolean; take_profit_percent?: number | null
+  }
   const [autoPositions,    setAutoPositions]    = useState<AutoSignalPos[]>([])
   const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean; stop_loss_pct: number | null } | null>(null)
   const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean; stop_loss_pct: string } | null>(null)
@@ -3026,7 +3030,7 @@ export default function PanelPage() {
                             {fc.game_type === "baccarat" ? "바카라" : "레이스"}
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{fc.note} · {new Date(fc.created_at).toLocaleString("ko-KR")}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{fc.note} �� {new Date(fc.created_at).toLocaleString("ko-KR")}</p>
                       </div>
                       <p className="font-bold text-emerald-500 tabular-nums">₩{fc.collected_amount.toLocaleString()}</p>
                     </div>
@@ -3861,7 +3865,7 @@ export default function PanelPage() {
             {/* 환전 요청 생성 */}
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-primary" /> 환전 요청</h2>
-              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인트를 입력하면 대총판/마스터가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
+              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인���를 입력하면 대총판/마스터가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
               <div className="flex gap-2 flex-wrap">
                 <Input placeholder="유저 아이디" value={exTargetId} onChange={e => setExTargetId(e.target.value)} className="h-9 text-sm w-40" />
                 <Input placeholder="포인트 금액" type="number" value={exPointAmt} onChange={e => setExPointAmt(e.target.value)} className="h-9 text-sm w-36" />
@@ -4755,7 +4759,7 @@ export default function PanelPage() {
             {/* 섹션 3: 채널 메시지 직접 ���송 */}
             <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-3">
               <p className="text-sm font-semibold text-foreground">채널 메시지 전송</p>
-              <p className="text-xs text-muted-foreground">충전 채널 <span className="font-mono text-foreground">-1004471984422</span> 로 메시지를 직접 전송합니다.</p>
+              <p className="text-xs text-muted-foreground">충�� 채널 <span className="font-mono text-foreground">-1004471984422</span> 로 메시지를 직접 전송합니다.</p>
               <textarea value={pwTgMsg} onChange={e => setPwTgMsg(e.target.value)}
                 placeholder="전송할 메시지를 입력하세요."
                 rows={4}
@@ -5131,7 +5135,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">계정명 (TVM account name)</label>
+                        <label className="text-xs text-muted-foreground">계���명 (TVM account name)</label>
                         <input
                           value={accForm.account_name}
                           onChange={e => setAccForm(s => ({ ...s, account_name: e.target.value }))}
@@ -5694,7 +5698,18 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     {signalRules.map(rule => (
                       <div key={rule.signal_type} className="flex items-center justify-between px-5 py-3">
                         <span className="text-sm font-mono text-foreground">{rule.signal_type}</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <input type="checkbox" checked={rule.stop_loss_enabled ?? false} onChange={e => {
+                              const next = e.target.checked
+                              setSignalRules(prev => prev.map(r => r.signal_type === rule.signal_type ? { ...r, stop_loss_enabled: next } : r))
+                            }} /> SL
+                          </label>
+                          <input aria-label={`${rule.signal_type} stop loss percent`} type="number" min={0.1} max={100} step={0.1} placeholder="SL %" value={rule.stop_loss_percent ?? ""} onChange={e => setSignalRules(prev => prev.map(r => r.signal_type === rule.signal_type ? { ...r, stop_loss_percent: e.target.value === "" ? null : Number(e.target.value) } : r))} className="h-7 w-16 rounded-lg bg-secondary px-2 text-xs" />
+                          <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <input type="checkbox" checked={rule.take_profit_enabled ?? false} onChange={e => setSignalRules(prev => prev.map(r => r.signal_type === rule.signal_type ? { ...r, take_profit_enabled: e.target.checked } : r))} /> TP
+                          </label>
+                          <input aria-label={`${rule.signal_type} take profit percent`} type="number" min={0.1} max={100} step={0.1} placeholder="TP %" value={rule.take_profit_percent ?? ""} onChange={e => setSignalRules(prev => prev.map(r => r.signal_type === rule.signal_type ? { ...r, take_profit_percent: e.target.value === "" ? null : Number(e.target.value) } : r))} className="h-7 w-16 rounded-lg bg-secondary px-2 text-xs" />
                           {/* 방향 토글 */}
                           <button
                             disabled={rulesSaving === rule.signal_type}
@@ -5706,7 +5721,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                                 const res = await fetch("/api/auto-signal/rules", {
                                   method: "PATCH",
                                   headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                                  body: JSON.stringify({ signal_type: rule.signal_type, direction: next }),
+                                  body: JSON.stringify({ signal_type: rule.signal_type, direction: next, stop_loss_enabled: rule.stop_loss_enabled ?? false, stop_loss_percent: rule.stop_loss_percent, take_profit_enabled: rule.take_profit_enabled ?? false, take_profit_percent: rule.take_profit_percent }),
                                 })
                                 if (res.ok) {
                                   setSignalRules(prev => prev.map(r =>
@@ -5733,7 +5748,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                                 const res = await fetch("/api/auto-signal/rules", {
                                   method: "PATCH",
                                   headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                                  body: JSON.stringify({ signal_type: rule.signal_type, enabled: next }),
+                                  body: JSON.stringify({ signal_type: rule.signal_type, enabled: next, stop_loss_enabled: rule.stop_loss_enabled ?? false, stop_loss_percent: rule.stop_loss_percent, take_profit_enabled: rule.take_profit_enabled ?? false, take_profit_percent: rule.take_profit_percent }),
                                 })
                                 if (res.ok) {
                                   setSignalRules(prev => prev.map(r =>
@@ -5749,6 +5764,20 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                             }`}>
                             {rule.enabled ? "ON" : "OFF"}
                           </button>
+                          <button
+                            disabled={rulesSaving === rule.signal_type}
+                            onClick={async () => {
+                              setRulesSaving(rule.signal_type)
+                              try {
+                                const tok = localStorage.getItem("app_token") ?? ""
+                                const res = await fetch("/api/auto-signal/rules", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ signal_type: rule.signal_type, stop_loss_enabled: rule.stop_loss_enabled ?? false, stop_loss_percent: rule.stop_loss_percent, take_profit_enabled: rule.take_profit_enabled ?? false, take_profit_percent: rule.take_profit_percent }) })
+                                if (res.ok) {
+                                  const saved = await res.json()
+                                  setSignalRules(prev => prev.map(r => r.signal_type === rule.signal_type ? { ...r, ...saved } : r))
+                                }
+                              } finally { setRulesSaving(null) }
+                            }}
+                            className="h-7 rounded-lg border border-primary/40 px-2 text-[11px] text-primary disabled:opacity-50">위험 저장</button>
                         </div>
                       </div>
                     ))}

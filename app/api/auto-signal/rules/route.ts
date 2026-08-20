@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 /**
  * GET  /api/auto-signal/rules          — 전체 시그널 규칙 조회
  * PATCH /api/auto-signal/rules         — 규칙 변경 (master 전용)
- *   body: { signal_type, direction?, enabled? }
+ *   body: { signal_type, direction?, enabled?, stop_loss_enabled?, stop_loss_percent?, take_profit_enabled?, take_profit_percent? }
  */
 
 import "server-only"
@@ -44,7 +44,7 @@ export async function PATCH(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}))
-  const { signal_type, direction, enabled } = body
+  const { signal_type, direction, enabled, stop_loss_enabled, stop_loss_percent, take_profit_enabled, take_profit_percent } = body
 
   if (!signal_type) {
     return NextResponse.json({ error: "signal_type required" }, { status: 400 })
@@ -53,6 +53,17 @@ export async function PATCH(req: Request) {
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (direction !== undefined) update.direction = direction
   if (enabled   !== undefined) update.enabled   = Boolean(enabled)
+  if (stop_loss_enabled !== undefined) update.stop_loss_enabled = Boolean(stop_loss_enabled)
+  if (stop_loss_percent !== undefined) update.stop_loss_percent = stop_loss_percent === null ? null : Number(stop_loss_percent)
+  if (take_profit_enabled !== undefined) update.take_profit_enabled = Boolean(take_profit_enabled)
+  if (take_profit_percent !== undefined) update.take_profit_percent = take_profit_percent === null ? null : Number(take_profit_percent)
+
+  for (const key of ["stop_loss_percent", "take_profit_percent"]) {
+    const value = update[key]
+    if (value !== undefined && value !== null && (!Number.isFinite(value as number) || (value as number) <= 0 || (value as number) > 100)) {
+      return NextResponse.json({ error: `${key} must be between 0 and 100` }, { status: 400 })
+    }
+  }
 
   const { data, error } = await adminSupabase
     .from("auto_signal_rules")

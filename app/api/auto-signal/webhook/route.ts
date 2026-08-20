@@ -80,7 +80,7 @@ export async function POST(req: Request) {
   // 자동매매 전역 설정 + 시그널 규칙 + TVM 글로벌 설정 병렬 조회
   const [{ data: settings }, { data: rule }, { data: tradingGs }] = await Promise.all([
     adminSupabase.from("auto_signal_settings").select("size_usd, leverage, enabled").eq("id", 1).single(),
-    adminSupabase.from("auto_signal_rules").select("direction, enabled").eq("signal_type", type).single(),
+    adminSupabase.from("auto_signal_rules").select("direction, enabled, stop_loss_enabled, stop_loss_percent, take_profit_enabled, take_profit_percent").eq("signal_type", type).single(),
     adminSupabase.from("auto_trading_global_settings").select("webhook_url, enabled").eq("id", 1).single(),
   ])
 
@@ -218,8 +218,8 @@ export async function POST(req: Request) {
         side,
         amount:   Number(acc.base_amount),
         leverage: Number(acc.leverage),
-        tpPct:    acc.take_profit_enabled ? (acc.take_profit_percent as number) : null,
-        slPct:    acc.stop_loss_enabled   ? (acc.stop_loss_percent   as number) : null,
+        tpPct:    rule?.take_profit_enabled ? Number(rule.take_profit_percent) : (acc.take_profit_enabled ? Number(acc.take_profit_percent) : null),
+        slPct:    rule?.stop_loss_enabled ? Number(rule.stop_loss_percent) : (acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null),
         token:    acc.auth_token as string,
       })
 
@@ -351,7 +351,7 @@ async function handleSignal2(args: {
 
   const [{ data: settings2 }, { data: rule2 }] = await Promise.all([
     adminSupabase.from("auto_signal2_settings").select("size_usd, leverage, enabled, real_order_enabled, stop_loss_pct").eq("id", 1).single(),
-    adminSupabase.from("auto_signal_rules").select("direction, enabled").eq("signal_type", type).single(),
+    adminSupabase.from("auto_signal_rules").select("direction, enabled, stop_loss_enabled, stop_loss_percent, take_profit_enabled, take_profit_percent").eq("signal_type", type).single(),
   ])
 
   if (!settings2?.enabled) {
@@ -423,8 +423,8 @@ async function handleSignal2(args: {
               side,
               amount:   Number(settings2.size_usd ?? acc.base_amount),
               leverage: Number(settings2.leverage ?? acc.leverage),
-              tpPct:    acc.take_profit_enabled ? (acc.take_profit_percent as number) : null,
-              slPct:    acc.stop_loss_enabled   ? (acc.stop_loss_percent   as number) : null,
+              tpPct:    rule2?.take_profit_enabled ? Number(rule2.take_profit_percent) : (acc.take_profit_enabled ? Number(acc.take_profit_percent) : null),
+              slPct:    rule2?.stop_loss_enabled ? Number(rule2.stop_loss_percent) : (acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null),
               token:    acc.auth_token as string,
             })
             try {
