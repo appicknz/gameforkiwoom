@@ -38,6 +38,8 @@ export function PortalHeader() {
   const [searchOpen] = useState(true)
   const [boardActive, setBoardActive] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [menuGroups, setMenuGroups] = useState({ group1: false, group2: false, group3: false })
   const [, refreshSymbols] = useState(0)
   useEffect(() => {
     setBoardActive(pathname === "/board")
@@ -63,8 +65,11 @@ export function PortalHeader() {
       const token = localStorage.getItem("app_token")
       if (!token) {
         setUsername(null)
+        setIsLoggedIn(false)
+        setMenuGroups({ group1: false, group2: false, group3: false })
         return
       }
+      setIsLoggedIn(true)
       try {
         const response = await fetch("/api/user/profile", {
           headers: { Authorization: `Bearer ${token}` },
@@ -75,8 +80,13 @@ export function PortalHeader() {
         }
         const data = await response.json()
         setUsername(data.profile?.username ?? null)
+        const groupsResponse = await fetch("/api/user/menu-groups", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (groupsResponse.ok) setMenuGroups(await groupsResponse.json())
       } catch {
         setUsername(null)
+        setMenuGroups({ group1: false, group2: false, group3: false })
       }
     }
 
@@ -132,8 +142,18 @@ export function PortalHeader() {
   }, [pathname])
 
   const portalItems = useMemo(() => {
-    const items: Array<{ label: string; href: string; icon: typeof Bot; mode?: TradeMode }> = [...basePortalItems]
-    if (username === "역삼1") {
+    const publicLabels = new Set(["바카", "레이스", "트레이딩", "게시판", "마켓", "매매기록"])
+    const groupForLabel: Record<string, keyof typeof menuGroups> = {
+      "현황": "group3", "랭킹": "group3", "토너먼트": "group3",
+      "자동매매": "group1", "구매내역": "group2", "입금": "group2",
+      "판매관리": "group2", "정산관리": "group2", "지갑": "group2",
+    }
+    const items: Array<{ label: string; href: string; icon: typeof Bot; mode?: TradeMode }> = basePortalItems.filter((item) => {
+      if (publicLabels.has(item.label)) return true
+      const requiredGroup = groupForLabel[item.label]
+      return isLoggedIn && !!requiredGroup && menuGroups[requiredGroup]
+    })
+    if (isLoggedIn && username === "역삼1") {
       const ledgerIndex = items.findIndex((item) => item.mode === "ledger")
       items.splice(ledgerIndex + 1, 0,
         { label: "자동매매2", href: "/trade", icon: Bot, mode: "auto2" },
@@ -141,7 +161,7 @@ export function PortalHeader() {
       )
     }
     return items
-  }, [username])
+  }, [isLoggedIn, menuGroups, username])
 
   function selectSymbol(symbol: string) {
     setQuery("")
