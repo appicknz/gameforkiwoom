@@ -714,7 +714,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
         }
         // ───────────���──────────────────────────────────────────────────
 
-        // ─������� 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
+        // ─��������� 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
         // confirmedMargin이 없으면 포지션 수 × size_usd 폴백
         const margin = confirmedMargin > 0 ? confirmedMargin : cnt * sizeUsdCfg
@@ -1100,7 +1100,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
       const kstDate = kstTodayStr()
 
-      // 2. 오늘 ���매���록��� PNL 저장
+      // 2. 오늘 ���매�����록��� PNL 저장
       const saveRes = await fetch("/api/auto-signal/rebalance", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshTok}` },
@@ -1301,7 +1301,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
           if (total === 0 && activeRois.length === 0) return null
 
           // 전략 평가는 종료 거래 50건부터 의미가 ���음.
-          // 표본이 부족할 때는 PF·승률·기대값으로 성급한 판정을 내리지 않고 수집 �����률만 표시한다.
+          // 표본이 부족할 때는 PF·승률·기대값으로 성급한 판정을 내리지 않고 수집 �������률만 표시한다.
           const MIN_HEALTH_SAMPLE = 50
           if (total < MIN_HEALTH_SAMPLE) {
             const samplePct = Math.min(total / MIN_HEALTH_SAMPLE * 100, 100)
@@ -2086,8 +2086,9 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
       body: JSON.stringify({ id: pos.id, direction: next }),
     })
     if (res.ok) {
-      const updated = await res.json()
-      setPositions(prev => prev.map(p => p.id === pos.id ? { ...p, direction: next, roi: updated.roi, pnl: updated.pnl } : p))
+      // ROI/PNL은 posCalc가 실시간 가격 기준으로 매 렌더마다 다시 계산하므로
+      // direction만 갱신하면 화면에 반대 방향 ROI가 즉시 반영된다.
+      setPositions(prev => prev.map(p => p.id === pos.id ? { ...p, direction: next } : p))
     } else {
       const d = await res.json().catch(() => ({}))
       alert(d.error ?? "포지션 방향 변경 실패")
@@ -2461,7 +2462,7 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
     }
   }, [fetchPositions2, isToday])
 
-  // 스탑로스 + 포지션당 금액 + 시작 잔고 설정 조회 (마운트 시 1회)
+  // 스탑로스 + 포지션당 금액 + 시작 잔고 설정 ���회 (마운트 시 1회)
   useEffect(() => {
     fetch("/api/auto-signal2/settings")
       .then(r => r.ok ? r.json() : null)

@@ -285,14 +285,27 @@ export async function PATCH(req: Request) {
     update.entry_price = price
   }
   if (["long", "short"].includes(direction)) {
-    const { data: pos } = await adminSupabase.from("auto_signal_positions").select("direction, entry_price, current_price, leverage, size_usd").eq("id", id).eq("is_closed", false).maybeSingle()
+    // 참고: auto_signal_positions 테이블에는 current_price/roi/pnl 컬럼이 없음 —
+    // ROI/PNL은 클라이언트가 실시간 가격(pos.cur)으로 매 렌더마다 재계산하므로
+    // 서버는 direction(및 entry_price)만 갱신하고 존재 여부만 확인한다.
+    const { data: pos, error: fetchErr } = await adminSupabase
+      .from("auto_signal_positions")
+      .select("id")
+      .eq("id", id)
+      .eq("is_closed", false)
+      .maybeSingle()
+    if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
     if (!pos) return NextResponse.json({ error: "position not found or already closed" }, { status: 404 })
-    const entry = Number(update.entry_price ?? pos.entry_price), current = Number(pos.current_price ?? pos.entry_price), lev = Number(pos.leverage ?? 1)
-    const move = entry > 0 ? (direction === "long" ? current - entry : entry - current) / entry : 0
-    update.direction = direction; update.roi = move * 100 * lev; update.pnl = Number(pos.size_usd ?? 0) * move * lev
+    update.direction = direction
   }
   const { data, error } = await adminSupabase.from("auto_signal_positions").update(update).eq("id", id).eq("is_closed", false).select("*").maybeSingle()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    // 동일 심볼/방향/날짜 조합의 포지션이 이미 존재하는 경우 (uq_asp_symbol_direction_date)
+    if (error.code === "23505") {
+      return NextResponse.json({ error: "같은 심볼·방향의 포지션이 오늘 이미 존재하여 전환할 수 없습니다." }, { status: 409 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   if (!data) return NextResponse.json({ error: "position not found or already closed" }, { status: 404 })
   return NextResponse.json(data)
 }
