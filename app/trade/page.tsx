@@ -863,8 +863,8 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
               borderBottom: `1px solid rgba(212,175,55,0.04)`,
               background: isSl ? "rgba(239,68,68,0.04)" : undefined,
             }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
                 <span style={{
                   width: 18, height: 18, borderRadius: 4, fontSize: 9, fontWeight: 900,
                   display: "flex", alignItems: "center", justifyContent: "center",
@@ -872,9 +872,9 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
                   color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
                 }}>{pos.direction === "long" ? "L" : "S"}</span>
                 <span style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
-                    {baseSymbol}/USDT
-                  </span>
-                  <span style={{
+                  {baseSymbol}/USDT
+                </span>
+                <span style={{
                     padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
                     background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)",
                   }}>{lev}x</span>
@@ -1301,7 +1301,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
           if (total === 0 && activeRois.length === 0) return null
 
           // 전략 평가는 종료 거래 50건부터 의미가 ���음.
-          // 표본이 부족할 때는 PF·승률·기대값으로 성급한 판정을 내리지 않고 수집 ���행률만 표시한다.
+          // 표본이 부족할 때는 PF·승률·기대값으로 성급한 판정을 내리지 않고 수집 �����률만 표시한다.
           const MIN_HEALTH_SAMPLE = 50
           if (total < MIN_HEALTH_SAMPLE) {
             const samplePct = Math.min(total / MIN_HEALTH_SAMPLE * 100, 100)
@@ -1339,7 +1339,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
             )
           }
 
-          // ── 지표 계산 ───────────────────────────────────────────������─
+          // ── 지표 계산 ─────────────────────────────────��─────────������─
           // wCnt = winners(pnl>0), lCnt = losers(pnl<0, non-SL), slCnt = SL청산
           const totalClosed = total
           const winRate    = totalClosed > 0 ? wCnt / totalClosed * 100 : 0
@@ -2297,12 +2297,18 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
             {/* 상단행: 방향뱃지 + 심볼 + 레버리지 + ROI | IN시각 + PnL */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span style={{
-                  width: 18, height: 18, borderRadius: 4, fontSize: 9, fontWeight: 900,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: pos.direction === "long" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
-                  color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
-                }}>{pos.direction === "long" ? "L" : "S"}</span>
+                <button
+                  type="button"
+                  onClick={() => toggleAutoDirection(pos)}
+                  disabled={userRole !== "master" || pos.is_closed}
+                  title={userRole === "master" && !pos.is_closed ? "클릭하여 방향 전환" : undefined}
+                  style={{
+                    width: 18, height: 18, borderRadius: 4, fontSize: 9, fontWeight: 900,
+                    display: "flex", alignItems: "center", justifyContent: "center", border: "none", padding: 0,
+                    cursor: userRole === "master" && !pos.is_closed ? "pointer" : "default",
+                    background: pos.direction === "long" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+                    color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
+                  }}>{pos.direction === "long" ? "L" : "S"}</button>
                 <span style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
                   {baseSymbol}/USDT
                 </span>
