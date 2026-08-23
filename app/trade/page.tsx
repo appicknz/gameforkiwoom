@@ -865,14 +865,13 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                <button type="button" onClick={() => toggleAutoDirection(pos)} disabled={userRole !== "master" || pos.is_closed} title={userRole === "master" && !pos.is_closed ? "클릭하여 방향 전환" : undefined} style={{
+                <span style={{
                   width: 18, height: 18, borderRadius: 4, fontSize: 9, fontWeight: 900,
-                  display: "flex", alignItems: "center", justifyContent: "center", border: "none", padding: 0,
-                  cursor: userRole === "master" && !pos.is_closed ? "pointer" : "default",
+                  display: "flex", alignItems: "center", justifyContent: "center",
                   background: pos.direction === "long" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
                   color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
-                }}>{pos.direction === "long" ? "L" : "S"}</button>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
+                }}>{pos.direction === "long" ? "L" : "S"}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
                     {baseSymbol}/USDT
                   </span>
                   <span style={{
