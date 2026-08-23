@@ -33,14 +33,15 @@ export async function POST(req: Request) {
     .eq("id", id)
     .single()
 
-  // closed_roi = -(stop_loss_pct × leverage) 고정
-  // 예) stop_loss_pct=5, leverage=10 → -50%
-  const leverage    = Number(pos?.leverage ?? cfg?.leverage ?? 1)
-  const sizeUsd     = Number(pos?.size_usd ?? cfg?.size_usd ?? 20)
-  // 청산 기준: ROI -45% (실제 거래소 청산보다 5% 앞서 종료)
-  const fixedRoi    = -45
-  // PNL: $20 × 50% 손실 = -$10 (레버리지 10배 기준 5% SL × 10 = 50% 마진 손실)
-  const fixedPnl    = -(sizeUsd * 0.5)
+  // SL 손실은 레버리지와 무관하게 진입 증거금(size_usd)에 설정 비율을 적용합니다.
+  // 예) size_usd=$20, stop_loss_pct=5 → final_pnl=-$1
+  const leverage = Number(pos?.leverage ?? cfg?.leverage ?? 1)
+  const sizeUsd = Number(pos?.size_usd ?? cfg?.size_usd ?? 20)
+  const stopLossPct = Number(cfg?.stop_loss_pct ?? 5)
+  const safeStopLossPct = Number.isFinite(stopLossPct) && stopLossPct > 0 && stopLossPct <= 100 ? stopLossPct : 5
+  // ROI는 레버리지 기준으로 표시하되, 실제 손익은 진입금액 기준으로 계산합니다.
+  const fixedRoi = -(safeStopLossPct * leverage)
+  const fixedPnl = -(sizeUsd * safeStopLossPct / 100)
   // 수수료: 진입 0.03% + 청산 0.03% = 0.06% × size_usd
   const fee         = sizeUsd * 0.0006
 
