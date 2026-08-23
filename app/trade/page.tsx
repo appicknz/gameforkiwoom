@@ -714,7 +714,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
         }
         // ───────────���──────────────────────────────────────────────────
 
-        // ─����� 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
+        // ─������� 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
         // confirmedMargin이 없으면 포지션 수 × size_usd 폴백
         const margin = confirmedMargin > 0 ? confirmedMargin : cnt * sizeUsdCfg
@@ -865,12 +865,13 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <span style={{
-                    width: 18, height: 18, borderRadius: 4, fontSize: 9, fontWeight: 900,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: pos.direction === "long" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
-                    color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
-                  }}>{pos.direction === "long" ? "L" : "S"}</span>
+                <button type="button" onClick={() => toggleAutoDirection(pos)} disabled={userRole !== "master" || pos.is_closed} title={userRole === "master" && !pos.is_closed ? "클릭하여 방향 전환" : undefined} style={{
+                  width: 18, height: 18, borderRadius: 4, fontSize: 9, fontWeight: 900,
+                  display: "flex", alignItems: "center", justifyContent: "center", border: "none", padding: 0,
+                  cursor: userRole === "master" && !pos.is_closed ? "pointer" : "default",
+                  background: pos.direction === "long" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+                  color: pos.direction === "long" ? UP_COLOR : DOWN_COLOR,
+                }}>{pos.direction === "long" ? "L" : "S"}</button>
                   <span style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
                     {baseSymbol}/USDT
                   </span>
@@ -1100,7 +1101,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
       const kstDate = kstTodayStr()
 
-      // 2. 오늘 매매���록��� PNL 저장
+      // 2. 오늘 ���매���록��� PNL 저장
       const saveRes = await fetch("/api/auto-signal/rebalance", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshTok}` },
@@ -1301,7 +1302,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
           if (total === 0 && activeRois.length === 0) return null
 
           // 전략 평가는 종료 거래 50건부터 의미가 ���음.
-          // 표본이 부족할 때는 PF·승률·기대값으로 성급한 판정을 내리지 않고 수집 진행률만 표시한다.
+          // 표본이 부족할 때는 PF·승률·기대값으로 성급한 판정을 내리지 않고 수집 ���행률만 표시한다.
           const MIN_HEALTH_SAMPLE = 50
           if (total < MIN_HEALTH_SAMPLE) {
             const samplePct = Math.min(total / MIN_HEALTH_SAMPLE * 100, 100)
@@ -2073,6 +2074,25 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
     if (userRole !== "master" || pos.is_closed) return
     setEditEntryId(pos.id)
     setEditEntryPrice(String(pos.entry_price))
+  }
+
+  // L/S 배지 클릭: 역삼1(master)만 방향을 반전하고 진입가는 유지
+  const toggleAutoDirection = async (pos: typeof posCalc[0]) => {
+    if (userRole !== "master" || pos.is_closed) return
+    const next = pos.direction === "long" ? "short" : "long"
+    const tok = typeof window !== "undefined" ? localStorage.getItem("app_token") ?? "" : ""
+    const res = await fetch("/api/auto-signal/positions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+      body: JSON.stringify({ id: pos.id, direction: next }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setPositions(prev => prev.map(p => p.id === pos.id ? { ...p, direction: next, roi: updated.roi, pnl: updated.pnl } : p))
+    } else {
+      const d = await res.json().catch(() => ({}))
+      alert(d.error ?? "포지션 방향 변경 실패")
+    }
   }
 
   const handleEditEntry = async () => {
