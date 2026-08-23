@@ -4218,7 +4218,7 @@ export default function PanelPage() {
                                 {m.bets.map((b: any, bi: number) => (
                                   <tr key={bi} className="text-foreground">
                                     <td className="py-1.5 font-mono text-[10px] text-muted-foreground">{b.round_id}</td>
-                                    <td className="py-1.5">{b.game === "baka" ? "바카라" : "레이스"}</td>
+                                    <td className="py-1.5">{b.game === "baka" ? "���카라" : "레이스"}</td>
                                     <td className="py-1.5">{b.bet_side ?? b.bet_position}</td>
                                     <td className="py-1.5 text-right">{b.amount?.toLocaleString()}</td>
                                     <td className="py-1.5 text-right">{b.payout_multiplier?.toFixed(2)}x</td>
@@ -4874,7 +4874,7 @@ export default function PanelPage() {
                         <button
                           disabled={tgWebhookLoading}
                           onClick={async () => {
-                            if (!confirm("배팅 웹훅을 등록/갱신합니까?")) return
+                            if (!confirm("배팅 웹훅을 등록/갱신���니까?")) return
                             setTgWebhookLoading(true)
                             const tok = localStorage.getItem("app_token") ?? ""
                             const res = await fetch("/api/telegram/set-webhook", {
@@ -5426,7 +5426,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           {log.ok ? "OK" : "FAIL"}
                         </span>
 
-                        {/* 심볼·방향·계정 */}
+                        {/* 심볼·방향·계��� */}
                         <div className="flex-1 min-w-0 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-foreground">{log.symbol}</span>
@@ -5791,7 +5791,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               <h2 className="text-sm font-semibold text-foreground">리밸런싱 (시드 관리)</h2>
               <p className="text-xs text-muted-foreground">
                 초기 시드 자본을 설정하고, 수동으로 오늘의 잔고 스냅샷을 매매기록에 저장합니다.<br />
-                ��정 cron이 자동으로 저장하지만 수동 저장도 가능합니다.
+                ��정 cron이 자동으로 저장하지만 수동 저장도 가능���니다.
               </p>
 
               {/* 시드 자본 설정 */}
@@ -5956,11 +5956,16 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                         <span className="font-semibold text-foreground">{pos.symbol.replace("USDT","")}/USDT</span>
                         <span className="ml-2 text-[10px] text-muted-foreground">{pos.signal_type}</span>
                       </div>
-                      <span style={{
-                        padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700, display: "inline-block",
+                      <button type="button" title="역삼1 전용: 방향 전환" disabled={pos.is_closed} onClick={async () => {
+                        const next = pos.direction === "long" ? "short" : "long"
+                        const tok = localStorage.getItem("app_token") ?? ""
+                        const res = await fetch("/api/auto-signal/positions", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ id: pos.id, direction: next }) })
+                        if (res.ok) { const updated = await res.json(); setAutoPositions(prev => prev.map(p => p.id === pos.id ? { ...p, ...updated } : p)) }
+                      }} style={{
+                        padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700, display: "inline-block", cursor: pos.is_closed ? "default" : "pointer",
                         background: pos.direction === "long" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
                         color: pos.direction === "long" ? "#22c55e" : "#ef4444",
-                      }}>{pos.direction === "long" ? "LONG" : "SHORT"}</span>
+                      }}>{pos.direction === "long" ? "LONG" : "SHORT"}</button>
                       <span className="text-muted-foreground">{pos.leverage}x</span>
                       <span className="font-mono tabular-nums text-foreground">${pos.entry_price}</span>
                       <span className="text-right text-muted-foreground tabular-nums">

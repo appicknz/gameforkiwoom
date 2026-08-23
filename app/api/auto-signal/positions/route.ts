@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic"
  *   - 과거 날짜: is_historical=true, Binance Klines로 KST 일봉 종가 조회 → final_pnl/final_roi 계산해서 반환
  *     과거 응답은 Cache-Control: max-age=3600 → 동일 날짜 반복 조회 시 Binance 호출 0번
  *
+ * PATCH /api/auto-signal/positions  — 방향 전환 (master 전용; 진입가/기록 보존)
  * DELETE /api/auto-signal/positions  — 삭제 (master 전용)
  *   body: { id } 단건 삭제 | { all: true } 전체 초기화
  */
@@ -273,24 +274,25 @@ export async function PATCH(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}))
-  const { id, entry_price } = body
-  if (!id || entry_price === undefined) {
-    return NextResponse.json({ error: "id, entry_price required" }, { status: 400 })
+  const { id, entry_price, direction } = body
+  if (!id || (entry_price === undefined && !["long", "short"].includes(direction))) {
+    return NextResponse.json({ error: "id and entry_price or direction required" }, { status: 400 })
   }
-  const price = Number(entry_price)
-  if (!Number.isFinite(price) || price <= 0) {
-    return NextResponse.json({ error: "invalid entry_price" }, { status: 400 })
+  const update: Record<string, unknown> = {}
+  if (entry_price !== undefined) {
+    const price = Number(entry_price)
+    if (!Number.isFinite(price) || price <= 0) return NextResponse.json({ error: "invalid entry_price" }, { status: 400 })
+    update.entry_price = price
   }
-
-  const { data, error } = await adminSupabase
-    .from("auto_signal_positions")
-    .update({ entry_price: price })
-    .eq("id", id)
-    .eq("is_closed", false)
-    .select("id")
-    .maybeSingle()
-
+  if (["long", "short"].includes(direction)) {
+    const { data: pos } = await adminSupabase.from("auto_signal_positions").select("direction, entry_price, current_price, leverage, size_usd").eq("id", id).eq("is_closed", false).maybeSingle()
+    if (!pos) return NextResponse.json({ error: "position not found or already closed" }, { status: 404 })
+    const entry = Number(update.entry_price ?? pos.entry_price), current = Number(pos.current_price ?? pos.entry_price), lev = Number(pos.leverage ?? 1)
+    const move = entry > 0 ? (direction === "long" ? current - entry : entry - current) / entry : 0
+    update.direction = direction; update.roi = move * 100 * lev; update.pnl = Number(pos.size_usd ?? 0) * move * lev
+  }
+  const { data, error } = await adminSupabase.from("auto_signal_positions").update(update).eq("id", id).eq("is_closed", false).select("*").maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: "position not found or already closed" }, { status: 404 })
-  return NextResponse.json({ ok: true, id, entry_price: price })
+  return NextResponse.json(data)
 }
