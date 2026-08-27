@@ -1756,7 +1756,7 @@ export default function PanelPage() {
               {/* 행 1: 회원관리~현금/환전 */}
               <button onClick={() => setActiveTab("users")}       className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "users"      ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Users className="w-4 h-4" /> 회원관리</button>
               <button onClick={() => setActiveTab("branches")}    className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "branches"   ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><GitBranch className="w-4 h-4" /> 지점관리</button>
-              <button onClick={() => setActiveTab("monitor")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "monitor"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Activity className="w-4 h-4" /> ��운�� 모니터</button>
+              <button onClick={() => setActiveTab("monitor")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "monitor"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Activity className="w-4 h-4" /> ���운�� 모니터</button>
               <button onClick={() => setActiveTab("history")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "history"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><TrendingDown className="w-4 h-4" /> 라운드 기록</button>
               <button onClick={() => { setActiveTab("points"); loadPpRequests(); loadPcRequests() }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "points"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Wallet className="w-4 h-4" /> 포인트</button>
               <button onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests() }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "cash"      ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Banknote className="w-4 h-4" /> 현금/환전</button>
@@ -2951,7 +2951,7 @@ export default function PanelPage() {
                   <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : houseStats.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">아직 집�� 데이���가 없습니다.</div>
+                <div className="py-10 text-center text-sm text-muted-foreground">아직 ���� 데이���가 없습니다.</div>
               ) : (
                 <div className="divide-y divide-border">
                   {houseStats.map(stat => {
@@ -5452,13 +5452,13 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                           {/* TVM 응답 */}
                           {log.tvm_response && (
-                            <p className="text-muted-foreground text-[10px] font-mono truncate max-w-lg">{log.tvm_response}</p>
+                            <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded bg-secondary/40 p-2 text-[10px] font-mono text-muted-foreground">{log.tvm_response}</pre>
                           )}
 
-                          {/* TVM 구문 (토글 없이 truncate) */}
-                          {log.tvm_str && (
-                            <p className="text-[10px] font-mono text-muted-foreground/60 truncate max-w-lg">{log.tvm_str.slice(0, 120)}...</p>
-                          )}
+  {/* 전체 TVM 전송 문자열 */}
+  {log.tvm_str && (
+  <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded bg-secondary/60 p-2 text-[10px] font-mono text-muted-foreground">{log.tvm_str}</pre>
+  )}
                         </div>
 
                         {/* 시간 */}
@@ -6339,7 +6339,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               <div>
                 <h2 className="text-base font-semibold text-foreground">미반영 입금 수동 처리</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  인덱서가 ��친 트랜잭션의 Solana signature를 입력하면 즉시 잔고를 반영합니다.
+                  인덱서가 ���친 트랜잭션의 Solana signature를 입력하면 즉시 잔고를 반영합니다.
                   이미 처리된 signature는 중복 적립되지 않습니다.
                 </p>
               </div>
