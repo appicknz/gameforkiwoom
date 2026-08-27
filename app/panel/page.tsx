@@ -238,7 +238,7 @@ export default function PanelPage() {
   const [rebalSaving,      setRebalSaving]      = useState(false)
   const [rebalMsg,         setRebalMsg]         = useState<string | null>(null)
 
-  // 자동주��� 서브탭 state
+  // 자동주문 서브탭 state
   const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs" | "seed">("signal")
   const [initialSeed,     setInitialSeed]     = useState<string>("")
   const [withdrawAmount,  setWithdrawAmount]  = useState<string>("")
@@ -811,7 +811,7 @@ export default function PanelPage() {
     })
     const data = await res.json()
     if (!res.ok) {
-      setPwError("인증에 실패���습니다.")
+      setPwError("인증에 실패했습니다.")
       setAdminPw("")
     } else {
       const loaded: User[] = data.users ?? []
@@ -1481,7 +1481,7 @@ export default function PanelPage() {
             {/* 생성 완료 — 계정 정보 표시 */}
             {baCreatedInfo ? (
               <div className="space-y-4">
-                <p className="text-xs text-muted-foreground">지점이 ��성됐습니다. 아래 정보를 지점에 전달하세요.</p>
+                <p className="text-xs text-muted-foreground">지점이 생성됐습니다. 아래 정보를 지점에 전달하세요.</p>
                 <div className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">로그인 ID (지점코드)</span>
@@ -1664,7 +1664,7 @@ export default function PanelPage() {
               </div>
               <div className="space-y-2 mb-3">
                 <div>
-                  <p className="text-xs font-medium text-foreground mb-1">요율 입력 <span className="text-muted-foreground font-normal">(예: 1.2 → {cashAmt > 0 ? `₩${Math.floor(cashAmt * 1.2).toLocaleString()}` : "1.2배"} 지��)</span></p>
+                  <p className="text-xs font-medium text-foreground mb-1">요율 입력 <span className="text-muted-foreground font-normal">(예: 1.2 → {cashAmt > 0 ? `₩${Math.floor(cashAmt * 1.2).toLocaleString()}` : "1.2배"} 지급)</span></p>
                   <Input type="number" step="0.01" placeholder="예: 1.2" value={ppApprovePoints} onChange={e => setPpApprovePoints(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
@@ -1756,7 +1756,7 @@ export default function PanelPage() {
               {/* 행 1: 회원관리~현금/환전 */}
               <button onClick={() => setActiveTab("users")}       className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "users"      ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Users className="w-4 h-4" /> 회원관리</button>
               <button onClick={() => setActiveTab("branches")}    className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "branches"   ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><GitBranch className="w-4 h-4" /> 지점관리</button>
-              <button onClick={() => setActiveTab("monitor")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "monitor"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Activity className="w-4 h-4" /> ���운�� 모니터</button>
+              <button onClick={() => setActiveTab("monitor")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "monitor"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Activity className="w-4 h-4" /> 자동운영 모니터</button>
               <button onClick={() => setActiveTab("history")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "history"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><TrendingDown className="w-4 h-4" /> 라운드 기록</button>
               <button onClick={() => { setActiveTab("points"); loadPpRequests(); loadPcRequests() }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "points"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Wallet className="w-4 h-4" /> 포인트</button>
               <button onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests() }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "cash"      ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Banknote className="w-4 h-4" /> 현금/환전</button>
@@ -2951,7 +2951,7 @@ export default function PanelPage() {
                   <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : houseStats.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">아직 ���� 데이���가 없습니다.</div>
+                <div className="py-10 text-center text-sm text-muted-foreground">아직 저장된 데이터가 없습니다.</div>
               ) : (
                 <div className="divide-y divide-border">
                   {houseStats.map(stat => {
@@ -3664,7 +3664,7 @@ export default function PanelPage() {
                   {branchTab === "members" && (
                     <div className="divide-y divide-border">
                       {adminMembers.length === 0 && (
-                        <p className="py-8 text-center text-sm text-muted-foreground">��록된 회원이 없습니다.</p>
+                        <p className="py-8 text-center text-sm text-muted-foreground">등록된 회원이 없습니다.</p>
                       )}
                       {/* 헤더 */}
                       {adminMembers.length > 0 && (
@@ -3867,7 +3867,7 @@ export default function PanelPage() {
             {/* 환전 요청 생성 */}
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-primary" /> 환전 요청</h2>
-              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인���를 입력하면 대총판/마스터가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
+              <p className="text-xs text-muted-foreground">유저 아이디와 환전할 포인트를 입력하면 대총판/마스터가 승인합니다. 승인 시 해당 포인트가 차감됩니다.</p>
               <div className="flex gap-2 flex-wrap">
                 <Input placeholder="유저 아이디" value={exTargetId} onChange={e => setExTargetId(e.target.value)} className="h-9 text-sm w-40" />
                 <Input placeholder="포인트 금액" type="number" value={exPointAmt} onChange={e => setExPointAmt(e.target.value)} className="h-9 text-sm w-36" />
@@ -3880,7 +3880,7 @@ export default function PanelPage() {
                     body: JSON.stringify({ targetUsername: exTargetId, pointAmount: Number(exPointAmt), memo: exMemo }),
                   })
                   const d = await res.json()
-                  setExMsg(res.ok ? { text: "환전 요청됐습���다.", ok: true } : { text: d.error ?? "오류", ok: false })
+                  setExMsg(res.ok ? { text: "환전 요청됐습니다.", ok: true } : { text: d.error ?? "오류", ok: false })
                   if (res.ok) { setExTargetId(""); setExPointAmt(""); setExMemo(""); loadExRequests() }
                   setExSubmitting(false)
                 }}>요청</Button>
@@ -3893,11 +3893,11 @@ export default function PanelPage() {
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <h2 className="text-sm font-semibold text-foreground">환전 요청 목록</h2>
                 <Button variant="ghost" size="sm" onClick={loadExRequests} disabled={exLoading} className="text-xs gap-1.5">
-                  <RefreshCw className={`w-3.5 h-3.5 ${exLoading ? "animate-spin" : ""}`} /> 새로��침
+                  <RefreshCw className={`w-3.5 h-3.5 ${exLoading ? "animate-spin" : ""}`} /> 새로고침
                 </Button>
               </div>
               <div className="divide-y divide-border">
-                {exRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">���청이 없습니다.</p>}
+                {exRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
                 {exRequests.map((r: any) => (
                   <div key={r.id} className="px-5 py-4 flex items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -3905,7 +3905,7 @@ export default function PanelPage() {
                         <span className="text-sm font-medium text-foreground">{r.target_user?.username}</span>
                         <span className="text-xs font-semibold text-foreground">{r.point_amount?.toLocaleString()} P</span>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-                          {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거��"}
+                          {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거절"}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">요청자: {r.requester?.username} {r.memo ? `· ${r.memo}` : ""}</p>
@@ -3935,10 +3935,10 @@ export default function PanelPage() {
             </div>
             {exApproveMsg && <p className={`text-xs text-center ${exApproveMsg.ok ? "text-primary" : "text-destructive"}`}>{exApproveMsg.text}</p>}
 
-            {/* ���밀번호 초기화 요청 */}
+            {/* 비밀번호 초기화 요청 */}
             {["branch_admin", "admin"].includes(myRole) && (
               <div className="bg-card border border-border rounded-xl p-5 space-y-3">
-                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><KeyRound className="w-4 h-4 text-primary" /> 비밀번호 초기화 ��청</h2>
+                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><KeyRound className="w-4 h-4 text-primary" /> 비밀번호 초기화 요청</h2>
                 <div className="flex gap-2">
                   <Input placeholder="유저 아이디" value={prTargetId} onChange={e => setPrTargetId(e.target.value)} className="h-9 text-sm flex-1" />
                   <Button size="sm" className="h-9 shrink-0" disabled={prSubmitting} onClick={async () => {
@@ -3962,20 +3962,20 @@ export default function PanelPage() {
             {isSuperAdmin && (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-                  <h2 className="text-sm font-semibold text-foreground">비밀���호 초기화 요청 목��</h2>
+                  <h2 className="text-sm font-semibold text-foreground">비밀���호 초기화 요청 목록</h2>
                   <Button variant="ghost" size="sm" onClick={loadPrRequests} disabled={prLoading} className="text-xs gap-1.5">
                     <RefreshCw className={`w-3.5 h-3.5 ${prLoading ? "animate-spin" : ""}`} /> 새로고침
                   </Button>
                 </div>
                 <div className="divide-y divide-border">
-                  {prRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습��다.</p>}
+                  {prRequests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">요청이 없습니다.</p>}
                   {prRequests.map((r: any) => (
                     <div key={r.id} className="px-5 py-4 flex items-center justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium text-foreground">{r.target_user?.username}</span>
                           <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-                            {r.status === "pending" ? "대기" : r.status === "approved" ? "���료" : "거절"}
+                            {r.status === "pending" ? "대기" : r.status === "approved" ? "완료" : "거절"}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">요청자: {r.requester?.username}</p>
@@ -3996,7 +3996,7 @@ export default function PanelPage() {
               </div>
             )}
 
-            {/* 비밀번호 초��화 승인 모달 */}
+            {/* 비밀번호 초기화 승인 모달 */}
             {prApproveId && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                 <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
@@ -4102,7 +4102,7 @@ export default function PanelPage() {
               return (
                 <div className="bg-card border border-border rounded-xl overflow-hidden">
                   <div className="grid grid-cols-7 border-b border-border">
-                    {["��", "월", "화", "수", "목", "금", "토"].map(d => (
+                    {["일", "월", "화", "수", "목", "금", "토"].map(d => (
                       <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
                     ))}
                   </div>
@@ -4135,8 +4135,8 @@ export default function PanelPage() {
                   <div className="px-5 py-3 border-t border-border bg-muted/30 flex gap-6 text-sm">
                     <span className="text-muted-foreground">월 합계</span>
                     <span className="text-emerald-600 font-semibold">충전 +{calData.reduce((s, r) => s + r.charge_total, 0).toLocaleString()}</span>
-                    <span className="text-red-500 font-semibold">��전 -{calData.reduce((s, r) => s + r.exchange_total, 0).toLocaleString()}</span>
-                    <span className="font-bold text-foreground">���이익 {calData.reduce((s, r) => s + r.net_total, 0).toLocaleString()}</span>
+                    <span className="text-red-500 font-semibold">환전 -{calData.reduce((s, r) => s + r.exchange_total, 0).toLocaleString()}</span>
+                    <span className="font-bold text-foreground">순이익 {calData.reduce((s, r) => s + r.net_total, 0).toLocaleString()}</span>
                   </div>
                 </div>
               )
@@ -4146,7 +4146,7 @@ export default function PanelPage() {
             {calSelectedDate && memberDetail && (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="px-5 py-4 border-b border-border">
-                  <h2 className="text-sm font-semibold text-foreground">{calSelectedDate} 지점별 회원 상���</h2>
+                  <h2 className="text-sm font-semibold text-foreground">{calSelectedDate} 지점별 회원 상세</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">{memberDetail.branch} · {memberDetail.members?.length ?? 0}명</p>
                 </div>
 
@@ -4255,7 +4255,7 @@ export default function PanelPage() {
                 <Shield className="w-4 h-4 text-primary" /> 관리자 계정 생성
               </h2>
               <p className="text-xs text-muted-foreground mb-5">
-                대총판 · 총판 · 지�� 계정을 직접 생성합니다. 생성 후 해당 계정으�� 로그인하면 각 역할에 맞는 탭이 표시됩니다.
+                대총판 · 총판 · 지급 계정을 직접 생성합니다. 생성 후 해당 계정으�� 로그인하면 각 역할에 맞는 탭이 표시됩니다.
               </p>
 
               {/* 역할 선택 */}
@@ -4391,7 +4391,7 @@ export default function PanelPage() {
                   <h2 className="text-sm font-semibold text-foreground mb-1">카드 이미지 관리</h2>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     업로드한 이미지는 순번 순서대로 카드 배경으로 사용됩니다.<br />
-                    각 라운드에서 순번 기반으로 하나가 ��택되어 카��에 오버레이됩니다.<br />
+                    각 라운드에서 순번 기반으로 하나가 ��택되어 카드에 오버레이됩니다.<br />
                     JPG, PNG, WebP 파일을 지원합니다.
                   </p>
                 </div>
@@ -4422,7 +4422,7 @@ export default function PanelPage() {
                 {cardImages.map((img, idx) => (
                   <div key={img.pathname} className="group relative bg-card border border-border rounded-xl overflow-hidden aspect-[3/4]">
                     <div className="absolute top-2 left-2 z-10 bg-black/70 text-white text-xs font-bold px-2 py-0.5 rounded-full">#{idx + 1}</div>
-                    <img src={img.url} alt={`카드 이��지 #${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={img.url} alt={`카드 이미지 #${idx + 1}`} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                       <button
                         onClick={() => handleCardDelete(img.url)}
@@ -5380,7 +5380,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               </div>
             )}
 
-            {/* ── 주���로그 서브탭 ── */}
+            {/* ── 주문로그 서브탭 ── */}
             {autoSubTab === "logs" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -5781,8 +5781,8 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
             <div className="rounded-xl border border-border p-5 space-y-4">
               <h2 className="text-sm font-semibold text-foreground">리밸런싱 (시드 관리)</h2>
               <p className="text-xs text-muted-foreground">
-                초기 시드 자본을 설정하고, 수동으로 오늘의 잔고 스냅샷을 매매기���에 저장합니다.<br />
-                ��정 cron이 자동으로 저장하지만 수동 저장도 가능���니다.
+                초기 시드 자본을 설정하고, 수동으로 오늘의 잔고 스냅샷을 매매기록에 저장합니다.<br />
+                설정 cron이 자동으로 저장하지만 수동 저장도 가능합니다.
               </p>
 
               {/* 시드 자본 설정 */}
@@ -6479,7 +6479,7 @@ function WriteRequestsPanel({ token }: { token: string }) {
       const data = await res.json()
       if (!res.ok) { setMsg({ id: requestId, ok: false, text: data.error ?? "처리 실패" }); return }
       setMsg({ id: requestId, ok: true, text: action === "approve" ? `승인 완료${pointChecks[requestId] ? " (포인�� 카테고리 포함)" : ""}` : "거절 완료" })
-      // 목�� 새로고침 (역할 변경 반영)
+      // 목록 새로고침 (역할 변경 반영)
       await load(filter)
     } catch {
       setMsg({ id: requestId, ok: false, text: "오류 발생" })
@@ -6495,7 +6495,7 @@ function WriteRequestsPanel({ token }: { token: string }) {
     { key: "all",      label: "전체" },
   ]
 
-  const ROLE_LABEL: Record<string, string> = { user: "일반", member: "멤버", admin: "���점", branch_admin: "총판", super_admin: "대총판", master: "마스터" }
+  const ROLE_LABEL: Record<string, string> = { user: "일반", member: "멤버", admin: "지점", branch_admin: "총판", super_admin: "대총판", master: "마스터" }
 
   return (
     <div className="p-6 space-y-5">
