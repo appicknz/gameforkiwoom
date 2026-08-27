@@ -1756,7 +1756,7 @@ export default function PanelPage() {
               {/* 행 1: 회원관리~현금/환전 */}
               <button onClick={() => setActiveTab("users")}       className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "users"      ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Users className="w-4 h-4" /> 회원관리</button>
               <button onClick={() => setActiveTab("branches")}    className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "branches"   ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><GitBranch className="w-4 h-4" /> 지점관리</button>
-              <button onClick={() => setActiveTab("monitor")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "monitor"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Activity className="w-4 h-4" /> 라운�� 모니터</button>
+              <button onClick={() => setActiveTab("monitor")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "monitor"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Activity className="w-4 h-4" /> ��운�� 모니터</button>
               <button onClick={() => setActiveTab("history")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "history"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><TrendingDown className="w-4 h-4" /> 라운드 기록</button>
               <button onClick={() => { setActiveTab("points"); loadPpRequests(); loadPcRequests() }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "points"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Wallet className="w-4 h-4" /> 포인트</button>
               <button onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests() }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "cash"      ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Banknote className="w-4 h-4" /> 현금/환전</button>
@@ -2951,7 +2951,7 @@ export default function PanelPage() {
                   <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : houseStats.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">아직 집계 데이���가 없습니다.</div>
+                <div className="py-10 text-center text-sm text-muted-foreground">아직 집�� 데이���가 없습니다.</div>
               ) : (
                 <div className="divide-y divide-border">
                   {houseStats.map(stat => {
@@ -5694,24 +5694,13 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center gap-2">
                     <ArrowLeftRight className="w-4 h-4 text-primary" />
                     <span className="text-sm font-semibold text-foreground">시그널 타입 설정</span>
-                    <span className="text-xs text-muted-foreground">— 방향(롱/숏) 및 활���화</span>
+                    <span className="text-xs text-muted-foreground">— 방향(롱/숏) 및 활성화</span>
                   </div>
                   <div className="divide-y divide-border">
                     {signalRules.map(rule => (
                       <div key={rule.signal_type} className="flex items-center justify-between px-5 py-3">
                         <span className="text-sm font-mono text-foreground">{rule.signal_type}</span>
                         <div className="flex flex-wrap items-center justify-end gap-2">
-                          <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                            <input type="checkbox" checked={rule.stop_loss_enabled ?? false} onChange={e => {
-                              const next = e.target.checked
-                              setSignalRules(prev => prev.map(r => r.signal_type === rule.signal_type ? { ...r, stop_loss_enabled: next } : r))
-                            }} /> SL
-                          </label>
-                          <input aria-label={`${rule.signal_type} stop loss percent`} type="number" min={0.1} max={100} step={0.1} placeholder="SL %" value={rule.stop_loss_percent ?? ""} onChange={e => setSignalRules(prev => prev.map(r => r.signal_type === rule.signal_type ? { ...r, stop_loss_percent: e.target.value === "" ? null : Number(e.target.value) } : r))} className="h-7 w-16 rounded-lg bg-secondary px-2 text-xs" />
-                          <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                            <input type="checkbox" checked={rule.take_profit_enabled ?? false} onChange={e => setSignalRules(prev => prev.map(r => r.signal_type === rule.signal_type ? { ...r, take_profit_enabled: e.target.checked } : r))} /> TP
-                          </label>
-                          <input aria-label={`${rule.signal_type} take profit percent`} type="number" min={0.1} max={100} step={0.1} placeholder="TP %" value={rule.take_profit_percent ?? ""} onChange={e => setSignalRules(prev => prev.map(r => r.signal_type === rule.signal_type ? { ...r, take_profit_percent: e.target.value === "" ? null : Number(e.target.value) } : r))} className="h-7 w-16 rounded-lg bg-secondary px-2 text-xs" />
                           {/* 방향 토글 */}
                           <button
                             disabled={rulesSaving === rule.signal_type}
@@ -6051,7 +6040,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   {/* 수익 분배 표시 토글 */}
                   <div className="flex items-center justify-between pt-1 border-t border-border">
                     <div>
-                      <p className="text-xs font-medium text-foreground">수익 분배 표시</p>
+                      <p className="text-xs font-medium text-foreground">��익 분배 표시</p>
                       <p className="text-xs text-muted-foreground mt-0.5">매매기록 화면에 수익 분배 섹션을 표시합니다.</p>
                     </div>
                     <label className="relative cursor-pointer">
