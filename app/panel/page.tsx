@@ -811,7 +811,7 @@ export default function PanelPage() {
     })
     const data = await res.json()
     if (!res.ok) {
-      setPwError("인증에 실패했습니다.")
+      setPwError("인증에 실패���습니다.")
       setAdminPw("")
     } else {
       const loaded: User[] = data.users ?? []
@@ -1756,7 +1756,7 @@ export default function PanelPage() {
               {/* 행 1: 회원관리~현금/환전 */}
               <button onClick={() => setActiveTab("users")}       className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "users"      ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Users className="w-4 h-4" /> 회원관리</button>
               <button onClick={() => setActiveTab("branches")}    className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "branches"   ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><GitBranch className="w-4 h-4" /> 지점관리</button>
-              <button onClick={() => setActiveTab("monitor")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "monitor"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Activity className="w-4 h-4" /> 라운드 모니터</button>
+              <button onClick={() => setActiveTab("monitor")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "monitor"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Activity className="w-4 h-4" /> 라운�� 모니터</button>
               <button onClick={() => setActiveTab("history")}     className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "history"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><TrendingDown className="w-4 h-4" /> 라운드 기록</button>
               <button onClick={() => { setActiveTab("points"); loadPpRequests(); loadPcRequests() }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "points"    ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Wallet className="w-4 h-4" /> 포인트</button>
               <button onClick={() => { setActiveTab("cash"); loadCash(); loadExRequests(); loadPrRequests() }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "cash"      ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Banknote className="w-4 h-4" /> 현금/환전</button>
@@ -2951,7 +2951,7 @@ export default function PanelPage() {
                   <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : houseStats.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">아직 집계 데이터가 없습니다.</div>
+                <div className="py-10 text-center text-sm text-muted-foreground">아직 집계 데이���가 없습니다.</div>
               ) : (
                 <div className="divide-y divide-border">
                   {houseStats.map(stat => {
@@ -5179,7 +5179,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                             className={`h-6 px-2 rounded text-[11px] font-semibold border transition-colors ${accForm.take_profit_enabled ? "bg-green-500/15 border-green-500/40 text-green-400" : "bg-secondary border-border text-muted-foreground"}`}>
                             TP
                           </button>
-                          <span className="text-xs text-muted-foreground">테이크프로핏 (방향 무관 적용)</span>
+                          <span className="text-xs text-muted-foreground">테이크프로핏 (LONG/SHORT 모두 적용)</span>
                         </div>
                         {accForm.take_profit_enabled && (
                           <div className="relative">
@@ -5196,7 +5196,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                             className={`h-6 px-2 rounded text-[11px] font-semibold border transition-colors ${accForm.stop_loss_enabled ? "bg-red-500/15 border-red-500/40 text-red-400" : "bg-secondary border-border text-muted-foreground"}`}>
                             SL
                           </button>
-                          <span className="text-xs text-muted-foreground">스탑로스 (방향 무관 적용)</span>
+                          <span className="text-xs text-muted-foreground">스탑로스 (LONG/SHORT 모두 적용)</span>
                         </div>
                         {accForm.stop_loss_enabled && (
                           <div className="relative">
@@ -5792,7 +5792,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
             <div className="rounded-xl border border-border p-5 space-y-4">
               <h2 className="text-sm font-semibold text-foreground">리밸런싱 (시드 관리)</h2>
               <p className="text-xs text-muted-foreground">
-                초기 시드 자본을 설정하고, 수동으로 오늘의 잔고 스냅샷을 매매기록에 저장합니다.<br />
+                초기 시드 자본을 설정하고, 수동으로 오늘의 잔고 스냅샷을 매매기���에 저장합니다.<br />
                 ��정 cron이 자동으로 저장하지만 수동 저장도 가능���니다.
               </p>
 
