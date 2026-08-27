@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Card } from "@/components/ui/card"
 import { TrendingUp, TrendingDown } from "lucide-react"
-import { createChart, ColorType, type IChartApi, type ISeriesApi, LineSeries } from "lightweight-charts"
+import { createChart, ColorType, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 
 // lightweight-charts 내부 ResizeObserver가 dispose 이후 비동기로 콜백되는 known issue
@@ -339,7 +339,7 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
             close: closePrice,
           }
           candleMapRef.current.set(barTime, candle)
-          try { seriesRef.current.update(candle) } catch { /* 순 방어 */ }
+          try { seriesRef.current.update(candle as any) } catch { /* 순 방어 */ }
 
           // ── 단일 소스 브로드캐스트 ──────────────────────────────
           // 현재가: 매 틱마다 발행 (kline close = 차트 라벨과 동일 값)
@@ -350,7 +350,7 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
           // bitcoin-chart에서는 baka:closing을 발행하지 않음 (중복 방지)
 
           // 실시간 MA 업데이트 — 최근 99개 캔들로 계산
-          const allCandles = Array.from(candleMapRef.current.values()).sort((a, b) => a.time - b.time)
+          const allCandles = Array.from(candleMapRef.current.values()).sort((a, b) => Number(a.time) - Number(b.time))
           const maPoint = (period: number) => {
             if (allCandles.length < period) return null
             const slice = allCandles.slice(-period)
@@ -382,7 +382,7 @@ export function BitcoinChart({ headerOnly = false, compact = false, mode = "baka
     fetchInitialCandles(interval).then((candles) => {
       if (cancelled) return
       if (candles.length > 0 && seriesRef.current) {
-        seriesRef.current.setData(candles)
+        seriesRef.current.setData(candles as any)
         // MA 초기 세팅
         if (ma7Ref.current)  ma7Ref.current.setData(calcMA(candles, 7))
         if (ma25Ref.current) ma25Ref.current.setData(calcMA(candles, 25))

@@ -7,7 +7,7 @@ function getStripe(): Stripe {
   if (!globalForStripe._stripe) {
     const key = process.env.STRIPE_SECRET_KEY
     if (!key) throw new Error("STRIPE_SECRET_KEY is missing")
-    globalForStripe._stripe = new Stripe(key, { apiVersion: "2025-04-30.basil" })
+    globalForStripe._stripe = new Stripe(key, { apiVersion: "2026-04-22.dahlia" })
   }
   return globalForStripe._stripe
 }

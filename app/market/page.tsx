@@ -628,7 +628,7 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
             {(showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items).length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-24 text-muted-foreground">
                 <CheckCircle2 className="w-10 h-10 mb-3 opacity-30" />
-                <p className="text-sm">{showPurchasedOnly ? "구매한 상품이 없습니다." : "상품이 없습니다."}</p>
+                <p className="text-sm">{showPurchasedOnly ? "구��한 상품이 없습니다." : "상품이 없습니다."}</p>
               </div>
             ) : null}
             {(showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items).map((item, idx) => (
@@ -652,7 +652,10 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
                     category_id:  item.category_id,
                     publisher_id: "", // ��널 내에서 publishers 로드 후 표시
                     image_url:    item.image_url,
-                    is_active:    true,
+                    is_active:   true,
+                    game_bonus_rate: 0,
+                    content_type: "general",
+                    data_source_type: "manual",
                   })
                   setShowAdmin(true)
                   window.scrollTo({ top: 0, behavior: "smooth" })

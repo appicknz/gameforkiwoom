@@ -109,7 +109,7 @@ export function useGatewayBalance(onBalance: (balance: number) => void) {
 
     openGateway(["balance"])
     const unsub = subscribe("balance", (v) => cbRef.current(v as number))
-    return unsub
+    return () => { unsub(); }
   }, [])
 }
 
@@ -121,7 +121,7 @@ export function useGatewayChat(onMessages: (messages: unknown[]) => void) {
   useEffect(() => {
     openGateway(["chat"])
     const unsub = subscribe("chat", (v) => cbRef.current(v as unknown[]))
-    return unsub
+    return () => { unsub(); }
   }, [])
 }
 
@@ -136,6 +136,6 @@ export function useGatewayOdds(
   useEffect(() => {
     openGateway([`odds:${gameType}`])
     const unsub = subscribe(`odds:${gameType}`, (v) => cbRef.current(v))
-    return unsub
+    return () => { unsub(); }
   }, [gameType])
 }

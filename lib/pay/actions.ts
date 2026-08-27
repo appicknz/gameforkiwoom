@@ -319,7 +319,6 @@ export async function submitPayRequest(data: {
         .where(eq(payMembers.telegramId, data.telegramId))
         .limit(1)
       if (member?.botChatId) userChatId = member.botChatId
-      if (member?.botToken) userBotToken = member.botToken
     }
 
     // BOT_TOKEN이 없으면 마스터 봇 토큰 사용
@@ -367,7 +366,7 @@ export async function submitPayRequest(data: {
   // 알림을 보낼 채널 목록 수집 (중복 제거)
   const notifyTargets = new Map<string, { token: string; chatId: string }>()
 
-  // 1) 관리자 채널
+  // 1) ���리자 채널
   if (data.managerId) {
     const [mgr] = await payDb.select().from(payManagers).where(eq(payManagers.id, data.managerId))
     if (mgr?.telegramBotToken && mgr.telegramChatId) {

@@ -1,18 +1,14 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { BitcoinChart, type BasePriceCoord } from "@/components/dashboard/bitcoin-chart"
+import { BitcoinChart } from "@/components/dashboard/bitcoin-chart"
 import { AquariumOverlay } from "@/components/widget/aquarium-overlay"
 
 // BitcoinChart를 그대로 쓰되, 차트 영역 위에 수족관 오버레이를 얹는 래퍼
 // 배팅 기준가의 차트 픽셀 좌표를 오버레이로 전달하여 레이더 타겟 위치에 사용
 export function AquariumChart() {
-  const [basePriceCoord, setBasePriceCoord] = useState<BasePriceCoord | null>(null)
-  const handleCoord = useCallback((c: BasePriceCoord | null) => setBasePriceCoord(c), [])
-
   return (
     <div className="relative">
-      <BitcoinChart onBasePriceCoord={handleCoord} />
+      <BitcoinChart />
       {/* 차트 영역 오버레이 */}
       <div
         className="absolute pointer-events-none"
@@ -26,7 +22,7 @@ export function AquariumChart() {
           overflow: "hidden",
         }}
       >
-        <AquariumOverlay basePriceCoord={basePriceCoord} />
+        <AquariumOverlay />
       </div>
     </div>
   )

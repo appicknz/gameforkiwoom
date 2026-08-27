@@ -34,6 +34,7 @@ interface RoundResult {
   baccaratOdds: { player: number; banker: number; tie: number } | null
   // 서버 settle-me가 계산한 최종 payout (백원 단위 내림 적용)
   serverPayout?: number
+  baccaratRefund?: number
   // 카드 합산 끝자리 점수 (표시용)
   pScore?: number
   bScore?: number
@@ -385,7 +386,7 @@ function BakaResultSheet({ result, open, onClose }: { result: RoundResult | null
           {/* 바카라 점수 카드 — 카드 목록 + 합산 + 끝자리 강조 */}
           {hasBaccarat && (
             <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${G.goldBorder}` }}>
-              <div className="grid grid-cols-2 divide-x" style={{ divideColor: G.goldBorder }}>
+              <div className="grid grid-cols-2 divide-x" style={{ borderColor: G.goldBorder }}>
                 {/* BANKER */}
                 {[
                   { side: "banker" as const, cards: result.bankerCards, rawSum: result.bRawSum, score: result.bScore },
@@ -631,7 +632,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
 
   // ── 마운트 시 활성 배팅 복원 (새로고침 대응) ─────────────────
   // 규칙:
-  //   같은 라운드 → ref + UI 복원, 라운드 종료 이벤트에서 정산됨
+  //   ���은 라운드 → ref + UI 복원, 라운드 종료 이벤트에서 정산됨
   //   이미 끝난 라운드 → game:result에서 결과 조회 후 즉시 settle-me 호출
   //                      (Railway settle이 실패/지연됐을 때 보장)
   useEffect(() => {
@@ -822,7 +823,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
       bankerCards?: { label: string; suit: string; value: number }[],
     ) => {
       const wonBaccarat = betBaccaratRef.current ? betBaccaratRef.current === bacResult : false
-      const baccaratRefund = false  // /baka: 타이 결과 시 player/banker는 LOSS, 반환 없음
+      const baccaratRefund = 0  // /baka: 타이 결과 시 player/banker는 LOSS, 반환 없음
 
       const result: RoundResult = {
         round: roundRef.current,
@@ -1325,7 +1326,7 @@ export function BakaBettingGame({ onResetCards, onStartDealTrigger, onFinalDigit
           setLiveOdds(updated)
         }
       }
-      // pools 없음 → 재계산 생략, WS push 수신 대기 (500ms 이내)
+      // pools ��음 → 재계산 생략, WS push 수신 대기 (500ms 이내)
     }
 
     setPhase("waiting")

@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 
   // 3개 풀 upsert (없으면 LP와 함께 생성)
   const poolTypes = ["long_short", "under_over", "odd_even"] as const
-  const results: Record<string, { sideA: number; sideB: number; totalA: number; totalB: number; oddsA: number; oddsB: number }> = {}
+  const results: Record<string, { sideA: number; sideB: number; lpA: number; lpB: number; totalA: number; totalB: number; oddsA: number | null; oddsB: number | null }> = {}
 
   for (const poolType of poolTypes) {
     const { data: existing } = await adminSupabase

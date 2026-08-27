@@ -153,15 +153,13 @@ function TradeStatsMini() {
   // 과거 날짜 선택 시: closed_roi(DB 저장값) 사용 — 실시간 계산 안 함
   // 오늘: liveCache 실시간 가격으로 ROI 계산
   // SL 청산 포지션 (is_closed=true, close_reason=stop_loss)
-  const slClosedPositions = autoPositions.filter(
-    (p: {is_closed?: boolean; close_reason?: string}) => p.is_closed && p.close_reason === "stop_loss"
-  )
+  const slClosedPositions = autoPositions.filter((p) => (p as any).is_closed && (p as any).close_reason === "stop_loss")
 
   // 과거 날짜: 전체 포지션(day_close + stop_loss 포함) ROI 계산
   // 오늘: 활성 포지션만 실시간 계산
   const calcTargets = isHistorical
     ? autoPositions  // 날짜의 모든 포지션
-    : autoPositions.filter((p: {is_closed?: boolean}) => !p.is_closed)  // 오늘은 활성만
+    : autoPositions.filter((p) => !(p as any).is_closed)  // 오늘은 활성만
 
   const autoCalc = calcTargets.map((pos: typeof autoPositions[0]) => {
     if (isHistorical) {
@@ -338,7 +336,7 @@ function TradeStatsMini() {
 
             {/* 요일 헤더 */}
             <div className="grid grid-cols-7 text-center">
-              {(Array.isArray(t("calendar.days")) ? t("calendar.days") as string[] : ["S","M","T","W","T","F","S"]).map((d: string, i: number) => (
+              {((Array.isArray(t("calendar.days")) ? t("calendar.days") : ["S","M","T","W","T","F","S"]) as string[]).map((d: string, i: number) => (
                 <div key={i} className="text-[8px] font-medium" style={{ color: i === 0 ? DOWN : i === 6 ? "#4a9eff" : "var(--muted-foreground)" }}>{d}</div>
               ))}
             </div>
@@ -682,7 +680,7 @@ export function Sidebar({ drawerOnly = false }: { drawerOnly?: boolean } = {}) {
 
   const handleChangePw = async () => {
     setChangePwMsg(null)
-    if (!changePwNew || changePwNew.length < 4) return setChangePwMsg({ text: "새 비밀번호는 4자 이상이어야 합니다.", ok: false })
+    if (!changePwNew || changePwNew.length < 4) return setChangePwMsg({ text: "새 비밀번호는 4�� 이상이어야 합니다.", ok: false })
     if (changePwNew === "000000") return setChangePwMsg({ text: "000000은 사용할 수 없습니다.", ok: false })
     if (changePwNew !== changePwConfirm) return setChangePwMsg({ text: "새 비밀번호가 일치하지 않습니다.", ok: false })
     setChangePwLoading(true)

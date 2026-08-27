@@ -850,7 +850,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             : null
           const roi: number = isToday && liveRoi != null
             ? liveRoi
-            : pos.final_roi  != null ? Number(pos.final_roi)
+            : pos.closed_roi  != null ? Number(pos.closed_roi)
             : pos.closed_roi != null ? Number(pos.closed_roi)
             : liveRoi ?? 0
           const pnl      = sizeUsd * (roi / 100)
@@ -1100,7 +1100,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
 
       const kstDate = kstTodayStr()
 
-      // 2. 오늘 ���매�����록��� PNL 저장
+      // 2. 오늘 �����매�����록��� PNL 저장
       const saveRes = await fetch("/api/auto-signal/rebalance", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshTok}` },
@@ -1339,7 +1339,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
             )
           }
 
-          // ── 지표 계산 ─────────────────────────────────��─────────������─
+          // ── 지표 계산 ──────────────────────────���──────��─────────������─
           // wCnt = winners(pnl>0), lCnt = losers(pnl<0, non-SL), slCnt = SL청산
           const totalClosed = total
           const winRate    = totalClosed > 0 ? wCnt / totalClosed * 100 : 0
@@ -1858,10 +1858,10 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
       // 과거 날짜 — final_roi(Klines) → closed_roi(DB 저장값) 순 폴백
       const sizeUsd  = Number(pos.size_usd ?? 10)
       const lev      = Number(pos.leverage ?? 10)
-      const rawRoi   = pos.final_roi   != null ? Number(pos.final_roi)
+      const rawRoi   = pos.closed_roi   != null ? Number(pos.closed_roi)
                      : pos.closed_roi  != null ? Number(pos.closed_roi)
                      : null
-      const rawPrice = pos.close_price != null ? Number(pos.close_price)
+      const rawPrice = pos.closed_price != null ? Number(pos.closed_price)
                      : pos.closed_price!= null ? Number(pos.closed_price)
                      : 0
       const hasCur   = rawRoi !== null
@@ -2523,10 +2523,10 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
 
     if (isHistorical) {
       const sizeUsd  = Number(pos.size_usd ?? sizeUsdCfg)
-      const rawRoi   = pos.final_roi   != null ? Number(pos.final_roi)
+      const rawRoi   = pos.closed_roi   != null ? Number(pos.closed_roi)
                      : pos.closed_roi  != null ? Number(pos.closed_roi)
                      : null
-      const rawPrice = pos.close_price != null ? Number(pos.close_price)
+      const rawPrice = pos.closed_price != null ? Number(pos.closed_price)
                      : pos.closed_price!= null ? Number(pos.closed_price)
                      : 0
       const hasCur = rawRoi !== null
@@ -3216,7 +3216,7 @@ switchTab(mode)
     if (bal === null) { alert("잔고를 불러오는 중입니다."); return }
     if (amount <= 0 || amount > bal) { alert("잔고가 부족합니다."); return }
 
-    // dialogSymbolRef: 다이얼로그에서 호출 시 항상 올바른 심볼을 가리킴
+    // dialogSymbolRef: 다이얼로그에서 호출 시 항상 ���바른 심볼을 가리킴
     const sym   = dialogSymbolRef.current
     const price = priceMapRef.current.get(sym) ?? 0
 

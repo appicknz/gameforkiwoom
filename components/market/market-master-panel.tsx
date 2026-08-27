@@ -32,6 +32,7 @@ interface MarketItem {
   created_at: string
   category_id: string | null
   publisher_id: string
+  link_url?: string | null
   market_categories: { name: string; icon: string } | null
   profiles?: { username: string; role: string } | null
 }
