@@ -73,6 +73,8 @@ interface Branch {
   lp_amount_race?: number
   lp_multiplier_baccarat?: number
   lp_multiplier_race?: number
+  total_granted?: number
+  total_user_points?: number
 }
 
 // LP 설정 행 컴포넌트
@@ -1479,7 +1481,7 @@ export default function PanelPage() {
             {/* 생성 완료 — 계정 정보 표시 */}
             {baCreatedInfo ? (
               <div className="space-y-4">
-                <p className="text-xs text-muted-foreground">지점이 생성됐습니다. 아래 정보를 지점에 전달하세요.</p>
+                <p className="text-xs text-muted-foreground">지점이 ��성됐습니다. 아래 정보를 지점에 전달하세요.</p>
                 <div className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">로그인 ID (지점코드)</span>
@@ -1662,7 +1664,7 @@ export default function PanelPage() {
               </div>
               <div className="space-y-2 mb-3">
                 <div>
-                  <p className="text-xs font-medium text-foreground mb-1">요율 입력 <span className="text-muted-foreground font-normal">(예: 1.2 → {cashAmt > 0 ? `₩${Math.floor(cashAmt * 1.2).toLocaleString()}` : "1.2배"} 지급)</span></p>
+                  <p className="text-xs font-medium text-foreground mb-1">요율 입력 <span className="text-muted-foreground font-normal">(예: 1.2 → {cashAmt > 0 ? `₩${Math.floor(cashAmt * 1.2).toLocaleString()}` : "1.2배"} 지��)</span></p>
                   <Input type="number" step="0.01" placeholder="예: 1.2" value={ppApprovePoints} onChange={e => setPpApprovePoints(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
@@ -2828,7 +2830,7 @@ export default function PanelPage() {
                                 <p className="text-xs text-muted-foreground pt-2">ID: <span className="text-foreground font-mono text-[11px]">{u.id}</span></p>
                                 <p className="text-xs text-muted-foreground">가입일: {new Date(u.created_at).toLocaleString("ko-KR")}</p>
                                 <p className="text-xs text-muted-foreground">지점코드: {u.branch_code ?? "-"}</p>
-                                {myRole === "master" && u.role !== "master" && (
+                                {String(myRole) === "master" && String(u.role) !== "master" && (
                                   <RoleChanger
                                     userId={u.id}
                                     currentRole={u.role}
