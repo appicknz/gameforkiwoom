@@ -199,8 +199,8 @@ export async function POST(req: Request) {
       amount_type: "usdt",
       token:       params.token,
     }
-    if (params.tpPct != null) json.tp_pct = params.tpPct
-    if (params.slPct != null) json.sl_pct = params.slPct
+    if (params.tpPct != null && Number.isFinite(params.tpPct) && params.tpPct > 0) json.tp_pct = params.tpPct
+    if (params.slPct != null && Number.isFinite(params.slPct) && params.slPct > 0) json.sl_pct = params.slPct
     return `TVM:${JSON.stringify(json)}:MVT`
   }
 
