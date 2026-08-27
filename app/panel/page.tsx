@@ -236,7 +236,7 @@ export default function PanelPage() {
   const [rebalSaving,      setRebalSaving]      = useState(false)
   const [rebalMsg,         setRebalMsg]         = useState<string | null>(null)
 
-  // 자동주문 서브탭 state
+  // 자동주��� 서브탭 state
   const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs" | "seed">("signal")
   const [initialSeed,     setInitialSeed]     = useState<string>("")
   const [withdrawAmount,  setWithdrawAmount]  = useState<string>("")
@@ -3662,7 +3662,7 @@ export default function PanelPage() {
                   {branchTab === "members" && (
                     <div className="divide-y divide-border">
                       {adminMembers.length === 0 && (
-                        <p className="py-8 text-center text-sm text-muted-foreground">등록된 회원이 없습니다.</p>
+                        <p className="py-8 text-center text-sm text-muted-foreground">��록된 회원이 없습니다.</p>
                       )}
                       {/* 헤더 */}
                       {adminMembers.length > 0 && (
@@ -4585,7 +4585,7 @@ export default function PanelPage() {
                 </div>
                 <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
                   유저가 배팅한 금액에 대해 각 역할에 지급되는 수수료 비율입니다.<br />
-                  합계가 100%를 초과할 수 없으며, 나머지는 배당 풀로 사용됩니다.
+                  합계가 100%를 ��과할 수 없으며, 나머지는 배당 풀로 사용됩니다.
                 </p>
 
                 <div className="space-y-3">
@@ -5130,7 +5130,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 {accFormOpen && (
                   <div className="rounded-xl border border-border p-5 space-y-4 bg-secondary/10">
                     <h3 className="text-sm font-semibold text-foreground">
-                      {accEditTarget ? `계정 수정: ${accEditTarget.account_name}` : "계정 추가"}
+                      {accEditTarget ? `계정 ��정: ${accEditTarget.account_name}` : "계정 추가"}
                     </h3>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -5177,7 +5177,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                             className={`h-6 px-2 rounded text-[11px] font-semibold border transition-colors ${accForm.take_profit_enabled ? "bg-green-500/15 border-green-500/40 text-green-400" : "bg-secondary border-border text-muted-foreground"}`}>
                             TP
                           </button>
-                          <span className="text-xs text-muted-foreground">테이크프로핏 (LONG 진입 시 적용)</span>
+                          <span className="text-xs text-muted-foreground">테이크프로핏 (방향 무관 적용)</span>
                         </div>
                         {accForm.take_profit_enabled && (
                           <div className="relative">
@@ -5194,7 +5194,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                             className={`h-6 px-2 rounded text-[11px] font-semibold border transition-colors ${accForm.stop_loss_enabled ? "bg-red-500/15 border-red-500/40 text-red-400" : "bg-secondary border-border text-muted-foreground"}`}>
                             SL
                           </button>
-                          <span className="text-xs text-muted-foreground">스탑로스 (SHORT 진입 시 적용)</span>
+                          <span className="text-xs text-muted-foreground">스탑로스 (방향 무관 적용)</span>
                         </div>
                         {accForm.stop_loss_enabled && (
                           <div className="relative">

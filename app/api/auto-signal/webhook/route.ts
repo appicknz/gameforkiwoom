@@ -218,8 +218,9 @@ export async function POST(req: Request) {
         side,
         amount:   Number(acc.base_amount),
         leverage: Number(acc.leverage),
-        tpPct:    rule?.take_profit_enabled ? Number(rule.take_profit_percent) : (acc.take_profit_enabled ? Number(acc.take_profit_percent) : null),
-        slPct:    rule?.stop_loss_enabled ? Number(rule.stop_loss_percent) : (acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null),
+        // TP와 SL은 방향과 무관하게 계정 설정을 각각 독립 적용
+        tpPct:    acc.take_profit_enabled ? Number(acc.take_profit_percent) : null,
+        slPct:    acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null,
         token:    acc.auth_token as string,
       })
 
@@ -377,7 +378,7 @@ async function handleSignal2(args: {
 
   const cleanSymbol = symbol.replace(".P", "")
 
-  // 중복 체크 — 같은 날 같은 종목+방향
+  // 중복 체크 — 같은 ��� 같은 종목+방향
   const { data: existing2 } = await adminSupabase
     .from("auto_signal2_positions")
     .select("id")
@@ -423,8 +424,9 @@ async function handleSignal2(args: {
               side,
               amount:   Number(settings2.size_usd ?? acc.base_amount),
               leverage: Number(settings2.leverage ?? acc.leverage),
-              tpPct:    rule2?.take_profit_enabled ? Number(rule2.take_profit_percent) : (acc.take_profit_enabled ? Number(acc.take_profit_percent) : null),
-              slPct:    rule2?.stop_loss_enabled ? Number(rule2.stop_loss_percent) : (acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null),
+              // TP와 SL은 방향과 무관하게 계정 설정을 각각 독립 적용
+              tpPct:    acc.take_profit_enabled ? Number(acc.take_profit_percent) : null,
+              slPct:    acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null,
               token:    acc.auth_token as string,
             })
             try {
