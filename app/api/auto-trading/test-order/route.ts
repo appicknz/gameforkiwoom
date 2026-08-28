@@ -121,6 +121,7 @@ export async function POST(req: Request) {
   // TVM 전송
   let tvmStatus = 0
   let tvmBody   = ""
+  let errMsg    = ""
   try {
     const tvmRes = await fetch(webhookUrl, {
       method:  "POST",
@@ -130,15 +131,29 @@ export async function POST(req: Request) {
     tvmStatus = tvmRes.status
     tvmBody   = await tvmRes.text()
   } catch (e: unknown) {
-    return NextResponse.json({
-      ok:      false,
-      error:   e instanceof Error ? e.message : "TVM 전송 오류",
-      tvm_str: tvm,
-    }, { status: 500 })
+    errMsg = e instanceof Error ? e.message : "TVM 전송 오류"
+  }
+
+  const isOk = tvmStatus >= 200 && tvmStatus < 300
+
+  // 테스트 주문 로그 DB 저장
+  if (!errMsg) {
+    await adminSupabase.from("auto_trading_logs").insert({
+      symbol:        tvmSymbol,
+      direction:     direction.toUpperCase(),
+      account_name:  account.account_name,
+      tvm_str:       tvm,
+      tvm_status:    tvmStatus || null,
+      tvm_response:  tvmBody.slice(0, 500) || null,
+      ok:            isOk,
+      error_msg:     `[TEST_ORDER] ${isOk ? "success" : (tvmBody || "No response")}`,
+      position_id:   null,
+    })
   }
 
   return NextResponse.json({
-    ok:          tvmStatus >= 200 && tvmStatus < 300,
+    ok:      isOk,
+    error:   errMsg || null,
     tvm_status:  tvmStatus,
     tvm_body:    tvmBody,
     tvm_str:     tvm,

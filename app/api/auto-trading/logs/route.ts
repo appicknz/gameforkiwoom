@@ -16,12 +16,16 @@ export async function GET(req: Request) {
   const url    = new URL(req.url)
   const limit  = Math.min(Number(url.searchParams.get("limit") ?? 100), 500)
   const offset = Number(url.searchParams.get("offset") ?? 0)
+  const testOnly = url.searchParams.get("test") === "true"
 
-  const { data, error } = await adminSupabase
+  let query = adminSupabase
     .from("auto_trading_logs")
     .select("*")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1)
+  if (testOnly) query = query.like("error_msg", "[TEST_ORDER]%")
+
+  const { data, error } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ logs: data ?? [] })

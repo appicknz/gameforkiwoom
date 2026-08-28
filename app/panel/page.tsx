@@ -297,6 +297,7 @@ export default function PanelPage() {
   const [orderLogs,       setOrderLogs]       = useState<OrderLog[]>([])
   const [orderLogsLoaded, setOrderLogsLoaded] = useState(false)
   const [orderLogsLoading, setOrderLogsLoading] = useState(false)
+  const [testOrderLogs, setTestOrderLogs] = useState<OrderLog[]>([])
 
   const loadOrderLogs = async () => {
     setOrderLogsLoading(true)
@@ -4800,7 +4801,13 @@ export default function PanelPage() {
                   onClick={async () => {
                     setAutoSubTab(key)
                     if (key === "signal" && !dailyStatsLoaded) loadDailyStats()
-                    if (key === "order" && !tradingLoaded) loadTradingData()
+                    if (key === "order") {
+                      if (!tradingLoaded) loadTradingData()
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      fetch("/api/auto-trading/logs?test=true&limit=50", { headers: { Authorization: `Bearer ${tok}` } }).then(async res => {
+                        if (res.ok) { const d = await res.json(); setTestOrderLogs(d.logs ?? []) }
+                      })
+                    }
                     if (key === "logs" && !orderLogsLoaded) loadOrderLogs()
                     if (key === "seed") {
                       // 현재 설정 + 실제 잔고 불러오기
@@ -5343,6 +5350,10 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                         })
                         const d = await res.json()
                         setTestResult(d)
+                        if (res.ok) {
+                          const logRes = await fetch("/api/auto-trading/logs?test=true&limit=50", { headers: { Authorization: `Bearer ${tok}` } })
+                          if (logRes.ok) { const logData = await logRes.json(); setTestOrderLogs(logData.logs ?? []) }
+                        }
                         setTestLoading(false)
                       }}
                       className="h-8 px-5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-xs font-semibold text-amber-400 hover:bg-amber-500/30 transition-colors disabled:opacity-50">
@@ -5372,6 +5383,22 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                         {testResult.error && (
                           <p className="text-red-400">{String(testResult.error)}</p>
                         )}
+                      </div>
+                    )}
+
+                    {testOrderLogs.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-foreground">테스트 주문 로그</p>
+                        {testOrderLogs.map(log => (
+                          <div key={log.id} className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2 text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={log.ok ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{log.ok ? "OK" : "FAIL"} · {log.symbol} · {log.direction}</span>
+                              <span className="text-muted-foreground">{new Date(log.created_at).toLocaleString("ko-KR")}</span>
+                            </div>
+                            {log.tvm_str && <pre className="overflow-auto whitespace-pre-wrap break-all rounded bg-secondary p-2 text-[10px]">{log.tvm_str}</pre>}
+                            {log.tvm_response && <pre className="overflow-auto whitespace-pre-wrap break-all rounded bg-secondary p-2 text-[10px]">{log.tvm_response}</pre>}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -5777,7 +5804,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               )}
             </div>
 
-            {/* 리밸런싱 카드 */}
+            {/* 리밸런싱 ���드 */}
             <div className="rounded-xl border border-border p-5 space-y-4">
               <h2 className="text-sm font-semibold text-foreground">리밸런싱 (시드 관리)</h2>
               <p className="text-xs text-muted-foreground">
