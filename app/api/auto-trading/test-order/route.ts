@@ -52,8 +52,12 @@ function buildTvm(params: {
   if (!params.isClose) {
     json.amount      = params.amount
     json.amount_type = "usdt"
-    if (params.tpPct) json.tp_pct = params.tpPct
-    if (params.slPct) json.sl_pct = params.slPct
+    if (params.tpPct != null && Number.isFinite(params.tpPct) && params.tpPct > 0) {
+      json.tp_pct = params.side === "buy" ? Math.abs(params.tpPct) : -Math.abs(params.tpPct)
+    }
+    if (params.slPct != null && Number.isFinite(params.slPct) && params.slPct > 0) {
+      json.sl_pct = params.side === "buy" ? -Math.abs(params.slPct) : Math.abs(params.slPct)
+    }
   }
 
   return `TVM:${JSON.stringify(json)}:MVT`
