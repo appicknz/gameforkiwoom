@@ -199,7 +199,9 @@ export async function POST(req: Request) {
       amount_type: "usdt",
       token:       params.token,
     }
-    if (params.tpPct != null && Number.isFinite(params.tpPct) && params.tpPct > 0) json.tp_pct = params.tpPct
+    if (params.tpPct != null && Number.isFinite(params.tpPct) && params.tpPct > 0) {
+      json.tp_pct = params.side === "buy" ? Math.abs(params.tpPct) : -Math.abs(params.tpPct)
+    }
     if (params.slPct != null && Number.isFinite(params.slPct) && params.slPct > 0) {
       json.sl_pct = params.side === "buy" ? -Math.abs(params.slPct) : Math.abs(params.slPct)
     }
@@ -336,7 +338,9 @@ function buildTvm2(params: {
     amount_type: "usdt",
     token:       params.token,
   }
-  if (params.tpPct != null) json.tp_pct = params.tpPct
+  if (params.tpPct != null && Number.isFinite(params.tpPct) && params.tpPct > 0) {
+    json.tp_pct = params.side === "buy" ? Math.abs(params.tpPct) : -Math.abs(params.tpPct)
+  }
   if (params.slPct != null && Number.isFinite(params.slPct) && params.slPct > 0) {
     json.sl_pct = params.side === "buy" ? -Math.abs(params.slPct) : Math.abs(params.slPct)
   }
