@@ -239,7 +239,7 @@ function openTradeMode(mode: TradeMode) {
   return (
     <section className="px-4 py-3 md:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
-        <div className="rounded-2xl bg-card/40 px-3 py-3 md:px-5 md:py-4">
+        <div className="px-3 py-3 md:px-5 md:py-4">
           <form onSubmit={handleSubmit} className="relative mx-auto max-w-3xl">
             <div className="flex h-11 items-center rounded-full border border-primary bg-background px-4 md:h-12 md:px-5">
               <input
