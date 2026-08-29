@@ -32,6 +32,7 @@ export default function IndicatorFeed({ items, token, viewMode = "compact", hasM
   }
   if (!items.length) return <div className="py-12 text-center text-muted-foreground">등록된 게시글이 없습니다.</div>
   return <div className="pb-4" onClick={() => setExpanded(null)}>
+    <div className="sticky top-0 z-20 flex items-center justify-center gap-3 border-b border-border/60 bg-background/95 px-3 py-3 backdrop-blur" onClick={(event) => event.stopPropagation()}><button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} className="rounded-md border border-border px-3 py-1.5 text-xs disabled:opacity-40">이전</button><span className="text-xs text-muted-foreground">{page} 페이지</span><button type="button" disabled={!hasMore} onClick={() => onPageChange(page + 1)} className="rounded-md border border-border px-3 py-1.5 text-xs disabled:opacity-40">다음</button></div>
     {items.map((item) => {
       const reaction = reactions[item.id] ?? { likeCount: 0, commentCount: 0, shareCount: 0, liked: false, comments: [] }
       const image = blobImageUrl(item.image_url)
@@ -46,6 +47,5 @@ export default function IndicatorFeed({ items, token, viewMode = "compact", hasM
       </article>
     })}
     {expandedImage && (() => { const preview = items.find((item) => item.id === expandedImage); const previewUrl = preview ? blobImageUrl(preview.image_url) : null; return previewUrl ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-6" onClick={() => setExpandedImage(null)}><img src={previewUrl} alt={`${preview?.title ?? "게시글"} 이미지 크게 보기`} className="max-h-[90vh] max-w-[90vw] object-contain" /></div> : null })()}
-    <div className="flex items-center justify-center gap-3 pt-4"><button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} className="rounded-md border border-border px-3 py-1.5 text-xs disabled:opacity-40">이전</button><span className="text-xs text-muted-foreground">{page} 페이지</span><button type="button" disabled={!hasMore} onClick={() => onPageChange(page + 1)} className="rounded-md border border-border px-3 py-1.5 text-xs disabled:opacity-40">다음</button></div>
   </div>
 }
