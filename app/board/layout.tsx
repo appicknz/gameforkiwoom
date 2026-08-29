@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { PortalShell } from "@/components/dashboard/portal-shell"
 
 export const metadata: Metadata = {
   title: "게시판 | BitBet",
@@ -7,5 +6,5 @@ export const metadata: Metadata = {
 }
 
 export default function BoardLayout({ children }: { children: React.ReactNode }) {
-  return <PortalShell>{children}</PortalShell>
+  return children
 }
