@@ -207,7 +207,7 @@ function TradingPageContent() {
     if (!confirmDirection) return
     const selectedAmount = Math.round(Number(amountInput))
     if (!Number.isFinite(selectedAmount) || selectedAmount <= 0) {
-      setError("증���������을 선택하거나 입력해주세요.")
+      setError("증����������을 선택하거나 입력해주세요.")
       return
     }
     await handleOpen(confirmDirection)
@@ -371,8 +371,8 @@ function TradingPageContent() {
                 </button>
               </div>
 
-              {/* 레버리지 */}
-              <div className="space-y-1.5">
+              {/* 레버리지 설정은 주문 모달에서 조정합니다. */}
+              <div className="hidden space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-medium text-muted-foreground">레버리지</span>
                   <span className="text-sm font-bold text-primary tabular-nums">{leverage}x</span>
@@ -384,7 +384,7 @@ function TradingPageContent() {
                     max={100}
                     value={leverage}
                   onChange={(e) => setLeverage(Number(e.target.value))}
-                  className="h-8 min-h-8 w-full touch-none accent-primary md:h-5 md:min-h-5"
+                  className="h-8 min-h-8 w-full touch-none accent-emerald-500 md:h-5 md:min-h-5"
                   aria-label="레버리지 배율"
                   />
                 </div>
@@ -404,8 +404,8 @@ function TradingPageContent() {
                 </div>
               </div>
 
-              {/* 금액 */}
-              <div className="space-y-1.5">
+              {/* 금액 설정은 주문 모달에서 조정합니다. */}
+              <div className="hidden space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-medium text-muted-foreground">투자 금액 (증거금)</span>
                   {liqPrice && (
@@ -552,7 +552,7 @@ function TradingPageContent() {
           <div className="space-y-3 rounded-lg border border-border bg-card p-3 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">종목</span><strong>{selectedSymbol}</strong></div>
             <div className="flex justify-between"><span className="text-muted-foreground">방향</span><strong className={confirmDirection === "long" ? "text-emerald-500" : "text-red-500"}>{confirmDirection === "long" ? "롱 (상승)" : "숏 (하락)"}</strong></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">레버리지</span><strong>{leverage}x</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">레버리지</span><strong className="text-emerald-500">{leverage}x</strong></div>
             <div className="flex justify-between"><span className="text-muted-foreground">증거금</span><strong>{Number(amountInput) > 0 ? `₩${Number(amountInput).toLocaleString("ko-KR")}` : "미입력"}</strong></div>
             <div className="flex justify-between"><span className="text-muted-foreground">현재가</span><strong>${currentPrice ? fmtPrice(currentPrice) : "-"}</strong></div>
           </div>
