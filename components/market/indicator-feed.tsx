@@ -35,8 +35,8 @@ export default function IndicatorFeed({ items, token, viewMode = "compact", hasM
     {items.map((item) => {
       const reaction = reactions[item.id] ?? { likeCount: 0, commentCount: 0, shareCount: 0, liked: false, comments: [] }
       const image = blobImageUrl(item.image_url)
-      const isExpanded = expanded === item.id
-      return <article key={item.id} onClick={(event) => event.stopPropagation()} className="border-b border-border/60 py-3 first:pt-0">
+      const isExpanded = viewMode === "expanded" || expanded === item.id
+      return <article key={item.id} onClick={(event) => event.stopPropagation()} className="border-b border-border/60 py-6 first:pt-2">
         <button type="button" onClick={() => setExpanded(isExpanded ? null : item.id)} aria-expanded={isExpanded} className="flex w-full cursor-pointer items-center gap-3 text-left">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"><UserRound className="size-5" /></div>
           <div className="min-w-0 flex-1"><div className="min-w-0"><strong className="block truncate text-sm text-foreground">{item.profiles?.username ?? "게시글 작성자"}</strong>{item.profiles && <span className="block text-[11px] text-emerald-500">잔고 {Number(item.profiles.balance ?? 0).toLocaleString()}원</span>}</div><p className={viewMode === "compact" ? "truncate text-sm text-foreground/85" : "text-sm text-foreground/85"}>{item.title}</p></div>

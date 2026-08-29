@@ -157,7 +157,7 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
       .then(r => r.ok ? r.json() : null)
       .then(d => setAllowTokenDeposit(!!d?.profile?.allow_token_deposit))
       .catch(() => {})
-    // 구매한 ���이템 ID 목록 로드
+    // 구매한 �����이템 ID 목록 로드
     fetch("/api/market/orders?status=paid", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
@@ -631,13 +631,14 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
           )
         })()}
 
-        {/* 지표 카테고리: 기존 상품 데이터를 게시글형 피드로 표시 */}
+        {/* 지표 카테고리: 기존 상��� 데이터를 게시글형 피드로 표시 */}
         {isBoardContent ? (
           loading ? <div className="mx-auto max-w-2xl py-20 text-center text-muted-foreground">불러오는 중...</div> : (
             <IndicatorFeed
               items={showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items}
-  token={getToken()}
-  />
+              token={getToken()}
+              viewMode="expanded"
+            />
           )
         ) : null}
 
