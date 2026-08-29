@@ -35,7 +35,8 @@ export function PortalHeader() {
   const pathname = usePathname()
   const router = useRouter()
   const [query, setQuery] = useState("")
-  const [searchOpen] = useState(true)
+  const [searchResults, setSearchResults] = useState<Array<{ id: string; title: string; description: string | null }>>([])
+  const [searchLoading, setSearchLoading] = useState(false)
   const [boardActive, setBoardActive] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -58,13 +59,32 @@ export function PortalHeader() {
     return () => { liveCache.listeners.delete(refresh) }
   }, [])
 
-  const matches = useMemo(() => {
-    const normalized = query.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")
-    if (!normalized) return []
-    const fallbackSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "GASUSDT", "GPSUSDT", "GALAUSDT", "GMTUSDT", "GRTUSDT", "DOGEUSDT", "GOATUSDT"]
-    const availableSymbols = Array.from(new Set([...liveCache.symbols, ...fallbackSymbols]))
-    return availableSymbols.filter((symbol) => symbol.includes(normalized)).slice(0, 8)
-  }, [query, liveCache.symbols.length])
+  useEffect(() => {
+    const term = query.trim()
+    if (!term) {
+      setSearchResults([])
+      setSearchLoading(false)
+      return
+    }
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setSearchLoading(true)
+      try {
+        const response = await fetch(`/api/market/items?q=${encodeURIComponent(term)}&sort=newest&limit=6`, { signal: controller.signal })
+        if (!response.ok) return
+        const data = await response.json()
+        setSearchResults(data.items ?? [])
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) setSearchResults([])
+      } finally {
+        if (!controller.signal.aborted) setSearchLoading(false)
+      }
+    }, 250)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [query])
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -186,9 +206,16 @@ export function PortalHeader() {
     }
   }
 
+  function openBoardSearch(term: string) {
+    const normalized = term.trim()
+    if (!normalized) return
+    router.push(`/market?q=${encodeURIComponent(normalized)}`)
+    window.dispatchEvent(new CustomEvent("market:search", { detail: normalized }))
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (matches[0]) selectSymbol(matches[0])
+    openBoardSearch(query)
   }
 
   function openTradeMode(mode: TradeMode) {
@@ -204,44 +231,41 @@ export function PortalHeader() {
   return (
     <section className="px-4 py-3 md:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <div className={cn("relative min-w-0 flex-1", ["/baka", "/race", "/trading"].includes(pathname) && "hidden md:block")}>
-
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <input
-              value={query}
-              onChange={(event) => {
-                const value = event.target.value
-                setQuery(value)
-                if (pathname.startsWith("/market")) window.dispatchEvent(new CustomEvent("market:search", { detail: value }))
-              }}
-              placeholder={headerConfig.placeholder}
-              aria-label="검색"
-              autoComplete="off"
-              className="h-9 w-full rounded-xl border border-border bg-card pl-9 pr-3 text-xs font-semibold uppercase text-foreground outline-none placeholder:normal-case placeholder:text-muted-foreground focus:border-primary"
-            />
-            {query.trim() && matches.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-2 flex max-h-80 flex-col gap-1 overflow-y-auto rounded-2xl border border-border bg-popover p-2 shadow-2xl">
-                {matches.map((symbol) => (
-                  <button
-                    key={symbol}
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => selectSymbol(symbol)}
-                    className="flex w-full shrink-0 items-center justify-between rounded-xl bg-popover px-3 py-2.5 text-left text-sm font-bold text-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
-                  >
-                    {symbol.replace("USDT", "/USDT")}
+        <div className="rounded-3xl border border-border bg-card/40 px-3 py-4 md:px-6 md:py-6">
+          <form onSubmit={handleSubmit} className="relative mx-auto max-w-5xl">
+            <div className="flex h-16 items-center rounded-full border-2 border-primary bg-background px-5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08)] md:h-20 md:px-8">
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="코인·게시글 통합 검색"
+                aria-label="게시판 통합 검색"
+                autoComplete="off"
+                className="min-w-0 flex-1 bg-transparent text-center text-lg font-bold text-foreground outline-none placeholder:text-muted-foreground md:text-2xl"
+              />
+              <button type="submit" className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-primary transition-colors hover:bg-primary/10" aria-label="검색 실행">
+                <Search className="size-7" aria-hidden="true" />
+              </button>
+            </div>
+            {query.trim() && (
+              <div className="absolute left-3 right-3 top-full z-50 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-border bg-popover p-2 shadow-2xl">
+                {searchLoading && <p className="px-3 py-4 text-center text-sm text-muted-foreground">검색 중...</p>}
+                {!searchLoading && searchResults.length === 0 && <p className="px-3 py-4 text-center text-sm text-muted-foreground">검색 결과가 없습니다.</p>}
+                {searchResults.map((item) => (
+                  <button key={item.id} type="button" onClick={() => openBoardSearch(item.title)} className="flex w-full flex-col gap-1 rounded-xl px-3 py-3 text-left transition-colors hover:bg-accent">
+                    <span className="truncate text-sm font-bold text-foreground">{item.title}</span>
+                    {item.description && <span className="line-clamp-1 text-xs text-muted-foreground">{item.description}</span>}
                   </button>
                 ))}
               </div>
             )}
-          </div>
-          <div className={cn("flex shrink-0 items-center gap-2", ["/baka", "/race", "/trading"].includes(pathname) && "hidden md:flex")}>
-            {headerConfig.actions.map((action) => {
-              const Icon = action.icon
-              const className = "inline-flex h-9 shrink-0 cursor-pointer touch-manipulation items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
-              return action.href ? <a key={action.label} href={action.href} className={className}><Icon className="size-4" aria-hidden="true" /><span className="hidden whitespace-nowrap lg:inline">{action.label}</span></a> : <button key={action.label} type="button" onClick={action.onClick} className={className}><Icon className="size-4" aria-hidden="true" /><span className="hidden whitespace-nowrap lg:inline">{action.label}</span></button>
-            })}
+          </form>
+          <div className="mx-auto mt-4 flex max-w-4xl items-center gap-3 overflow-x-auto pb-1 md:justify-center">
+            <span className="shrink-0 text-sm font-bold text-foreground md:text-base">인기 코인</span>
+            {['BTC', 'ETH', 'SOL', 'XRP', 'BNB'].map((coin) => (
+              <button key={coin} type="button" onClick={() => { setQuery(coin); openBoardSearch(coin) }} className="h-9 shrink-0 rounded-full bg-secondary px-4 text-sm font-semibold text-muted-foreground transition-colors hover:bg-primary hover:text-primary-foreground">
+                # {coin}
+              </button>
+            ))}
           </div>
         </div>
 
