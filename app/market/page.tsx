@@ -31,18 +31,6 @@ const SORT_CYCLE = [
 
 // 글쓰기(상품 등록) 권한 역할
 const WRITE_ROLES = ["master", "super_admin", "branch_admin", "admin", "seller"]
-const marketResponseCache = new Map<string, { data: any; cachedAt: number }>()
-const MARKET_CACHE_TTL = 30_000
-
-async function fetchMarketJson(url: string) {
-  const cached = marketResponseCache.get(url)
-  if (cached && Date.now() - cached.cachedAt < MARKET_CACHE_TTL) return cached.data
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(`Market request failed: ${response.status}`)
-  const data = await response.json()
-  marketResponseCache.set(url, { data, cachedAt: Date.now() })
-  return data
-}
 
 function getToken() {
   try { return localStorage.getItem("app_token") } catch { return null }
@@ -276,34 +264,20 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
       .catch(() => {})
   }, [selectedItem?.id])
 
-  // 공개 데이터는 병렬로 예열해 카테고리 → 목록 요청 워터폴을 제거합니다.
+  // 카테고리 로드
   useEffect(() => {
-    let cancelled = false
-    const initialItemsUrl = `/api/market/items?sort=popular&limit=50&offset=0`
-    Promise.allSettled([
-      fetchMarketJson("/api/market/categories"),
-      fetchMarketJson(initialItemsUrl),
-    ]).then(([categoryResult, itemResult]) => {
-      if (cancelled) return
-      if (categoryResult.status === "fulfilled") {
-        const nextCategories = categoryResult.value.categories ?? []
+    fetch("/api/market/categories")
+      .then(r => r.json())
+      .then(d => {
+        const nextCategories = d.categories ?? []
         setCategories(nextCategories)
         if (!boardOnly) {
           const pointsCategory = nextCategories.find((category: Category) => category.balance_only)
           if (pointsCategory) setActiveCat(pointsCategory.id)
         }
-        if (itemResult.status === "fulfilled" && boardOnly) {
-          const boardIds = new Set(nextCategories.filter((category: Category) => {
-            const name = category.name.toLowerCase()
-            return name.includes("지표") || name.includes("indicator") || name.includes("게시판") || name.includes("board") || name.includes("채널") || name.includes("channel")
-          }).map((category: Category) => category.id))
-          setItems((itemResult.value.items ?? []).filter((item: Item) => boardIds.has(item.category_id)))
-          setLoading(false)
-        }
-      }
-    })
-    return () => { cancelled = true }
-  }, [boardOnly])
+      })
+      .catch(() => {})
+  }, [])
 
   const PAGE_SIZE = 50
 
@@ -312,7 +286,8 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
     const params = new URLSearchParams({ sort: s, limit: String(PAGE_SIZE), offset: "0" })
     if (catId !== "all" && catId !== "board") params.set("category", catId)
     if (query)           params.set("q", query)
-    const data = await fetchMarketJson(`/api/market/items?${params}`).catch(() => ({}))
+    const res  = await fetch(`/api/market/items?${params}`).catch(() => null)
+    const data = res ? await res.json() : {}
     const nextItems = data.items ?? []
     setItems(boardOnly || catId === "board" ? nextItems.filter((item: Item) => boardCategoryIds.has(item.category_id)) : nextItems)
     setHasMore(boardOnly || catId === "board" ? false : (data.hasMore ?? false))
@@ -326,7 +301,8 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
     const params = new URLSearchParams({ sort: s, limit: String(PAGE_SIZE), offset: String(loadMoreOffsetRef.current) })
     if (catId !== "all" && catId !== "board") params.set("category", catId)
     if (query)           params.set("q", query)
-    const data = await fetchMarketJson(`/api/market/items?${params}`).catch(() => ({}))
+    const res  = await fetch(`/api/market/items?${params}`).catch(() => null)
+    const data = res ? await res.json() : {}
     const nextItems = data.items ?? []
     setItems(prev => [...prev, ...(boardOnly || catId === "board" ? nextItems.filter((item: Item) => boardCategoryIds.has(item.category_id)) : nextItems)])
     setHasMore(boardOnly || catId === "board" ? false : (data.hasMore ?? false))
@@ -652,7 +628,7 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
             {(showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items).length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-24 text-muted-foreground">
                 <CheckCircle2 className="w-10 h-10 mb-3 opacity-30" />
-                <p className="text-sm">{showPurchasedOnly ? "구���한 상품이 없습니다." : "상품이 없습니다."}</p>
+                <p className="text-sm">{showPurchasedOnly ? "구��한 상품이 없습니다." : "상품이 없습니다."}</p>
               </div>
             ) : null}
             {(showPurchasedOnly ? items.filter(i => purchasedIds.has(i.id)) : items).map((item, idx) => (
@@ -850,7 +826,7 @@ function MarketItemCard({
               {item.market_categories.icon} {item.market_categories.name}
             </span>
           )}
-          {/* 콘텐츠 타��� + 데이터 소스 배지 */}
+          {/* 콘텐츠 타입 + 데이터 소스 배지 */}
           <div className="absolute bottom-2 left-2 flex flex-wrap gap-1">
             {item.content_type && (
               <span className="px-1.5 py-0.5 rounded-md bg-primary/80 text-black text-[9px] font-semibold">
