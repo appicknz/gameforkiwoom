@@ -207,7 +207,7 @@ function TradingPageContent() {
     if (!confirmDirection) return
     const selectedAmount = Math.round(Number(amountInput))
     if (!Number.isFinite(selectedAmount) || selectedAmount <= 0) {
-      setError("증����������을 선택하거나 입력해주세요.")
+      setError("증�����������을 선택하거나 입력해주세요.")
       return
     }
     await handleOpen(confirmDirection)
@@ -547,8 +547,21 @@ function TradingPageContent() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{confirmDirection === "long" ? "롱 주문 확인" : "숏 주문 확인"}</DialogTitle>
-            <DialogDescription>선택한 레버리지와 금액으로 주문을 제출합니다.</DialogDescription>
+            <DialogDescription>레버리지와 주문 금액 비율을 설정한 뒤 주문을 제출합니다.</DialogDescription>
           </DialogHeader>
+          <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">레버리지</span><strong className="text-emerald-500">{leverage}x</strong></div>
+              <input type="range" min={1} max={100} value={leverage} onChange={(e) => setLeverage(Number(e.target.value))} className="h-5 w-full accent-emerald-500" aria-label="레버리지 배율" />
+              <div className="flex gap-1.5">{LEVERAGES.map((lv) => <button key={lv} type="button" onClick={() => setLeverage(lv)} className={cn("flex-1 rounded-full border py-1.5 text-xs font-semibold transition-colors", leverage === lv ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-border text-muted-foreground hover:border-emerald-500/50")}>{lv}x</button>)}</div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">주문 금액 비율</span><strong className="text-emerald-500">{amountPercent ?? 0}%</strong></div>
+              <input type="range" min={0} max={100} step={1} value={amountPercent ?? 0} onChange={(e) => applyPercent(Number(e.target.value))} className="h-5 w-full accent-emerald-500" aria-label="주문 금액 비율" />
+              <div className="flex gap-1.5">{PERCENTS.map((pct) => <button key={pct} type="button" onClick={() => applyPercent(pct)} className={cn("flex-1 rounded-full border py-1.5 text-xs font-semibold transition-colors", amountPercent === pct ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-border text-muted-foreground hover:border-emerald-500/50")}>{pct === 100 ? "MAX" : `${pct}%`}</button>)}</div>
+              <input type="number" min={0} value={amountInput} onChange={(e) => { setAmountInput(e.target.value); setAmountPercent(null) }} placeholder="주문 금액 직접 입력" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500" />
+            </div>
+          </div>
           <div className="space-y-3 rounded-lg border border-border bg-card p-3 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">종목</span><strong>{selectedSymbol}</strong></div>
             <div className="flex justify-between"><span className="text-muted-foreground">방향</span><strong className={confirmDirection === "long" ? "text-emerald-500" : "text-red-500"}>{confirmDirection === "long" ? "롱 (상승)" : "숏 (하락)"}</strong></div>
