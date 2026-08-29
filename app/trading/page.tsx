@@ -213,6 +213,10 @@ function TradingPageContent() {
 
   const requestOpen = (nextDirection: Direction) => {
     setError(null)
+    if (!getToken()) {
+      setError("주문하려면 먼저 로그인해주세요.")
+      return
+    }
     setDirection(nextDirection)
     if (amountPercentLocked && amountPercent !== null) {
       const bal = balanceRef.current ?? 0
@@ -225,7 +229,7 @@ function TradingPageContent() {
     if (!confirmDirection) return
     const selectedAmount = Math.round(Number(amountInput))
     if (!Number.isFinite(selectedAmount) || selectedAmount <= 0) {
-      setError("증������������을 선택하거나 입력해주세요.")
+      setError("증거금을 선택하거나 입력해주세요.")
       return
     }
     await handleOpen(confirmDirection)
