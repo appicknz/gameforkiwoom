@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronDown, TrendingUp, TrendingDown, X } from "lucide-react"
+import { ChevronDown, Lock, LockOpen, TrendingUp, TrendingDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -72,6 +72,7 @@ function TradingPageContent() {
   const [leverage, setLeverage] = useState(10)
   const [amountInput, setAmountInput] = useState("")
   const [amountPercent, setAmountPercent] = useState<number | null>(null)
+  const [amountPercentLocked, setAmountPercentLocked] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [closingId, setClosingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -157,6 +158,19 @@ function TradingPageContent() {
 
   useEffect(() => {
     if (!loggedIn) return
+    const token = getToken()
+    if (token) {
+      fetch("/api/user/trade-preference", { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (!data) return
+          setAmountPercent(data.percent)
+          setAmountPercentLocked(Boolean(data.locked))
+          const bal = balanceRef.current
+          if (bal !== null) setAmountInput(String(Math.floor((bal * data.percent) / 100)))
+        })
+        .catch(() => {})
+    }
     fetchBalance()
     fetchPositions()
     const poll = setInterval(() => { fetchBalance(); fetchPositions() }, 15_000)
@@ -200,6 +214,10 @@ function TradingPageContent() {
   const requestOpen = (nextDirection: Direction) => {
     setError(null)
     setDirection(nextDirection)
+    if (amountPercentLocked && amountPercent !== null) {
+      const bal = balanceRef.current ?? 0
+      setAmountInput(String(Math.floor((bal * amountPercent) / 100)))
+    }
     setConfirmDirection(nextDirection)
   }
 
@@ -207,7 +225,7 @@ function TradingPageContent() {
     if (!confirmDirection) return
     const selectedAmount = Math.round(Number(amountInput))
     if (!Number.isFinite(selectedAmount) || selectedAmount <= 0) {
-      setError("증�����������을 선택하거나 입력해주세요.")
+      setError("증������������을 선택하거나 입력해주세요.")
       return
     }
     await handleOpen(confirmDirection)
@@ -243,9 +261,28 @@ function TradingPageContent() {
   }
 
   const applyPercent = (pct: number) => {
+    if (amountPercentLocked) return
     const bal = balanceRef.current ?? 0
     setAmountPercent(pct)
     setAmountInput(String(Math.floor((bal * pct) / 100)))
+  }
+
+  const toggleAmountPercentLock = async () => {
+    const token = getToken()
+    const percent = amountPercent ?? 25
+    if (!token) return
+    const nextLocked = !amountPercentLocked
+    setAmountPercentLocked(nextLocked)
+    try {
+      const res = await fetch("/api/user/trade-preference", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ percent, locked: nextLocked }),
+      })
+      if (!res.ok) setAmountPercentLocked(!nextLocked)
+    } catch {
+      setAmountPercentLocked(!nextLocked)
+    }
   }
 
   function livePnl(pos: Position) {
@@ -556,9 +593,18 @@ function TradingPageContent() {
               <div className="flex gap-1.5">{LEVERAGES.map((lv) => <button key={lv} type="button" onClick={() => setLeverage(lv)} className={cn("flex-1 rounded-full border py-1.5 text-xs font-semibold transition-colors", leverage === lv ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-border text-muted-foreground hover:border-emerald-500/50")}>{lv}x</button>)}</div>
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">주문 금액 비율</span><strong className="text-emerald-500">{amountPercent ?? 0}%</strong></div>
-              <input type="range" min={0} max={100} step={1} value={amountPercent ?? 0} onChange={(e) => applyPercent(Number(e.target.value))} className="h-5 w-full accent-emerald-500" aria-label="주문 금액 비율" />
-              <div className="flex gap-1.5">{PERCENTS.map((pct) => <button key={pct} type="button" onClick={() => applyPercent(pct)} className={cn("flex-1 rounded-full border py-1.5 text-xs font-semibold transition-colors", amountPercent === pct ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-border text-muted-foreground hover:border-emerald-500/50")}>{pct === 100 ? "MAX" : `${pct}%`}</button>)}</div>
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">주문 금액 비율</span>
+                <div className="flex items-center gap-2">
+                  <strong className="text-emerald-500">{amountPercent ?? 0}%</strong>
+                  <button type="button" onClick={toggleAmountPercentLock} className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors", amountPercentLocked ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-500")} aria-pressed={amountPercentLocked} title={amountPercentLocked ? "비율 고정 해제" : "선택한 비율 고정"}>
+                    {amountPercentLocked ? <Lock className="h-3.5 w-3.5" aria-hidden="true" /> : <LockOpen className="h-3.5 w-3.5" aria-hidden="true" />}
+                    {amountPercentLocked ? "고정됨" : "선택한 비율 고정"}
+                  </button>
+                </div>
+              </div>
+              <input type="range" min={0} max={100} step={1} value={amountPercent ?? 0} onChange={(e) => applyPercent(Number(e.target.value))} disabled={amountPercentLocked} className="h-5 w-full accent-emerald-500 disabled:cursor-not-allowed disabled:opacity-50" aria-label="주문 금액 비율" />
+              <div className="flex gap-1.5">{PERCENTS.map((pct) => <button key={pct} type="button" onClick={() => applyPercent(pct)} disabled={amountPercentLocked} className={cn("flex-1 rounded-full border py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50", amountPercent === pct ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-border text-muted-foreground hover:border-emerald-500/50")}>{pct === 100 ? "MAX" : `${pct}%`}</button>)}</div>
               <input type="number" min={0} value={amountInput} onChange={(e) => { setAmountInput(e.target.value); setAmountPercent(null) }} placeholder="주문 금액 직접 입력" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500" />
             </div>
           </div>
