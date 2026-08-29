@@ -207,7 +207,7 @@ function TradingPageContent() {
     if (!confirmDirection) return
     const selectedAmount = Math.round(Number(amountInput))
     if (!Number.isFinite(selectedAmount) || selectedAmount <= 0) {
-      setError("증������을 선택하거나 입력해주세요.")
+      setError("증�������을 선택하거나 입력해주세요.")
       return
     }
     await handleOpen(confirmDirection)
@@ -272,8 +272,8 @@ function TradingPageContent() {
   return (
     <div className="min-h-screen bg-background pb-8">
       <div className="mx-auto w-full max-w-7xl p-3 md:p-5">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
-          <main className="order-1 min-w-0 space-y-4 lg:col-span-2" aria-label="트레이딩">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] lg:items-start">
+          <main className="min-w-0 space-y-4 lg:col-start-1 lg:row-start-1" aria-label="트레이딩">
 
         {/* 헤더 */}
         <div className="flex items-center justify-between">
@@ -281,7 +281,7 @@ function TradingPageContent() {
             <button
               type="button"
               onClick={() => setSymbolSheetOpen(true)}
-              className="group flex h-[72px] items-center gap-2 rounded-xl bg-card px-3 py-1.5 text-left transition-colors hover:bg-accent"
+              className="group flex h-[72px] items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-left transition-colors hover:border-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div>
                 <div className="flex items-center gap-1 text-xs font-semibold text-foreground md:text-base">
@@ -295,7 +295,7 @@ function TradingPageContent() {
               </div>
             </button>
           ) : (
-            <div className="group flex h-[72px] items-center gap-3 rounded-xl bg-card px-3 py-2 text-left">
+            <div className="group flex h-[72px] items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left">
               <div>
                 <div className="flex items-center gap-1 text-xs font-semibold text-foreground md:text-base">
                   종목 선택
@@ -537,7 +537,7 @@ function TradingPageContent() {
             </div>
           </div>
           </main>
-          <aside className="order-2 min-w-0 lg:sticky lg:top-4" aria-label="트레이딩 피드">
+          <aside className="min-w-0 lg:col-start-2 lg:row-start-1 lg:sticky lg:top-4" aria-label="트레이딩 피드">
             <TradingBoardColumn />
           </aside>
         </div>
