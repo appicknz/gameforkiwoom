@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowUpRight, RefreshCw } from "lucide-react"
+import { Info, List, RefreshCw, Rows3 } from "lucide-react"
 import IndicatorFeed from "@/components/market/indicator-feed"
 
 interface Category { id: string; name: string }
@@ -25,7 +25,9 @@ export default function TradingBoardColumn() {
   const [categories, setCategories] = useState<Category[]>([])
   const [items, setItems] = useState<BoardItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [sort, setSort] = useState<"newest" | "popular">("newest")
+  const [sort, setSort] = useState<"newest" | "popular" | "ranking">("newest")
+  const [direction, setDirection] = useState<"asc" | "desc">("desc")
+  const [viewMode, setViewMode] = useState<"compact" | "expanded">("compact")
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const boardIds = useMemo(() => new Set(categories.filter((category) => {
@@ -33,12 +35,12 @@ export default function TradingBoardColumn() {
     return name.includes("지표") || name.includes("indicator") || name.includes("게시판") || name.includes("board") || name.includes("채널") || name.includes("channel")
   }).map((category) => category.id)), [categories])
 
-  const load = async (nextSort = sort, nextPage = page) => {
+  const load = async (nextSort = sort, nextPage = page, nextDirection = direction) => {
     setLoading(true)
     try {
       const [categoryResponse, itemResponse] = await Promise.all([
         fetch("/api/market/categories"),
-        fetch(`/api/market/items?sort=${nextSort}&limit=10&offset=${(nextPage - 1) * 10}`),
+        fetch(`/api/market/items?sort=${nextSort}&direction=${nextDirection}&limit=10&offset=${(nextPage - 1) * 10}`),
       ])
       const categoryData = categoryResponse.ok ? await categoryResponse.json() : { categories: [] }
       const itemData = itemResponse.ok ? await itemResponse.json() : { items: [] }
@@ -60,22 +62,17 @@ export default function TradingBoardColumn() {
   return (
     <aside className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card/95 px-4 py-3 backdrop-blur">
-        <div>
-          <p className="text-sm font-bold text-foreground">트레이딩 피드</p>
-          <p className="text-xs text-muted-foreground">시장 지표와 게시판을 한눈에</p>
-        </div>
+        <div className="flex items-center gap-1.5"><p className="text-sm font-bold text-foreground">트레이딩 피드</p><button type="button" className="text-muted-foreground hover:text-foreground" title="시장 지표와 게시판 이용 규칙" aria-label="규칙"><Info className="size-3.5" /></button><span className="text-[10px] text-muted-foreground">규칙</span></div>
         <div className="flex items-center gap-1">
-          <div className="mr-1 flex rounded-lg border border-border p-0.5" role="group" aria-label="피드 정렬"><button type="button" onClick={() => { setSort("newest"); setPage(1); void load("newest", 1) }} className={`rounded-md px-2 py-1 text-[10px] font-semibold ${sort === "newest" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>최신순</button><button type="button" onClick={() => { setSort("popular"); setPage(1); void load("popular", 1) }} className={`rounded-md px-2 py-1 text-[10px] font-semibold ${sort === "popular" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>인기순</button></div>
-          <button type="button" onClick={() => void load()} className="rounded-lg p-2 text-muted-foreground transition hover:bg-accent hover:text-foreground" aria-label="피드 새로고침">
-            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
-          <Link href="/market?category=indicator" className="rounded-lg p-2 text-muted-foreground transition hover:bg-accent hover:text-foreground" aria-label="게시판 전체 보기">
-            <ArrowUpRight className="size-4" />
-          </Link>
+          <div className="flex rounded-lg border border-border p-0.5" role="group" aria-label="피드 정렬">
+            {([['newest','최신순'],['popular','인기순'],['ranking','랭킹순']] as const).map(([key,label]) => <button key={key} type="button" onClick={() => { const nextDirection = sort === key && direction === "desc" ? "asc" : "desc"; setSort(key); setDirection(nextDirection); setPage(1); void load(key, 1, nextDirection) }} className={`rounded-md px-2 py-1 text-[10px] font-semibold ${sort === key ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{label}{sort === key ? (direction === "desc" ? " ↓" : " ↑") : ""}</button>)}
+          </div>
+          <button type="button" onClick={() => setViewMode(viewMode === "compact" ? "expanded" : "compact")} className="rounded-lg p-2 text-muted-foreground transition hover:bg-accent hover:text-foreground" aria-label="게시글 보기 모드 전환">{viewMode === "compact" ? <Rows3 className="size-4" /> : <List className="size-4" />}</button>
+          <button type="button" onClick={() => void load()} className="rounded-lg p-2 text-muted-foreground transition hover:bg-accent hover:text-foreground" aria-label="피드 새로고침"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /></button>
         </div>
       </header>
       <div className="max-h-[calc(100vh-10rem)] overflow-y-auto px-4 pt-4">
-        {loading ? <div className="py-20 text-center text-sm text-muted-foreground">피드를 불러오는 중...</div> : <IndicatorFeed items={items} token={getToken()} hasMore={hasMore} page={page} onPageChange={(nextPage) => { setPage(nextPage); void load(sort, nextPage) }} />}
+        {loading ? <div className="py-20 text-center text-sm text-muted-foreground">피드를 불러오는 중...</div> : <IndicatorFeed items={items} token={getToken()} viewMode={viewMode} hasMore={hasMore} page={page} onPageChange={(nextPage) => { setPage(nextPage); void load(sort, nextPage) }} />}
       </div>
     </aside>
   )

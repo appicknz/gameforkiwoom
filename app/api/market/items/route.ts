@@ -8,6 +8,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const categoryId = url.searchParams.get("category")
   const sort       = url.searchParams.get("sort") ?? "popular"
+  const direction  = url.searchParams.get("direction") === "asc"
   const q          = url.searchParams.get("q") ?? ""
   const mine       = url.searchParams.get("mine") === "true"
   const all        = url.searchParams.get("all")  === "true"   // master 전용: 비활성 포함 전체
@@ -47,15 +48,16 @@ export async function GET(req: Request) {
   }
 
   switch (sort) {
-    case "popular":   query = query.order("order_count", { ascending: false }); break
-    case "price_asc": query = query.order("price_krw",   { ascending: true  }); break
-    case "price_desc":query = query.order("price_krw",   { ascending: false }); break
-    case "newest":    query = query.order("created_at",  { ascending: false }); break
-    default:          query = query.order("order_count", { ascending: false })
+    case "popular": query = query.order("order_count", { ascending: direction }); break
+    case "ranking": query = query.order("created_at", { ascending: direction }); break
+    case "price_asc": query = query.order("price_krw", { ascending: true }); break
+    case "price_desc": query = query.order("price_krw", { ascending: false }); break
+    case "newest": query = query.order("created_at", { ascending: direction }); break
+    default: query = query.order("order_count", { ascending: false })
   }
 
-  // 페이지네이션
-  const { data, error } = await query.range(offset, offset + limit - 1)
+  // 랭킹은 아래 프로필 잔고를 기준으로 후처리합니다.
+  const { data, error } = await query.range(sort === "ranking" ? 0 : offset, sort === "ranking" ? 99 : offset + limit - 1)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // publisher 프로필 별도 조회
@@ -69,15 +71,22 @@ export async function GET(req: Request) {
     profiles?.forEach((p: any) => { profilesMap[p.id] = { username: p.username, role: p.role } })
   }
 
-  const items = (data ?? []).map((item: any) => ({
+  let items = (data ?? []).map((item: any) => ({
     ...item,
     profiles: profilesMap[item.publisher_id] ?? null,
   }))
 
+  if (sort === "ranking") {
+    const ids = items.map((item: any) => item.publisher_id).filter(Boolean)
+    const { data: balances } = ids.length ? await adminSupabase.from("balances").select("user_id, amount").in("user_id", ids) : { data: [] }
+    const balanceMap = new Map((balances ?? []).map((row: any) => [row.user_id, Number(row.amount ?? 0)]))
+    items = items.sort((a: any, b: any) => (Number(balanceMap.get(a.publisher_id) ?? 0) - Number(balanceMap.get(b.publisher_id) ?? 0)) * (direction ? 1 : -1)).slice(offset, offset + limit)
+  }
+
   return NextResponse.json(
     {
       items,
-      hasMore: items.length === limit,  // limit개가 꽉 찼으면 다음 페이지 존재
+      hasMore: sort === "ranking" ? (data ?? []).length === 100 : items.length === limit,  // limit개가 꽉 찼으면 다음 페이지 존재
       offset,
       limit,
     },
