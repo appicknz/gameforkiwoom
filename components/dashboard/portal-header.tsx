@@ -1,7 +1,6 @@
 "use client"
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
-import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   BarChart3, Bell, Bot, BookOpen, CircleDollarSign, Flag, Gamepad2, Landmark,
@@ -219,8 +218,16 @@ export function PortalHeader() {
     openBoardSearch(query)
   }
 
-  function openTradeMode(mode: TradeMode) {
-    const target = `/trade?mode=${mode}`
+function navigateTo(href: string) {
+  if (pathname === "/trade" || pathname.startsWith("/trade/")) {
+    window.location.assign(href)
+    return
+  }
+  router.push(href)
+}
+
+function openTradeMode(mode: TradeMode) {
+  const target = `/trade?mode=${mode}`
     if (pathname === "/trade") {
       router.replace(target, { scroll: false })
       window.dispatchEvent(new CustomEvent("trade:mode", { detail: mode }))
@@ -269,7 +276,7 @@ export function PortalHeader() {
               const active = !("mode" in item) && (item.href === "/board" ? boardActive : pathname === item.href)
               const content = <><Icon className="size-4 shrink-0" aria-hidden="true" /><span className="whitespace-nowrap">{item.label}</span></>
               const className = cn("group inline-flex h-8 shrink-0 cursor-pointer touch-manipulation items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-all", active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground")
-              return item.mode ? <button key={`${item.href}-${item.mode}`} type="button" onClick={() => openTradeMode(item.mode!)} className={className}>{content}</button> : <Link key={item.href} href={item.href} prefetch aria-current={active ? "page" : undefined} className={className}>{content}</Link>
+              return item.mode ? <button key={`${item.href}-${item.mode}`} type="button" onClick={() => openTradeMode(item.mode!)} className={className}>{content}</button> : <button key={item.href} type="button" onClick={() => navigateTo(item.href)} aria-current={active ? "page" : undefined} className={className}>{content}</button>
             })}
           </div>
         </nav>
