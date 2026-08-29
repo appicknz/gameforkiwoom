@@ -9,5 +9,13 @@ export function PersistentPortalShell({ children }: { children: React.ReactNode 
   const pathname = usePathname()
   const usesPortal = persistentRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 
-  return usesPortal ? <PortalShell>{children}</PortalShell> : children
+  if (!usesPortal) return children
+
+  return (
+    <PortalShell>
+      <div key={pathname} data-route-content={pathname}>
+        {children}
+      </div>
+    </PortalShell>
+  )
 }
