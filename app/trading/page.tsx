@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@/lib/utils"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import SymbolSelectSheet from "@/components/trade/symbol-select-sheet"
+import TradingBoardColumn from "@/components/trade/trading-board-column"
 
 const SymbolChart = dynamic(() => import("@/components/trade/symbol-chart"), { ssr: false })
 
@@ -270,7 +271,12 @@ export default function TradingPage() {
 
   return (
     <div className="min-h-screen bg-background pb-8">
-      <div className="max-w-7xl mx-auto px-4 space-y-4">
+      <div className="mx-auto max-w-[1600px] px-3 md:px-5">
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(320px,2fr)_minmax(0,3fr)] lg:items-start">
+          <div className="order-2 lg:order-1 lg:sticky lg:top-4">
+            <TradingBoardColumn />
+          </div>
+          <main className="order-1 min-w-0 space-y-4 lg:order-2" aria-label="트레이딩">
 
         {/* 헤더 */}
         <div className="flex items-center justify-between">
@@ -533,6 +539,8 @@ export default function TradingPage() {
               )}
             </div>
           </div>
+          </main>
+        </div>
       </div>
 
       <Dialog open={confirmDirection !== null} onOpenChange={(open) => !open && setConfirmDirection(null)}>
