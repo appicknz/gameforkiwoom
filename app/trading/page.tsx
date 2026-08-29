@@ -207,7 +207,7 @@ function TradingPageContent() {
     if (!confirmDirection) return
     const selectedAmount = Math.round(Number(amountInput))
     if (!Number.isFinite(selectedAmount) || selectedAmount <= 0) {
-      setError("증��������을 선택하거나 입력해주세요.")
+      setError("증���������을 선택하거나 입력해주세요.")
       return
     }
     await handleOpen(confirmDirection)
@@ -281,7 +281,7 @@ function TradingPageContent() {
             <button
               type="button"
               onClick={() => setSymbolSheetOpen(true)}
-              className="group flex h-[72px] items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-left transition-all hover:border-primary/50 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="group flex h-[72px] items-center gap-2 rounded-full bg-card px-3 py-1.5 text-left transition-all hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div>
                 <div className="flex items-center gap-1 text-xs font-semibold text-foreground md:text-base">
