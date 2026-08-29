@@ -1,22 +1,30 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Lock, ShoppingBag } from "lucide-react"
+
+type AccessStatus = "loading" | "allowed" | "denied" | "guest"
+const accessCache = new Map<string, Exclude<AccessStatus, "loading">>()
 
 function getToken() {
   try { return localStorage.getItem("app_token") } catch { return null }
 }
 
 export function GameAccessGate({ children }: { children: React.ReactNode }) {
-  const [status, setStatus] = useState<"loading" | "allowed" | "denied" | "guest">("loading")
+  const [status, setStatus] = useState<AccessStatus>("loading")
   const router = useRouter()
-  const pathname = usePathname()
 
-  const checkAccess = useCallback(async (signal?: AbortSignal) => {
+  const checkAccess = useCallback(async (signal?: AbortSignal, force = false) => {
     const token = getToken()
     if (!token) {
       setStatus("guest")
+      return
+    }
+
+    const cached = accessCache.get(token)
+    if (cached && !force) {
+      setStatus(cached)
       return
     }
 
@@ -29,7 +37,11 @@ export function GameAccessGate({ children }: { children: React.ReactNode }) {
       })
       if (!response.ok) throw new Error("Failed to check game access")
       const data = await response.json()
-      if (!signal?.aborted) setStatus(data.allowed ? "allowed" : "denied")
+      const nextStatus = data.allowed ? "allowed" : "denied"
+      if (!signal?.aborted) {
+        accessCache.set(token, nextStatus)
+        setStatus(nextStatus)
+      }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) setStatus("denied")
     }
@@ -39,20 +51,24 @@ export function GameAccessGate({ children }: { children: React.ReactNode }) {
     const controller = new AbortController()
     void checkAccess(controller.signal)
 
-    const refreshAccess = () => void checkAccess()
+    const refreshAccess = () => {
+      accessCache.clear()
+      void checkAccess(undefined, true)
+    }
+    const refreshFromStorage = (event: StorageEvent) => {
+      if (event.key === "app_token") refreshAccess()
+    }
     window.addEventListener("auth:login", refreshAccess)
     window.addEventListener("auth:logout", refreshAccess)
-    window.addEventListener("storage", refreshAccess)
-    window.addEventListener("pageshow", refreshAccess)
+    window.addEventListener("storage", refreshFromStorage)
 
     return () => {
       controller.abort()
       window.removeEventListener("auth:login", refreshAccess)
       window.removeEventListener("auth:logout", refreshAccess)
-      window.removeEventListener("storage", refreshAccess)
-      window.removeEventListener("pageshow", refreshAccess)
+      window.removeEventListener("storage", refreshFromStorage)
     }
-  }, [checkAccess, pathname])
+  }, [checkAccess])
 
   if (status === "loading") {
     return (
