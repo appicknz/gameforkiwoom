@@ -62,7 +62,7 @@ export default function TradingBoardColumn() {
   return (
     <aside className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card/95 px-4 py-3 backdrop-blur">
-        <div className="flex items-center gap-1.5"><p className="text-sm font-bold text-foreground">트레이딩 피드</p><button type="button" className="text-muted-foreground hover:text-foreground" title="시장 지표와 게시판 이용 규칙" aria-label="규칙"><Info className="size-3.5" /></button><span className="text-[10px] text-muted-foreground">규칙</span></div>
+        <div className="flex items-center gap-1.5"><p className="text-sm font-bold text-foreground">게시판</p><button type="button" className="text-muted-foreground hover:text-foreground" title="시장 지표와 게시판 이용 규칙" aria-label="규칙"><Info className="size-3.5" /></button><span className="text-[10px] text-muted-foreground">규칙</span></div>
         <div className="flex items-center gap-1">
           <div className="flex rounded-lg border border-border p-0.5" role="group" aria-label="피드 정렬">
             {([['newest','최신순'],['popular','인기순'],['ranking','랭킹순']] as const).map(([key,label]) => <button key={key} type="button" onClick={() => { const nextDirection = sort === key && direction === "desc" ? "asc" : "desc"; setSort(key); setDirection(nextDirection); setPage(1); void load(key, 1, nextDirection) }} className={`rounded-md px-2 py-1 text-[10px] font-semibold ${sort === key ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{label}{sort === key ? (direction === "desc" ? " ↓" : " ↑") : ""}</button>)}

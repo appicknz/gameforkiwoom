@@ -62,13 +62,14 @@ export async function GET(req: Request) {
 
   // publisher 프로필 별도 조회
   const publisherIds = [...new Set((data ?? []).map((i: any) => i.publisher_id).filter(Boolean))]
-  let profilesMap: Record<string, { username: string; role: string }> = {}
+  let profilesMap: Record<string, { username: string; role: string; balance: number }> = {}
   if (publisherIds.length > 0) {
-    const { data: profiles } = await adminSupabase
-      .from("profiles")
-      .select("id, username, role")
-      .in("id", publisherIds)
-    profiles?.forEach((p: any) => { profilesMap[p.id] = { username: p.username, role: p.role } })
+    const [{ data: profiles }, { data: balances }] = await Promise.all([
+      adminSupabase.from("profiles").select("id, username, role").in("id", publisherIds),
+      adminSupabase.from("balances").select("user_id, amount").in("user_id", publisherIds),
+    ])
+    const balanceMap = new Map((balances ?? []).map((row: any) => [row.user_id, Number(row.amount ?? 0)]))
+    profiles?.forEach((p: any) => { profilesMap[p.id] = { username: p.username, role: p.role, balance: Number(balanceMap.get(p.id) ?? 0) } })
   }
 
   let items = (data ?? []).map((item: any) => ({
