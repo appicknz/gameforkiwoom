@@ -207,7 +207,7 @@ function TradingPageContent() {
     if (!confirmDirection) return
     const selectedAmount = Math.round(Number(amountInput))
     if (!Number.isFinite(selectedAmount) || selectedAmount <= 0) {
-      setError("증거���을 선택하거나 입력해주세요.")
+      setError("증�����을 선택하거나 입력해주세요.")
       return
     }
     await handleOpen(confirmDirection)
@@ -271,12 +271,9 @@ function TradingPageContent() {
 
   return (
     <div className="min-h-screen bg-background pb-8">
-      <div className="mx-auto max-w-[1600px] px-3 md:px-5">
-        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(320px,2fr)_minmax(0,3fr)] lg:items-start">
-          <div className="order-2 lg:order-1 lg:sticky lg:top-4">
-            <TradingBoardColumn />
-          </div>
-          <main className="order-1 min-w-0 space-y-4 lg:order-2" aria-label="트레이딩">
+      <div className="mx-auto max-w-7xl p-3 md:p-5">
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-3 lg:items-start">
+          <main className="min-w-0 space-y-4 lg:col-span-2" aria-label="트레이딩">
 
         {/* 헤더 */}
         <div className="flex items-center justify-between">
@@ -540,6 +537,9 @@ function TradingPageContent() {
             </div>
           </div>
           </main>
+          <div className="lg:sticky lg:top-4">
+            <TradingBoardColumn />
+          </div>
         </div>
       </div>
 
