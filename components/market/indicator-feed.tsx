@@ -30,7 +30,7 @@ export default function IndicatorFeed({ items, token, viewMode = "compact", hasM
     else alert(data.error ?? "처리할 수 없습니다.")
     setCommentText(""); setBusy(null)
   }
-  if (!items.length) return <div className="py-12 text-center text-muted-foreground">등록된 지표가 없습니다.</div>
+  if (!items.length) return <div className="py-12 text-center text-muted-foreground">등록된 게시글이 없습니다.</div>
   return <div className="pb-4" onClick={() => setExpanded(null)}>
     {items.map((item) => {
       const reaction = reactions[item.id] ?? { likeCount: 0, commentCount: 0, shareCount: 0, liked: false, comments: [] }

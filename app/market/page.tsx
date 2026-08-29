@@ -157,7 +157,7 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
       .then(r => r.ok ? r.json() : null)
       .then(d => setAllowTokenDeposit(!!d?.profile?.allow_token_deposit))
       .catch(() => {})
-    // 구매한 아이템 ID 목록 로드
+    // 구매한 ���이템 ID 목록 로드
     fetch("/api/market/orders?status=paid", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
@@ -297,7 +297,8 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
             const name = category.name.toLowerCase()
             return name.includes("지표") || name.includes("indicator") || name.includes("게시판") || name.includes("board") || name.includes("채널") || name.includes("channel")
           }).map((category: Category) => category.id))
-          setItems((itemResult.value.items ?? []).filter((item: Item) => boardIds.has(item.category_id)))
+          // 게시판은 특정 카테고리명에 의존하지 않고 기존 게시글 전체를 표시합니다.
+          setItems(itemResult.value.items ?? [])
           setLoading(false)
         }
       }
@@ -314,8 +315,8 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
     if (query)           params.set("q", query)
     const data = await fetchMarketJson(`/api/market/items?${params}`).catch(() => ({}))
     const nextItems = data.items ?? []
-    setItems(boardOnly || catId === "board" ? nextItems.filter((item: Item) => boardCategoryIds.has(item.category_id)) : nextItems)
-    setHasMore(boardOnly || catId === "board" ? false : (data.hasMore ?? false))
+    setItems(nextItems)
+    setHasMore(data.hasMore ?? false)
     loadMoreOffsetRef.current = PAGE_SIZE
     setLoading(false)
   }, [boardCategoryIds, boardOnly])
@@ -328,8 +329,8 @@ export default function MarketPage({ boardOnly = false }: { boardOnly?: boolean 
     if (query)           params.set("q", query)
     const data = await fetchMarketJson(`/api/market/items?${params}`).catch(() => ({}))
     const nextItems = data.items ?? []
-    setItems(prev => [...prev, ...(boardOnly || catId === "board" ? nextItems.filter((item: Item) => boardCategoryIds.has(item.category_id)) : nextItems)])
-    setHasMore(boardOnly || catId === "board" ? false : (data.hasMore ?? false))
+    setItems(prev => [...prev, ...nextItems])
+    setHasMore(boardOnly || catId === "board" ? (data.hasMore ?? false) : (data.hasMore ?? false))
     loadMoreOffsetRef.current += PAGE_SIZE
     setLoadingMore(false)
   }, [loadingMore, boardCategoryIds, boardOnly])
