@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation"
 import { PortalShell } from "@/components/dashboard/portal-shell"
 
-const persistentRoutes = ["/baka", "/race", "/trading"]
+const persistentRoutes = ["/baka", "/race", "/trading", "/board", "/market"]
 
 export function PersistentPortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
