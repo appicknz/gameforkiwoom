@@ -93,9 +93,8 @@ export async function GET(req: Request) {
     },
     {
       headers: {
-        "Cache-Control": mine || all
-          ? "private, no-store"
-          : "public, s-maxage=60, stale-while-revalidate=300",
+        // 게시판 응답에 작성자 잔고가 포함되므로 이전 0원 응답을 공유 캐시하지 않습니다.
+        "Cache-Control": "private, no-store",
       },
     },
   )
