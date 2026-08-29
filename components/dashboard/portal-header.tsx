@@ -231,18 +231,6 @@ export function PortalHeader() {
   return (
     <section className="px-4 py-3 md:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
-        <nav aria-label="주요 서비스" className="flex overflow-x-auto pb-1">
-          <div className="flex min-w-max items-center gap-2">
-            {mounted && portalItems.map((item) => {
-              const Icon = item.icon
-              const active = !("mode" in item) && (item.href === "/board" ? boardActive : pathname === item.href)
-              const content = <><Icon className="size-4 shrink-0" aria-hidden="true" /><span className="whitespace-nowrap">{item.label}</span></>
-              const className = cn("group inline-flex h-8 shrink-0 cursor-pointer touch-manipulation items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-all", active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground")
-              return item.mode ? <button key={`${item.href}-${item.mode}`} type="button" onClick={() => openTradeMode(item.mode!)} className={className}>{content}</button> : <a key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={className}>{content}</a>
-            })}
-          </div>
-        </nav>
-
         <div className="rounded-2xl border border-border bg-card/40 px-3 py-3 md:px-5 md:py-4">
           <form onSubmit={handleSubmit} className="relative mx-auto max-w-3xl">
             <div className="flex h-11 items-center rounded-full border border-primary bg-background px-4 md:h-12 md:px-5">
@@ -273,14 +261,17 @@ export function PortalHeader() {
           </form>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:justify-center">
-          <span className="shrink-0 text-xs font-bold text-foreground md:text-sm">인기 코인</span>
-          {['BTC', 'ETH', 'SOL', 'XRP', 'BNB'].map((coin) => (
-            <button key={coin} type="button" onClick={() => { setQuery(coin); openBoardSearch(coin) }} className="h-8 shrink-0 rounded-full bg-secondary px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-primary hover:text-primary-foreground">
-              # {coin}
-            </button>
-          ))}
-        </div>
+        <nav aria-label="주요 서비스" className="flex overflow-x-auto pb-1 md:justify-center">
+          <div className="flex min-w-max items-center gap-2">
+            {mounted && portalItems.map((item) => {
+              const Icon = item.icon
+              const active = !("mode" in item) && (item.href === "/board" ? boardActive : pathname === item.href)
+              const content = <><Icon className="size-4 shrink-0" aria-hidden="true" /><span className="whitespace-nowrap">{item.label}</span></>
+              const className = cn("group inline-flex h-8 shrink-0 cursor-pointer touch-manipulation items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-all", active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground")
+              return item.mode ? <button key={`${item.href}-${item.mode}`} type="button" onClick={() => openTradeMode(item.mode!)} className={className}>{content}</button> : <a key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={className}>{content}</a>
+            })}
+          </div>
+        </nav>
       </div>
     </section>
   )
