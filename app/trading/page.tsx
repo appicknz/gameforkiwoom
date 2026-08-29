@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { Suspense, useState, useEffect, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronDown, TrendingUp, TrendingDown, X } from "lucide-react"
@@ -57,7 +57,7 @@ interface ClosedLog {
 const LEVERAGES = [2, 5, 10, 25, 50, 75, 100]
 const PERCENTS = [10, 25, 50, 100]
 
-export default function TradingPage() {
+function TradingPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [selectedSymbol, setSelectedSymbol] = useState(() => normalizeSymbol(searchParams.get("symbol")))
@@ -207,7 +207,7 @@ export default function TradingPage() {
     if (!confirmDirection) return
     const selectedAmount = Math.round(Number(amountInput))
     if (!Number.isFinite(selectedAmount) || selectedAmount <= 0) {
-      setError("증거금을 선택하거나 입력해주세요.")
+      setError("증거���을 선택하거나 입력해주세요.")
       return
     }
     await handleOpen(confirmDirection)
@@ -572,5 +572,13 @@ export default function TradingPage() {
         onSelect={handleSelectSymbol}
       />
     </div>
+  )
+}
+
+export default function TradingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" aria-label="트레이딩 로딩 중" />}>
+      <TradingPageContent />
+    </Suspense>
   )
 }
