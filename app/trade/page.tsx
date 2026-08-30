@@ -1004,7 +1004,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
       const mo = kstNow.getUTCMonth() // 0-indexed
       // 이번 달 말일 23:59:59 KST = UTC 다음날 00:59:59 → 말일+1일 UTC 14:59:59
       // 정확하게: 말일 자정 KST = UTC 전날 15:00
-      // 말일 다음 달 1일 00:00 KST = UTC 전날 15:00
+      // 말일 다음 �� 1일 00:00 KST = UTC 전날 15:00
       const firstOfNextMonth = new Date(Date.UTC(y, mo + 1, 1, 15, 0, 0, 0)) // 다음달 1일 00:00 KST
       const target = firstOfNextMonth // 이 순간이 이번 달 말일 자정
       const diff = Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000))
@@ -1301,7 +1301,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
           if (total === 0 && activeRois.length === 0) return null
 
           // 전략 평가는 종료 거래 50건부터 의미가 ���음.
-          // 표본이 부족할 때는 PF·승률·기대값으로 성급한 판정을 내리지 않고 수집 �������률만 표시한다.
+          // 표본이 부족할 때는 PF·승률·기대값으로 성급한 판정을 내��지 않고 수집 �������률만 표시한다.
           const MIN_HEALTH_SAMPLE = 50
           if (total < MIN_HEALTH_SAMPLE) {
             const samplePct = Math.min(total / MIN_HEALTH_SAMPLE * 100, 100)
@@ -1339,7 +1339,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
             )
           }
 
-          // ── 지표 계산 ──────────────────────────���──────��─────────������─
+          // ── 지표 계산 ───────────────────────��──���──────��─────────������─
           // wCnt = winners(pnl>0), lCnt = losers(pnl<0, non-SL), slCnt = SL청산
           const totalClosed = total
           const winRate    = totalClosed > 0 ? wCnt / totalClosed * 100 : 0
@@ -2878,7 +2878,7 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
             borderBottom: `1px solid rgba(212,175,55,0.05)`,
             background: isSlHit ? "rgba(239,68,68,0.09)" : isSlWarning ? "rgba(239,68,68,0.04)" : undefined,
           }}>
-            {/* 상단행: 방향뱃지 + 심볼 + 레버리지 + ROI | IN시각 + PnL */}
+            {/* 상단행: ��향뱃지 + 심볼 + 레버리지 + ROI | IN시각 + PnL */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <span style={{
@@ -2894,9 +2894,6 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
                   padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700,
                   background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)",
                 }}>{pos.leverage}x</span>
-                {pos.real_order && (
-                  <span style={{ fontSize: 7, fontWeight: 700, color: GOLD, padding: "1px 5px", borderRadius: 4, background: "rgba(212,175,55,0.1)" }}>실주문</span>
-                )}
                 {pos.hasCur && (
                   <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 800, color: roiColor }}>
                     {pos.roi >= 0 ? "+" : ""}{pos.roi.toFixed(2)}%
@@ -3216,7 +3213,7 @@ switchTab(mode)
     if (bal === null) { alert("잔고를 불러오는 중입니다."); return }
     if (amount <= 0 || amount > bal) { alert("잔고가 부족합니다."); return }
 
-    // dialogSymbolRef: 다이얼로그에서 호출 시 항상 ���바른 심볼을 가리킴
+    // dialogSymbolRef: 다이얼로그에서 호�� 시 항상 ���바른 심볼을 가리킴
     const sym   = dialogSymbolRef.current
     const price = priceMapRef.current.get(sym) ?? 0
 
