@@ -226,6 +226,11 @@ export default function PanelPage() {
   const [autoPositions,    setAutoPositions]    = useState<AutoSignalPos[]>([])
   const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean; stop_loss_pct: number | null } | null>(null)
   const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean; stop_loss_pct: string } | null>(null)
+  // 자동매매2 (UP3를 제외한 모든 시그널, 예: UP2) 설정 — 실주문 전송 여부를 자동매매와 독립적으로 선택
+  const [autoSettings2,     setAutoSettings2]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null } | null>(null)
+  const [autoSettings2Edit, setAutoSettings2Edit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string } | null>(null)
+  const [auto2Saving,       setAuto2Saving]       = useState(false)
+  const [auto2Msg,          setAuto2Msg]          = useState<string | null>(null)
   const [signalRules,      setSignalRules]      = useState<SignalRule[]>([])
   const [rulesSaving,      setRulesSaving]      = useState<string | null>(null)  // 저장 중인 signal_type
   const [autoLoading,      setAutoLoading]      = useState(false)
@@ -1777,10 +1782,11 @@ export default function PanelPage() {
                   setAutoLoading(true)
                   try {
                     const tok = localStorage.getItem("app_token") ?? ""
-                    const [posRes, setRes, rulesRes] = await Promise.all([
+                    const [posRes, setRes, rulesRes, set2Res] = await Promise.all([
                       fetch("/api/auto-signal/positions", { headers: { Authorization: `Bearer ${tok}` } }),
                       fetch("/api/auto-signal/settings",  { headers: { Authorization: `Bearer ${tok}` } }),
                       fetch("/api/auto-signal/rules"),
+                      fetch("/api/auto-signal2/settings", { headers: { Authorization: `Bearer ${tok}` } }),
                     ])
                     const posData   = await posRes.json()
                     const setData   = await setRes.json()
@@ -1791,6 +1797,17 @@ export default function PanelPage() {
                     if (setData.seed_capital != null) setSeedCapital(String(setData.seed_capital))
                     setSignalRules(Array.isArray(rulesData) ? rulesData : [])
                     setWebhookUrl(`${window.location.origin}/api/auto-signal/webhook`)
+                    if (set2Res.ok) {
+                      const setData2 = await set2Res.json()
+                      setAutoSettings2(setData2)
+                      setAutoSettings2Edit({
+                        size_usd: String(setData2.size_usd ?? 10),
+                        leverage: String(setData2.leverage ?? 10),
+                        enabled: setData2.enabled ?? false,
+                        real_order_enabled: setData2.real_order_enabled ?? false,
+                        stop_loss_pct: setData2.stop_loss_pct != null ? String(setData2.stop_loss_pct) : "",
+                      })
+                    }
                   } finally {
                     setAutoLoading(false)
                   }
@@ -5714,8 +5731,99 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 </button>
                 {autoMsg && <span className="text-xs text-muted-foreground">{autoMsg}</span>}
               </div>
+            </div>
 
-              {/* 시그널 타입별 방�� 설정 */}
+            {/* 자동매매2 (UP3 제외 신호, 예: UP2) 설정 — 자동주문(실주문 전송) 여부를 자동매매와 별도로 선택 */}
+            <div className="rounded-xl border border-border p-5 space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">자동매매2 설정</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  TRIPLE_COMBO_UP3를 제외한 모든 시그널(예: UP2)이 여기로 들어옵니다. 자동매매(UP3)와 자동매매2(UP2 등)는 각각 독립적으로 &quot;시그널 기록&quot;과 &quot;실주문 전송&quot; 여부를 선택할 수 있으며, 두 항목 모두 같은 자동주문 계정으로 주문이 전송됩니다.
+                </p>
+              </div>
+
+              {autoSettings2Edit && (
+                <div className="grid grid-cols-5 gap-4 items-end">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">증거금 (USD)</label>
+                    <input type="number" min={1} value={autoSettings2Edit.size_usd}
+                      onChange={e => setAutoSettings2Edit(s => s ? { ...s, size_usd: e.target.value } : s)}
+                      className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">레버리지</label>
+                    <input type="number" min={1} max={100} value={autoSettings2Edit.leverage}
+                      onChange={e => setAutoSettings2Edit(s => s ? { ...s, leverage: e.target.value } : s)}
+                      className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">
+                      스탑로스 (%) <span className="text-[10px] opacity-50">비워두면 미사용</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number" min={0.1} max={100} step={0.1}
+                        placeholder="예: 5"
+                        value={autoSettings2Edit.stop_loss_pct}
+                        onChange={e => setAutoSettings2Edit(s => s ? { ...s, stop_loss_pct: e.target.value } : s)}
+                        className="w-full h-8 px-3 pr-6 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">시그널 기록</label>
+                    <button
+                      onClick={() => setAutoSettings2Edit(s => s ? { ...s, enabled: !s.enabled } : s)}
+                      className={`w-full h-8 rounded-lg text-xs font-semibold border transition-colors ${autoSettings2Edit.enabled ? "bg-primary/20 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"}`}>
+                      {autoSettings2Edit.enabled ? "ON" : "OFF"}
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">실주문 전송</label>
+                    <button
+                      onClick={() => setAutoSettings2Edit(s => s ? { ...s, real_order_enabled: !s.real_order_enabled } : s)}
+                      className={`w-full h-8 rounded-lg text-xs font-semibold border transition-colors ${autoSettings2Edit.real_order_enabled ? "bg-amber-500/20 border-amber-500 text-amber-400" : "bg-secondary border-border text-muted-foreground"}`}>
+                      {autoSettings2Edit.real_order_enabled ? "ON" : "OFF"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <button
+                  disabled={auto2Saving || !autoSettings2Edit}
+                  onClick={async () => {
+                    if (!autoSettings2Edit) return
+                    setAuto2Saving(true)
+                    setAuto2Msg(null)
+                    try {
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      const slVal = autoSettings2Edit.stop_loss_pct === "" ? null : Number(autoSettings2Edit.stop_loss_pct)
+                      const res = await fetch("/api/auto-signal2/settings", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                        body: JSON.stringify({
+                          size_usd:           Number(autoSettings2Edit.size_usd),
+                          leverage:           Number(autoSettings2Edit.leverage),
+                          enabled:            autoSettings2Edit.enabled,
+                          real_order_enabled: autoSettings2Edit.real_order_enabled,
+                          stop_loss_pct:      slVal,
+                        }),
+                      })
+                      const d = await res.json()
+                      if (res.ok) { setAutoSettings2(d); setAuto2Msg("저장됐습니다.") }
+                      else setAuto2Msg(d.error ?? "오류")
+                    } finally { setAuto2Saving(false) }
+                  }}
+                  className="h-8 px-4 rounded-lg bg-primary text-black text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
+                  {auto2Saving ? "저장 중..." : "설정 저장"}
+                </button>
+                {auto2Msg && <span className="text-xs text-muted-foreground">{auto2Msg}</span>}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border p-5 space-y-4">
+              {/* 시그널 타입별 방향 설정 */}
               {signalRules.length > 0 && (
                 <div className="rounded-xl border border-border overflow-hidden mt-2">
                   <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center gap-2">
@@ -6142,7 +6250,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       {seedDepositSaving ? "처리 중..." : "입금"}
                     </button>
                   </div>
-                  {seedDepositMsg && <p className={`text-xs ${seedDepositMsg.includes("완료") ? "text-primary" : "text-destructive"}`}>{seedDepositMsg}</p>}
+                  {seedDepositMsg && <p className={`text-xs ${seedDepositMsg.includes("��료") ? "text-primary" : "text-destructive"}`}>{seedDepositMsg}</p>}
                 </div>
 
                 {/* 출금 카드 */}
