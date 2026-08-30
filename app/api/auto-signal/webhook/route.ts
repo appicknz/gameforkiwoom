@@ -79,18 +79,19 @@ export async function POST(req: Request) {
 
   // 자동매매 전역 설정 + 시그널 규칙 + TVM 글로벌 설정 병렬 조회
   const [{ data: settings }, { data: rule }, { data: tradingGs }] = await Promise.all([
-    adminSupabase.from("auto_signal_settings").select("size_usd, leverage, enabled").eq("id", 1).single(),
+    adminSupabase.from("auto_signal_settings").select("size_usd, leverage, enabled, real_order_enabled").eq("id", 1).single(),
     adminSupabase.from("auto_signal_rules").select("direction, enabled, stop_loss_enabled, stop_loss_percent, take_profit_enabled, take_profit_percent").eq("signal_type", type).single(),
     adminSupabase.from("auto_trading_global_settings").select("webhook_url, enabled").eq("id", 1).single(),
   ])
-
+  
   if (!settings?.enabled) {
     await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "auto-signal disabled" })
     return NextResponse.json({ skipped: true, reason: "auto-signal disabled" })
   }
 
-  // TVM 자동주문 비활성화 시 포지션 기록 자체를 하지 않음
-  if (!tradingGs?.enabled) {
+  // 실주문 전송이 켜져 있을 때만 TVM 자동주문 전역 설정을 요구한다.
+  // 실주문 전송이 꺼져 있으면(시그널 기록만) TVM 전역 설정과 무관하게 포지션을 기록한다.
+  if (settings.real_order_enabled && !tradingGs?.enabled) {
     await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "자동주문 비활성화 (global settings enabled=false) — 포지션 미기록" })
     return NextResponse.json({ skipped: true, reason: "trading_disabled" })
   }
@@ -155,112 +156,117 @@ export async function POST(req: Request) {
     return NextResponse.json({ skipped: true, reason: "duplicate_symbol_date", existing_id: existing.id })
   }
 
-  // ── TVM 주문 전송 (포지션 저장 전) ───────────────────────────
-  // TVM 전송에 성공한 경우에만 포지션을 DB에 저장
-  if (!tradingGs?.webhook_url) {
-    await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "webhook_url 미설정" })
-    return NextResponse.json({ error: "webhook_url 미설정" }, { status: 500 })
-  }
-
-  const { data: tradingAccounts } = await adminSupabase
-    .from("auto_trading_accounts")
-    .select("id, account_name, auth_token, leverage, base_amount, take_profit_enabled, take_profit_percent, stop_loss_enabled, stop_loss_percent")
-    .eq("enabled", true)
-
-  if (!tradingAccounts?.length) {
-    await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "활성화된 계정 없음" })
-    return NextResponse.json({ error: "활성화된 계정 없음" }, { status: 500 })
-  }
-
-  // TVM 심볼 변환: BTCUSDT → BTC/USDT
-  function toTvmSymbol(sym: string): string {
-    const clean = sym.replace("BINANCE:", "").replace(".P", "")
-    if (clean.endsWith("USDT")) return clean.slice(0, -4) + "/USDT"
-    return clean
-  }
-
-  // TVM 구문 조립
-  function buildTvm(params: {
-    account: string; symbol: string; side: string
-    amount: number; leverage: number
-    tpPct?: number | null; slPct?: number | null; token: string
-  }): string {
-    const json: Record<string, unknown> = {
-      exchange:    "binance-futures",
-      account:     params.account,
-      symbol:      params.symbol,
-      type:        "market",
-      side:        params.side,
-      open_order:  "cancel",
-      same_order:  "skip",
-      leverage:    params.leverage,
-      margin_type: "cross",
-      amount:      params.amount,
-      amount_type: "usdt",
-      token:       params.token,
-    }
-    if (params.tpPct != null && Number.isFinite(params.tpPct) && params.tpPct > 0) {
-      json.tp_pct = params.side === "buy" ? Math.abs(params.tpPct) : -Math.abs(params.tpPct)
-    }
-    if (params.slPct != null && Number.isFinite(params.slPct) && params.slPct > 0) {
-      json.sl_pct = params.side === "buy" ? -Math.abs(params.slPct) : Math.abs(params.slPct)
-    }
-    return `TVM:${JSON.stringify(json)}:MVT`
-  }
-
-  const tvmSymbol = toTvmSymbol(cleanSymbol)
-  const side      = direction.toUpperCase() === "SHORT" ? "sell" : "buy"
-  const webhookUrl = tradingGs.webhook_url
-
-  // 모든 계정에 TVM 전송 — 결과 수집
+  // ── TVM 주문 전송 (실주문 전송이 켜져 있을 때만) ───────────────
+  // 실주문 전송(real_order_enabled)이 꺼져 있으면 TVM 호출 없이 시그널 기록만 한다.
   type TvmResult = { account: string; tvm: string; status: number; body: string; ok: boolean; errMsg: string | null }
-  const tvmResults: TvmResult[] = await Promise.all(
-    tradingAccounts.map(async (acc: Record<string, unknown>): Promise<TvmResult> => {
-      const tvm = buildTvm({
-        account:  acc.account_name as string,
-        symbol:   tvmSymbol,
-        side,
-        amount:   Number(acc.base_amount),
-        leverage: Number(acc.leverage),
-        // TP와 SL은 방향과 무관하게 계정 설정을 각각 독립 적용
-        tpPct:    acc.take_profit_enabled ? Number(acc.take_profit_percent) : null,
-        slPct:    acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null,
-        token:    acc.auth_token as string,
-      })
+  let tvmResults: TvmResult[] = []
+  let realOrderSent = false
 
-      let resStatus = 0
-      let resBody   = ""
-      let orderOk   = false
-      let errMsg: string | null = null
+  if (settings.real_order_enabled) {
+    if (!tradingGs?.webhook_url) {
+      await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "webhook_url 미설정" })
+      return NextResponse.json({ error: "webhook_url 미설정" }, { status: 500 })
+    }
 
-      try {
-        const res = await fetch(webhookUrl, {
-          method:  "POST",
-          headers: { "Content-Type": "text/plain" },
-          body:    tvm,
-          signal:  AbortSignal.timeout(10000),
-        })
-        resStatus = res.status
-        resBody   = await res.text()
-        orderOk   = res.ok
-      } catch (fetchErr) {
-        errMsg  = (fetchErr as Error).message
-        orderOk = false
+    const { data: tradingAccounts } = await adminSupabase
+      .from("auto_trading_accounts")
+      .select("id, account_name, auth_token, leverage, base_amount, take_profit_enabled, take_profit_percent, stop_loss_enabled, stop_loss_percent")
+      .eq("enabled", true)
+
+    if (!tradingAccounts?.length) {
+      await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "활성화된 계정 없음" })
+      return NextResponse.json({ error: "활성화된 계정 없음" }, { status: 500 })
+    }
+
+    // TVM 심볼 변환: BTCUSDT → BTC/USDT
+    function toTvmSymbol(sym: string): string {
+      const clean = sym.replace("BINANCE:", "").replace(".P", "")
+      if (clean.endsWith("USDT")) return clean.slice(0, -4) + "/USDT"
+      return clean
+    }
+
+    // TVM 구문 조립
+    function buildTvm(params: {
+      account: string; symbol: string; side: string
+      amount: number; leverage: number
+      tpPct?: number | null; slPct?: number | null; token: string
+    }): string {
+      const json: Record<string, unknown> = {
+        exchange:    "binance-futures",
+        account:     params.account,
+        symbol:      params.symbol,
+        type:        "market",
+        side:        params.side,
+        open_order:  "cancel",
+        same_order:  "skip",
+        leverage:    params.leverage,
+        margin_type: "cross",
+        amount:      params.amount,
+        amount_type: "usdt",
+        token:       params.token,
       }
+      if (params.tpPct != null && Number.isFinite(params.tpPct) && params.tpPct > 0) {
+        json.tp_pct = params.side === "buy" ? Math.abs(params.tpPct) : -Math.abs(params.tpPct)
+      }
+      if (params.slPct != null && Number.isFinite(params.slPct) && params.slPct > 0) {
+        json.sl_pct = params.side === "buy" ? -Math.abs(params.slPct) : Math.abs(params.slPct)
+      }
+      return `TVM:${JSON.stringify(json)}:MVT`
+    }
 
-      return { account: acc.account_name as string, tvm, status: resStatus, body: resBody, ok: orderOk, errMsg }
-    })
-  )
+    const tvmSymbol = toTvmSymbol(cleanSymbol)
+    const side      = direction.toUpperCase() === "SHORT" ? "sell" : "buy"
+    const webhookUrl = tradingGs.webhook_url
 
-  // 하나라도 성공한 계정이 있어야 포지션을 저장
-  const anyOk = tvmResults.some(r => r.ok)
-  if (!anyOk) {
-    const errSummary = tvmResults.map(r => `${r.account}: ${r.errMsg ?? r.body.slice(0, 80)}`).join(" | ")
-    await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: `TVM 전송 실패: ${errSummary}` })
-    return NextResponse.json({ error: "TVM 전송 실패", detail: errSummary }, { status: 500 })
+    // 모든 계정에 TVM 전송 — 결과 수집
+    tvmResults = await Promise.all(
+      tradingAccounts.map(async (acc: Record<string, unknown>): Promise<TvmResult> => {
+        const tvm = buildTvm({
+          account:  acc.account_name as string,
+          symbol:   tvmSymbol,
+          side,
+          amount:   Number(acc.base_amount),
+          leverage: Number(acc.leverage),
+          // TP와 SL은 방향과 무관하게 계정 설정을 각각 독립 적용
+          tpPct:    acc.take_profit_enabled ? Number(acc.take_profit_percent) : null,
+          slPct:    acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null,
+          token:    acc.auth_token as string,
+        })
+
+        let resStatus = 0
+        let resBody   = ""
+        let orderOk   = false
+        let errMsg: string | null = null
+
+        try {
+          const res = await fetch(webhookUrl, {
+            method:  "POST",
+            headers: { "Content-Type": "text/plain" },
+            body:    tvm,
+            signal:  AbortSignal.timeout(10000),
+          })
+          resStatus = res.status
+          resBody   = await res.text()
+          orderOk   = res.ok
+        } catch (fetchErr) {
+          errMsg  = (fetchErr as Error).message
+          orderOk = false
+        }
+
+        return { account: acc.account_name as string, tvm, status: resStatus, body: resBody, ok: orderOk, errMsg }
+      })
+    )
+
+    // 실주문 전송이 켜져 있는데 모든 계정이 실패하면 포지션도 기록하지 않고 에러로 처리
+    realOrderSent = tvmResults.some(r => r.ok)
+    if (!realOrderSent) {
+      const errSummary = tvmResults.map(r => `${r.account}: ${r.errMsg ?? r.body.slice(0, 80)}`).join(" | ")
+      await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: `TVM 전송 실패: ${errSummary}` })
+      return NextResponse.json({ error: "TVM 전송 실패", detail: errSummary }, { status: 500 })
+    }
   }
 
-  // ── TVM 성공 → 포지션 DB 저장 ─────────────────────────────────
+  // ── 포지션 DB 저장 (실주문 전송이 꺼져있으면 기록만, 켜져있으면 TVM 성공 후 저장) ──
   const { data, error } = await adminSupabase
     .from("auto_signal_positions")
     .insert({
@@ -274,6 +280,7 @@ export async function POST(req: Request) {
       date_label:   dateLabel,
       is_closed:    false,
       webhook_raw:  body,
+      real_order:   realOrderSent,
     })
     .select("id")
     .single()
@@ -287,26 +294,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // TVM 결과 로그 저장 (포지션 id 포함)
-  await Promise.all(
-    tvmResults.map(r =>
-      adminSupabase.from("auto_trading_logs").insert({
-        position_id:   data.id,
-        symbol:        cleanSymbol,
-        direction,
-        account_name:  r.account,
-        tvm_str:       r.tvm,
-        tvm_status:    r.status || null,
-        tvm_response:  r.body.slice(0, 500) || null,
-        ok:            r.ok,
-        error_msg:     r.errMsg,
-      })
+  // TVM 결과 로그 저장 (포지션 id 포함, 실주문 전송이 켜져있을 때만)
+  if (tvmResults.length) {
+    await Promise.all(
+      tvmResults.map(r =>
+        adminSupabase.from("auto_trading_logs").insert({
+          position_id:   data.id,
+          symbol:        cleanSymbol,
+          direction,
+          account_name:  r.account,
+          tvm_str:       r.tvm,
+          tvm_status:    r.status || null,
+          tvm_response:  r.body.slice(0, 500) || null,
+          ok:            r.ok,
+          error_msg:     r.errMsg,
+        })
+      )
     )
-  )
+  }
 
-  await logRequest("ok", 200, body, { ip, symbol, signalType: type })
+  await logRequest("ok", 200, body, { ip, symbol, signalType: type, errorMsg: realOrderSent ? "real_order" : "record_only" })
 
-  return NextResponse.json({ ok: true, id: data.id })
+  return NextResponse.json({ ok: true, id: data.id, real_order: realOrderSent })
 }
 
 // ─────────────────────────────────────────────────────────────

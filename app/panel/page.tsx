@@ -224,8 +224,8 @@ export default function PanelPage() {
     take_profit_enabled?: boolean; take_profit_percent?: number | null
   }
   const [autoPositions,    setAutoPositions]    = useState<AutoSignalPos[]>([])
-  const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean; stop_loss_pct: number | null } | null>(null)
-  const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean; stop_loss_pct: string } | null>(null)
+  const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null } | null>(null)
+  const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string } | null>(null)
   // 자동매매2 (UP3를 제외한 모든 시그널, 예: UP2) 설정 — 실주문 전송 여부를 자동매매와 독립적으로 선택
   const [autoSettings2,     setAutoSettings2]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null } | null>(null)
   const [autoSettings2Edit, setAutoSettings2Edit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string } | null>(null)
@@ -1004,7 +1004,7 @@ export default function PanelPage() {
     })
     const data = await res.json()
     if (!res.ok) {
-      setBaCreateMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
+      setBaCreateMsg({ text: data.error ?? "오류가 발생���습니다.", ok: false })
     } else {
       setBaCreatedInfo({ code: baNewBranchCode.trim().toUpperCase(), password: baNewBranchPw.trim() })
       setBaCreateMsg({ text: `지점 '${baNewBranchName}'이 생성됐습니다.`, ok: true })
@@ -1793,7 +1793,7 @@ export default function PanelPage() {
                     const rulesData = await rulesRes.json()
                     setAutoPositions(posData.positions ?? [])
                     setAutoSettings(setData)
-                    setAutoSettingsEdit({ size_usd: String(setData.size_usd ?? 10), leverage: String(setData.leverage ?? 10), enabled: setData.enabled ?? true, stop_loss_pct: setData.stop_loss_pct != null ? String(setData.stop_loss_pct) : "" })
+                    setAutoSettingsEdit({ size_usd: String(setData.size_usd ?? 10), leverage: String(setData.leverage ?? 10), enabled: setData.enabled ?? true, real_order_enabled: setData.real_order_enabled ?? true, stop_loss_pct: setData.stop_loss_pct != null ? String(setData.stop_loss_pct) : "" })
                     if (setData.seed_capital != null) setSeedCapital(String(setData.seed_capital))
                     setSignalRules(Array.isArray(rulesData) ? rulesData : [])
                     setWebhookUrl(`${window.location.origin}/api/auto-signal/webhook`)
@@ -5644,7 +5644,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
               {/* 설정 폼 */}
               {autoSettingsEdit && (
-                <div className="grid grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-5 gap-4 items-end">
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">증거금 (USD)</label>
                     <input type="number" min={1} value={autoSettingsEdit.size_usd}
@@ -5677,11 +5677,19 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     )}
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">활성화</label>
+                    <label className="text-xs text-muted-foreground">시그널 기록</label>
                     <button
                       onClick={() => setAutoSettingsEdit(s => s ? { ...s, enabled: !s.enabled } : s)}
                       className={`w-full h-8 rounded-lg text-xs font-semibold border transition-colors ${autoSettingsEdit.enabled ? "bg-primary/20 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"}`}>
                       {autoSettingsEdit.enabled ? "ON" : "OFF"}
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">실주문 전송</label>
+                    <button
+                      onClick={() => setAutoSettingsEdit(s => s ? { ...s, real_order_enabled: !s.real_order_enabled } : s)}
+                      className={`w-full h-8 rounded-lg text-xs font-semibold border transition-colors ${autoSettingsEdit.real_order_enabled ? "bg-amber-500/20 border-amber-500 text-amber-400" : "bg-secondary border-border text-muted-foreground"}`}>
+                      {autoSettingsEdit.real_order_enabled ? "ON" : "OFF"}
                     </button>
                   </div>
                 </div>
@@ -5703,10 +5711,11 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           method: "PATCH",
                           headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
                           body: JSON.stringify({
-                            size_usd:      Number(autoSettingsEdit.size_usd),
-                            leverage:      Number(autoSettingsEdit.leverage),
-                            enabled:       autoSettingsEdit.enabled,
-                            stop_loss_pct: slVal,
+                            size_usd:           Number(autoSettingsEdit.size_usd),
+                            leverage:           Number(autoSettingsEdit.leverage),
+                            enabled:            autoSettingsEdit.enabled,
+                            real_order_enabled: autoSettingsEdit.real_order_enabled,
+                            stop_loss_pct:      slVal,
                           }),
                         }),
                         // 2) 모든 계정의 base_amount / leverage / stop_loss 동기화
