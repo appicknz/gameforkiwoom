@@ -226,11 +226,22 @@ export default function PanelPage() {
   const [autoPositions,    setAutoPositions]    = useState<AutoSignalPos[]>([])
   const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null } | null>(null)
   const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string } | null>(null)
-  // 자동매매2 (UP3를 제외한 모든 시그널, 예: UP2) 설정 — 실주문 전송 여부를 자동매매와 독립적으로 선택
+  // 자동매매2 (UP3/UP8을 제외한 시그널, 예: UP2) 설정 — 실주문 전송 여부를 자동매매와 독립적으로 선택
   const [autoSettings2,     setAutoSettings2]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null } | null>(null)
   const [autoSettings2Edit, setAutoSettings2Edit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string } | null>(null)
   const [auto2Saving,       setAuto2Saving]       = useState(false)
   const [auto2Msg,          setAuto2Msg]          = useState<string | null>(null)
+  type Up8Settings = {
+    test_enabled: boolean; live_enabled: boolean; amount: number
+    test_exchange: string; test_account: string; live_exchange: string; live_account: string
+  }
+  const [up8Settings,     setUp8Settings]     = useState<Up8Settings | null>(null)
+  const [up8SettingsEdit, setUp8SettingsEdit] = useState<{ test_enabled: boolean; live_enabled: boolean; amount: string } | null>(null)
+  const [up8Saving,       setUp8Saving]       = useState(false)
+  const [up8Msg,          setUp8Msg]          = useState<string | null>(null)
+  const [up8TestSymbol,   setUp8TestSymbol]   = useState("023900")
+  const [up8TestLoading,  setUp8TestLoading]  = useState(false)
+  const [up8TestResult,   setUp8TestResult]   = useState<{ ok?: boolean; error?: string; status?: number; response?: string; symbol?: string; amount?: number } | null>(null)
   const [signalRules,      setSignalRules]      = useState<SignalRule[]>([])
   const [rulesSaving,      setRulesSaving]      = useState<string | null>(null)  // 저장 중인 signal_type
   const [autoLoading,      setAutoLoading]      = useState(false)
@@ -1651,7 +1662,7 @@ export default function PanelPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
               <h3 className="text-base font-semibold text-foreground mb-1">충전 요청 승인</h3>
-              <p className="text-xs text-muted-foreground mb-4">요율을 입력하면 지급 포인트가 자동 계산됩니다.</p>
+              <p className="text-xs text-muted-foreground mb-4">요율��� 입력하면 지급 포인트가 자동 계산됩니다.</p>
               <div className="bg-muted rounded-xl px-4 py-3 mb-4 space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">요청자</span>
@@ -1782,11 +1793,12 @@ export default function PanelPage() {
                   setAutoLoading(true)
                   try {
                     const tok = localStorage.getItem("app_token") ?? ""
-                    const [posRes, setRes, rulesRes, set2Res] = await Promise.all([
+                    const [posRes, setRes, rulesRes, set2Res, up8Res] = await Promise.all([
                       fetch("/api/auto-signal/positions", { headers: { Authorization: `Bearer ${tok}` } }),
                       fetch("/api/auto-signal/settings",  { headers: { Authorization: `Bearer ${tok}` } }),
                       fetch("/api/auto-signal/rules"),
                       fetch("/api/auto-signal2/settings", { headers: { Authorization: `Bearer ${tok}` } }),
+                      fetch("/api/auto-signal-up8/settings", { headers: { Authorization: `Bearer ${tok}` } }),
                     ])
                     const posData   = await posRes.json()
                     const setData   = await setRes.json()
@@ -1806,6 +1818,15 @@ export default function PanelPage() {
                         enabled: setData2.enabled ?? false,
                         real_order_enabled: setData2.real_order_enabled ?? false,
                         stop_loss_pct: setData2.stop_loss_pct != null ? String(setData2.stop_loss_pct) : "",
+                      })
+                    }
+                    if (up8Res.ok) {
+                      const up8Data = await up8Res.json() as Up8Settings
+                      setUp8Settings(up8Data)
+                      setUp8SettingsEdit({
+                        test_enabled: up8Data.test_enabled ?? false,
+                        live_enabled: up8Data.live_enabled ?? false,
+                        amount: String(up8Data.amount ?? 10),
                       })
                     }
                   } finally {
@@ -2585,7 +2606,7 @@ export default function PanelPage() {
                   <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
                     <Wallet className="w-4 h-4 text-primary" /> 충전 요청
                   </h2>
-                  <p className="text-xs text-muted-foreground mb-4">버튼을 눌러 금액을 쌓거나 직접 입력하세요. 대총판이 요율을 적용해 승인하면 잔액이 추가됩니다.</p>
+                  <p className="text-xs text-muted-foreground mb-4">버튼을 눌러 금액을 쌓��나 직접 입력하세요. 대총판이 요율을 적용해 승인하면 잔액이 추가됩니다.</p>
 
                   {/* 빠른 금액 버튼 */}
                   <div className="flex flex-wrap gap-2 mb-3">
@@ -5742,12 +5763,12 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               </div>
             </div>
 
-            {/* 자동매매2 (UP3 제외 신호, 예: UP2) 설정 — 자동주문(실주문 전송) 여부를 자동매매와 별도로 선택 */}
+            {/* 자동매매2 (UP3/UP8 제외 신호, 예: UP2) 설정 — 자동주문 여부를 자동매매와 별도로 선택 */}
             <div className="rounded-xl border border-border p-5 space-y-4">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">자동매매2 설정</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  TRIPLE_COMBO_UP3를 제외한 모든 시그널(예: UP2)이 여기로 들어옵니다. 자동매매(UP3)와 자동매매2(UP2 등)는 각각 독립적으로 &quot;시그널 기록&quot;과 &quot;실주문 전송&quot; 여부를 선택할 수 있으며, 두 항목 모두 같은 자동주문 계정으로 주문이 전송됩니다.
+                  TRIPLE_COMBO_UP3와 UP8을 제외한 시그널(예: UP2)이 여기로 들어옵니다. UP8 국내주식 주문은 아래의 전용 설정을 사용하며 자동매매2 기록에는 저장되지 않습니다.
                 </p>
               </div>
 
@@ -5829,6 +5850,168 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 </button>
                 {auto2Msg && <span className="text-xs text-muted-foreground">{auto2Msg}</span>}
               </div>
+            </div>
+
+            <div className="rounded-xl border border-border p-5 space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">UP8 국내주식 주문</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  UP8은 자동매매 및 매매기록에 저장하지 않고 KOSDAQ 시장가 매수 주문만 TVM으로 전송합니다.
+                </p>
+              </div>
+
+              {up8SettingsEdit && up8Settings && (
+                <div className="flex flex-col gap-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${up8SettingsEdit.test_enabled ? "border-primary bg-primary/10" : "border-border bg-secondary/30"}`}>
+                      <input
+                        type="checkbox"
+                        checked={up8SettingsEdit.test_enabled}
+                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, test_enabled: e.target.checked } : s)}
+                        className="mt-0.5 size-4 accent-primary"
+                      />
+                      <span className="flex flex-col gap-1">
+                        <span className="text-sm font-semibold text-foreground">테스트 주문</span>
+                        <span className="font-mono text-xs text-muted-foreground">{up8Settings.test_exchange} · {up8Settings.test_account}</span>
+                      </span>
+                    </label>
+                    <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${up8SettingsEdit.live_enabled ? "border-destructive bg-destructive/10" : "border-border bg-secondary/30"}`}>
+                      <input
+                        type="checkbox"
+                        checked={up8SettingsEdit.live_enabled}
+                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, live_enabled: e.target.checked } : s)}
+                        className="mt-0.5 size-4 accent-destructive"
+                      />
+                      <span className="flex flex-col gap-1">
+                        <span className="text-sm font-semibold text-destructive">실매매 주문</span>
+                        <span className="font-mono text-xs text-muted-foreground">{up8Settings.live_exchange} · {up8Settings.live_account}</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label htmlFor="up8-amount" className="text-xs text-muted-foreground">주문 수량 (주)</label>
+                      <input
+                        id="up8-amount"
+                        type="number"
+                        min={1}
+                        max={100000}
+                        step={1}
+                        inputMode="numeric"
+                        value={up8SettingsEdit.amount}
+                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, amount: e.target.value } : s)}
+                        className="h-8 w-32 rounded-lg border border-border bg-secondary px-3 text-sm text-foreground"
+                      />
+                    </div>
+                    <button
+                      disabled={up8Saving}
+                      onClick={async () => {
+                        const amount = Number(up8SettingsEdit.amount)
+                        if (!Number.isInteger(amount) || amount <= 0 || amount > 100000) {
+                          setUp8Msg("주문 수량은 1~100000 사이의 정수여야 합니다.")
+                          return
+                        }
+                        setUp8Saving(true)
+                        setUp8Msg(null)
+                        try {
+                          const tok = localStorage.getItem("app_token") ?? ""
+                          const res = await fetch("/api/auto-signal-up8/settings", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                            body: JSON.stringify({
+                              test_enabled: up8SettingsEdit.test_enabled,
+                              live_enabled: up8SettingsEdit.live_enabled,
+                              amount,
+                            }),
+                          })
+                          const data = await res.json()
+                          if (res.ok) {
+                            setUp8Settings(data)
+                            setUp8SettingsEdit({
+                              test_enabled: data.test_enabled,
+                              live_enabled: data.live_enabled,
+                              amount: String(data.amount),
+                            })
+                            setUp8Msg("저장됐습니다.")
+                          } else {
+                            setUp8Msg(data.error ?? "저장 중 오류가 발생했습니다.")
+                          }
+                        } finally {
+                          setUp8Saving(false)
+                        }
+                      }}
+                      className="h-8 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {up8Saving ? "저장 중..." : "UP8 설정 저장"}
+                    </button>
+                    {up8Msg && <span className="text-xs text-muted-foreground">{up8Msg}</span>}
+                  </div>
+
+                  <div className="flex flex-col gap-3 rounded-lg border border-border bg-secondary/20 p-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">UP8 테스트 주문</h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        저장된 수량으로 kis-testnet 계정에 KOSDAQ 시장가 매수 주문을 즉시 전송합니다. 자동매매 및 매매기록에는 저장되지 않습니다.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label htmlFor="up8-test-symbol" className="text-xs text-muted-foreground">종목코드</label>
+                        <input
+                          id="up8-test-symbol"
+                          value={up8TestSymbol}
+                          onChange={e => setUp8TestSymbol(e.target.value.toUpperCase())}
+                          placeholder="023900"
+                          className="h-8 w-40 rounded-lg border border-border bg-secondary px-3 font-mono text-sm text-foreground"
+                        />
+                      </div>
+                      <button
+                        disabled={up8TestLoading || !up8TestSymbol.trim()}
+                        onClick={async () => {
+                          if (!confirm(`${up8TestSymbol}/KOSDAQ ${up8Settings.amount}주를 kis-testnet으로 매수 전송합니까?`)) return
+                          setUp8TestLoading(true)
+                          setUp8TestResult(null)
+                          try {
+                            const tok = localStorage.getItem("app_token") ?? ""
+                            const res = await fetch("/api/auto-signal-up8/test-order", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                              body: JSON.stringify({ symbol: up8TestSymbol }),
+                            })
+                            const data = await res.json()
+                            setUp8TestResult(data)
+                          } finally {
+                            setUp8TestLoading(false)
+                          }
+                        }}
+                        className="h-8 rounded-lg border border-primary/40 bg-primary/10 px-4 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+                      >
+                        {up8TestLoading ? "전송 중..." : "테스트 주문 전송"}
+                      </button>
+                    </div>
+                    {up8TestResult && (
+                      <div className={`rounded-lg border px-3 py-2 text-xs ${up8TestResult.ok ? "border-primary/30 bg-primary/5 text-primary" : "border-destructive/30 bg-destructive/5 text-destructive"}`} role="status">
+                        <p className="font-semibold">{up8TestResult.ok ? "전송 성공" : "전송 실패"}</p>
+                        {up8TestResult.ok ? (
+                          <p className="mt-1 font-mono">{up8TestResult.symbol} · {up8TestResult.amount}주 · HTTP {up8TestResult.status}</p>
+                        ) : (
+                          <p className="mt-1">{up8TestResult.error ?? up8TestResult.response ?? `HTTP ${up8TestResult.status ?? "-"}`}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {up8SettingsEdit.test_enabled && up8SettingsEdit.live_enabled && (
+                    <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive" role="status">
+                      테스트와 실매매 주문이 모두 선택되어 UP8 신호마다 두 계정으로 각각 전송됩니다.
+                    </p>
+                  )}
+                  {!up8SettingsEdit.test_enabled && !up8SettingsEdit.live_enabled && (
+                    <p className="text-xs text-muted-foreground" role="status">현재 UP8 자동 TVM 전송이 꺼져 있습니다. 위 테스트 주문은 별도로 사용할 수 있습니다.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="rounded-xl border border-border p-5 space-y-4">
