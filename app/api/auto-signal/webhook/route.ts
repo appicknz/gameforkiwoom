@@ -73,13 +73,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 
-  // 국내주식 UP8은 payload의 signal_type이 "test"여도 alert_type을 기준으로 먼저 분기한다.
-  // signal_type 우선 규칙은 기존 암호화폐 신호 호환을 위해 나머지 경로에서 그대로 유지한다.
-  if (normalizedAlertType === "TRIPLE_COMBO_UP8") {
-    return handleSignalUp8({ type: "TRIPLE_COMBO_UP8", symbol, ip, body, logRequest })
+  // 국내주식 UP6/UP8은 payload의 signal_type이 "test"여도 alert_type을 기준으로 먼저 분기한다.
+  // 두 신호 모두 동일한 국내주식 KIS 설정과 TVM 전송 경로를 사용한다.
+  const isKoreanStockSignal = normalizedAlertType === "TRIPLE_COMBO_UP6"
+    || normalizedAlertType === "TRIPLE_COMBO_UP8"
+  if (isKoreanStockSignal) {
+    return handleSignalUp8({ type: normalizedAlertType, symbol, ip, body, logRequest })
   }
 
-  // UP3와 UP8을 제외한 모든 신호는 자동매매2(역삼1 전용, 별도 기록)로 분기
+  // UP3와 국내주식 UP6/UP8을 제외한 모든 신호는 자동매매2(역삼1 전용, 별도 기록)로 분기
   if (type !== "TRIPLE_COMBO_UP3") {
     return handleSignal2({ type, symbol, price, formatted_time_kst, ip, body, logRequest })
   }

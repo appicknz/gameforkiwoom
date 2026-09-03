@@ -455,7 +455,7 @@ export default function PanelPage() {
       setAcMsg({ text: `"${targetUsername}" 계정이 삭제되었습니다.`, ok: true })
       loadUsers(adminPw)
     } else {
-      alert(d.error ?? "삭제 중 오류가 발생했습니다.")
+      alert(d.error ?? "삭��� 중 오류가 발생했습니다.")
     }
   }
 
@@ -2319,7 +2319,7 @@ export default function PanelPage() {
                       <div className="bg-card border border-border rounded-xl p-4">
                         <p className="text-xs text-muted-foreground mb-1">수수료 잔고</p>
                         <p className="text-2xl font-bold text-amber-500">₩{myCommBalance.toLocaleString()}</p>
-                        <p className="text-[11px] text-muted-foreground mt-1">배팅 수수료 누적</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">��팅 수수료 누적</p>
                       </div>
                     </div>
                   )
@@ -4303,7 +4303,7 @@ export default function PanelPage() {
                 <div className="grid grid-cols-3 gap-3">
                   {([
                     { value: "super_admin", label: "대총판", desc: "포인트 구매 요청 승인, 총판 잔고 관리", color: "border-red-200 bg-red-50 text-red-700" },
-                    { value: "branch_admin", label: "총판", desc: "지점 생성, 지점에 포인트 분배", color: "border-blue-200 bg-blue-50 text-blue-700" },
+                    { value: "branch_admin", label: "총판", desc: "지점 생성, 지점에 ���인트 분배", color: "border-blue-200 bg-blue-50 text-blue-700" },
                     { value: "admin", label: "지점", desc: "유저 관리, 환전 요청 처리", color: "border-orange-200 bg-orange-50 text-orange-700" },
                   ] as const).map(r => (
                     <button
@@ -5106,7 +5106,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                             {acc.memo && <span className="text-xs text-muted-foreground truncate">{acc.memo}</span>}
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
-                            <span>레버리지 {acc.leverage}x</span>
+                            <span>레버리�� {acc.leverage}x</span>
                             <span>증거금 ${acc.base_amount} → 포지션 ${Number(acc.base_amount) * Number(acc.leverage)}</span>
                             {acc.take_profit_enabled && acc.take_profit_percent && <span className="text-green-500">TP {acc.take_profit_percent}%</span>}
                             {acc.stop_loss_enabled   && acc.stop_loss_percent   && <span className="text-red-400">SL {acc.stop_loss_percent}%</span>}
@@ -5763,12 +5763,12 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               </div>
             </div>
 
-            {/* 자동매매2 (UP3/UP8 제외 신호, 예: UP2) 설정 — 자동주문 여부를 자동매매와 별도로 선택 */}
+            {/* 자동매매2 (UP3 및 국내주식 UP6/UP8 제외 신호, 예: UP2) 설정 — 자동주문 여부를 자동매매와 별도로 선택 */}
             <div className="rounded-xl border border-border p-5 space-y-4">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">자동매매2 설정</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  TRIPLE_COMBO_UP3와 UP8을 제외한 시그널(예: UP2)이 여기로 들어옵니다. UP8 국내주식 주문은 아래의 전용 설정을 사용하며 자동매매2 기록에는 저장되지 않습니다.
+                  TRIPLE_COMBO_UP3와 국내주식 UP6/UP8을 제외한 시그널(예: UP2)이 여기로 들어옵니다. UP6/UP8 국내주식 주문은 아래의 전용 설정을 사용하며 자동매매2 기록에는 저장되지 않습니다.
                 </p>
               </div>
 
@@ -5854,9 +5854,9 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
             <div className="rounded-xl border border-border p-5 space-y-4">
               <div>
-                <h2 className="text-sm font-semibold text-foreground">UP8 국내주식 주문</h2>
+                <h2 className="text-sm font-semibold text-foreground">UP6 / UP8 국내주식 주문</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  UP8은 자동매매 및 매매기록에 저장하지 않고 KOSDAQ 시장가 매수 주문만 TVM으로 전송합니다.
+                  UP6과 UP8은 같은 설정을 사용하며, 자동매매 및 매매기록에 저장하지 않고 KOSDAQ 시장가 매수 주문만 TVM으로 전송합니다.
                 </p>
               </div>
 
@@ -5943,14 +5943,14 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       }}
                       className="h-8 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                     >
-                      {up8Saving ? "저장 중..." : "UP8 설정 저장"}
+                      {up8Saving ? "저장 중..." : "UP6 / UP8 설정 저장"}
                     </button>
                     {up8Msg && <span className="text-xs text-muted-foreground">{up8Msg}</span>}
                   </div>
 
                   <div className="flex flex-col gap-3 rounded-lg border border-border bg-secondary/20 p-4">
                     <div>
-                      <h3 className="text-sm font-semibold text-foreground">UP8 테스트 주문</h3>
+                      <h3 className="text-sm font-semibold text-foreground">UP6 / UP8 테스트 주문</h3>
                       <p className="mt-1 text-xs text-muted-foreground">
                         저장된 수량으로 kis-testnet 계정에 KOSDAQ 시장가 매수 주문을 즉시 전송합니다. 자동매매 및 매매기록에는 저장되지 않습니다.
                       </p>
@@ -5987,7 +5987,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                         }}
                         className="h-8 rounded-lg border border-primary/40 bg-primary/10 px-4 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
                       >
-                        {up8TestLoading ? "전송 중..." : "테스트 주문 전송"}
+                        {up8TestLoading ? "전송 중..." : "테스트 ���문 전송"}
                       </button>
                     </div>
                     {up8TestResult && (
@@ -6004,11 +6004,11 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                   {up8SettingsEdit.test_enabled && up8SettingsEdit.live_enabled && (
                     <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive" role="status">
-                      테스트와 실매매 주문이 모두 선택되어 UP8 신호마다 두 계정으로 각각 전송됩니다.
+                      테스트와 실매매 주문이 모두 선택되어 UP6/UP8 신호마다 두 계정으로 각각 전송됩니다.
                     </p>
                   )}
                   {!up8SettingsEdit.test_enabled && !up8SettingsEdit.live_enabled && (
-                    <p className="text-xs text-muted-foreground" role="status">현재 UP8 자동 TVM 전송이 꺼져 있습니다. 위 테스트 주문은 별도로 사용할 수 있습니다.</p>
+                    <p className="text-xs text-muted-foreground" role="status">현재 UP6/UP8 자동 TVM 전송이 꺼져 있습니다. 위 테스트 주문은 별도로 사용할 수 있습니다.</p>
                   )}
                 </div>
               )}
