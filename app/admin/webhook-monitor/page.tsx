@@ -208,10 +208,10 @@ export default function WebhookMonitorPage() {
             <p style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.3)", marginBottom: 8, letterSpacing: 2 }}>ENDPOINT</p>
             <div className="flex items-center gap-2" style={{ background: "rgba(0,0,0,0.4)", borderRadius: 8, padding: "8px 10px" }}>
               <span style={{ fontSize: 9, color: UP, flex: 1, wordBreak: "break-all", lineHeight: 1.6 }}>
-                https://coinrace.live<br />/api/auto-signal/webhook
+                https://www.coinrace.live<br />/api/auto-signal/webhook
               </span>
               <button
-                onClick={() => { navigator.clipboard.writeText("https://coinrace.live/api/auto-signal/webhook"); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                onClick={() => { navigator.clipboard.writeText("https://www.coinrace.live/api/auto-signal/webhook"); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
                 style={{ cursor: "pointer", flexShrink: 0, color: copied ? UP : "rgba(255,255,255,0.3)" }}>
                 {copied ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
