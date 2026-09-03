@@ -35,7 +35,7 @@ export async function PATCH(req: Request) {
   const body = await req.json().catch(() => ({}))
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
-  // 초기 시드 변경은 과거 기록을 수정하지 않고, 최신 잔고에 차액만 반영한다.
+  // 초기 시드 조정은 일별 매매 손익과 완전히 분리된 자본 조정 원장에만 기록한다.
   if (body.initial_seed !== undefined) {
     const nextSeed = Number(body.initial_seed)
     if (!Number.isFinite(nextSeed) || nextSeed <= 0) {
@@ -44,7 +44,7 @@ export async function PATCH(req: Request) {
 
     const { data: current } = await adminSupabase
       .from("auto_signal_settings")
-      .select("initial_seed")
+      .select("initial_seed, seed_capital")
       .eq("id", 1)
       .single()
     const previousSeed = Number(current?.initial_seed ?? 0)
@@ -53,42 +53,42 @@ export async function PATCH(req: Request) {
     if (delta !== 0) {
       const { data: latest } = await adminSupabase
         .from("auto_signal_rebalance")
-        .select("id, date_label, est_value, daily_pnl, seed_capital, note")
+        .select("est_value, rebalanced_at")
         .order("date_label", { ascending: false })
+        .order("rebalanced_at", { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
-      if (latest) {
-        const dateLabel = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
-        const newBalance = Number(latest.est_value) + delta
-        const adjustmentText = `초기 시드 조정 ${delta >= 0 ? "+" : ""}$${delta.toFixed(2)}`
-        const isPendingAdjustment = String(latest.note ?? "").startsWith("[seed_adjustment_pending]")
-        const note = latest.date_label === dateLabel && !isPendingAdjustment
-          ? `${latest.note ? `${latest.note} | ` : ""}${adjustmentText}`
-          : `[seed_adjustment_pending] ${latest.note ? `${String(latest.note).replace("[seed_adjustment_pending]", "").trim()} | ` : ""}${adjustmentText}`
-        if (latest.date_label === dateLabel) {
-          const { error } = await adminSupabase.from("auto_signal_rebalance").update({
-            est_value: newBalance,
-            daily_pnl: Number(latest.daily_pnl) + delta,
-            note,
-            rebalanced_at: new Date().toISOString(),
-          }).eq("id", latest.id)
-          if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-        } else {
-          const { error } = await adminSupabase.from("auto_signal_rebalance").insert({
-            date_label: dateLabel,
-            seed_capital: Number(latest.est_value),
-            est_value: newBalance,
-            daily_pnl: delta,
-            note,
-            rebalanced_at: new Date().toISOString(),
-          })
-          if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-        }
+      let balanceBefore = latest ? Number(latest.est_value) : Number(current?.seed_capital ?? previousSeed)
+      if (latest?.rebalanced_at) {
+        const { data: pendingAdjustments, error: pendingError } = await adminSupabase
+          .from("auto_signal_capital_adjustments")
+          .select("amount")
+          .gt("created_at", latest.rebalanced_at)
+        if (pendingError) return NextResponse.json({ error: pendingError.message }, { status: 500 })
+        balanceBefore += (pendingAdjustments ?? []).reduce(
+          (sum: number, row: { amount: number }) => sum + Number(row.amount),
+          0,
+        )
       }
+
+      const balanceAfter = balanceBefore + delta
+      const { error: adjustmentError } = await adminSupabase
+        .from("auto_signal_capital_adjustments")
+        .insert({
+          date_label: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10),
+          amount: delta,
+          previous_initial_seed: previousSeed,
+          new_initial_seed: nextSeed,
+          balance_before: balanceBefore,
+          balance_after: balanceAfter,
+          note: `초기 시드 조정 ${delta >= 0 ? "+" : ""}$${delta.toFixed(2)}`,
+        })
+      if (adjustmentError) return NextResponse.json({ error: adjustmentError.message }, { status: 500 })
+
+      update.seed_capital = balanceAfter
     }
     update.initial_seed = nextSeed
-    update.seed_capital = nextSeed
   }
 
   if (body.size_usd      !== undefined) update.size_usd      = Number(body.size_usd)
@@ -96,8 +96,10 @@ export async function PATCH(req: Request) {
   if (body.enabled       !== undefined) update.enabled       = Boolean(body.enabled)
   if (body.real_order_enabled !== undefined) update.real_order_enabled = Boolean(body.real_order_enabled)
   if (body.stop_loss_pct    !== undefined) update.stop_loss_pct    = body.stop_loss_pct === null ? null : Number(body.stop_loss_pct)
-  if (body.seed_capital     !== undefined) update.seed_capital     = Number(body.seed_capital)
-  if (body.initial_seed     !== undefined) update.initial_seed     = Number(body.initial_seed)
+  if (body.seed_capital !== undefined && body.initial_seed === undefined) {
+    update.seed_capital = Number(body.seed_capital)
+  }
+  if (body.initial_seed !== undefined) update.initial_seed = Number(body.initial_seed)
   if (body.withdrawn_amount !== undefined) update.withdrawn_amount = Number(body.withdrawn_amount)
   if (body.profit_dist      !== undefined) update.profit_dist      = body.profit_dist
   if (body.show_profit_dist !== undefined) update.show_profit_dist = Boolean(body.show_profit_dist)

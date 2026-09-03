@@ -131,14 +131,25 @@ export async function GET(req: Request) {
   // day-close는 설정의 seed_capital이 아닌 직전 반영 잔고에서 누적해야 함
   const { data: prevRebalance } = await adminSupabase
     .from("auto_signal_rebalance")
-    .select("est_value, date_label")
+    .select("est_value, date_label, rebalanced_at")
     .lt("date_label", dateLabel)          // 오늘 이전 기록만
     .order("date_label", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  // 직전 반영 기록이 없으면 설정의 seed_capital을 초기값으로 사용
-  const baseBalance = prevRebalance ? Number(prevRebalance.est_value) : Number(cfg?.seed_capital ?? 640)
+  // 직전 마감 이후 발생한 시드 조정은 잔고에만 반영하고 당일 매매 PNL에는 포함하지 않는다.
+  let baseBalance = prevRebalance ? Number(prevRebalance.est_value) : Number(cfg?.seed_capital ?? 640)
+  if (prevRebalance?.rebalanced_at) {
+    const { data: pendingAdjustments, error: pendingError } = await adminSupabase
+      .from("auto_signal_capital_adjustments")
+      .select("amount")
+      .gt("created_at", prevRebalance.rebalanced_at)
+    if (pendingError) return NextResponse.json({ error: pendingError.message }, { status: 500 })
+    baseBalance += (pendingAdjustments ?? []).reduce(
+      (sum: number, row: { amount: number }) => sum + Number(row.amount),
+      0,
+    )
+  }
 
   // 각 포지션별 closed_roi, closed_price, final_pnl, final_roi 계산 후 업데이트
   const updates = positions.map(async (pos: {
@@ -185,17 +196,15 @@ export async function GET(req: Request) {
   await Promise.all(updates)
 
   // ── 리밸런싱 스냅샷 저장 ───────────────────────────────────────
-  // 시드 조정 대기 기록은 마감 기록이 아니므로 당일 손익까지 합산해 최종 확정한다.
   const { data: existing } = await adminSupabase
     .from("auto_signal_rebalance")
-    .select("id, est_value, daily_pnl, note")
+    .select("id")
     .eq("date_label", dateLabel)
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  const isPendingSeedAdjustment = String(existing?.note ?? "").startsWith("[seed_adjustment_pending]")
-  if (existing && !isPendingSeedAdjustment) {
-    // 이미 수동/자동으로 반영된 날 — 포지션 마감만 하고 재정산하지 않음
+  if (existing) {
+    // 실제 일별 마감 기록이 이미 있는 경우에만 재정산하지 않는다.
     return NextResponse.json({
       ok:           true,
       date_label:   dateLabel,
@@ -239,10 +248,8 @@ export async function GET(req: Request) {
     return s + Number(p.size_usd ?? cfgSizeUsd) * 0.0006
   }, 0)
 
-  const tradingPnl = slPnl + dayClosePnl
-  const seedAdjustment = isPendingSeedAdjustment ? Number(existing?.daily_pnl ?? 0) : 0
-  const dailyPnl = seedAdjustment + tradingPnl
-  // 확정 잔고 = 직전 반영 잔고 + 시드 조정 + 오늘 매매 PNL
+  const dailyPnl = slPnl + dayClosePnl
+  // 확정 잔고 = 직전 마감 잔고 + 별도 자본 조정 + 오늘 매매 PNL
   const estValue = baseBalance + dailyPnl
 
   const rebalancePayload = {
@@ -251,15 +258,13 @@ export async function GET(req: Request) {
     est_value:     estValue,
     daily_pnl:     dailyPnl,
     daily_fee:     dailyFee,
-    note:          isPendingSeedAdjustment
-      ? `${String(existing?.note ?? "").replace("[seed_adjustment_pending]", "").trim()} | day_close (auto)`
-      : "day_close (auto)",
+    note:          "day_close (auto)",
     rebalanced_at: now,
   }
 
-  const rebalanceResult = isPendingSeedAdjustment
-    ? await adminSupabase.from("auto_signal_rebalance").update(rebalancePayload).eq("id", existing.id)
-    : await adminSupabase.from("auto_signal_rebalance").insert(rebalancePayload)
+  const rebalanceResult = await adminSupabase
+    .from("auto_signal_rebalance")
+    .insert(rebalancePayload)
 
   if (rebalanceResult.error) {
     return NextResponse.json({ error: rebalanceResult.error.message }, { status: 500 })

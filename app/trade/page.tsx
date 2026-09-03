@@ -933,6 +933,18 @@ type LedgerRecord = {
   note:          string
 }
 
+type CapitalAdjustment = {
+  id:                    number
+  date_label:            string
+  amount:                number
+  previous_initial_seed: number
+  new_initial_seed:      number
+  balance_before:        number
+  balance_after:         number
+  note:                  string
+  created_at:            string
+}
+
 // 반영 버튼 + 수익입력/삭제 모두 허용 username 목록
 const CONFIRM_ALLOWED_USERS = ["mirea2131"]
 // 반영 버튼만 허용 (수익 입력 폼·삭제 버튼은 숨김)
@@ -940,6 +952,8 @@ const CONFIRM_ONLY_USERS = ["mirea21310"]
 
 function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStats, onConfirmedValue }: { tradeMode: string; userRole: string | null; userName?: string | null; todayAutoPnl?: number; autoStats?: AutoStats | null; onConfirmedValue?: (v: number) => void }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
+  const [adjustments,  setAdjustments]  = useState<CapitalAdjustment[]>([])
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null)
   const [loading,      setLoading]      = useState(true)
   const [seedCapital,  setSeedCapital]  = useState<number | null>(null)
   const [initialSeedVal,   setInitialSeedVal]   = useState<number | null>(null)
@@ -985,6 +999,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
       fetch("/api/auto-signal/settings").then(r => r.ok ? r.json() : null),
     ]).then(([ledger, cfg]) => {
       setRecords(ledger.records ?? [])
+      setAdjustments(ledger.adjustments ?? [])
+      setCurrentBalance(ledger.current_balance == null ? null : Number(ledger.current_balance))
       if (cfg?.seed_capital != null) setSeedCapital(Number(cfg.seed_capital))
       if (cfg?.initial_seed != null) setInitialSeedVal(Number(cfg.initial_seed))
       setShowProfitDist(Boolean(cfg?.show_profit_dist))
@@ -1032,8 +1048,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
   const sorted      = [...records].sort((a, b) => a.date_label.localeCompare(b.date_label))
   // 초기 시드: 첫 번째 rebalance 기록의 seed_capital (없으면 settings의 seed_capital 폴백)
   const firstSeed   = sorted.length > 0 ? Number(sorted[0].seed_capital) : (seedCapital ?? 0)
-  // 마지막 확정 잔고 (저장된 기록 기준)
-  const confirmedValue = sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : (seedCapital ?? 0)
+  // 마지막 일별 마감 잔고에 이후의 별도 자본 조정까지 반영한 현재 확정 잔고
+  const confirmedValue = currentBalance ?? (sorted.length > 0 ? Number(sorted[sorted.length - 1].est_value) : (seedCapital ?? 0))
   // 부모에 확정 잔고 전달 (AutoSignalPanel MARGIN 기준값으로 사용)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { onConfirmedValue?.(confirmedValue) }, [confirmedValue])
@@ -1339,7 +1355,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
             )
           }
 
-          // ── 지표 계산 ───────────────────────��──���──────��─────────������─
+          // ── 지표 계산 ─────────────────────��─��──���──────��─────────������─
           // wCnt = winners(pnl>0), lCnt = losers(pnl<0, non-SL), slCnt = SL청산
           const totalClosed = total
           const winRate    = totalClosed > 0 ? wCnt / totalClosed * 100 : 0
@@ -1496,7 +1512,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
       <div>
         {loading ? (
           <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>로딩 중...</div>
-        ) : sorted.length === 0 ? (
+        ) : sorted.length === 0 && adjustments.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>매매 시작일은 5월 31일입니다.</div>
 
         ) : statTab === "daily" ? (
@@ -1544,6 +1560,29 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                 </div>
               )
             })()}
+            {adjustments.map(adjustment => {
+              const amount = Number(adjustment.amount)
+              const [, mm, dd] = adjustment.date_label.split("-")
+              return (
+                <div key={`adjustment-${adjustment.id}`} style={{ padding: "10px 14px", borderBottom: "1px solid rgba(212,175,55,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(212,175,55,0.025)" }}>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.95)" }}>{parseInt(mm)}월 {parseInt(dd)}일</span>
+                      <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(212,175,55,0.14)", color: GOLD }}>시드 조정</span>
+                      {adjustment.note && <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>{adjustment.note}</span>}
+                    </div>
+                    <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>
+                      잔고 ${Number(adjustment.balance_before).toFixed(2)} → ${Number(adjustment.balance_after).toFixed(2)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: GOLD }}>{amount >= 0 ? "+" : ""}${amount.toFixed(2)}</div>
+                    <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{amount >= 0 ? "+" : ""}{Math.round(amount * krwRate).toLocaleString("ko-KR")}원</div>
+                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>매매 수익률 제외</div>
+                  </div>
+                </div>
+              )
+            })}
             {[...sorted].reverse().map(rec => {
               const pnl      = Number(rec.daily_pnl)
               const seed     = Number(rec.seed_capital)

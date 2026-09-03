@@ -4345,7 +4345,7 @@ export default function PanelPage() {
                   <p className="text-xs font-medium text-foreground mb-1.5">비밀번호</p>
                   <Input
                     type="password"
-                    placeholder="초기 비밀번호 설정"
+                    placeholder="초기 비밀번호 ��정"
                     value={acPassword}
                     onChange={e => setAcPassword(e.target.value)}
                     className="h-9 text-sm"
@@ -4869,10 +4869,8 @@ export default function PanelPage() {
                       }
                       if (rebalRes.ok) {
                         const d = await rebalRes.json()
-                        const recs: { est_value: number; date_label: string }[] = d.records ?? []
-                        if (recs.length > 0) {
-                          const latest = recs.sort((a, b) => b.date_label.localeCompare(a.date_label))[0]
-                          setCurrentBalance(Number(latest.est_value))
+                        if (d.current_balance != null) {
+                          setCurrentBalance(Number(d.current_balance))
                         }
                       }
                     }

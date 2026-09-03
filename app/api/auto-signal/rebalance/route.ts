@@ -36,15 +36,33 @@ export async function GET(req: Request) {
     }
   }
 
-  const { data, error } = await adminSupabase
-    .from("auto_signal_rebalance")
-    .select("*")
-    .gte("date_label", START_DATE)
-    .order("date_label", { ascending: false })
-    .limit(365)
+  const [{ data, error }, { data: adjustments, error: adjustmentsError }] = await Promise.all([
+    adminSupabase
+      .from("auto_signal_rebalance")
+      .select("*")
+      .gte("date_label", START_DATE)
+      .order("date_label", { ascending: false })
+      .limit(365),
+    adminSupabase
+      .from("auto_signal_capital_adjustments")
+      .select("*")
+      .gte("date_label", START_DATE)
+      .order("created_at", { ascending: false })
+      .limit(365),
+  ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ records: data ?? [], role })
+  if (adjustmentsError) return NextResponse.json({ error: adjustmentsError.message }, { status: 500 })
+
+  const latestRecord = data?.[0]
+  let currentBalance: number | null = latestRecord ? Number(latestRecord.est_value) : null
+  if (latestRecord?.rebalanced_at && currentBalance !== null) {
+    currentBalance += (adjustments ?? [])
+      .filter((row: { created_at: string }) => row.created_at > latestRecord.rebalanced_at)
+      .reduce((sum: number, row: { amount: number }) => sum + Number(row.amount), 0)
+  }
+
+  return NextResponse.json({ records: data ?? [], adjustments: adjustments ?? [], current_balance: currentBalance, role })
 }
 
 export async function POST(req: Request) {
@@ -82,14 +100,25 @@ export async function POST(req: Request) {
   // 해당 날짜 이전 기록 중 가장 최근 잔고 → 누적 계산 기준
   const { data: prev } = await adminSupabase
     .from("auto_signal_rebalance")
-    .select("est_value")
+    .select("est_value, rebalanced_at")
     .gte("date_label", START_DATE)
     .lt("date_label", date_label)
     .order("date_label", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  const baseSeed = prev ? Number(prev.est_value) : seedCapital
+  let baseSeed = prev ? Number(prev.est_value) : seedCapital
+  if (prev?.rebalanced_at) {
+    const { data: pendingAdjustments, error: pendingError } = await adminSupabase
+      .from("auto_signal_capital_adjustments")
+      .select("amount")
+      .gt("created_at", prev.rebalanced_at)
+    if (pendingError) return NextResponse.json({ error: pendingError.message }, { status: 500 })
+    baseSeed += (pendingAdjustments ?? []).reduce(
+      (sum: number, row: { amount: number }) => sum + Number(row.amount),
+      0,
+    )
+  }
   const estValue = baseSeed + Number(daily_pnl)
 
   // UPSERT: 같은 날짜면 덮어씀
