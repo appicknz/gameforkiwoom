@@ -131,16 +131,16 @@ export async function POST(req: Request) {
 
   const cleanSymbol = symbol.replace(".P", "")
 
-  // 반영(rebalance) 완료 체크 — 당일 rebalance 기록이 있으면 이미 하루 마감된 날
-  // 반영 후에는 어떤 신호가 와도 새 포지션을 생성하지 않음
+  // 실제 반영(rebalance) 완료 체크 — 시드 조정만 기록된 날은 계속 매매를 허용한다.
   const { data: todayRebalance } = await adminSupabase
     .from("auto_signal_rebalance")
-    .select("id")
+    .select("id, note")
     .eq("date_label", dateLabel)
     .limit(1)
     .single()
 
-  if (todayRebalance) {
+  const isPendingSeedAdjustment = String(todayRebalance?.note ?? "").startsWith("[seed_adjustment_pending]")
+  if (todayRebalance && !isPendingSeedAdjustment) {
     await logRequest("skipped", 200, body, {
       ip, symbol, signalType: type,
       errorMsg: `day already closed (rebalanced): ${dateLabel}`,

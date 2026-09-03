@@ -61,7 +61,11 @@ export async function PATCH(req: Request) {
       if (latest) {
         const dateLabel = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
         const newBalance = Number(latest.est_value) + delta
-        const note = `${latest.note ? `${latest.note} | ` : ""}초기 시드 조정 ${delta >= 0 ? "+" : ""}$${delta.toFixed(2)}`
+        const adjustmentText = `초기 시드 조정 ${delta >= 0 ? "+" : ""}$${delta.toFixed(2)}`
+        const isPendingAdjustment = String(latest.note ?? "").startsWith("[seed_adjustment_pending]")
+        const note = latest.date_label === dateLabel && !isPendingAdjustment
+          ? `${latest.note ? `${latest.note} | ` : ""}${adjustmentText}`
+          : `[seed_adjustment_pending] ${latest.note ? `${String(latest.note).replace("[seed_adjustment_pending]", "").trim()} | ` : ""}${adjustmentText}`
         if (latest.date_label === dateLabel) {
           const { error } = await adminSupabase.from("auto_signal_rebalance").update({
             est_value: newBalance,
