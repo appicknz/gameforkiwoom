@@ -1568,7 +1568,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                   <div>
                     <div className="flex items-center gap-1.5">
                       <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.95)" }}>{parseInt(mm)}월 {parseInt(dd)}일</span>
-                      <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(212,175,55,0.14)", color: GOLD }}>시드 조정</span>
+                      <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(212,175,55,0.14)", color: GOLD }}>잔고 추가</span>
                       {adjustment.note && <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>{adjustment.note}</span>}
                     </div>
                     <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>

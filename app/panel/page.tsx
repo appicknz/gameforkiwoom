@@ -455,7 +455,7 @@ export default function PanelPage() {
       setAcMsg({ text: `"${targetUsername}" 계정이 삭제되었습니다.`, ok: true })
       loadUsers(adminPw)
     } else {
-      alert(d.error ?? "삭��� 중 오류가 발생했습니다.")
+      alert(d.error ?? "삭����� 중 오류가 발생했습니다.")
     }
   }
 
@@ -4345,7 +4345,7 @@ export default function PanelPage() {
                   <p className="text-xs font-medium text-foreground mb-1.5">비밀번호</p>
                   <Input
                     type="password"
-                    placeholder="초기 비밀번호 ��정"
+                    placeholder="초기 비밀번호 ���정"
                     value={acPassword}
                     onChange={e => setAcPassword(e.target.value)}
                     className="h-9 text-sm"
@@ -4797,7 +4797,7 @@ export default function PanelPage() {
               )}
             </div>
 
-            {/* 섹션 3: 채널 메시지 직접 ���송 */}
+            {/* 섹션 3: 채널 메시지 직��� ���송 */}
             <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-3">
               <p className="text-sm font-semibold text-foreground">채널 메시지 전송</p>
               <p className="text-xs text-muted-foreground">충�� 채널 <span className="font-mono text-foreground">-1004471984422</span> 로 메시지를 직접 전송합니다.</p>
@@ -6327,7 +6327,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">초기 시드 설정</h2>
                     <p className="text-xs text-muted-foreground mt-1">
-                      자동매매 화면에 표시될 초기 시드 금액을 설정합니다. 이 값은 수익률(ROI) 계산의 기준이 됩니다.
+                      수익률(ROI) 기준값을 직접 정정합니다. 실제 자금 입금은 아래 입금 기능을 사용하세요.
                     </p>
                   </div>
                   <div className="flex items-end gap-3">
@@ -6350,7 +6350,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           const res = await fetch("/api/auto-signal/settings", {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                            body: JSON.stringify({ initial_seed: Number(initialSeed), seed_capital: Number(initialSeed) }),
+                            body: JSON.stringify({ initial_seed: Number(initialSeed) }),
                           })
                           const d = await res.json()
                           setSeedSettingsMsg(res.ok ? `저장됨: $${Number(initialSeed).toFixed(2)}` : (d.error ?? "오류"))
@@ -6395,7 +6395,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">입금</h2>
                     <p className="text-xs text-muted-foreground mt-1">
-                      입금 시 오늘 날짜 매매기록에 해당 금액이 가산됩니다.
+                      입금액은 오늘 날짜의 ‘잔고 추가’로 별도 기록되며, 매매 손익이나 금일매매 종료에 영향을 주지 않습니다.
                     </p>
                     {currentBalance !== null && (
                       <p className="text-xs text-foreground mt-2">
