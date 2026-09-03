@@ -65,6 +65,7 @@ export async function POST(req: Request) {
   } = body
 
   const type = signal_type ?? alert_type
+  const normalizedAlertType = typeof alert_type === "string" ? alert_type.trim().toUpperCase() : ""
 
   if (!type || !symbol || !price) {
     const msg = "missing required fields: signal_type, symbol, price"
@@ -72,9 +73,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 
-  // UP8 국내주식 시그널은 포지션/매매기록 없이 선택된 KIS 모드로 TVM만 전송한다.
-  if (type === "TRIPLE_COMBO_UP8") {
-    return handleSignalUp8({ type, symbol, ip, body, logRequest })
+  // 국내주식 UP8은 payload의 signal_type이 "test"여도 alert_type을 기준으로 먼저 분기한다.
+  // signal_type 우선 규칙은 기존 암호화폐 신호 호환을 위해 나머지 경로에서 그대로 유지한다.
+  if (normalizedAlertType === "TRIPLE_COMBO_UP8") {
+    return handleSignalUp8({ type: "TRIPLE_COMBO_UP8", symbol, ip, body, logRequest })
   }
 
   // UP3와 UP8을 제외한 모든 신호는 자동매매2(역삼1 전용, 별도 기록)로 분기
