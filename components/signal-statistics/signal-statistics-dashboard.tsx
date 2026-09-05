@@ -197,6 +197,7 @@ export function SignalStatisticsDashboard() {
   const [cciSort, setCciSort] = useState<CciSort>("none")
   const [bbFilter, setBbFilter] = useState("all")
   const [resultFilter, setResultFilter] = useState("all")
+  const [outcomeFilters, setOutcomeFilters] = useState<Record<string, string>>({})
   const dateStripRef = useRef<HTMLDivElement>(null)
   const availableDates = useMemo(() => Array.from({ length: 30 }, (_, index) => shiftDateKey(today, index - 29)), [today])
 
@@ -225,7 +226,14 @@ export function SignalStatisticsDashboard() {
     const filtered = entries.filter((entry) => {
       const bbValue = [entry.bollinger.position, entry.bollinger.trend].filter(Boolean).join(" · ") || "none"
       const result = entry.outcomes[String(horizon)]?.result ?? "pending"
-      return (bbFilter === "all" || bbValue === bbFilter) && (resultFilter === "all" || result === resultFilter)
+      const matchesTimeframeFilters = Object.entries(outcomeFilters).every(([timeframe, filter]) => {
+        if (!filter || filter === "all") return true
+        const outcome = entry.outcomes[timeframe]
+        if (filter === "pending") return !outcome || outcome.status === "pending"
+        if (filter === "unavailable") return outcome?.status === "unavailable"
+        return outcome?.status === "complete" && outcome.result === filter
+      })
+      return (bbFilter === "all" || bbValue === bbFilter) && (resultFilter === "all" || result === resultFilter) && matchesTimeframeFilters
     })
     if (cciSort === "none") return filtered
     return [...filtered].sort((a, b) => {
@@ -233,7 +241,7 @@ export function SignalStatisticsDashboard() {
       const right = b.cci ?? (cciSort === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY)
       return cciSort === "asc" ? left - right : right - left
     })
-  }, [entries, horizon, bbFilter, resultFilter, cciSort])
+  }, [entries, horizon, bbFilter, resultFilter, outcomeFilters, cciSort])
   const visibleSymbols = useMemo(() => visibleEntries.map((entry) => entry.symbol), [visibleEntries])
   const liveTickers = useFuturesMiniTickers(visibleSymbols)
   const loading = entriesLoading || summaryLoading
@@ -363,7 +371,15 @@ export function SignalStatisticsDashboard() {
       <DropdownMenuLabel>볼린저 조합</DropdownMenuLabel><DropdownMenuRadioGroup value={bbFilter} onValueChange={setBbFilter}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · down">below_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · down">above_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · up">above_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · up">below_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="none">데이터 없음</DropdownMenuRadioItem></DropdownMenuRadioGroup>
     </TableFilterMenu></th>
     <th className="px-3 py-3 font-medium">컨플루언스</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium">실시간</th>
-    {horizons.map((value) => <th key={value} className="px-3 py-3 font-medium">{value}분</th>)}
+    {horizons.map((value) => {
+      const filter = outcomeFilters[String(value)] ?? "all"
+      return <th key={value} className="px-3 py-3 font-medium"><TableFilterMenu label={`${value}분`} active={filter !== "all"}>
+        <DropdownMenuLabel>{value === 240 ? "4시간" : `${value}분`} 결과</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={filter} onValueChange={(next) => setOutcomeFilters((current) => ({ ...current, [value]: next }))}>
+          <DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="win">승</DropdownMenuRadioItem><DropdownMenuRadioItem value="loss">패</DropdownMenuRadioItem><DropdownMenuRadioItem value="flat">보합</DropdownMenuRadioItem><DropdownMenuRadioItem value="pending">생성 대기</DropdownMenuRadioItem><DropdownMenuRadioItem value="unavailable">데이터 없음</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </TableFilterMenu></th>
+    })}
     <th className="px-3 py-3 font-medium">{horizon}분 예측</th>
     <th className="px-3 py-3 font-medium"><TableFilterMenu label={`${horizon}분 실제`} active={resultFilter !== "all"}>
       <DropdownMenuLabel>결과</DropdownMenuLabel><DropdownMenuRadioGroup value={resultFilter} onValueChange={setResultFilter}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="win">승</DropdownMenuRadioItem><DropdownMenuRadioItem value="loss">패</DropdownMenuRadioItem><DropdownMenuRadioItem value="flat">보합</DropdownMenuRadioItem><DropdownMenuRadioItem value="pending">대기</DropdownMenuRadioItem></DropdownMenuRadioGroup>
@@ -373,7 +389,7 @@ export function SignalStatisticsDashboard() {
                 {visibleEntries.map((entry, index) => {
                   const selected = entry.outcomes[String(horizon)]
                   const prediction = entry.predictions[String(horizon)]
-                  const previous = entries[index - 1]
+                  const previous = visibleEntries[index - 1]
                   const startsGroup = !previous || previous.duplicateGroupKey !== entry.duplicateGroupKey
                   const currentPrice = liveTickers.prices.get(entry.symbol) ?? null
                   const priceReturn = currentPrice == null ? null : ((currentPrice - entry.entryPrice) / entry.entryPrice) * 100
