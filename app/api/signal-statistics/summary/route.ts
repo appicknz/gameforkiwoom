@@ -51,6 +51,8 @@ function applyEntryFilters<T extends { eq: Function; ilike: Function; gte: Funct
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams
   const horizon = HORIZONS.has(Number(params.get("horizon"))) ? Number(params.get("horizon")) : 30
+  const direction = params.get("direction")
+  const queryText = (params.get("q") ?? "").trim().toUpperCase().slice(0, 30)
 
   const countQuery = applyEntryFilters(
     supabase.from("signal_statistics_entries").select("id", { count: "exact", head: true }),
@@ -58,6 +60,14 @@ export async function GET(request: Request) {
   )
   const { count, error: countError } = await countQuery
   if (countError) return NextResponse.json({ error: "요약 통계를 불러오지 못했습니다." }, { status: 500 })
+
+  let autoPositionQuery = supabase.from("auto_signal_positions").select("id", { count: "exact", head: true })
+  if (params.get("from")) autoPositionQuery = autoPositionQuery.gte("date_label", params.get("from") as string)
+  if (params.get("to")) autoPositionQuery = autoPositionQuery.lte("date_label", params.get("to") as string)
+  if (direction === "long" || direction === "short") autoPositionQuery = autoPositionQuery.eq("direction", direction)
+  if (queryText) autoPositionQuery = autoPositionQuery.ilike("symbol", `%${queryText}%`)
+  const { count: autoPositionTotal, error: autoPositionError } = await autoPositionQuery
+  if (autoPositionError) return NextResponse.json({ error: "자동매매 포지션 수를 불러오지 못했습니다." }, { status: 500 })
 
   const rows: SummaryRow[] = []
   for (let from = 0; from < (count ?? 0); from += PAGE_SIZE) {
@@ -99,6 +109,9 @@ export async function GET(request: Request) {
   return NextResponse.json({
     horizon,
     total: count ?? 0,
+    autoPositionTotal: autoPositionTotal ?? 0,
+    linkedPositionTotal: count ?? 0,
+    missingStatisticsTotal: Math.max(0, (autoPositionTotal ?? 0) - (count ?? 0)),
     complete: completed.length,
     completionRate: count ? completed.length / count * 100 : 0,
     wins,

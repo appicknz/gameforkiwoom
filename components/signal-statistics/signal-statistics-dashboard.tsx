@@ -64,6 +64,9 @@ type Entry = {
 type Breakdown = { label: string; samples: number; winRate: number; averageReturn: number | null; medianReturn: number | null }
 type Summary = {
   total: number
+  autoPositionTotal: number
+  linkedPositionTotal: number
+  missingStatisticsTotal: number
   complete: number
   completionRate: number
   wins: number
@@ -336,7 +339,8 @@ export function SignalStatisticsDashboard() {
         </section>
 
         <section className="grid grid-cols-2 border-y border-border lg:grid-cols-5">
-          <Metric label="수집 신호" value={(summary?.total ?? 0).toLocaleString()} detail="실제 유효 JSON" />
+          <Metric label="자동매매 진입 포지션" value={(summary?.autoPositionTotal ?? 0).toLocaleString()} detail={summary?.missingStatisticsTotal ? `통계 연결 누락 ${summary.missingStatisticsTotal}건` : "통계와 진입 수 일치"} />
+          <Metric label="연결된 통계 기록" value={(summary?.linkedPositionTotal ?? 0).toLocaleString()} detail="청산·방향 전환 무관" />
           <Metric label={`${horizon}분 결과 완료`} value={`${(summary?.completionRate ?? 0).toFixed(1)}%`} detail={`${summary?.complete ?? 0}건 계산`} />
           <Metric label="방향 승률" value={`${(summary?.winRate ?? 0).toFixed(1)}%`} detail={`${summary?.wins ?? 0}승 · ${summary?.losses ?? 0}패`} />
           <Metric label="평균 방향 수익률" value={summary?.averageReturn == null ? "—" : `${summary.averageReturn >= 0 ? "+" : ""}${summary.averageReturn.toFixed(2)}%`} detail="레버리지 미반영" />
