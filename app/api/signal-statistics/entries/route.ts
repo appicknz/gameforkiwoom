@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("signal_statistics_entries")
-    .select("id,received_at,signal_time,exchange,symbol,signal_type,direction,entry_price,duplicate_group_key,duplicate_index,processing_status,cci,cci_signal,confluence,price_change_percent,volume_change,active_timeframes,first_occurrence,new_1m,new_5m,new_15m,new_1h,new_2h,new_4h,ultimate_plot,signal_timeframe,interval_label,bb_position,bb_trend,bb_expansion,bb_squeeze,bb_width,signal_statistics_outcomes(horizon_minutes,target_time,candle_time,exit_price,price_return_percent,directional_return_percent,result,status),signal_statistics_predictions(horizon_minutes,predicted_at,training_cutoff_at,model_version,expected_win_rate,expected_directional_return_percent,confidence_level,confidence_score,effective_sample_size)", { count: "exact" })
+    .select("id,received_at,signal_time,exchange,symbol,signal_type,direction,entry_price,duplicate_group_key,duplicate_index,processing_status,cci,cci_signal,confluence,price_change_percent,volume_change,active_timeframes,first_occurrence,new_1m,new_5m,new_15m,new_1h,new_2h,new_4h,ultimate_plot,signal_timeframe,interval_label,bb_position,bb_trend,bb_expansion,bb_squeeze,bb_width,auto_signal_position:auto_signal_positions!signal_statistics_entries_auto_position_fk!inner(date_label),signal_statistics_outcomes(horizon_minutes,target_time,candle_time,exit_price,price_return_percent,directional_return_percent,result,status),signal_statistics_predictions(horizon_minutes,predicted_at,training_cutoff_at,model_version,expected_win_rate,expected_directional_return_percent,confidence_level,confidence_score,effective_sample_size)", { count: "exact" })
     .order("signal_time", { ascending: false })
     .order("duplicate_index", { ascending: true })
     .range(from, from + pageSize - 1)
@@ -31,8 +31,8 @@ export async function GET(request: Request) {
   if (direction === "long" || direction === "short") query = query.eq("direction", direction)
   if (signalType) query = query.eq("signal_type", signalType)
   if (duplicates === "original") query = query.eq("duplicate_index", 0)
-  if (params.get("from")) query = query.gte("signal_time", `${params.get("from")}T00:00:00+09:00`)
-  if (params.get("to")) query = query.lte("signal_time", `${params.get("to")}T23:59:59+09:00`)
+  if (params.get("from")) query = query.gte("auto_signal_position.date_label", params.get("from") as string)
+  if (params.get("to")) query = query.lte("auto_signal_position.date_label", params.get("to") as string)
 
   const { data, error, count } = await query
   if (error) return NextResponse.json({ error: "통계 데이터를 불러오지 못했습니다." }, { status: 500 })
@@ -42,6 +42,7 @@ export async function GET(request: Request) {
     const predictions = Array.isArray(entry.signal_statistics_predictions) ? entry.signal_statistics_predictions : []
     return {
       id: entry.id,
+      autoPositionDate: Array.isArray(entry.auto_signal_position) ? entry.auto_signal_position[0]?.date_label ?? null : entry.auto_signal_position?.date_label ?? null,
       receivedAt: entry.received_at,
       signalTime: entry.signal_time,
       exchange: entry.exchange,

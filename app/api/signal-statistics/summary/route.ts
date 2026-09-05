@@ -43,8 +43,8 @@ function applyEntryFilters<T extends { eq: Function; ilike: Function; gte: Funct
   if (direction === "long" || direction === "short") filtered = filtered.eq("direction", direction)
   if (queryText) filtered = filtered.ilike("symbol", `%${queryText}%`)
   if (params.get("duplicates") === "original") filtered = filtered.eq("duplicate_index", 0)
-  if (params.get("from")) filtered = filtered.gte("signal_time", `${params.get("from")}T00:00:00+09:00`)
-  if (params.get("to")) filtered = filtered.lte("signal_time", `${params.get("to")}T23:59:59+09:00`)
+  if (params.get("from")) filtered = filtered.gte("auto_signal_position.date_label", params.get("from") as string)
+  if (params.get("to")) filtered = filtered.lte("auto_signal_position.date_label", params.get("to") as string)
   return filtered
 }
 
@@ -55,7 +55,7 @@ export async function GET(request: Request) {
   const queryText = (params.get("q") ?? "").trim().toUpperCase().slice(0, 30)
 
   const countQuery = applyEntryFilters(
-    supabase.from("signal_statistics_entries").select("id", { count: "exact", head: true }),
+    supabase.from("signal_statistics_entries").select("id,auto_signal_position:auto_signal_positions!signal_statistics_entries_auto_position_fk!inner(date_label)", { count: "exact", head: true }),
     params,
   )
   const { count, error: countError } = await countQuery
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
   for (let from = 0; from < (count ?? 0); from += PAGE_SIZE) {
     let query = supabase
       .from("signal_statistics_entries")
-      .select("id,signal_time,symbol,signal_type,direction,cci,confluence,bb_position,bb_trend,duplicate_index,signal_statistics_outcomes!inner(horizon_minutes,directional_return_percent,result,status,calculated_at)")
+      .select("id,signal_time,symbol,signal_type,direction,cci,confluence,bb_position,bb_trend,duplicate_index,auto_signal_position:auto_signal_positions!signal_statistics_entries_auto_position_fk!inner(date_label),signal_statistics_outcomes!inner(horizon_minutes,directional_return_percent,result,status,calculated_at)")
       .eq("signal_statistics_outcomes.horizon_minutes", horizon)
       .eq("signal_statistics_outcomes.status", "complete")
       .order("signal_time", { ascending: false })
