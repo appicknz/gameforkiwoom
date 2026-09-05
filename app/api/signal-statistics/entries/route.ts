@@ -11,7 +11,7 @@ const HORIZONS = new Set([5, 15, 30, 60, 240])
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams
   const page = Math.max(1, Number.parseInt(params.get("page") ?? "1", 10) || 1)
-  const pageSize = Math.min(100, Math.max(10, Number.parseInt(params.get("pageSize") ?? "40", 10) || 40))
+  const pageSize = Math.min(1000, Math.max(10, Number.parseInt(params.get("pageSize") ?? "1000", 10) || 1000))
   const horizon = HORIZONS.has(Number(params.get("horizon"))) ? Number(params.get("horizon")) : 30
   const queryText = (params.get("q") ?? "").trim().toUpperCase().slice(0, 30)
   const direction = params.get("direction")

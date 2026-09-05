@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import useSWR from "swr"
-import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, Database, RefreshCw, Search } from "lucide-react"
+import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Database, RefreshCw, Search } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Input } from "@/components/ui/input"
@@ -177,15 +177,19 @@ export function SignalStatisticsDashboard() {
   const [search, setSearch] = useState("")
   const [direction, setDirection] = useState("all")
   const [duplicates, setDuplicates] = useState("all")
-  const [page, setPage] = useState(1)
+  const dateStripRef = useRef<HTMLDivElement>(null)
   const availableDates = useMemo(() => Array.from({ length: 30 }, (_, index) => shiftDateKey(today, index - 29)), [today])
 
+  useEffect(() => {
+    dateStripRef.current?.querySelector<HTMLElement>(`[data-date="${selectedDate}"]`)?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
+  }, [selectedDate])
+
   const query = useMemo(() => {
-    const params = new URLSearchParams({ horizon: String(horizon), page: String(page), pageSize: "40", duplicates, from: selectedDate, to: selectedDate })
+    const params = new URLSearchParams({ horizon: String(horizon), pageSize: "1000", duplicates, from: selectedDate, to: selectedDate })
     if (search.trim()) params.set("q", search.trim())
     if (direction !== "all") params.set("direction", direction)
     return params.toString()
-  }, [horizon, search, direction, duplicates, page, selectedDate])
+  }, [horizon, search, direction, duplicates, selectedDate])
   const summaryQuery = useMemo(() => {
     const params = new URLSearchParams({ horizon: String(horizon), duplicates, from: selectedDate, to: selectedDate })
     if (search.trim()) params.set("q", search.trim())
@@ -199,7 +203,6 @@ export function SignalStatisticsDashboard() {
   const entries = entriesData?.entries ?? []
   const visibleSymbols = useMemo(() => entries.map((entry) => entry.symbol), [entries])
   const liveTickers = useFuturesMiniTickers(visibleSymbols)
-  const totalPages = Math.max(1, Math.ceil((entriesData?.total ?? 0) / 40))
   const loading = entriesLoading || summaryLoading
 
   return (
@@ -224,14 +227,20 @@ export function SignalStatisticsDashboard() {
 
       <div className="mx-auto flex max-w-[1600px] flex-col gap-8 px-4 py-6 md:px-8">
         <section aria-labelledby="date-picker-heading" className="border-y border-border bg-card/30">
-          <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
-            <CalendarDays className="size-4 text-primary" />
-            <div>
-              <h2 id="date-picker-heading" className="text-sm font-semibold">{formatSelectedDate(selectedDate)}</h2>
-              <p className="text-xs text-muted-foreground">최근 30일을 한 화면에서 선택 · 선택 일자의 신호와 집계만 표시</p>
+          <div className="flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="size-4 text-primary" />
+              <div>
+                <h2 id="date-picker-heading" className="text-sm font-semibold">{formatSelectedDate(selectedDate)}</h2>
+                <p className="text-xs text-muted-foreground">선택 일자의 신호와 집계만 표시</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="ghost" size="icon" className="size-8" aria-label="이전 날짜" disabled={selectedDate <= availableDates[0]} onClick={() => setSelectedDate((value) => shiftDateKey(value, -1))}><ChevronLeft className="size-4" /></Button>
+              <Button type="button" variant="ghost" size="icon" className="size-8" aria-label="다음 날짜" disabled={selectedDate >= today} onClick={() => setSelectedDate((value) => shiftDateKey(value, 1))}><ChevronRight className="size-4" /></Button>
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-1 px-2 py-3 sm:grid-cols-7 lg:grid-cols-10 xl:grid-cols-15">
+          <div ref={dateStripRef} className="flex snap-x snap-mandatory gap-1 overflow-x-auto px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {availableDates.map((dateKey) => {
               const date = dateFromKey(dateKey)
               const day = date.getUTCDay()
@@ -244,7 +253,7 @@ export function SignalStatisticsDashboard() {
                   data-date={dateKey}
                   aria-pressed={selected}
                   aria-label={`${formatSelectedDate(dateKey)} 선택`}
-                  onClick={() => { setSelectedDate(dateKey); setPage(1) }}
+                  onClick={() => { setSelectedDate(dateKey) }}
                   className={cn("flex min-w-20 snap-center flex-col items-center gap-2 rounded-md px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", selected ? "bg-primary/10" : "hover:bg-muted/60")}
                 >
                   <span className={cn("text-xs", day === 0 ? "text-destructive" : day === 6 ? "text-blue-400" : "text-muted-foreground")}>{weekdays[day]}{startsMonth ? ` · ${date.getUTCMonth() + 1}월` : ""}</span>
@@ -285,12 +294,12 @@ export function SignalStatisticsDashboard() {
 
         <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2" aria-label="평가 시간 선택">
-            {horizons.map((value) => <Button key={value} size="sm" variant={horizon === value ? "default" : "outline"} onClick={() => { setHorizon(value); setPage(1) }}>{value === 240 ? "4시간" : `${value}분`}</Button>)}
+            {horizons.map((value) => <Button key={value} size="sm" variant={horizon === value ? "default" : "outline"} onClick={() => { setHorizon(value) }}>{value === 240 ? "4시간" : `${value}분`}</Button>)}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="relative"><span className="sr-only">심볼 검색</span><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="심볼 검색" className="w-full pl-9 sm:w-48" /></label>
-            <Select value={direction} onValueChange={(value) => { setDirection(value); setPage(1) }}><SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">전체 방향</SelectItem><SelectItem value="long">LONG</SelectItem><SelectItem value="short">SHORT</SelectItem></SelectContent></Select>
-            <Select value={duplicates} onValueChange={(value) => { setDuplicates(value); setPage(1) }}><SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">중복 포함</SelectItem><SelectItem value="original">원본만</SelectItem></SelectContent></Select>
+            <label className="relative"><span className="sr-only">심볼 검색</span><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => { setSearch(event.target.value) }} placeholder="심볼 검색" className="w-full pl-9 sm:w-48" /></label>
+            <Select value={direction} onValueChange={(value) => { setDirection(value) }}><SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">전체 방향</SelectItem><SelectItem value="long">LONG</SelectItem><SelectItem value="short">SHORT</SelectItem></SelectContent></Select>
+            <Select value={duplicates} onValueChange={(value) => { setDuplicates(value) }}><SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">중복 포함</SelectItem><SelectItem value="original">원본만</SelectItem></SelectContent></Select>
           </div>
         </section>
 
@@ -344,7 +353,6 @@ export function SignalStatisticsDashboard() {
             {!loading && !entries.length && <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">조건에 맞는 실제 신호가 없습니다.</div>}
             {loading && !entries.length && <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground"><RefreshCw className="size-4 animate-spin" />실제 데이터를 계산하고 있습니다.</div>}
           </div>
-          <div className="mt-4 flex items-center justify-between"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>이전</Button><span className="font-[inherit] text-sm tabular-nums text-muted-foreground"><span className="text-foreground">{page}</span> / {totalPages}</span><Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>다음</Button></div>
         </section>
 
         <footer className="flex flex-col gap-2 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>확정 성과: Binance 캔들 · 승패 기준: 방향 수익률 ±0.10% · 레버리지 미반영</span><span>{summary?.lastCalculatedAt ? `최근 계산 ${kstTime.format(new Date(summary.lastCalculatedAt))} KST` : "계산 결과 대기 중"}</span></footer>
