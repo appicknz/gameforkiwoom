@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic"
 
 const HORIZONS = new Set([5, 15, 30, 60, 240])
 const PAGE_SIZE = 1000
+const LEVERAGE = 10
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
 const median = (values: number[]) => {
   if (!values.length) return null
@@ -87,7 +88,7 @@ export async function GET(request: Request) {
 
   const completed = rows.map((entry) => ({ ...entry, outcome: entry.signal_statistics_outcomes[0] }))
     .filter((row) => row.outcome?.directional_return_percent != null)
-  const returns = completed.map((row) => Number(row.outcome.directional_return_percent))
+  const returns = completed.map((row) => Number(row.outcome.directional_return_percent) * LEVERAGE)
   const wins = completed.filter((row) => row.outcome.result === "win").length
   const losses = completed.filter((row) => row.outcome.result === "loss").length
   const flats = completed.filter((row) => row.outcome.result === "flat").length
@@ -100,7 +101,7 @@ export async function GET(request: Request) {
       groups.set(key, [...(groups.get(key) ?? []), row])
     }
     return [...groups.entries()].map(([label, group]) => {
-      const values = group.map((row) => Number(row.outcome.directional_return_percent))
+      const values = group.map((row) => Number(row.outcome.directional_return_percent) * LEVERAGE)
       const groupWins = group.filter((row) => row.outcome.result === "win").length
       return { label, samples: group.length, winRate: group.length ? groupWins / group.length * 100 : 0, averageReturn: average(values), medianReturn: median(values) }
     }).sort((a, b) => b.samples - a.samples)

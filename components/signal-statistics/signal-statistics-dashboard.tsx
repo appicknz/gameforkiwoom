@@ -18,6 +18,7 @@ const fetcher = (url: string) => fetch(url).then(async (response) => {
 })
 
 const horizons = [5, 15, 30, 60, 240]
+const LEVERAGE = 10
 const chartConfig = {
   winRate: { label: "승률", color: "var(--chart-2)" },
   averageReturn: { label: "평균 수익률", color: "var(--chart-1)" },
@@ -174,7 +175,7 @@ function BreakdownChart({ title, data }: { title: string; data: Breakdown[] }) {
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-foreground">{title} <span className="font-[inherit] text-muted-foreground">(총 {totalSamples.toLocaleString()}개)</span></h2>
-          <p className="mt-1 text-xs text-muted-foreground">��제 완료 표본 기준 · 괄호 안은 그룹별 표본 수 · 막대는 승률</p>
+          <p className="mt-1 text-xs text-muted-foreground">���제 완료 표본 기준 · 괄호 안은 그룹별 표본 수 · 막대는 승률</p>
         </div>
         <span className="font-[inherit] text-xs text-muted-foreground">표본 ≥ 1</span>
       </div>
@@ -245,8 +246,8 @@ export function SignalStatisticsDashboard() {
     if (!activeOutcomeSort) return sorted
     const [timeframe, sortDirection] = activeOutcomeSort
     return sorted.sort((a, b) => {
-      const left = a.outcomes[timeframe]?.directionalReturnPercent
-      const right = b.outcomes[timeframe]?.directionalReturnPercent
+const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.outcomes[timeframe]!.directionalReturnPercent! * LEVERAGE
+    const right = b.outcomes[timeframe]?.directionalReturnPercent == null ? null : b.outcomes[timeframe]!.directionalReturnPercent! * LEVERAGE
       const leftValue = left == null ? (sortDirection === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : left
       const rightValue = right == null ? (sortDirection === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : right
       return sortDirection === "asc" ? leftValue - rightValue : rightValue - leftValue
@@ -283,7 +284,7 @@ export function SignalStatisticsDashboard() {
                 {liveTickers.lastMessageAt && <span className="text-xs text-muted-foreground">· {liveTime.format(new Date(liveTickers.lastMessageAt))}</span>}
               </div>
               <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">실제 웹훅 신호 통계</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">수신된 JSON 조건과 이후 Binance 선물 가격을 연결합니다. 통계는 주문 판단과 완전히 분리되어 있습니다.</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">수신된 JSON 조건과 이후 Binance 선물 가격을 연��합니다. 통계는 주문 판단과 완전히 분리되어 있습니다.</p>
             </div>
           </div>
           <Button variant="outline" size="sm" className="w-fit gap-2" onClick={() => { void mutateEntries(); void mutateSummary(); void mutateValidation() }}><RefreshCw className="size-3.5" />새로고침</Button>
@@ -331,10 +332,10 @@ export function SignalStatisticsDashboard() {
 
         <section className="grid grid-cols-2 border-y border-border lg:grid-cols-5">
           <Metric label="자동매매 진입 포지션" value={(summary?.autoPositionTotal ?? 0).toLocaleString()} detail={summary?.missingStatisticsTotal ? `통계 연결 누락 ${summary.missingStatisticsTotal}건` : "통계와 진입 수 일치"} />
-          <Metric label="연결된 통계 기록" value={(summary?.linkedPositionTotal ?? 0).toLocaleString()} detail="청산·방향 전환 무관" />
+          <Metric label="연결된 통계 기록" value={(summary?.linkedPositionTotal ?? 0).toLocaleString()} detail="청산·방향 무관" />
           <Metric label={`${horizon}분 결과 완료`} value={`${(summary?.completionRate ?? 0).toFixed(1)}%`} detail={`${summary?.complete ?? 0}건 계산`} />
           <Metric label="방향 승률" value={`${(summary?.winRate ?? 0).toFixed(1)}%`} detail={`${summary?.wins ?? 0}승 · ${summary?.losses ?? 0}패`} />
-          <Metric label="평균 방향 수익률" value={summary?.averageReturn == null ? "—" : `${summary.averageReturn >= 0 ? "+" : ""}${summary.averageReturn.toFixed(2)}%`} detail="레버리지 미반영" />
+          <Metric label="평균 방향 수익률" value={summary?.averageReturn == null ? "—" : `${summary.averageReturn >= 0 ? "+" : ""}${summary.averageReturn.toFixed(2)}%`} detail="10배 레버리지 반영" />
           <Metric label="중앙값" value={summary?.medianReturn == null ? "—" : `${summary.medianReturn >= 0 ? "+" : ""}${summary.medianReturn.toFixed(2)}%`} detail="극단값 영향 완화" />
         </section>
 
@@ -412,7 +413,7 @@ export function SignalStatisticsDashboard() {
                   const startsGroup = !previous || previous.duplicateGroupKey !== entry.duplicateGroupKey
                   const currentPrice = liveTickers.prices.get(entry.symbol) ?? null
                   const priceReturn = currentPrice == null ? null : ((currentPrice - entry.entryPrice) / entry.entryPrice) * 100
-                  const directionalReturn = priceReturn == null ? null : entry.direction === "short" ? -priceReturn : priceReturn
+                  const directionalReturn = priceReturn == null ? null : (entry.direction === "short" ? -priceReturn : priceReturn) * LEVERAGE
                   return (
                     <tr key={entry.id} className={cn("border-b border-border/70 hover:bg-muted/30", startsGroup && index > 0 && "border-t-2 border-t-primary/30", entry.duplicateIndex > 0 && "bg-muted/15")}>
                       <td className="px-3 py-4 font-[inherit] text-muted-foreground">{kstTime.format(new Date(entry.signalTime))}</td>
@@ -425,9 +426,9 @@ export function SignalStatisticsDashboard() {
                       <td className="px-3 py-4 font-[inherit]">{numberFormat.format(entry.entryPrice)}</td>
                       <td className="px-3 py-4 font-[inherit]">{currentPrice == null ? "—" : numberFormat.format(currentPrice)}</td>
                       <td className="px-3 py-4"><Percent value={directionalReturn} /></td>
-                      {horizons.map((value) => <td key={value} className="px-3 py-4"><Percent value={entry.outcomes[String(value)]?.priceReturnPercent} /></td>)}
-                      <td className="px-3 py-4">{!prediction ? <span className="text-xs text-muted-foreground">생성 대기</span> : prediction.confidenceLevel === "insufficient" ? <span className="rounded-md bg-secondary px-2 py-1 text-xs text-muted-foreground">데이터 부족 · n={prediction.effectiveSampleSize}</span> : <div className="flex flex-col gap-1"><span className="font-[inherit] font-medium">승 {prediction.expectedWinRate.toFixed(1)}% · <Percent value={prediction.expectedDirectionalReturnPercent} /></span><span className="text-xs text-muted-foreground">신뢰 {confidenceLabels[prediction.confidenceLevel]} {prediction.confidenceScore.toFixed(0)} · n={prediction.effectiveSampleSize}</span></div>}</td>
-                      <td className="px-3 py-4"><span className={cn("rounded-md px-2 py-1 font-[inherit] text-xs", selected?.status !== "complete" ? "bg-secondary text-muted-foreground" : selected.result === "win" ? "bg-primary/15 text-primary" : selected.result === "loss" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground")}>{selected?.status === "pending" || !selected ? "대기" : selected.status === "unavailable" ? "데��터 없음" : <>{selected.result === "win" ? "승" : selected.result === "loss" ? "패" : "보합"} {selected.directionalReturnPercent != null ? `${selected.directionalReturnPercent > 0 ? "+" : ""}${selected.directionalReturnPercent.toFixed(2)}%` : ""}</>}</span></td>
+                      {horizons.map((value) => <td key={value} className="px-3 py-4"><Percent value={entry.outcomes[String(value)]?.priceReturnPercent == null ? null : entry.outcomes[String(value)]!.priceReturnPercent! * LEVERAGE} /></td>)}
+                      <td className="px-3 py-4">{!prediction ? <span className="text-xs text-muted-foreground">생성 대기</span> : prediction.confidenceLevel === "insufficient" ? <span className="rounded-md bg-secondary px-2 py-1 text-xs text-muted-foreground">데이터 부족 · n={prediction.effectiveSampleSize}</span> : <div className="flex flex-col gap-1"><span className="font-[inherit] font-medium">승 {prediction.expectedWinRate.toFixed(1)}% · <Percent value={prediction.expectedDirectionalReturnPercent * LEVERAGE} /></span><span className="text-xs text-muted-foreground">신뢰 {confidenceLabels[prediction.confidenceLevel]} {prediction.confidenceScore.toFixed(0)} · n={prediction.effectiveSampleSize}</span></div>}</td>
+                      <td className="px-3 py-4"><span className={cn("rounded-md px-2 py-1 font-[inherit] text-xs", selected?.status !== "complete" ? "bg-secondary text-muted-foreground" : selected.result === "win" ? "bg-primary/15 text-primary" : selected.result === "loss" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground")}>{selected?.status === "pending" || !selected ? "대기" : selected.status === "unavailable" ? "데��터 없음" : <>{selected.result === "win" ? "승" : selected.result === "loss" ? "패" : "보합"} {selected.directionalReturnPercent != null ? `${selected.directionalReturnPercent > 0 ? "+" : ""}${(selected.directionalReturnPercent * LEVERAGE).toFixed(2)}%` : ""}</>}</span></td>
                     </tr>
                   )
                 })}
@@ -438,7 +439,7 @@ export function SignalStatisticsDashboard() {
           </div>
         </section>
 
-        <footer className="flex flex-col gap-2 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>확정 성과: Binance 캔들 · 승패 기준: 방향 수익률 ±0.10% · 레버리지 미반영</span><span>{summary?.lastCalculatedAt ? `최근 계산 ${kstTime.format(new Date(summary.lastCalculatedAt))} KST` : "계산 결과 대기 중"}</span></footer>
+        <footer className="flex flex-col gap-2 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>확정 성과: Binance 캔들 · 승패 기준: 방향 수익률 ±0.10% · 10배 레버리지 반영</span><span>{summary?.lastCalculatedAt ? `최근 계산 ${kstTime.format(new Date(summary.lastCalculatedAt))} KST` : "계산 결과 대기 중"}</span></footer>
       </div>
     </main>
   )
