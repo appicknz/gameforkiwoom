@@ -5,7 +5,7 @@ export type SignalEnrichment = {
   volume_24h_value: number | null
   trading_value: number | null
   volume_ratio_source: "payload" | "binance" | "unavailable"
-  fire_count: number | null
+  fire_count: number
   fire_volume_score: number | null
   fire_confluence_score: number | null
   signal_state: "confirmed" | "watch" | "breakout_watch" | "overheated" | "avoid" | "unknown"
@@ -49,8 +49,8 @@ function scoreFire(volumeRatio: number | null, confluence: number | null) {
   const volumeScore = volumeRatio == null ? null : FIRE_RATIO_THRESHOLDS.find(([threshold]) => volumeRatio >= threshold)?.[1] ?? 0
   const confluenceScore = confluence == null ? null : Math.max(0, Math.min(MAX_FIRE_COUNT, Math.round(confluence)))
   const fireCount = volumeScore == null && confluenceScore == null
-    ? null
-    : Math.min(MAX_FIRE_COUNT, Math.max(0, Math.round(((volumeScore ?? 0) + (confluenceScore ?? 0)) / (volumeScore != null && confluenceScore != null ? 2 : 1))))
+    ? 1
+    : Math.min(MAX_FIRE_COUNT, Math.max(1, Math.round(((volumeScore ?? 0) + (confluenceScore ?? 0)) / (volumeScore != null && confluenceScore != null ? 2 : 1))))
   return { volumeScore, confluenceScore, fireCount }
 }
 
@@ -101,7 +101,7 @@ export function buildSignalEnrichment(payload: Record<string, unknown>, market: 
     volume_24h_value: volume24h,
     trading_value: tradingValue,
     volume_ratio_source: ratioSource,
-    fire_count: numberValue(payloadValue(payload, ["fire_count"])) ?? fire.fireCount,
+    fire_count: Math.min(MAX_FIRE_COUNT, Math.max(1, numberValue(payloadValue(payload, ["fire_count"])) ?? fire.fireCount ?? 1)),
     fire_volume_score: fire.volumeScore,
     fire_confluence_score: fire.confluenceScore,
     signal_state: signalState,
