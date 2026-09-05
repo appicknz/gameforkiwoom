@@ -79,7 +79,10 @@ type Summary = {
 
 type EntriesResponse = { entries: Entry[]; total: number; page: number; pageSize: number }
 type Validation = {
-  samples: number
+  todaySamples: number
+  totalSamples: number
+  todayEvaluatedSamples: number
+  evaluatedSamples: number
   accuracy: number | null
   flatRate: number | null
   brierScore: number | null
@@ -199,7 +202,7 @@ export function SignalStatisticsDashboard() {
 
   const { data: entriesData, error: entriesError, isLoading: entriesLoading, mutate: mutateEntries } = useSWR<EntriesResponse>(`/api/signal-statistics/entries?${query}`, fetcher, { refreshInterval: 30_000 })
   const { data: summary, error: summaryError, isLoading: summaryLoading, mutate: mutateSummary } = useSWR<Summary>(`/api/signal-statistics/summary?${summaryQuery}`, fetcher, { refreshInterval: 30_000 })
-  const { data: validation, mutate: mutateValidation } = useSWR<Validation>(`/api/signal-statistics/validation?${summaryQuery}`, fetcher, { refreshInterval: 30_000 })
+  const { data: validation, mutate: mutateValidation } = useSWR<Validation>(`/api/signal-statistics/validation?horizon=${horizon}`, fetcher, { refreshInterval: 30_000 })
   const entries = entriesData?.entries ?? []
   const visibleSymbols = useMemo(() => entries.map((entry) => entry.symbol), [entries])
   const liveTickers = useFuturesMiniTickers(visibleSymbols)
@@ -280,13 +283,13 @@ export function SignalStatisticsDashboard() {
                 <span className="font-[inherit] text-xs text-muted-foreground">{validation?.modelVersion ?? "empirical-bayes-v1"}</span>
               </div>
               <h2 id="prediction-validation-heading" className="mt-3 text-lg font-semibold text-foreground">누출 없는 예측 검증</h2>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">각 신호 시점 이전에 확정된 결과만 사용합니다. 자동매매 주문·수량·체결에는 반영되지 않습니다.</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">오늘 및 지금까지 DB에 완료된 전체 표본을 표시합니다. 적중률과 Brier는 예측 스냅샷과 실제 결과가 모두 있는 표본으로 계산하며 자동매매에는 반영되지 않습니다.</p>
             </div>
             <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
-              <div><p className="text-xs text-muted-foreground">검증 표본</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.samples ?? 0}</p></div>
-              <div><p className="text-xs text-muted-foreground">이진 적중률</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.accuracy == null ? "—" : `${validation.accuracy.toFixed(1)}%`}</p></div>
-              <div><p className="text-xs text-muted-foreground">Brier score</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.brierScore == null ? "—" : validation.brierScore.toFixed(3)}</p></div>
-              <div><p className="text-xs text-muted-foreground">보합률</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.flatRate == null ? "—" : `${validation.flatRate.toFixed(1)}%`}</p></div>
+              <div><p className="text-xs text-muted-foreground">오늘 DB 표본</p><p className="mt-1 font-[inherit] text-xl font-semibold">{(validation?.todaySamples ?? 0).toLocaleString()}</p></div>
+              <div><p className="text-xs text-muted-foreground">전체 DB 표본</p><p className="mt-1 font-[inherit] text-xl font-semibold">{(validation?.totalSamples ?? 0).toLocaleString()}</p></div>
+              <div><p className="text-xs text-muted-foreground">이진 적중률</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.accuracy == null ? "—" : `${validation.accuracy.toFixed(1)}%`}</p><p className="mt-1 text-xs text-muted-foreground">예측·결과 결합 n={(validation?.evaluatedSamples ?? 0).toLocaleString()}</p></div>
+              <div><p className="text-xs text-muted-foreground">Brier score</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.brierScore == null ? "—" : validation.brierScore.toFixed(3)}</p><p className="mt-1 text-xs text-muted-foreground">오늘 결합 n={(validation?.todayEvaluatedSamples ?? 0).toLocaleString()}</p></div>
             </div>
           </div>
           {validation?.calibration.length ? <div className="mt-5 flex flex-wrap gap-2 border-t border-border/70 pt-4">{validation.calibration.map((bucket) => <span key={bucket.label} className="rounded-md bg-secondary px-2.5 py-1.5 font-[inherit] text-xs text-secondary-foreground">예상 {bucket.predictedWinRate?.toFixed(0)}% · 실제 {bucket.actualWinRate?.toFixed(0)}% · n={bucket.samples}</span>)}</div> : <p className="mt-5 border-t border-border/70 pt-4 text-xs text-muted-foreground">완료된 예측 표본이 쌓이면 확률 구간별 calibration이 표시됩니다.</p>}
