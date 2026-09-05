@@ -283,7 +283,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
                 <span className={cn("font-[inherit] text-xs tracking-widest", liveTickers.status === "live" ? "text-primary" : "text-muted-foreground")}>{connectionLabels[liveTickers.status]}</span>
                 {liveTickers.lastMessageAt && <span className="text-xs text-muted-foreground">· {liveTime.format(new Date(liveTickers.lastMessageAt))}</span>}
               </div>
-              <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">매매 통계</h1>
+              <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">실시간 모니터링</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">멀티프레임 데이터 통계, 전 주문 수집</p>
             </div>
           </div>
