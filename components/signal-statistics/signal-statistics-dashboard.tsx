@@ -159,13 +159,14 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
 }
 
 function BreakdownChart({ title, data }: { title: string; data: Breakdown[] }) {
-  const visible = data.slice(0, 7)
+  const visible = data.slice(0, 7).map((item) => ({ ...item, displayLabel: `${item.label} (n=${item.samples})` }))
+  const totalSamples = data.reduce((total, item) => total + item.samples, 0)
   return (
     <section className="border-t border-border pt-5">
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-foreground">{title}</h2>
-          <p className="mt-1 text-xs text-muted-foreground">실제 완료 표본 기준 · 막대는 승률</p>
+          <h2 className="text-base font-semibold text-foreground">{title} <span className="font-[inherit] text-muted-foreground">(총 {totalSamples.toLocaleString()}개)</span></h2>
+          <p className="mt-1 text-xs text-muted-foreground">실제 완료 표본 기준 · 괄호 안은 그룹별 표본 수 · 막대는 승률</p>
         </div>
         <span className="font-[inherit] text-xs text-muted-foreground">표본 ≥ 1</span>
       </div>
@@ -173,7 +174,7 @@ function BreakdownChart({ title, data }: { title: string; data: Breakdown[] }) {
         <ChartContainer config={chartConfig} className="h-64 w-full">
           <BarChart data={visible} margin={{ left: -20, right: 8 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} interval={0} tick={{ fontSize: 11 }} tickFormatter={(value) => String(value).slice(0, 12)} />
+            <XAxis dataKey="displayLabel" tickLine={false} axisLine={false} tickMargin={10} interval={0} tick={{ fontSize: 11 }} tickFormatter={(value) => String(value).slice(0, 18)} />
             <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}%`} />
             <ChartTooltip content={<ChartTooltipContent formatter={(value, name, item) => (
               <div className="flex min-w-36 items-center justify-between gap-4"><span>{String(name)}</span><span className="font-[inherit]">{Number(value).toFixed(1)}% · n={item.payload.samples}</span></div>
