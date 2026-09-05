@@ -283,7 +283,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
                 <span className={cn("font-[inherit] text-xs tracking-widest", liveTickers.status === "live" ? "text-primary" : "text-muted-foreground")}>{connectionLabels[liveTickers.status]}</span>
                 {liveTickers.lastMessageAt && <span className="text-xs text-muted-foreground">· {liveTime.format(new Date(liveTickers.lastMessageAt))}</span>}
               </div>
-              <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">실제 웹훅 신호 통계</h1>
+              <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">실제 웹�� 신호 통계</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">수신된 JSON 조건과 이후 Binance 선물 가격을 연��합니다. 통계는 주문 판단과 완전히 분리되어 있습니다.</p>
             </div>
           </div>
@@ -336,7 +336,6 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
           <Metric label={`${horizon}분 결과 완료`} value={`${(summary?.completionRate ?? 0).toFixed(1)}%`} detail={`${summary?.complete ?? 0}건 계산`} />
           <Metric label="방향 승률" value={`${(summary?.winRate ?? 0).toFixed(1)}%`} detail={`${summary?.wins ?? 0}승 · ${summary?.losses ?? 0}패`} />
           <Metric label="평균 방향 수익률" value={summary?.averageReturn == null ? "—" : `${summary.averageReturn >= 0 ? "+" : ""}${summary.averageReturn.toFixed(2)}%`} detail="10배 레버리지 반영" />
-          <Metric label="중앙값" value={summary?.medianReturn == null ? "—" : `${summary.medianReturn >= 0 ? "+" : ""}${summary.medianReturn.toFixed(2)}%`} detail="극단값 영향 완화" />
         </section>
 
         <section aria-labelledby="prediction-validation-heading" className="border-y border-border bg-card/30 p-5 md:p-6">
@@ -349,11 +348,12 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
               <h2 id="prediction-validation-heading" className="mt-3 text-lg font-semibold text-foreground">누출 없는 예측 검증</h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">오늘 및 지금까지 DB에 완료된 전체 표본을 표시합니다. 적중률과 Brier는 예측 스냅샷과 실제 결과가 모두 있는 표본으로 계산하며 자동매매에는 반영되지 않습니다.</p>
             </div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-5">
               <div><p className="text-xs text-muted-foreground">오늘 DB 표본</p><p className="mt-1 font-[inherit] text-xl font-semibold">{(validation?.todaySamples ?? 0).toLocaleString()}</p></div>
               <div><p className="text-xs text-muted-foreground">전체 DB 표본</p><p className="mt-1 font-[inherit] text-xl font-semibold">{(validation?.totalSamples ?? 0).toLocaleString()}</p></div>
               <div><p className="text-xs text-muted-foreground">이진 적중률</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.accuracy == null ? "—" : `${validation.accuracy.toFixed(1)}%`}</p><p className="mt-1 text-xs text-muted-foreground">예측·결과 결합 n={(validation?.evaluatedSamples ?? 0).toLocaleString()}</p></div>
               <div><p className="text-xs text-muted-foreground">Brier score</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.brierScore == null ? "—" : validation.brierScore.toFixed(3)}</p><p className="mt-1 text-xs text-muted-foreground">오늘 결합 n={(validation?.todayEvaluatedSamples ?? 0).toLocaleString()}</p></div>
+              <div><p className="text-xs text-muted-foreground">중앙값</p><p className="mt-1 font-[inherit] text-xl font-semibold">{summary?.medianReturn == null ? "—" : `${summary.medianReturn >= 0 ? "+" : ""}${summary.medianReturn.toFixed(2)}%`}</p><p className="mt-1 text-xs text-muted-foreground">극단값 영향 완화</p></div>
             </div>
           </div>
           {validation?.calibration.length ? <div className="mt-5 flex flex-wrap gap-2 border-t border-border/70 pt-4">{validation.calibration.map((bucket) => <span key={bucket.label} className="rounded-md bg-secondary px-2.5 py-1.5 font-[inherit] text-xs text-secondary-foreground">예상 {bucket.predictedWinRate?.toFixed(0)}% · 실제 {bucket.actualWinRate?.toFixed(0)}% · n={bucket.samples}</span>)}</div> : <p className="mt-5 border-t border-border/70 pt-4 text-xs text-muted-foreground">완료된 예측 표본이 쌓이면 확률 구간별 calibration이 표시됩니다.</p>}
