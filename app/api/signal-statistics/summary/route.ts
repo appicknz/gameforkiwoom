@@ -41,6 +41,7 @@ function applyEntryFilters<T extends { eq: Function; ilike: Function; gte: Funct
   let filtered = query
   if (direction === "long" || direction === "short") filtered = filtered.eq("direction", direction)
   if (queryText) filtered = filtered.ilike("symbol", `%${queryText}%`)
+  if (params.get("duplicates") === "original") filtered = filtered.eq("duplicate_index", 0)
   if (params.get("from")) filtered = filtered.gte("signal_time", `${params.get("from")}T00:00:00+09:00`)
   if (params.get("to")) filtered = filtered.lte("signal_time", `${params.get("to")}T23:59:59+09:00`)
   return filtered
