@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import useSWR from "swr"
-import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Database, RefreshCw, Search } from "lucide-react"
+import { ArrowDownRight, ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Database, RefreshCw, Search } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Input } from "@/components/ui/input"
@@ -275,18 +275,15 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
     <main className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-6 px-4 py-7 md:px-8 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="mt-1 flex size-10 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary"><Activity className="size-5" /></div>
-            <div>
-              <div className="flex items-center gap-2">
+          <div>
+            <div className="flex items-center gap-2">
                 <span className={cn("size-1.5 rounded-full", liveTickers.status === "live" ? "bg-primary" : "bg-muted-foreground")} />
                 <span className={cn("font-[inherit] text-xs tracking-widest", liveTickers.status === "live" ? "text-primary" : "text-muted-foreground")}>{connectionLabels[liveTickers.status]}</span>
                 {liveTickers.lastMessageAt && <span className="text-xs text-muted-foreground">· {liveTime.format(new Date(liveTickers.lastMessageAt))}</span>}
               </div>
-              <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">실시간 모니터링</h1>
+              <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">실시간 ��니터링</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">멀티프레임 데이터 통계, 전 주문 수집</p>
             </div>
-          </div>
           <Button variant="outline" size="sm" className="w-fit gap-2" onClick={() => { void mutateEntries(); void mutateSummary(); void mutateValidation() }}><RefreshCw className="size-3.5" />새로고침</Button>
         </div>
       </header>
