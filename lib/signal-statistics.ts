@@ -221,9 +221,10 @@ export function duplicateLabel(index: number) {
 export function calculateReturns(entryPrice: number, exitPrice: number, direction: "long" | "short") {
   const priceReturn = ((exitPrice - entryPrice) / entryPrice) * 100
   const directionalReturn = direction === "short" ? -priceReturn : priceReturn
+  const directionalForResult = Math.round(directionalReturn * 1e10) / 1e10
   return {
     priceReturn,
     directionalReturn,
-    result: directionalReturn > 0 ? "win" : directionalReturn < 0 ? "loss" : "flat",
+    result: directionalForResult >= 0.1 ? "win" : directionalForResult <= -0.1 ? "loss" : "flat",
   } as const
 }

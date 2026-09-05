@@ -30,6 +30,17 @@ type Outcome = {
   status: "pending" | "complete" | "unavailable"
 }
 
+type Prediction = {
+  predictedAt: string
+  trainingCutoffAt: string
+  modelVersion: string
+  expectedWinRate: number
+  expectedDirectionalReturnPercent: number
+  confidenceLevel: "insufficient" | "low" | "medium" | "high"
+  confidenceScore: number
+  effectiveSampleSize: number
+}
+
 type Entry = {
   id: string
   signalTime: string
@@ -46,6 +57,7 @@ type Entry = {
   confluence: string | null
   bollinger: { position: string | null; trend: string | null; expansion: boolean | null; squeeze: boolean | null; width: number | null }
   outcomes: Record<string, Outcome>
+  predictions: Record<string, Prediction>
 }
 
 type Breakdown = { label: string; samples: number; winRate: number; averageReturn: number | null; medianReturn: number | null }
@@ -66,6 +78,16 @@ type Summary = {
 }
 
 type EntriesResponse = { entries: Entry[]; total: number; page: number; pageSize: number }
+type Validation = {
+  samples: number
+  accuracy: number | null
+  flatRate: number | null
+  brierScore: number | null
+  averagePredictedReturn: number | null
+  averageActualReturn: number | null
+  modelVersion: string
+  calibration: Array<{ label: string; samples: number; predictedWinRate: number | null; actualWinRate: number | null }>
+}
 
 const numberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 8 })
 const kstTime = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
@@ -76,6 +98,12 @@ const connectionLabels: Record<FuturesTickerConnection, string> = {
   live: "실시간 시세",
   reconnecting: "시세 재연결 중",
   offline: "네트워크 오프라인",
+}
+const confidenceLabels: Record<Prediction["confidenceLevel"], string> = {
+  insufficient: "데이터 부족",
+  low: "낮음",
+  medium: "보통",
+  high: "높음",
 }
 const weekdays = ["일", "월", "화", "수", "목", "금", "토"]
 const KST_OFFSET = 9 * 60 * 60 * 1000
@@ -172,6 +200,7 @@ export function SignalStatisticsDashboard() {
 
   const { data: entriesData, error: entriesError, isLoading: entriesLoading, mutate: mutateEntries } = useSWR<EntriesResponse>(`/api/signal-statistics/entries?${query}`, fetcher, { refreshInterval: 30_000 })
   const { data: summary, error: summaryError, isLoading: summaryLoading, mutate: mutateSummary } = useSWR<Summary>(`/api/signal-statistics/summary?${summaryQuery}`, fetcher, { refreshInterval: 30_000 })
+  const { data: validation, mutate: mutateValidation } = useSWR<Validation>(`/api/signal-statistics/validation?${summaryQuery}`, fetcher, { refreshInterval: 30_000 })
   const entries = entriesData?.entries ?? []
   const visibleSymbols = useMemo(() => entries.map((entry) => entry.symbol), [entries])
   const liveTickers = useFuturesMiniTickers(visibleSymbols)
@@ -194,7 +223,7 @@ export function SignalStatisticsDashboard() {
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">수신된 JSON 조건과 이후 Binance 선물 가격을 연결합니다. 통계는 주문 판단과 완전히 분리되어 있습니다.</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="w-fit gap-2" onClick={() => { void mutateEntries(); void mutateSummary() }}><RefreshCw className="size-3.5" />새로고침</Button>
+          <Button variant="outline" size="sm" className="w-fit gap-2" onClick={() => { void mutateEntries(); void mutateSummary(); void mutateValidation() }}><RefreshCw className="size-3.5" />새로고침</Button>
         </div>
       </header>
 
@@ -245,6 +274,26 @@ export function SignalStatisticsDashboard() {
           <Metric label="중앙값" value={summary?.medianReturn == null ? "—" : `${summary.medianReturn >= 0 ? "+" : ""}${summary.medianReturn.toFixed(2)}%`} detail="극단값 영향 완화" />
         </section>
 
+        <section aria-labelledby="prediction-validation-heading" className="border-y border-border bg-card/30 p-5 md:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-xl">
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">분석 전용</span>
+                <span className="font-[inherit] text-xs text-muted-foreground">{validation?.modelVersion ?? "empirical-bayes-v1"}</span>
+              </div>
+              <h2 id="prediction-validation-heading" className="mt-3 text-lg font-semibold text-foreground">누출 없는 예측 검증</h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">각 신호 시점 이전에 확정된 결과만 사용합니다. 자동매매 주문·수량·체결에는 반영되지 않습니다.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
+              <div><p className="text-xs text-muted-foreground">검증 표본</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.samples ?? 0}</p></div>
+              <div><p className="text-xs text-muted-foreground">이진 적중률</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.accuracy == null ? "—" : `${validation.accuracy.toFixed(1)}%`}</p></div>
+              <div><p className="text-xs text-muted-foreground">Brier score</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.brierScore == null ? "—" : validation.brierScore.toFixed(3)}</p></div>
+              <div><p className="text-xs text-muted-foreground">보합률</p><p className="mt-1 font-[inherit] text-xl font-semibold">{validation?.flatRate == null ? "—" : `${validation.flatRate.toFixed(1)}%`}</p></div>
+            </div>
+          </div>
+          {validation?.calibration.length ? <div className="mt-5 flex flex-wrap gap-2 border-t border-border/70 pt-4">{validation.calibration.map((bucket) => <span key={bucket.label} className="rounded-md bg-secondary px-2.5 py-1.5 font-[inherit] text-xs text-secondary-foreground">예상 {bucket.predictedWinRate?.toFixed(0)}% · 실제 {bucket.actualWinRate?.toFixed(0)}% · n={bucket.samples}</span>)}</div> : <p className="mt-5 border-t border-border/70 pt-4 text-xs text-muted-foreground">완료된 예측 표본이 쌓이면 확률 구간별 calibration이 표시됩니다.</p>}
+        </section>
+
         <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2" aria-label="평가 시간 선택">
             {horizons.map((value) => <Button key={value} size="sm" variant={horizon === value ? "default" : "outline"} onClick={() => { setHorizon(value); setPage(1) }}>{value === 240 ? "4시간" : `${value}분`}</Button>)}
@@ -270,13 +319,14 @@ export function SignalStatisticsDashboard() {
             <span className="font-[inherit] text-xs text-muted-foreground">{selectedDate} · {(entriesData?.total ?? 0).toLocaleString()} ROWS</span>
           </div>
           <div className="overflow-x-auto border-y border-border">
-            <table className="w-full min-w-[1460px] text-left text-sm">
+            <table className="w-full min-w-[1640px] text-left text-sm">
               <thead><tr className="border-b border-border text-xs text-muted-foreground">
-                {['시각 KST','심볼','그룹','신호','CCI','BB','컨플루언스','진입','현재가','실시간','5분','15분','30분','60분','4시간',`${horizon}분`].map((heading, index) => <th key={`${heading}-${index}`} className="px-3 py-3 font-medium">{heading}</th>)}
+                {['시각 KST','심볼','그룹','신호','CCI','BB','컨플루언스','진입','현재가','실시간','5분','15분','30분','60분','4시간',`${horizon}분 예측`,`${horizon}분 실제`].map((heading, index) => <th key={`${heading}-${index}`} className="px-3 py-3 font-medium">{heading}</th>)}
               </tr></thead>
               <tbody>
                 {entries.map((entry, index) => {
                   const selected = entry.outcomes[String(horizon)]
+                  const prediction = entry.predictions[String(horizon)]
                   const previous = entries[index - 1]
                   const startsGroup = !previous || previous.duplicateGroupKey !== entry.duplicateGroupKey
                   const currentPrice = liveTickers.prices.get(entry.symbol) ?? null
@@ -295,6 +345,7 @@ export function SignalStatisticsDashboard() {
                       <td className="px-3 py-4 font-[inherit]">{currentPrice == null ? "—" : numberFormat.format(currentPrice)}</td>
                       <td className="px-3 py-4"><Percent value={directionalReturn} /></td>
                       {horizons.map((value) => <td key={value} className="px-3 py-4"><Percent value={entry.outcomes[String(value)]?.priceReturnPercent} /></td>)}
+                      <td className="px-3 py-4">{!prediction ? <span className="text-xs text-muted-foreground">생성 대기</span> : prediction.confidenceLevel === "insufficient" ? <span className="rounded-md bg-secondary px-2 py-1 text-xs text-muted-foreground">데이터 부족 · n={prediction.effectiveSampleSize}</span> : <div className="flex flex-col gap-1"><span className="font-[inherit] font-medium">승 {prediction.expectedWinRate.toFixed(1)}% · <Percent value={prediction.expectedDirectionalReturnPercent} /></span><span className="text-xs text-muted-foreground">신뢰 {confidenceLabels[prediction.confidenceLevel]} {prediction.confidenceScore.toFixed(0)} · n={prediction.effectiveSampleSize}</span></div>}</td>
                       <td className="px-3 py-4"><span className={cn("rounded-md px-2 py-1 font-[inherit] text-xs", selected?.status !== "complete" ? "bg-secondary text-muted-foreground" : selected.result === "win" ? "bg-primary/15 text-primary" : selected.result === "loss" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground")}>{selected?.status === "pending" || !selected ? "대기" : selected.status === "unavailable" ? "데이터 없음" : <>{selected.result === "win" ? "승" : selected.result === "loss" ? "패" : "보합"} {selected.directionalReturnPercent != null ? `${selected.directionalReturnPercent > 0 ? "+" : ""}${selected.directionalReturnPercent.toFixed(2)}%` : ""}</>}</span></td>
                     </tr>
                   )
@@ -307,7 +358,7 @@ export function SignalStatisticsDashboard() {
           <div className="mt-4 flex items-center justify-between"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>이전</Button><span className="font-[inherit] text-sm tabular-nums text-muted-foreground"><span className="text-foreground">{page}</span> / {totalPages}</span><Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>다음</Button></div>
         </section>
 
-        <footer className="flex flex-col gap-2 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>확정 성과: Binance 캔들 · 실시간 표시: 로컬 브라우저 Futures WebSocket</span><span>{summary?.lastCalculatedAt ? `최근 계산 ${kstTime.format(new Date(summary.lastCalculatedAt))} KST` : "계산 결과 대기 중"}</span></footer>
+        <footer className="flex flex-col gap-2 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>확정 성과: Binance 캔들 · 승패 기준: 방향 수익률 ±0.10% · 레버리지 미반영</span><span>{summary?.lastCalculatedAt ? `최근 계산 ${kstTime.format(new Date(summary.lastCalculatedAt))} KST` : "계산 결과 대기 중"}</span></footer>
       </div>
     </main>
   )

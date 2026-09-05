@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("signal_statistics_entries")
-    .select("id,received_at,signal_time,exchange,symbol,signal_type,direction,entry_price,duplicate_group_key,duplicate_index,processing_status,cci,cci_signal,confluence,price_change_percent,volume_change,active_timeframes,first_occurrence,new_1m,new_5m,new_15m,new_1h,new_2h,new_4h,ultimate_plot,signal_timeframe,interval_label,bb_position,bb_trend,bb_expansion,bb_squeeze,bb_width,signal_statistics_outcomes(horizon_minutes,target_time,candle_time,exit_price,price_return_percent,directional_return_percent,result,status)", { count: "exact" })
+    .select("id,received_at,signal_time,exchange,symbol,signal_type,direction,entry_price,duplicate_group_key,duplicate_index,processing_status,cci,cci_signal,confluence,price_change_percent,volume_change,active_timeframes,first_occurrence,new_1m,new_5m,new_15m,new_1h,new_2h,new_4h,ultimate_plot,signal_timeframe,interval_label,bb_position,bb_trend,bb_expansion,bb_squeeze,bb_width,signal_statistics_outcomes(horizon_minutes,target_time,candle_time,exit_price,price_return_percent,directional_return_percent,result,status),signal_statistics_predictions(horizon_minutes,predicted_at,training_cutoff_at,model_version,expected_win_rate,expected_directional_return_percent,confidence_level,confidence_score,effective_sample_size)", { count: "exact" })
     .order("signal_time", { ascending: false })
     .order("duplicate_index", { ascending: true })
     .range(from, from + pageSize - 1)
@@ -38,6 +38,7 @@ export async function GET(request: Request) {
 
   const entries = (data ?? []).map((entry) => {
     const outcomes = Array.isArray(entry.signal_statistics_outcomes) ? entry.signal_statistics_outcomes : []
+    const predictions = Array.isArray(entry.signal_statistics_predictions) ? entry.signal_statistics_predictions : []
     return {
       id: entry.id,
       receivedAt: entry.received_at,
@@ -71,6 +72,16 @@ export async function GET(request: Request) {
         directionalReturnPercent: outcome.directional_return_percent == null ? null : Number(outcome.directional_return_percent),
         result: outcome.result,
         status: outcome.status,
+      }])),
+      predictions: Object.fromEntries(predictions.map((prediction) => [prediction.horizon_minutes, {
+        predictedAt: prediction.predicted_at,
+        trainingCutoffAt: prediction.training_cutoff_at,
+        modelVersion: prediction.model_version,
+        expectedWinRate: Number(prediction.expected_win_rate),
+        expectedDirectionalReturnPercent: Number(prediction.expected_directional_return_percent),
+        confidenceLevel: prediction.confidence_level,
+        confidenceScore: Number(prediction.confidence_score),
+        effectiveSampleSize: Number(prediction.effective_sample_size),
       }])),
       selectedOutcome: outcomes.find((outcome) => outcome.horizon_minutes === horizon) ?? null,
     }

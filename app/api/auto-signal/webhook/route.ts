@@ -9,8 +9,9 @@ import "server-only"
 import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
-import { NextResponse } from "next/server"
+import { after, NextResponse } from "next/server"
 import { recordSignalStatistics } from "@/lib/signal-statistics"
+import { createPredictionsForEntry } from "@/lib/signal-prediction"
 
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
 
@@ -34,13 +35,22 @@ async function logRequest(
     if (error) throw error
 
     try {
-      await recordSignalStatistics({
+      const entryId = await recordSignalStatistics({
         webhookLogId: data.id,
         receivedAt: data.received_at,
         status,
         reason: opts.errorMsg,
         payload,
       })
+      if (entryId) {
+        after(async () => {
+          try {
+            await createPredictionsForEntry(entryId)
+          } catch (predictionError) {
+            console.error("[signal-prediction] snapshot creation failed:", predictionError)
+          }
+        })
+      }
     } catch (statisticsError) {
       console.error("[webhook] statistics recording failed:", statisticsError)
     }
