@@ -47,7 +47,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className="bg-[oklch(0.12_0.01_155)]">
-      <body className={`font-sans antialiased bg-[oklch(0.12_0.01_155)] ${_notoSansKr.variable} ${_orbitron.variable}`}>
+      <body className={`${_notoSansKr.className} antialiased bg-[oklch(0.12_0.01_155)] ${_notoSansKr.variable} ${_orbitron.variable}`}>
         {/* beforeInteractive 외부 스크립트가 v0의 head 주입 스크립트와 순서를 다르게 만들어
             전체 React 트리를 hydration mismatch로 오인시키므로 hydration 이후에 로드한다. */}
         <Script
