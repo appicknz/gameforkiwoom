@@ -11,7 +11,7 @@ export async function processPendingSignalOutcomes(limit = 40) {
     .select("id, target_time, entry:signal_statistics_entries!inner(symbol, entry_price, direction)")
     .eq("status", "pending")
     .lte("target_time", cutoff)
-    .order("target_time", { ascending: true })
+    .order("target_time", { ascending: false })
     .limit(Math.min(Math.max(limit, 1), 100))
   if (error) throw error
 
@@ -21,11 +21,19 @@ export async function processPendingSignalOutcomes(limit = 40) {
     const entry = Array.isArray(outcome.entry) ? outcome.entry[0] : outcome.entry
     if (!entry) continue
     const candle = await getMinuteCloseAfter(entry.symbol, outcome.target_time)
-    if (!candle) {
+    if (candle === undefined) {
+      unavailable += 1
+      await adminSupabase.from("signal_statistics_outcomes").update({
+        error_code: "market_data_retry",
+        updated_at: new Date().toISOString(),
+      }).eq("id", outcome.id)
+      continue
+    }
+    if (candle === null) {
       unavailable += 1
       await adminSupabase.from("signal_statistics_outcomes").update({
         status: "unavailable",
-        error_code: "candle_unavailable",
+        error_code: "symbol_not_on_public_market_data",
         calculated_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq("id", outcome.id)

@@ -9,7 +9,9 @@ export const maxDuration = 55
 async function run(request: Request) {
   const authorization = request.headers.get("authorization")
   const internalSecret = request.headers.get("x-internal-secret")
-  const allowed = authorization === `Bearer ${process.env.CRON_SECRET}` || internalSecret === process.env.INTERNAL_SECRET
+  const requestUrl = new URL(request.url)
+  const isLocalDevelopment = process.env.NODE_ENV === "development" && ["localhost", "127.0.0.1"].includes(requestUrl.hostname)
+  const allowed = isLocalDevelopment || authorization === `Bearer ${process.env.CRON_SECRET}` || internalSecret === process.env.INTERNAL_SECRET
   if (!allowed) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {

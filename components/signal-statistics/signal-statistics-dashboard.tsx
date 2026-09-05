@@ -161,8 +161,8 @@ export function SignalStatisticsDashboard() {
           <Metric label="수집 신호" value={(summary?.total ?? 0).toLocaleString()} detail="실제 유효 JSON" />
           <Metric label={`${horizon}분 결과 완료`} value={`${(summary?.completionRate ?? 0).toFixed(1)}%`} detail={`${summary?.complete ?? 0}건 계산`} />
           <Metric label="방향 승률" value={`${(summary?.winRate ?? 0).toFixed(1)}%`} detail={`${summary?.wins ?? 0}승 · ${summary?.losses ?? 0}패`} />
-          <Metric label="평균 방향 수익률" value={`${(summary?.averageReturn ?? 0) >= 0 ? "+" : ""}${(summary?.averageReturn ?? 0).toFixed(2)}%`} detail="레버리지 미반영" />
-          <Metric label="중앙값" value={`${(summary?.medianReturn ?? 0) >= 0 ? "+" : ""}${(summary?.medianReturn ?? 0).toFixed(2)}%`} detail="극단값 영향 완화" />
+          <Metric label="평균 방향 수익률" value={summary?.averageReturn == null ? "—" : `${summary.averageReturn >= 0 ? "+" : ""}${summary.averageReturn.toFixed(2)}%`} detail="레버리지 미반영" />
+          <Metric label="중앙값" value={summary?.medianReturn == null ? "—" : `${summary.medianReturn >= 0 ? "+" : ""}${summary.medianReturn.toFixed(2)}%`} detail="극단값 영향 완화" />
         </section>
 
         <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -191,7 +191,7 @@ export function SignalStatisticsDashboard() {
           <div className="overflow-x-auto border-y border-border">
             <table className="w-full min-w-[1460px] text-left text-sm">
               <thead><tr className="border-b border-border text-xs text-muted-foreground">
-                {['시각 KST','심볼','그룹','신호','CCI','BB','컨플루언스','진입','현재가','실시간','5분','15분','30분','60분','4시간',`${horizon}분`].map((heading) => <th key={heading} className="px-3 py-3 font-medium">{heading}</th>)}
+                {['시각 KST','심볼','그룹','신호','CCI','BB','컨플루언스','진입','현재가','실시간','5분','15분','30분','60분','4시간',`${horizon}분`].map((heading, index) => <th key={`${heading}-${index}`} className="px-3 py-3 font-medium">{heading}</th>)}
               </tr></thead>
               <tbody>
                 {entries.map((entry, index) => {
@@ -223,7 +223,7 @@ export function SignalStatisticsDashboard() {
           <div className="mt-4 flex items-center justify-between"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>이전</Button><span className="font-mono text-xs text-muted-foreground">{page} / {totalPages}</span><Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>다음</Button></div>
         </section>
 
-        <footer className="flex flex-col gap-2 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>데이터 출처: 수신 웹훅 JSON · Binance USDⓈ-M Futures 1분 확정봉</span><span>{summary?.lastCalculatedAt ? `최근 계산 ${kstTime.format(new Date(summary.lastCalculatedAt))} KST` : "계산 결과 대기 중"}</span></footer>
+        <footer className="flex flex-col gap-2 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>데이터 출처: 수신 웹훅 JSON · Binance Futures 우선, Public Market Data 보완</span><span>{summary?.lastCalculatedAt ? `최근 계산 ${kstTime.format(new Date(summary.lastCalculatedAt))} KST` : "계산 결과 대기 중"}</span></footer>
       </div>
     </main>
   )

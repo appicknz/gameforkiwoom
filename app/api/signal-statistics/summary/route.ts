@@ -6,6 +6,7 @@ import { adminSupabase as supabase } from "@/lib/supabase-admin"
 export const dynamic = "force-dynamic"
 
 const HORIZONS = new Set([5, 15, 30, 60, 240])
+const PAGE_SIZE = 1000
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
 const median = (values: number[]) => {
   if (!values.length) return null
@@ -14,35 +15,73 @@ const median = (values: number[]) => {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
 }
 
+type SummaryRow = {
+  id: string
+  signal_time: string
+  symbol: string
+  signal_type: string
+  direction: string
+  cci: number | null
+  confluence: string | null
+  bb_position: string | null
+  bb_trend: string | null
+  duplicate_index: number
+  signal_statistics_outcomes: Array<{
+    horizon_minutes: number
+    directional_return_percent: number | null
+    result: string | null
+    status: string
+    calculated_at: string | null
+  }>
+}
+
+function applyEntryFilters<T extends { eq: Function; ilike: Function; gte: Function; lte: Function }>(query: T, params: URLSearchParams) {
+  const direction = params.get("direction")
+  const queryText = (params.get("q") ?? "").trim().toUpperCase().slice(0, 30)
+  let filtered = query
+  if (direction === "long" || direction === "short") filtered = filtered.eq("direction", direction)
+  if (queryText) filtered = filtered.ilike("symbol", `%${queryText}%`)
+  if (params.get("from")) filtered = filtered.gte("signal_time", `${params.get("from")}T00:00:00+09:00`)
+  if (params.get("to")) filtered = filtered.lte("signal_time", `${params.get("to")}T23:59:59+09:00`)
+  return filtered
+}
+
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams
   const horizon = HORIZONS.has(Number(params.get("horizon"))) ? Number(params.get("horizon")) : 30
-  const direction = params.get("direction")
-  const queryText = (params.get("q") ?? "").trim().toUpperCase().slice(0, 30)
 
-  let query = supabase
-    .from("signal_statistics_entries")
-    .select("id,signal_time,symbol,signal_type,direction,cci,confluence,bb_position,bb_trend,duplicate_index,signal_statistics_outcomes!inner(horizon_minutes,directional_return_percent,result,status,calculated_at)")
-    .eq("signal_statistics_outcomes.horizon_minutes", horizon)
-    .order("signal_time", { ascending: false })
-    .limit(5000)
-  if (direction === "long" || direction === "short") query = query.eq("direction", direction)
-  if (queryText) query = query.ilike("symbol", `%${queryText}%`)
-  if (params.get("from")) query = query.gte("signal_time", `${params.get("from")}T00:00:00+09:00`)
-  if (params.get("to")) query = query.lte("signal_time", `${params.get("to")}T23:59:59+09:00`)
+  const countQuery = applyEntryFilters(
+    supabase.from("signal_statistics_entries").select("id", { count: "exact", head: true }),
+    params,
+  )
+  const { count, error: countError } = await countQuery
+  if (countError) return NextResponse.json({ error: "요약 통계를 불러오지 못했습니다." }, { status: 500 })
 
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: "요약 통계를 불러오지 못했습니다." }, { status: 500 })
+  const rows: SummaryRow[] = []
+  for (let from = 0; from < (count ?? 0); from += PAGE_SIZE) {
+    let query = supabase
+      .from("signal_statistics_entries")
+      .select("id,signal_time,symbol,signal_type,direction,cci,confluence,bb_position,bb_trend,duplicate_index,signal_statistics_outcomes!inner(horizon_minutes,directional_return_percent,result,status,calculated_at)")
+      .eq("signal_statistics_outcomes.horizon_minutes", horizon)
+      .eq("signal_statistics_outcomes.status", "complete")
+      .order("signal_time", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1)
+    query = applyEntryFilters(query, params)
+    const { data, error } = await query
+    if (error) return NextResponse.json({ error: "요약 통계를 불러오지 못했습니다." }, { status: 500 })
+    rows.push(...((data ?? []) as SummaryRow[]))
+    if ((data?.length ?? 0) < PAGE_SIZE) break
+  }
 
-  const rows = (data ?? []).map((entry) => ({ ...entry, outcome: Array.isArray(entry.signal_statistics_outcomes) ? entry.signal_statistics_outcomes[0] : entry.signal_statistics_outcomes }))
-  const completed = rows.filter((row) => row.outcome?.status === "complete" && row.outcome.directional_return_percent != null)
+  const completed = rows.map((entry) => ({ ...entry, outcome: entry.signal_statistics_outcomes[0] }))
+    .filter((row) => row.outcome?.directional_return_percent != null)
   const returns = completed.map((row) => Number(row.outcome.directional_return_percent))
   const wins = completed.filter((row) => row.outcome.result === "win").length
   const losses = completed.filter((row) => row.outcome.result === "loss").length
   const flats = completed.filter((row) => row.outcome.result === "flat").length
 
   const cciBucket = (cci: number | null) => cci == null ? "CCI 없음" : cci <= -100 ? "≤ -100" : cci < 0 ? "-100 ~ 0" : cci < 100 ? "0 ~ 100" : "≥ 100"
-  const breakdown = (selector: (row: typeof rows[number]) => string) => {
+  const breakdown = (selector: (row: typeof completed[number]) => string) => {
     const groups = new Map<string, typeof completed>()
     for (const row of completed) {
       const key = selector(row) || "미분류"
@@ -57,17 +96,17 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     horizon,
-    total: rows.length,
+    total: count ?? 0,
     complete: completed.length,
-    completionRate: rows.length ? completed.length / rows.length * 100 : 0,
+    completionRate: count ? completed.length / count * 100 : 0,
     wins,
     losses,
     flats,
     winRate: completed.length ? wins / completed.length * 100 : 0,
     averageReturn: average(returns),
     medianReturn: median(returns),
-    oldestSignalAt: rows.at(-1)?.signal_time ?? null,
-    newestSignalAt: rows[0]?.signal_time ?? null,
+    oldestSignalAt: completed.at(-1)?.signal_time ?? null,
+    newestSignalAt: completed[0]?.signal_time ?? null,
     lastCalculatedAt: completed.map((row) => row.outcome.calculated_at).filter(Boolean).sort().at(-1) ?? null,
     breakdowns: {
       cci: breakdown((row) => cciBucket(row.cci == null ? null : Number(row.cci))),

@@ -95,13 +95,82 @@ export function normalizeSignalPayload(payload: Record<string, unknown>, receive
   }
 }
 
-export async function recordSignalStatistics(input: {
+type SignalStatisticsInput = {
   webhookLogId: string
   receivedAt: string
   status: string
   reason?: string | null
   payload: Record<string, unknown>
-}) {
+}
+
+export async function recordSignalStatisticsBatch(inputs: SignalStatisticsInput[]) {
+  const candidates = inputs.flatMap((input) => {
+    if (input.status === "auth_fail") return []
+    const normalized = normalizeSignalPayload(input.payload, input.receivedAt)
+    return normalized ? [{ input, normalized }] : []
+  })
+  if (!candidates.length) return { inserted: 0, ignored: inputs.length }
+
+  const webhookIds = candidates.map(({ input }) => input.webhookLogId)
+  const { data: existing, error: existingError } = await adminSupabase
+    .from("signal_statistics_entries")
+    .select("webhook_log_id")
+    .in("webhook_log_id", webhookIds)
+  if (existingError) throw existingError
+
+  const existingIds = new Set((existing ?? []).map((row) => row.webhook_log_id))
+  const pending = candidates.filter(({ input }) => !existingIds.has(input.webhookLogId))
+  if (!pending.length) return { inserted: 0, ignored: inputs.length }
+
+  const groupKeys = [...new Set(pending.map(({ normalized }) => normalized.duplicate_group_key))]
+  const { data: siblings, error: siblingError } = await adminSupabase
+    .from("signal_statistics_entries")
+    .select("duplicate_group_key,duplicate_index")
+    .in("duplicate_group_key", groupKeys)
+  if (siblingError) throw siblingError
+
+  const nextIndex = new Map<string, number>()
+  for (const sibling of siblings ?? []) {
+    nextIndex.set(sibling.duplicate_group_key, Math.max(nextIndex.get(sibling.duplicate_group_key) ?? 0, Number(sibling.duplicate_index) + 1))
+  }
+
+  const rows = pending.map(({ input, normalized }) => {
+    const duplicateIndex = nextIndex.get(normalized.duplicate_group_key) ?? 0
+    nextIndex.set(normalized.duplicate_group_key, duplicateIndex + 1)
+    return {
+      ...normalized,
+      webhook_log_id: input.webhookLogId,
+      duplicate_index: duplicateIndex,
+      processing_status: input.status,
+      processing_reason: input.reason?.slice(0, 240) ?? null,
+    }
+  })
+
+  const { error: insertError } = await adminSupabase.from("signal_statistics_entries").insert(rows)
+  if (insertError) throw insertError
+  const { data: entries, error: entryError } = await adminSupabase
+    .from("signal_statistics_entries")
+    .select("id,signal_time")
+    .in("webhook_log_id", pending.map(({ input }) => input.webhookLogId))
+  if (entryError) throw entryError
+
+  const outcomes = (entries ?? []).flatMap((entry) => OUTCOME_HORIZONS.map((horizon) => ({
+    entry_id: entry.id,
+    horizon_minutes: horizon,
+    target_time: new Date(new Date(entry.signal_time).getTime() + horizon * 60_000).toISOString(),
+  })))
+  for (let index = 0; index < outcomes.length; index += 500) {
+    const { error: outcomeError } = await adminSupabase.from("signal_statistics_outcomes").upsert(
+      outcomes.slice(index, index + 500),
+      { onConflict: "entry_id,horizon_minutes", ignoreDuplicates: true },
+    )
+    if (outcomeError) throw outcomeError
+  }
+
+  return { inserted: pending.length, ignored: inputs.length - pending.length }
+}
+
+export async function recordSignalStatistics(input: SignalStatisticsInput) {
   if (input.status === "auth_fail") return null
   const normalized = normalizeSignalPayload(input.payload, input.receivedAt)
   if (!normalized) return null

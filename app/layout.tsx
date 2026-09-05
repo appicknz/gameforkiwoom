@@ -1,13 +1,12 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono, Orbitron } from "next/font/google"
+import { Noto_Sans_KR, Orbitron } from "next/font/google"
 import Script from "next/script"
 import { ThemeProvider } from "@/components/theme-provider"
 import { PersistentPortalShell } from "@/components/dashboard/persistent-portal-shell"
 import "./globals.css"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const _notoSansKr = Noto_Sans_KR({ subsets: ["latin"], variable: "--font-noto-sans-kr" })
 // Orbitron: /widget 네온 테마 숫자용 — font-mono 클래스로 매핑
 const _orbitron = Orbitron({ subsets: ["latin"], variable: "--font-orbitron", weight: ["400", "700", "900"] })
 
@@ -48,7 +47,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className="bg-[oklch(0.12_0.01_155)]">
-      <body className={`font-sans antialiased bg-[oklch(0.12_0.01_155)] ${_orbitron.variable}`}>
+      <body className={`font-sans antialiased bg-[oklch(0.12_0.01_155)] ${_notoSansKr.variable} ${_orbitron.variable}`}>
         {/* beforeInteractive 외부 스크립트가 v0의 head 주입 스크립트와 순서를 다르게 만들어
             전체 React 트리를 hydration mismatch로 오인시키므로 hydration 이후에 로드한다. */}
         <Script
