@@ -14,7 +14,6 @@ async function fetchAllPredictions(horizon: number) {
       .from("signal_statistics_predictions")
       .select("entry_id,expected_win_rate,expected_directional_return_percent,model_version,entry:signal_statistics_entries!inner(signal_time)")
       .eq("horizon_minutes", horizon)
-      .not("entry.auto_signal_position_id", "is", null)
       .order("predicted_at", { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
     if (error) throw error
@@ -23,17 +22,28 @@ async function fetchAllPredictions(horizon: number) {
   }
 }
 
-async function countCompletedSamples(horizon: number, from?: string, to?: string) {
-  let query = supabase
-    .from("signal_statistics_outcomes")
-    .select("entry:signal_statistics_entries!inner(signal_time)", { count: "exact", head: true })
-    .eq("horizon_minutes", horizon)
-    .eq("status", "complete")
-    .not("entry.auto_signal_position_id", "is", null)
-    .not("directional_return_percent", "is", null)
-  if (from) query = query.gte("entry.signal_time", from)
-  if (to) query = query.lt("entry.signal_time", to)
-  const { count, error } = await query
+async function countDatabaseSamples(from?: string, to?: string) {
+  if (!from && !to) {
+    const { count, error } = await supabase
+      .from("signal_statistics_entries")
+      .select("id", { count: "exact", head: true })
+      .not("auto_signal_position_id", "is", null)
+    if (error) throw error
+    return count ?? 0
+  }
+
+  let positionsQuery = supabase.from("auto_signal_positions").select("id")
+  if (from) positionsQuery = positionsQuery.gte("date_label", from.slice(0, 10))
+  if (to) positionsQuery = positionsQuery.lt("date_label", to.slice(0, 10))
+  const { data: positions, error: positionsError } = await positionsQuery
+  if (positionsError) throw positionsError
+  const positionIds = (positions ?? []).map((position) => position.id)
+  if (!positionIds.length) return 0
+
+  const { count, error } = await supabase
+    .from("signal_statistics_entries")
+    .select("id", { count: "exact", head: true })
+    .in("auto_signal_position_id", positionIds)
   if (error) throw error
   return count ?? 0
 }
@@ -52,12 +62,18 @@ export async function GET(request: Request) {
   const tomorrow = new Date(`${kstParts}T00:00:00+09:00`)
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
   const tomorrowStart = tomorrow.toISOString()
+  const tomorrowKstParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(now.getTime() + 24 * 60 * 60 * 1000))
 
   try {
     const [predictions, todaySamples, totalSamples] = await Promise.all([
       fetchAllPredictions(horizon),
-      countCompletedSamples(horizon, todayStart, tomorrowStart),
-      countCompletedSamples(horizon),
+      countDatabaseSamples(todayStart, `${tomorrowKstParts}T00:00:00+09:00`),
+      countDatabaseSamples(),
     ])
 
     const outcomeByEntry = new Map<string, any>()
@@ -69,7 +85,6 @@ export async function GET(request: Request) {
         .in("entry_id", entryIds.slice(index, index + PAGE_SIZE))
         .eq("horizon_minutes", horizon)
         .eq("status", "complete")
-        .not("entry.auto_signal_position_id", "is", null)
         .not("directional_return_percent", "is", null)
       if (error) throw error
       for (const outcome of data ?? []) outcomeByEntry.set(outcome.entry_id, outcome)
