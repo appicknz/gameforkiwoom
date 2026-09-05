@@ -283,8 +283,8 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
                 <span className={cn("font-[inherit] text-xs tracking-widest", liveTickers.status === "live" ? "text-primary" : "text-muted-foreground")}>{connectionLabels[liveTickers.status]}</span>
                 {liveTickers.lastMessageAt && <span className="text-xs text-muted-foreground">· {liveTime.format(new Date(liveTickers.lastMessageAt))}</span>}
               </div>
-              <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">실제 웹��� 신호 통계</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">수신된 JSON 조건과 이후 Binance 선물 가격을 연��합니다. 통계는 주문 판단과 완전히 분리되어 있습니다.</p>
+              <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">매매 통계</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">멀티프레임 데이터 통계, 전 주문 수집</p>
             </div>
           </div>
           <Button variant="outline" size="sm" className="w-fit gap-2" onClick={() => { void mutateEntries(); void mutateSummary(); void mutateValidation() }}><RefreshCw className="size-3.5" />새로고침</Button>
@@ -345,7 +345,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
                 <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">분석 전용</span>
                 <span className="font-[inherit] text-xs text-muted-foreground">{validation?.modelVersion ?? "empirical-bayes-v1"}</span>
               </div>
-              <h2 id="prediction-validation-heading" className="mt-3 text-lg font-semibold text-foreground">누출 없는 예측 검증</h2>
+              <h2 id="prediction-validation-heading" className="mt-3 text-lg font-semibold text-foreground">Database statistics</h2>
             </div>
             <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-5">
               <div><p className="text-xs text-muted-foreground">오늘 DB 표본</p><p className="mt-1 font-[inherit] text-xl font-semibold">{(validation?.todaySamples ?? 0).toLocaleString()}</p></div>
