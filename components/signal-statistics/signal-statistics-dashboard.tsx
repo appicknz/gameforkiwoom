@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import useSWR from "swr"
-import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Database, RefreshCw, Search } from "lucide-react"
+import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, Database, RefreshCw, Search } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Input } from "@/components/ui/input"
@@ -178,12 +178,7 @@ export function SignalStatisticsDashboard() {
   const [direction, setDirection] = useState("all")
   const [duplicates, setDuplicates] = useState("all")
   const [page, setPage] = useState(1)
-  const dateStripRef = useRef<HTMLDivElement>(null)
   const availableDates = useMemo(() => Array.from({ length: 30 }, (_, index) => shiftDateKey(today, index - 29)), [today])
-
-  useEffect(() => {
-    dateStripRef.current?.querySelector<HTMLElement>(`[data-date="${selectedDate}"]`)?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
-  }, [selectedDate])
 
   const query = useMemo(() => {
     const params = new URLSearchParams({ horizon: String(horizon), page: String(page), pageSize: "40", duplicates, from: selectedDate, to: selectedDate })
@@ -229,20 +224,14 @@ export function SignalStatisticsDashboard() {
 
       <div className="mx-auto flex max-w-[1600px] flex-col gap-8 px-4 py-6 md:px-8">
         <section aria-labelledby="date-picker-heading" className="border-y border-border bg-card/30">
-          <div className="flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="size-4 text-primary" />
-              <div>
-                <h2 id="date-picker-heading" className="text-sm font-semibold">{formatSelectedDate(selectedDate)}</h2>
-                <p className="text-xs text-muted-foreground">선택 일자의 신호와 집계만 표시</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button type="button" variant="ghost" size="icon" className="size-8" aria-label="이전 날짜" disabled={selectedDate <= availableDates[0]} onClick={() => { setSelectedDate((value) => shiftDateKey(value, -1)); setPage(1) }}><ChevronLeft className="size-4" /></Button>
-              <Button type="button" variant="ghost" size="icon" className="size-8" aria-label="다음 날짜" disabled={selectedDate >= today} onClick={() => { setSelectedDate((value) => shiftDateKey(value, 1)); setPage(1) }}><ChevronRight className="size-4" /></Button>
+          <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
+            <CalendarDays className="size-4 text-primary" />
+            <div>
+              <h2 id="date-picker-heading" className="text-sm font-semibold">{formatSelectedDate(selectedDate)}</h2>
+              <p className="text-xs text-muted-foreground">최근 30일을 한 화면에서 선택 · 선택 일자의 신호와 집계만 표시</p>
             </div>
           </div>
-          <div ref={dateStripRef} className="flex snap-x snap-mandatory gap-1 overflow-x-auto px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="grid grid-cols-4 gap-1 px-2 py-3 sm:grid-cols-7 lg:grid-cols-10 xl:grid-cols-15">
             {availableDates.map((dateKey) => {
               const date = dateFromKey(dateKey)
               const day = date.getUTCDay()
