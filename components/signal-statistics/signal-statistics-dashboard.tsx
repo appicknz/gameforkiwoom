@@ -174,7 +174,7 @@ function BreakdownChart({ title, data }: { title: string; data: Breakdown[] }) {
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-foreground">{title} <span className="font-[inherit] text-muted-foreground">(총 {totalSamples.toLocaleString()}개)</span></h2>
-          <p className="mt-1 text-xs text-muted-foreground">실제 완료 표본 기준 · 괄호 안은 그룹별 표본 수 · 막대는 승률</p>
+          <p className="mt-1 text-xs text-muted-foreground">��제 완료 표본 기준 · 괄호 안은 그룹별 표본 수 · 막대는 승률</p>
         </div>
         <span className="font-[inherit] text-xs text-muted-foreground">표본 ≥ 1</span>
       </div>
@@ -204,8 +204,6 @@ export function SignalStatisticsDashboard() {
   const [duplicates, setDuplicates] = useState("all")
   const [cciSort, setCciSort] = useState<CciSort>("none")
   const [bbFilter, setBbFilter] = useState("all")
-  const [resultFilter, setResultFilter] = useState("all")
-  const [outcomeFilters, setOutcomeFilters] = useState<Record<string, string>>({})
   const [outcomeSorts, setOutcomeSorts] = useState<Record<string, OutcomeSort>>({})
   const [realtimeSort, setRealtimeSort] = useState<OutcomeSort | undefined>(undefined)
   const dateStripRef = useRef<HTMLDivElement>(null)
@@ -236,14 +234,7 @@ export function SignalStatisticsDashboard() {
     const filtered = entries.filter((entry) => {
       const bbValue = [entry.bollinger.position, entry.bollinger.trend].filter(Boolean).join(" · ") || "none"
       const result = entry.outcomes[String(horizon)]?.result ?? "pending"
-      const matchesTimeframeFilters = Object.entries(outcomeFilters).every(([timeframe, filter]) => {
-        if (!filter || filter === "all") return true
-        const outcome = entry.outcomes[timeframe]
-        if (filter === "pending") return !outcome || outcome.status === "pending"
-        if (filter === "unavailable") return outcome?.status === "unavailable"
-        return outcome?.status === "complete" && outcome.result === filter
-      })
-      return (bbFilter === "all" || bbValue === bbFilter) && (resultFilter === "all" || result === resultFilter) && matchesTimeframeFilters
+      return (bbFilter === "all" || bbValue === bbFilter)
     })
     const sorted = cciSort === "none" ? [...filtered] : [...filtered].sort((a, b) => {
       const left = a.cci ?? (cciSort === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY)
@@ -260,7 +251,7 @@ export function SignalStatisticsDashboard() {
       const rightValue = right == null ? (sortDirection === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : right
       return sortDirection === "asc" ? leftValue - rightValue : rightValue - leftValue
     })
-  }, [entries, horizon, bbFilter, resultFilter, outcomeFilters, outcomeSorts, cciSort])
+  }, [entries, horizon, bbFilter, outcomeSorts, cciSort])
   const visibleSymbols = useMemo(() => visibleEntries.map((entry) => entry.symbol), [visibleEntries])
   const liveTickers = useFuturesMiniTickers(visibleSymbols)
   const displayedEntries = useMemo(() => {
@@ -407,19 +398,11 @@ export function SignalStatisticsDashboard() {
     <th className="px-3 py-3 font-medium">컨플루언스</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium"><OutcomeSortButton label="실시간" direction={realtimeSort} onClick={() => setRealtimeSort((current) => current === "desc" ? "asc" : "desc")} /></th>
     {horizons.map((value) => {
       const timeframe = String(value)
-      const filter = outcomeFilters[timeframe] ?? "all"
       const sortDirection = outcomeSorts[timeframe]
-      return <th key={value} className="px-3 py-3 font-medium"><div className="flex items-center gap-1"><OutcomeSortButton label={value === 240 ? "240분" : `${value}분`} direction={sortDirection} onClick={() => setOutcomeSorts((current) => ({ [timeframe]: current[timeframe] === "desc" ? "asc" : "desc" }))} /><TableFilterMenu label="결과" active={filter !== "all"}>
-        <DropdownMenuLabel>{value === 240 ? "4시간" : `${value}분`} 결과</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={filter} onValueChange={(next) => setOutcomeFilters((current) => ({ ...current, [timeframe]: next }))}>
-          <DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="win">승</DropdownMenuRadioItem><DropdownMenuRadioItem value="loss">패</DropdownMenuRadioItem><DropdownMenuRadioItem value="flat">보합</DropdownMenuRadioItem><DropdownMenuRadioItem value="pending">생성 대기</DropdownMenuRadioItem><DropdownMenuRadioItem value="unavailable">데이터 없음</DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </TableFilterMenu></div></th>
+      return <th key={value} className="px-3 py-3 font-medium"><OutcomeSortButton label={value === 240 ? "240분" : `${value}분`} direction={sortDirection} onClick={() => setOutcomeSorts((current) => ({ [timeframe]: current[timeframe] === "desc" ? "asc" : "desc" }))} /></th>
     })}
     <th className="px-3 py-3 font-medium">{horizon}분 예측</th>
-    <th className="px-3 py-3 font-medium"><TableFilterMenu label={`${horizon}분 실제`} active={resultFilter !== "all"}>
-      <DropdownMenuLabel>결과</DropdownMenuLabel><DropdownMenuRadioGroup value={resultFilter} onValueChange={setResultFilter}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="win">승</DropdownMenuRadioItem><DropdownMenuRadioItem value="loss">패</DropdownMenuRadioItem><DropdownMenuRadioItem value="flat">보합</DropdownMenuRadioItem><DropdownMenuRadioItem value="pending">대기</DropdownMenuRadioItem></DropdownMenuRadioGroup>
-    </TableFilterMenu></th>
+    <th className="px-3 py-3 font-medium">{horizon}분 실제</th>
   </tr></thead>
               <tbody>
                 {displayedEntries.map((entry, index) => {
