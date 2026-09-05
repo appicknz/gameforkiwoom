@@ -128,7 +128,7 @@ export async function GET(request: Request) {
       brierScore: brier,
       averagePredictedReturn: rows.length ? rows.reduce((sum, row) => sum + Number(row.expected_directional_return_percent), 0) / rows.length : null,
       averageActualReturn: rows.length ? rows.reduce((sum, row) => sum + Number(row.outcome.directional_return_percent), 0) / rows.length : null,
-      modelVersion: rows[0]?.model_version ?? "empirical-bayes-v1",
+      modelVersion: rows[0]?.model_version ?? "empirical-bayes-v2-enriched",
       calibration,
     }, { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" } })
   } catch {

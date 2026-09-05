@@ -12,6 +12,7 @@ const adminSupabase = _adminSupabase as any
 import { after, NextResponse } from "next/server"
 import { recordSignalStatistics, recordSignalStatisticsForPosition } from "@/lib/signal-statistics"
 import { createPredictionsForEntry } from "@/lib/signal-prediction"
+import { enrichSignalPayload, type SignalEnrichment } from "@/lib/signal-enrichment"
 
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
 
@@ -26,6 +27,7 @@ async function logRequest(
     ip?: string
     recordStatistics?: boolean
     autoSignalPositionId?: string
+    enrichment?: SignalEnrichment | null
   } = {}
 ): Promise<string | null> {
   let statisticsEntryId: string | null = null
@@ -51,6 +53,7 @@ async function logRequest(
           status,
           reason: opts.errorMsg,
           payload,
+          enrichment: opts.enrichment,
         })
         if (entryId) {
           statisticsEntryId = entryId
@@ -167,6 +170,7 @@ export async function POST(req: Request) {
   }
 
   const cleanSymbol = symbol.replace(".P", "")
+  const enrichment = await enrichSignalPayload({ ...body, symbol: cleanSymbol })
 
   // 일별 마감 기록이 있을 때만 매매를 중단한다. 별도 시드 조정 원장은 이 판정과 무관하다.
   const { data: todayRebalance } = await adminSupabase
@@ -324,8 +328,9 @@ export async function POST(req: Request) {
       signal_time:  signalTime,
       date_label:   dateLabel,
       is_closed:    false,
-      webhook_raw:  body,
+      webhook_raw:  { ...body, enrichment_snapshot: enrichment },
       real_order:   realOrderSent,
+
     })
     .select("id")
     .single()
@@ -339,23 +344,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // TVM 결과 로그 저장 (포지션 id 포함, 실주문 전송이 켜져있을 때만)
   if (tvmResults.length) {
-    await Promise.all(
-      tvmResults.map(r =>
-        adminSupabase.from("auto_trading_logs").insert({
-          position_id:   data.id,
-          symbol:        cleanSymbol,
-          direction,
-          account_name:  r.account,
-          tvm_str:       r.tvm,
-          tvm_status:    r.status || null,
-          tvm_response:  r.body.slice(0, 500) || null,
-          ok:            r.ok,
-          error_msg:     r.errMsg,
-        })
-      )
-    )
+    await Promise.all(tvmResults.map(r => adminSupabase.from("auto_trading_logs").insert({
+      position_id: data.id,
+      symbol: cleanSymbol,
+      direction,
+      account_name: r.account,
+      tvm_str: r.tvm,
+      tvm_status: r.status || null,
+      tvm_response: r.body.slice(0, 500) || null,
+      ok: r.ok,
+      error_msg: r.errMsg,
+    })))
   }
 
   const statisticsEntryId = await logRequest("ok", 200, body, {
@@ -365,6 +365,7 @@ export async function POST(req: Request) {
     errorMsg: realOrderSent ? "real_order" : "record_only",
     recordStatistics: true,
     autoSignalPositionId: data.id,
+    enrichment,
   })
   try {
     const ensuredEntryId = statisticsEntryId ?? await recordSignalStatisticsForPosition({
@@ -373,334 +374,88 @@ export async function POST(req: Request) {
       signal_type: type,
       entry_price: parseFloat(price),
       signal_time: signalTime,
-      webhook_raw: body,
+      webhook_raw: { ...body, enrichment_snapshot: enrichment },
     })
     if (ensuredEntryId) {
-      const { error: linkError } = await adminSupabase
-        .from("auto_signal_positions")
-        .update({ signal_statistics_entry_id: ensuredEntryId })
-        .eq("id", data.id)
+      const { error: linkError } = await adminSupabase.from("auto_signal_positions")
+        .update({ signal_statistics_entry_id: ensuredEntryId }).eq("id", data.id)
       if (linkError) console.error("[webhook] position-statistics link failed:", linkError)
     }
   } catch (snapshotError) {
     console.error("[webhook] position snapshot failed:", snapshotError)
   }
 
-  return NextResponse.json({ ok: true, id: data.id, real_order: realOrderSent })
+  return NextResponse.json({ ok: true, id: data.id, real_order: realOrderSent, enrichment })
 }
 
-// ────────────────────────────────────────────────���────────────
+// ─────────────────────────────────────────────────────────────
 // UP8 국내주식 — 포지션/매매기록 없이 KIS TVM 전송만 수행
 // ─────────────────────────────────────────────────────────────
 function toUp8TvmSymbol(sym: string): string | null {
-  const clean = sym
-    .trim()
-    .replace(/^(?:KRX|KOSPI|KOSDAQ):/i, "")
-    .replace(/\/(?:KRX|KOSPI|KOSDAQ)$/i, "")
-    .replace(/\.P$/i, "")
-    .toUpperCase()
-
+  const clean = sym.trim().replace(/^(?:KRX|KOSPI|KOSDAQ):/i, "").replace(/\/(?:KRX|KOSPI|KOSDAQ)$/i, "").replace(/\.P$/i, "").toUpperCase()
   return /^[A-Z0-9]+$/.test(clean) ? `${clean}/KOSDAQ` : null
 }
 
-function buildUp8Tvm(params: {
-  exchange: string
-  account: string
-  symbol: string
-  amount: number
-  token: string
-}): string {
-  return `TVM:${JSON.stringify({
-    exchange: params.exchange,
-    account: params.account,
-    symbol: params.symbol,
-    type: "market",
-    side: "buy",
-    amount: params.amount,
-    same_order: "skip",
-    token: params.token,
-  })}:MVT`
+function buildUp8Tvm(params: { exchange: string; account: string; symbol: string; amount: number; token: string }): string {
+  return `TVM:${JSON.stringify({ exchange: params.exchange, account: params.account, symbol: params.symbol, type: "market", side: "buy", amount: params.amount, same_order: "skip", token: params.token })}:MVT`
 }
 
-async function handleSignalUp8(args: {
-  type: string
-  symbol: string
-  ip: string
-  body: Record<string, unknown>
-  logRequest: typeof logRequest
-}) {
+async function handleSignalUp8(args: { type: string; symbol: string; ip: string; body: Record<string, unknown>; logRequest: typeof logRequest }) {
   const { type, symbol, ip, body, logRequest } = args
   const tvmSymbol = toUp8TvmSymbol(symbol)
-  if (!tvmSymbol) {
-    await logRequest("error", 400, body, { ip, symbol, signalType: type, errorMsg: "invalid UP8 symbol" })
-    return NextResponse.json({ error: "invalid UP8 symbol" }, { status: 400 })
-  }
-
+  if (!tvmSymbol) { await logRequest("error", 400, body, { ip, symbol, signalType: type, errorMsg: "invalid UP8 symbol" }); return NextResponse.json({ error: "invalid UP8 symbol" }, { status: 400 }) }
   const [{ data: settings, error: settingsError }, { data: tradingGs, error: tradingError }] = await Promise.all([
-    adminSupabase
-      .from("auto_signal_up8_settings")
-      .select("test_enabled, live_enabled, amount, test_exchange, test_account, test_auth_token, live_exchange, live_account, live_auth_token")
-      .eq("id", 1)
-      .single(),
-    adminSupabase
-      .from("auto_trading_global_settings")
-      .select("webhook_url")
-      .eq("id", 1)
-      .single(),
+    adminSupabase.from("auto_signal_up8_settings").select("test_enabled, live_enabled, amount, test_exchange, test_account, test_auth_token, live_exchange, live_account, live_auth_token").eq("id", 1).single(),
+    adminSupabase.from("auto_trading_global_settings").select("webhook_url").eq("id", 1).single(),
   ])
-
-  if (settingsError || !settings) {
-    await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "UP8 settings unavailable" })
-    return NextResponse.json({ error: "UP8 settings unavailable" }, { status: 500 })
-  }
-
-  const selectedModes = [
-    settings.test_enabled ? {
-      mode: "test",
-      exchange: settings.test_exchange,
-      account: settings.test_account,
-      token: settings.test_auth_token,
-    } : null,
-    settings.live_enabled ? {
-      mode: "live",
-      exchange: settings.live_exchange,
-      account: settings.live_account,
-      token: settings.live_auth_token,
-    } : null,
-  ].filter((mode): mode is { mode: string; exchange: string; account: string; token: string } => Boolean(mode))
-
-  if (selectedModes.length === 0) {
-    await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "UP8 disabled" })
-    return NextResponse.json({
-      ok: true,
-      up8: true,
-      disabled: true,
-      symbol: tvmSymbol,
-      amount: Number(settings.amount),
-      sent: [],
-    })
-  }
-
-  if (tradingError || !tradingGs?.webhook_url) {
-    await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "UP8 TVM webhook unavailable" })
-    return NextResponse.json({ error: "UP8 TVM webhook unavailable" }, { status: 500 })
-  }
-
+  if (settingsError || !settings) { await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "UP8 settings unavailable" }); return NextResponse.json({ error: "UP8 settings unavailable" }, { status: 500 }) }
+  const selectedModes = [settings.test_enabled ? { mode: "test", exchange: settings.test_exchange, account: settings.test_account, token: settings.test_auth_token } : null, settings.live_enabled ? { mode: "live", exchange: settings.live_exchange, account: settings.live_account, token: settings.live_auth_token } : null].filter((mode): mode is { mode: string; exchange: string; account: string; token: string } => Boolean(mode))
+  if (selectedModes.length === 0) { await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "UP8 disabled" }); return NextResponse.json({ ok: true, up8: true, disabled: true, symbol: tvmSymbol, amount: Number(settings.amount), sent: [] }) }
+  if (tradingError || !tradingGs?.webhook_url) { await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "UP8 TVM webhook unavailable" }); return NextResponse.json({ error: "UP8 TVM webhook unavailable" }, { status: 500 }) }
   const amount = Number(settings.amount)
-  if (!Number.isInteger(amount) || amount <= 0) {
-    await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "invalid UP8 amount setting" })
-    return NextResponse.json({ error: "invalid UP8 amount setting" }, { status: 500 })
-  }
-
-  const results = await Promise.all(selectedModes.map(async (config) => {
-    const tvm = buildUp8Tvm({ ...config, symbol: tvmSymbol, amount })
-    try {
-      const response = await fetch(tradingGs.webhook_url, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: tvm,
-        signal: AbortSignal.timeout(10000),
-      })
-      return { mode: config.mode, ok: response.ok, status: response.status }
-    } catch {
-      return { mode: config.mode, ok: false, status: null }
-    }
-  }))
-
+  if (!Number.isInteger(amount) || amount <= 0) { await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "invalid UP8 amount setting" }); return NextResponse.json({ error: "invalid UP8 amount setting" }, { status: 500 }) }
+  const results = await Promise.all(selectedModes.map(async config => { const tvm = buildUp8Tvm({ ...config, symbol: tvmSymbol, amount }); try { const response = await fetch(tradingGs.webhook_url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: tvm, signal: AbortSignal.timeout(10000) }); return { mode: config.mode, ok: response.ok, status: response.status } } catch { return { mode: config.mode, ok: false, status: null } } }))
   const failedModes = results.filter(result => !result.ok).map(result => result.mode)
-  if (failedModes.length > 0) {
-    await logRequest("error", 502, body, {
-      ip,
-      symbol,
-      signalType: type,
-      errorMsg: `UP8 TVM failed: ${failedModes.join(",")}`,
-    })
-    return NextResponse.json({ error: "UP8 TVM delivery failed", up8: true, results }, { status: 502 })
-  }
-
-  await logRequest("ok", 200, body, {
-    ip,
-    symbol,
-    signalType: type,
-    errorMsg: `UP8 TVM sent: ${results.map(result => result.mode).join(",")}`,
-  })
+  if (failedModes.length > 0) { await logRequest("error", 502, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM failed: ${failedModes.join(",")}` }); return NextResponse.json({ error: "UP8 TVM delivery failed", up8: true, results }, { status: 502 }) }
+  await logRequest("ok", 200, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM sent: ${results.map(result => result.mode).join(",")}` })
   return NextResponse.json({ ok: true, up8: true, symbol: tvmSymbol, amount, results })
 }
 
 // ─────────────────────────────────────────────────────────────
-// 자동매매2 (역삼1 전용, UP3/UP8 제외 신호) — 완전히 분리된 기록/거래 경로
-// 기존 auto_signal_positions/통계에는 절대 영향을 주지 않음
+// 자동매매2 (역삼1 전용, UP3/UP8 제외 신호)
 // ─────────────────────────────────────────────────────────────
-function toTvmSymbol2(sym: string): string {
-  const clean = sym.replace("BINANCE:", "").replace(".P", "")
-  if (clean.endsWith("USDT")) return clean.slice(0, -4) + "/USDT"
-  return clean
-}
-
-function buildTvm2(params: {
-  account: string; symbol: string; side: string
-  amount: number; leverage: number
-  tpPct?: number | null; slPct?: number | null; token: string
-}): string {
-  const json: Record<string, unknown> = {
-    exchange:    "binance-futures",
-    account:     params.account,
-    symbol:      params.symbol,
-    type:        "market",
-    side:        params.side,
-    open_order:  "cancel",
-    same_order:  "skip",
-    leverage:    params.leverage,
-    margin_type: "cross",
-    amount:      params.amount,
-    amount_type: "usdt",
-    token:       params.token,
-  }
-  if (params.tpPct != null && Number.isFinite(params.tpPct) && params.tpPct > 0) {
-    json.tp_pct = params.side === "buy" ? Math.abs(params.tpPct) : -Math.abs(params.tpPct)
-  }
-  if (params.slPct != null && Number.isFinite(params.slPct) && params.slPct > 0) {
-    json.sl_pct = params.side === "buy" ? -Math.abs(params.slPct) : Math.abs(params.slPct)
-  }
+function toTvmSymbol2(sym: string): string { const clean = sym.replace("BINANCE:", "").replace(".P", ""); return clean.endsWith("USDT") ? clean.slice(0, -4) + "/USDT" : clean }
+function buildTvm2(params: { account: string; symbol: string; side: string; amount: number; leverage: number; tpPct?: number | null; slPct?: number | null; token: string }): string {
+  const json: Record<string, unknown> = { exchange: "binance-futures", account: params.account, symbol: params.symbol, type: "market", side: params.side, open_order: "cancel", same_order: "skip", leverage: params.leverage, margin_type: "cross", amount: params.amount, amount_type: "usdt", token: params.token }
+  if (params.tpPct != null && Number.isFinite(params.tpPct) && params.tpPct > 0) json.tp_pct = params.side === "buy" ? Math.abs(params.tpPct) : -Math.abs(params.tpPct)
+  if (params.slPct != null && Number.isFinite(params.slPct) && params.slPct > 0) json.sl_pct = params.side === "buy" ? -Math.abs(params.slPct) : Math.abs(params.slPct)
   return `TVM:${JSON.stringify(json)}:MVT`
 }
 
-async function handleSignal2(args: {
-  type: string
-  symbol: string
-  price: string
-  formatted_time_kst?: string
-  ip: string
-  body: Record<string, unknown>
-  logRequest: typeof logRequest
-}) {
+async function handleSignal2(args: { type: string; symbol: string; price: string; formatted_time_kst?: string; ip: string; body: Record<string, unknown>; logRequest: typeof logRequest }) {
   const { type, symbol, price, formatted_time_kst, ip, body, logRequest } = args
-
-  const [{ data: settings2 }, { data: rule2 }] = await Promise.all([
-    adminSupabase.from("auto_signal2_settings").select("size_usd, leverage, enabled, real_order_enabled, stop_loss_pct").eq("id", 1).single(),
-    adminSupabase.from("auto_signal_rules").select("direction, enabled, stop_loss_enabled, stop_loss_percent, take_profit_enabled, take_profit_percent").eq("signal_type", type).single(),
-  ])
-
-  if (!settings2?.enabled) {
-    await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "auto-signal2 disabled" })
-    return NextResponse.json({ skipped: true, reason: "auto_signal2_disabled" })
-  }
-
-  // 방향은 신호 이름이 아니라 auto_signal_rules에 등록된 실제 방향을 따른다 (예: UP2, UP7은 SHORT)
-  // 규칙이 없을 때만 이름 기반 추정으로 폴백
+  const [{ data: settings2 }, { data: rule2 }] = await Promise.all([adminSupabase.from("auto_signal2_settings").select("size_usd, leverage, enabled, real_order_enabled, stop_loss_pct").eq("id", 1).single(), adminSupabase.from("auto_signal_rules").select("direction, enabled, stop_loss_enabled, stop_loss_percent, take_profit_enabled, take_profit_percent").eq("signal_type", type).single()])
+  if (!settings2?.enabled) { await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "auto-signal2 disabled" }); return NextResponse.json({ skipped: true, reason: "auto_signal2_disabled" }) }
   const direction: string = rule2?.direction ?? (type.toUpperCase().includes("DOWN") ? "short" : "long")
-
-  let signalTime: string
-  let dateLabel: string
-  try {
-    const raw    = formatted_time_kst ?? new Date().toISOString()
-    const kstStr = raw.replace(" ", "T")
-    dateLabel  = kstStr.slice(0, 10)
-    signalTime = new Date(kstStr + "+09:00").toISOString()
-  } catch {
-    signalTime = new Date().toISOString()
-    dateLabel  = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  }
-
+  let signalTime: string; let dateLabel: string
+  try { const raw = formatted_time_kst ?? new Date().toISOString(); const kstStr = raw.replace(" ", "T"); dateLabel = kstStr.slice(0, 10); signalTime = new Date(kstStr + "+09:00").toISOString() } catch { signalTime = new Date().toISOString(); dateLabel = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10) }
   const cleanSymbol = symbol.replace(".P", "")
-
-  // 중복 체크 — 같은 ��� 같은 종목+방향
-  const { data: existing2 } = await adminSupabase
-    .from("auto_signal2_positions")
-    .select("id")
-    .eq("symbol",     cleanSymbol)
-    .eq("direction",  direction)
-    .eq("date_label", dateLabel)
-    .maybeSingle()
-
-  if (existing2) {
-    await logRequest("skipped", 200, body, {
-      ip, symbol, signalType: type,
-      errorMsg: `duplicate(signal2): ${cleanSymbol} ${direction} already exists for ${dateLabel} (id: ${existing2.id})`,
-    })
-    return NextResponse.json({ skipped: true, reason: "duplicate_symbol_date_signal2", existing_id: existing2.id })
-  }
-
+  const { data: existing2 } = await adminSupabase.from("auto_signal2_positions").select("id").eq("symbol", cleanSymbol).eq("direction", direction).eq("date_label", dateLabel).maybeSingle()
+  if (existing2) { await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: `duplicate(signal2): ${cleanSymbol} ${direction} already exists for ${dateLabel} (id: ${existing2.id})` }); return NextResponse.json({ skipped: true, reason: "duplicate_symbol_date_signal2", existing_id: existing2.id }) }
   let realOrderSent = false
-
-  // 실주문 토글이 켜져 있을 때만 거래소(TVM)에 주문 전송
   if (settings2.real_order_enabled) {
-    const { data: tradingGs } = await adminSupabase
-      .from("auto_trading_global_settings")
-      .select("webhook_url, enabled")
-      .eq("id", 1)
-      .single()
-
+    const { data: tradingGs } = await adminSupabase.from("auto_trading_global_settings").select("webhook_url, enabled").eq("id", 1).single()
     if (tradingGs?.enabled && tradingGs?.webhook_url) {
-      const { data: tradingAccounts } = await adminSupabase
-        .from("auto_trading_accounts")
-        .select("id, account_name, auth_token, leverage, base_amount, take_profit_enabled, take_profit_percent, stop_loss_enabled, stop_loss_percent")
-        .eq("enabled", true)
-
-      if (tradingAccounts?.length) {
-        const tvmSymbol = toTvmSymbol2(cleanSymbol)
-        const side      = direction.toUpperCase() === "SHORT" ? "sell" : "buy"
-        const webhookUrl = tradingGs.webhook_url
-
-        const tvmResults = await Promise.all(
-          tradingAccounts.map(async (acc: Record<string, unknown>) => {
-            const tvm = buildTvm2({
-              account:  acc.account_name as string,
-              symbol:   tvmSymbol,
-              side,
-              amount:   Number(settings2.size_usd ?? acc.base_amount),
-              leverage: Number(settings2.leverage ?? acc.leverage),
-              // TP와 SL은 방향과 무관하게 계정 설정을 각각 독립 적용
-              tpPct:    acc.take_profit_enabled ? Number(acc.take_profit_percent) : null,
-              slPct:    acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null,
-              token:    acc.auth_token as string,
-            })
-            try {
-              const res = await fetch(webhookUrl, {
-                method:  "POST",
-                headers: { "Content-Type": "text/plain" },
-                body:    tvm,
-                signal:  AbortSignal.timeout(10000),
-              })
-              return { ok: res.ok }
-            } catch {
-              return { ok: false }
-            }
-          })
-        )
-        realOrderSent = tvmResults.some(r => r.ok)
-      }
+      const { data: tradingAccounts } = await adminSupabase.from("auto_trading_accounts").select("id, account_name, auth_token, leverage, base_amount, take_profit_enabled, take_profit_percent, stop_loss_enabled, stop_loss_percent").eq("enabled", true)
+      if (tradingAccounts?.length) { const tvmSymbol = toTvmSymbol2(cleanSymbol); const side = direction.toUpperCase() === "SHORT" ? "sell" : "buy"; const tvmResults = await Promise.all(tradingAccounts.map(async (acc: Record<string, unknown>) => { const tvm = buildTvm2({ account: acc.account_name as string, symbol: tvmSymbol, side, amount: Number(settings2.size_usd ?? acc.base_amount), leverage: Number(settings2.leverage ?? acc.leverage), tpPct: acc.take_profit_enabled ? Number(acc.take_profit_percent) : null, slPct: acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null, token: acc.auth_token as string }); try { const res = await fetch(tradingGs.webhook_url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: tvm, signal: AbortSignal.timeout(10000) }); return { ok: res.ok } } catch { return { ok: false } } })); realOrderSent = tvmResults.some(r => r.ok) }
     }
   }
-
-  const { data: inserted2, error: err2 } = await adminSupabase
-    .from("auto_signal2_positions")
-    .insert({
-      signal_type:  type,
-      symbol:       cleanSymbol,
-      direction,
-      entry_price:  parseFloat(price),
-      size_usd:     settings2.size_usd,
-      leverage:     settings2.leverage,
-      signal_time:  signalTime,
-      date_label:   dateLabel,
-      is_closed:    false,
-      webhook_raw:  body,
-      real_order:   realOrderSent,
-    })
-    .select("id")
-    .single()
-
+  const { data: inserted2, error: err2 } = await adminSupabase.from("auto_signal2_positions").insert({ signal_type: type, symbol: cleanSymbol, direction, entry_price: parseFloat(price), size_usd: settings2.size_usd, leverage: settings2.leverage, signal_time: signalTime, date_label: dateLabel, is_closed: false, webhook_raw: body, real_order: realOrderSent }).select("id").single()
   if (err2) {
-    if (err2.code === "23505") {
-      await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "duplicate(signal2, race)" })
-      return NextResponse.json({ skipped: true, reason: "duplicate_race_signal2" })
-    }
-    await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: `signal2: ${err2.message}` })
-    return NextResponse.json({ error: err2.message }, { status: 500 })
+    if (err2.code === "23505") { await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "duplicate(signal2, race)" }); return NextResponse.json({ skipped: true, reason: "duplicate_race_signal2" }) }
+    await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: `signal2: ${err2.message}` }); return NextResponse.json({ error: err2.message }, { status: 500 })
   }
-
   await logRequest("ok", 200, body, { ip, symbol, signalType: type, errorMsg: realOrderSent ? "signal2(real_order)" : "signal2(record_only)" })
-
   return NextResponse.json({ ok: true, id: inserted2.id, signal2: true, real_order: realOrderSent })
 }
+

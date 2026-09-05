@@ -26,6 +26,11 @@ type SummaryRow = {
   confluence: string | null
   bb_position: string | null
   bb_trend: string | null
+  volume_ratio_24h: number | null
+  fire_count: number | null
+  signal_state: string | null
+  signal_grade: string | null
+  trade_guide: string | null
   duplicate_index: number
   signal_statistics_outcomes: Array<{
     horizon_minutes: number
@@ -74,7 +79,7 @@ export async function GET(request: Request) {
   for (let from = 0; from < (count ?? 0); from += PAGE_SIZE) {
     let query = supabase
       .from("signal_statistics_entries")
-      .select("id,signal_time,symbol,signal_type,direction,cci,confluence,bb_position,bb_trend,duplicate_index,auto_signal_position:auto_signal_positions!signal_statistics_entries_auto_position_fk!inner(date_label),signal_statistics_outcomes!inner(horizon_minutes,directional_return_percent,result,status,calculated_at)")
+      .select("id,signal_time,symbol,signal_type,direction,cci,confluence,bb_position,bb_trend,volume_ratio_24h,fire_count,signal_state,signal_grade,trade_guide,duplicate_index,auto_signal_position:auto_signal_positions!signal_statistics_entries_auto_position_fk!inner(date_label),signal_statistics_outcomes!inner(horizon_minutes,directional_return_percent,result,status,calculated_at)")
       .eq("signal_statistics_outcomes.horizon_minutes", horizon)
       .eq("signal_statistics_outcomes.status", "complete")
       .order("signal_time", { ascending: false })
@@ -94,6 +99,9 @@ export async function GET(request: Request) {
   const flats = completed.filter((row) => row.outcome.result === "flat").length
 
   const cciBucket = (cci: number | null) => cci == null ? "CCI 없음" : cci <= -100 ? "≤ -100" : cci < 0 ? "-100 ~ 0" : cci < 100 ? "0 ~ 100" : "≥ 100"
+  const enriched = rows.filter((row) => row.volume_ratio_24h != null)
+  const averageVolumeRatio = average(enriched.map((row) => Number(row.volume_ratio_24h)))
+  const medianVolumeRatio = median(enriched.map((row) => Number(row.volume_ratio_24h)))
   const breakdown = (selector: (row: typeof completed[number]) => string) => {
     const groups = new Map<string, typeof completed>()
     for (const row of completed) {
@@ -121,6 +129,13 @@ export async function GET(request: Request) {
     winRate: completed.length ? wins / completed.length * 100 : 0,
     averageReturn: average(returns),
     medianReturn: median(returns),
+    enrichedTotal: enriched.length,
+    averageVolumeRatio,
+    medianVolumeRatio,
+    fireDistribution: breakdown((row) => row.fire_count == null ? "미계산" : `${row.fire_count}불`),
+    stateBreakdown: breakdown((row) => row.signal_state ?? "unknown"),
+    gradeBreakdown: breakdown((row) => row.signal_grade ?? "unknown"),
+    guideBreakdown: breakdown((row) => row.trade_guide ?? "데이터 부족"),
     oldestSignalAt: completed.at(-1)?.signal_time ?? null,
     newestSignalAt: completed[0]?.signal_time ?? null,
     lastCalculatedAt: completed.map((row) => row.outcome.calculated_at).filter(Boolean).sort().at(-1) ?? null,

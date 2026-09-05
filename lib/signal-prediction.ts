@@ -3,7 +3,7 @@ import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { OUTCOME_HORIZONS } from "@/lib/signal-statistics"
 
-export const PREDICTION_MODEL_VERSION = "empirical-bayes-v1"
+export const PREDICTION_MODEL_VERSION = "empirical-bayes-v2-enriched"
 const PRIOR_STRENGTH = 40
 const MAX_TRAINING_ROWS = 2_000
 
@@ -17,6 +17,11 @@ type FeatureEntry = {
   active_timeframes: unknown
   bb_position: string | null
   bb_trend: string | null
+  volume_ratio_24h?: number | null
+  fire_count?: number | null
+  signal_state?: string | null
+  signal_grade?: string | null
+  signal_score?: number | null
 }
 
 type TrainingRow = FeatureEntry & {
@@ -58,6 +63,11 @@ export function predictionFeatures(entry: FeatureEntry) {
     priceChange: bucket(finiteNumber(entry.price_change_percent), [-1, -0.25, 0.25, 1], ["lt-1", "-1--.25", "-.25-.25", ".25-1", "gte-1"]),
     volumeChange: bucket(finiteNumber(entry.volume_change), [-25, 0, 25, 100], ["lt-25", "-25-0", "0-25", "25-100", "gte-100"]),
     activeTimeframes: timeframes,
+    volumeRatio24h: bucket(finiteNumber(entry.volume_ratio_24h ?? null), [0.1, 0.5, 1, 5], ["lt-0.1", "0.1-0.5", "0.5-1", "1-5", "gte-5"]),
+    fireCount: bucket(finiteNumber(entry.fire_count ?? null), [1, 2, 3, 4], ["0-1", "2", "3", "4", "5"]),
+    signalState: entry.signal_state || "missing",
+    signalGrade: entry.signal_grade || "missing",
+    signalScore: bucket(finiteNumber(entry.signal_score ?? null), [40, 60, 80], ["lt-40", "40-60", "60-80", "gte-80"]),
   }
 }
 
@@ -130,7 +140,7 @@ export function calculatePrediction(entry: FeatureEntry, training: TrainingRow[]
 async function loadTrainingRows(horizon: number, cutoff: string) {
   const { data, error } = await adminSupabase
     .from("signal_statistics_outcomes")
-    .select("result,directional_return_percent,target_time,entry:signal_statistics_entries!inner(direction,signal_type,cci,confluence,price_change_percent,volume_change,active_timeframes,bb_position,bb_trend,signal_time)")
+    .select("result,directional_return_percent,target_time,entry:signal_statistics_entries!inner(direction,signal_type,cci,confluence,price_change_percent,volume_change,active_timeframes,bb_position,bb_trend,volume_ratio_24h,fire_count,signal_state,signal_grade,signal_score,signal_time)")
     .eq("horizon_minutes", horizon)
     .eq("status", "complete")
     .not("entry.auto_signal_position_id", "is", null)
@@ -152,7 +162,7 @@ async function loadTrainingRows(horizon: number, cutoff: string) {
 export async function createPredictionsForEntry(entryId: string) {
   const { data: entry, error } = await adminSupabase
     .from("signal_statistics_entries")
-    .select("id,signal_time,direction,signal_type,cci,confluence,price_change_percent,volume_change,active_timeframes,bb_position,bb_trend")
+    .select("id,signal_time,direction,signal_type,cci,confluence,price_change_percent,volume_change,active_timeframes,bb_position,bb_trend,volume_ratio_24h,fire_count,signal_state,signal_grade,signal_score")
     .eq("id", entryId)
     .single()
   if (error) throw error

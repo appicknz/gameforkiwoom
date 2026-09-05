@@ -2,6 +2,7 @@ import "server-only"
 
 import { createHash } from "node:crypto"
 import { adminSupabase } from "@/lib/supabase-admin"
+import { buildSignalEnrichment, type SignalEnrichment } from "@/lib/signal-enrichment"
 
 export const OUTCOME_HORIZONS = [5, 15, 30, 60, 240] as const
 
@@ -36,7 +37,7 @@ export function normalizeSignalTime(payload: Record<string, unknown>, receivedAt
   return new Date(receivedAt).toISOString()
 }
 
-export function normalizeSignalPayload(payload: Record<string, unknown>, receivedAt: string) {
+export function normalizeSignalPayload(payload: Record<string, unknown>, receivedAt: string, enrichment?: SignalEnrichment | null) {
   const signalType = textValue(payload.signal_type ?? payload.alert_type)?.toUpperCase()
   const rawSymbol = textValue(payload.symbol)?.toUpperCase()
   const entryPrice = numberValue(payload.price)
@@ -49,6 +50,10 @@ export function normalizeSignalPayload(payload: Record<string, unknown>, receive
   const bb = payload.bollinger_band && typeof payload.bollinger_band === "object"
     ? payload.bollinger_band as Record<string, unknown>
     : {}
+  const snapshot = payload.enrichment_snapshot && typeof payload.enrichment_snapshot === "object"
+    ? payload.enrichment_snapshot as Record<string, unknown>
+    : null
+  const computedEnrichment = enrichment ?? buildSignalEnrichment(snapshot ? { ...payload, ...snapshot } : payload, { source: snapshot ? "payload" : "unavailable" })
   const groupKey = createHash("sha256")
     .update(`${exchange}|${symbol}|${signalType}|${signalTime}`)
     .digest("hex")
@@ -91,6 +96,22 @@ export function normalizeSignalPayload(payload: Record<string, unknown>, receive
     bb_middle_distance: numberValue(bb.middle_distance),
     bb_lower_distance: numberValue(bb.lower_distance),
     bb_width: numberValue(bb.width),
+    volume_ratio_24h: computedEnrichment.volume_ratio_24h,
+    volume_24h_value: computedEnrichment.volume_24h_value,
+    trading_value: computedEnrichment.trading_value,
+    volume_ratio_source: computedEnrichment.volume_ratio_source,
+    fire_count: computedEnrichment.fire_count,
+    fire_volume_score: computedEnrichment.fire_volume_score,
+    fire_confluence_score: computedEnrichment.fire_confluence_score,
+    signal_state: computedEnrichment.signal_state,
+    trade_bias: computedEnrichment.trade_bias,
+    signal_score: computedEnrichment.signal_score,
+    signal_grade: computedEnrichment.signal_grade,
+    trade_guide: computedEnrichment.trade_guide,
+    risk_flags: computedEnrichment.risk_flags,
+    enrichment_version: computedEnrichment.enrichment_version,
+    enriched_at: new Date().toISOString(),
+    enrichment_snapshot: computedEnrichment,
     payload,
   }
 }
@@ -102,12 +123,13 @@ type SignalStatisticsInput = {
   status: string
   reason?: string | null
   payload: Record<string, unknown>
+  enrichment?: SignalEnrichment | null
 }
 
 export async function recordSignalStatisticsBatch(inputs: SignalStatisticsInput[]) {
   const candidates = inputs.flatMap((input) => {
     if (input.status === "auth_fail" || !input.autoSignalPositionId) return []
-    const normalized = normalizeSignalPayload(input.payload, input.receivedAt)
+    const normalized = normalizeSignalPayload(input.payload, input.receivedAt, input.enrichment)
     return normalized ? [{ input, normalized }] : []
   })
   if (!candidates.length) return { inserted: 0, ignored: inputs.length }

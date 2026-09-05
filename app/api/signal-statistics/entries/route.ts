@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("signal_statistics_entries")
-    .select("id,received_at,signal_time,exchange,symbol,signal_type,direction,entry_price,duplicate_group_key,duplicate_index,processing_status,cci,cci_signal,confluence,price_change_percent,volume_change,active_timeframes,first_occurrence,new_1m,new_5m,new_15m,new_1h,new_2h,new_4h,ultimate_plot,signal_timeframe,interval_label,bb_position,bb_trend,bb_expansion,bb_squeeze,bb_width,auto_signal_position:auto_signal_positions!signal_statistics_entries_auto_position_fk!inner(date_label),signal_statistics_outcomes(horizon_minutes,target_time,candle_time,exit_price,price_return_percent,directional_return_percent,result,status),signal_statistics_predictions(horizon_minutes,predicted_at,training_cutoff_at,model_version,expected_win_rate,expected_directional_return_percent,confidence_level,confidence_score,effective_sample_size)", { count: "exact" })
+    .select("id,received_at,signal_time,exchange,symbol,signal_type,direction,entry_price,duplicate_group_key,duplicate_index,processing_status,cci,cci_signal,confluence,price_change_percent,volume_change,active_timeframes,first_occurrence,new_1m,new_5m,new_15m,new_1h,new_2h,new_4h,ultimate_plot,signal_timeframe,interval_label,bb_position,bb_trend,bb_expansion,bb_squeeze,bb_width,volume_ratio_24h,volume_24h_value,trading_value,volume_ratio_source,fire_count,fire_volume_score,fire_confluence_score,signal_state,trade_bias,signal_score,signal_grade,trade_guide,risk_flags,enrichment_version,enriched_at,enrichment_snapshot,auto_signal_position:auto_signal_positions!signal_statistics_entries_auto_position_fk!inner(date_label),signal_statistics_outcomes(horizon_minutes,target_time,candle_time,exit_price,price_return_percent,directional_return_percent,result,status),signal_statistics_predictions(horizon_minutes,predicted_at,training_cutoff_at,model_version,expected_win_rate,expected_directional_return_percent,confidence_level,confidence_score,effective_sample_size)", { count: "exact" })
     .order("signal_time", { ascending: false })
     .order("duplicate_index", { ascending: true })
     .range(from, from + pageSize - 1)
@@ -66,6 +66,22 @@ export async function GET(request: Request) {
       signalTimeframe: entry.signal_timeframe,
       interval: entry.interval_label,
       bollinger: { position: entry.bb_position, trend: entry.bb_trend, expansion: entry.bb_expansion, squeeze: entry.bb_squeeze, width: entry.bb_width == null ? null : Number(entry.bb_width) },
+      volumeRatio24h: entry.volume_ratio_24h == null ? null : Number(entry.volume_ratio_24h),
+      volume24hValue: entry.volume_24h_value == null ? null : Number(entry.volume_24h_value),
+      tradingValue: entry.trading_value == null ? null : Number(entry.trading_value),
+      volumeRatioSource: entry.volume_ratio_source,
+      fireCount: entry.fire_count == null ? null : Number(entry.fire_count),
+      fireVolumeScore: entry.fire_volume_score == null ? null : Number(entry.fire_volume_score),
+      fireConfluenceScore: entry.fire_confluence_score == null ? null : Number(entry.fire_confluence_score),
+      signalState: entry.signal_state,
+      tradeBias: entry.trade_bias,
+      signalScore: entry.signal_score == null ? null : Number(entry.signal_score),
+      signalGrade: entry.signal_grade,
+      tradeGuide: entry.trade_guide,
+      riskFlags: Array.isArray(entry.risk_flags) ? entry.risk_flags : [],
+      enrichmentVersion: entry.enrichment_version,
+      enrichedAt: entry.enriched_at,
+      enrichmentSnapshot: entry.enrichment_snapshot,
       outcomes: Object.fromEntries(outcomes.map((outcome) => [outcome.horizon_minutes, {
         targetTime: outcome.target_time,
         candleTime: outcome.candle_time,
