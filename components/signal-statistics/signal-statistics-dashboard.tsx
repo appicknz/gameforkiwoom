@@ -438,7 +438,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
                       <td className="max-w-44 truncate px-3 py-4 text-muted-foreground">{entry.confluence || "—"}</td>
                       <td className="px-3 py-4 font-[inherit]">{entry.volumeRatio24h == null ? "—" : `${entry.volumeRatio24h.toFixed(2)}%`}</td>
                       <td className="px-3 py-4 font-[inherit]">{entry.fireCount == null ? "—" : `${entry.fireCount}/5`}</td>
-                      <td className="px-3 py-4">{entry.signalState ?? "unknown"} · {entry.signalGrade ?? "—"}</td>
+                      <td className="px-3 py-4">{entry.signalState ?? "NEUTRAL"} · {entry.signalGrade ?? "D"}</td>
                       <td className="max-w-40 truncate px-3 py-4 text-muted-foreground">{entry.tradeGuide ?? "데이터 부족"}</td>
                       <td className="px-3 py-4 font-[inherit]">{numberFormat.format(entry.entryPrice)}</td>
                       <td className="px-3 py-4 font-[inherit]">{currentPrice == null ? "—" : numberFormat.format(currentPrice)}</td>

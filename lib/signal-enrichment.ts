@@ -8,11 +8,11 @@ export type SignalEnrichment = {
   fire_count: number
   fire_volume_score: number | null
   fire_confluence_score: number | null
-  signal_state: "confirmed" | "watch" | "breakout_watch" | "overheated" | "avoid" | "unknown"
-  trade_bias: "long" | "short" | "neutral" | "unknown"
-  signal_score: number | null
-  signal_grade: "A" | "B" | "C" | "D" | "unknown"
-  trade_guide: "관찰" | "추세추종 후보" | "돌파 확인 대기" | "과열 추격 주의" | "반대 신호/회피" | "데이터 부족"
+  signal_state: "CONFIRM" | "PULLBACK" | "EXTENSION" | "IMPULSE" | "EXHAUSTION" | "NEUTRAL"
+  trade_bias: "long" | "short" | "neutral"
+  signal_score: number
+  signal_grade: "A" | "B" | "C" | "D"
+  trade_guide: "분할 진입 고려" | "조건 충족 시 진입" | "분할 익절/관리" | "관찰 대기" | "회피/관망" | "관망"
   risk_flags: string[]
   enrichment_version: string
 }
@@ -76,50 +76,61 @@ export function buildSignalEnrichment(payload: Record<string, unknown>, market: 
   const volumeRatio = volumeRatioPayload ?? (tradingValue != null && volume24h != null && volume24h > 0 ? tradingValue / volume24h * 100 : null)
   const ratioSource = volumeRatioPayload != null ? "payload" : volumeRatio != null && market.source ? market.source : "unavailable"
   const fire = scoreFire(volumeRatio, confluence)
-  const activeTimeframes = payload.active_timeframes
-  const timeframes = Array.isArray(activeTimeframes)
-    ? activeTimeframes.length
-    : typeof activeTimeframes === "number" && Number.isFinite(activeTimeframes)
-      ? Math.max(0, Math.floor(activeTimeframes))
-      : typeof activeTimeframes === "string"
-        ? (() => {
-            const value = activeTimeframes.trim()
-            if (!value) return 0
-            const numericCount = numberValue(value)
-            if (numericCount != null && /^\d+(?:\.\d+)?$/.test(value)) return Math.max(0, Math.floor(numericCount))
-            return value.split(/[,|]/).map((item) => item.trim()).filter(Boolean).length
-          })()
-        : 0
-  const timeframeScore = timeframes ? Math.min(30, timeframes * 6) : 0
-  const volumeScore = volumeRatio == null ? 0 : Math.min(25, Math.round(Math.min(1, volumeRatio / 5) * 25))
-  const confluencePoints = confluence == null ? 0 : Math.min(20, Math.round(Math.min(1, confluence / 5) * 20))
-  const cciScore = cci == null ? 0 : Math.min(10, Math.round(Math.abs(cci) >= 100 ? 10 : Math.abs(cci) / 10))
-  const bbPosition = String(bb.position ?? payload.bb_position ?? "").toLowerCase()
-  const bbAligned = direction === "long" ? /above|upper|breakout/.test(bbPosition) : /below|lower|breakout/.test(bbPosition)
-  const bbScore = bbPosition ? (bbAligned ? 10 : 3) : 0
-  const novelty = [payload.first_occurrence, payload.new_1m, payload.new_5m, payload.new_15m, payload.new_1h, payload.new_2h, payload.new_4h].some(Boolean) ? 5 : 0
-  let score = timeframeScore + volumeScore + confluencePoints + cciScore + bbScore + novelty
-  const riskFlags: string[] = []
-  if (Boolean(bb.squeeze)) riskFlags.push("bollinger_squeeze")
-  if (Boolean(bb.upper_breakout) || Boolean(bb.lower_breakout)) riskFlags.push("bollinger_breakout")
-  if (volumeRatio != null && volumeRatio >= 5) riskFlags.push("volume_spike")
-  if (cci != null && Math.abs(cci) >= 200) riskFlags.push("cci_extreme")
-  if (!bbAligned && bbPosition) { score = Math.max(0, score - 10); riskFlags.push("counter_trend_indicator") }
-  const dataSufficient = volumeRatio != null || (confluence != null && timeframes > 0 && priceChange != null)
-  const signalState = !dataSufficient ? "unknown" : riskFlags.includes("volume_spike") || riskFlags.includes("bollinger_breakout") ? "breakout_watch" : score >= 70 ? "confirmed" : score >= 45 ? "watch" : "avoid"
-  const signalGrade = !dataSufficient ? "unknown" : score >= 80 ? "A" : score >= 60 ? "B" : score >= 40 ? "C" : "D"
-  const tradeGuide = !dataSufficient ? "데이터 부족" : signalState === "breakout_watch" ? "돌파 확인 대기" : signalState === "confirmed" ? "추세추종 후보" : signalState === "avoid" ? "반대 신호/회피" : score >= 65 ? "과열 추격 주의" : "관찰"
+  const volumeChange = firstNumber(payload, ["volume_change"]) ?? 0
+  const cciValue = cci ?? 0
+  const confluenceValue = confluence ?? 1
+  const priceChangeValue = Math.abs(priceChange ?? 0)
+  let score = 0
+  if (cciValue >= 200) score += 50
+  else if (cciValue >= 150) score += 40
+  else if (cciValue >= 100) score += 30
+  else if (cciValue >= 50) score += 20
+  else if (cciValue > 0) score += 10
+  else if (cciValue >= -50) score += 5
+  else score -= 10
+  if (volumeChange < -50) score -= 30
+  else if (volumeChange < -30) score -= 20
+  else if (volumeChange > 100) score += 25
+  else if (volumeChange > 50) score += 15
+  else if (volumeChange > 20) score += 10
+  score += fire.fireCount * 10
+  score += (confluenceValue - 1) * 5
+  const boolValue = (value: unknown) => value === true || value === 1 || String(value).toLowerCase() === "true"
+  if (boolValue(bb.upper_breakout)) score += 25
+  if (boolValue(bb.lower_breakout)) score += 25
+  if (boolValue(bb.expansion)) score += 10
+  if (boolValue(bb.squeeze)) score -= 5
+  if (boolValue(bb.middle_cross)) score += 15
+  if (priceChangeValue >= 10) score += 20
+  else if (priceChangeValue >= 5) score += 10
+  else if (priceChangeValue >= 3) score += 5
+  const signalState = score >= 100 ? "EXHAUSTION" : score >= 70 ? "EXTENSION" : score >= 40 && priceChangeValue >= 3 ? "IMPULSE" : score >= 30 && confluenceValue >= 2 ? "CONFIRM" : score >= 10 && score < 30 ? "PULLBACK" : "NEUTRAL"
+  const stateMeta = ({
+    CONFIRM: { risk: "변동성 확대", guide: "분할 진입 고려" },
+    PULLBACK: { risk: "되돌림 실패", guide: "조건 충족 시 진입" },
+    EXTENSION: { risk: "추격 매수", guide: "분할 익절/관리" },
+    IMPULSE: { risk: "추세 착각", guide: "관찰 대기" },
+    EXHAUSTION: { risk: "급락 가능성", guide: "회피/관망" },
+    NEUTRAL: { risk: "비효율 매매", guide: "관망" },
+  } as const)[signalState]
+  const signalGrade = score >= 100 ? "A" : score >= 70 ? "B" : score >= 40 ? "C" : "D"
+  const riskFlags: string[] = [stateMeta.risk]
+  if (boolValue(bb.squeeze)) riskFlags.push("볼린저 스퀴즈")
+  if (boolValue(bb.upper_breakout) || boolValue(bb.lower_breakout)) riskFlags.push("볼린저 돌파")
+  if (volumeChange < -30) riskFlags.push("거래량 감소")
+  if (cciValue >= 200) riskFlags.push("CCI 극도 과열")
+  const tradeGuide = stateMeta.guide
   return {
     volume_ratio_24h: volumeRatio,
     volume_24h_value: volume24h,
     trading_value: tradingValue,
     volume_ratio_source: ratioSource,
-    fire_count: Math.min(MAX_FIRE_COUNT, Math.max(1, numberValue(payloadValue(payload, ["fire_count"])) ?? fire.fireCount ?? 1)),
+    fire_count: Math.min(MAX_FIRE_COUNT, Math.max(1, fire.fireCount ?? 1)),
     fire_volume_score: fire.volumeScore,
     fire_confluence_score: fire.confluenceScore,
     signal_state: signalState,
-    trade_bias: dataSufficient ? direction : "unknown",
-    signal_score: dataSufficient ? score : null,
+    trade_bias: direction,
+    signal_score: score,
     signal_grade: signalGrade,
     trade_guide: tradeGuide,
     risk_flags: riskFlags,

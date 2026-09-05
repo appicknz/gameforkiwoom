@@ -20,7 +20,9 @@ describe("signal enrichment", () => {
     expect(enrichment.volume_ratio_24h).toBeNull()
     expect(enrichment.volume_ratio_source).toBe("unavailable")
     expect(enrichment.fire_count).toBe(1)
-    expect(enrichment.trade_guide).toBe("데이터 부족")
+    expect(enrichment.signal_state).toBe("NEUTRAL")
+    expect(enrichment.trade_guide).toBe("관망")
+    expect(enrichment.risk_flags).toContain("비효율 매매")
   })
 
   it("parses string timeframe counts for the trading guide", () => {
