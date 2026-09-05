@@ -289,7 +289,7 @@ function TradeForm({
         </div>
       </div>
 
-      {/* 요약 */}
+      {/* ���약 */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 px-3 py-3 rounded-xl text-xs"
         style={{ background: "rgba(212,175,55,0.04)", border: `1px solid rgba(212,175,55,0.1)` }}>
         <div className="flex justify-between">
@@ -1560,29 +1560,6 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                 </div>
               )
             })()}
-            {adjustments.map(adjustment => {
-              const amount = Number(adjustment.amount)
-              const [, mm, dd] = adjustment.date_label.split("-")
-              return (
-                <div key={`adjustment-${adjustment.id}`} style={{ padding: "10px 14px", borderBottom: "1px solid rgba(212,175,55,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(212,175,55,0.025)" }}>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.95)" }}>{parseInt(mm)}월 {parseInt(dd)}일</span>
-                      <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(212,175,55,0.14)", color: GOLD }}>잔고 추가</span>
-                      {adjustment.note && <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>{adjustment.note}</span>}
-                    </div>
-                    <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>
-                      잔고 ${Number(adjustment.balance_before).toFixed(2)} → ${Number(adjustment.balance_after).toFixed(2)}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: GOLD }}>{amount >= 0 ? "+" : ""}${amount.toFixed(2)}</div>
-                    <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{amount >= 0 ? "+" : ""}{Math.round(amount * krwRate).toLocaleString("ko-KR")}원</div>
-                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>매매 수익률 제외</div>
-                  </div>
-                </div>
-              )
-            })}
             {[...sorted].reverse().map(rec => {
               const pnl      = Number(rec.daily_pnl)
               const seed     = Number(rec.seed_capital)
@@ -1590,8 +1567,10 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
               const roi      = seed > 0 ? (pnl / seed) * 100 : 0
               const pnlColor = pnl >= 0 ? UP_COLOR : DOWN_COLOR
               const [, mm, dd] = rec.date_label.split("-")
+              const dayAdjustments = adjustments.filter(adjustment => adjustment.date_label === rec.date_label)
               return (
-                <div key={rec.id} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center", background: rec.date_label === dateStr ? "rgba(212,175,55,0.04)" : undefined }}>
+                <React.Fragment key={rec.id}>
+                <div style={{ padding: "10px 14px", borderBottom: dayAdjustments.length ? "none" : `1px solid rgba(212,175,55,0.04)`, display: "flex", justifyContent: "space-between", alignItems: "center", background: rec.date_label === dateStr ? "rgba(212,175,55,0.04)" : undefined }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.95)" }}>
                       {parseInt(mm)}월 {parseInt(dd)}일
@@ -1613,6 +1592,29 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                     )}
                   </div>
                 </div>
+                {dayAdjustments.map(adjustment => {
+                  const amount = Number(adjustment.amount)
+                  const [, adjustmentMonth, adjustmentDay] = adjustment.date_label.split("-")
+                  return (
+                    <div key={`adjustment-${adjustment.id}`} style={{ padding: "10px 14px 10px 28px", borderBottom: "1px solid rgba(212,175,55,0.08)", borderLeft: "2px solid rgba(212,175,55,0.35)", marginLeft: 14, display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(212,175,55,0.025)" }}>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(212,175,55,0.14)", color: GOLD }}>잔고 추가</span>
+                          {adjustment.note && <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>{adjustment.note}</span>}
+                        </div>
+                        <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>
+                          {parseInt(adjustmentMonth)}월 {parseInt(adjustmentDay)}일 · 잔고 ${Number(adjustment.balance_before).toFixed(2)} → ${Number(adjustment.balance_after).toFixed(2)}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: GOLD }}>{amount >= 0 ? "+" : ""}${amount.toFixed(2)}</div>
+                        <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{amount >= 0 ? "+" : ""}{Math.round(amount * krwRate).toLocaleString("ko-KR")}원</div>
+                        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>매매 수익률 제외</div>
+                      </div>
+                    </div>
+                  )
+                })}
+                </React.Fragment>
               )
             })}
           </>
@@ -2203,7 +2205,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
               <h3 className="text-sm font-bold text-foreground">강제 청산</h3>
               <p className="text-xs text-muted-foreground">
                 청산 기준가(SL)보다 10% 더 불리한 가격이 자동 입력됩니다.<br />
-                <span style={{ color: "rgba(239,68,68,0.8)" }}>SL CLOSE로 기록되며 TOTAL PNL에서 차감됩니다.</span>
+                <span style={{ color: "rgba(239,68,68,0.8)" }}>SL CLOSE로 ���록되며 TOTAL PNL에서 차감됩니다.</span>
               </p>
             </div>
             <div className="space-y-1.5">
