@@ -188,7 +188,7 @@ function BreakdownChart({ title, data }: { title: string; data: Breakdown[] }) {
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-foreground">{title} <span className="font-[inherit] text-muted-foreground">(총 {totalSamples.toLocaleString()}개)</span></h2>
-          <p className="mt-1 text-xs text-muted-foreground">���제 완료 표본 기준 · 괄호 안은 그룹별 표본 수 · 막대는 승률</p>
+          <p className="mt-1 text-xs text-muted-foreground">실제 완료 표본 기준 · 괄호 안은 그룹별 표본 수 · 막대는 승률</p>
         </div>
         <span className="font-[inherit] text-xs text-muted-foreground">표본 ≥ 1</span>
       </div>
@@ -393,7 +393,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
 
         <section>
           <div className="mb-4 flex items-end justify-between gap-4">
-            <div><div className="flex items-center gap-2"><Database className="size-4 text-primary" /><h2 className="text-lg font-semibold">엔트리 로그</h2></div><p className="mt-1 text-xs text-muted-foreground">같은 그룹의 원본·중복 신호도 진입가별로 각각 계산됩니다.</p></div>
+            <div><div className="flex items-center gap-2"><Database className="size-4 text-primary" /><h2 className="text-lg font-semibold">엔트리 로그</h2></div><p className="mt-1 text-xs text-muted-foreground">같은 그룹의 원본·중복 신호도 진입가별로 ��각 계산됩니다.</p></div>
             <span className="font-[inherit] text-xs text-muted-foreground">{selectedDate} · {displayedEntries.length.toLocaleString()} / {(entriesData?.total ?? 0).toLocaleString()} ROWS</span>
           </div>
           <div className="overflow-x-auto border-y border-border">
