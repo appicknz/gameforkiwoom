@@ -86,25 +86,6 @@ export async function getMinuteCloseAfter(symbol: string, targetTime: string) {
   }
 }
 
-export async function getCurrentFuturesPrices(symbols: string[]) {
-  const unique = [...new Set(symbols.map((symbol) => symbol.replace(/^[A-Z]+:/, "").replace(/\.P$/, "").toUpperCase()))]
-  const results = await Promise.all(unique.slice(0, 50).map(async (symbol) => {
-    try {
-      let res = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price?symbol=${encodeURIComponent(symbol)}`, { next: { revalidate: 5 } })
-      if (!res.ok) {
-        res = await fetch(`${BINANCE_PUBLIC_DATA_BASE}/api/v3/ticker/price?symbol=${encodeURIComponent(symbol)}`, { next: { revalidate: 5 } })
-      }
-      if (!res.ok) return null
-      const data = await res.json()
-      const price = Number.parseFloat(data.price)
-      return Number.isFinite(price) ? [symbol, price] as const : null
-    } catch {
-      return null
-    }
-  }))
-  return new Map(results.filter((item): item is readonly [string, number] => Boolean(item)))
-}
-
 export async function getDayCloseMap(
   symbols: string[],
   dateLabel: string

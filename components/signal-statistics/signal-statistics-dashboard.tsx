@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { useFuturesMiniTickers, type FuturesTickerConnection } from "@/hooks/use-futures-mini-tickers"
 
 const fetcher = (url: string) => fetch(url).then(async (response) => {
   if (!response.ok) throw new Error("데이터를 불러오지 못했습니다.")
@@ -44,9 +45,6 @@ type Entry = {
   cciSignal: string | null
   confluence: string | null
   bollinger: { position: string | null; trend: string | null; expansion: boolean | null; squeeze: boolean | null; width: number | null }
-  currentPrice: number | null
-  livePriceReturnPercent: number | null
-  liveDirectionalReturnPercent: number | null
   outcomes: Record<string, Outcome>
 }
 
@@ -71,6 +69,14 @@ type EntriesResponse = { entries: Entry[]; total: number; page: number; pageSize
 
 const numberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 8 })
 const kstTime = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+const liveTime = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
+const connectionLabels: Record<FuturesTickerConnection, string> = {
+  idle: "시세 대기",
+  connecting: "시세 연결 중",
+  live: "실시간 시세",
+  reconnecting: "시세 재연결 중",
+  offline: "네트워크 오프라인",
+}
 
 function Percent({ value, signed = true }: { value: number | null | undefined; signed?: boolean }) {
   if (value == null) return <span className="text-muted-foreground">—</span>
@@ -137,6 +143,8 @@ export function SignalStatisticsDashboard() {
   const { data: entriesData, error: entriesError, isLoading: entriesLoading, mutate: mutateEntries } = useSWR<EntriesResponse>(`/api/signal-statistics/entries?${query}`, fetcher, { refreshInterval: 30_000 })
   const { data: summary, error: summaryError, isLoading: summaryLoading, mutate: mutateSummary } = useSWR<Summary>(`/api/signal-statistics/summary?${summaryQuery}`, fetcher, { refreshInterval: 30_000 })
   const entries = entriesData?.entries ?? []
+  const visibleSymbols = useMemo(() => entries.map((entry) => entry.symbol), [entries])
+  const liveTickers = useFuturesMiniTickers(visibleSymbols)
   const totalPages = Math.max(1, Math.ceil((entriesData?.total ?? 0) / 40))
   const loading = entriesLoading || summaryLoading
 
@@ -147,7 +155,11 @@ export function SignalStatisticsDashboard() {
           <div className="flex items-start gap-4">
             <div className="mt-1 flex size-10 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary"><Activity className="size-5" /></div>
             <div>
-              <div className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-primary" /><span className="font-[inherit] text-xs tracking-widest text-primary">LIVE DATASET</span></div>
+              <div className="flex items-center gap-2">
+                <span className={cn("size-1.5 rounded-full", liveTickers.status === "live" ? "bg-primary" : "bg-muted-foreground")} />
+                <span className={cn("font-[inherit] text-xs tracking-widest", liveTickers.status === "live" ? "text-primary" : "text-muted-foreground")}>{connectionLabels[liveTickers.status]}</span>
+                {liveTickers.lastMessageAt && <span className="text-xs text-muted-foreground">· {liveTime.format(new Date(liveTickers.lastMessageAt))}</span>}
+              </div>
               <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">실제 웹훅 신호 통계</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">수신된 JSON 조건과 이후 Binance 선물 가격을 연결합니다. 통계는 주문 판단과 완전히 분리되어 있습니다.</p>
             </div>
@@ -176,7 +188,8 @@ export function SignalStatisticsDashboard() {
           </div>
         </section>
 
-        {(entriesError || summaryError) && <div role="alert" className="border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">실제 통계 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>}
+        {entriesError && <div role="alert" className="border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">엔트리 로그를 불러오지 못했습니다. 실시간 시세 연결은 별도로 계속 동작합니다.</div>}
+        {summaryError && <div role="status" className="border border-border bg-muted/20 p-4 text-sm text-muted-foreground">집계 통계를 불러오지 못했습니다. 엔트리 로그와 실시간 시세는 정상적으로 계속 표시됩니다.</div>}
 
         <section className="grid gap-8 lg:grid-cols-2">
           <BreakdownChart title="CCI 구간별 성과" data={summary?.breakdowns.cci ?? []} />
@@ -198,6 +211,9 @@ export function SignalStatisticsDashboard() {
                   const selected = entry.outcomes[String(horizon)]
                   const previous = entries[index - 1]
                   const startsGroup = !previous || previous.duplicateGroupKey !== entry.duplicateGroupKey
+                  const currentPrice = liveTickers.prices.get(entry.symbol) ?? null
+                  const priceReturn = currentPrice == null ? null : ((currentPrice - entry.entryPrice) / entry.entryPrice) * 100
+                  const directionalReturn = priceReturn == null ? null : entry.direction === "short" ? -priceReturn : priceReturn
                   return (
                     <tr key={entry.id} className={cn("border-b border-border/70 hover:bg-muted/30", startsGroup && index > 0 && "border-t-2 border-t-primary/30", entry.duplicateIndex > 0 && "bg-muted/15")}>
                       <td className="px-3 py-4 font-[inherit] text-muted-foreground">{kstTime.format(new Date(entry.signalTime))}</td>
@@ -208,8 +224,8 @@ export function SignalStatisticsDashboard() {
                       <td className="px-3 py-4 text-muted-foreground">{[entry.bollinger.position, entry.bollinger.trend].filter(Boolean).join(" · ") || "—"}</td>
                       <td className="max-w-44 truncate px-3 py-4 text-muted-foreground">{entry.confluence || "—"}</td>
                       <td className="px-3 py-4 font-[inherit]">{numberFormat.format(entry.entryPrice)}</td>
-                      <td className="px-3 py-4 font-[inherit]">{entry.currentPrice == null ? "—" : numberFormat.format(entry.currentPrice)}</td>
-                      <td className="px-3 py-4"><Percent value={entry.livePriceReturnPercent} /></td>
+                      <td className="px-3 py-4 font-[inherit]">{currentPrice == null ? "—" : numberFormat.format(currentPrice)}</td>
+                      <td className="px-3 py-4"><Percent value={directionalReturn} /></td>
                       {horizons.map((value) => <td key={value} className="px-3 py-4"><Percent value={entry.outcomes[String(value)]?.priceReturnPercent} /></td>)}
                       <td className="px-3 py-4"><span className={cn("rounded-md px-2 py-1 font-[inherit] text-xs", selected?.status !== "complete" ? "bg-secondary text-muted-foreground" : selected.result === "win" ? "bg-primary/15 text-primary" : selected.result === "loss" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground")}>{selected?.status === "pending" || !selected ? "대기" : selected.status === "unavailable" ? "데이터 없음" : <>{selected.result === "win" ? "승" : selected.result === "loss" ? "패" : "보합"} {selected.directionalReturnPercent != null ? `${selected.directionalReturnPercent > 0 ? "+" : ""}${selected.directionalReturnPercent.toFixed(2)}%` : ""}</>}</span></td>
                     </tr>
@@ -223,7 +239,7 @@ export function SignalStatisticsDashboard() {
           <div className="mt-4 flex items-center justify-between"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>이전</Button><span className="font-[inherit] text-xs text-muted-foreground">{page} / {totalPages}</span><Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>다음</Button></div>
         </section>
 
-        <footer className="flex flex-col gap-2 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>데이터 출처: 수신 웹훅 JSON · Binance Futures 우선, Public Market Data 보완</span><span>{summary?.lastCalculatedAt ? `최근 계산 ${kstTime.format(new Date(summary.lastCalculatedAt))} KST` : "계산 결과 대기 중"}</span></footer>
+        <footer className="flex flex-col gap-2 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>확정 성과: Binance 캔들 · 실시간 표시: 로컬 브라우저 Futures WebSocket</span><span>{summary?.lastCalculatedAt ? `최근 계산 ${kstTime.format(new Date(summary.lastCalculatedAt))} KST` : "계산 결과 대기 중"}</span></footer>
       </div>
     </main>
   )

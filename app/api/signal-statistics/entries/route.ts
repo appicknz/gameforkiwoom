@@ -2,7 +2,6 @@ import "server-only"
 
 import { NextResponse } from "next/server"
 import { adminSupabase as supabase } from "@/lib/supabase-admin"
-import { getCurrentFuturesPrices } from "@/lib/binance-klines"
 import { duplicateLabel } from "@/lib/signal-statistics"
 
 export const dynamic = "force-dynamic"
@@ -37,11 +36,8 @@ export async function GET(request: Request) {
   const { data, error, count } = await query
   if (error) return NextResponse.json({ error: "통계 데이터를 불러오지 못했습니다." }, { status: 500 })
 
-  const prices = await getCurrentFuturesPrices((data ?? []).map((entry) => entry.symbol))
   const entries = (data ?? []).map((entry) => {
     const outcomes = Array.isArray(entry.signal_statistics_outcomes) ? entry.signal_statistics_outcomes : []
-    const currentPrice = prices.get(entry.symbol) ?? null
-    const rawLiveReturn = currentPrice == null ? null : ((currentPrice - Number(entry.entry_price)) / Number(entry.entry_price)) * 100
     return {
       id: entry.id,
       receivedAt: entry.received_at,
@@ -67,9 +63,6 @@ export async function GET(request: Request) {
       signalTimeframe: entry.signal_timeframe,
       interval: entry.interval_label,
       bollinger: { position: entry.bb_position, trend: entry.bb_trend, expansion: entry.bb_expansion, squeeze: entry.bb_squeeze, width: entry.bb_width == null ? null : Number(entry.bb_width) },
-      currentPrice,
-      livePriceReturnPercent: rawLiveReturn,
-      liveDirectionalReturnPercent: rawLiveReturn == null ? null : entry.direction === "short" ? -rawLiveReturn : rawLiveReturn,
       outcomes: Object.fromEntries(outcomes.map((outcome) => [outcome.horizon_minutes, {
         targetTime: outcome.target_time,
         candleTime: outcome.candle_time,
