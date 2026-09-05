@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import useSWR from "swr"
 import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Database, RefreshCw, Search } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
@@ -8,6 +8,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useFuturesMiniTickers, type FuturesTickerConnection } from "@/hooks/use-futures-mini-tickers"
 
@@ -102,6 +103,18 @@ const connectionLabels: Record<FuturesTickerConnection, string> = {
   reconnecting: "시세 재연결 중",
   offline: "네트워크 오프라인",
 }
+type CciSort = "none" | "asc" | "desc"
+
+type TableFilterMenuProps = {
+  label: string
+  active?: boolean
+  children: ReactNode
+}
+
+function TableFilterMenu({ label, active, children }: TableFilterMenuProps) {
+  return <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className={cn("inline-flex items-center gap-1 rounded px-1.5 py-1 font-medium transition-colors hover:bg-muted hover:text-foreground", active && "bg-primary/10 text-primary")} aria-label={`${label} 필터`}>{label}<span aria-hidden="true" className="text-[10px]">▾</span></button></DropdownMenuTrigger><DropdownMenuContent align="start">{children}</DropdownMenuContent></DropdownMenu>
+}
+
 const confidenceLabels: Record<Prediction["confidenceLevel"], string> = {
   insufficient: "데이터 부족",
   low: "낮음",
@@ -180,6 +193,9 @@ export function SignalStatisticsDashboard() {
   const [search, setSearch] = useState("")
   const [direction, setDirection] = useState("all")
   const [duplicates, setDuplicates] = useState("all")
+  const [cciSort, setCciSort] = useState<CciSort>("none")
+  const [bbFilter, setBbFilter] = useState("all")
+  const [resultFilter, setResultFilter] = useState("all")
   const dateStripRef = useRef<HTMLDivElement>(null)
   const availableDates = useMemo(() => Array.from({ length: 30 }, (_, index) => shiftDateKey(today, index - 29)), [today])
 
@@ -204,7 +220,20 @@ export function SignalStatisticsDashboard() {
   const { data: summary, error: summaryError, isLoading: summaryLoading, mutate: mutateSummary } = useSWR<Summary>(`/api/signal-statistics/summary?${summaryQuery}`, fetcher, { refreshInterval: 30_000 })
   const { data: validation, mutate: mutateValidation } = useSWR<Validation>(`/api/signal-statistics/validation?horizon=${horizon}`, fetcher, { refreshInterval: 30_000 })
   const entries = entriesData?.entries ?? []
-  const visibleSymbols = useMemo(() => entries.map((entry) => entry.symbol), [entries])
+  const visibleEntries = useMemo(() => {
+    const filtered = entries.filter((entry) => {
+      const bbValue = [entry.bollinger.position, entry.bollinger.trend].filter(Boolean).join(" · ") || "none"
+      const result = entry.outcomes[String(horizon)]?.result ?? "pending"
+      return (bbFilter === "all" || bbValue === bbFilter) && (resultFilter === "all" || result === resultFilter)
+    })
+    if (cciSort === "none") return filtered
+    return [...filtered].sort((a, b) => {
+      const left = a.cci ?? (cciSort === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY)
+      const right = b.cci ?? (cciSort === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY)
+      return cciSort === "asc" ? left - right : right - left
+    })
+  }, [entries, horizon, bbFilter, resultFilter, cciSort])
+  const visibleSymbols = useMemo(() => visibleEntries.map((entry) => entry.symbol), [visibleEntries])
   const liveTickers = useFuturesMiniTickers(visibleSymbols)
   const loading = entriesLoading || summaryLoading
 
@@ -317,15 +346,30 @@ export function SignalStatisticsDashboard() {
         <section>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div><div className="flex items-center gap-2"><Database className="size-4 text-primary" /><h2 className="text-lg font-semibold">엔트리 로그</h2></div><p className="mt-1 text-xs text-muted-foreground">같은 그룹의 원본·중복 신호도 진입가별로 각각 계산됩니다.</p></div>
-            <span className="font-[inherit] text-xs text-muted-foreground">{selectedDate} · {(entriesData?.total ?? 0).toLocaleString()} ROWS</span>
+            <span className="font-[inherit] text-xs text-muted-foreground">{selectedDate} · {visibleEntries.length.toLocaleString()} / {(entriesData?.total ?? 0).toLocaleString()} ROWS</span>
           </div>
           <div className="overflow-x-auto border-y border-border">
             <table className="w-full min-w-[1640px] text-left text-sm">
-              <thead><tr className="border-b border-border text-xs text-muted-foreground">
-                {['시각 KST','심볼','그룹','신호','CCI','BB','컨플루언스','진입','현재가','실시간','5분','15분','30분','60분','4시간',`${horizon}분 예측`,`${horizon}분 실제`].map((heading, index) => <th key={`${heading}-${index}`} className="px-3 py-3 font-medium">{heading}</th>)}
-              </tr></thead>
+  <thead><tr className="border-b border-border text-xs text-muted-foreground">
+    <th className="px-3 py-3 font-medium">시각 KST</th><th className="px-3 py-3 font-medium">심볼</th><th className="px-3 py-3 font-medium">그룹</th>
+    <th className="px-3 py-3 font-medium"><TableFilterMenu label="신호" active={direction !== "all"}>
+      <DropdownMenuLabel>방향</DropdownMenuLabel><DropdownMenuRadioGroup value={direction} onValueChange={setDirection}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="long">롱</DropdownMenuRadioItem><DropdownMenuRadioItem value="short">숏</DropdownMenuRadioItem></DropdownMenuRadioGroup>
+    </TableFilterMenu></th>
+    <th className="px-3 py-3 font-medium"><TableFilterMenu label={cciSort === "asc" ? "CCI ↑" : cciSort === "desc" ? "CCI ↓" : "CCI"} active={cciSort !== "none"}>
+      <DropdownMenuLabel>CCI 정렬</DropdownMenuLabel><DropdownMenuRadioGroup value={cciSort} onValueChange={(value) => setCciSort(value as CciSort)}><DropdownMenuRadioItem value="none">기본 순서</DropdownMenuRadioItem><DropdownMenuRadioItem value="desc">높은 값부터</DropdownMenuRadioItem><DropdownMenuRadioItem value="asc">낮은 값부터</DropdownMenuRadioItem></DropdownMenuRadioGroup>
+    </TableFilterMenu></th>
+    <th className="px-3 py-3 font-medium"><TableFilterMenu label="BB" active={bbFilter !== "all"}>
+      <DropdownMenuLabel>볼린저 조합</DropdownMenuLabel><DropdownMenuRadioGroup value={bbFilter} onValueChange={setBbFilter}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · down">below_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · down">above_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · up">above_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · up">below_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="none">데이터 없음</DropdownMenuRadioItem></DropdownMenuRadioGroup>
+    </TableFilterMenu></th>
+    <th className="px-3 py-3 font-medium">컨플루언스</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium">실시간</th>
+    {horizons.map((value) => <th key={value} className="px-3 py-3 font-medium">{value}분</th>)}
+    <th className="px-3 py-3 font-medium">{horizon}분 예측</th>
+    <th className="px-3 py-3 font-medium"><TableFilterMenu label={`${horizon}분 실제`} active={resultFilter !== "all"}>
+      <DropdownMenuLabel>결과</DropdownMenuLabel><DropdownMenuRadioGroup value={resultFilter} onValueChange={setResultFilter}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="win">승</DropdownMenuRadioItem><DropdownMenuRadioItem value="loss">패</DropdownMenuRadioItem><DropdownMenuRadioItem value="flat">보합</DropdownMenuRadioItem><DropdownMenuRadioItem value="pending">대기</DropdownMenuRadioItem></DropdownMenuRadioGroup>
+    </TableFilterMenu></th>
+  </tr></thead>
               <tbody>
-                {entries.map((entry, index) => {
+                {visibleEntries.map((entry, index) => {
                   const selected = entry.outcomes[String(horizon)]
                   const prediction = entry.predictions[String(horizon)]
                   const previous = entries[index - 1]
