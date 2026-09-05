@@ -189,7 +189,7 @@ function BreakdownChart({ title, data }: { title: string; data: Breakdown[] }) {
 export function SignalStatisticsDashboard() {
   const today = useMemo(() => kstDateString(), [])
   const [selectedDate, setSelectedDate] = useState(today)
-  const [horizon, setHorizon] = useState(30)
+  const [horizon, setHorizon] = useState(5)
   const [search, setSearch] = useState("")
   const [direction, setDirection] = useState("all")
   const [duplicates, setDuplicates] = useState("all")
