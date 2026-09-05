@@ -104,6 +104,7 @@ const connectionLabels: Record<FuturesTickerConnection, string> = {
   offline: "네트워크 오프라인",
 }
 type CciSort = "none" | "asc" | "desc"
+type OutcomeSort = "asc" | "desc"
 
 type TableFilterMenuProps = {
   label: string
@@ -113,6 +114,10 @@ type TableFilterMenuProps = {
 
 function TableFilterMenu({ label, active, children }: TableFilterMenuProps) {
   return <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className={cn("inline-flex items-center gap-1 rounded px-1.5 py-1 font-medium transition-colors hover:bg-muted hover:text-foreground", active && "bg-primary/10 text-primary")} aria-label={`${label} 필터`}>{label}<span aria-hidden="true" className="text-[10px]">▾</span></button></DropdownMenuTrigger><DropdownMenuContent align="start">{children}</DropdownMenuContent></DropdownMenu>
+}
+
+function OutcomeSortButton({ label, direction, onClick }: { label: string; direction?: OutcomeSort; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className={cn("inline-flex items-center gap-1 rounded px-1.5 py-1 font-medium transition-colors hover:bg-muted hover:text-foreground", direction && "bg-primary/10 text-primary")} aria-label={`${label} 수익률 정렬`}>{label}<span aria-hidden="true" className="text-[11px]">{direction === "asc" ? "↑" : direction === "desc" ? "↓" : "↕"}</span></button>
 }
 
 const confidenceLabels: Record<Prediction["confidenceLevel"], string> = {
@@ -198,6 +203,8 @@ export function SignalStatisticsDashboard() {
   const [bbFilter, setBbFilter] = useState("all")
   const [resultFilter, setResultFilter] = useState("all")
   const [outcomeFilters, setOutcomeFilters] = useState<Record<string, string>>({})
+  const [outcomeSorts, setOutcomeSorts] = useState<Record<string, OutcomeSort>>({})
+  const [realtimeSort, setRealtimeSort] = useState<OutcomeSort | undefined>(undefined)
   const dateStripRef = useRef<HTMLDivElement>(null)
   const availableDates = useMemo(() => Array.from({ length: 30 }, (_, index) => shiftDateKey(today, index - 29)), [today])
 
@@ -235,15 +242,38 @@ export function SignalStatisticsDashboard() {
       })
       return (bbFilter === "all" || bbValue === bbFilter) && (resultFilter === "all" || result === resultFilter) && matchesTimeframeFilters
     })
-    if (cciSort === "none") return filtered
-    return [...filtered].sort((a, b) => {
+    const sorted = cciSort === "none" ? [...filtered] : [...filtered].sort((a, b) => {
       const left = a.cci ?? (cciSort === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY)
       const right = b.cci ?? (cciSort === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY)
       return cciSort === "asc" ? left - right : right - left
     })
-  }, [entries, horizon, bbFilter, resultFilter, outcomeFilters, cciSort])
+    const activeOutcomeSort = Object.entries(outcomeSorts).find(([, direction]) => direction)
+    if (!activeOutcomeSort) return sorted
+    const [timeframe, sortDirection] = activeOutcomeSort
+    return sorted.sort((a, b) => {
+      const left = a.outcomes[timeframe]?.directionalReturnPercent
+      const right = b.outcomes[timeframe]?.directionalReturnPercent
+      const leftValue = left == null ? (sortDirection === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : left
+      const rightValue = right == null ? (sortDirection === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : right
+      return sortDirection === "asc" ? leftValue - rightValue : rightValue - leftValue
+    })
+  }, [entries, horizon, bbFilter, resultFilter, outcomeFilters, outcomeSorts, cciSort])
   const visibleSymbols = useMemo(() => visibleEntries.map((entry) => entry.symbol), [visibleEntries])
   const liveTickers = useFuturesMiniTickers(visibleSymbols)
+  const displayedEntries = useMemo(() => {
+    if (!realtimeSort) return visibleEntries
+    return [...visibleEntries].sort((a, b) => {
+    const getReturn = (entry: Entry) => {
+      const currentPrice = liveTickers.prices.get(entry.symbol)
+      if (currentPrice == null) return null
+      const priceReturn = ((currentPrice - entry.entryPrice) / entry.entryPrice) * 100
+      return entry.direction === "short" ? -priceReturn : priceReturn
+    }
+    const left = getReturn(a) ?? (realtimeSort === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY)
+    const right = getReturn(b) ?? (realtimeSort === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY)
+    return realtimeSort === "asc" ? left - right : right - left
+    })
+  }, [visibleEntries, liveTickers.prices, realtimeSort])
   const loading = entriesLoading || summaryLoading
 
   return (
@@ -355,7 +385,7 @@ export function SignalStatisticsDashboard() {
         <section>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div><div className="flex items-center gap-2"><Database className="size-4 text-primary" /><h2 className="text-lg font-semibold">엔트리 로그</h2></div><p className="mt-1 text-xs text-muted-foreground">같은 그룹의 원본·중복 신호도 진입가별로 각각 계산됩니다.</p></div>
-            <span className="font-[inherit] text-xs text-muted-foreground">{selectedDate} · {visibleEntries.length.toLocaleString()} / {(entriesData?.total ?? 0).toLocaleString()} ROWS</span>
+            <span className="font-[inherit] text-xs text-muted-foreground">{selectedDate} · {displayedEntries.length.toLocaleString()} / {(entriesData?.total ?? 0).toLocaleString()} ROWS</span>
           </div>
           <div className="overflow-x-auto border-y border-border">
             <table className="w-full min-w-[1640px] text-left text-sm">
@@ -370,15 +400,17 @@ export function SignalStatisticsDashboard() {
     <th className="px-3 py-3 font-medium"><TableFilterMenu label="BB" active={bbFilter !== "all"}>
       <DropdownMenuLabel>볼린저 조합</DropdownMenuLabel><DropdownMenuRadioGroup value={bbFilter} onValueChange={setBbFilter}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · down">below_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · down">above_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · up">above_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · up">below_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="none">데이터 없음</DropdownMenuRadioItem></DropdownMenuRadioGroup>
     </TableFilterMenu></th>
-    <th className="px-3 py-3 font-medium">컨플루언스</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium">실시간</th>
+    <th className="px-3 py-3 font-medium">컨플루언스</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium"><OutcomeSortButton label="실시간" direction={realtimeSort} onClick={() => setRealtimeSort((current) => current === "desc" ? "asc" : "desc")} /></th>
     {horizons.map((value) => {
-      const filter = outcomeFilters[String(value)] ?? "all"
-      return <th key={value} className="px-3 py-3 font-medium"><TableFilterMenu label={`${value}분`} active={filter !== "all"}>
+      const timeframe = String(value)
+      const filter = outcomeFilters[timeframe] ?? "all"
+      const sortDirection = outcomeSorts[timeframe]
+      return <th key={value} className="px-3 py-3 font-medium"><div className="flex items-center gap-1"><OutcomeSortButton label={value === 240 ? "240분" : `${value}분`} direction={sortDirection} onClick={() => setOutcomeSorts((current) => ({ [timeframe]: current[timeframe] === "desc" ? "asc" : "desc" }))} /><TableFilterMenu label="결과" active={filter !== "all"}>
         <DropdownMenuLabel>{value === 240 ? "4시간" : `${value}분`} 결과</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={filter} onValueChange={(next) => setOutcomeFilters((current) => ({ ...current, [value]: next }))}>
+        <DropdownMenuRadioGroup value={filter} onValueChange={(next) => setOutcomeFilters((current) => ({ ...current, [timeframe]: next }))}>
           <DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="win">승</DropdownMenuRadioItem><DropdownMenuRadioItem value="loss">패</DropdownMenuRadioItem><DropdownMenuRadioItem value="flat">보합</DropdownMenuRadioItem><DropdownMenuRadioItem value="pending">생성 대기</DropdownMenuRadioItem><DropdownMenuRadioItem value="unavailable">데이터 없음</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
-      </TableFilterMenu></th>
+      </TableFilterMenu></div></th>
     })}
     <th className="px-3 py-3 font-medium">{horizon}분 예측</th>
     <th className="px-3 py-3 font-medium"><TableFilterMenu label={`${horizon}분 실제`} active={resultFilter !== "all"}>
@@ -386,10 +418,10 @@ export function SignalStatisticsDashboard() {
     </TableFilterMenu></th>
   </tr></thead>
               <tbody>
-                {visibleEntries.map((entry, index) => {
+                {displayedEntries.map((entry, index) => {
                   const selected = entry.outcomes[String(horizon)]
                   const prediction = entry.predictions[String(horizon)]
-                  const previous = visibleEntries[index - 1]
+                  const previous = displayedEntries[index - 1]
                   const startsGroup = !previous || previous.duplicateGroupKey !== entry.duplicateGroupKey
                   const currentPrice = liveTickers.prices.get(entry.symbol) ?? null
                   const priceReturn = currentPrice == null ? null : ((currentPrice - entry.entryPrice) / entry.entryPrice) * 100
@@ -408,7 +440,7 @@ export function SignalStatisticsDashboard() {
                       <td className="px-3 py-4"><Percent value={directionalReturn} /></td>
                       {horizons.map((value) => <td key={value} className="px-3 py-4"><Percent value={entry.outcomes[String(value)]?.priceReturnPercent} /></td>)}
                       <td className="px-3 py-4">{!prediction ? <span className="text-xs text-muted-foreground">생성 대기</span> : prediction.confidenceLevel === "insufficient" ? <span className="rounded-md bg-secondary px-2 py-1 text-xs text-muted-foreground">데이터 부족 · n={prediction.effectiveSampleSize}</span> : <div className="flex flex-col gap-1"><span className="font-[inherit] font-medium">승 {prediction.expectedWinRate.toFixed(1)}% · <Percent value={prediction.expectedDirectionalReturnPercent} /></span><span className="text-xs text-muted-foreground">신뢰 {confidenceLabels[prediction.confidenceLevel]} {prediction.confidenceScore.toFixed(0)} · n={prediction.effectiveSampleSize}</span></div>}</td>
-                      <td className="px-3 py-4"><span className={cn("rounded-md px-2 py-1 font-[inherit] text-xs", selected?.status !== "complete" ? "bg-secondary text-muted-foreground" : selected.result === "win" ? "bg-primary/15 text-primary" : selected.result === "loss" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground")}>{selected?.status === "pending" || !selected ? "대기" : selected.status === "unavailable" ? "데이터 없음" : <>{selected.result === "win" ? "승" : selected.result === "loss" ? "패" : "보합"} {selected.directionalReturnPercent != null ? `${selected.directionalReturnPercent > 0 ? "+" : ""}${selected.directionalReturnPercent.toFixed(2)}%` : ""}</>}</span></td>
+                      <td className="px-3 py-4"><span className={cn("rounded-md px-2 py-1 font-[inherit] text-xs", selected?.status !== "complete" ? "bg-secondary text-muted-foreground" : selected.result === "win" ? "bg-primary/15 text-primary" : selected.result === "loss" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground")}>{selected?.status === "pending" || !selected ? "대기" : selected.status === "unavailable" ? "데��터 없음" : <>{selected.result === "win" ? "승" : selected.result === "loss" ? "패" : "보합"} {selected.directionalReturnPercent != null ? `${selected.directionalReturnPercent > 0 ? "+" : ""}${selected.directionalReturnPercent.toFixed(2)}%` : ""}</>}</span></td>
                     </tr>
                   )
                 })}
