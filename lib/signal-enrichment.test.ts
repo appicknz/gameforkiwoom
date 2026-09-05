@@ -23,6 +23,18 @@ describe("signal enrichment", () => {
     expect(enrichment.trade_guide).toBe("데이터 부족")
   })
 
+  it("parses string timeframe counts for the trading guide", () => {
+    const enrichment = buildSignalEnrichment({
+      signal_type: "UP",
+      confluence: "1",
+      active_timeframes: "5",
+      price_change_percent: "2.4",
+    })
+
+    expect(enrichment.trade_guide).not.toBe("데이터 부족")
+    expect(enrichment.signal_state).not.toBe("unknown")
+  })
+
   it("matches the formatter fire thresholds when market data is available", () => {
     const enrichment = buildSignalEnrichment({ price: 10, volume: 100, confluence: 1, active_timeframes: ["5m"] }, { volume24h: 500, source: "binance" })
     expect(enrichment.volume_ratio_24h).toBe(200)

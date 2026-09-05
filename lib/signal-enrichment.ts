@@ -76,7 +76,20 @@ export function buildSignalEnrichment(payload: Record<string, unknown>, market: 
   const volumeRatio = volumeRatioPayload ?? (tradingValue != null && volume24h != null && volume24h > 0 ? tradingValue / volume24h * 100 : null)
   const ratioSource = volumeRatioPayload != null ? "payload" : volumeRatio != null && market.source ? market.source : "unavailable"
   const fire = scoreFire(volumeRatio, confluence)
-  const timeframes = Array.isArray(payload.active_timeframes) ? payload.active_timeframes.length : 0
+  const activeTimeframes = payload.active_timeframes
+  const timeframes = Array.isArray(activeTimeframes)
+    ? activeTimeframes.length
+    : typeof activeTimeframes === "number" && Number.isFinite(activeTimeframes)
+      ? Math.max(0, Math.floor(activeTimeframes))
+      : typeof activeTimeframes === "string"
+        ? (() => {
+            const value = activeTimeframes.trim()
+            if (!value) return 0
+            const numericCount = numberValue(value)
+            if (numericCount != null && /^\d+(?:\.\d+)?$/.test(value)) return Math.max(0, Math.floor(numericCount))
+            return value.split(/[,|]/).map((item) => item.trim()).filter(Boolean).length
+          })()
+        : 0
   const timeframeScore = timeframes ? Math.min(30, timeframes * 6) : 0
   const volumeScore = volumeRatio == null ? 0 : Math.min(25, Math.round(Math.min(1, volumeRatio / 5) * 25))
   const confluencePoints = confluence == null ? 0 : Math.min(20, Math.round(Math.min(1, confluence / 5) * 20))
