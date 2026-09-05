@@ -62,6 +62,42 @@ export async function getDayClose(
  * 여러 심볼의 종가를 병렬로 가져옵니다.
  * Map<symbol, closePrice> 형태로 반환합니다.
  */
+export async function getMinuteCloseAfter(symbol: string, targetTime: string) {
+  const sym = symbol.replace(/^[A-Z]+:/, "").replace(/\.P$/, "").toUpperCase()
+  const targetMs = new Date(targetTime).getTime()
+  if (!Number.isFinite(targetMs)) return null
+
+  const startTime = Math.ceil(targetMs / 60_000) * 60_000
+  const url = `${BINANCE_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(sym)}&interval=1m&startTime=${startTime}&limit=1`
+  try {
+    const res = await fetch(url, { next: { revalidate: 3600 } })
+    if (!res.ok) return null
+    const data: [number, string, string, string, string, ...unknown[]][] = await res.json()
+    if (!Array.isArray(data) || !data.length) return null
+    const closePrice = Number.parseFloat(data[0][4])
+    if (!Number.isFinite(closePrice)) return null
+    return { symbol: sym, openTime: new Date(data[0][0]).toISOString(), closePrice }
+  } catch {
+    return null
+  }
+}
+
+export async function getCurrentFuturesPrices(symbols: string[]) {
+  const unique = [...new Set(symbols.map((symbol) => symbol.replace(/^[A-Z]+:/, "").replace(/\.P$/, "").toUpperCase()))]
+  const results = await Promise.all(unique.slice(0, 50).map(async (symbol) => {
+    try {
+      const res = await fetch(`${BINANCE_BASE}/fapi/v1/ticker/price?symbol=${encodeURIComponent(symbol)}`, { next: { revalidate: 5 } })
+      if (!res.ok) return null
+      const data = await res.json()
+      const price = Number.parseFloat(data.price)
+      return Number.isFinite(price) ? [symbol, price] as const : null
+    } catch {
+      return null
+    }
+  }))
+  return new Map(results.filter((item): item is readonly [string, number] => Boolean(item)))
+}
+
 export async function getDayCloseMap(
   symbols: string[],
   dateLabel: string

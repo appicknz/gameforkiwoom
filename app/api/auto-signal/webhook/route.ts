@@ -10,6 +10,7 @@ import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
 import { NextResponse } from "next/server"
+import { recordSignalStatistics } from "@/lib/signal-statistics"
 
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
 
@@ -20,7 +21,7 @@ async function logRequest(
   opts: { symbol?: string; signalType?: string; errorMsg?: string; ip?: string } = {}
 ) {
   try {
-    await adminSupabase.from("webhook_request_logs").insert({
+    const { data, error } = await adminSupabase.from("webhook_request_logs").insert({
       status,
       status_code: statusCode,
       body_raw:    payload,       // DB 실제 컬럼명
@@ -29,7 +30,20 @@ async function logRequest(
       error_msg:   opts.errorMsg  ?? null,
       ip:          opts.ip        ?? null,
       method:      "POST",
-    })
+    }).select("id, received_at").single()
+    if (error) throw error
+
+    try {
+      await recordSignalStatistics({
+        webhookLogId: data.id,
+        receivedAt: data.received_at,
+        status,
+        reason: opts.errorMsg,
+        payload,
+      })
+    } catch (statisticsError) {
+      console.error("[webhook] statistics recording failed:", statisticsError)
+    }
   } catch (e) {
     console.error("[webhook] logRequest failed:", e)
   }
