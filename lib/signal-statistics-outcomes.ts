@@ -13,8 +13,9 @@ type PendingOutcome = {
 async function pendingSlice(cutoff: string, limit: number, ascending: boolean) {
   const { data, error } = await adminSupabase
     .from("signal_statistics_outcomes")
-    .select("id,target_time,entry:signal_statistics_entries!inner(symbol,entry_price,direction)")
+    .select("id,target_time,entry:signal_statistics_entries!inner(symbol,entry_price,direction,auto_signal_position_id)")
     .eq("status", "pending")
+    .not("entry.auto_signal_position_id", "is", null)
     .lte("target_time", cutoff)
     .order("target_time", { ascending })
     .limit(limit)

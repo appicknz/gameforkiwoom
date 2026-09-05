@@ -97,6 +97,7 @@ export function normalizeSignalPayload(payload: Record<string, unknown>, receive
 
 type SignalStatisticsInput = {
   webhookLogId: string
+  autoSignalPositionId: string
   receivedAt: string
   status: string
   reason?: string | null
@@ -105,7 +106,7 @@ type SignalStatisticsInput = {
 
 export async function recordSignalStatisticsBatch(inputs: SignalStatisticsInput[]) {
   const candidates = inputs.flatMap((input) => {
-    if (input.status === "auth_fail") return []
+    if (input.status === "auth_fail" || !input.autoSignalPositionId) return []
     const normalized = normalizeSignalPayload(input.payload, input.receivedAt)
     return normalized ? [{ input, normalized }] : []
   })
@@ -140,6 +141,7 @@ export async function recordSignalStatisticsBatch(inputs: SignalStatisticsInput[
     return {
       ...normalized,
       webhook_log_id: input.webhookLogId,
+      auto_signal_position_id: input.autoSignalPositionId,
       duplicate_index: duplicateIndex,
       processing_status: input.status,
       processing_reason: input.reason?.slice(0, 240) ?? null,
@@ -171,7 +173,7 @@ export async function recordSignalStatisticsBatch(inputs: SignalStatisticsInput[
 }
 
 export async function recordSignalStatistics(input: SignalStatisticsInput) {
-  if (input.status === "auth_fail") return null
+  if (input.status === "auth_fail" || !input.autoSignalPositionId) return null
   const normalized = normalizeSignalPayload(input.payload, input.receivedAt)
   if (!normalized) return null
 
@@ -195,6 +197,7 @@ export async function recordSignalStatistics(input: SignalStatisticsInput) {
     .insert({
       ...normalized,
       webhook_log_id: input.webhookLogId,
+      auto_signal_position_id: input.autoSignalPositionId,
       duplicate_index: duplicateIndex,
       processing_status: input.status,
       processing_reason: input.reason?.slice(0, 240) ?? null,

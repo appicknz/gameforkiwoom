@@ -14,6 +14,7 @@ async function fetchAllPredictions(horizon: number) {
       .from("signal_statistics_predictions")
       .select("entry_id,expected_win_rate,expected_directional_return_percent,model_version,entry:signal_statistics_entries!inner(signal_time)")
       .eq("horizon_minutes", horizon)
+      .not("entry.auto_signal_position_id", "is", null)
       .order("predicted_at", { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
     if (error) throw error
@@ -28,6 +29,7 @@ async function countCompletedSamples(horizon: number, from?: string, to?: string
     .select("entry:signal_statistics_entries!inner(signal_time)", { count: "exact", head: true })
     .eq("horizon_minutes", horizon)
     .eq("status", "complete")
+    .not("entry.auto_signal_position_id", "is", null)
     .not("directional_return_percent", "is", null)
   if (from) query = query.gte("entry.signal_time", from)
   if (to) query = query.lt("entry.signal_time", to)
@@ -67,6 +69,7 @@ export async function GET(request: Request) {
         .in("entry_id", entryIds.slice(index, index + PAGE_SIZE))
         .eq("horizon_minutes", horizon)
         .eq("status", "complete")
+        .not("entry.auto_signal_position_id", "is", null)
         .not("directional_return_percent", "is", null)
       if (error) throw error
       for (const outcome of data ?? []) outcomeByEntry.set(outcome.entry_id, outcome)

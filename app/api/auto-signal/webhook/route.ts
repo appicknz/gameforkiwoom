@@ -19,8 +19,16 @@ async function logRequest(
   status: string,
   statusCode: number,
   payload: Record<string, unknown>,
-  opts: { symbol?: string; signalType?: string; errorMsg?: string; ip?: string } = {}
-) {
+  opts: {
+    symbol?: string
+    signalType?: string
+    errorMsg?: string
+    ip?: string
+    recordStatistics?: boolean
+    autoSignalPositionId?: string
+  } = {}
+): Promise<string | null> {
+  let statisticsEntryId: string | null = null
   try {
     const { data, error } = await adminSupabase.from("webhook_request_logs").insert({
       status,
@@ -34,29 +42,34 @@ async function logRequest(
     }).select("id, received_at").single()
     if (error) throw error
 
-    try {
-      const entryId = await recordSignalStatistics({
-        webhookLogId: data.id,
-        receivedAt: data.received_at,
-        status,
-        reason: opts.errorMsg,
-        payload,
-      })
-      if (entryId) {
-        after(async () => {
-          try {
-            await createPredictionsForEntry(entryId)
-          } catch (predictionError) {
-            console.error("[signal-prediction] snapshot creation failed:", predictionError)
-          }
+    if (opts.recordStatistics && opts.autoSignalPositionId) {
+      try {
+        const entryId = await recordSignalStatistics({
+          webhookLogId: data.id,
+          autoSignalPositionId: opts.autoSignalPositionId,
+          receivedAt: data.received_at,
+          status,
+          reason: opts.errorMsg,
+          payload,
         })
+        if (entryId) {
+          statisticsEntryId = entryId
+          after(async () => {
+            try {
+              await createPredictionsForEntry(entryId)
+            } catch (predictionError) {
+              console.error("[signal-prediction] snapshot creation failed:", predictionError)
+            }
+          })
+        }
+      } catch (statisticsError) {
+        console.error("[webhook] statistics recording failed:", statisticsError)
       }
-    } catch (statisticsError) {
-      console.error("[webhook] statistics recording failed:", statisticsError)
     }
   } catch (e) {
     console.error("[webhook] logRequest failed:", e)
   }
+  return statisticsEntryId
 }
 
 export async function POST(req: Request) {
@@ -345,7 +358,21 @@ export async function POST(req: Request) {
     )
   }
 
-  await logRequest("ok", 200, body, { ip, symbol, signalType: type, errorMsg: realOrderSent ? "real_order" : "record_only" })
+  const statisticsEntryId = await logRequest("ok", 200, body, {
+    ip,
+    symbol,
+    signalType: type,
+    errorMsg: realOrderSent ? "real_order" : "record_only",
+    recordStatistics: true,
+    autoSignalPositionId: data.id,
+  })
+  if (statisticsEntryId) {
+    const { error: linkError } = await adminSupabase
+      .from("auto_signal_positions")
+      .update({ signal_statistics_entry_id: statisticsEntryId })
+      .eq("id", data.id)
+    if (linkError) console.error("[webhook] position-statistics link failed:", linkError)
+  }
 
   return NextResponse.json({ ok: true, id: data.id, real_order: realOrderSent })
 }

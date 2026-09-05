@@ -133,6 +133,7 @@ async function loadTrainingRows(horizon: number, cutoff: string) {
     .select("result,directional_return_percent,target_time,entry:signal_statistics_entries!inner(direction,signal_type,cci,confluence,price_change_percent,volume_change,active_timeframes,bb_position,bb_trend,signal_time)")
     .eq("horizon_minutes", horizon)
     .eq("status", "complete")
+    .not("entry.auto_signal_position_id", "is", null)
     .not("directional_return_percent", "is", null)
     .lte("target_time", cutoff)
     .lt("entry.signal_time", cutoff)
@@ -184,11 +185,12 @@ export async function createPredictionsForEntry(entryId: string) {
 
 export async function backfillSignalPredictions(limit = 60) {
   const cappedLimit = Math.min(100, Math.max(2, limit))
-  const select = "id,signal_time,direction,signal_type,cci,confluence,price_change_percent,volume_change,active_timeframes,bb_position,bb_trend,signal_statistics_predictions!left(id)"
+  const select = "id,auto_signal_position_id,signal_time,direction,signal_type,cci,confluence,price_change_percent,volume_change,active_timeframes,bb_position,bb_trend,signal_statistics_predictions!left(id)"
   const candidateSlice = async (ascending: boolean, count: number) => {
     const { data, error } = await adminSupabase
       .from("signal_statistics_entries")
       .select(select)
+      .not("auto_signal_position_id", "is", null)
       .is("signal_statistics_predictions.id", null)
       .order("signal_time", { ascending })
       .limit(count)

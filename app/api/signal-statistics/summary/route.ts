@@ -35,8 +35,9 @@ type SummaryRow = {
   }>
 }
 
-function applyEntryFilters<T extends { eq: Function; ilike: Function; gte: Function; lte: Function }>(query: T, params: URLSearchParams) {
+function applyEntryFilters<T extends { eq: Function; ilike: Function; gte: Function; lte: Function; not: Function }>(query: T, params: URLSearchParams) {
   const direction = params.get("direction")
+  query = query.not("auto_signal_position_id", "is", null)
   const queryText = (params.get("q") ?? "").trim().toUpperCase().slice(0, 30)
   let filtered = query
   if (direction === "long" || direction === "short") filtered = filtered.eq("direction", direction)

@@ -26,6 +26,7 @@ export async function GET(request: Request) {
     .order("duplicate_index", { ascending: true })
     .range(from, from + pageSize - 1)
 
+  query = query.not("auto_signal_position_id", "is", null)
   if (queryText) query = query.ilike("symbol", `%${queryText}%`)
   if (direction === "long" || direction === "short") query = query.eq("direction", direction)
   if (signalType) query = query.eq("signal_type", signalType)
