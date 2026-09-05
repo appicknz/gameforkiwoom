@@ -13,12 +13,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const { data: positions, error } = await adminSupabase
+  const date = new URL(request.url).searchParams.get("date")
+  let positionsQuery = adminSupabase
     .from("auto_signal_positions")
     .select("id,symbol,signal_type,entry_price,signal_time,webhook_raw")
     .is("signal_statistics_entry_id", null)
     .order("signal_time", { ascending: true })
     .limit(500)
+  if (date) positionsQuery = positionsQuery.eq("date_label", date)
+
+  const { data: positions, error } = await positionsQuery
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
