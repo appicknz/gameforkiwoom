@@ -172,6 +172,53 @@ export async function recordSignalStatisticsBatch(inputs: SignalStatisticsInput[
   return { inserted: pending.length, ignored: inputs.length - pending.length }
 }
 
+export async function recordSignalStatisticsForPosition(position: {
+  id: string
+  symbol: string
+  signal_type: string
+  entry_price: number | string
+  signal_time: string
+  webhook_raw: Record<string, unknown> | null
+}) {
+  const { data: linked } = await adminSupabase
+    .from("signal_statistics_entries")
+    .select("id")
+    .eq("auto_signal_position_id", position.id)
+    .maybeSingle()
+  if (linked?.id) return linked.id as string
+
+  const payload = {
+    ...(position.webhook_raw ?? {}),
+    symbol: position.symbol,
+    signal_type: position.signal_type,
+    price: position.entry_price,
+    time: position.signal_time,
+  }
+  const { data: log, error: logError } = await adminSupabase
+    .from("webhook_request_logs")
+    .insert({
+      status: "position_snapshot",
+      status_code: 200,
+      method: "POST",
+      body_raw: payload,
+      symbol: position.symbol,
+      signal_type: position.signal_type,
+      error_msg: "auto_signal_position_snapshot",
+    })
+    .select("id, received_at")
+    .single()
+  if (logError) throw logError
+
+  return recordSignalStatistics({
+    webhookLogId: log.id as string,
+    autoSignalPositionId: position.id,
+    receivedAt: log.received_at as string,
+    status: "position_snapshot",
+    reason: "auto_signal_position_snapshot",
+    payload,
+  })
+}
+
 export async function recordSignalStatistics(input: SignalStatisticsInput) {
   if (input.status === "auth_fail" || !input.autoSignalPositionId) return null
   const normalized = normalizeSignalPayload(input.payload, input.receivedAt)

@@ -10,7 +10,7 @@ import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
 import { after, NextResponse } from "next/server"
-import { recordSignalStatistics } from "@/lib/signal-statistics"
+import { recordSignalStatistics, recordSignalStatisticsForPosition } from "@/lib/signal-statistics"
 import { createPredictionsForEntry } from "@/lib/signal-prediction"
 
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
@@ -366,18 +366,30 @@ export async function POST(req: Request) {
     recordStatistics: true,
     autoSignalPositionId: data.id,
   })
-  if (statisticsEntryId) {
-    const { error: linkError } = await adminSupabase
-      .from("auto_signal_positions")
-      .update({ signal_statistics_entry_id: statisticsEntryId })
-      .eq("id", data.id)
-    if (linkError) console.error("[webhook] position-statistics link failed:", linkError)
+  try {
+    const ensuredEntryId = statisticsEntryId ?? await recordSignalStatisticsForPosition({
+      id: data.id,
+      symbol: cleanSymbol,
+      signal_type: type,
+      entry_price: parseFloat(price),
+      signal_time: signalTime,
+      webhook_raw: body,
+    })
+    if (ensuredEntryId) {
+      const { error: linkError } = await adminSupabase
+        .from("auto_signal_positions")
+        .update({ signal_statistics_entry_id: ensuredEntryId })
+        .eq("id", data.id)
+      if (linkError) console.error("[webhook] position-statistics link failed:", linkError)
+    }
+  } catch (snapshotError) {
+    console.error("[webhook] position snapshot failed:", snapshotError)
   }
 
   return NextResponse.json({ ok: true, id: data.id, real_order: realOrderSent })
 }
 
-// ─────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────���────────────
 // UP8 국내주식 — 포지션/매매기록 없이 KIS TVM 전송만 수행
 // ─────────────────────────────────────────────────────────────
 function toUp8TvmSymbol(sym: string): string | null {
