@@ -17,7 +17,7 @@ const fetcher = (url: string) => fetch(url).then(async (response) => {
   return response.json()
 })
 
-const horizons = [5, 15, 30, 60, 240]
+const horizons = [5, 15, 60, 240]
 const LEVERAGE = 10
 const chartConfig = {
   winRate: { label: "승률", color: "var(--chart-2)" },
@@ -112,6 +112,8 @@ type Validation = {
 
 const numberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 8 })
 const kstTime = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+const kstEntryDate = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric" })
+const kstEntryTime = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false, hourCycle: "h23" })
 const liveTime = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
 const connectionLabels: Record<FuturesTickerConnection, string> = {
   idle: "시세 대기",
@@ -399,7 +401,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
 
         <section>
           <div className="mb-4 flex items-end justify-between gap-4">
-            <div><div className="flex items-center gap-2"><Database className="size-4 text-primary" /><h2 className="text-lg font-semibold">엔트리 로그</h2></div><p className="mt-1 text-xs text-muted-foreground">같은 그룹의 원본·중복 신호도 진입가별로 ���� 계산됩니다.</p></div>
+            <div><div className="flex items-center gap-2"><Database className="size-4 text-primary" /><h2 className="text-lg font-semibold">엔트리 로그</h2></div><p className="mt-1 text-xs text-muted-foreground">같은 그룹의 원본·중복 신호도 진입가별로 각각 계산됩니다.</p></div>
             <span className="font-[inherit] text-xs text-muted-foreground">{selectedDate} · {displayedEntries.length.toLocaleString()} / {(entriesData?.total ?? 0).toLocaleString()} ROWS</span>
           </div>
           <div className="overflow-x-auto border-y border-border">
@@ -435,7 +437,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
                   const directionalReturn = priceReturn == null ? null : (entry.direction === "short" ? -priceReturn : priceReturn) * LEVERAGE
                   return (
                     <tr key={entry.id} className={cn("border-b border-border/70 hover:bg-muted/30", startsGroup && index > 0 && "border-t-2 border-t-primary/30", entry.duplicateIndex > 0 && "bg-muted/15")}>
-                      <td className="px-3 py-4 font-[inherit] text-muted-foreground">{kstTime.format(new Date(entry.signalTime))}</td>
+                      <td className="px-3 py-4 font-[inherit] text-muted-foreground"><time dateTime={entry.signalTime} className="flex flex-col leading-5"><span>{kstEntryDate.format(new Date(entry.signalTime))}</span><span>{kstEntryTime.format(new Date(entry.signalTime))}</span></time></td>
                       <td className="px-3 py-4 font-semibold">{entry.symbol}</td>
                       <td className="px-3 py-4"><span className={cn("rounded-md px-2 py-1 font-[inherit] text-xs", entry.duplicateIndex ? "bg-secondary text-secondary-foreground" : "text-muted-foreground")}>{entry.duplicateIndex === 0 ? "1" : "2"}</span></td>
                       <td className="px-3 py-4"><span className={cn("inline-flex items-center gap-1", entry.direction === "long" ? "text-primary" : "text-destructive")}>{entry.direction === "long" ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}{entry.signalType.replace("TRIPLE_COMBO_", "")}</span></td>
