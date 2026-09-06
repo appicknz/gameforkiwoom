@@ -25,6 +25,23 @@ describe("signal enrichment", () => {
     expect(enrichment.risk_flags).toContain("비효율 매매")
   })
 
+  it("derives volume change from current and previous candle volume", () => {
+    const enrichment = buildSignalEnrichment({
+      signal_type: "TRIPLE_COMBO_UP3",
+      price: "0.001708",
+      volume: "29218682",
+      prev_volume: "7597653",
+      confluence: "1",
+      cci: "-109.6799",
+      price_change_percent: "0.7669",
+      active_timeframes: "5",
+    })
+
+    expect(enrichment.fire_count).toBe(1)
+    expect(enrichment.signal_state).toBe("PULLBACK")
+    expect(enrichment.trade_guide).toBe("조건 충족 시 진입")
+  })
+
   it("parses string timeframe counts for the trading guide", () => {
     const enrichment = buildSignalEnrichment({
       signal_type: "UP",

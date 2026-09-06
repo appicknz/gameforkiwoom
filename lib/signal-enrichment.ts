@@ -76,7 +76,12 @@ export function buildSignalEnrichment(payload: Record<string, unknown>, market: 
   const volumeRatio = volumeRatioPayload ?? (tradingValue != null && volume24h != null && volume24h > 0 ? tradingValue / volume24h * 100 : null)
   const ratioSource = volumeRatioPayload != null ? "payload" : volumeRatio != null && market.source ? market.source : "unavailable"
   const fire = scoreFire(volumeRatio, confluence)
-  const volumeChange = firstNumber(payload, ["volume_change"]) ?? 0
+  const currentVolume = firstNumber(payload, ["volume", "current_volume", "current_candle_volume"])
+  const previousVolume = firstNumber(payload, ["prev_volume", "previous_volume", "previous_candle_volume", "reference_volume"])
+  const derivedVolumeChange = currentVolume != null && previousVolume != null && previousVolume > 0
+    ? (currentVolume - previousVolume) / previousVolume * 100
+    : null
+  const volumeChange = firstNumber(payload, ["volume_change", "volume_change_percent"]) ?? derivedVolumeChange ?? 0
   const cciValue = cci ?? 0
   const confluenceValue = confluence ?? 1
   const priceChangeValue = Math.abs(priceChange ?? 0)
@@ -147,14 +152,22 @@ export async function enrichSignalPayload(payload: Record<string, unknown>): Pro
   }
   const symbol = normalizeEnrichmentSymbol(payload.symbol)
   if (!symbol || !symbol.endsWith("USDT")) return buildSignalEnrichment(payload, { source: "unavailable" })
-  try {
-    const response = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`, { signal: AbortSignal.timeout(1500), cache: "no-store" })
-    if (!response.ok) throw new Error(`binance ${response.status}`)
-    const data = await response.json() as { quoteVolume?: unknown }
-    return buildSignalEnrichment(payload, { volume24h: numberValue(data.quoteVolume), source: "binance" })
-  } catch {
-    return buildSignalEnrichment(payload, { source: "unavailable" })
+  const endpoints = [
+    `https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`,
+    `https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`,
+  ]
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, { signal: AbortSignal.timeout(2500), cache: "no-store" })
+      if (!response.ok) continue
+      const data = await response.json() as { quoteVolume?: unknown }
+      const volume24h = numberValue(data.quoteVolume)
+      if (volume24h != null && volume24h > 0) return buildSignalEnrichment(payload, { volume24h, source: "binance" })
+    } catch {
+      // Try the next Binance market endpoint before marking enrichment unavailable.
+    }
   }
+  return buildSignalEnrichment(payload, { source: "unavailable" })
 }
 
 export type { SignalEnrichment as EnrichmentSnapshot }

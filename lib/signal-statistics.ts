@@ -98,7 +98,7 @@ export function normalizeSignalPayload(payload: Record<string, unknown>, receive
     bb_width: numberValue(bb.width),
     volume_ratio_24h: computedEnrichment.volume_ratio_24h,
     volume_24h_value: computedEnrichment.volume_24h_value,
-    trading_value: computedEnrichment.trading_value,
+    trading_value: computedEnrichment.trading_value ?? (numberValue(payload.price) != null && numberValue(payload.volume) != null ? numberValue(payload.price)! * numberValue(payload.volume)! : null),
     volume_ratio_source: computedEnrichment.volume_ratio_source,
     fire_count: computedEnrichment.fire_count,
     fire_volume_score: computedEnrichment.fire_volume_score,
