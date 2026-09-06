@@ -24,17 +24,19 @@ function authorized(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  const requestBody = await request.json().catch(() => ({})) as { id?: string }
   let processed = 0
   let updated = 0
   let failed = 0
   let from = 0
 
   while (true) {
-    const { data: rows, error: selectError } = await admin
+    let rowQuery = admin
       .from("signal_statistics_entries")
       .select("id,webhook_log_id,received_at,signal_time,exchange,symbol,signal_type,direction,entry_price,duplicate_group_key,duplicate_index,processing_status,processing_reason,payload,risk_flags,created_at,auto_signal_position_id")
-      .order("signal_time", { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
+    const { data: rows, error: selectError } = requestBody.id
+      ? await rowQuery.eq("id", requestBody.id)
+      : await rowQuery.order("signal_time", { ascending: true }).range(from, from + PAGE_SIZE - 1)
 
     if (selectError) throw selectError
     if (!rows?.length) break
@@ -85,8 +87,8 @@ export async function POST(request: NextRequest) {
     }
 
     processed += rows.length
+    if (requestBody.id || rows.length < PAGE_SIZE) break
     from += rows.length
-    if (rows.length < PAGE_SIZE) break
   }
 
   return NextResponse.json({ processed, updated, failed })
