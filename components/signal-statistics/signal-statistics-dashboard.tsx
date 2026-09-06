@@ -357,7 +357,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
           <Metric label="방향 승률" value={`${(summary?.winRate ?? 0).toFixed(1)}%`} detail={`${summary?.wins ?? 0}승 · ${summary?.losses ?? 0}패`} />
           <Metric label="평균 방향 수익률" value={summary?.averageReturn == null ? "—" : `${summary.averageReturn >= 0 ? "+" : ""}${summary.averageReturn.toFixed(2)}%`} detail="10배 레버리지 반영" />
           <Metric label="평균 ./24H" value={summary?.averageVolumeRatio == null ? "—" : `${summary.averageVolumeRatio.toFixed(2)}%`} detail={`가공 완료 ${summary?.enrichedTotal ?? 0}건`} />
-          <Metric label="불꽃 분포" value={summary?.fireSymbolCounts?.length ? <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-lg">{summary.fireSymbolCounts.map(({ fireCount, symbols }) => <span key={fireCount} className="whitespace-nowrap">{"🔥".repeat(fireCount)} <span className="text-muted-foreground">×</span> {symbols.toLocaleString()}</span>)}</span> : "—"} detail="불꽃 단계별 종목 수" />
+          <Metric label="불꽃 분포" value={summary?.fireSymbolCounts?.length ? <span className="flex flex-col items-start gap-1 text-sm leading-5">{summary.fireSymbolCounts.map(({ fireCount, symbols }) => <span key={fireCount} className="whitespace-nowrap">{"🔥".repeat(fireCount)} <span className="text-muted-foreground">×</span> {symbols.toLocaleString()}</span>)}</span> : "—"} detail="불꽃 단계별 종목 수" />
         </section>
 
         <section aria-labelledby="prediction-validation-heading" className="border-y border-border bg-card/30 p-5 md:p-6">
