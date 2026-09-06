@@ -220,6 +220,7 @@ export function SignalStatisticsDashboard() {
   const [duplicates, setDuplicates] = useState("all")
   const [cciSort, setCciSort] = useState<CciSort>("none")
   const [bbFilter, setBbFilter] = useState("all")
+  const [volumeRatioFilter, setVolumeRatioFilter] = useState("all")
   const [outcomeSorts, setOutcomeSorts] = useState<Record<string, OutcomeSort>>({})
   const [realtimeSort, setRealtimeSort] = useState<OutcomeSort | undefined>(undefined)
   const dateStripRef = useRef<HTMLDivElement>(null)
@@ -249,8 +250,14 @@ export function SignalStatisticsDashboard() {
   const visibleEntries = useMemo(() => {
     const filtered = entries.filter((entry) => {
       const bbValue = [entry.bollinger.position, entry.bollinger.trend].filter(Boolean).join(" · ") || "none"
-      const result = entry.outcomes[String(horizon)]?.result ?? "pending"
-      return (bbFilter === "all" || bbValue === bbFilter)
+      const ratio = entry.volumeRatio24h
+      const matchesRatio = volumeRatioFilter === "all"
+        || (volumeRatioFilter === "100+" && ratio != null && ratio >= 100)
+        || (volumeRatioFilter === "10-100" && ratio != null && ratio >= 10 && ratio < 100)
+        || (volumeRatioFilter === "1-10" && ratio != null && ratio >= 1 && ratio < 10)
+        || (volumeRatioFilter === "under-1" && ratio != null && ratio < 1)
+        || (volumeRatioFilter === "unavailable" && ratio == null)
+      return (bbFilter === "all" || bbValue === bbFilter) && matchesRatio
     })
     const sorted = cciSort === "none" ? [...filtered] : [...filtered].sort((a, b) => {
       const left = a.cci ?? (cciSort === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY)
@@ -267,7 +274,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
       const rightValue = right == null ? (sortDirection === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : right
       return sortDirection === "asc" ? leftValue - rightValue : rightValue - leftValue
     })
-  }, [entries, horizon, bbFilter, outcomeSorts, cciSort])
+  }, [entries, horizon, bbFilter, volumeRatioFilter, outcomeSorts, cciSort])
   const visibleSymbols = useMemo(() => visibleEntries.map((entry) => entry.symbol), [visibleEntries])
   const liveTickers = useFuturesMiniTickers(visibleSymbols)
   const displayedEntries = useMemo(() => {
@@ -411,7 +418,9 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
     <th className="px-3 py-3 font-medium"><TableFilterMenu label="BB" active={bbFilter !== "all"}>
       <DropdownMenuLabel>볼린저 조합</DropdownMenuLabel><DropdownMenuRadioGroup value={bbFilter} onValueChange={setBbFilter}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · down">below_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · down">above_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · up">above_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · up">below_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="none">데이터 없음</DropdownMenuRadioItem></DropdownMenuRadioGroup>
     </TableFilterMenu></th>
-    <th className="px-3 py-3 font-medium">./24H</th><th className="px-3 py-3 font-medium">불꽃</th><th className="px-3 py-3 font-medium">상태 · 등급</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium"><OutcomeSortButton label="실시간" direction={realtimeSort} onClick={() => setRealtimeSort((current) => current === "desc" ? "asc" : "desc")} /></th>
+    <th className="px-3 py-3 font-medium"><TableFilterMenu label="24H" active={volumeRatioFilter !== "all"}>
+      <DropdownMenuLabel>24H 비율</DropdownMenuLabel><DropdownMenuRadioGroup value={volumeRatioFilter} onValueChange={setVolumeRatioFilter}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="100+">100% 이상</DropdownMenuRadioItem><DropdownMenuRadioItem value="10-100">10% 이상 100% 미만</DropdownMenuRadioItem><DropdownMenuRadioItem value="1-10">1% 이상 10% 미만</DropdownMenuRadioItem><DropdownMenuRadioItem value="under-1">1% 미만</DropdownMenuRadioItem><DropdownMenuRadioItem value="unavailable">데이터 없음</DropdownMenuRadioItem></DropdownMenuRadioGroup>
+    </TableFilterMenu></th><th className="px-3 py-3 font-medium">불꽃</th><th className="px-3 py-3 font-medium">상태 · 등급</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium"><OutcomeSortButton label="실시간" direction={realtimeSort} onClick={() => setRealtimeSort((current) => current === "desc" ? "asc" : "desc")} /></th>
     {horizons.map((value) => {
       const timeframe = String(value)
       const sortDirection = outcomeSorts[timeframe]
