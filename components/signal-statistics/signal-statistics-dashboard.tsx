@@ -447,7 +447,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
                       <td className="px-3 py-4"><span className={cn("inline-flex items-center gap-1", entry.direction === "long" ? "text-primary" : "text-destructive")}>{entry.direction === "long" ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}{entry.signalType.replace("TRIPLE_COMBO_", "")}</span></td>
                       <td className="px-3 py-4 font-[inherit] text-muted-foreground">{entry.cci?.toFixed(1) ?? "—"}</td>
                       <td className="px-3 py-4 text-muted-foreground"><div className="flex min-w-20 flex-col leading-5"><span>{entry.bollinger.position?.replaceAll("_", " ") || "—"}</span><span>{entry.bollinger.trend || "—"}</span></div></td>
-                      <td className="px-3 py-4 font-[inherit]">{entry.volumeRatio24h == null ? "—" : `${entry.volumeRatio24h.toFixed(2)}%`}</td>
+                      <td className="px-3 py-4 font-[inherit]">{entry.volumeRatio24h == null ? "—" : `${entry.volumeRatio24h.toFixed(3)}%`}</td>
                       <td className="px-3 py-4 font-[inherit]">{entry.fireCount == null ? "—" : `${entry.fireCount}/5`}</td>
                       <td className="px-3 py-4"><div className="flex min-w-28 flex-col leading-5"><span className="font-[inherit]">{entry.signalGrade ?? "D"}</span><span>{entry.signalState ?? "NEUTRAL"}</span><span className="mt-1 text-xs leading-4 text-muted-foreground">{entry.tradeGuide ?? "데이터 부족"}</span></div></td>
                       <td className="px-3 py-4 font-[inherit]">{numberFormat.format(entry.entryPrice)}</td>

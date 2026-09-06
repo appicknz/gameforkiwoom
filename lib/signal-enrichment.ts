@@ -77,11 +77,12 @@ export function buildSignalEnrichment(payload: Record<string, unknown>, market: 
   const priceChange = firstNumber(payload, ["price_change_percent", "price_change"])
   const volumeRatioPayload = firstNumber(payload, ["24h_volume_ratio", "volume_ratio_24h", "volume_ratio"])
   const volume24h = firstNumber(payload, ["volume_24h", "volume_24h_value", "quote_volume_24h"]) ?? market.volume24h ?? null
-  const price = firstNumber(payload, ["price"])
-  const volume = firstNumber(payload, ["volume"])
+  const price = firstNumber(payload, ["price", "current_price", "close"])
+  const volume = firstNumber(payload, ["volume", "current_volume", "current_candle_volume"])
   const tradingValue = firstNumber(payload, ["trading_value", "current_trading_value"]) ?? (price != null && volume != null ? price * volume : null)
-  const volumeRatio = volumeRatioPayload ?? (tradingValue != null && volume24h != null && volume24h > 0 ? tradingValue / volume24h * 100 : null)
-  const ratioSource = volumeRatioPayload != null ? "payload" : volumeRatio != null && market.source ? market.source : "unavailable"
+  const calculatedVolumeRatio = tradingValue != null && volume24h != null && volume24h > 0 ? tradingValue / volume24h * 100 : null
+  const volumeRatio = calculatedVolumeRatio ?? volumeRatioPayload
+  const ratioSource = calculatedVolumeRatio != null && market.source ? market.source : volumeRatioPayload != null ? "payload" : "unavailable"
   const fire = scoreFire(volumeRatio, confluence)
   const currentVolume = firstNumber(payload, ["volume", "current_volume", "current_candle_volume"])
   const previousVolume = firstNumber(payload, ["prev_volume", "previous_volume", "previous_candle_volume", "reference_volume"])
@@ -153,7 +154,7 @@ export async function enrichSignalPayload(payload: Record<string, unknown>): Pro
   const provided = payload.enrichment_snapshot && typeof payload.enrichment_snapshot === "object" ? payload.enrichment_snapshot : null
   if (provided) return buildSignalEnrichment({ ...payload, ...asRecord(provided) }, { source: "payload" })
   const payloadVolume24h = firstNumber(payload, ["volume_24h", "volume_24h_value", "quote_volume_24h"])
-  if (payloadVolume24h != null || firstNumber(payload, ["volume_ratio_24h", "volume_ratio"]) != null) {
+  if (payloadVolume24h != null) {
     return buildSignalEnrichment(payload, { volume24h: payloadVolume24h, source: "payload" })
   }
   const symbol = normalizeEnrichmentSymbol(payload.symbol)
@@ -163,9 +164,16 @@ export async function enrichSignalPayload(payload: Record<string, unknown>): Pro
     return buildSignalEnrichment(payload, { volume24h: cached.value, source: "binance" })
   }
   const endpoints = [
-    { url: `https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`, source: "binance-futures" as const },
-    { url: `https://data-api.binance.vision/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`, source: "binance-spot-fallback" as const },
-  ]
+    "https://www.binance.com",
+    "https://fapi.binance.com",
+    "https://fapi1.binance.com",
+    "https://fapi2.binance.com",
+    "https://fapi3.binance.com",
+    "https://fapi4.binance.com",
+  ].map((baseUrl) => ({
+    url: `${baseUrl}/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`,
+    source: "binance-futures" as const,
+  }))
   for (const endpoint of endpoints) {
     try {
       const response = await fetch(endpoint.url, {
