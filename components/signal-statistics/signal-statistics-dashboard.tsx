@@ -125,12 +125,6 @@ const connectionLabels: Record<FuturesTickerConnection, string> = {
 type CciSort = "none" | "asc" | "desc"
 type OutcomeSort = "asc" | "desc"
 
-function guideLines(guide: string | null) {
-  const value = guide ?? "데이터 부족"
-  const words = value.split(" ")
-  return words.length > 1 ? [words.slice(0, -1).join(" "), words.at(-1)!] : [value]
-}
-
 type TableFilterMenuProps = {
   label: string
   active?: boolean
@@ -417,7 +411,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
     <th className="px-3 py-3 font-medium"><TableFilterMenu label="BB" active={bbFilter !== "all"}>
       <DropdownMenuLabel>볼린저 조합</DropdownMenuLabel><DropdownMenuRadioGroup value={bbFilter} onValueChange={setBbFilter}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · down">below_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · down">above_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · up">above_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · up">below_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="none">데이터 없음</DropdownMenuRadioItem></DropdownMenuRadioGroup>
     </TableFilterMenu></th>
-    <th className="px-3 py-3 font-medium">./24H</th><th className="px-3 py-3 font-medium">불꽃</th><th className="px-3 py-3 font-medium">상태 · 등급</th><th className="px-3 py-3 font-medium">가이드</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium"><OutcomeSortButton label="실시간" direction={realtimeSort} onClick={() => setRealtimeSort((current) => current === "desc" ? "asc" : "desc")} /></th>
+    <th className="px-3 py-3 font-medium">./24H</th><th className="px-3 py-3 font-medium">불꽃</th><th className="px-3 py-3 font-medium">상태 · 등급</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium"><OutcomeSortButton label="실시간" direction={realtimeSort} onClick={() => setRealtimeSort((current) => current === "desc" ? "asc" : "desc")} /></th>
     {horizons.map((value) => {
       const timeframe = String(value)
       const sortDirection = outcomeSorts[timeframe]
@@ -445,8 +439,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
                       <td className="px-3 py-4 text-muted-foreground"><div className="flex min-w-20 flex-col leading-5"><span>{entry.bollinger.position?.replaceAll("_", " ") || "—"}</span><span>{entry.bollinger.trend || "—"}</span></div></td>
                       <td className="px-3 py-4 font-[inherit]">{entry.volumeRatio24h == null ? "—" : `${entry.volumeRatio24h.toFixed(2)}%`}</td>
                       <td className="px-3 py-4 font-[inherit]">{entry.fireCount == null ? "—" : `${entry.fireCount}/5`}</td>
-                      <td className="px-3 py-4"><div className="flex flex-col leading-5"><span className="font-[inherit]">{entry.signalGrade ?? "D"}</span><span>{entry.signalState ?? "NEUTRAL"}</span></div></td>
-                      <td className="max-w-40 px-3 py-4 text-muted-foreground"><div className="flex max-w-32 flex-col leading-5">{guideLines(entry.tradeGuide).map((line, lineIndex) => <span key={`${entry.id}-guide-${lineIndex}`}>{line}</span>)}</div></td>
+                      <td className="px-3 py-4"><div className="flex min-w-28 flex-col leading-5"><span className="font-[inherit]">{entry.signalGrade ?? "D"}</span><span>{entry.signalState ?? "NEUTRAL"}</span><span className="mt-1 text-xs leading-4 text-muted-foreground">{entry.tradeGuide ?? "데이터 부족"}</span></div></td>
                       <td className="px-3 py-4 font-[inherit]">{numberFormat.format(entry.entryPrice)}</td>
                       <td className="px-3 py-4 font-[inherit]">{currentPrice == null ? "—" : numberFormat.format(currentPrice)}</td>
                       <td className="px-3 py-4"><Percent value={directionalReturn} /></td>
