@@ -232,16 +232,16 @@ export default function PanelPage() {
   const [auto2Saving,       setAuto2Saving]       = useState(false)
   const [auto2Msg,          setAuto2Msg]          = useState<string | null>(null)
   type Up8Settings = {
-    test_enabled: boolean; live_enabled: boolean; amount: number
+    test_enabled: boolean; live_enabled: boolean; bal_pct: number
     test_exchange: string; test_account: string; live_exchange: string; live_account: string
   }
   const [up8Settings,     setUp8Settings]     = useState<Up8Settings | null>(null)
-  const [up8SettingsEdit, setUp8SettingsEdit] = useState<{ test_enabled: boolean; live_enabled: boolean; amount: string } | null>(null)
+  const [up8SettingsEdit, setUp8SettingsEdit] = useState<{ test_enabled: boolean; live_enabled: boolean; bal_pct: string } | null>(null)
   const [up8Saving,       setUp8Saving]       = useState(false)
   const [up8Msg,          setUp8Msg]          = useState<string | null>(null)
   const [up8TestSymbol,   setUp8TestSymbol]   = useState("023900")
   const [up8TestLoading,  setUp8TestLoading]  = useState(false)
-  const [up8TestResult,   setUp8TestResult]   = useState<{ ok?: boolean; error?: string; status?: number; response?: string; symbol?: string; amount?: number } | null>(null)
+  const [up8TestResult,   setUp8TestResult]   = useState<{ ok?: boolean; error?: string; status?: number; response?: string; symbol?: string; bal_pct?: number } | null>(null)
   const [signalRules,      setSignalRules]      = useState<SignalRule[]>([])
   const [rulesSaving,      setRulesSaving]      = useState<string | null>(null)  // 저장 중인 signal_type
   const [autoLoading,      setAutoLoading]      = useState(false)
@@ -455,7 +455,7 @@ export default function PanelPage() {
       setAcMsg({ text: `"${targetUsername}" 계정이 삭제되었습니다.`, ok: true })
       loadUsers(adminPw)
     } else {
-      alert(d.error ?? "삭����� 중 오류가 발생했습니다.")
+      alert(d.error ?? "삭������� 중 오류가 발생했습니다.")
     }
   }
 
@@ -1826,7 +1826,7 @@ export default function PanelPage() {
                       setUp8SettingsEdit({
                         test_enabled: up8Data.test_enabled ?? false,
                         live_enabled: up8Data.live_enabled ?? false,
-                        amount: String(up8Data.amount ?? 10),
+                        bal_pct: String(up8Data.bal_pct ?? 3),
                       })
                     }
                   } finally {
@@ -3428,7 +3428,7 @@ export default function PanelPage() {
                           <span className="text-sm font-medium text-foreground">{r.requester?.username}</span>
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{r.branch_code ?? "지점없음"}</span>
                           <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${r.status === "approved" || r.status === "activated" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-                            {r.status === "pending" ? "대기" : r.status === "approved" ? "승인(미활성)" : r.status === "activated" ? "활성화" : "거절"}
+                            {r.status === "pending" ? "대기" : r.status === "approved" ? "���인(미활성)" : r.status === "activated" ? "활성화" : "거절"}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">포인트 {r.point_amount?.toLocaleString()} {r.memo ? `· ${r.memo}` : ""}</p>
@@ -5889,25 +5889,25 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
                   <div className="flex flex-wrap items-end gap-3">
                     <div className="flex flex-col gap-1">
-                      <label htmlFor="up8-amount" className="text-xs text-muted-foreground">주문 수량 (주)</label>
+                      <label htmlFor="up8-bal-pct" className="text-xs text-muted-foreground">총자산 주문 비율 (%)</label>
                       <input
-                        id="up8-amount"
+                        id="up8-bal-pct"
                         type="number"
-                        min={1}
-                        max={100000}
-                        step={1}
-                        inputMode="numeric"
-                        value={up8SettingsEdit.amount}
-                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, amount: e.target.value } : s)}
+                        min={0.01}
+                        max={100}
+                        step={0.01}
+                        inputMode="decimal"
+                        value={up8SettingsEdit.bal_pct}
+                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, bal_pct: e.target.value } : s)}
                         className="h-8 w-32 rounded-lg border border-border bg-secondary px-3 text-sm text-foreground"
                       />
                     </div>
                     <button
                       disabled={up8Saving}
                       onClick={async () => {
-                        const amount = Number(up8SettingsEdit.amount)
-                        if (!Number.isInteger(amount) || amount <= 0 || amount > 100000) {
-                          setUp8Msg("주문 수량은 1~100000 사이의 정수여야 합니다.")
+                        const bal_pct = Number(up8SettingsEdit.bal_pct)
+                        if (!Number.isFinite(bal_pct) || bal_pct <= 0 || bal_pct > 100) {
+                          setUp8Msg("총자산 주문 비율은 0 초과 100 이하의 퍼센트여야 합니다.")
                           return
                         }
                         setUp8Saving(true)
@@ -5920,7 +5920,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                             body: JSON.stringify({
                               test_enabled: up8SettingsEdit.test_enabled,
                               live_enabled: up8SettingsEdit.live_enabled,
-                              amount,
+                              bal_pct,
                             }),
                           })
                           const data = await res.json()
@@ -5929,7 +5929,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                             setUp8SettingsEdit({
                               test_enabled: data.test_enabled,
                               live_enabled: data.live_enabled,
-                              amount: String(data.amount),
+                              bal_pct: String(data.bal_pct),
                             })
                             setUp8Msg("저장됐습니다.")
                           } else {
@@ -5950,7 +5950,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">UP6 / UP8 테스트 주문</h3>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        저장된 수량으로 kis-testnet 계정에 KOSDAQ 시장가 매수 주문을 즉시 전송합니다. 자동매매 및 매매기록에는 저장되지 않습니다.
+                        저장된 총자산 대비 비율로 kis-testnet 계정에 KOSDAQ 시장가 매수 주문을 즉시 전송합니다. 자동매매 및 매매기록에는 저장되지 않습니다.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-end gap-3">
@@ -5967,7 +5967,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       <button
                         disabled={up8TestLoading || !up8TestSymbol.trim()}
                         onClick={async () => {
-                          if (!confirm(`${up8TestSymbol}/KOSDAQ ${up8Settings.amount}주를 kis-testnet으로 매수 전송합니까?`)) return
+                          if (!confirm(`${up8TestSymbol}/KOSDAQ 총자산의 ${up8Settings.bal_pct}%를 kis-testnet으로 매수 전송합니까?`)) return
                           setUp8TestLoading(true)
                           setUp8TestResult(null)
                           try {
@@ -5992,7 +5992,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       <div className={`rounded-lg border px-3 py-2 text-xs ${up8TestResult.ok ? "border-primary/30 bg-primary/5 text-primary" : "border-destructive/30 bg-destructive/5 text-destructive"}`} role="status">
                         <p className="font-semibold">{up8TestResult.ok ? "전송 성공" : "전송 실패"}</p>
                         {up8TestResult.ok ? (
-                          <p className="mt-1 font-mono">{up8TestResult.symbol} · {up8TestResult.amount}주 · HTTP {up8TestResult.status}</p>
+                          <p className="mt-1 font-mono">{up8TestResult.symbol} · 총자산 {up8TestResult.bal_pct}% · HTTP {up8TestResult.status}</p>
                         ) : (
                           <p className="mt-1">{up8TestResult.error ?? up8TestResult.response ?? `HTTP ${up8TestResult.status ?? "-"}`}</p>
                         )}

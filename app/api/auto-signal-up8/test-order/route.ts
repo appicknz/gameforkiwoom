@@ -50,9 +50,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "TVM Webhook URL이 설정되지 않았습니다." }, { status: 400 })
   }
 
-  const amount = Number(settings.amount)
-  if (!Number.isInteger(amount) || amount <= 0 || amount > 100000) {
-    return NextResponse.json({ error: "저장된 UP8 주문 수량이 올바르지 않습니다." }, { status: 500 })
+  const balPct = Number(settings.amount)
+  if (!Number.isFinite(balPct) || balPct <= 0 || balPct > 100) {
+    return NextResponse.json({ error: "저장된 UP8 총자산 주문 비율이 올바르지 않습니다." }, { status: 500 })
   }
 
   const tvm = `TVM:${JSON.stringify({
@@ -61,7 +61,8 @@ export async function POST(req: Request) {
     symbol,
     type: "market",
     side: "buy",
-    amount,
+    bal_pct: balPct,
+    equity: "y",
     same_order: "skip",
     token: settings.test_auth_token,
   })}:MVT`
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
       exchange: settings.test_exchange,
       account: settings.test_account,
       symbol,
-      amount,
+      bal_pct: balPct,
     }, { status: response.ok ? 200 : 502 })
   } catch (error) {
     return NextResponse.json({

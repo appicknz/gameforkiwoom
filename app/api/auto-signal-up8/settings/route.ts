@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: "UP8 설정을 불러오지 못했습니다." }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json(data ? { ...data, bal_pct: Number(data.amount), amount: undefined } : data)
 }
 
 export async function PATCH(req: Request) {
@@ -44,9 +44,9 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 })
   }
 
-  const amount = Number(body.amount)
-  if (!Number.isInteger(amount) || amount <= 0 || amount > 100000) {
-    return NextResponse.json({ error: "주문 수량은 1~100000 사이의 정수여야 합니다." }, { status: 400 })
+  const balPct = Number(body.bal_pct)
+  if (!Number.isFinite(balPct) || balPct <= 0 || balPct > 100) {
+    return NextResponse.json({ error: "총자산 주문 비율은 0 초과 100 이하의 퍼센트여야 합니다." }, { status: 400 })
   }
   if (typeof body.test_enabled !== "boolean" || typeof body.live_enabled !== "boolean") {
     return NextResponse.json({ error: "전송 모드 값이 올바르지 않습니다." }, { status: 400 })
@@ -57,7 +57,7 @@ export async function PATCH(req: Request) {
     .update({
       test_enabled: body.test_enabled,
       live_enabled: body.live_enabled,
-      amount,
+      amount: balPct,
       updated_at: new Date().toISOString(),
     })
     .eq("id", 1)
@@ -65,5 +65,5 @@ export async function PATCH(req: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: "UP8 설정을 저장하지 못했습니다." }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json(data ? { ...data, bal_pct: Number(data.amount), amount: undefined } : data)
 }
