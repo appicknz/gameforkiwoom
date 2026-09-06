@@ -42,6 +42,28 @@ describe("signal enrichment", () => {
     expect(enrichment.trade_guide).toBe("조건 충족 시 진입")
   })
 
+  it("matches the Python WOO impulse classification", () => {
+    const enrichment = buildSignalEnrichment({
+      symbol: "WOOUSDT.P",
+      signal_type: "TRIPLE_COMBO_UP3",
+      price: "0.011120",
+      volume: "267115339",
+      volume_change: "-4.7591",
+      price_change_percent: "30.0584",
+      cci: "-78.5",
+      confluence: "1",
+      bollinger_band: { expansion: true, position: "below_middle" },
+    }, { volume24h: 267115339 * 0.01112 / 0.45598, source: "binance" })
+
+    expect(enrichment.volume_ratio_24h).toBeCloseTo(45.598, 3)
+    expect(enrichment.fire_volume_score).toBe(5)
+    expect(enrichment.fire_count).toBe(3)
+    expect(enrichment.signal_score).toBe(50)
+    expect(enrichment.signal_state).toBe("IMPULSE")
+    expect(enrichment.trade_guide).toBe("관찰 대기")
+    expect(enrichment.risk_flags).toContain("추세 착각")
+  })
+
   it("parses string timeframe counts for the trading guide", () => {
     const enrichment = buildSignalEnrichment({
       signal_type: "UP",

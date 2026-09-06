@@ -17,8 +17,10 @@ export type SignalEnrichment = {
   enrichment_version: string
 }
 
-const ENRICHMENT_VERSION = "signal-enrichment-v1"
+const ENRICHMENT_VERSION = "signal-enrichment-v2-python-parity"
 const MAX_FIRE_COUNT = 5
+const BINANCE_VOLUME_CACHE_TTL_MS = 30_000
+const binanceVolumeCache = new Map<string, { value: number; expiresAt: number }>()
 const FIRE_RATIO_THRESHOLDS: Array<[number, number]> = [[20, 5], [10, 4], [5, 3], [3, 2], [0.1, 1]]
 
 const numberValue = (value: unknown): number | null => {
@@ -63,12 +65,17 @@ function payloadValue(payload: Record<string, unknown>, keys: string[]) {
 }
 
 export function buildSignalEnrichment(payload: Record<string, unknown>, market: { volume24h?: number | null; source?: "payload" | "binance" | "unavailable" } = {}): SignalEnrichment {
-  const bb = asRecord(payload.bollinger_band)
+  const rawBollinger = payload.bollinger_band ?? payload.bollinger
+  const bb = typeof rawBollinger === "string"
+    ? (() => {
+        try { return asRecord(JSON.parse(rawBollinger)) } catch { return {} }
+      })()
+    : asRecord(rawBollinger)
   const direction = String(payload.signal_type ?? payload.alert_type ?? "").toUpperCase().includes("DOWN") ? "short" : "long"
   const cci = firstNumber(payload, ["cci"])
   const confluence = firstNumber(payload, ["confluence"])
   const priceChange = firstNumber(payload, ["price_change_percent", "price_change"])
-  const volumeRatioPayload = firstNumber(payload, ["volume_ratio_24h", "volume_ratio"])
+  const volumeRatioPayload = firstNumber(payload, ["24h_volume_ratio", "volume_ratio_24h", "volume_ratio"])
   const volume24h = firstNumber(payload, ["volume_24h", "volume_24h_value", "quote_volume_24h"]) ?? market.volume24h ?? null
   const price = firstNumber(payload, ["price"])
   const volume = firstNumber(payload, ["volume"])
@@ -102,7 +109,6 @@ export function buildSignalEnrichment(payload: Record<string, unknown>, market: 
   score += (confluenceValue - 1) * 5
   const boolValue = (value: unknown) => value === true || value === 1 || String(value).toLowerCase() === "true"
   if (boolValue(bb.upper_breakout)) score += 25
-  if (boolValue(bb.lower_breakout)) score += 25
   if (boolValue(bb.expansion)) score += 10
   if (boolValue(bb.squeeze)) score -= 5
   if (boolValue(bb.middle_cross)) score += 15
@@ -152,20 +158,27 @@ export async function enrichSignalPayload(payload: Record<string, unknown>): Pro
   }
   const symbol = normalizeEnrichmentSymbol(payload.symbol)
   if (!symbol || !symbol.endsWith("USDT")) return buildSignalEnrichment(payload, { source: "unavailable" })
-  const endpoints = [
-    `https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`,
-    `https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`,
-  ]
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint, { signal: AbortSignal.timeout(2500), cache: "no-store" })
-      if (!response.ok) continue
+  const cached = binanceVolumeCache.get(symbol)
+  if (cached && cached.expiresAt > Date.now()) {
+    return buildSignalEnrichment(payload, { volume24h: cached.value, source: "binance" })
+  }
+  const endpoint = `https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
+  try {
+    const response = await fetch(endpoint, {
+      signal: AbortSignal.timeout(10_000),
+      cache: "no-store",
+      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" },
+    })
+    if (response.ok) {
       const data = await response.json() as { quoteVolume?: unknown }
       const volume24h = numberValue(data.quoteVolume)
-      if (volume24h != null && volume24h > 0) return buildSignalEnrichment(payload, { volume24h, source: "binance" })
-    } catch {
-      // Try the next Binance market endpoint before marking enrichment unavailable.
+      if (volume24h != null && volume24h > 0) {
+        binanceVolumeCache.set(symbol, { value: volume24h, expiresAt: Date.now() + BINANCE_VOLUME_CACHE_TTL_MS })
+        return buildSignalEnrichment(payload, { volume24h, source: "binance" })
+      }
     }
+  } catch {
+    // Match Python behavior: preserve the payload and use the minimum fallback only.
   }
   return buildSignalEnrichment(payload, { source: "unavailable" })
 }
