@@ -89,6 +89,7 @@ type Summary = {
   medianVolumeRatio: number | null
   enrichedTotal: number
   fireDistribution: Breakdown[]
+  fireSymbolCounts: Array<{ fireCount: number; symbols: number }>
   stateBreakdown: Breakdown[]
   gradeBreakdown: Breakdown[]
   guideBreakdown: Breakdown[]
@@ -172,7 +173,7 @@ function Percent({ value, signed = true }: { value: number | null | undefined; s
   return <span className={cn("font-[inherit] tabular-nums", value > 0 && "text-primary", value < 0 && "text-destructive")}>{signed && value > 0 ? "+" : ""}{value.toFixed(2)}%</span>
 }
 
-function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
+function Metric({ label, value, detail }: { label: string; value: React.ReactNode; detail: string }) {
   return (
     <div className="border-b border-border py-5 lg:border-r lg:border-b-0 lg:px-6 first:lg:pl-0 last:lg:border-r-0">
       <p className="text-xs font-medium tracking-wide text-muted-foreground">{label}</p>
@@ -356,7 +357,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
           <Metric label="방향 승률" value={`${(summary?.winRate ?? 0).toFixed(1)}%`} detail={`${summary?.wins ?? 0}승 · ${summary?.losses ?? 0}패`} />
           <Metric label="평균 방향 수익률" value={summary?.averageReturn == null ? "—" : `${summary.averageReturn >= 0 ? "+" : ""}${summary.averageReturn.toFixed(2)}%`} detail="10배 레버리지 반영" />
           <Metric label="평균 ./24H" value={summary?.averageVolumeRatio == null ? "—" : `${summary.averageVolumeRatio.toFixed(2)}%`} detail={`가공 완료 ${summary?.enrichedTotal ?? 0}건`} />
-          <Metric label="불꽃 분포" value={summary?.fireDistribution?.length ? summary.fireDistribution.map((item) => item.label).join(", ") : "—"} detail="신호 강도 분류" />
+          <Metric label="불꽃 분포" value={summary?.fireSymbolCounts?.length ? <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-lg">{summary.fireSymbolCounts.map(({ fireCount, symbols }) => <span key={fireCount} className="whitespace-nowrap">{"🔥".repeat(fireCount)} <span className="text-muted-foreground">×</span> {symbols.toLocaleString()}</span>)}</span> : "—"} detail="불꽃 단계별 종목 수" />
         </section>
 
         <section aria-labelledby="prediction-validation-heading" className="border-y border-border bg-card/30 p-5 md:p-6">

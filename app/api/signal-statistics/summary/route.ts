@@ -102,6 +102,10 @@ export async function GET(request: Request) {
   const enriched = rows.filter((row) => row.volume_ratio_24h != null)
   const averageVolumeRatio = average(enriched.map((row) => Number(row.volume_ratio_24h)))
   const medianVolumeRatio = median(enriched.map((row) => Number(row.volume_ratio_24h)))
+  const fireSymbolCounts = [1, 2, 3].map((fireCount) => ({
+    fireCount,
+    symbols: new Set(completed.filter((row) => row.fire_count === fireCount).map((row) => row.symbol)).size,
+  }))
   const breakdown = (selector: (row: typeof completed[number]) => string) => {
     const groups = new Map<string, typeof completed>()
     for (const row of completed) {
@@ -133,6 +137,7 @@ export async function GET(request: Request) {
     averageVolumeRatio,
     medianVolumeRatio,
     fireDistribution: breakdown((row) => row.fire_count == null ? "미계산" : `${row.fire_count}불`),
+    fireSymbolCounts,
     stateBreakdown: breakdown((row) => row.signal_state ?? "unknown"),
     gradeBreakdown: breakdown((row) => row.signal_grade ?? "unknown"),
     guideBreakdown: breakdown((row) => row.trade_guide ?? "데이터 부족"),
