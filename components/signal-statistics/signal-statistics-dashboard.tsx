@@ -346,7 +346,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
           <Metric label={`${horizon}분 결과 완료`} value={`${(summary?.completionRate ?? 0).toFixed(1)}%`} detail={`${summary?.complete ?? 0}건 계산`} />
           <Metric label="방향 승률" value={`${(summary?.winRate ?? 0).toFixed(1)}%`} detail={`${summary?.wins ?? 0}승 · ${summary?.losses ?? 0}패`} />
           <Metric label="평균 방향 수익률" value={summary?.averageReturn == null ? "—" : `${summary.averageReturn >= 0 ? "+" : ""}${summary.averageReturn.toFixed(2)}%`} detail="10배 레버리지 반영" />
-          <Metric label="평균 24시간 비율" value={summary?.averageVolumeRatio == null ? "—" : `${summary.averageVolumeRatio.toFixed(2)}%`} detail={`가공 완료 ${summary?.enrichedTotal ?? 0}건`} />
+          <Metric label="평균 ./24H" value={summary?.averageVolumeRatio == null ? "—" : `${summary.averageVolumeRatio.toFixed(2)}%`} detail={`가공 완료 ${summary?.enrichedTotal ?? 0}건`} />
           <Metric label="불꽃 분포" value={summary?.fireDistribution?.length ? summary.fireDistribution.map((item) => item.label).join(", ") : "—"} detail="신호 강도 분류" />
         </section>
 
@@ -393,7 +393,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
 
         <section>
           <div className="mb-4 flex items-end justify-between gap-4">
-            <div><div className="flex items-center gap-2"><Database className="size-4 text-primary" /><h2 className="text-lg font-semibold">엔트리 로그</h2></div><p className="mt-1 text-xs text-muted-foreground">같은 그룹의 원본·중복 신호도 진입가별로 ��각 계산됩니다.</p></div>
+            <div><div className="flex items-center gap-2"><Database className="size-4 text-primary" /><h2 className="text-lg font-semibold">엔트리 로그</h2></div><p className="mt-1 text-xs text-muted-foreground">같은 그룹의 원본·중복 신호도 진입가별로 ���� 계산됩니다.</p></div>
             <span className="font-[inherit] text-xs text-muted-foreground">{selectedDate} · {displayedEntries.length.toLocaleString()} / {(entriesData?.total ?? 0).toLocaleString()} ROWS</span>
           </div>
           <div className="overflow-x-auto border-y border-border">
@@ -409,7 +409,7 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
     <th className="px-3 py-3 font-medium"><TableFilterMenu label="BB" active={bbFilter !== "all"}>
       <DropdownMenuLabel>볼린저 조합</DropdownMenuLabel><DropdownMenuRadioGroup value={bbFilter} onValueChange={setBbFilter}><DropdownMenuRadioItem value="all">전체</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · down">below_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · down">above_middle · down</DropdownMenuRadioItem><DropdownMenuRadioItem value="above_middle · up">above_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="below_middle · up">below_middle · up</DropdownMenuRadioItem><DropdownMenuRadioItem value="none">데이터 없음</DropdownMenuRadioItem></DropdownMenuRadioGroup>
     </TableFilterMenu></th>
-    <th className="px-3 py-3 font-medium">컨플루언스</th><th className="px-3 py-3 font-medium">24시간 비율</th><th className="px-3 py-3 font-medium">불꽃</th><th className="px-3 py-3 font-medium">상태 · 등급</th><th className="px-3 py-3 font-medium">가이드</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium"><OutcomeSortButton label="실시간" direction={realtimeSort} onClick={() => setRealtimeSort((current) => current === "desc" ? "asc" : "desc")} /></th>
+    <th className="px-3 py-3 font-medium">./24H</th><th className="px-3 py-3 font-medium">불꽃</th><th className="px-3 py-3 font-medium">상태 · 등급</th><th className="px-3 py-3 font-medium">가이드</th><th className="px-3 py-3 font-medium">진입</th><th className="px-3 py-3 font-medium">현재가</th><th className="px-3 py-3 font-medium"><OutcomeSortButton label="실시간" direction={realtimeSort} onClick={() => setRealtimeSort((current) => current === "desc" ? "asc" : "desc")} /></th>
     {horizons.map((value) => {
       const timeframe = String(value)
       const sortDirection = outcomeSorts[timeframe]
@@ -435,7 +435,6 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
                       <td className="px-3 py-4"><span className={cn("inline-flex items-center gap-1", entry.direction === "long" ? "text-primary" : "text-destructive")}>{entry.direction === "long" ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}{entry.signalType.replace("TRIPLE_COMBO_", "")}</span></td>
                       <td className="px-3 py-4 font-[inherit] text-muted-foreground">{entry.cci?.toFixed(1) ?? "—"}</td>
                       <td className="px-3 py-4 text-muted-foreground">{[entry.bollinger.position, entry.bollinger.trend].filter(Boolean).join(" · ") || "—"}</td>
-                      <td className="max-w-44 truncate px-3 py-4 text-muted-foreground">{entry.confluence || "—"}</td>
                       <td className="px-3 py-4 font-[inherit]">{entry.volumeRatio24h == null ? "—" : `${entry.volumeRatio24h.toFixed(2)}%`}</td>
                       <td className="px-3 py-4 font-[inherit]">{entry.fireCount == null ? "—" : `${entry.fireCount}/5`}</td>
                       <td className="px-3 py-4">{entry.signalState ?? "NEUTRAL"} · {entry.signalGrade ?? "D"}</td>
