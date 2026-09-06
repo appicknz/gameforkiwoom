@@ -392,7 +392,8 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
         <section className="grid gap-8 lg:grid-cols-2">
           <BreakdownChart title="CCI 구간별 성과" data={summary?.breakdowns.cci ?? []} />
           <BreakdownChart title="볼린저 위치 · 추세별 성과" data={summary?.breakdowns.bollinger ?? []} />
-                  <BreakdownChart title="상태 · 등급별 성과" data={[...(summary?.stateBreakdown ?? []), ...(summary?.gradeBreakdown ?? [])]} />
+          <BreakdownChart title="불꽃 수별 성과" data={summary?.fireDistribution ?? []} />
+          <BreakdownChart title="상태 · 등급별 성과" data={[...(summary?.stateBreakdown ?? []), ...(summary?.gradeBreakdown ?? [])]} />
         </section>
 
         <section>
