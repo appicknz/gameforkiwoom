@@ -241,7 +241,8 @@ export default function PanelPage() {
   const [up8Msg,          setUp8Msg]          = useState<string | null>(null)
   const [up8TestSymbol,   setUp8TestSymbol]   = useState("023900")
   const [up8TestLoading,  setUp8TestLoading]  = useState(false)
-  const [up8TestResult,   setUp8TestResult]   = useState<{ ok?: boolean; error?: string; status?: number; response?: string; symbol?: string; bal_pct?: number } | null>(null)
+  const [up8TestResult,   setUp8TestResult]   = useState<{ ok?: boolean; error?: string; status?: number; response?: string; symbol?: string; bal_pct?: number; tvm?: string } | null>(null)
+  const [up8TvmLogs,      setUp8TvmLogs]      = useState<string[]>([])
   const [signalRules,      setSignalRules]      = useState<SignalRule[]>([])
   const [rulesSaving,      setRulesSaving]      = useState<string | null>(null)  // 저장 중인 signal_type
   const [autoLoading,      setAutoLoading]      = useState(false)
@@ -5977,9 +5978,12 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                               headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
                               body: JSON.stringify({ symbol: up8TestSymbol }),
                             })
-                            const data = await res.json()
-                            setUp8TestResult(data)
-                          } finally {
+  const data = await res.json()
+  setUp8TestResult(data)
+  if (typeof data.tvm === "string") {
+    setUp8TvmLogs(current => [data.tvm, ...current.filter(log => log !== data.tvm)].slice(0, 3))
+  }
+  } finally {
                             setUp8TestLoading(false)
                           }
                         }}
@@ -5992,10 +5996,21 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       <div className={`rounded-lg border px-3 py-2 text-xs ${up8TestResult.ok ? "border-primary/30 bg-primary/5 text-primary" : "border-destructive/30 bg-destructive/5 text-destructive"}`} role="status">
                         <p className="font-semibold">{up8TestResult.ok ? "전송 성공" : "전송 실패"}</p>
                         {up8TestResult.ok ? (
-                          <p className="mt-1 font-mono">{up8TestResult.symbol} · 총자산 {up8TestResult.bal_pct}% · HTTP {up8TestResult.status}</p>
+                          <>
+                            <p className="mt-1 font-mono">{up8TestResult.symbol} · 총자산 {up8TestResult.bal_pct}% · HTTP {up8TestResult.status}</p>
+                            {up8TestResult.tvm && <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-primary/20 bg-background/50 p-2 text-[11px] leading-5 text-foreground">{up8TestResult.tvm}</pre>}
+                          </>
                         ) : (
                           <p className="mt-1">{up8TestResult.error ?? up8TestResult.response ?? `HTTP ${up8TestResult.status ?? "-"}`}</p>
                         )}
+                      </div>
+                    )}
+                    {up8TvmLogs.length > 0 && (
+                      <div className="mt-3 space-y-2" aria-live="polite">
+                        <p className="text-xs font-semibold text-foreground">최근 전송 TVM (최대 3개)</p>
+                        {up8TvmLogs.map((tvm, index) => (
+                          <pre key={`${tvm}-${index}`} className="overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-border bg-background/50 p-2 text-[11px] leading-5 text-muted-foreground">{tvm}</pre>
+                        ))}
                       </div>
                     )}
                   </div>

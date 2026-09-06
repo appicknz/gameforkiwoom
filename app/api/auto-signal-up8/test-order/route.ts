@@ -85,6 +85,7 @@ export async function POST(req: Request) {
       account: settings.test_account,
       symbol,
       bal_pct: balPct,
+      tvm,
     }, { status: response.ok ? 200 : 502 })
   } catch (error) {
     return NextResponse.json({
