@@ -123,6 +123,12 @@ const connectionLabels: Record<FuturesTickerConnection, string> = {
 type CciSort = "none" | "asc" | "desc"
 type OutcomeSort = "asc" | "desc"
 
+function guideLines(guide: string | null) {
+  const value = guide ?? "데이터 부족"
+  const words = value.split(" ")
+  return words.length > 1 ? [words.slice(0, -1).join(" "), words.at(-1)!] : [value]
+}
+
 type TableFilterMenuProps = {
   label: string
   active?: boolean
@@ -431,14 +437,14 @@ const left = a.outcomes[timeframe]?.directionalReturnPercent == null ? null : a.
                     <tr key={entry.id} className={cn("border-b border-border/70 hover:bg-muted/30", startsGroup && index > 0 && "border-t-2 border-t-primary/30", entry.duplicateIndex > 0 && "bg-muted/15")}>
                       <td className="px-3 py-4 font-[inherit] text-muted-foreground">{kstTime.format(new Date(entry.signalTime))}</td>
                       <td className="px-3 py-4 font-semibold">{entry.symbol}</td>
-                      <td className="px-3 py-4"><span className={cn("rounded-md px-2 py-1 text-xs", entry.duplicateIndex ? "bg-secondary text-secondary-foreground" : "text-muted-foreground")}>{entry.duplicateLabel}</span></td>
+                      <td className="px-3 py-4"><span className={cn("rounded-md px-2 py-1 font-[inherit] text-xs", entry.duplicateIndex ? "bg-secondary text-secondary-foreground" : "text-muted-foreground")}>{entry.duplicateIndex === 0 ? "1" : "2"}</span></td>
                       <td className="px-3 py-4"><span className={cn("inline-flex items-center gap-1", entry.direction === "long" ? "text-primary" : "text-destructive")}>{entry.direction === "long" ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}{entry.signalType.replace("TRIPLE_COMBO_", "")}</span></td>
                       <td className="px-3 py-4 font-[inherit] text-muted-foreground">{entry.cci?.toFixed(1) ?? "—"}</td>
-                      <td className="px-3 py-4 text-muted-foreground">{[entry.bollinger.position, entry.bollinger.trend].filter(Boolean).join(" · ") || "—"}</td>
+                      <td className="px-3 py-4 text-muted-foreground"><div className="flex min-w-20 flex-col leading-5"><span>{entry.bollinger.position?.replaceAll("_", " ") || "—"}</span><span>{entry.bollinger.trend || "—"}</span></div></td>
                       <td className="px-3 py-4 font-[inherit]">{entry.volumeRatio24h == null ? "—" : `${entry.volumeRatio24h.toFixed(2)}%`}</td>
                       <td className="px-3 py-4 font-[inherit]">{entry.fireCount == null ? "—" : `${entry.fireCount}/5`}</td>
-                      <td className="px-3 py-4">{entry.signalState ?? "NEUTRAL"} · {entry.signalGrade ?? "D"}</td>
-                      <td className="max-w-40 truncate px-3 py-4 text-muted-foreground">{entry.tradeGuide ?? "데이터 부족"}</td>
+                      <td className="px-3 py-4"><div className="flex flex-col leading-5"><span className="font-[inherit]">{entry.signalGrade ?? "D"}</span><span>{entry.signalState ?? "NEUTRAL"}</span></div></td>
+                      <td className="max-w-40 px-3 py-4 text-muted-foreground"><div className="flex max-w-32 flex-col leading-5">{guideLines(entry.tradeGuide).map((line, lineIndex) => <span key={`${entry.id}-guide-${lineIndex}`}>{line}</span>)}</div></td>
                       <td className="px-3 py-4 font-[inherit]">{numberFormat.format(entry.entryPrice)}</td>
                       <td className="px-3 py-4 font-[inherit]">{currentPrice == null ? "—" : numberFormat.format(currentPrice)}</td>
                       <td className="px-3 py-4"><Percent value={directionalReturn} /></td>
