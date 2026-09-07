@@ -241,7 +241,7 @@ export default function PanelPage() {
   const [up8Msg,          setUp8Msg]          = useState<string | null>(null)
   const [up8TestSymbol,   setUp8TestSymbol]   = useState("023900")
   const [up8TestLoading,  setUp8TestLoading]  = useState(false)
-  const [up8TestResult,   setUp8TestResult]   = useState<{ ok?: boolean; error?: string; status?: number; response?: string; symbol?: string; bal_pct?: number; tvm?: string } | null>(null)
+  const [up8TestResult,   setUp8TestResult]   = useState<{ ok?: boolean; error?: string; status?: number; response?: string; symbol?: string; bal_pct?: number; tvm?: string; mode?: "test" | "live"; exchange?: string; account?: string } | null>(null)
   const [up8TvmLogs,      setUp8TvmLogs]      = useState<string[]>([])
   const [signalRules,      setSignalRules]      = useState<SignalRule[]>([])
   const [rulesSaving,      setRulesSaving]      = useState<string | null>(null)  // 저장 중인 signal_type
@@ -453,7 +453,7 @@ export default function PanelPage() {
     })
     const d = await res.json()
     if (res.ok) {
-      setAcMsg({ text: `"${targetUsername}" 계정이 삭제되었습니다.`, ok: true })
+      setAcMsg({ text: `"${targetUsername}" 계정이 삭제되���습니다.`, ok: true })
       loadUsers(adminPw)
     } else {
       alert(d.error ?? "삭������� 중 오류가 발생했습니다.")
@@ -1084,7 +1084,7 @@ export default function PanelPage() {
   const [baExLoading, setBaExLoading]         = useState(false)
   const [baExExpanded, setBaExExpanded]       = useState(false) // 환전 대기 펼침
   const [baStatExpanded, setBaStatExpanded]   = useState(false) // 누적 통계 펼침
-  // 총판 지점에 지급한 포인트 합계 (point_charge_requests 기준)
+  // 총판 ���점에 지급한 포인트 합계 (point_charge_requests 기준)
   const [baTotalCharged, setBaTotalCharged]   = useState(0)
 
   const loadBranchMembers = useCallback(async (branchCode: string) => {
@@ -4758,7 +4758,7 @@ export default function PanelPage() {
               </button>
             </div>
 
-            {/* 섹션 2: 웹훅 테스트 */}
+            {/* 섹션 2: 웹훅 테스�� */}
             <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex flex-col gap-3">
               <p className="text-sm font-semibold text-foreground">웹훅 테스트</p>
               <p className="text-xs text-muted-foreground">위 URL로 테스트 payload를 전송하고 응답을 확인합니다. 비워두면 기본 payload가 자동 생성됩니다.</p>
@@ -5951,7 +5951,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">UP6 / UP8 테스트 주문</h3>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        저장된 총자산 대비 비율로 kis-testnet 계정에 KOSDAQ 시장가 매수 주문을 즉시 전송합니다. 자동매매 및 매매기록에는 저장되지 않습니다.
+                        저장된 주문 모드의 계정과 총자산 대비 비율로 KOSDAQ 시장가 매수 주문을 즉시 전송합니다. 실매매 주문 선택 시 실제 kis 계정으로 전송됩니다.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-end gap-3">
@@ -5968,7 +5968,9 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       <button
                         disabled={up8TestLoading || !up8TestSymbol.trim()}
                         onClick={async () => {
-                          if (!confirm(`${up8TestSymbol}/KOSDAQ 총자산의 ${up8Settings.bal_pct}%를 kis-testnet으로 매수 전송합니까?`)) return
+                          const selectedExchange = up8Settings.live_enabled ? up8Settings.live_exchange : up8Settings.test_exchange
+                          const selectedAccount = up8Settings.live_enabled ? up8Settings.live_account : up8Settings.test_account
+                          if (!confirm(`${up8TestSymbol}/KOSDAQ 총자산의 ${up8Settings.bal_pct}%를 ${selectedExchange} · ${selectedAccount} 계정으로 매수 전송합니까?`)) return
                           setUp8TestLoading(true)
                           setUp8TestResult(null)
                           try {
@@ -5997,7 +5999,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                         <p className="font-semibold">{up8TestResult.ok ? "전송 성공" : "전송 실패"}</p>
                         {up8TestResult.ok ? (
                           <>
-                            <p className="mt-1 font-mono">{up8TestResult.symbol} · 총자산 {up8TestResult.bal_pct}% · HTTP {up8TestResult.status}</p>
+                            <p className="mt-1 font-mono">{up8TestResult.symbol} · 총자산 {up8TestResult.bal_pct}% · {up8TestResult.exchange} · {up8TestResult.account} · HTTP {up8TestResult.status}</p>
                             {up8TestResult.tvm && <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-primary/20 bg-background/50 p-2 text-[11px] leading-5 text-foreground">{up8TestResult.tvm}</pre>}
                           </>
                         ) : (
@@ -6642,7 +6644,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               disabled={walletRepairLoading}
               className="h-9 px-5 rounded-lg bg-primary text-black text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {walletRepairLoading ? "복구 중..." : "주소 일괄 복구 실행"}
+              {walletRepairLoading ? "복구 중..." : "���소 일괄 복구 실행"}
             </button>
 
             {walletRepairError && (

@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   const [{ data: settings, error: settingsError }, { data: globalSettings, error: globalError }] = await Promise.all([
     adminSupabase
       .from("auto_signal_up8_settings")
-      .select("amount, test_exchange, test_account, test_auth_token")
+      .select("amount, test_enabled, live_enabled, test_exchange, test_account, test_auth_token, live_exchange, live_account, live_auth_token")
       .eq("id", 1)
       .single(),
     adminSupabase
@@ -55,16 +55,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "저장된 UP8 총자산 주문 비율이 올바르지 않습니다." }, { status: 500 })
   }
 
+  const selectedOrder = settings.live_enabled
+    ? { mode: "live", exchange: settings.live_exchange, account: settings.live_account, token: settings.live_auth_token }
+    : settings.test_enabled
+      ? { mode: "test", exchange: settings.test_exchange, account: settings.test_account, token: settings.test_auth_token }
+      : null
+
+  if (!selectedOrder) {
+    return NextResponse.json({ error: "테스트 주문 또는 실매매 주문을 먼저 선택하고 저장하세요." }, { status: 400 })
+  }
+
   const tvm = `TVM:${JSON.stringify({
-    exchange: settings.test_exchange,
-    account: settings.test_account,
+    exchange: selectedOrder.exchange,
+    account: selectedOrder.account,
     symbol,
     type: "market",
     side: "buy",
     bal_pct: balPct,
     equity: "y",
     same_order: "skip",
-    token: settings.test_auth_token,
+    token: selectedOrder.token,
   })}:MVT`
 
   try {
@@ -80,9 +90,9 @@ export async function POST(req: Request) {
       ok: response.ok,
       status: response.status,
       response: responseBody.slice(0, 500),
-      mode: "test",
-      exchange: settings.test_exchange,
-      account: settings.test_account,
+      mode: selectedOrder.mode,
+      exchange: selectedOrder.exchange,
+      account: selectedOrder.account,
       symbol,
       bal_pct: balPct,
       tvm,
