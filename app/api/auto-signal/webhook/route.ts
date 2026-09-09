@@ -13,6 +13,7 @@ import { after, NextResponse } from "next/server"
 import { recordSignalStatistics, recordSignalStatisticsForPosition } from "@/lib/signal-statistics"
 import { createPredictionsForEntry } from "@/lib/signal-prediction"
 import { enrichSignalPayload, type SignalEnrichment } from "@/lib/signal-enrichment"
+import { recordUp6Signal } from "@/lib/auto-trading3"
 
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
 
@@ -417,6 +418,16 @@ async function handleSignalUp8(args: { type: string; symbol: string; ip: string;
   const results = await Promise.all(selectedModes.map(async config => { const tvm = buildUp8Tvm({ ...config, symbol: tvmSymbol, balPct }); try { const response = await fetch(tradingGs.webhook_url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: tvm, signal: AbortSignal.timeout(10000) }); return { mode: config.mode, ok: response.ok, status: response.status } } catch { return { mode: config.mode, ok: false, status: null } } }))
   const failedModes = results.filter(result => !result.ok).map(result => result.mode)
   if (failedModes.length > 0) { await logRequest("error", 502, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM failed: ${failedModes.join(",")}` }); return NextResponse.json({ error: "UP8 TVM delivery failed", up8: true, results }, { status: 502 }) }
+  const signalTime = typeof body.formatted_time_kst === "string" ? new Date(body.formatted_time_kst.replace(" ", "T") + "+09:00").toISOString() : new Date().toISOString()
+  if (type === "TRIPLE_COMBO_UP6") {
+    await recordUp6Signal({
+      body,
+      symbol,
+      signalTime,
+      modes: selectedModes.map(config => ({ mode: config.mode as "test" | "live", exchange: config.exchange, account: config.account })),
+      orderResults: results,
+    })
+  }
   await logRequest("ok", 200, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM sent: ${results.map(result => result.mode).join(",")}` })
   return NextResponse.json({ ok: true, up8: true, symbol: tvmSymbol, bal_pct: balPct, results })
 }
