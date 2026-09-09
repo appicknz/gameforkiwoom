@@ -142,7 +142,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
         ].map(([label, value, suffix], index) => (
           <div key={String(label)} className="border-b border-r border-primary/10 px-4 py-3 md:border-b-0">
             <p className="text-[9px] font-semibold text-muted-foreground">{label}</p>
-            <p className="mt-1 font-mono text-sm font-black tabular-nums" style={{ color: index >= 3 ? (Number(value) >= 0 ? UP : DOWN) : GOLD }}>{index === 4 ? Number(value).toFixed(2) : number(Number(value))}<span className="ml-1 text-[9px] font-medium text-muted-foreground">{suffix}</span></p>
+            <p className="mt-1 text-sm font-black tabular-nums" style={{ color: index >= 3 ? (Number(value) >= 0 ? UP : DOWN) : GOLD }}>{index === 4 ? Number(value).toFixed(2) : number(Number(value))}<span className="ml-1 text-[9px] font-medium text-muted-foreground">{suffix}</span></p>
           </div>
         ))}
       </div>
@@ -156,23 +156,23 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
             <article key={record.id} className="flex flex-col gap-2 border-b border-border px-4 py-3 transition-colors hover:bg-muted/20 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <strong className="font-mono text-sm text-foreground">{record.symbol_name || record.symbol}</strong>
-                  {record.symbol_name && <span className="font-mono text-[10px] text-muted-foreground">{record.symbol}</span>}
+                  <strong className="text-sm text-foreground">{record.symbol_name || record.symbol}</strong>
+                  {record.symbol_name && <span className="text-[10px] text-muted-foreground">{record.symbol}</span>}
                   <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: record.account_mode === "live" ? "rgba(212,175,55,.12)" : "rgba(56,189,248,.12)", color: record.account_mode === "live" ? GOLD : "#38bdf8" }}>{record.account_mode === "live" ? "실계좌" : "모의"}</span>
                   <span className="text-[9px] font-bold text-primary/70">UP6</span>
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
-                  <span>진입 <b className="font-mono text-foreground/70">{number(Number(record.entry_price))}원</b></span>
+                  <span>진입 <b className="text-foreground/70">{number(Number(record.entry_price))}원</b></span>
                   <span>{priceLabel} <b className="font-mono" style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.currentPrice ? `${number(record.currentPrice)}원` : "대기 중"}</b></span>
-                  <span>수량 <b className="font-mono text-foreground/70">{number(Number(record.quantity))}주</b></span>
-                  <span>투입 <b className="font-mono text-foreground/70">{number(Number(record.invested_amount))}원</b></span>
-                  <span>거래량 <b className="font-mono text-foreground/70">{number(Number(record.volume ?? 0))}</b></span>
+                  <span>수량 <b className="text-foreground/70">{number(Number(record.quantity))}주</b></span>
+                  <span>투입 <b className="text-foreground/70">{number(Number(record.invested_amount))}원</b></span>
+                  <span>거래량 <b className="text-foreground/70">{number(Number(record.volume ?? 0))}</b></span>
                   <span>{time}</span>
                 </div>
               </div>
               <div className="flex shrink-0 items-end justify-between gap-4 md:flex-col md:items-end md:gap-0">
-                {record.status === "skipped" ? <span className="text-[10px] font-bold text-amber-400">{record.skip_reason === "price_over_50000" ? "5만원 초과 제외" : "기록 제외"}</span> : <p className="font-mono text-sm font-black tabular-nums" style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.roi >= 0 ? "+" : ""}{record.roi.toFixed(2)}%</p>}
-                <p className="font-mono text-[10px] tabular-nums text-muted-foreground">{record.pnl >= 0 ? "+" : ""}{number(record.pnl)}원</p>
+                {record.status === "skipped" ? <span className="text-[10px] font-bold text-amber-400">{record.skip_reason === "price_over_50000" ? "5만원 초과 제외" : "기록 제외"}</span> : <p className="text-sm font-black tabular-nums" style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.roi >= 0 ? "+" : ""}{record.roi.toFixed(2)}%</p>}
+                <p className="text-[10px] tabular-nums text-muted-foreground">{record.pnl >= 0 ? "+" : ""}{number(record.pnl)}원</p>
               </div>
             </article>
           )
