@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { supabaseBrowser } from "@/lib/supabase-browser"
 import { usePriceWorker } from "@/hooks/use-price-worker"
 import LivePricesTab, { liveCache } from "@/components/trade/live-prices-tab"
+import AutoSignal3Panel from "@/components/trade/auto-signal3-panel"
 import SymbolChart from "@/components/trade/symbol-chart"
 import { BarChart2, Wallet, X, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react"
 
@@ -3031,10 +3032,10 @@ const searchParams = useSearchParams()
   const [tick,          setTick]          = useState(0)
   const [formCollapsed, setFormCollapsed] = useState(true)   // 기본값: 접힘
   const [selectedDate,  setSelectedDate]  = useState(() => kstToday())
-  const [tradeMode,       setTradeMode]       = useState<"auto" | "auto2" | "closed" | "ledger" | "mock">("ledger")
+  const [tradeMode,       setTradeMode]       = useState<"auto" | "auto2" | "auto3" | "closed" | "ledger" | "mock">("ledger")
 
   // 탭 전환 시 날짜를 오늘로 리셋 → DateStrip이 맨 오른쪽으로 스크롤
-  const switchTab = (mode: "auto" | "auto2" | "closed" | "ledger" | "mock") => {
+  const switchTab = (mode: "auto" | "auto2" | "auto3" | "closed" | "ledger" | "mock") => {
     setSelectedDate(kstToday())
     setTradeMode(mode)
   }
@@ -3053,14 +3054,14 @@ const searchParams = useSearchParams()
       setTradeMode("mock")
     }
     const selectMode = (event: Event) => {
-      const mode = (event as CustomEvent<"auto" | "auto2" | "closed" | "ledger" | "mock">).detail
-      if (["auto", "auto2", "closed", "ledger", "mock"].includes(mode)) switchTab(mode)
+      const mode = (event as CustomEvent<"auto" | "auto2" | "auto3" | "closed" | "ledger" | "mock">).detail
+      if (["auto", "auto2", "auto3", "closed", "ledger", "mock"].includes(mode)) switchTab(mode)
     }
 
     const params = new URLSearchParams(window.location.search)
-    const initialMode = params.get("mode") as "auto" | "auto2" | "closed" | "ledger" | "mock" | null
+    const initialMode = params.get("mode") as "auto" | "auto2" | "auto3" | "closed" | "ledger" | "mock" | null
     const initialSymbol = params.get("symbol")
-    if (initialMode && ["auto", "auto2", "closed", "ledger", "mock"].includes(initialMode)) switchTab(initialMode)
+    if (initialMode && ["auto", "auto2", "auto3", "closed", "ledger", "mock"].includes(initialMode)) switchTab(initialMode)
     if (initialSymbol) selectSymbol(new CustomEvent("trade:symbol", { detail: initialSymbol.toUpperCase() }))
 
     window.addEventListener("trade:symbol", selectSymbol)
@@ -3072,12 +3073,12 @@ const searchParams = useSearchParams()
   }, [])
 
 useEffect(() => {
-const mode = searchParams.get("mode") as "auto" | "auto2" | "closed" | "ledger" | "mock" | null
+const mode = searchParams.get("mode") as "auto" | "auto2" | "auto3" | "closed" | "ledger" | "mock" | null
 if (mode === "mock") {
 window.location.replace("/trading")
 return
 }
-if (mode && ["auto", "auto2", "closed", "ledger"].includes(mode)) {
+if (mode && ["auto", "auto2", "auto3", "closed", "ledger"].includes(mode)) {
 switchTab(mode)
 }
 }, [searchParams])
@@ -3146,6 +3147,10 @@ switchTab(mode)
     const token = getToken()
     if (!token) {
       setAllowMockTrade(false)
+      if (new URLSearchParams(window.location.search).get("mode") === "auto3") {
+        setTradeMode("ledger")
+        window.history.replaceState(null, "", "/trade?mode=ledger")
+      }
       return
     }
     Promise.all([
@@ -3155,8 +3160,13 @@ switchTab(mode)
       const loggedIn = Boolean(profileData?.profile || meData?.username)
       setAllowMockTrade(loggedIn)
       if (!loggedIn && tradeMode === "mock") setTradeMode("auto")
+      const resolvedUserName = meData.username ?? profileData?.profile?.username ?? null
       setUserRole(meData.role ?? null)
-      setUserName(meData.username ?? profileData?.profile?.username ?? null)
+      setUserName(resolvedUserName)
+      if (resolvedUserName !== "역삼1" && new URLSearchParams(window.location.search).get("mode") === "auto3") {
+        setTradeMode("ledger")
+        window.history.replaceState(null, "", "/trade?mode=ledger")
+      }
     }).catch(() => {
       setAllowMockTrade(false)
     })
@@ -3392,6 +3402,15 @@ switchTab(mode)
               <AutoSignal2Panel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
           </div>
         </div>
+        {/* 자동매매3: 역삼1 전용, UP6 국내주식 */}
+        <div style={{ position: "absolute", inset: 0, display: tradeMode === "auto3" && userName === "역삼1" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
+          <div style={{ flexShrink: 0 }}>
+            <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
+          </div>
+          <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
+            <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />
+          </div>
+        </div>
         {/* 청산 기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "closed" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflowY: "auto" }}>
           <ClosedPositionsPanel refreshKey={closedRefreshKey} tradeMode={tradeMode} selectedDate={selectedDate} onSelectDate={setSelectedDate} confirmedMargin={confirmedValue} />
@@ -3455,6 +3474,19 @@ switchTab(mode)
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
             <AutoSignal2Panel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
+            </div>
+          </div>
+          {/* 자동매매3: 역삼1 전용, UP6 국내주식 */}
+          <div className="rounded-2xl flex flex-col h-full" style={{
+            background: PANEL_BG,
+            border: `1px solid ${BORDER}`,
+            display: tradeMode === "auto3" && userName === "역삼1" ? "flex" : "none",
+          }}>
+            <div style={{ flexShrink: 0 }}>
+              <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
+            </div>
+            <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
+              <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />
             </div>
           </div>
           {/* 청산 기록 */}

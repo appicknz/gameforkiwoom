@@ -1,12 +1,11 @@
 export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
-import { verifySession } from "@/lib/auth"
 import { getKisQuote, subscribeKisQuote, getKisStreamSnapshot, parseKisMode } from "@/lib/kis-domestic"
+import { requireAutoTrading3User } from "@/lib/auto-trading3-auth"
 
 export async function GET(req: Request) {
-  const session = await verifySession(req)
-  if (!session.ok) return NextResponse.json({ error: session.error }, { status: session.status })
-  if (session.role !== "master") return NextResponse.json({ error: "forbidden" }, { status: 403 })
+  const access = await requireAutoTrading3User(req)
+  if (!access.ok) return access.response
   const url = new URL(req.url)
   const symbol = url.searchParams.get("symbol")
   const mode = parseKisMode(url.searchParams.get("mode"))

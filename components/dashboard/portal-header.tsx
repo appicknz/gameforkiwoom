@@ -28,7 +28,7 @@ const basePortalItems = [
   { label: "지갑", href: "/wallet", icon: WalletCards },
 ] as const
 
-type TradeMode = "auto" | "ledger" | "auto2" | "closed"
+type TradeMode = "auto" | "ledger" | "auto2" | "auto3" | "closed"
 type HeaderAction = { label: string; href?: string; icon: typeof Flame; onClick?: () => void }
 
 export function PortalHeader() {
@@ -190,6 +190,7 @@ export function PortalHeader() {
       const ledgerIndex = items.findIndex((item) => item.mode === "ledger")
       items.splice(ledgerIndex + 1, 0,
         { label: "자동매매2", href: "/trade", icon: Bot, mode: "auto2" },
+        { label: "자동매매3", href: "/trade", icon: Bot, mode: "auto3" },
         { label: "청산기록", href: "/trade", icon: ListChecks, mode: "closed" },
       )
     }

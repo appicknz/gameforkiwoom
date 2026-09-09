@@ -1,12 +1,11 @@
 export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
-import { verifySession } from "@/lib/auth"
 import { closeAutoTrading3Day } from "@/lib/auto-trading3"
+import { requireAutoTrading3User } from "@/lib/auto-trading3-auth"
 
 export async function POST(req: Request) {
-  const session = await verifySession(req)
-  if (!session.ok) return NextResponse.json({ error: session.error }, { status: session.status })
-  if (session.role !== "master") return NextResponse.json({ error: "forbidden" }, { status: 403 })
+  const access = await requireAutoTrading3User(req)
+  if (!access.ok) return access.response
   const body = await req.json().catch(() => ({})) as { date?: string }
   const date = body.date ?? new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
   try { return NextResponse.json({ ok: true, date, results: await closeAutoTrading3Day(date) }) }

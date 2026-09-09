@@ -256,39 +256,7 @@ export default function PanelPage() {
   const [rebalMsg,         setRebalMsg]         = useState<string | null>(null)
 
   // 자동주문 서브탭 state
-  const [autoSubTab, setAutoSubTab] = useState<"signal" | "auto3" | "order" | "logs" | "seed">("signal")
-  type AutoTrading3Record = { id: string; trade_date: string; signal_time: string; symbol: string; account_mode: "test" | "live"; account: string; entry_price: number; quantity: number; invested_amount: number; close_price: number | null; status: string; skip_reason: string | null; price_change_percent: number | null; volume: number | null }
-  const [auto3Records, setAuto3Records] = useState<AutoTrading3Record[]>([])
-  const [auto3Summary, setAuto3Summary] = useState<{ seedCapital: number; investedAmount: number; remainingCapital: number; evaluatedAmount: number; returnPercent: number } | null>(null)
-  const [auto3Date, setAuto3Date] = useState(() => new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10))
-  const [auto3Loading, setAuto3Loading] = useState(false)
-  const [auto3Msg, setAuto3Msg] = useState<string | null>(null)
-
-  const loadAuto3 = async (date = auto3Date) => {
-    setAuto3Loading(true)
-    const tok = localStorage.getItem("app_token") ?? ""
-    try {
-      const res = await fetch(`/api/auto-trading3/records?date=${encodeURIComponent(date)}`, { headers: { Authorization: `Bearer ${tok}` } })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "자동매매3 조회 실패")
-      setAuto3Records(data.records ?? [])
-      setAuto3Summary(data.summary ?? null)
-    } catch (error) { setAuto3Msg(error instanceof Error ? error.message : "자동매매3 조회 실패") }
-    finally { setAuto3Loading(false) }
-  }
-
-  const saveAuto3Closes = async () => {
-    setAuto3Loading(true); setAuto3Msg(null)
-    const tok = localStorage.getItem("app_token") ?? ""
-    try {
-      const res = await fetch("/api/auto-trading3/closes", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ date: auto3Date }) })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "종가 저장 실패")
-      setAuto3Msg(`${data.results?.filter((item: { error?: string }) => !item.error).length ?? 0}건 종가 저장 완료`)
-      await loadAuto3()
-    } catch (error) { setAuto3Msg(error instanceof Error ? error.message : "종가 저장 실패") }
-    finally { setAuto3Loading(false) }
-  }
+  const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs" | "seed">("signal")
   const [initialSeed,     setInitialSeed]     = useState<string>("")
   const [withdrawAmount,  setWithdrawAmount]  = useState<string>("")
   const [withdrawnTotal,  setWithdrawnTotal]  = useState<number>(0)
@@ -1750,7 +1718,7 @@ export default function PanelPage() {
                     setPpApproving(false)
                   }}
                 >
-                  {ppApproving ? "처리 중..." : `₩${payout > 0 ? payout.toLocaleString() : "??"} 지급 확인`}
+                  {ppApproving ? "처리 중..." : `���${payout > 0 ? payout.toLocaleString() : "??"} 지급 확인`}
                 </Button>
               </div>
             </div>
@@ -3010,7 +2978,7 @@ export default function PanelPage() {
             <div className="bg-card border border-border rounded-2xl overflow-hidden">
               <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-foreground">지점별 하우스 손익</h3>
+                  <h3 className="text-sm font-semibold text-foreground">지점�� 하우스 손익</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">게임 유형별 배팅·지급·LP·수수료 통계</p>
                 </div>
                 <Button variant="ghost" size="sm" onClick={loadHouseStats} disabled={houseLoading} className="gap-1.5 text-xs">
@@ -4866,13 +4834,12 @@ export default function PanelPage() {
 
             {/* 서브탭 네비게이션 */}
             <div className="flex gap-1 border-b border-border pb-0">
-              {([["signal", "시그널 매매"], ["auto3", "자동매매3"], ["order", "자동주문"], ["logs", "주문로그"], ["seed", "시드설정"]] as const).map(([key, label]) => (
+              {([["signal", "시그널 매매"], ["order", "자동주문"], ["logs", "주문로그"], ["seed", "시드설정"]] as const).map(([key, label]) => (
                 <button
                   key={key}
                   onClick={async () => {
                     setAutoSubTab(key)
                     if (key === "signal" && !dailyStatsLoaded) loadDailyStats()
-                    if (key === "auto3") loadAuto3()
                     if (key === "order") {
                       if (!tradingLoaded) loadTradingData()
                       const tok = localStorage.getItem("app_token") ?? ""
@@ -4919,38 +4886,6 @@ export default function PanelPage() {
               ))}
             </div>
 
-            {autoSubTab === "auto3" && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-sm font-semibold text-foreground">자동매매3 · UP6 국내주식 기록</h2>
-                    <p className="text-xs text-muted-foreground mt-1">종목당 50,000원 · 기준 시드 2,000,000원 · KIS 현재가가 50,000원을 초과하면 기록하지 않습니다.</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="date" value={auto3Date} onChange={e => { setAuto3Date(e.target.value); loadAuto3(e.target.value) }} className="h-8 rounded-lg border border-border bg-secondary px-2 text-xs text-foreground" />
-                    <button onClick={() => loadAuto3()} disabled={auto3Loading} className="h-8 rounded-lg border border-border bg-secondary px-3 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50">새로고침</button>
-                    <button onClick={saveAuto3Closes} disabled={auto3Loading} className="h-8 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50">당일 종가 저장</button>
-                  </div>
-                </div>
-                {auto3Msg && <p className="text-xs text-muted-foreground">{auto3Msg}</p>}
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-                  {[
-                    ["기준 시드", auto3Summary?.seedCapital ?? 2000000, "원"],
-                    ["투입금액", auto3Summary?.investedAmount ?? 0, "원"],
-                    ["잔여 기준금액", auto3Summary?.remainingCapital ?? 2000000, "원"],
-                    ["평가금액", auto3Summary?.evaluatedAmount ?? 0, "원"],
-                    ["수익률", auto3Summary?.returnPercent ?? 0, "%"],
-                  ].map(([label, value, suffix]) => <div key={String(label)} className="rounded-xl border border-border bg-secondary/20 p-4"><p className="text-[11px] text-muted-foreground">{label}</p><p className="mt-1 text-lg font-bold tabular-nums text-foreground">{Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}<span className="ml-1 text-xs font-normal text-muted-foreground">{suffix}</span></p></div>)}
-                </div>
-                <div className="rounded-xl border border-border overflow-hidden">
-                  <div className="grid grid-cols-8 gap-2 border-b border-border bg-secondary/20 px-4 py-3 text-[11px] font-semibold text-muted-foreground"><span>종목</span><span>모드</span><span>진입가</span><span>수량</span><span>투입</span><span>종가</span><span>변동률</span><span>상태</span></div>
-                  {auto3Loading && <div className="p-6 text-center text-xs text-muted-foreground">불러오는 중...</div>}
-                  {!auto3Loading && auto3Records.length === 0 && <div className="p-6 text-center text-xs text-muted-foreground">선택한 날짜의 UP6 기록이 없습니다.</div>}
-                  {!auto3Loading && auto3Records.map(record => <div key={record.id} className="grid grid-cols-8 gap-2 border-t border-border px-4 py-3 text-xs items-center"><span className="font-mono font-semibold text-foreground">{record.symbol}</span><span className={record.account_mode === "live" ? "text-amber-400" : "text-sky-400"}>{record.account_mode === "live" ? "실계좌" : "모의"}</span><span className="tabular-nums">{Number(record.entry_price).toLocaleString()}</span><span className="tabular-nums">{record.quantity}</span><span className="tabular-nums">{Number(record.invested_amount).toLocaleString()}</span><span className="tabular-nums">{record.close_price == null ? "-" : Number(record.close_price).toLocaleString()}</span><span className={Number(record.price_change_percent ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}>{record.price_change_percent == null ? "-" : `${Number(record.price_change_percent).toFixed(2)}%`}</span><span className={record.status === "skipped" ? "text-amber-400" : "text-emerald-400"}>{record.status === "skipped" ? (record.skip_reason ?? "제외") : record.status === "closed" ? "종가 저장" : "기록"}</span></div>)}
-                </div>
-              </div>
-            )}
-
             {/* ── 자동주문 서브탭 ── */}
             {autoSubTab === "order" && (
               <div className="space-y-6">
@@ -4962,7 +4897,7 @@ export default function PanelPage() {
                       <div>
                         <h2 className="text-sm font-semibold text-foreground">텔레그램 배팅 채널 웹훅</h2>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          배팅 채널 ID: <span className="font-mono text-foreground">-1004471984422</span>
+                          배팅 ��널 ID: <span className="font-mono text-foreground">-1004471984422</span>
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
