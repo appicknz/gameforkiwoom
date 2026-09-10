@@ -1,4 +1,6 @@
 export const dynamic = "force-dynamic"
+
+const initializedQuotes = new Set<string>()
 import { NextResponse } from "next/server"
 import { getKisQuote, subscribeKisQuote, subscribeKisQuotes, getKisStreamSnapshot, parseKisMode, normalizeKisSymbol } from "@/lib/kis-domestic"
 import { requireAutoTrading3User } from "@/lib/auto-trading3-auth"
@@ -15,10 +17,12 @@ export async function GET(req: Request) {
   try {
     if (symbols.length > 0) {
       const stream = await subscribeKisQuotes(symbols, mode)
-      const missingSymbols = allowRestFallback ? symbols.filter(item => !stream.quotes[item]) : []
+      const missingSymbols = symbols.filter(item => !stream.quotes[item] && !initializedQuotes.has(`${mode}:${item}`))
       const fallbackEntries: Array<readonly [string, Awaited<ReturnType<typeof getKisQuote>>]> = []
       for (const item of missingSymbols) {
-        try { fallbackEntries.push([item, await getKisQuote(item, mode)] as const) } catch { /* WebSocket tick remains the fallback */ }
+        const key = `${mode}:${item}`
+        initializedQuotes.add(key)
+        try { fallbackEntries.push([item, await getKisQuote(item, mode)] as const) } catch { initializedQuotes.delete(key) }
         if (mode === "test") await new Promise(resolve => setTimeout(resolve, 550))
       }
       const quotes = { ...stream.quotes, ...Object.fromEntries(fallbackEntries) }

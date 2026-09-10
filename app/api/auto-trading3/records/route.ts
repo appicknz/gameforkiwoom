@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { calculateAutoTrading3Summary } from "@/lib/auto-trading3"
-import { getKisQuote, type KisMode } from "@/lib/kis-domestic"
 import { requireAutoTrading3User } from "@/lib/auto-trading3-auth"
 import { getKoreaStockName } from "@/lib/korea-stock-list"
 
@@ -23,15 +22,7 @@ export async function GET(req: Request) {
       }
       return { ...record, symbol_name: mappedName }
     }
-    if (record.symbol_name) return record
-    try {
-      const quote = await getKisQuote(record.symbol, record.account_mode as KisMode)
-      if (!quote.symbolName) return record
-      await adminSupabase.from("auto_trading3_records").update({ symbol_name: quote.symbolName, updated_at: new Date().toISOString() }).eq("id", record.id)
-      return { ...record, symbol_name: quote.symbolName }
-    } catch {
-      return record
-    }
+    return record
   }))
   return NextResponse.json({ records: enrichedRecords, summary: calculateAutoTrading3Summary(enrichedRecords as Array<Record<string, unknown>>) })
 }
