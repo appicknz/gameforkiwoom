@@ -163,7 +163,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
                   <span>진입 <b className="text-foreground/70">{number(Number(record.entry_price))}원</b></span>
-                  <span>{priceLabel} <b className="font-mono" style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.currentPrice ? `${number(record.currentPrice)}원` : "대기 중"}</b></span>
+                  <span>{priceLabel} <b style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.currentPrice ? `${number(record.currentPrice)}원` : "대기 중"}</b></span>
                   <span>수량 <b className="text-foreground/70">{number(Number(record.quantity))}주</b></span>
                   <span>투입 <b className="text-foreground/70">{number(Number(record.invested_amount))}원</b></span>
                   <span>거래량 <b className="text-foreground/70">{number(Number(record.volume ?? 0))}</b></span>
