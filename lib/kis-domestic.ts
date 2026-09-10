@@ -16,6 +16,7 @@ export type KisQuote = {
 type TokenCache = { token: string; expiresAt: number }
 type StreamState = { status: "idle" | "connecting" | "connected" | "reconnecting" | "error"; reconnects: number; lastError: string | null; updatedAt: string }
 type KisStreamSubscription = { approvalKey: string; subscribed: Set<string> }
+type KisSubscriptionStatus = { status: "pending" | "subscribed" | "error"; code: string | null; message: string | null; updatedAt: string }
 
 const tokenCache = new Map<KisMode, TokenCache>()
 const tokenRequests = new Map<KisMode, Promise<string>>()
@@ -26,6 +27,7 @@ const streamState: Record<KisMode, StreamState> = {
 const sockets = new Map<KisMode, WebSocket>()
 const streamSubscriptions = new Map<KisMode, KisStreamSubscription>()
 const streamConnectRequests = new Map<KisMode, Promise<void>>()
+const subscriptionStatuses = new Map<string, KisSubscriptionStatus>()
 const subscriptions = new Map<KisMode, Set<string>>([
   ["test", new Set()],
   ["live", new Set()],
@@ -107,27 +109,49 @@ function sendSubscription(mode: KisMode, symbol: string, trType: "1" | "2" = "1"
   const subscription = streamSubscriptions.get(mode)
   if (!socket || socket.readyState !== WebSocket.OPEN || !subscription || subscription.subscribed.has(symbol)) return
   socket.send(JSON.stringify({ header: { approval_key: subscription.approvalKey, custtype: "P", tr_type: trType, "content-type": "utf-8" }, body: { input: { tr_id: "H0STCNT0", tr_key: symbol } } }))
-  if (trType === "1") subscription.subscribed.add(symbol)
+  if (trType === "1") {
+    subscription.subscribed.add(symbol)
+    subscriptionStatuses.set(`${mode}:${symbol}`, { status: "pending", code: null, message: null, updatedAt: new Date().toISOString() })
+  }
 }
 
-function parseSocketMessage(raw: WebSocket.RawData, mode: KisMode) {
+function handleSocketMessage(raw: WebSocket.RawData, mode: KisMode, socket: WebSocket) {
   const text = raw.toString()
-  if (!text.startsWith("0|")) return
-  const fields = text.split("|").slice(3)[0]?.split("^") ?? []
-  const symbol = cleanSymbol(fields[0] ?? "")
-  const price = Number(fields[2])
-  if (!symbol || !Number.isFinite(price) || price <= 0) return
-  const previous = latestQuotes.get(`${mode}:${symbol}`)
-  const tradeTime = fields[1]?.trim()
-  latestQuotes.set(`${mode}:${symbol}`, {
-    symbol,
-    symbolName: getKoreaStockName(symbol) || previous?.symbolName || null,
-    price,
-    changePercent: Number.isFinite(Number(fields[5])) ? Number(fields[5]) : previous?.changePercent ?? null,
-    volume: Number.isFinite(Number(fields[12])) ? Number(fields[12]) : previous?.volume ?? null,
-    tradedAt: tradeTime ? `${new Date().toISOString().slice(0, 10)}T${tradeTime}` : new Date().toISOString(),
-    market: "J",
+  if (text.startsWith("0|")) {
+    const fields = text.split("|").slice(3)[0]?.split("^") ?? []
+    const symbol = cleanSymbol(fields[0] ?? "")
+    const price = Number(fields[2])
+    if (!symbol || !Number.isFinite(price) || price <= 0) return
+    const previous = latestQuotes.get(`${mode}:${symbol}`)
+    const tradeTime = fields[1]?.trim()
+    latestQuotes.set(`${mode}:${symbol}`, {
+      symbol,
+      symbolName: getKoreaStockName(symbol) || previous?.symbolName || null,
+      price,
+      changePercent: Number.isFinite(Number(fields[5])) ? Number(fields[5]) : previous?.changePercent ?? null,
+      volume: Number.isFinite(Number(fields[12])) ? Number(fields[12]) : previous?.volume ?? null,
+      tradedAt: tradeTime ? `${new Date().toISOString().slice(0, 10)}T${tradeTime}` : new Date().toISOString(),
+      market: "J",
+    })
+    return
+  }
+
+  const message = JSON.parse(text) as { header?: { tr_id?: string; tr_key?: string }; body?: { rt_cd?: string; msg_cd?: string; msg1?: string } }
+  if (message.header?.tr_id === "PINGPONG") {
+    socket.send(raw)
+    return
+  }
+  if (message.header?.tr_id !== "H0STCNT0") return
+  const symbol = cleanSymbol(message.header.tr_key ?? "")
+  if (!symbol) return
+  const accepted = message.body?.rt_cd === "0"
+  subscriptionStatuses.set(`${mode}:${symbol}`, {
+    status: accepted ? "subscribed" : "error",
+    code: message.body?.msg_cd ?? message.body?.rt_cd ?? null,
+    message: message.body?.msg1 ?? null,
+    updatedAt: new Date().toISOString(),
   })
+  if (!accepted) streamSubscriptions.get(mode)?.subscribed.delete(symbol)
 }
 
 async function ensureStream(mode: KisMode) {
@@ -148,7 +172,7 @@ async function ensureStream(mode: KisMode) {
       streamSubscriptions.set(mode, { approvalKey, subscribed: new Set() })
       setState(mode, { status: "connected", lastError: null })
       for (const symbol of subscriptions.get(mode) ?? []) sendSubscription(mode, symbol)
-      socket.on("message", raw => { try { parseSocketMessage(raw, mode) } catch { /* malformed market tick */ } })
+      socket.on("message", raw => { try { handleSocketMessage(raw, mode, socket) } catch { /* malformed market message */ } })
       socket.on("error", error => setState(mode, { status: "error", lastError: error.message }))
       socket.on("close", () => {
         sockets.delete(mode)
@@ -176,7 +200,12 @@ export async function subscribeKisQuotes(inputs: string[], mode: KisMode) {
   symbols.forEach(symbol => modeSubscriptions?.add(symbol))
   try { await ensureStream(mode) } catch { /* snapshot reports connection error */ }
   symbols.forEach(symbol => sendSubscription(mode, symbol))
-  return { symbols, quotes: Object.fromEntries(symbols.map(symbol => [symbol, latestQuotes.get(`${mode}:${symbol}`) ?? null])), state: streamState[mode] }
+  return {
+    symbols,
+    quotes: Object.fromEntries(symbols.map(symbol => [symbol, latestQuotes.get(`${mode}:${symbol}`) ?? null])),
+    subscriptions: Object.fromEntries(symbols.map(symbol => [symbol, subscriptionStatuses.get(`${mode}:${symbol}`) ?? null])),
+    state: streamState[mode],
+  }
 }
 
 export async function subscribeKisQuote(input: string, mode: KisMode) {
@@ -187,14 +216,22 @@ export async function subscribeKisQuote(input: string, mode: KisMode) {
 
 export function getKisStreamSnapshot(mode?: KisMode) {
   const modes = mode ? [mode] : (["test", "live"] as KisMode[])
-  return modes.map(currentMode => ({ mode: currentMode, state: streamState[currentMode], quotes: [...(subscriptions.get(currentMode) ?? [])].map(symbol => ({ symbol, quote: latestQuotes.get(`${currentMode}:${symbol}`) ?? null })) }))
+  return modes.map(currentMode => ({
+    mode: currentMode,
+    state: streamState[currentMode],
+    quotes: [...(subscriptions.get(currentMode) ?? [])].map(symbol => ({
+      symbol,
+      quote: latestQuotes.get(`${currentMode}:${symbol}`) ?? null,
+      subscription: subscriptionStatuses.get(`${currentMode}:${symbol}`) ?? null,
+    })),
+  }))
 }
 
 export type { KisMode }
 
 export function normalizeKisSymbol(input: string) { return cleanSymbol(input) }
 
-export function resetKisCachesForTests() { tokenCache.clear(); sockets.forEach(socket => socket.close()); sockets.clear(); subscriptions.forEach(set => set.clear()); latestQuotes.clear() }
+export function resetKisCachesForTests() { tokenCache.clear(); sockets.forEach(socket => socket.close()); sockets.clear(); subscriptions.forEach(set => set.clear()); latestQuotes.clear(); subscriptionStatuses.clear() }
 
 export async function getKisQuoteForRecord(input: string, mode: KisMode) { return getKisQuote(input, mode) }
 
