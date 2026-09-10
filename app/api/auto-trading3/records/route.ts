@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { adminSupabase } from "@/lib/supabase-admin"
 import { calculateAutoTrading3Summary } from "@/lib/auto-trading3"
+import { getKisQuote, type KisMode } from "@/lib/kis-domestic"
 import { requireAutoTrading3User } from "@/lib/auto-trading3-auth"
 
 export async function GET(req: Request) {
@@ -13,5 +14,16 @@ export async function GET(req: Request) {
   if (date) query = query.eq("trade_date", date)
   const { data: records, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ records: records ?? [], summary: calculateAutoTrading3Summary((records ?? []) as Array<Record<string, unknown>>) })
+  const enrichedRecords = await Promise.all((records ?? []).map(async (record) => {
+    if (record.symbol_name) return record
+    try {
+      const quote = await getKisQuote(record.symbol, record.account_mode as KisMode)
+      if (!quote.symbolName) return record
+      await adminSupabase.from("auto_trading3_records").update({ symbol_name: quote.symbolName, updated_at: new Date().toISOString() }).eq("id", record.id)
+      return { ...record, symbol_name: quote.symbolName }
+    } catch {
+      return record
+    }
+  }))
+  return NextResponse.json({ records: enrichedRecords, summary: calculateAutoTrading3Summary(enrichedRecords as Array<Record<string, unknown>>) })
 }

@@ -4,6 +4,7 @@ import WebSocket from "ws"
 type KisMode = "test" | "live"
 export type KisQuote = {
   symbol: string
+  symbolName: string | null
   price: number
   changePercent: number | null
   volume: number | null
@@ -67,7 +68,7 @@ export async function getKisQuote(input: string, mode: KisMode): Promise<KisQuot
   if (!response.ok || data.rt_cd === "1" || !data.output) throw new Error(data.msg1 || `KIS 시세 조회 실패 (${response.status})`)
   const o = data.output
   const quote: KisQuote = {
-    symbol, price: Number(o.stck_prpr), changePercent: Number.isFinite(Number(o.prdy_ctrt)) ? Number(o.prdy_ctrt) : null,
+    symbol, symbolName: o.hts_kor_isnm?.trim() || o.prdt_name?.trim() || null, price: Number(o.stck_prpr), changePercent: Number.isFinite(Number(o.prdy_ctrt)) ? Number(o.prdy_ctrt) : null,
     volume: Number.isFinite(Number(o.acml_vol)) ? Number(o.acml_vol) : null,
     tradedAt: o.stck_cntg_hour ? `${new Date().toISOString().slice(0, 10)}T${o.stck_cntg_hour}` : null, market: "J",
   }
@@ -109,7 +110,7 @@ async function ensureStream(mode: KisMode) {
         const fields = text.split("|").slice(3)[0]?.split("^") ?? []
         const symbol = fields[0]
         const price = Number(fields[2])
-        if (symbol && price > 0) latestQuotes.set(`${mode}:${symbol}`, { symbol, price, changePercent: Number(fields[4]) || null, volume: Number(fields[13]) || null, tradedAt: new Date().toISOString(), market: "J" })
+        if (symbol && price > 0) latestQuotes.set(`${mode}:${symbol}`, { symbol, symbolName: latestQuotes.get(`${mode}:${symbol}`)?.symbolName ?? null, price, changePercent: Number(fields[4]) || null, volume: Number(fields[13]) || null, tradedAt: new Date().toISOString(), market: "J" })
       } catch { /* malformed market tick */ }
     })
     socket.on("error", error => setState(mode, { status: "error", lastError: error.message }))
