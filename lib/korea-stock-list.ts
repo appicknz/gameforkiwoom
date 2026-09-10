@@ -131,7 +131,7 @@ export const KOREA_STOCKS: Record<string, KoreaStock> = {
     "078890": {name: "가온그룹", market: "KOSDAQ"},
     "399720": {name: "가온칩스", market: "KOSDAQ"},
     "036620": {name: "감성코퍼레이션", market: "KOSDAQ"},
-    "198440": {name: "강동씨앤엘", market: "KOSDAQ"},
+    "198440": {name: "강동씨앤��", market: "KOSDAQ"},
     "217730": {name: "강스템바이오텍", market: "KOSDAQ"},
     "114190": {name: "강원에너지", market: "KOSDAQ"},
     "094480": {name: "갤럭시아머니트리", market: "KOSDAQ"},
@@ -503,7 +503,7 @@ export const KOREA_STOCKS: Record<string, KoreaStock> = {
     "043150": {name: "바텍", market: "KOSDAQ"},
     "323990": {name: "박셀바이오", market: "KOSDAQ"},
     "267790": {name: "배럴", market: "KOSDAQ"},
-    "046310": {name: "백금T&A", market: "KOSDAQ"},
+    "046310": {name: "백��T&A", market: "KOSDAQ"},
     "331520": {name: "밸로프", market: "KOSDAQ"},
     "199480": {name: "뱅크웨어글로벌", market: "KOSDAQ"},
     "438700": {name: "버넥트", market: "KOSDAQ"},
@@ -1131,7 +1131,7 @@ export const KOREA_STOCKS: Record<string, KoreaStock> = {
     "018620": {name: "우진비앤지", market: "KOSDAQ"},
     "457550": {name: "우진엔텍", market: "KOSDAQ"},
     "396470": {name: "워트", market: "KOSDAQ"},
-    "307280": {name: "원바이오젠", market: "KOSDAQ"},
+    "307280": {name: "원��이오젠", market: "KOSDAQ"},
     "032940": {name: "원익", market: "KOSDAQ"},
     "240810": {name: "원익IPS", market: "KOSDAQ"},
     "074600": {name: "원익QnC", market: "KOSDAQ"},
@@ -1382,7 +1382,7 @@ export const KOREA_STOCKS: Record<string, KoreaStock> = {
     "018120": {name: "진로발효", market: "KOSDAQ"},
     "109820": {name: "진매트릭스", market: "KOSDAQ"},
     "086060": {name: "진바이오텍", market: "KOSDAQ"},
-    "036890": {name: "진성티이씨", market: "KOSDAQ"},
+    "036890": {name: "진성티��씨", market: "KOSDAQ"},
     "363250": {name: "진시스템", market: "KOSDAQ"},
     "007370": {name: "진양제약", market: "KOSDAQ"},
     "285800": {name: "진영", market: "KOSDAQ"},
@@ -1759,7 +1759,7 @@ export const KOREA_STOCKS: Record<string, KoreaStock> = {
     "034810": {name: "해성산업", market: "KOSDAQ"},
     "03481K": {name: "해성산업1우", market: "KOSDAQ"},
     "059270": {name: "해성에어로보틱스", market: "KOSDAQ"},
-    "076610": {name: "해성옵틱스", market: "KOSDAQ"},
+    "076610": {name: "���성옵틱스", market: "KOSDAQ"},
     "220180": {name: "핸디소프트", market: "KOSDAQ"},
     "900270": {name: "헝셩그룹", market: "KOSDAQ"},
     "214180": {name: "헥토이노베이션", market: "KOSDAQ"},
@@ -1806,6 +1806,11 @@ export const KOREA_STOCKS: Record<string, KoreaStock> = {
     "238490": {name: "힘스", market: "KOSDAQ"},
 }
 
+export function normalizeKoreaStockSymbol(symbol: string) {
+  const normalized = symbol.trim().toUpperCase().replace(/^(KRX:|KOSDAQ:|KOSPI:|A)/, "").replace(/\D/g, "")
+  return normalized.padStart(6, "0").slice(-6)
+}
+
 export function getKoreaStockName(symbol: string) {
-  return KOREA_STOCKS[symbol.trim().toUpperCase()]?.name ?? null
+  return KOREA_STOCKS[normalizeKoreaStockSymbol(symbol)]?.name ?? null
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { RefreshCw } from "lucide-react"
+import { getKoreaStockName } from "@/lib/korea-stock-list"
 
 const GOLD = "#d4af37"
 const UP = "#22c55e"
@@ -175,7 +176,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <strong className="text-sm text-foreground">{record.symbol}</strong>
-                  <span className="text-[11px] font-medium text-muted-foreground">{record.symbol_name || "종목명 확인 중"}</span>
+                  <span className="text-[11px] font-medium text-muted-foreground">{getKoreaStockName(record.symbol) || record.symbol_name || "종목명 확인 중"}</span>
                   <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: record.account_mode === "live" ? "rgba(212,175,55,.12)" : "rgba(56,189,248,.12)", color: record.account_mode === "live" ? GOLD : "#38bdf8" }}>{record.account_mode === "live" ? "실계좌" : "모의"}</span>
                   <span className="rounded px-1.5 py-0.5 text-[9px] font-bold text-primary/80 bg-primary/10">{record.signal_type || "-"}</span>
                 </div>
