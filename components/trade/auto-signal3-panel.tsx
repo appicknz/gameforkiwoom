@@ -35,6 +35,7 @@ function tokenHeaders(json = false): HeadersInit {
 }
 
 const number = (value: number, digits = 0) => value.toLocaleString("ko-KR", { maximumFractionDigits: digits })
+const quoteSymbol = (value: string) => value.toUpperCase().match(/(?:KRX:|KOSDAQ:|A)?(\d{6})/)?.[1] ?? value.replace(/\D/g, "").slice(0, 6)
 
 export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selectedDate: Date; searchQ?: string }) {
   const [records, setRecords] = useState<Record3[]>([])
@@ -61,8 +62,9 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
       if (isToday) {
         const symbolsByMode = new Map<string, string[]>()
         nextRecords.filter(record => record.status !== "skipped").forEach(record => {
+          const symbol = quoteSymbol(record.symbol)
           const symbols = symbolsByMode.get(record.account_mode) ?? []
-          if (!symbols.includes(record.symbol)) symbols.push(record.symbol)
+          if (symbol && !symbols.includes(symbol)) symbols.push(symbol)
           symbolsByMode.set(record.account_mode, symbols)
         })
         const batches = await Promise.all([...symbolsByMode.entries()].map(async ([mode, symbols]) => {
@@ -98,7 +100,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
   }, [isToday, load])
 
   const rows = useMemo(() => records.map(record => {
-    const currentPrice = isToday ? quotes[`${record.account_mode}:${record.symbol}`]?.price ?? 0 : Number(record.close_price ?? 0)
+    const currentPrice = isToday ? quotes[`${record.account_mode}:${quoteSymbol(record.symbol)}`]?.price ?? 0 : Number(record.close_price ?? 0)
     const active = record.status !== "skipped" && currentPrice > 0 && Number(record.quantity) > 0
     const evaluated = active ? Number(record.quantity) * currentPrice : Number(record.invested_amount)
     const pnl = evaluated - Number(record.invested_amount)
