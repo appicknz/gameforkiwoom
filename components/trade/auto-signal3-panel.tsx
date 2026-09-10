@@ -27,7 +27,7 @@ type Record3 = {
   trade_time: string | null
 }
 
-type Quote = { price: number; volume: number | null; tradedAt: string | null }
+type Quote = { symbolName: string | null; price: number; changePercent: number | null; volume: number | null; tradedAt: string | null }
 
 function tokenHeaders(json = false): HeadersInit {
   const token = typeof window === "undefined" ? "" : localStorage.getItem("app_token") ?? ""
@@ -55,14 +55,19 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
       const nextRecords: Record3[] = data.records ?? []
       setRecords(nextRecords)
       if (isToday) {
-        const keys = [...new Set(nextRecords.filter(record => record.status !== "skipped").map(record => `${record.account_mode}:${record.symbol}`))]
-        const entries = await Promise.all(keys.map(async key => {
-          const [mode, symbol] = key.split(":")
-          const quoteResponse = await fetch(`/api/auto-trading3/quote?symbol=${encodeURIComponent(symbol)}&mode=${mode}`, { credentials: "include", headers: tokenHeaders() })
+        const symbolsByMode = new Map<string, string[]>()
+        nextRecords.filter(record => record.status !== "skipped").forEach(record => {
+          const symbols = symbolsByMode.get(record.account_mode) ?? []
+          if (!symbols.includes(record.symbol)) symbols.push(record.symbol)
+          symbolsByMode.set(record.account_mode, symbols)
+        })
+        const batches = await Promise.all([...symbolsByMode.entries()].map(async ([mode, symbols]) => {
+          const params = new URLSearchParams({ mode, symbols: symbols.join(",") })
+          const quoteResponse = await fetch(`/api/auto-trading3/quote?${params}`, { credentials: "include", headers: tokenHeaders() })
           const quoteData = await quoteResponse.json()
-          return [key, quoteResponse.ok ? quoteData.quote as Quote : null] as const
+          return quoteResponse.ok ? Object.entries(quoteData.quotes ?? {}).map(([symbol, quote]) => [`${mode}:${symbol}`, quote as Quote] as const) : []
         }))
-        setQuotes(Object.fromEntries(entries.filter((entry): entry is readonly [string, Quote] => entry[1] !== null)))
+        setQuotes(Object.fromEntries(batches.flat()))
       } else {
         setQuotes({})
       }
