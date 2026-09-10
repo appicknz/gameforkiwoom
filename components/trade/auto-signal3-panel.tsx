@@ -156,8 +156,8 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
             <article key={record.id} className="flex flex-col gap-2 border-b border-border px-4 py-3 transition-colors hover:bg-muted/20 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <strong className="text-sm text-foreground">{record.symbol_name || record.symbol}</strong>
-                  {record.symbol_name && <span className="text-[10px] text-muted-foreground">{record.symbol}</span>}
+                  <strong className="text-sm text-foreground">{record.symbol}</strong>
+                  <span className="text-[11px] font-medium text-muted-foreground">{record.symbol_name || "종목명 확인 중"}</span>
                   <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: record.account_mode === "live" ? "rgba(212,175,55,.12)" : "rgba(56,189,248,.12)", color: record.account_mode === "live" ? GOLD : "#38bdf8" }}>{record.account_mode === "live" ? "실계좌" : "모의"}</span>
                   <span className="text-[9px] font-bold text-primary/70">UP6</span>
                 </div>
