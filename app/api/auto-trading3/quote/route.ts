@@ -10,11 +10,12 @@ export async function GET(req: Request) {
   const symbol = url.searchParams.get("symbol")
   const symbols = (url.searchParams.get("symbols") ?? "").split(",").map(normalizeKisSymbol).filter(Boolean)
   const mode = parseKisMode(url.searchParams.get("mode"))
+  const allowRestFallback = url.searchParams.get("fallback") === "1"
   if (!symbol && symbols.length === 0) return NextResponse.json({ snapshots: getKisStreamSnapshot(), configured: Boolean(process.env.KIS_APP_KEY && process.env.KIS_APP_SECRET) })
   try {
     if (symbols.length > 0) {
       const stream = await subscribeKisQuotes(symbols, mode)
-      const missingSymbols = symbols.filter(item => !stream.quotes[item])
+      const missingSymbols = allowRestFallback ? symbols.filter(item => !stream.quotes[item]) : []
       const fallbackEntries = await Promise.all(missingSymbols.map(async item => {
         try { return [item, await getKisQuote(item, mode)] as const } catch { return null }
       }))

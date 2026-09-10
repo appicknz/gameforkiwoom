@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { RefreshCw } from "lucide-react"
 
 const GOLD = "#d4af37"
@@ -42,12 +42,16 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const loadingRef = useRef(false)
+  const initialQuoteRequestRef = useRef(true)
 
   const dateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
   const isToday = dateKey === today
 
   const load = useCallback(async () => {
+    if (loadingRef.current) return
+    loadingRef.current = true
     try {
       const response = await fetch(`/api/auto-trading3/records?date=${encodeURIComponent(dateKey)}`, { credentials: "include", headers: tokenHeaders() })
       const data = await response.json()
@@ -63,11 +67,13 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
         })
         const batches = await Promise.all([...symbolsByMode.entries()].map(async ([mode, symbols]) => {
           const params = new URLSearchParams({ mode, symbols: symbols.join(",") })
+          if (initialQuoteRequestRef.current) params.set("fallback", "1")
           const quoteResponse = await fetch(`/api/auto-trading3/quote?${params}`, { credentials: "include", headers: tokenHeaders() })
           const quoteData = await quoteResponse.json()
           return quoteResponse.ok ? Object.entries(quoteData.quotes ?? {}).map(([symbol, quote]) => [`${mode}:${symbol}`, quote as Quote] as const) : []
         }))
         setQuotes(Object.fromEntries(batches.flat()))
+        initialQuoteRequestRef.current = false
       } else {
         setQuotes({})
       }
@@ -75,15 +81,19 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "자동매매3 조회 실패")
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
   }, [dateKey, isToday])
 
   useEffect(() => {
+    initialQuoteRequestRef.current = true
     setLoading(true)
     void load()
     if (!isToday) return
-    const timer = window.setInterval(() => void load(), 2_000)
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load()
+    }, 5_000)
     return () => window.clearInterval(timer)
   }, [isToday, load])
 
