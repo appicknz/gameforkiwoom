@@ -11,8 +11,10 @@ export async function GET(req: Request) {
   const mode = parseKisMode(url.searchParams.get("mode"))
   if (!symbol) return NextResponse.json({ snapshots: getKisStreamSnapshot(), configured: Boolean(process.env.KIS_APP_KEY && process.env.KIS_APP_SECRET) })
   try {
-    const quote = await getKisQuote(symbol, mode)
     const stream = await subscribeKisQuote(symbol, mode)
-    return NextResponse.json({ quote, stream })
+    const cachedQuote = stream.quote ?? getKisStreamSnapshot(mode)[0]?.quotes.find(item => item.symbol === symbol)?.quote ?? null
+    if (cachedQuote) return NextResponse.json({ quote: cachedQuote, stream })
+    const quote = await getKisQuote(symbol, mode)
+    return NextResponse.json({ quote, stream: await subscribeKisQuote(symbol, mode) })
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "시세 조회 실패", snapshots: getKisStreamSnapshot(mode) }, { status: 502 }) }
 }

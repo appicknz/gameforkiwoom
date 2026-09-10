@@ -16,6 +16,7 @@ type TokenCache = { token: string; expiresAt: number }
 type StreamState = { status: "idle" | "connecting" | "connected" | "reconnecting" | "error"; reconnects: number; lastError: string | null; updatedAt: string }
 
 const tokenCache = new Map<KisMode, TokenCache>()
+const tokenRequests = new Map<KisMode, Promise<string>>()
 const streamState: Record<KisMode, StreamState> = {
   test: { status: "idle", reconnects: 0, lastError: null, updatedAt: new Date().toISOString() },
   live: { status: "idle", reconnects: 0, lastError: null, updatedAt: new Date().toISOString() },
@@ -39,20 +40,26 @@ function cleanSymbol(input: string) {
 async function getAccessToken(mode: KisMode) {
   const cached = tokenCache.get(mode)
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token
+  const pending = tokenRequests.get(mode)
+  if (pending) return pending
   const appkey = process.env.KIS_APP_KEY
   const appsecret = process.env.KIS_APP_SECRET
   if (!appkey || !appsecret) throw new Error("KIS_APP_KEY/KIS_APP_SECRET가 설정되지 않았습니다.")
-  const response = await fetch(`${config(mode).rest}/oauth2/tokenP`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json; charset=UTF-8" },
-    body: JSON.stringify({ grant_type: "client_credentials", appkey, appsecret }),
-    cache: "no-store",
-  })
-  if (!response.ok) throw new Error(`KIS 토큰 발급 실패 (${response.status})`)
-  const data = await response.json() as { access_token?: string; expires_in?: number }
-  if (!data.access_token) throw new Error("KIS 토큰 응답이 올바르지 않습니다.")
-  tokenCache.set(mode, { token: data.access_token, expiresAt: Date.now() + Math.max(60, Number(data.expires_in ?? 86400) - 120) * 1000 })
-  return data.access_token
+  const request = (async () => {
+    const response = await fetch(`${config(mode).rest}/oauth2/tokenP`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=UTF-8" },
+      body: JSON.stringify({ grant_type: "client_credentials", appkey, appsecret }),
+      cache: "no-store",
+    })
+    if (!response.ok) throw new Error(`KIS 토큰 발급 실패 (${response.status})`)
+    const data = await response.json() as { access_token?: string; expires_in?: number }
+    if (!data.access_token) throw new Error("KIS 토큰 응답이 올바르지 않습니다.")
+    tokenCache.set(mode, { token: data.access_token, expiresAt: Date.now() + Math.max(60, Number(data.expires_in ?? 86400) - 120) * 1000 })
+    return data.access_token
+  })()
+  tokenRequests.set(mode, request)
+  try { return await request } finally { tokenRequests.delete(mode) }
 }
 
 export async function getKisQuote(input: string, mode: KisMode): Promise<KisQuote> {

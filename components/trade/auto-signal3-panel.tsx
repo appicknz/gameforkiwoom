@@ -78,7 +78,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
     setLoading(true)
     void load()
     if (!isToday) return
-    const timer = window.setInterval(() => void load(), 30_000)
+    const timer = window.setInterval(() => void load(), 2_000)
     return () => window.clearInterval(timer)
   }, [isToday, load])
 
