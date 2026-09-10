@@ -1,5 +1,6 @@
 import "server-only"
 import WebSocket from "ws"
+import { getKoreaStockName } from "@/lib/korea-stock-list"
 
 type KisMode = "test" | "live"
 export type KisQuote = {
@@ -78,7 +79,7 @@ export async function getKisQuote(input: string, mode: KisMode): Promise<KisQuot
   if (!response.ok || data.rt_cd === "1" || !data.output) throw new Error(data.msg1 || `KIS 시세 조회 실패 (${response.status})`)
   const o = data.output
   const quote: KisQuote = {
-    symbol, symbolName: o.hts_kor_isnm?.trim() || o.prdt_name?.trim() || null, price: Number(o.stck_prpr), changePercent: Number.isFinite(Number(o.prdy_ctrt)) ? Number(o.prdy_ctrt) : null,
+    symbol, symbolName: getKoreaStockName(symbol) || o.hts_kor_isnm?.trim() || o.prdt_name?.trim() || null, price: Number(o.stck_prpr), changePercent: Number.isFinite(Number(o.prdy_ctrt)) ? Number(o.prdy_ctrt) : null,
     volume: Number.isFinite(Number(o.acml_vol)) ? Number(o.acml_vol) : null,
     tradedAt: o.stck_cntg_hour ? `${new Date().toISOString().slice(0, 10)}T${o.stck_cntg_hour}` : null, market: "J",
   }
@@ -120,7 +121,7 @@ function parseSocketMessage(raw: WebSocket.RawData, mode: KisMode) {
   const tradeTime = fields[1]?.trim()
   latestQuotes.set(`${mode}:${symbol}`, {
     symbol,
-    symbolName: previous?.symbolName ?? null,
+    symbolName: getKoreaStockName(symbol) || previous?.symbolName || null,
     price,
     changePercent: Number.isFinite(Number(fields[5])) ? Number(fields[5]) : previous?.changePercent ?? null,
     volume: Number.isFinite(Number(fields[12])) ? Number(fields[12]) : previous?.volume ?? null,
