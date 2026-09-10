@@ -16,10 +16,12 @@ export async function GET(req: Request) {
     if (symbols.length > 0) {
       const stream = await subscribeKisQuotes(symbols, mode)
       const missingSymbols = allowRestFallback ? symbols.filter(item => !stream.quotes[item]) : []
-      const fallbackEntries = await Promise.all(missingSymbols.map(async item => {
-        try { return [item, await getKisQuote(item, mode)] as const } catch { return null }
-      }))
-      const quotes = { ...stream.quotes, ...Object.fromEntries(fallbackEntries.filter((entry): entry is readonly [string, Awaited<ReturnType<typeof getKisQuote>>] => entry !== null)) }
+      const fallbackEntries: Array<readonly [string, Awaited<ReturnType<typeof getKisQuote>>]> = []
+      for (const item of missingSymbols) {
+        try { fallbackEntries.push([item, await getKisQuote(item, mode)] as const) } catch { /* WebSocket tick remains the fallback */ }
+        if (mode === "test") await new Promise(resolve => setTimeout(resolve, 550))
+      }
+      const quotes = { ...stream.quotes, ...Object.fromEntries(fallbackEntries) }
       return NextResponse.json({ quotes, stream })
     }
     const stream = await subscribeKisQuote(symbol!, mode)

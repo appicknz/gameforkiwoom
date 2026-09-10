@@ -106,7 +106,7 @@ function sendSubscription(mode: KisMode, symbol: string, trType: "1" | "2" = "1"
   const socket = sockets.get(mode)
   const subscription = streamSubscriptions.get(mode)
   if (!socket || socket.readyState !== WebSocket.OPEN || !subscription || subscription.subscribed.has(symbol)) return
-  socket.send(JSON.stringify({ header: { approval_key: subscription.approvalKey, custtype: "P", tr_type: trType, "content-type": "utf-8" }, body: { input: { tr_id: "H0STCNT0", tr_key: `J${symbol}` } } }))
+  socket.send(JSON.stringify({ header: { approval_key: subscription.approvalKey, custtype: "P", tr_type: trType, "content-type": "utf-8" }, body: { input: { tr_id: "H0STCNT0", tr_key: symbol } } }))
   if (trType === "1") subscription.subscribed.add(symbol)
 }
 
