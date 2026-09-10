@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     }
     const stream = await subscribeKisQuote(symbol!, mode)
     const cachedQuote = stream.quote ?? getKisStreamSnapshot(mode)[0]?.quotes.find(item => item.symbol === normalizeKisSymbol(symbol!))?.quote ?? null
-    if (cachedQuote) return NextResponse.json({ quote: cachedQuote, stream })
+    if (cachedQuote || !allowRestFallback) return NextResponse.json({ quote: cachedQuote, stream })
     const quote = await getKisQuote(symbol!, mode)
     return NextResponse.json({ quote, stream: await subscribeKisQuote(symbol!, mode) })
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "시세 조회 실패", snapshots: getKisStreamSnapshot(mode) }, { status: 502 }) }

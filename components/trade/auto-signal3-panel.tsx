@@ -74,7 +74,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
           const quoteData = await quoteResponse.json()
           return quoteResponse.ok ? Object.entries(quoteData.quotes ?? {}).map(([symbol, quote]) => [`${mode}:${symbol}`, quote as Quote] as const) : []
         }))
-        setQuotes(Object.fromEntries(batches.flat()))
+        setQuotes(previous => ({ ...previous, ...Object.fromEntries(batches.flat()) }))
         initialQuoteRequestRef.current = false
       } else {
         setQuotes({})
