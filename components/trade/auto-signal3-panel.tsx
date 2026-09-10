@@ -11,6 +11,7 @@ const SEED = 2_000_000
 type Record3 = {
   id: string
   signal_time: string
+  signal_type: string
   symbol: string
   symbol_name: string | null
   account_mode: "test" | "live"
@@ -123,7 +124,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
         <div className="flex flex-wrap items-center gap-2">
           {isToday && <span className="size-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" aria-hidden="true" />}
           <strong className="text-[11px] text-primary">자동매매3</strong>
-          <span className="text-[9px] text-muted-foreground">TRIPLE_COMBO_UP6 · 국내주식</span>
+          <span className="text-[9px] text-muted-foreground">수신 signal_type · 국내주식</span>
           <span className="text-[11px] text-foreground/60">{selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일</span>
           <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">{isToday ? "실시간" : "종가 기준"}</span>
         </div>
@@ -159,7 +160,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
                   <strong className="text-sm text-foreground">{record.symbol}</strong>
                   <span className="text-[11px] font-medium text-muted-foreground">{record.symbol_name || "종목명 확인 중"}</span>
                   <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: record.account_mode === "live" ? "rgba(212,175,55,.12)" : "rgba(56,189,248,.12)", color: record.account_mode === "live" ? GOLD : "#38bdf8" }}>{record.account_mode === "live" ? "실계좌" : "모의"}</span>
-                  <span className="text-[9px] font-bold text-primary/70">UP6</span>
+                  <span className="rounded px-1.5 py-0.5 text-[9px] font-bold text-primary/80 bg-primary/10">{record.signal_type || "-"}</span>
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
                   <span>진입 <b className="text-foreground/70">{number(Number(record.entry_price))}원</b></span>
