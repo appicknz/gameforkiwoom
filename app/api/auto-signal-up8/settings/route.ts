@@ -52,11 +52,17 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "전송 모드 값이 올바르지 않습니다." }, { status: 400 })
   }
 
+  const liveAccount = typeof body.live_account === "string" ? body.live_account.trim() : ""
+  if (!/^\d{8,16}$/.test(liveAccount)) {
+    return NextResponse.json({ error: "실매매 계좌번호는 8~16자리 숫자로 입력하세요." }, { status: 400 })
+  }
+
   const { data, error } = await adminSupabase
     .from("auto_signal_up8_settings")
     .update({
       test_enabled: body.test_enabled,
       live_enabled: body.live_enabled,
+      live_account: liveAccount,
       amount: balPct,
       updated_at: new Date().toISOString(),
     })

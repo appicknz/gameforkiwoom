@@ -236,7 +236,7 @@ export default function PanelPage() {
     test_exchange: string; test_account: string; live_exchange: string; live_account: string
   }
   const [up8Settings,     setUp8Settings]     = useState<Up8Settings | null>(null)
-  const [up8SettingsEdit, setUp8SettingsEdit] = useState<{ test_enabled: boolean; live_enabled: boolean; bal_pct: string } | null>(null)
+  const [up8SettingsEdit, setUp8SettingsEdit] = useState<{ test_enabled: boolean; live_enabled: boolean; bal_pct: string; live_account: string } | null>(null)
   const [up8Saving,       setUp8Saving]       = useState(false)
   const [up8Msg,          setUp8Msg]          = useState<string | null>(null)
   const [up8TestSymbol,   setUp8TestSymbol]   = useState("023900")
@@ -1502,7 +1502,7 @@ export default function PanelPage() {
                 <p className="text-xs text-muted-foreground">지점이 생성됐습니다. 아래 정보를 지점에 전달하세요.</p>
                 <div className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">로그�� ID (지점코드)</span>
+                    <span className="text-xs text-muted-foreground">��그�� ID (지점코드)</span>
                     <span className="font-mono text-sm font-bold text-foreground">{baCreatedInfo.code}</span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -1785,7 +1785,7 @@ export default function PanelPage() {
               <button onClick={() => setActiveTab("accounts")}   className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "accounts"  ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Shield className="w-4 h-4" /> 계정생성</button>
               <button onClick={() => { setActiveTab("cards"); fetchCardImages() }}      className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "cards"     ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><ImageIcon className="w-4 h-4" /> 카드관리</button>
               <button onClick={() => { setActiveTab("commission"); loadCommRates() }}   className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "commission"? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Percent className="w-4 h-4" /> 수수료 설정</button>
-              <button onClick={() => { setActiveTab("wallets"); setWalletRepairResult(null); setWalletRepairError(null) }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "wallets"   ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Wallet className="w-4 h-4" /> 입금 주소 관리</button>
+              <button onClick={() => { setActiveTab("wallets"); setWalletRepairResult(null); setWalletRepairError(null) }} className={`flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === "wallets"   ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Wallet className="w-4 h-4" /> 입��� 주소 관리</button>
 
               {/* 행 3: 자동매매~마켓 관리 */}
               <button
@@ -1828,6 +1828,7 @@ export default function PanelPage() {
                         test_enabled: up8Data.test_enabled ?? false,
                         live_enabled: up8Data.live_enabled ?? false,
                         bal_pct: String(up8Data.bal_pct ?? 3),
+                        live_account: up8Data.live_account ?? "",
                       })
                     }
                   } finally {
@@ -3158,7 +3159,7 @@ export default function PanelPage() {
               </div>
             </div>
 
-            {/* 총판 목록 + 드릴다운 */}
+            {/* 총판 ��록 + 드릴다운 */}
             <div className="bg-card border border-border rounded-xl overflow-hidden flex" style={{ minHeight: 400 }}>
 
               {/* 좌: 총판 리스트 */}
@@ -4627,7 +4628,7 @@ export default function PanelPage() {
                 </div>
                 <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
                   유저가 배팅한 금액에 대해 각 역할에 지급되는 수수료 비율입니다.<br />
-                  합계가 100%를 ��과할 수 없으며, 나머지는 배당 풀로 사���됩니다.
+                  합계가 100%를 ��과할 수 없으���, 나머지는 배당 풀로 사���됩니다.
                 </p>
 
                 <div className="space-y-3">
@@ -4754,7 +4755,7 @@ export default function PanelPage() {
                 } catch { setPwSaveMsg("오류 발생") }
                 setPwSaving(false)
               }} className="h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50">
-                {pwSaving ? "저장 중..." : "저장"}
+                {pwSaving ? "저��� 중..." : "저장"}
               </button>
             </div>
 
@@ -5883,12 +5884,27 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       />
                       <span className="flex flex-col gap-1">
                         <span className="text-sm font-semibold text-destructive">실매매 주문</span>
-                        <span className="font-mono text-xs text-muted-foreground">{up8Settings.live_exchange} · {up8Settings.live_account}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{up8Settings.live_exchange} · {up8SettingsEdit.live_account || "계좌번호 미입력"}</span>
                       </span>
                     </label>
                   </div>
 
                   <div className="flex flex-wrap items-end gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label htmlFor="up8-live-account" className="text-xs text-muted-foreground">실매매 계좌번호</label>
+                      <input
+                        id="up8-live-account"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        value={up8SettingsEdit.live_account}
+                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, live_account: e.target.value.replace(/\D/g, "").slice(0, 16) } : s)}
+                        placeholder="1005984201"
+                        aria-describedby="up8-live-account-help"
+                        className="h-8 w-48 rounded-lg border border-border bg-secondary px-3 font-mono text-sm text-foreground"
+                      />
+                      <span id="up8-live-account-help" className="text-[10px] text-muted-foreground">저장 후 다음 UP6 / UP8 주문부터 적용됩니다.</span>
+                    </div>
                     <div className="flex flex-col gap-1">
                       <label htmlFor="up8-bal-pct" className="text-xs text-muted-foreground">총자산 주문 비율 (%)</label>
                       <input
@@ -5911,6 +5927,12 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           setUp8Msg("총자산 주문 비율은 0 초과 100 이하의 퍼센트여야 합니다.")
                           return
                         }
+                        const liveAccount = up8SettingsEdit.live_account.trim()
+                        if (!/^\d{8,16}$/.test(liveAccount)) {
+                          setUp8Msg("실매매 계좌번호는 8~16자리 숫자로 입력하세요.")
+                          return
+                        }
+                        if (up8SettingsEdit.live_enabled && liveAccount !== up8Settings.live_account && !confirm(`실매매 계좌를 ${up8Settings.live_account}에서 ${liveAccount}(으)로 변경합니까? 다음 주문부터 새 계좌로 전송됩니다.`)) return
                         setUp8Saving(true)
                         setUp8Msg(null)
                         try {
@@ -5921,6 +5943,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                             body: JSON.stringify({
                               test_enabled: up8SettingsEdit.test_enabled,
                               live_enabled: up8SettingsEdit.live_enabled,
+                              live_account: liveAccount,
                               bal_pct,
                             }),
                           })
@@ -5931,6 +5954,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                               test_enabled: data.test_enabled,
                               live_enabled: data.live_enabled,
                               bal_pct: String(data.bal_pct),
+                              live_account: data.live_account ?? "",
                             })
                             setUp8Msg("저장됐습니다.")
                           } else {
