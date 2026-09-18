@@ -12,7 +12,10 @@ export async function GET(req: Request) {
   const date = url.searchParams.get("date")
   let query = adminSupabase.from("auto_trading3_records").select("*").order("signal_time", { ascending: false }).limit(500)
   if (date) query = query.eq("trade_date", date)
-  const { data: records, error } = await query
+  const [{ data: records, error }, { data: settings }] = await Promise.all([
+    query,
+    adminSupabase.from("auto_signal_up8_settings").select("initial_seed").eq("id", 1).maybeSingle(),
+  ])
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const enrichedRecords = await Promise.all((records ?? []).map(async (record) => {
     const mappedName = getKoreaStockName(record.symbol)
@@ -24,5 +27,5 @@ export async function GET(req: Request) {
     }
     return record
   }))
-  return NextResponse.json({ records: enrichedRecords, summary: calculateAutoTrading3Summary(enrichedRecords as Array<Record<string, unknown>>) })
+  return NextResponse.json({ records: enrichedRecords, summary: calculateAutoTrading3Summary(enrichedRecords as Array<Record<string, unknown>>, Number(settings?.initial_seed ?? 2_000_000)) })
 }

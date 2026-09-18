@@ -8,7 +8,7 @@ import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
 const MASTER_ROLES = ["master"]
-const PUBLIC_FIELDS = "id, test_enabled, live_enabled, amount, test_exchange, test_account, live_exchange, live_account, updated_at"
+const PUBLIC_FIELDS = "id, test_enabled, live_enabled, amount, initial_seed, test_exchange, test_account, live_exchange, live_account, updated_at"
 
 async function requireMaster(req: Request) {
   const session = await verifySession(req)
@@ -56,6 +56,10 @@ export async function PATCH(req: Request) {
   if (!/^\d{8,16}$/.test(liveAccount)) {
     return NextResponse.json({ error: "실매매 계좌번호는 8~16자리 숫자로 입력하세요." }, { status: 400 })
   }
+  const initialSeed = Number(body.initial_seed)
+  if (!Number.isSafeInteger(initialSeed) || initialSeed < 100_000 || initialSeed > 10_000_000_000) {
+    return NextResponse.json({ error: "자동매매3 기본 마진은 10만원 이상 100억원 이하의 정수로 입력하세요." }, { status: 400 })
+  }
 
   const { data, error } = await adminSupabase
     .from("auto_signal_up8_settings")
@@ -64,6 +68,7 @@ export async function PATCH(req: Request) {
       live_enabled: body.live_enabled,
       live_account: liveAccount,
       amount: balPct,
+      initial_seed: initialSeed,
       updated_at: new Date().toISOString(),
     })
     .eq("id", 1)

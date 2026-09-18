@@ -232,11 +232,11 @@ export default function PanelPage() {
   const [auto2Saving,       setAuto2Saving]       = useState(false)
   const [auto2Msg,          setAuto2Msg]          = useState<string | null>(null)
   type Up8Settings = {
-    test_enabled: boolean; live_enabled: boolean; bal_pct: number
+    test_enabled: boolean; live_enabled: boolean; bal_pct: number; initial_seed: number
     test_exchange: string; test_account: string; live_exchange: string; live_account: string
   }
   const [up8Settings,     setUp8Settings]     = useState<Up8Settings | null>(null)
-  const [up8SettingsEdit, setUp8SettingsEdit] = useState<{ test_enabled: boolean; live_enabled: boolean; bal_pct: string; live_account: string } | null>(null)
+  const [up8SettingsEdit, setUp8SettingsEdit] = useState<{ test_enabled: boolean; live_enabled: boolean; bal_pct: string; initial_seed: string; live_account: string } | null>(null)
   const [up8Saving,       setUp8Saving]       = useState(false)
   const [up8Msg,          setUp8Msg]          = useState<string | null>(null)
   const [up8TestSymbol,   setUp8TestSymbol]   = useState("023900")
@@ -990,7 +990,7 @@ export default function PanelPage() {
     if (!res.ok) {
       setBranchMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
     } else {
-      setBranchMsg({ text: `지점 '${newBranchName}'이 생성됐습니다.`, ok: true })
+      setBranchMsg({ text: `지점 '${newBranchName}'이 생���됐습니다.`, ok: true })
       setNewBranchName("")
       setNewBranchCode("")
       setNewBranchOwner("")
@@ -1828,6 +1828,7 @@ export default function PanelPage() {
                         test_enabled: up8Data.test_enabled ?? false,
                         live_enabled: up8Data.live_enabled ?? false,
                         bal_pct: String(up8Data.bal_pct ?? 3),
+                        initial_seed: String(up8Data.initial_seed ?? 2_000_000),
                         live_account: up8Data.live_account ?? "",
                       })
                     }
@@ -4627,7 +4628,7 @@ export default function PanelPage() {
                   <h2 className="text-base font-semibold text-foreground">배팅 수수료 요율 설정</h2>
                 </div>
                 <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
-                  유저가 배팅한 금액에 대해 각 역할에 지급되는 수수료 비율입니다.<br />
+                  유저가 배팅한 금액에 대해 각 역할에 지���되는 수수료 비율입니다.<br />
                   합계가 100%를 ��과할 수 없으���, 나머지는 배당 풀로 사���됩니다.
                 </p>
 
@@ -5906,6 +5907,22 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       <span id="up8-live-account-help" className="text-[10px] text-muted-foreground">저장 후 다음 UP6 / UP8 주문부터 적용됩니다.</span>
                     </div>
                     <div className="flex flex-col gap-1">
+                      <label htmlFor="up8-initial-seed" className="text-xs text-muted-foreground">자동매매3 기본 마진 (원)</label>
+                      <input
+                        id="up8-initial-seed"
+                        type="number"
+                        min={100000}
+                        max={10000000000}
+                        step={10000}
+                        inputMode="numeric"
+                        value={up8SettingsEdit.initial_seed}
+                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, initial_seed: e.target.value } : s)}
+                        aria-describedby="up8-initial-seed-help"
+                        className="h-8 w-48 rounded-lg border border-border bg-secondary px-3 text-sm text-foreground"
+                      />
+                      <span id="up8-initial-seed-help" className="text-[10px] text-muted-foreground">새로 들어오는 자동매매3 기록부터 적용됩니다.</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
                       <label htmlFor="up8-bal-pct" className="text-xs text-muted-foreground">총자산 주문 비율 (%)</label>
                       <input
                         id="up8-bal-pct"
@@ -5927,6 +5944,11 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           setUp8Msg("총자산 주문 비율은 0 초과 100 이하의 퍼센트여야 합니다.")
                           return
                         }
+                        const initialSeed = Number(up8SettingsEdit.initial_seed)
+                        if (!Number.isSafeInteger(initialSeed) || initialSeed < 100_000 || initialSeed > 10_000_000_000) {
+                          setUp8Msg("자동매매3 기본 마진은 10만원 이상 100억원 이하의 정수로 입력하세요.")
+                          return
+                        }
                         const liveAccount = up8SettingsEdit.live_account.trim()
                         if (!/^\d{8,16}$/.test(liveAccount)) {
                           setUp8Msg("실매매 계좌번호는 8~16자리 숫자로 입력하세요.")
@@ -5945,6 +5967,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                               live_enabled: up8SettingsEdit.live_enabled,
                               live_account: liveAccount,
                               bal_pct,
+                              initial_seed: initialSeed,
                             }),
                           })
                           const data = await res.json()
@@ -5954,6 +5977,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                               test_enabled: data.test_enabled,
                               live_enabled: data.live_enabled,
                               bal_pct: String(data.bal_pct),
+                              initial_seed: String(data.initial_seed ?? 2_000_000),
                               live_account: data.live_account ?? "",
                             })
                             setUp8Msg("저장됐습니다.")
@@ -6289,7 +6313,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               {!autoLoading && autoPositions.length === 0 && (
                 <div className="py-10 text-center text-xs text-muted-foreground">
                   아직 수신된 시그널이 없습니다.<br />
-                  위 Webhook URL을 TradingView 알림에 연결하세요.
+                  위 Webhook URL�� TradingView 알림에 연결하세요.
                 </div>
               )}
 

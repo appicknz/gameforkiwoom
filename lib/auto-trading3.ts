@@ -3,7 +3,7 @@ import { adminSupabase } from "@/lib/supabase-admin"
 import { getKisQuote, type KisMode, normalizeKisSymbol } from "@/lib/kis-domestic"
 import { getKoreaStockName } from "@/lib/korea-stock-list"
 
-const INITIAL_SEED = 2_000_000
+const DEFAULT_INITIAL_SEED = 2_000_000
 const SYMBOL_BUDGET = 50_000
 
 type ModeConfig = { mode: KisMode; exchange?: string; account?: string }
@@ -11,12 +11,14 @@ type ModeConfig = { mode: KisMode; exchange?: string; account?: string }
 export async function recordUp6Signal(args: { body: Record<string, unknown>; symbol: string; signalTime: string; modes: ModeConfig[]; orderResults?: unknown }) {
   const symbol = normalizeKisSymbol(args.symbol)
   const kstDate = typeof args.body.formatted_time_kst === "string" ? args.body.formatted_time_kst.replace(" ", "T").slice(0, 10) : new Date(Date.parse(args.signalTime) + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const { data: settings } = await adminSupabase.from("auto_signal_up8_settings").select("initial_seed").eq("id", 1).maybeSingle()
+  const initialSeed = Number(settings?.initial_seed ?? DEFAULT_INITIAL_SEED)
   const results = []
   for (const modeConfig of args.modes) {
     try {
       const quote = await getKisQuote(symbol, modeConfig.mode)
       const price = Number(quote.price)
-      const base = { trade_date: kstDate, signal_time: args.signalTime, signal_type: "TRIPLE_COMBO_UP6", symbol, symbol_name: getKoreaStockName(symbol) || quote.symbolName || (typeof args.body.symbol_name === "string" ? args.body.symbol_name : null), account_mode: modeConfig.mode, exchange: modeConfig.exchange ?? "kis", account: modeConfig.account ?? "", entry_price: price, quantity: Math.floor(SYMBOL_BUDGET / price), invested_amount: Math.min(SYMBOL_BUDGET, Math.floor(SYMBOL_BUDGET / price) * price), seed_capital: INITIAL_SEED, budget_per_symbol: SYMBOL_BUDGET, volume: quote.volume, price_change_percent: quote.changePercent, trade_time: quote.tradedAt, webhook_raw: args.body, order_result: args.orderResults ?? null, updated_at: new Date().toISOString() }
+      const base = { trade_date: kstDate, signal_time: args.signalTime, signal_type: "TRIPLE_COMBO_UP6", symbol, symbol_name: getKoreaStockName(symbol) || quote.symbolName || (typeof args.body.symbol_name === "string" ? args.body.symbol_name : null), account_mode: modeConfig.mode, exchange: modeConfig.exchange ?? "kis", account: modeConfig.account ?? "", entry_price: price, quantity: Math.floor(SYMBOL_BUDGET / price), invested_amount: Math.min(SYMBOL_BUDGET, Math.floor(SYMBOL_BUDGET / price) * price), seed_capital: initialSeed, budget_per_symbol: SYMBOL_BUDGET, volume: quote.volume, price_change_percent: quote.changePercent, trade_time: quote.tradedAt, webhook_raw: args.body, order_result: args.orderResults ?? null, updated_at: new Date().toISOString() }
       const record = price > SYMBOL_BUDGET || base.quantity < 1
         ? { ...base, status: "skipped", skip_reason: price > SYMBOL_BUDGET ? "price_over_50000" : "quantity_below_one", quantity: 0, invested_amount: 0 }
         : { ...base, status: "open" }
@@ -46,8 +48,9 @@ export async function closeAutoTrading3Day(date: string) {
   return results
 }
 
-export function calculateAutoTrading3Summary(records: Array<Record<string, unknown>>) {
+export function calculateAutoTrading3Summary(records: Array<Record<string, unknown>>, configuredSeed = DEFAULT_INITIAL_SEED) {
+  const seedCapital = Number(records.find(record => Number(record.seed_capital) > 0)?.seed_capital ?? configuredSeed)
   const invested = records.reduce((sum, record) => sum + Number(record.invested_amount ?? 0), 0)
   const evaluated = records.reduce((sum, record) => sum + (record.close_price == null ? Number(record.invested_amount ?? 0) : Number(record.quantity ?? 0) * Number(record.close_price)), 0)
-  return { seedCapital: INITIAL_SEED, investedAmount: invested, remainingCapital: INITIAL_SEED - invested, evaluatedAmount: evaluated, returnPercent: invested ? ((evaluated - invested) / invested) * 100 : 0 }
+  return { seedCapital, investedAmount: invested, remainingCapital: seedCapital - invested, evaluatedAmount: evaluated, returnPercent: invested ? ((evaluated - invested) / invested) * 100 : 0 }
 }

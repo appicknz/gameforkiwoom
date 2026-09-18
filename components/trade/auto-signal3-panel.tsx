@@ -7,7 +7,6 @@ import { getKoreaStockName } from "@/lib/korea-stock-list"
 const GOLD = "#d4af37"
 const UP = "#22c55e"
 const DOWN = "#ef4444"
-const SEED = 2_000_000
 
 type Record3 = {
   id: string
@@ -45,6 +44,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [seedCapital, setSeedCapital] = useState(2_000_000)
   const [accountFilter, setAccountFilter] = useState<AccountFilter>("all")
   const loadingRef = useRef(false)
   const initialQuoteRequestRef = useRef(true)
@@ -70,6 +70,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
       if (!response.ok) throw new Error(data.error ?? "자동매매3 조회 실패")
       const nextRecords: Record3[] = data.records ?? []
       setRecords(nextRecords)
+      setSeedCapital(Number(data.summary?.seedCapital ?? 2_000_000))
       if (isToday) {
         const symbolsByMode = new Map<string, string[]>()
         nextRecords.filter(record => record.status !== "skipped" && (accountFilter === "all" || record.account_mode === accountFilter)).forEach(record => {
@@ -153,7 +154,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
         <div className="flex flex-wrap items-center gap-2">
           {isToday && <span className="size-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" aria-hidden="true" />}
           <strong className="text-[11px] text-primary">자동매매3</strong>
-          <span className="text-[9px] text-muted-foreground">수신 signal_type · 국내주식</span>
+          <span className="text-[9px] text-muted-foreground">수신 signal_type �� 국내주식</span>
           <span className="text-[11px] text-foreground/60">{selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일</span>
           <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">{isToday ? "실시간" : "종가 기준"}</span>
         </div>
@@ -186,7 +187,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
 
       <div className="grid grid-cols-2 border-b border-primary/10 md:grid-cols-5">
         {[
-          ["MARGIN", SEED, "원"], ["투입금액", invested, "원"], ["평가금액", evaluated, "원"], ["TOTAL PNL", pnl, "원"], ["TOTAL ROI", roi, "%"],
+          ["MARGIN", seedCapital, "원"], ["투입금액", invested, "원"], ["평가금액", evaluated, "원"], ["TOTAL PNL", pnl, "원"], ["TOTAL ROI", roi, "%"],
         ].map(([label, value, suffix], index) => (
           <div key={String(label)} className="border-b border-r border-primary/10 px-4 py-3 md:border-b-0">
             <p className="text-[9px] font-semibold text-muted-foreground">{label}</p>
