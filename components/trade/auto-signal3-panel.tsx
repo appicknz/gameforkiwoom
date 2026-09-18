@@ -29,6 +29,7 @@ type Record3 = {
 }
 
 type Quote = { symbolName: string | null; price: number; changePercent: number | null; volume: number | null; tradedAt: string | null }
+type AccountFilter = "all" | "live" | "test"
 
 function tokenHeaders(json = false): HeadersInit {
   const token = typeof window === "undefined" ? "" : localStorage.getItem("app_token") ?? ""
@@ -44,6 +45,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [accountFilter, setAccountFilter] = useState<AccountFilter>("all")
   const loadingRef = useRef(false)
   const initialQuoteRequestRef = useRef(true)
 
@@ -70,7 +72,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
       setRecords(nextRecords)
       if (isToday) {
         const symbolsByMode = new Map<string, string[]>()
-        nextRecords.filter(record => record.status !== "skipped").forEach(record => {
+        nextRecords.filter(record => record.status !== "skipped" && (accountFilter === "all" || record.account_mode === accountFilter)).forEach(record => {
           const symbol = quoteSymbol(record.symbol)
           const symbols = symbolsByMode.get(record.account_mode) ?? []
           if (symbol && !symbols.includes(symbol)) symbols.push(symbol)
@@ -96,7 +98,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
       loadingRef.current = false
       setLoading(false)
     }
-  }, [dateKey, isToday])
+  }, [accountFilter, dateKey, isToday])
 
   useEffect(() => {
     initialQuoteRequestRef.current = true
@@ -109,14 +111,14 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
     return () => window.clearInterval(timer)
   }, [isToday, load])
 
-  const rows = useMemo(() => records.map(record => {
+  const rows = useMemo(() => records.filter(record => accountFilter === "all" || record.account_mode === accountFilter).map(record => {
     const currentPrice = isToday ? quotes[`${record.account_mode}:${quoteSymbol(record.symbol)}`]?.price ?? 0 : Number(record.close_price ?? 0)
     const active = record.status !== "skipped" && currentPrice > 0 && Number(record.quantity) > 0
     const evaluated = active ? Number(record.quantity) * currentPrice : Number(record.invested_amount)
     const pnl = evaluated - Number(record.invested_amount)
     const roi = Number(record.invested_amount) > 0 ? pnl / Number(record.invested_amount) * 100 : 0
     return { ...record, currentPrice, evaluated, pnl, roi }
-  }).filter(record => !searchQ || `${record.symbol} ${record.symbol_name ?? ""}`.toLowerCase().includes(searchQ.toLowerCase())), [isToday, quotes, records, searchQ])
+  }).filter(record => !searchQ || `${record.symbol} ${record.symbol_name ?? ""}`.toLowerCase().includes(searchQ.toLowerCase())), [accountFilter, isToday, quotes, records, searchQ])
 
   const included = rows.filter(record => record.status !== "skipped")
   const invested = included.reduce((sum, record) => sum + Number(record.invested_amount), 0)
@@ -161,6 +163,24 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
           {isToday && <button type="button" onClick={saveCloses} disabled={saving} className="h-7 rounded-md bg-primary px-2.5 text-[10px] font-bold text-primary-foreground disabled:opacity-50">{saving ? "저장 중" : "당일 종가 저장"}</button>}
         </div>
       </header>
+
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-primary/10 px-4 py-2.5" role="group" aria-label="계좌 유형 필터">
+        <span className="mr-1 text-[10px] text-muted-foreground">계좌</span>
+        {([[
+          "all", "전체"
+        ], ["live", "실계좌"], ["test", "모의계좌"]] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={accountFilter === value}
+            onClick={() => setAccountFilter(value)}
+            className={`rounded-md border px-2.5 py-1 text-[10px] font-semibold transition-colors ${accountFilter === value ? "border-primary/50 bg-primary/15 text-primary" : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"}`}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="ml-auto text-[10px] text-muted-foreground">{rows.length}건</span>
+      </div>
 
       {message && <p className="border-b border-border px-4 py-2 text-[10px] text-muted-foreground">{message}</p>}
 
