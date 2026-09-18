@@ -53,9 +53,17 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
 
   const load = useCallback(async () => {
     if (loadingRef.current) return
+    const token = typeof window === "undefined" ? "" : localStorage.getItem("app_token") ?? ""
+    if (!token) {
+      setMessage("로그인 세션을 확인할 수 없습니다. 페이지를 새로고침해 주세요.")
+      setLoading(false)
+      return
+    }
     loadingRef.current = true
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 15_000)
     try {
-      const response = await fetch(`/api/auto-trading3/records?date=${encodeURIComponent(dateKey)}`, { credentials: "include", headers: tokenHeaders() })
+      const response = await fetch(`/api/auto-trading3/records?date=${encodeURIComponent(dateKey)}`, { credentials: "include", headers: tokenHeaders(), signal: controller.signal })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error ?? "자동매매3 조회 실패")
       const nextRecords: Record3[] = data.records ?? []
@@ -71,7 +79,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
         const batches = await Promise.all([...symbolsByMode.entries()].map(async ([mode, symbols]) => {
           const params = new URLSearchParams({ mode, symbols: symbols.join(",") })
           if (initialQuoteRequestRef.current) params.set("fallback", "1")
-          const quoteResponse = await fetch(`/api/auto-trading3/quote?${params}`, { credentials: "include", headers: tokenHeaders() })
+          const quoteResponse = await fetch(`/api/auto-trading3/quote?${params}`, { credentials: "include", headers: tokenHeaders(), signal: controller.signal })
           const quoteData = await quoteResponse.json()
           return quoteResponse.ok ? Object.entries(quoteData.quotes ?? {}).map(([symbol, quote]) => [`${mode}:${symbol}`, quote as Quote] as const) : []
         }))
@@ -82,8 +90,9 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
       }
       setMessage(null)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "자동매매3 조회 실패")
+      setMessage(error instanceof DOMException && error.name === "AbortError" ? "자동매매3 조회 시간이 초과되었습니다. 새로고침해 주세요." : error instanceof Error ? error.message : "자동매매3 조회 실패")
     } finally {
+      window.clearTimeout(timeout)
       loadingRef.current = false
       setLoading(false)
     }

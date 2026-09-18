@@ -713,7 +713,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             </div>
           )
         }
-        // ───────────���──────────────────────────────────────────────────
+        // ───────────���──────────────────────────���───────────────────────
 
         // ─��������� 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
@@ -2337,7 +2337,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
             borderBottom: `1px solid rgba(212,175,55,0.05)`,
             background: isSlHit ? "rgba(239,68,68,0.09)" : isSlWarning ? "rgba(239,68,68,0.04)" : undefined,
           }}>
-            {/* 상단행: 방향뱃지 + 심볼 + 레버리지 + ROI | IN시각 + PnL */}
+            {/* 상��행: 방향뱃지 + 심볼 + 레버리지 + ROI | IN시각 + PnL */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <button
@@ -3408,7 +3408,7 @@ switchTab(mode)
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-            <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />
+            {userName === "역삼1" && <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />}
           </div>
         </div>
         {/* 청산 기록 */}
@@ -3486,7 +3486,7 @@ switchTab(mode)
               <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />
+              {userName === "역삼1" && <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />}
             </div>
           </div>
           {/* 청산 기록 */}
