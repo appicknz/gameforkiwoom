@@ -3163,7 +3163,7 @@ switchTab(mode)
       const resolvedUserName = meData.username ?? profileData?.profile?.username ?? null
       setUserRole(meData.role ?? null)
       setUserName(resolvedUserName)
-      if (resolvedUserName !== "역삼1" && new URLSearchParams(window.location.search).get("mode") === "auto3") {
+      if (!resolvedUserName || !["역삼1", "soltest5"].includes(resolvedUserName) && new URLSearchParams(window.location.search).get("mode") === "auto3") {
         setTradeMode("ledger")
         window.history.replaceState(null, "", "/trade?mode=ledger")
       }
@@ -3402,13 +3402,13 @@ switchTab(mode)
               <AutoSignal2Panel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
           </div>
         </div>
-        {/* 자동매매3: 역삼1 전용, UP6 국내주식 */}
-        <div style={{ position: "absolute", inset: 0, display: tradeMode === "auto3" && userName === "역삼1" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
+        {/* 자동매매3: 허용 사용자 전용, UP6 국내주식 */}
+        <div style={{ position: "absolute", inset: 0, display: tradeMode === "auto3" && Boolean(userName && ["역삼1", "soltest5"].includes(userName)) ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
           <div style={{ flexShrink: 0 }}>
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-            {userName === "역삼1" && <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />}
+            {userName && ["역삼1", "soltest5"].includes(userName) && <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />}
           </div>
         </div>
         {/* 청산 기록 */}
@@ -3476,17 +3476,17 @@ switchTab(mode)
             <AutoSignal2Panel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
             </div>
           </div>
-          {/* 자동매매3: 역삼1 전용, UP6 국내주식 */}
+          {/* 자동매매3: 허용 사용자 전용, UP6 국내주식 */}
           <div className="rounded-2xl flex flex-col h-full" style={{
             background: PANEL_BG,
             border: `1px solid ${BORDER}`,
-            display: tradeMode === "auto3" && userName === "역삼1" ? "flex" : "none",
+            display: tradeMode === "auto3" && Boolean(userName && ["역삼1", "soltest5"].includes(userName)) ? "flex" : "none",
           }}>
             <div style={{ flexShrink: 0 }}>
               <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              {userName === "역삼1" && <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />}
+              {userName && ["역삼1", "soltest5"].includes(userName) && <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />}
             </div>
           </div>
           {/* 청산 기록 */}
