@@ -44,7 +44,6 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [seedCapital, setSeedCapital] = useState(2_000_000)
   const [accountFilter, setAccountFilter] = useState<AccountFilter>("all")
   const loadingRef = useRef(false)
   const initialQuoteRequestRef = useRef(true)
@@ -70,7 +69,6 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
       if (!response.ok) throw new Error(data.error ?? "자동매매3 조회 실패")
       const nextRecords: Record3[] = data.records ?? []
       setRecords(nextRecords)
-      setSeedCapital(Number(data.summary?.seedCapital ?? 2_000_000))
       if (isToday) {
         const symbolsByMode = new Map<string, string[]>()
         nextRecords.filter(record => record.status !== "skipped" && (accountFilter === "all" || record.account_mode === accountFilter)).forEach(record => {
@@ -185,13 +183,13 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
 
       {message && <p className="border-b border-border px-4 py-2 text-[10px] text-muted-foreground">{message}</p>}
 
-      <div className="grid grid-cols-2 border-b border-primary/10 md:grid-cols-5">
+      <div className="grid grid-cols-2 border-b border-primary/10 md:grid-cols-4">
         {[
-          ["MARGIN", seedCapital, "원"], ["투입금액", invested, "원"], ["평가금액", evaluated, "원"], ["TOTAL PNL", pnl, "원"], ["TOTAL ROI", roi, "%"],
+          ["투입금액", invested, "원"], ["평가금액", evaluated, "원"], ["TOTAL PNL", pnl, "원"], ["TOTAL ROI", roi, "%"],
         ].map(([label, value, suffix], index) => (
           <div key={String(label)} className="border-b border-r border-primary/10 px-4 py-3 md:border-b-0">
             <p className="text-[9px] font-semibold text-muted-foreground">{label}</p>
-            <p className="mt-1 text-sm font-black tabular-nums" style={{ color: index >= 3 ? (Number(value) >= 0 ? UP : DOWN) : GOLD }}>{index === 4 ? Number(value).toFixed(2) : number(Number(value))}<span className="ml-1 text-[9px] font-medium text-muted-foreground">{suffix}</span></p>
+            <p className="mt-1 text-sm font-black tabular-nums" style={{ color: index >= 2 ? (Number(value) >= 0 ? UP : DOWN) : GOLD }}>{index === 3 ? Number(value).toFixed(2) : number(Number(value))}<span className="ml-1 text-[9px] font-medium text-muted-foreground">{suffix}</span></p>
           </div>
         ))}
       </div>
