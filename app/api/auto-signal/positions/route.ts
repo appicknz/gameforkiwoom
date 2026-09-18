@@ -17,6 +17,7 @@ const adminSupabase = _adminSupabase as any
 import { saveDailySnapshot } from "@/lib/save-daily-snapshot"
 import { NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
+import { verifySession } from "@/lib/auth"
 import { getDayCloseMap } from "@/lib/binance-klines"
 
 const JWT_SECRET   = process.env.SUPABASE_JWT_SECRET ?? ""
@@ -131,12 +132,21 @@ export async function GET(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const role = getCallerRole(req)
-  if (!MASTER_ROLES.includes(role ?? "")) {
+  const body = await req.json().catch(() => ({}))
+  const session = await verifySession(req)
+  if (!session.ok) return NextResponse.json({ error: session.error }, { status: session.status })
+
+  const isMaster = MASTER_ROLES.includes(session.role ?? "")
+  const { data: profile } = await adminSupabase
+    .from("profiles")
+    .select("username")
+    .eq("id", session.userId)
+    .single()
+  const isSoltest5 = (profile as { username?: string } | null)?.username === "soltest5"
+  const isConfirmOnlyClose = isSoltest5 && body.all === true && body.reason === "confirmed_by_master"
+  if ((!isMaster && !isConfirmOnlyClose) || (isSoltest5 && !isConfirmOnlyClose)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
   }
-
-  const body = await req.json().catch(() => ({}))
 
   const now = new Date().toISOString()
 

@@ -15,7 +15,7 @@ import { verifySession } from "@/lib/auth"
 
 const MASTER_ROLES       = ["master", "admin"]
 // 반영 버튼만 허용된 username 목록 (role 승격 없이 POST만 가능)
-const CONFIRM_ONLY_USERS = ["mirea2131", "mirea21310"]
+const CONFIRM_ONLY_USERS = ["mirea2131", "mirea21310", "soltest5"]
 const START_DATE         = "2026-05-31"  // 기록 시작일
 
 export async function GET(req: Request) {
@@ -71,23 +71,29 @@ export async function POST(req: Request) {
 
   // role이 master/admin이거나, 반영 허용 username 목록에 포함된 경우 허용
   const isMasterRole = MASTER_ROLES.includes(session.role ?? "")
-  let isConfirmAllowed = false
-  if (!isMasterRole) {
-    const { data: prof } = await adminSupabase
-      .from("profiles")
-      .select("username")
-      .eq("id", session.userId)
-      .single()
-    isConfirmAllowed = CONFIRM_ONLY_USERS.includes((prof as { username?: string } | null)?.username ?? "")
-  }
+  const { data: prof } = await adminSupabase
+    .from("profiles")
+    .select("username")
+    .eq("id", session.userId)
+    .single()
+  const callerUsername = (prof as { username?: string } | null)?.username ?? ""
+  const isConfirmAllowed = CONFIRM_ONLY_USERS.includes(callerUsername)
   if (!isMasterRole && !isConfirmAllowed)
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
 
-  const body      = await req.json().catch(() => ({}))
-  const { date_label, daily_pnl, note } = body
+  const body = await req.json().catch(() => ({}))
+  const isConfirmAction = body.action === "confirm"
+  if (callerUsername === "soltest5" && !isConfirmAction)
+    return NextResponse.json({ error: "soltest5 계정은 자동매매 반영만 가능합니다." }, { status: 403 })
+
+  const date_label = body.date_label
+  const daily_pnl = body.daily_pnl
+  const note = isConfirmAction ? "자동매매 반영" : body.note
 
   if (!date_label || daily_pnl == null)
     return NextResponse.json({ error: "date_label, daily_pnl 필수" }, { status: 400 })
+  if (callerUsername === "soltest5" && date_label !== new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" }))
+    return NextResponse.json({ error: "오늘 자동매매 수익만 반영할 수 있습니다." }, { status: 403 })
 
   // 초기 시드 조회
   const { data: cfg } = await adminSupabase
@@ -161,7 +167,13 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   const session = await verifySession(req)
   if (!session.ok) return NextResponse.json({ error: session.error }, { status: session.status })
-  if (!MASTER_ROLES.includes(session.role ?? ""))
+
+  const { data: profile } = await adminSupabase
+    .from("profiles")
+    .select("username")
+    .eq("id", session.userId)
+    .single()
+  if ((profile as { username?: string } | null)?.username === "soltest5" || !MASTER_ROLES.includes(session.role ?? ""))
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
 
   const { searchParams } = new URL(req.url)

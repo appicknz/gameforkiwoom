@@ -713,7 +713,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             </div>
           )
         }
-        // ───────────���──────────────────────────���───────────────────────
+        // ───────────���──────────────────────────�����───────────────────────
 
         // ─��������� 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
@@ -949,7 +949,7 @@ type CapitalAdjustment = {
 // 반영 버튼 + 수익입력/삭제 모두 허용 username 목록
 const CONFIRM_ALLOWED_USERS = ["mirea2131"]
 // 반영 버튼만 허용 (수익 입력 폼·삭제 버튼은 숨김)
-const CONFIRM_ONLY_USERS = ["mirea21310"]
+const CONFIRM_ONLY_USERS = ["mirea21310", "soltest5"]
 
 function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStats, onConfirmedValue }: { tradeMode: string; userRole: string | null; userName?: string | null; todayAutoPnl?: number; autoStats?: AutoStats | null; onConfirmedValue?: (v: number) => void }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
@@ -1122,7 +1122,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshTok}` },
         credentials: "include",
-        body: JSON.stringify({ date_label: kstDate, daily_pnl: confirmPnl, note: "자동매매 반영" }),
+        body: JSON.stringify({ action: "confirm", date_label: kstDate, daily_pnl: confirmPnl }),
       })
       if (!saveRes.ok) { setConfirmMsg("저장 실패: " + (await saveRes.json()).error); return }
 
@@ -1551,7 +1551,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                       <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{todayAutoPnl >= 0 ? "+" : ""}{Math.round(todayAutoPnl * krwRate).toLocaleString("ko-KR")}원</div>
                       <div className="tabular-nums" style={{ fontSize: 10, color: todayAutoPnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
                     </div>
-                    {isMaster && !isConfirmOnly && (
+                    {isMaster && (
                       <button onClick={() => handleConfirmOpen(todayAutoPnl)}
                         style={{ padding: "4px 10px", borderRadius: 12, border: "none", background: GOLD, color: "#000", fontSize: 10, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
                         반영
@@ -3163,7 +3163,7 @@ switchTab(mode)
       const resolvedUserName = meData.username ?? profileData?.profile?.username ?? null
       setUserRole(meData.role ?? null)
       setUserName(resolvedUserName)
-      if (!resolvedUserName || !["역삼1", "soltest5"].includes(resolvedUserName) && new URLSearchParams(window.location.search).get("mode") === "auto3") {
+      if (resolvedUserName !== "역삼1" && new URLSearchParams(window.location.search).get("mode") === "auto3") {
         setTradeMode("ledger")
         window.history.replaceState(null, "", "/trade?mode=ledger")
       }
@@ -3402,13 +3402,13 @@ switchTab(mode)
               <AutoSignal2Panel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
           </div>
         </div>
-        {/* 자동매매3: 허용 사용자 전용, UP6 국내주식 */}
-        <div style={{ position: "absolute", inset: 0, display: tradeMode === "auto3" && Boolean(userName && ["역삼1", "soltest5"].includes(userName)) ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
+        {/* 자동매매3: 역삼1 전용, UP6 국내주식 */}
+        <div style={{ position: "absolute", inset: 0, display: tradeMode === "auto3" && userName === "역삼1" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
           <div style={{ flexShrink: 0 }}>
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-            {userName && ["역삼1", "soltest5"].includes(userName) && <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />}
+            {userName === "역삼1" && <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />}
           </div>
         </div>
         {/* 청산 기록 */}
@@ -3476,17 +3476,17 @@ switchTab(mode)
             <AutoSignal2Panel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
             </div>
           </div>
-          {/* 자동매매3: 허용 사용자 전용, UP6 국내주식 */}
+          {/* 자동매매3: 역삼1 전용, UP6 국내주식 */}
           <div className="rounded-2xl flex flex-col h-full" style={{
             background: PANEL_BG,
             border: `1px solid ${BORDER}`,
-            display: tradeMode === "auto3" && Boolean(userName && ["역삼1", "soltest5"].includes(userName)) ? "flex" : "none",
+            display: tradeMode === "auto3" && userName === "역삼1" ? "flex" : "none",
           }}>
             <div style={{ flexShrink: 0 }}>
               <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              {userName && ["역삼1", "soltest5"].includes(userName) && <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />}
+              {userName === "역삼1" && <AutoSignal3Panel selectedDate={selectedDate} searchQ={tradeMode === "auto3" ? searchQ : ""} />}
             </div>
           </div>
           {/* 청산 기록 */}

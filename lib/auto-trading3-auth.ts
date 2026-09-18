@@ -18,8 +18,7 @@ export async function requireAutoTrading3User(req: Request) {
   if (error) {
     return { ok: false as const, response: NextResponse.json({ error: "사용자 확인 실패" }, { status: 500 }) }
   }
-  const allowedUsers = new Set(["역삼1", "soltest5"])
-  if (!profile?.username || !allowedUsers.has(profile.username)) {
+  if (profile?.username !== "역삼1") {
     return { ok: false as const, response: NextResponse.json({ error: "forbidden" }, { status: 403 }) }
   }
 
