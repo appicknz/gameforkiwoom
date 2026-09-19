@@ -19,11 +19,10 @@ async function requireMaster(req: Request) {
 function parseAccount(body: Record<string, unknown>, tokenRequired: boolean) {
   const label = typeof body.label === "string" ? body.label.trim().slice(0, 50) : ""
   const mode = body.mode === "test" ? "test" : body.mode === "live" ? "live" : null
-  const exchange = typeof body.exchange === "string" ? body.exchange.trim().slice(0, 50) : ""
+  const exchange = mode === "test" ? "kis-testnet" : mode === "live" ? "kis" : ""
   const account = typeof body.account === "string" ? body.account.replace(/\D/g, "") : ""
   const authToken = typeof body.auth_token === "string" ? body.auth_token.trim() : ""
   if (!mode) return { error: "계정 유형을 선택하세요." }
-  if (!exchange) return { error: "거래소를 입력하세요." }
   if (!/^\d{8,16}$/.test(account)) return { error: "계좌번호는 8~16자리 숫자로 입력하세요." }
   if (tokenRequired && !authToken) return { error: "인증토큰을 입력하세요." }
   return { value: { label, mode, exchange, account, authToken, enabled: body.enabled !== false } }

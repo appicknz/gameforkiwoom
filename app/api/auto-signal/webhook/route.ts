@@ -401,6 +401,14 @@ function buildUp8Tvm(params: { exchange: string; account: string; symbol: string
   return `TVM:${JSON.stringify({ exchange: params.exchange, account: params.account, symbol: params.symbol, type: "market", side: "buy", bal_pct: params.balPct, equity: "y", same_order: "skip", token: params.token })}:MVT`
 }
 
+function parseUp8SignalTime(value: unknown): string {
+  if (typeof value === "string") {
+    const timestamp = Date.parse(`${value.replace(" ", "T")}+09:00`)
+    if (Number.isFinite(timestamp)) return new Date(timestamp).toISOString()
+  }
+  return new Date().toISOString()
+}
+
 async function handleSignalUp8(args: { type: string; symbol: string; ip: string; body: Record<string, unknown>; logRequest: typeof logRequest }) {
   const { type, symbol, ip, body, logRequest } = args
   const tvmSymbol = toUp8TvmSymbol(symbol)
@@ -418,16 +426,24 @@ async function handleSignalUp8(args: { type: string; symbol: string; ip: string;
   if (!Number.isFinite(balPct) || balPct <= 0 || balPct > 100) { await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "invalid UP8 balance percentage setting" }); return NextResponse.json({ error: "invalid UP8 balance percentage setting" }, { status: 500 }) }
   const results = await Promise.all(selectedAccounts.map(async config => { const tvm = buildUp8Tvm({ ...config, symbol: tvmSymbol, balPct }); try { const response = await fetch(tradingGs.webhook_url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: tvm, signal: AbortSignal.timeout(10000) }); return { accountId: config.id, mode: config.mode, exchange: config.exchange, account: config.account, ok: response.ok, status: response.status } } catch { return { accountId: config.id, mode: config.mode, exchange: config.exchange, account: config.account, ok: false, status: null } } }))
   const failedAccounts = results.filter(result => !result.ok).map(result => result.account)
-  if (failedAccounts.length > 0) { await logRequest("error", 502, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM failed: ${failedAccounts.join(",")}` }); return NextResponse.json({ error: "UP8 TVM delivery failed", up8: true, results }, { status: 502 }) }
-  const signalTime = typeof body.formatted_time_kst === "string" ? new Date(body.formatted_time_kst.replace(" ", "T") + "+09:00").toISOString() : new Date().toISOString()
-  if (type === "TRIPLE_COMBO_UP6") {
+  const successfulAccounts = results.filter(result => result.ok)
+  const signalTime = parseUp8SignalTime(body.formatted_time_kst)
+  if (type === "TRIPLE_COMBO_UP6" && successfulAccounts.length > 0) {
     await recordUp6Signal({
       body,
       symbol,
       signalTime,
-      modes: selectedAccounts.map(config => ({ mode: config.mode, exchange: config.exchange, account: config.account })),
+      modes: selectedAccounts
+        .filter(config => successfulAccounts.some(result => result.accountId === config.id))
+        .map(config => ({ mode: config.mode, exchange: config.exchange, account: config.account })),
       orderResults: results,
     })
+  }
+  if (failedAccounts.length > 0) {
+    const partial = successfulAccounts.length > 0
+    const status = partial ? 207 : 502
+    await logRequest(partial ? "partial" : "error", status, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM failed: ${failedAccounts.join(",")}` })
+    return NextResponse.json({ ok: false, partial, error: "UP8 TVM delivery failed", up8: true, symbol: tvmSymbol, bal_pct: balPct, results }, { status })
   }
   await logRequest("ok", 200, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM sent: ${results.map(result => result.account).join(",")}` })
   return NextResponse.json({ ok: true, up8: true, symbol: tvmSymbol, bal_pct: balPct, results })
