@@ -30,20 +30,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "올바른 국내주식 종목코드를 입력하세요." }, { status: 400 })
   }
 
-  const [{ data: settings, error: settingsError }, { data: globalSettings, error: globalError }] = await Promise.all([
-    adminSupabase
-      .from("auto_signal_up8_settings")
-      .select("amount, test_enabled, live_enabled, test_exchange, test_account, test_auth_token, live_exchange, live_account, live_auth_token")
-      .eq("id", 1)
-      .single(),
-    adminSupabase
-      .from("auto_trading_global_settings")
-      .select("webhook_url")
-      .eq("id", 1)
-      .single(),
+  const [{ data: settings, error: settingsError }, { data: accounts, error: accountsError }, { data: globalSettings, error: globalError }] = await Promise.all([
+    adminSupabase.from("auto_signal_up8_settings").select("amount").eq("id", 1).single(),
+    adminSupabase.from("auto_signal_up8_accounts").select("id, mode, exchange, account, auth_token").eq("enabled", true),
+    adminSupabase.from("auto_trading_global_settings").select("webhook_url").eq("id", 1).single(),
   ])
 
-  if (settingsError || !settings) {
+  if (settingsError || !settings || accountsError) {
     return NextResponse.json({ error: "UP8 설정을 불러오지 못했습니다." }, { status: 500 })
   }
   if (globalError || !globalSettings?.webhook_url) {
@@ -55,51 +48,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "저장된 UP8 총자산 주문 비율이 올바르지 않습니다." }, { status: 500 })
   }
 
-  const selectedOrder = settings.live_enabled
-    ? { mode: "live", exchange: settings.live_exchange, account: settings.live_account, token: settings.live_auth_token }
-    : settings.test_enabled
-      ? { mode: "test", exchange: settings.test_exchange, account: settings.test_account, token: settings.test_auth_token }
-      : null
-
-  if (!selectedOrder) {
-    return NextResponse.json({ error: "테스트 주문 또는 실매매 주문을 먼저 선택하고 저장하세요." }, { status: 400 })
+  if (!accounts?.length) {
+    return NextResponse.json({ error: "활성화된 국내주식 계정이 없습니다." }, { status: 400 })
   }
 
-  const tvm = `TVM:${JSON.stringify({
-    exchange: selectedOrder.exchange,
-    account: selectedOrder.account,
-    symbol,
-    type: "market",
-    side: "buy",
-    bal_pct: balPct,
-    equity: "y",
-    same_order: "skip",
-    token: selectedOrder.token,
-  })}:MVT`
-
-  try {
-    const response = await fetch(globalSettings.webhook_url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: tvm,
-      signal: AbortSignal.timeout(10000),
-    })
-    const responseBody = await response.text()
-
-    return NextResponse.json({
-      ok: response.ok,
-      status: response.status,
-      response: responseBody.slice(0, 500),
-      mode: selectedOrder.mode,
+  const results = await Promise.all(accounts.map(async (selectedOrder: Record<string, unknown>) => {
+    const tvm = `TVM:${JSON.stringify({
       exchange: selectedOrder.exchange,
       account: selectedOrder.account,
       symbol,
+      type: "market",
+      side: "buy",
       bal_pct: balPct,
-      tvm,
-    }, { status: response.ok ? 200 : 502 })
-  } catch (error) {
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : "UP8 테스트 주문 전송 중 오류가 발생했습니다.",
-    }, { status: 502 })
-  }
+      equity: "y",
+      same_order: "skip",
+      token: selectedOrder.auth_token,
+    })}:MVT`
+    try {
+      const response = await fetch(globalSettings.webhook_url, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: tvm,
+        signal: AbortSignal.timeout(10000),
+      })
+      return { id: selectedOrder.id, mode: selectedOrder.mode, exchange: selectedOrder.exchange, account: selectedOrder.account, ok: response.ok, status: response.status }
+    } catch (error) {
+      return { id: selectedOrder.id, mode: selectedOrder.mode, exchange: selectedOrder.exchange, account: selectedOrder.account, ok: false, status: null, error: error instanceof Error ? error.message : "전송 오류" }
+    }
+  }))
+  const ok = results.every((result: { ok: boolean }) => result.ok)
+  return NextResponse.json({ ok, symbol, bal_pct: balPct, results }, { status: ok ? 200 : 502 })
 }

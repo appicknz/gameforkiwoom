@@ -22,7 +22,7 @@ export async function recordUp6Signal(args: { body: Record<string, unknown>; sym
       const record = price > SYMBOL_BUDGET || base.quantity < 1
         ? { ...base, status: "skipped", skip_reason: price > SYMBOL_BUDGET ? "price_over_50000" : "quantity_below_one", quantity: 0, invested_amount: 0 }
         : { ...base, status: "open" }
-      const { data, error } = await adminSupabase.from("auto_trading3_records").upsert(record, { onConflict: "trade_date,symbol,account_mode", ignoreDuplicates: true }).select().maybeSingle()
+      const { data, error } = await adminSupabase.from("auto_trading3_records").upsert(record, { onConflict: "trade_date,symbol,exchange,account", ignoreDuplicates: true }).select().maybeSingle()
       if (error) throw error
       results.push({ mode: modeConfig.mode, status: record.status, price, id: data?.id ?? null })
     } catch (error) {

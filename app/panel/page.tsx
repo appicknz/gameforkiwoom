@@ -231,18 +231,20 @@ export default function PanelPage() {
   const [autoSettings2Edit, setAutoSettings2Edit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string } | null>(null)
   const [auto2Saving,       setAuto2Saving]       = useState(false)
   const [auto2Msg,          setAuto2Msg]          = useState<string | null>(null)
-  type Up8Settings = {
-    test_enabled: boolean; live_enabled: boolean; bal_pct: number; initial_seed: number
-    test_exchange: string; test_account: string; live_exchange: string; live_account: string
-  }
+  type Up8Settings = { bal_pct: number; initial_seed: number }
+  type Up8Account = { id: string; label: string; mode: "test" | "live"; exchange: string; account: string; enabled: boolean }
+  type Up8AccountDraft = { label: string; mode: "test" | "live"; exchange: string; account: string; auth_token: string; enabled: boolean }
+  const emptyUp8Account: Up8AccountDraft = { label: "", mode: "live", exchange: "kis", account: "", auth_token: "", enabled: true }
   const [up8Settings,     setUp8Settings]     = useState<Up8Settings | null>(null)
-  const [up8SettingsEdit, setUp8SettingsEdit] = useState<{ test_enabled: boolean; live_enabled: boolean; bal_pct: string; initial_seed: string; live_account: string } | null>(null)
+  const [up8SettingsEdit, setUp8SettingsEdit] = useState<{ bal_pct: string; initial_seed: string } | null>(null)
+  const [up8Accounts,     setUp8Accounts]     = useState<Up8Account[]>([])
+  const [up8AccountDraft, setUp8AccountDraft] = useState(emptyUp8Account)
+  const [up8AccountSaving, setUp8AccountSaving] = useState<string | null>(null)
   const [up8Saving,       setUp8Saving]       = useState(false)
   const [up8Msg,          setUp8Msg]          = useState<string | null>(null)
   const [up8TestSymbol,   setUp8TestSymbol]   = useState("023900")
   const [up8TestLoading,  setUp8TestLoading]  = useState(false)
-  const [up8TestResult,   setUp8TestResult]   = useState<{ ok?: boolean; error?: string; status?: number; response?: string; symbol?: string; bal_pct?: number; tvm?: string; mode?: "test" | "live"; exchange?: string; account?: string } | null>(null)
-  const [up8TvmLogs,      setUp8TvmLogs]      = useState<string[]>([])
+  const [up8TestResult,   setUp8TestResult]   = useState<{ ok?: boolean; error?: string; symbol?: string; bal_pct?: number; results?: Array<{ id: string; mode: "test" | "live"; exchange: string; account: string; ok: boolean; status: number | null; error?: string }> } | null>(null)
   const [signalRules,      setSignalRules]      = useState<SignalRule[]>([])
   const [rulesSaving,      setRulesSaving]      = useState<string | null>(null)  // 저장 중인 signal_type
   const [autoLoading,      setAutoLoading]      = useState(false)
@@ -1794,12 +1796,13 @@ export default function PanelPage() {
                   setAutoLoading(true)
                   try {
                     const tok = localStorage.getItem("app_token") ?? ""
-                    const [posRes, setRes, rulesRes, set2Res, up8Res] = await Promise.all([
+                    const [posRes, setRes, rulesRes, set2Res, up8Res, up8AccountsRes] = await Promise.all([
                       fetch("/api/auto-signal/positions", { headers: { Authorization: `Bearer ${tok}` } }),
                       fetch("/api/auto-signal/settings",  { headers: { Authorization: `Bearer ${tok}` } }),
                       fetch("/api/auto-signal/rules"),
                       fetch("/api/auto-signal2/settings", { headers: { Authorization: `Bearer ${tok}` } }),
                       fetch("/api/auto-signal-up8/settings", { headers: { Authorization: `Bearer ${tok}` } }),
+                      fetch("/api/auto-signal-up8/accounts", { headers: { Authorization: `Bearer ${tok}` } }),
                     ])
                     const posData   = await posRes.json()
                     const setData   = await setRes.json()
@@ -1825,12 +1828,13 @@ export default function PanelPage() {
                       const up8Data = await up8Res.json() as Up8Settings
                       setUp8Settings(up8Data)
                       setUp8SettingsEdit({
-                        test_enabled: up8Data.test_enabled ?? false,
-                        live_enabled: up8Data.live_enabled ?? false,
                         bal_pct: String(up8Data.bal_pct ?? 3),
                         initial_seed: String(up8Data.initial_seed ?? 2_000_000),
-                        live_account: up8Data.live_account ?? "",
                       })
+                    }
+                    if (up8AccountsRes.ok) {
+                      const accountData = await up8AccountsRes.json()
+                      setUp8Accounts(accountData.accounts ?? [])
                     }
                   } finally {
                     setAutoLoading(false)
@@ -3413,7 +3417,7 @@ export default function PanelPage() {
               {pcMsg && <p className={`text-xs ${pcMsg.ok ? "text-primary" : "text-destructive"}`}>{pcMsg.text}</p>}
             </div>}
 
-            {/* 충전 요청 목록 — master 전용 */}
+            {/* 충전 요청 목록 — master 전��� */}
             {myRole === "master" && <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <h2 className="text-sm font-semibold text-foreground">충전 요청 목록</h2>
@@ -5863,216 +5867,131 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
 
               {up8SettingsEdit && up8Settings && (
                 <div className="flex flex-col gap-4">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${up8SettingsEdit.test_enabled ? "border-primary bg-primary/10" : "border-border bg-secondary/30"}`}>
-                      <input
-                        type="checkbox"
-                        checked={up8SettingsEdit.test_enabled}
-                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, test_enabled: e.target.checked } : s)}
-                        className="mt-0.5 size-4 accent-primary"
-                      />
-                      <span className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-foreground">테스트 주문</span>
-                        <span className="font-mono text-xs text-muted-foreground">{up8Settings.test_exchange} · {up8Settings.test_account}</span>
-                      </span>
-                    </label>
-                    <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${up8SettingsEdit.live_enabled ? "border-destructive bg-destructive/10" : "border-border bg-secondary/30"}`}>
-                      <input
-                        type="checkbox"
-                        checked={up8SettingsEdit.live_enabled}
-                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, live_enabled: e.target.checked } : s)}
-                        className="mt-0.5 size-4 accent-destructive"
-                      />
-                      <span className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-destructive">실매매 주문</span>
-                        <span className="font-mono text-xs text-muted-foreground">{up8Settings.live_exchange} · {up8SettingsEdit.live_account || "계좌번호 미입력"}</span>
-                      </span>
-                    </label>
+                  <div className="rounded-lg border border-border bg-secondary/20 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-foreground">주문 계정 목록</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">활성 계정 수만큼 같은 UP6 / UP8 신호가 동시에 전송됩니다. 인증토큰은 저장 후 다시 표시되지 않습니다.</p>
+                      </div>
+                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">활성 {up8Accounts.filter(account => account.enabled).length}개</span>
+                    </div>
+                    <div className="space-y-2">
+                      {up8Accounts.map(account => (
+                        <div key={account.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background/60 px-3 py-3">
+                          <button
+                            type="button"
+                            disabled={up8AccountSaving === account.id}
+                            onClick={async () => {
+                              setUp8AccountSaving(account.id)
+                              setUp8Msg(null)
+                              try {
+                                const tok = localStorage.getItem("app_token") ?? ""
+                                const res = await fetch("/api/auto-signal-up8/accounts", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ ...account, enabled: !account.enabled }) })
+                                const data = await res.json()
+                                if (res.ok) setUp8Accounts(current => current.map(item => item.id === account.id ? data : item))
+                                else setUp8Msg(data.error ?? "계정 상태를 변경하지 못했습니다.")
+                              } finally { setUp8AccountSaving(null) }
+                            }}
+                            className={`h-6 rounded-full px-2.5 text-[11px] font-semibold ${account.enabled ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"}`}
+                            aria-label={`${account.label || account.account} 계정 ${account.enabled ? "비활성화" : "활성화"}`}
+                          >
+                            {account.enabled ? "사용 중" : "중지"}
+                          </button>
+                          <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${account.mode === "live" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>{account.mode === "live" ? "실매매" : "모의"}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">{account.label || "이름 없는 계정"}</p>
+                            <p className="truncate font-mono text-xs text-muted-foreground">{account.exchange} · {account.account}</p>
+                          </div>
+                          <button
+                            type="button"
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                            onClick={async () => {
+                              const nextToken = prompt("새 인증토큰을 입력하세요. 현재 토큰은 표시되지 않습니다.")?.trim()
+                              if (!nextToken) return
+                              setUp8AccountSaving(account.id)
+                              try {
+                                const tok = localStorage.getItem("app_token") ?? ""
+                                const res = await fetch("/api/auto-signal-up8/accounts", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ ...account, auth_token: nextToken }) })
+                                const data = await res.json()
+                                setUp8Msg(res.ok ? "인증토큰이 변경됐습니다." : data.error ?? "인증토큰을 변경하지 못했습니다.")
+                              } finally { setUp8AccountSaving(null) }
+                            }}
+                          >인증토큰 변경</button>
+                          <button
+                            type="button"
+                            className="text-xs text-destructive hover:underline"
+                            onClick={async () => {
+                              if (!confirm(`${account.label || account.account} 계정을 삭제합니까?`)) return
+                              setUp8AccountSaving(account.id)
+                              try {
+                                const tok = localStorage.getItem("app_token") ?? ""
+                                const res = await fetch(`/api/auto-signal-up8/accounts?id=${encodeURIComponent(account.id)}`, { method: "DELETE", headers: { Authorization: `Bearer ${tok}` } })
+                                const data = await res.json()
+                                if (res.ok) setUp8Accounts(current => current.filter(item => item.id !== account.id))
+                                else setUp8Msg(data.error ?? "계정을 삭제하지 못했습니다.")
+                              } finally { setUp8AccountSaving(null) }
+                            }}
+                          >삭제</button>
+                        </div>
+                      ))}
+                      {up8Accounts.length === 0 && <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">등록된 계정이 없습니다.</p>}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 rounded-lg border border-border p-4 md:grid-cols-2 lg:grid-cols-6">
+                    <div className="flex flex-col gap-1"><label htmlFor="up8-account-label" className="text-xs text-muted-foreground">계정 이름</label><input id="up8-account-label" value={up8AccountDraft.label} onChange={e => setUp8AccountDraft(current => ({ ...current, label: e.target.value }))} placeholder="국내주식 계정 2" className="h-8 rounded-lg border border-border bg-secondary px-3 text-sm text-foreground" /></div>
+                    <div className="flex flex-col gap-1"><label htmlFor="up8-account-mode" className="text-xs text-muted-foreground">유형</label><select id="up8-account-mode" value={up8AccountDraft.mode} onChange={e => setUp8AccountDraft(current => ({ ...current, mode: e.target.value as "test" | "live", exchange: e.target.value === "test" ? "kis-testnet" : "kis" }))} className="h-8 rounded-lg border border-border bg-secondary px-3 text-sm text-foreground"><option value="live">실매매</option><option value="test">모의</option></select></div>
+                    <div className="flex flex-col gap-1"><label htmlFor="up8-account-exchange" className="text-xs text-muted-foreground">거래소</label><input id="up8-account-exchange" value={up8AccountDraft.exchange} onChange={e => setUp8AccountDraft(current => ({ ...current, exchange: e.target.value }))} className="h-8 rounded-lg border border-border bg-secondary px-3 font-mono text-sm text-foreground" /></div>
+                    <div className="flex flex-col gap-1"><label htmlFor="up8-account-number" className="text-xs text-muted-foreground">계좌번호</label><input id="up8-account-number" inputMode="numeric" autoComplete="off" value={up8AccountDraft.account} onChange={e => setUp8AccountDraft(current => ({ ...current, account: e.target.value.replace(/\D/g, "").slice(0, 16) }))} placeholder="1005984201" className="h-8 rounded-lg border border-border bg-secondary px-3 font-mono text-sm text-foreground" /></div>
+                    <div className="flex flex-col gap-1"><label htmlFor="up8-account-token" className="text-xs text-muted-foreground">인증토큰</label><input id="up8-account-token" type="password" autoComplete="new-password" value={up8AccountDraft.auth_token} onChange={e => setUp8AccountDraft(current => ({ ...current, auth_token: e.target.value }))} placeholder="토큰 입력" className="h-8 rounded-lg border border-border bg-secondary px-3 font-mono text-sm text-foreground" /></div>
+                    <div className="flex items-end"><button type="button" disabled={up8AccountSaving === "new"} onClick={async () => {
+                      if (!/^\d{8,16}$/.test(up8AccountDraft.account) || !up8AccountDraft.auth_token.trim()) { setUp8Msg("계좌번호와 인증토큰을 올바르게 입력하세요."); return }
+                      setUp8AccountSaving("new"); setUp8Msg(null)
+                      try {
+                        const tok = localStorage.getItem("app_token") ?? ""
+                        const res = await fetch("/api/auto-signal-up8/accounts", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify(up8AccountDraft) })
+                        const data = await res.json()
+                        if (res.ok) { setUp8Accounts(current => [...current, data]); setUp8AccountDraft(emptyUp8Account); setUp8Msg("계정이 추가됐습니다.") } else setUp8Msg(data.error ?? "계정을 추가하지 못했습니다.")
+                      } finally { setUp8AccountSaving(null) }
+                    }} className="h-8 w-full rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50">{up8AccountSaving === "new" ? "추가 중..." : "계정 추가"}</button></div>
                   </div>
 
                   <div className="flex flex-wrap items-end gap-3">
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor="up8-live-account" className="text-xs text-muted-foreground">실매매 계좌번호</label>
-                      <input
-                        id="up8-live-account"
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        value={up8SettingsEdit.live_account}
-                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, live_account: e.target.value.replace(/\D/g, "").slice(0, 16) } : s)}
-                        placeholder="1005984201"
-                        aria-describedby="up8-live-account-help"
-                        className="h-8 w-48 rounded-lg border border-border bg-secondary px-3 font-mono text-sm text-foreground"
-                      />
-                      <span id="up8-live-account-help" className="text-[10px] text-muted-foreground">저장 후 다음 UP6 / UP8 주문부터 적용됩니다.</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor="up8-initial-seed" className="text-xs text-muted-foreground">자동매매3 기본 마진 (원)</label>
-                      <input
-                        id="up8-initial-seed"
-                        type="number"
-                        min={100000}
-                        max={10000000000}
-                        step={10000}
-                        inputMode="numeric"
-                        value={up8SettingsEdit.initial_seed}
-                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, initial_seed: e.target.value } : s)}
-                        aria-describedby="up8-initial-seed-help"
-                        className="h-8 w-48 rounded-lg border border-border bg-secondary px-3 text-sm text-foreground"
-                      />
-                      <span id="up8-initial-seed-help" className="text-[10px] text-muted-foreground">새로 들어오는 자동매매3 기록부터 적용됩니다.</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor="up8-bal-pct" className="text-xs text-muted-foreground">총자산 주문 비율 (%)</label>
-                      <input
-                        id="up8-bal-pct"
-                        type="number"
-                        min={0.01}
-                        max={100}
-                        step={0.01}
-                        inputMode="decimal"
-                        value={up8SettingsEdit.bal_pct}
-                        onChange={e => setUp8SettingsEdit(s => s ? { ...s, bal_pct: e.target.value } : s)}
-                        className="h-8 w-32 rounded-lg border border-border bg-secondary px-3 text-sm text-foreground"
-                      />
-                    </div>
-                    <button
-                      disabled={up8Saving}
-                      onClick={async () => {
-                        const bal_pct = Number(up8SettingsEdit.bal_pct)
-                        if (!Number.isFinite(bal_pct) || bal_pct <= 0 || bal_pct > 100) {
-                          setUp8Msg("총자산 주문 비율은 0 초과 100 이하의 퍼센트여야 합니다.")
-                          return
-                        }
-                        const initialSeed = Number(up8SettingsEdit.initial_seed)
-                        if (!Number.isSafeInteger(initialSeed) || initialSeed < 100_000 || initialSeed > 10_000_000_000) {
-                          setUp8Msg("자동매매3 기본 마진은 10만원 이상 100억원 이하의 정수로 입력하세요.")
-                          return
-                        }
-                        const liveAccount = up8SettingsEdit.live_account.trim()
-                        if (!/^\d{8,16}$/.test(liveAccount)) {
-                          setUp8Msg("실매매 계좌번호는 8~16자리 숫자로 입력하세요.")
-                          return
-                        }
-                        if (up8SettingsEdit.live_enabled && liveAccount !== up8Settings.live_account && !confirm(`실매매 계좌를 ${up8Settings.live_account}에서 ${liveAccount}(으)로 변경합니까? 다음 주문부터 새 계좌로 전송됩니다.`)) return
-                        setUp8Saving(true)
-                        setUp8Msg(null)
-                        try {
-                          const tok = localStorage.getItem("app_token") ?? ""
-                          const res = await fetch("/api/auto-signal-up8/settings", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                            body: JSON.stringify({
-                              test_enabled: up8SettingsEdit.test_enabled,
-                              live_enabled: up8SettingsEdit.live_enabled,
-                              live_account: liveAccount,
-                              bal_pct,
-                              initial_seed: initialSeed,
-                            }),
-                          })
-                          const data = await res.json()
-                          if (res.ok) {
-                            setUp8Settings(data)
-                            setUp8SettingsEdit({
-                              test_enabled: data.test_enabled,
-                              live_enabled: data.live_enabled,
-                              bal_pct: String(data.bal_pct),
-                              initial_seed: String(data.initial_seed ?? 2_000_000),
-                              live_account: data.live_account ?? "",
-                            })
-                            setUp8Msg("저장됐습니다.")
-                          } else {
-                            setUp8Msg(data.error ?? "저장 중 오류가 발생했습니다.")
-                          }
-                        } finally {
-                          setUp8Saving(false)
-                        }
-                      }}
-                      className="h-8 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      {up8Saving ? "저장 중..." : "UP6 / UP8 설정 저장"}
-                    </button>
-                    {up8Msg && <span className="text-xs text-muted-foreground">{up8Msg}</span>}
+                    <div className="flex flex-col gap-1"><label htmlFor="up8-initial-seed" className="text-xs text-muted-foreground">자동매매3 기본 마진 (원)</label><input id="up8-initial-seed" type="number" min={100000} max={10000000000} step={10000} value={up8SettingsEdit.initial_seed} onChange={e => setUp8SettingsEdit(current => current ? { ...current, initial_seed: e.target.value } : current)} className="h-8 w-48 rounded-lg border border-border bg-secondary px-3 text-sm text-foreground" /></div>
+                    <div className="flex flex-col gap-1"><label htmlFor="up8-bal-pct" className="text-xs text-muted-foreground">총자산 주문 비율 (%)</label><input id="up8-bal-pct" type="number" min={0.01} max={100} step={0.01} value={up8SettingsEdit.bal_pct} onChange={e => setUp8SettingsEdit(current => current ? { ...current, bal_pct: e.target.value } : current)} className="h-8 w-32 rounded-lg border border-border bg-secondary px-3 text-sm text-foreground" /></div>
+                    <button disabled={up8Saving} onClick={async () => {
+                      const bal_pct = Number(up8SettingsEdit.bal_pct); const initialSeed = Number(up8SettingsEdit.initial_seed)
+                      if (!Number.isFinite(bal_pct) || bal_pct <= 0 || bal_pct > 100 || !Number.isSafeInteger(initialSeed) || initialSeed < 100_000 || initialSeed > 10_000_000_000) { setUp8Msg("주문 비율 또는 기본 마진 값을 확인하세요."); return }
+                      setUp8Saving(true); setUp8Msg(null)
+                      try {
+                        const tok = localStorage.getItem("app_token") ?? ""
+                        const res = await fetch("/api/auto-signal-up8/settings", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ bal_pct, initial_seed: initialSeed }) })
+                        const data = await res.json()
+                        if (res.ok) { setUp8Settings(data); setUp8SettingsEdit({ bal_pct: String(data.bal_pct), initial_seed: String(data.initial_seed) }); setUp8Msg("설정이 저장됐습니다.") } else setUp8Msg(data.error ?? "저장 중 오류가 발생했습니다.")
+                      } finally { setUp8Saving(false) }
+                    }} className="h-8 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50">{up8Saving ? "저장 중..." : "주문 설정 저장"}</button>
+                    {up8Msg && <span className="text-xs text-muted-foreground" role="status">{up8Msg}</span>}
                   </div>
 
                   <div className="flex flex-col gap-3 rounded-lg border border-border bg-secondary/20 p-4">
-                    <div>
-                      <h3 className="text-sm font-semibold text-foreground">UP6 / UP8 테스트 주문</h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        저장된 주문 모드의 계정과 총자산 대비 비율로 KOSDAQ 시장가 매수 주문을 즉시 전송합니다. 실매매 주문 선택 시 실제 kis 계정으로 전송됩니다.
-                      </p>
-                    </div>
+                    <div><h3 className="text-sm font-semibold text-foreground">전체 활성 계정 테스트 주문</h3><p className="mt-1 text-xs text-muted-foreground">활성화된 모든 계정으로 KOSDAQ 시장가 매수 주문을 즉시 전송합니다.</p></div>
                     <div className="flex flex-wrap items-end gap-3">
-                      <div className="flex flex-col gap-1">
-                        <label htmlFor="up8-test-symbol" className="text-xs text-muted-foreground">종목코드</label>
-                        <input
-                          id="up8-test-symbol"
-                          value={up8TestSymbol}
-                          onChange={e => setUp8TestSymbol(e.target.value.toUpperCase())}
-                          placeholder="023900"
-                          className="h-8 w-40 rounded-lg border border-border bg-secondary px-3 font-mono text-sm text-foreground"
-                        />
-                      </div>
-                      <button
-                        disabled={up8TestLoading || !up8TestSymbol.trim()}
-                        onClick={async () => {
-                          const selectedExchange = up8Settings.live_enabled ? up8Settings.live_exchange : up8Settings.test_exchange
-                          const selectedAccount = up8Settings.live_enabled ? up8Settings.live_account : up8Settings.test_account
-                          if (!confirm(`${up8TestSymbol}/KOSDAQ 총자산의 ${up8Settings.bal_pct}%를 ${selectedExchange} · ${selectedAccount} 계정으로 매수 전송합니까?`)) return
-                          setUp8TestLoading(true)
-                          setUp8TestResult(null)
-                          try {
-                            const tok = localStorage.getItem("app_token") ?? ""
-                            const res = await fetch("/api/auto-signal-up8/test-order", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                              body: JSON.stringify({ symbol: up8TestSymbol }),
-                            })
-  const data = await res.json()
-  setUp8TestResult(data)
-  if (typeof data.tvm === "string") {
-    setUp8TvmLogs(current => [data.tvm, ...current.filter(log => log !== data.tvm)].slice(0, 3))
-  }
-  } finally {
-                            setUp8TestLoading(false)
-                          }
-                        }}
-                        className="h-8 rounded-lg border border-primary/40 bg-primary/10 px-4 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
-                      >
-                        {up8TestLoading ? "전송 중..." : "테스트 ���문 전송"}
-                      </button>
+                      <div className="flex flex-col gap-1"><label htmlFor="up8-test-symbol" className="text-xs text-muted-foreground">종목코드</label><input id="up8-test-symbol" value={up8TestSymbol} onChange={e => setUp8TestSymbol(e.target.value.toUpperCase())} placeholder="023900" className="h-8 w-40 rounded-lg border border-border bg-secondary px-3 font-mono text-sm text-foreground" /></div>
+                      <button disabled={up8TestLoading || !up8TestSymbol.trim() || up8Accounts.every(account => !account.enabled)} onClick={async () => {
+                        const activeCount = up8Accounts.filter(account => account.enabled).length
+                        if (!confirm(`${up8TestSymbol}/KOSDAQ 주문을 활성 계정 ${activeCount}개로 전송합니까?`)) return
+                        setUp8TestLoading(true); setUp8TestResult(null)
+                        try {
+                          const tok = localStorage.getItem("app_token") ?? ""
+                          const res = await fetch("/api/auto-signal-up8/test-order", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ symbol: up8TestSymbol }) })
+                          const data = await res.json(); setUp8TestResult(data)
+                        } finally { setUp8TestLoading(false) }
+                      }} className="h-8 rounded-lg border border-primary/40 bg-primary/10 px-4 text-xs font-semibold text-primary disabled:opacity-50">{up8TestLoading ? "전송 중..." : "전체 계정 테스트 전송"}</button>
                     </div>
-                    {up8TestResult && (
-                      <div className={`rounded-lg border px-3 py-2 text-xs ${up8TestResult.ok ? "border-primary/30 bg-primary/5 text-primary" : "border-destructive/30 bg-destructive/5 text-destructive"}`} role="status">
-                        <p className="font-semibold">{up8TestResult.ok ? "전송 성공" : "전송 실패"}</p>
-                        {up8TestResult.ok ? (
-                          <>
-                            <p className="mt-1 font-mono">{up8TestResult.symbol} · 총자산 {up8TestResult.bal_pct}% · {up8TestResult.exchange} · {up8TestResult.account} · HTTP {up8TestResult.status}</p>
-                            {up8TestResult.tvm && <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-primary/20 bg-background/50 p-2 text-[11px] leading-5 text-foreground">{up8TestResult.tvm}</pre>}
-                          </>
-                        ) : (
-                          <p className="mt-1">{up8TestResult.error ?? up8TestResult.response ?? `HTTP ${up8TestResult.status ?? "-"}`}</p>
-                        )}
-                      </div>
-                    )}
-                    {up8TvmLogs.length > 0 && (
-                      <div className="mt-3 space-y-2" aria-live="polite">
-                        <p className="text-xs font-semibold text-foreground">최근 전송 TVM (최대 3개)</p>
-                        {up8TvmLogs.map((tvm, index) => (
-                          <pre key={`${tvm}-${index}`} className="overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-border bg-background/50 p-2 text-[11px] leading-5 text-muted-foreground">{tvm}</pre>
-                        ))}
-                      </div>
-                    )}
+                    {up8TestResult && <div className={`rounded-lg border px-3 py-2 text-xs ${up8TestResult.ok ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`} role="status"><p className={`font-semibold ${up8TestResult.ok ? "text-primary" : "text-destructive"}`}>{up8TestResult.ok ? "전체 전송 성공" : "일부 또는 전체 전송 실패"}</p>{up8TestResult.error && <p className="mt-1 text-destructive">{up8TestResult.error}</p>}{up8TestResult.results?.map(result => <p key={result.id} className="mt-1 font-mono text-muted-foreground">{result.exchange} · {result.account} · {result.ok ? `HTTP ${result.status}` : result.error ?? `HTTP ${result.status ?? "-"}`}</p>)}</div>}
                   </div>
 
-                  {up8SettingsEdit.test_enabled && up8SettingsEdit.live_enabled && (
-                    <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive" role="status">
-                      테스트와 실매매 주문이 모두 선택되어 UP6/UP8 신호마다 두 계정으로 각각 전송됩니다.
-                    </p>
-                  )}
-                  {!up8SettingsEdit.test_enabled && !up8SettingsEdit.live_enabled && (
-                    <p className="text-xs text-muted-foreground" role="status">현재 UP6/UP8 자동 TVM 전송이 꺼져 있습니다. 위 테스트 주문은 별도로 사용할 수 있습니다.</p>
-                  )}
+                  {up8Accounts.every(account => !account.enabled) && <p className="text-xs text-muted-foreground" role="status">활성화된 계정이 없어 현재 UP6 / UP8 자동 TVM 전송이 꺼져 있습니다.</p>}
                 </div>
               )}
             </div>

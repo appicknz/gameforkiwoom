@@ -405,30 +405,31 @@ async function handleSignalUp8(args: { type: string; symbol: string; ip: string;
   const { type, symbol, ip, body, logRequest } = args
   const tvmSymbol = toUp8TvmSymbol(symbol)
   if (!tvmSymbol) { await logRequest("error", 400, body, { ip, symbol, signalType: type, errorMsg: "invalid UP8 symbol" }); return NextResponse.json({ error: "invalid UP8 symbol" }, { status: 400 }) }
-  const [{ data: settings, error: settingsError }, { data: tradingGs, error: tradingError }] = await Promise.all([
-    adminSupabase.from("auto_signal_up8_settings").select("test_enabled, live_enabled, amount, test_exchange, test_account, test_auth_token, live_exchange, live_account, live_auth_token").eq("id", 1).single(),
+  const [{ data: settings, error: settingsError }, { data: tradingAccounts, error: accountsError }, { data: tradingGs, error: tradingError }] = await Promise.all([
+    adminSupabase.from("auto_signal_up8_settings").select("amount").eq("id", 1).single(),
+    adminSupabase.from("auto_signal_up8_accounts").select("id, mode, exchange, account, auth_token").eq("enabled", true),
     adminSupabase.from("auto_trading_global_settings").select("webhook_url").eq("id", 1).single(),
   ])
-  if (settingsError || !settings) { await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "UP8 settings unavailable" }); return NextResponse.json({ error: "UP8 settings unavailable" }, { status: 500 }) }
-  const selectedModes = [settings.test_enabled ? { mode: "test", exchange: settings.test_exchange, account: settings.test_account, token: settings.test_auth_token } : null, settings.live_enabled ? { mode: "live", exchange: settings.live_exchange, account: settings.live_account, token: settings.live_auth_token } : null].filter((mode): mode is { mode: string; exchange: string; account: string; token: string } => Boolean(mode))
-  if (selectedModes.length === 0) { await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "UP8 disabled" }); return NextResponse.json({ ok: true, up8: true, disabled: true, symbol: tvmSymbol, bal_pct: Number(settings.amount), sent: [] }) }
+  if (settingsError || !settings || accountsError) { await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "UP8 settings unavailable" }); return NextResponse.json({ error: "UP8 settings unavailable" }, { status: 500 }) }
+  const selectedAccounts = (tradingAccounts ?? []).map((account: Record<string, unknown>) => ({ id: String(account.id), mode: account.mode as "test" | "live", exchange: String(account.exchange), account: String(account.account), token: String(account.auth_token) }))
+  if (selectedAccounts.length === 0) { await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "UP8 disabled" }); return NextResponse.json({ ok: true, up8: true, disabled: true, symbol: tvmSymbol, bal_pct: Number(settings.amount), sent: [] }) }
   if (tradingError || !tradingGs?.webhook_url) { await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "UP8 TVM webhook unavailable" }); return NextResponse.json({ error: "UP8 TVM webhook unavailable" }, { status: 500 }) }
   const balPct = Number(settings.amount)
   if (!Number.isFinite(balPct) || balPct <= 0 || balPct > 100) { await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "invalid UP8 balance percentage setting" }); return NextResponse.json({ error: "invalid UP8 balance percentage setting" }, { status: 500 }) }
-  const results = await Promise.all(selectedModes.map(async config => { const tvm = buildUp8Tvm({ ...config, symbol: tvmSymbol, balPct }); try { const response = await fetch(tradingGs.webhook_url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: tvm, signal: AbortSignal.timeout(10000) }); return { mode: config.mode, ok: response.ok, status: response.status } } catch { return { mode: config.mode, ok: false, status: null } } }))
-  const failedModes = results.filter(result => !result.ok).map(result => result.mode)
-  if (failedModes.length > 0) { await logRequest("error", 502, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM failed: ${failedModes.join(",")}` }); return NextResponse.json({ error: "UP8 TVM delivery failed", up8: true, results }, { status: 502 }) }
+  const results = await Promise.all(selectedAccounts.map(async config => { const tvm = buildUp8Tvm({ ...config, symbol: tvmSymbol, balPct }); try { const response = await fetch(tradingGs.webhook_url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: tvm, signal: AbortSignal.timeout(10000) }); return { accountId: config.id, mode: config.mode, exchange: config.exchange, account: config.account, ok: response.ok, status: response.status } } catch { return { accountId: config.id, mode: config.mode, exchange: config.exchange, account: config.account, ok: false, status: null } } }))
+  const failedAccounts = results.filter(result => !result.ok).map(result => result.account)
+  if (failedAccounts.length > 0) { await logRequest("error", 502, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM failed: ${failedAccounts.join(",")}` }); return NextResponse.json({ error: "UP8 TVM delivery failed", up8: true, results }, { status: 502 }) }
   const signalTime = typeof body.formatted_time_kst === "string" ? new Date(body.formatted_time_kst.replace(" ", "T") + "+09:00").toISOString() : new Date().toISOString()
   if (type === "TRIPLE_COMBO_UP6") {
     await recordUp6Signal({
       body,
       symbol,
       signalTime,
-      modes: selectedModes.map(config => ({ mode: config.mode as "test" | "live", exchange: config.exchange, account: config.account })),
+      modes: selectedAccounts.map(config => ({ mode: config.mode, exchange: config.exchange, account: config.account })),
       orderResults: results,
     })
   }
-  await logRequest("ok", 200, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM sent: ${results.map(result => result.mode).join(",")}` })
+  await logRequest("ok", 200, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM sent: ${results.map(result => result.account).join(",")}` })
   return NextResponse.json({ ok: true, up8: true, symbol: tvmSymbol, bal_pct: balPct, results })
 }
 
