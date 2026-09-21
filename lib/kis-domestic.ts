@@ -14,12 +14,15 @@ export type KisQuote = {
 }
 
 type TokenCache = { token: string; expiresAt: number }
+type ApprovalKeyCache = { key: string; expiresAt: number }
 type StreamState = { status: "idle" | "connecting" | "connected" | "reconnecting" | "error"; reconnects: number; lastError: string | null; updatedAt: string }
 type KisStreamSubscription = { approvalKey: string; subscribed: Set<string> }
 type KisSubscriptionStatus = { status: "pending" | "subscribed" | "error"; code: string | null; message: string | null; updatedAt: string }
 
 const tokenCache = new Map<KisMode, TokenCache>()
 const tokenRequests = new Map<KisMode, Promise<string>>()
+const approvalKeyCache = new Map<KisMode, ApprovalKeyCache>()
+const approvalKeyRequests = new Map<KisMode, Promise<string>>()
 const streamState: Record<KisMode, StreamState> = {
   test: { status: "idle", reconnects: 0, lastError: null, updatedAt: new Date().toISOString() },
   live: { status: "idle", reconnects: 0, lastError: null, updatedAt: new Date().toISOString() },
@@ -90,14 +93,23 @@ export async function getKisQuote(input: string, mode: KisMode): Promise<KisQuot
 }
 
 async function getApprovalKey(mode: KisMode) {
-  const response = await fetch(`${config(mode).rest}/oauth2/Approval`, {
-    method: "POST", headers: { "Content-Type": "application/json; charset=UTF-8" },
-    body: JSON.stringify({ grant_type: "client_credentials", appkey: process.env.KIS_APP_KEY, secretkey: process.env.KIS_APP_SECRET }), cache: "no-store",
-  })
-  if (!response.ok) throw new Error(`KIS WebSocket 승인키 발급 실패 (${response.status})`)
-  const data = await response.json() as { approval_key?: string }
-  if (!data.approval_key) throw new Error("KIS WebSocket 승인키가 없습니다.")
-  return data.approval_key
+  const cached = approvalKeyCache.get(mode)
+  if (cached && cached.expiresAt > Date.now() + 60_000) return cached.key
+  const pending = approvalKeyRequests.get(mode)
+  if (pending) return pending
+  const request = (async () => {
+    const response = await fetch(`${config(mode).rest}/oauth2/Approval`, {
+      method: "POST", headers: { "Content-Type": "application/json; charset=UTF-8" },
+      body: JSON.stringify({ grant_type: "client_credentials", appkey: process.env.KIS_APP_KEY, secretkey: process.env.KIS_APP_SECRET }), cache: "no-store",
+    })
+    if (!response.ok) throw new Error(`KIS WebSocket 승인키 발급 실패 (${response.status})`)
+    const data = await response.json() as { approval_key?: string }
+    if (!data.approval_key) throw new Error("KIS WebSocket 승인키가 없습니다.")
+    approvalKeyCache.set(mode, { key: data.approval_key, expiresAt: Date.now() + 23 * 60 * 60 * 1000 })
+    return data.approval_key
+  })()
+  approvalKeyRequests.set(mode, request)
+  try { return await request } finally { approvalKeyRequests.delete(mode) }
 }
 
 function setState(mode: KisMode, patch: Partial<StreamState>) {
@@ -231,7 +243,7 @@ export type { KisMode }
 
 export function normalizeKisSymbol(input: string) { return cleanSymbol(input) }
 
-export function resetKisCachesForTests() { tokenCache.clear(); sockets.forEach(socket => socket.close()); sockets.clear(); subscriptions.forEach(set => set.clear()); latestQuotes.clear(); subscriptionStatuses.clear() }
+export function resetKisCachesForTests() { tokenCache.clear(); approvalKeyCache.clear(); approvalKeyRequests.clear(); sockets.forEach(socket => socket.close()); sockets.clear(); subscriptions.forEach(set => set.clear()); latestQuotes.clear(); subscriptionStatuses.clear() }
 
 export async function getKisQuoteForRecord(input: string, mode: KisMode) { return getKisQuote(input, mode) }
 
