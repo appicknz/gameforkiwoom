@@ -414,12 +414,11 @@ async function handleSignalUp8(args: { type: string; symbol: string; ip: string;
   const tvmSymbol = toUp8TvmSymbol(symbol)
   if (!tvmSymbol) { await logRequest("error", 400, body, { ip, symbol, signalType: type, errorMsg: "invalid UP8 symbol" }); return NextResponse.json({ error: "invalid UP8 symbol" }, { status: 400 }) }
   const [{ data: settings, error: settingsError }, { data: tradingAccounts, error: accountsError }, { data: tradingGs, error: tradingError }] = await Promise.all([
-    adminSupabase.from("auto_signal_up8_settings").select("amount, enabled").eq("id", 1).single(),
+    adminSupabase.from("auto_signal_up8_settings").select("amount").eq("id", 1).single(),
     adminSupabase.from("auto_signal_up8_accounts").select("id, mode, exchange, account, auth_token").eq("enabled", true),
     adminSupabase.from("auto_trading_global_settings").select("webhook_url").eq("id", 1).single(),
   ])
   if (settingsError || !settings || accountsError) { await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "UP8 settings unavailable" }); return NextResponse.json({ error: "UP8 settings unavailable" }, { status: 500 }) }
-  if (!settings.enabled) { await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "UP6/UP8 master switch off" }); return NextResponse.json({ ok: true, up8: true, disabled: true, reason: "auto_trading3_disabled" }) }
   const selectedAccounts = (tradingAccounts ?? []).map((account: Record<string, unknown>) => ({ id: String(account.id), mode: account.mode as "test" | "live", exchange: String(account.exchange), account: String(account.account), token: String(account.auth_token) }))
   if (selectedAccounts.length === 0) { await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "UP8 disabled" }); return NextResponse.json({ ok: true, up8: true, disabled: true, symbol: tvmSymbol, bal_pct: Number(settings.amount), sent: [] }) }
   if (tradingError || !tradingGs?.webhook_url) { await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: "UP8 TVM webhook unavailable" }); return NextResponse.json({ error: "UP8 TVM webhook unavailable" }, { status: 500 }) }

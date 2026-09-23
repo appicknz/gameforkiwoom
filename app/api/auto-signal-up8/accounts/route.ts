@@ -54,7 +54,13 @@ export async function PATCH(req: Request) {
   const auth = await requireMaster(req)
   if (auth.response) return auth.response
   const body = await req.json().catch(() => null)
-  if (!body || typeof body !== "object" || typeof body.id !== "string") return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 })
+  if (!body || typeof body !== "object" || typeof body.id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.id)) return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 })
+  if (Object.keys(body).every(key => ["id", "enabled"].includes(key)) && Object.prototype.hasOwnProperty.call(body, "enabled")) {
+    if (typeof body.enabled !== "boolean") return NextResponse.json({ error: "계정 상태가 올바르지 않습니다." }, { status: 400 })
+    const { data, error } = await adminSupabase.from("auto_signal_up8_accounts").update({ enabled: body.enabled, updated_at: new Date().toISOString() }).eq("id", body.id).select(PUBLIC_FIELDS).single()
+    if (error) return NextResponse.json({ error: "계정 상태를 변경하지 못했습니다." }, { status: 500 })
+    return NextResponse.json(data)
+  }
   const parsed = parseAccount(body as Record<string, unknown>, false)
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
   const { label, mode, exchange, account, authToken, enabled } = parsed.value

@@ -8,7 +8,7 @@ import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
 const MASTER_ROLES = ["master"]
-const PUBLIC_FIELDS = "id, enabled, amount, initial_seed, updated_at"
+const PUBLIC_FIELDS = "id, amount, initial_seed, updated_at"
 
 async function requireMaster(req: Request) {
   const session = await verifySession(req)
@@ -44,28 +44,18 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 })
   }
 
-  const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  if (Object.prototype.hasOwnProperty.call(body, "enabled")) {
-    if (typeof body.enabled !== "boolean") return NextResponse.json({ error: "주문 상태가 올바르지 않습니다." }, { status: 400 })
-    update.enabled = body.enabled
+  const balPct = Number(body.bal_pct)
+  if (!Number.isFinite(balPct) || balPct <= 0 || balPct > 100) {
+    return NextResponse.json({ error: "총자산 주문 비율은 0 초과 100 이하의 퍼센트여야 합니다." }, { status: 400 })
   }
-  if (Object.prototype.hasOwnProperty.call(body, "bal_pct") || Object.prototype.hasOwnProperty.call(body, "initial_seed")) {
-    const balPct = Number(body.bal_pct)
-    if (!Number.isFinite(balPct) || balPct <= 0 || balPct > 100) {
-      return NextResponse.json({ error: "총자산 주문 비율은 0 초과 100 이하의 퍼센트여야 합니다." }, { status: 400 })
-    }
-    const initialSeed = Number(body.initial_seed)
-    if (!Number.isSafeInteger(initialSeed) || initialSeed < 100_000 || initialSeed > 10_000_000_000) {
-      return NextResponse.json({ error: "자동매매3 기본 마진은 10만원 이상 100억원 이하의 정수로 입력하세요." }, { status: 400 })
-    }
-    update.amount = balPct
-    update.initial_seed = initialSeed
+  const initialSeed = Number(body.initial_seed)
+  if (!Number.isSafeInteger(initialSeed) || initialSeed < 100_000 || initialSeed > 10_000_000_000) {
+    return NextResponse.json({ error: "자동매매3 기본 마진은 10만원 이상 100억원 이하의 정수로 입력하세요." }, { status: 400 })
   }
-  if (Object.keys(update).length === 1) return NextResponse.json({ error: "변경할 설정이 없습니다." }, { status: 400 })
 
   const { data, error } = await adminSupabase
     .from("auto_signal_up8_settings")
-    .update(update)
+    .update({ amount: balPct, initial_seed: initialSeed, updated_at: new Date().toISOString() })
     .eq("id", 1)
     .select(PUBLIC_FIELDS)
     .single()
