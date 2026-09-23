@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { Users, Wallet, RefreshCw, Plus, Minus, Shield, LogOut, GitBranch, Trash2, UserCheck, Settings, ToggleLeft, ToggleRight, Activity, TrendingDown, TrendingUp, Download, Banknote, CalendarDays, ArrowLeftRight, KeyRound, ChevronDown, ChevronRight, Trophy, ImageIcon, Upload, Percent, Eye, EyeOff, ShoppingBag } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 import { RoundMonitor } from "@/components/admin/round-monitor"
@@ -231,7 +232,7 @@ export default function PanelPage() {
   const [autoSettings2Edit, setAutoSettings2Edit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string } | null>(null)
   const [auto2Saving,       setAuto2Saving]       = useState(false)
   const [auto2Msg,          setAuto2Msg]          = useState<string | null>(null)
-  type Up8Settings = { bal_pct: number; initial_seed: number }
+  type Up8Settings = { bal_pct: number; initial_seed: number; enabled: boolean }
   type Up8Account = { id: string; label: string; mode: "test" | "live"; exchange: string; account: string; enabled: boolean }
   type Up8AccountDraft = { label: string; mode: "test" | "live"; exchange: string; account: string; auth_token: string; enabled: boolean }
   const emptyUp8Account: Up8AccountDraft = { label: "", mode: "live", exchange: "kis", account: "", auth_token: "", enabled: true }
@@ -990,7 +991,7 @@ export default function PanelPage() {
     })
     const data = await res.json()
     if (!res.ok) {
-      setBranchMsg({ text: data.error ?? "오류가 발생했습니다.", ok: false })
+      setBranchMsg({ text: data.error ?? "오류가 발생했���니다.", ok: false })
     } else {
       setBranchMsg({ text: `지점 '${newBranchName}'이 생���됐습니다.`, ok: true })
       setNewBranchName("")
@@ -1750,7 +1751,7 @@ export default function PanelPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-foreground mb-1.5">비밀번호</p>
-                <Input type="password" placeholder="초기 비밀번호 설정" value={saPassword} onChange={e => setSaPassword(e.target.value)} className="h-9 text-sm" />
+                <Input type="password" placeholder="초기 비밀번호 설��" value={saPassword} onChange={e => setSaPassword(e.target.value)} className="h-9 text-sm" />
               </div>
             </div>
             {saMsg && (
@@ -2476,7 +2477,7 @@ export default function PanelPage() {
                       </Button>
                     </div>
                     {branchChargeReqs.length === 0 ? (
-                      <p className="py-8 text-center text-sm text-muted-foreground">지점으로부�� 받은 충전 요청이 없습니다.</p>
+                      <p className="py-8 text-center text-sm text-muted-foreground">지점으로부��� 받은 충전 요청이 없습니다.</p>
                     ) : (
                       <div className="divide-y divide-border">
                         <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-2 bg-muted/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
@@ -3510,7 +3511,7 @@ export default function PanelPage() {
           </div>
         )}
 
-        {/* ───────────── 현금/환전 탭 ───────────── */}
+        {/* ──────���────── 현금/환전 탭 ───────────── */}
         {activeTab === "cash" && (
           <div className="space-y-6">
 
@@ -5858,11 +5859,27 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
             </div>
 
             <div className="rounded-xl border border-border p-5 space-y-4">
-              <div>
-                <h2 className="text-sm font-semibold text-foreground">UP6 / UP8 국내주식 주문</h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  UP6과 UP8은 같은 KIS/TVM 설정을 사용합니다. UP6은 주문 성공 후 자동매매3에 종목별 50,000원 기록을 남기고, UP8은 KOSDAQ 시장가 매수 주문만 전송합니다.
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">UP6 / UP8 국내주식 주문</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    UP6과 UP8은 같은 KIS/TVM 설정을 사용합니다. UP6은 주문 성공 후 자동매매3에 종목별 50,000원 기록을 남기고, UP8은 KOSDAQ 시장가 매수 주문만 전송합니다.
+                  </p>
+                </div>
+                {up8Settings && <div className="flex shrink-0 items-center gap-3 rounded-lg border border-border bg-secondary/20 px-3 py-2">
+                  <label htmlFor="up8-master-switch" className="cursor-pointer text-xs font-semibold text-foreground">자동매매3 주문 {up8Settings.enabled ? "켜짐" : "꺼짐"}</label>
+                  <Switch id="up8-master-switch" checked={up8Settings.enabled} disabled={up8Saving} aria-label="자동매매3 UP6·UP8 주문 켜기 또는 끄기" onCheckedChange={async enabled => {
+                    setUp8Saving(true); setUp8Msg(null)
+                    try {
+                      const tok = localStorage.getItem("app_token") ?? ""
+                      const res = await fetch("/api/auto-signal-up8/settings", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ enabled }) })
+                      const data = await res.json()
+                      if (res.ok) { setUp8Settings(data); setUp8TestResult(null); setUp8Msg(enabled ? "UP6 / UP8 자동 주문을 켰습니다." : "UP6 / UP8 자동 주문을 껐습니다.") }
+                      else setUp8Msg(data.error ?? "주문 상태를 변경하지 못했습니다.")
+                    } catch { setUp8Msg("주문 상태를 변경하지 못했습니다.") }
+                    finally { setUp8Saving(false) }
+                  }} />
+                </div>}
               </div>
 
               {up8SettingsEdit && up8Settings && (
@@ -5871,7 +5888,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div>
                         <h3 className="text-sm font-semibold text-foreground">주문 계정 목록</h3>
-                        <p className="mt-1 text-xs text-muted-foreground">활성 계정 수만큼 같은 UP6 / UP8 신호가 동시에 전송됩니다. 인증토큰은 저장 후 다시 표시되지 않습니다.</p>
+                        <p className="mt-1 text-xs text-muted-foreground">주문 스위치가 켜져 있을 때 활성 계정 수만큼 같은 UP6 / UP8 신호가 전송됩니다. 인증토큰은 저장 후 다시 표시되지 않습니다.</p>
                       </div>
                       <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">활성 {up8Accounts.filter(account => account.enabled).length}개</span>
                     </div>
@@ -5977,7 +5994,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     <div><h3 className="text-sm font-semibold text-foreground">전체 활성 계정 테스트 주문</h3><p className="mt-1 text-xs text-muted-foreground">활성화된 모든 계정으로 KOSDAQ 시장가 매수 주문을 즉시 전송합니다.</p></div>
                     <div className="flex flex-wrap items-end gap-3">
                       <div className="flex flex-col gap-1"><label htmlFor="up8-test-symbol" className="text-xs text-muted-foreground">종목코드</label><input id="up8-test-symbol" value={up8TestSymbol} onChange={e => setUp8TestSymbol(e.target.value.toUpperCase())} placeholder="023900" className="h-8 w-40 rounded-lg border border-border bg-secondary px-3 font-mono text-sm text-foreground" /></div>
-                      <button disabled={up8TestLoading || !up8TestSymbol.trim() || up8Accounts.every(account => !account.enabled)} onClick={async () => {
+                      <button disabled={up8TestLoading || !up8Settings.enabled || !up8TestSymbol.trim() || up8Accounts.every(account => !account.enabled)} onClick={async () => {
                         const activeCount = up8Accounts.filter(account => account.enabled).length
                         if (!confirm(`${up8TestSymbol}/KOSDAQ 주문을 활성 계정 ${activeCount}개로 전송합니까?`)) return
                         setUp8TestLoading(true); setUp8TestResult(null)
@@ -5991,7 +6008,8 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     {up8TestResult && <div className={`rounded-lg border px-3 py-2 text-xs ${up8TestResult.ok ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`} role="status"><p className={`font-semibold ${up8TestResult.ok ? "text-primary" : "text-destructive"}`}>{up8TestResult.ok ? "전체 전송 성공" : "일부 또는 전체 전송 실패"}</p>{up8TestResult.error && <p className="mt-1 text-destructive">{up8TestResult.error}</p>}{up8TestResult.results?.map(result => <p key={result.id} className="mt-1 font-mono text-muted-foreground">{result.exchange} · {result.account} · {result.ok ? `HTTP ${result.status}` : result.error ?? `HTTP ${result.status ?? "-"}`}</p>)}</div>}
                   </div>
 
-                  {up8Accounts.every(account => !account.enabled) && <p className="text-xs text-muted-foreground" role="status">활성화된 계정이 없어 현재 UP6 / UP8 자동 TVM 전송이 꺼져 있습니다.</p>}
+                  {!up8Settings.enabled && <p className="text-xs text-muted-foreground" role="status">자동매매3 주문이 꺼져 있어 UP6 / UP8 신호와 테스트 주문이 전송되지 않습니다. 계정 설정은 유지됩니다.</p>}
+                  {up8Settings.enabled && up8Accounts.every(account => !account.enabled) && <p className="text-xs text-muted-foreground" role="status">활성화된 계정이 없어 현재 UP6 / UP8 자동 TVM 전송이 꺼져 있습니다.</p>}
                 </div>
               )}
             </div>
@@ -6256,7 +6274,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                         <span className="font-semibold text-foreground">{pos.symbol.replace("USDT","")}/USDT</span>
                         <span className="ml-2 text-[10px] text-muted-foreground">{pos.signal_type}</span>
                       </div>
-                      <button type="button" title="역삼1 전용: 방향 전환" disabled={pos.is_closed} onClick={async () => {
+                      <button type="button" title="���삼1 전용: 방향 전환" disabled={pos.is_closed} onClick={async () => {
                         const next = pos.direction === "long" ? "short" : "long"
                         const tok = localStorage.getItem("app_token") ?? ""
                         const res = await fetch("/api/auto-signal/positions", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ id: pos.id, direction: next }) })

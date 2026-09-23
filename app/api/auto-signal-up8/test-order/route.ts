@@ -31,13 +31,16 @@ export async function POST(req: Request) {
   }
 
   const [{ data: settings, error: settingsError }, { data: accounts, error: accountsError }, { data: globalSettings, error: globalError }] = await Promise.all([
-    adminSupabase.from("auto_signal_up8_settings").select("amount").eq("id", 1).single(),
+    adminSupabase.from("auto_signal_up8_settings").select("amount, enabled").eq("id", 1).single(),
     adminSupabase.from("auto_signal_up8_accounts").select("id, mode, exchange, account, auth_token").eq("enabled", true),
     adminSupabase.from("auto_trading_global_settings").select("webhook_url").eq("id", 1).single(),
   ])
 
   if (settingsError || !settings || accountsError) {
     return NextResponse.json({ error: "UP8 설정을 불러오지 못했습니다." }, { status: 500 })
+  }
+  if (!settings.enabled) {
+    return NextResponse.json({ error: "자동매매3 주문이 꺼져 있습니다." }, { status: 409 })
   }
   if (globalError || !globalSettings?.webhook_url) {
     return NextResponse.json({ error: "TVM Webhook URL이 설정되지 않았습니다." }, { status: 400 })
