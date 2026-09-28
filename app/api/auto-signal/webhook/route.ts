@@ -174,22 +174,8 @@ export async function POST(req: Request) {
   const cleanSymbol = symbol.replace(".P", "")
 
   try {
-    const recordLimit = await getTradingRecordLimitStatus()
-    if (recordLimit.reached) {
-      const limitLabel = recordLimit.limit === "loss" ? "-$800" : "+$2,000"
-      await logRequest("skipped", 200, body, {
-        ip,
-        symbol,
-        signalType: type,
-        errorMsg: `trading record limit reached (${limitLabel}, total PNL: ${recordLimit.totalPnl.toFixed(2)})`,
-      })
-      return NextResponse.json({
-        skipped: true,
-        reason: "trading_record_limit_reached",
-        limit: recordLimit.limit,
-        total_pnl: recordLimit.totalPnl,
-      })
-    }
+    const recordLimit = await getTradingRecordLimitStatus(dateLabel)
+    if (recordLimit.reached) return NextResponse.json({ skipped: true })
   } catch (limitError) {
     const message = limitError instanceof Error ? limitError.message : "trading record limit check failed"
     await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: message })

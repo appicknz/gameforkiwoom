@@ -1,57 +1,80 @@
 import "server-only"
 import { adminSupabase } from "@/lib/supabase-admin"
 
-export const TRADING_RECORD_LOSS_LIMIT_USD = -800
-export const TRADING_RECORD_PROFIT_LIMIT_USD = 2_000
+export const DAILY_RECORD_LOSS_LIMIT_USD = -800
+export const DAILY_RECORD_PROFIT_LIMIT_USD = 2_000
 
 type TradingRecordLimit = "loss" | "profit" | null
+
+type TradingPosition = {
+  symbol: string
+  direction: string
+  entry_price: number | string
+  size_usd: number | string | null
+  leverage: number | string | null
+  is_closed: boolean
+  closed_roi: number | string | null
+}
 
 export type TradingRecordLimitStatus = {
   reached: boolean
   limit: TradingRecordLimit
-  totalPnl: number
+  dailyPnl: number
 }
 
-export async function getTradingRecordLimitStatus(): Promise<TradingRecordLimitStatus> {
-  const [{ data: settings, error: settingsError }, { data: latest, error: latestError }] = await Promise.all([
-    adminSupabase
-      .from("auto_signal_settings")
-      .select("initial_seed, seed_capital")
-      .eq("id", 1)
-      .single(),
-    adminSupabase
-      .from("auto_signal_rebalance")
-      .select("est_value, rebalanced_at")
-      .order("date_label", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ])
+export async function getTradingRecordLimitStatus(dateLabel: string): Promise<TradingRecordLimitStatus> {
+  const { data, error } = await adminSupabase
+    .from("auto_signal_positions")
+    .select("symbol, direction, entry_price, size_usd, leverage, is_closed, closed_roi")
+    .eq("date_label", dateLabel)
 
-  if (settingsError) throw settingsError
-  if (latestError) throw latestError
+  if (error) throw error
 
-  const initialSeed = Number(settings?.initial_seed ?? settings?.seed_capital ?? 0)
-  if (!latest || !Number.isFinite(initialSeed) || initialSeed <= 0) {
-    return { reached: false, limit: null, totalPnl: 0 }
+  const positions = (data ?? []) as TradingPosition[]
+  const activeSymbols = [...new Set(
+    positions
+      .filter((position) => !position.is_closed && position.closed_roi == null)
+      .map((position) => position.symbol.replace(/\.P$/, "").toUpperCase())
+  )]
+  const currentPrices = new Map<string, number>()
+
+  if (activeSymbols.length > 0) {
+    const response = await fetch("https://fapi.binance.com/fapi/v1/ticker/price", { cache: "no-store" })
+    if (!response.ok) throw new Error(`Binance price request failed: ${response.status}`)
+
+    const tickers = await response.json() as Array<{ symbol: string; price: string }>
+    const needed = new Set(activeSymbols)
+    for (const ticker of tickers) {
+      if (needed.has(ticker.symbol)) currentPrices.set(ticker.symbol, Number(ticker.price))
+    }
   }
 
-  let currentBalance = Number(latest.est_value)
-  if (latest.rebalanced_at) {
-    const { data: adjustments, error: adjustmentsError } = await adminSupabase
-      .from("auto_signal_capital_adjustments")
-      .select("amount")
-      .gt("created_at", latest.rebalanced_at)
+  const dailyPnl = positions.reduce((sum, position) => {
+    const sizeUsd = Number(position.size_usd ?? 10)
+    let roi = position.closed_roi == null ? null : Number(position.closed_roi)
 
-    if (adjustmentsError) throw adjustmentsError
-    currentBalance += (adjustments ?? []).reduce((sum, row) => sum + Number(row.amount), 0)
-  }
+    if (roi == null && !position.is_closed) {
+      const symbol = position.symbol.replace(/\.P$/, "").toUpperCase()
+      const currentPrice = currentPrices.get(symbol)
+      const entryPrice = Number(position.entry_price)
+      const leverage = Number(position.leverage ?? 1)
 
-  const totalPnl = currentBalance - initialSeed
-  const limit: TradingRecordLimit = totalPnl <= TRADING_RECORD_LOSS_LIMIT_USD
+      if (currentPrice && entryPrice > 0) {
+        const change = position.direction === "long"
+          ? (currentPrice - entryPrice) / entryPrice
+          : (entryPrice - currentPrice) / entryPrice
+        roi = change * leverage * 100
+      }
+    }
+
+    return sum + (roi == null ? 0 : sizeUsd * (roi / 100))
+  }, 0)
+
+  const limit: TradingRecordLimit = dailyPnl <= DAILY_RECORD_LOSS_LIMIT_USD
     ? "loss"
-    : totalPnl >= TRADING_RECORD_PROFIT_LIMIT_USD
+    : dailyPnl >= DAILY_RECORD_PROFIT_LIMIT_USD
       ? "profit"
       : null
 
-  return { reached: limit !== null, limit, totalPnl }
+  return { reached: limit !== null, limit, dailyPnl }
 }
