@@ -23,6 +23,21 @@ export type TradingRecordLimitStatus = {
 }
 
 export async function getTradingRecordLimitStatus(dateLabel: string): Promise<TradingRecordLimitStatus> {
+  const { data: existingStop, error: stopReadError } = await adminSupabase
+    .from("auto_signal_daily_record_stops")
+    .select("limit_type, triggered_pnl")
+    .eq("date_label", dateLabel)
+    .maybeSingle()
+
+  if (stopReadError) throw stopReadError
+  if (existingStop) {
+    return {
+      reached: true,
+      limit: existingStop.limit_type as Exclude<TradingRecordLimit, null>,
+      dailyPnl: Number(existingStop.triggered_pnl),
+    }
+  }
+
   const { data, error } = await adminSupabase
     .from("auto_signal_positions")
     .select("symbol, direction, entry_price, size_usd, leverage, is_closed, closed_roi")
@@ -75,6 +90,18 @@ export async function getTradingRecordLimitStatus(dateLabel: string): Promise<Tr
     : dailyPnl >= DAILY_RECORD_PROFIT_LIMIT_USD
       ? "profit"
       : null
+
+  if (limit) {
+    const { error: stopWriteError } = await adminSupabase
+      .from("auto_signal_daily_record_stops")
+      .upsert({
+        date_label: dateLabel,
+        limit_type: limit,
+        triggered_pnl: dailyPnl,
+      }, { onConflict: "date_label" })
+
+    if (stopWriteError) throw stopWriteError
+  }
 
   return { reached: limit !== null, limit, dailyPnl }
 }
