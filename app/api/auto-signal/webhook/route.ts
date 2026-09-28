@@ -14,6 +14,7 @@ import { recordSignalStatistics, recordSignalStatisticsForPosition } from "@/lib
 import { createPredictionsForEntry } from "@/lib/signal-prediction"
 import { enrichSignalPayload, type SignalEnrichment } from "@/lib/signal-enrichment"
 import { recordUp6Signal } from "@/lib/auto-trading3"
+import { getTradingRecordLimitStatus } from "@/lib/trading-record-limits"
 
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "tasko-internal"
 
@@ -171,6 +172,30 @@ export async function POST(req: Request) {
   }
 
   const cleanSymbol = symbol.replace(".P", "")
+
+  try {
+    const recordLimit = await getTradingRecordLimitStatus()
+    if (recordLimit.reached) {
+      const limitLabel = recordLimit.limit === "loss" ? "-$800" : "+$2,000"
+      await logRequest("skipped", 200, body, {
+        ip,
+        symbol,
+        signalType: type,
+        errorMsg: `trading record limit reached (${limitLabel}, total PNL: ${recordLimit.totalPnl.toFixed(2)})`,
+      })
+      return NextResponse.json({
+        skipped: true,
+        reason: "trading_record_limit_reached",
+        limit: recordLimit.limit,
+        total_pnl: recordLimit.totalPnl,
+      })
+    }
+  } catch (limitError) {
+    const message = limitError instanceof Error ? limitError.message : "trading record limit check failed"
+    await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: message })
+    return NextResponse.json({ error: "매매기록 손익 한도를 확인하지 못했습니다." }, { status: 500 })
+  }
+
   const enrichment = await enrichSignalPayload({ ...body, symbol: cleanSymbol })
 
   // 일별 마감 기록이 있을 때만 매매를 중단한다. 별도 시드 조정 원장은 이 판정과 무관하다.

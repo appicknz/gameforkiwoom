@@ -12,6 +12,7 @@ import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
 const adminSupabase = _adminSupabase as any
 import { NextResponse } from "next/server"
 import { verifySession } from "@/lib/auth"
+import { getTradingRecordLimitStatus } from "@/lib/trading-record-limits"
 
 const MASTER_ROLES       = ["master", "admin"]
 // 반영 버튼만 허용된 username 목록 (role 승격 없이 POST만 가능)
@@ -95,6 +96,30 @@ export async function POST(req: Request) {
   if (callerUsername === "soltest5" && date_label !== new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" }))
     return NextResponse.json({ error: "오늘 자동매매 수익만 반영할 수 있습니다." }, { status: 403 })
 
+  const { data: existing } = await adminSupabase
+    .from("auto_signal_rebalance")
+    .select("id")
+    .eq("date_label", date_label)
+    .limit(1)
+    .maybeSingle()
+
+  if (!existing) {
+    try {
+      const recordLimit = await getTradingRecordLimitStatus()
+      if (recordLimit.reached) {
+        const limitLabel = recordLimit.limit === "loss" ? "-$800" : "+$2,000"
+        return NextResponse.json({
+          error: `누적 손익이 ${limitLabel} 한도에 도달하여 추가 기록이 중단되었습니다.`,
+          reason: "trading_record_limit_reached",
+          limit: recordLimit.limit,
+          total_pnl: recordLimit.totalPnl,
+        }, { status: 409 })
+      }
+    } catch {
+      return NextResponse.json({ error: "매매기록 손익 한도를 확인하지 못했습니다." }, { status: 500 })
+    }
+  }
+
   // 초기 시드 조회
   const { data: cfg } = await adminSupabase
     .from("auto_signal_settings")
@@ -128,13 +153,6 @@ export async function POST(req: Request) {
   const estValue = baseSeed + Number(daily_pnl)
 
   // UPSERT: 같은 날짜면 덮어씀
-  const { data: existing } = await adminSupabase
-    .from("auto_signal_rebalance")
-    .select("id")
-    .eq("date_label", date_label)
-    .limit(1)
-    .single()
-
   const payload = {
     date_label,
     seed_capital:  baseSeed,
