@@ -32,6 +32,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "유효하지 않은 출금 금액입니다." }, { status: 400 })
   }
 
+  const requestedDate = typeof body.date === "string" ? body.date.trim() : ""
+  const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+  const dateLabel = isValidDate ? requestedDate : todayKST()
+
   // 1. auto_signal_rebalance 최신 레코드에서 현재 잔고 조회
   const { data: latest, error: latestErr } = await adminSupabase
     .from("auto_signal_rebalance")
@@ -53,9 +57,8 @@ export async function POST(req: Request) {
   }
 
   const newBalance = currentBalance - amount
-  const dateLabel  = todayKST()
 
-  // 2. 오늘 날짜로 출금 레코드 UPSERT (daily_pnl = -amount)
+  // 2. 선택한 날짜로 출금 레코드 UPSERT (daily_pnl = -amount)
   //    같은 날 기록이 있으면 해당 기록에 출금분 반영
   const { data: existing } = await adminSupabase
     .from("auto_signal_rebalance")

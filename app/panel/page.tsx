@@ -262,6 +262,7 @@ export default function PanelPage() {
   const [autoSubTab, setAutoSubTab] = useState<"signal" | "order" | "logs" | "seed">("signal")
   const [initialSeed,     setInitialSeed]     = useState<string>("")
   const [withdrawAmount,  setWithdrawAmount]  = useState<string>("")
+  const [withdrawDate,    setWithdrawDate]    = useState<string>(() => new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10))
   const [withdrawnTotal,  setWithdrawnTotal]  = useState<number>(0)
   const [seedSettingsMsg, setSeedSettingsMsg] = useState<string | null>(null)
   const [withdrawMsg,     setWithdrawMsg]     = useState<string | null>(null)
@@ -1647,7 +1648,7 @@ export default function PanelPage() {
                   setAcuLoading(false)
                 }}
               >
-                {acuLoading ? "요청 중..." : "요청 보내기"}
+                {acuLoading ? "��청 중..." : "요청 보내기"}
               </Button>
             </div>
           </div>
@@ -3641,7 +3642,7 @@ export default function PanelPage() {
                   <div className="bg-card border border-border rounded-xl overflow-hidden">
                     <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <ArrowLeftRight className="w-4 h-4 text-primary" /> 대기 중인 환전 요청
+                        <ArrowLeftRight className="w-4 h-4 text-primary" /> 대기 중�� 환전 요청
                         {branchPendingEx > 0 && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">{branchPendingEx}건</span>
                         )}
@@ -5998,7 +5999,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     {up8TestResult && <div className={`rounded-lg border px-3 py-2 text-xs ${up8TestResult.ok ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`} role="status"><p className={`font-semibold ${up8TestResult.ok ? "text-primary" : "text-destructive"}`}>{up8TestResult.ok ? "전체 전송 성공" : "일부 또는 전체 전송 실패"}</p>{up8TestResult.error && <p className="mt-1 text-destructive">{up8TestResult.error}</p>}{up8TestResult.results?.map(result => <p key={result.id} className="mt-1 font-mono text-muted-foreground">{result.exchange} · {result.account} · {result.ok ? `HTTP ${result.status}` : result.error ?? `HTTP ${result.status ?? "-"}`}</p>)}</div>}
                   </div>
 
-                  {up8Accounts.every(account => !account.enabled) && <p className="text-xs text-muted-foreground" role="status">활성화된 계정이 없어 현재 UP6 / UP8 자동 TVM 전송이 꺼져 있습니다.</p>}
+                  {up8Accounts.every(account => !account.enabled) && <p className="text-xs text-muted-foreground" role="status">활��화된 계정이 없어 현재 UP6 / UP8 자동 TVM 전송이 꺼져 있습니다.</p>}
                 </div>
               )}
             </div>
@@ -6439,7 +6440,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">출금</h2>
                     <p className="text-xs text-muted-foreground mt-1">
-                      매매기록 최신 잔고 기준으로 차감되며, 오늘 날짜 레코드로 ��영됩니다.
+                      매매기록 최신 잔고 기준으로 차감되며, 선택한 날짜 레코드로 반영됩니다.
                     </p>
                     <div className="flex items-center gap-4 mt-2">
                       {currentBalance !== null && (
@@ -6455,6 +6456,15 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     </div>
                   </div>
                   <div className="flex items-end gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">날짜</label>
+                      <input
+                        type="date"
+                        value={withdrawDate}
+                        onChange={e => setWithdrawDate(e.target.value)}
+                        className="h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
+                      />
+                    </div>
                     <div className="space-y-1 flex-1">
                       <label className="text-xs text-muted-foreground">출금 금액 (USD)</label>
                       <input
@@ -6466,20 +6476,20 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       />
                     </div>
                     <button
-                      disabled={withdrawSaving || !withdrawAmount || Number(withdrawAmount) <= 0}
+                      disabled={withdrawSaving || !withdrawAmount || Number(withdrawAmount) <= 0 || !withdrawDate}
                       onClick={async () => {
-                        if (!confirm(`$${Number(withdrawAmount).toFixed(2)} 출금 처리합니까? 매매기록에 오늘 날짜 레코드로 반영됩니다.`)) return
+                        if (!confirm(`${withdrawDate} 날짜로 $${Number(withdrawAmount).toFixed(2)} 출금 처리합니까? 매매기록에 해당 날짜 레코드로 반영됩니다.`)) return
                         setWithdrawSaving(true); setWithdrawMsg(null)
                         try {
                           const tok = localStorage.getItem("app_token") ?? ""
                           const res = await fetch("/api/auto-signal/withdraw", {
                             method: "POST",
                             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                            body: JSON.stringify({ amount: Number(withdrawAmount) }),
+                            body: JSON.stringify({ amount: Number(withdrawAmount), date: withdrawDate }),
                           })
                           const d = await res.json()
                           if (res.ok) {
-                            setWithdrawMsg(`출금 완료: -$${Number(withdrawAmount).toFixed(2)} | 잔고: $${d.new_balance?.toFixed(2) ?? "-"}`)
+                            setWithdrawMsg(`출금 완료(${withdrawDate}): -$${Number(withdrawAmount).toFixed(2)} | 잔고: $${d.new_balance?.toFixed(2) ?? "-"}`)
                             setWithdrawnTotal(d.withdrawn_total ?? 0)
                             setCurrentBalance(d.new_balance ?? null)
                             setWithdrawAmount("")
@@ -6500,7 +6510,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">수익 분배 항목 설정</h2>
                     <p className="text-xs text-muted-foreground mt-1">
-                      수익 분배 항목을 추가하고 각 비율(%)을 설정합니다. 합���가 100%를 초과하지 않도록 하세요.
+                      수익 분배 항목을 추���하고 각 비율(%)을 설정합니다. 합���가 100%를 초과하지 않도록 하세요.
                     </p>
                   </div>
 
