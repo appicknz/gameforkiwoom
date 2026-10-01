@@ -246,16 +246,9 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
                   <p className="text-[10px] tabular-nums text-muted-foreground">{record.pnl >= 0 ? "+" : ""}{number(record.pnl)}원</p>
                 </div>
                 {record.status !== "skipped" && (
-                  record.sell_order_sent_at && record.sell_order_result?.ok !== false ? (
-                    <span
-                      className="shrink-0 rounded px-2 py-1 text-[10px] font-bold"
-                      style={{ background: "rgba(34,197,94,.12)", color: UP }}
-                    >
-                      매도 주문 전송됨
-                    </span>
-                  ) : (
-                    <div className="flex flex-col items-end gap-1">
-                      {record.sell_order_sent_at && record.sell_order_result?.ok === false && (
+                  <div className="flex flex-col items-end gap-1">
+                    {record.sell_order_sent_at && (
+                      record.sell_order_result?.ok === false ? (
                         <span
                           className="shrink-0 rounded px-2 py-1 text-[10px] font-bold"
                           style={{ background: "rgba(239,68,68,.12)", color: DOWN }}
@@ -263,17 +256,24 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
                         >
                           매도 전송 실패
                         </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => sellRecord(record)}
-                        disabled={sellingId === record.id}
-                        className="shrink-0 rounded border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
-                      >
-                        {sellingId === record.id ? "전송 중..." : record.sell_order_sent_at ? "재시도" : "매도"}
-                      </button>
-                    </div>
-                  )
+                      ) : (
+                        <span
+                          className="shrink-0 rounded px-2 py-1 text-[10px] font-bold"
+                          style={{ background: "rgba(34,197,94,.12)", color: UP }}
+                        >
+                          매도 주문 전송됨
+                        </span>
+                      )
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => sellRecord(record)}
+                      disabled={sellingId === record.id}
+                      className="shrink-0 rounded border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      {sellingId === record.id ? "전송 중..." : record.sell_order_sent_at ? "재시도" : "매도"}
+                    </button>
+                  </div>
                 )}
               </div>
             </article>
