@@ -18,13 +18,16 @@ export async function GET(req: Request) {
     if (symbols.length > 0) {
       const stream = await subscribeKisQuotes(symbols, mode)
       const missingSymbols = symbols.filter(item => !stream.quotes[item] && !initializedQuotes.has(`${mode}:${item}`))
-      const fallbackEntries: Array<readonly [string, Awaited<ReturnType<typeof getKisQuote>>]> = []
-      for (const item of missingSymbols) {
-        const key = `${mode}:${item}`
-        initializedQuotes.add(key)
-        try { fallbackEntries.push([item, await getKisQuote(item, mode)] as const) } catch { initializedQuotes.delete(key) }
-        if (mode === "test") await new Promise(resolve => setTimeout(resolve, 550))
-      }
+      const fallbackResults = await Promise.all(
+        missingSymbols.map(async (item, index) => {
+          const key = `${mode}:${item}`
+          initializedQuotes.add(key)
+          // 모의계좌는 초당 호출 제한이 있어 요청을 살짝 분산시키되, 순차 대기 없이 동시에 진행한다
+          if (mode === "test" && index > 0) await new Promise(resolve => setTimeout(resolve, index * 150))
+          try { return [item, await getKisQuote(item, mode)] as const } catch { initializedQuotes.delete(key); return null }
+        })
+      )
+      const fallbackEntries = fallbackResults.filter((entry): entry is readonly [string, Awaited<ReturnType<typeof getKisQuote>>] => entry !== null)
       const quotes = { ...stream.quotes, ...Object.fromEntries(fallbackEntries) }
       return NextResponse.json({ quotes, stream })
     }
