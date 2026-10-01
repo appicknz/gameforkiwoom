@@ -1,6 +1,7 @@
 import "server-only"
 import WebSocket from "ws"
 import { getKoreaStockName } from "@/lib/korea-stock-list"
+import { redis } from "@/lib/redis"
 
 type KisMode = "test" | "live"
 export type KisQuote = {
@@ -36,6 +37,27 @@ const subscriptions = new Map<KisMode, Set<string>>([
   ["live", new Set()],
 ])
 const latestQuotes = new Map<string, KisQuote>()
+
+// 서버리스 인스턴스 간에 마지막 시세를 공유하기 위한 Redis 캐시. 실패해도 메모리 캐시만으로 동작은 유지된다.
+const QUOTE_CACHE_TTL_SECONDS = 60 * 60 * 24
+const redisQuoteKey = (mode: KisMode, symbol: string) => `kis:quote:${mode}:${symbol}`
+
+function cacheQuoteInRedis(mode: KisMode, quote: KisQuote) {
+  void redis.set(redisQuoteKey(mode, quote.symbol), JSON.stringify(quote), { ex: QUOTE_CACHE_TTL_SECONDS }).catch(() => { /* 캐시 실패는 무시 */ })
+}
+
+async function getQuoteFromRedis(mode: KisMode, symbol: string): Promise<KisQuote | null> {
+  try {
+    const cached = await redis.get<KisQuote | string>(redisQuoteKey(mode, symbol))
+    if (!cached) return null
+    return typeof cached === "string" ? JSON.parse(cached) as KisQuote : cached
+  } catch { return null }
+}
+
+function rememberQuote(mode: KisMode, quote: KisQuote) {
+  latestQuotes.set(`${mode}:${quote.symbol}`, quote)
+  cacheQuoteInRedis(mode, quote)
+}
 
 const config = (mode: KisMode) => mode === "test"
   ? { rest: "https://openapivts.koreainvestment.com:29443", ws: "ws://ops.koreainvestment.com:31000" }
@@ -88,7 +110,7 @@ export async function getKisQuote(input: string, mode: KisMode): Promise<KisQuot
     volume: Number.isFinite(Number(o.acml_vol)) ? Number(o.acml_vol) : null,
     tradedAt: o.stck_cntg_hour ? `${new Date().toISOString().slice(0, 10)}T${o.stck_cntg_hour}` : null, market: "J",
   }
-  latestQuotes.set(`${mode}:${symbol}`, quote)
+  rememberQuote(mode, quote)
   return quote
 }
 
@@ -136,7 +158,7 @@ function handleSocketMessage(raw: WebSocket.RawData, mode: KisMode, socket: WebS
     if (!symbol || !Number.isFinite(price) || price <= 0) return
     const previous = latestQuotes.get(`${mode}:${symbol}`)
     const tradeTime = fields[1]?.trim()
-    latestQuotes.set(`${mode}:${symbol}`, {
+    rememberQuote(mode, {
       symbol,
       symbolName: getKoreaStockName(symbol) || previous?.symbolName || null,
       price,
@@ -212,9 +234,19 @@ export async function subscribeKisQuotes(inputs: string[], mode: KisMode) {
   symbols.forEach(symbol => modeSubscriptions?.add(symbol))
   try { await ensureStream(mode) } catch { /* snapshot reports connection error */ }
   symbols.forEach(symbol => sendSubscription(mode, symbol))
+  // 메모리 캐시(이 인스턴스)에 없으면 Redis(다른 인스턴스가 저장한 마지막 시세)를 확인해 즉시 보여준다.
+  const quoteEntries = await Promise.all(symbols.map(async symbol => {
+    const key = `${mode}:${symbol}`
+    let quote = latestQuotes.get(key) ?? null
+    if (!quote) {
+      quote = await getQuoteFromRedis(mode, symbol)
+      if (quote) latestQuotes.set(key, quote)
+    }
+    return [symbol, quote] as const
+  }))
   return {
     symbols,
-    quotes: Object.fromEntries(symbols.map(symbol => [symbol, latestQuotes.get(`${mode}:${symbol}`) ?? null])),
+    quotes: Object.fromEntries(quoteEntries),
     subscriptions: Object.fromEntries(symbols.map(symbol => [symbol, subscriptionStatuses.get(`${mode}:${symbol}`) ?? null])),
     state: streamState[mode],
   }
