@@ -83,8 +83,12 @@ export async function POST(req: Request) {
     }, { status: 400 })
   }
 
+  // 출금은 입금과 달리 초기 시드(원금 기준선)를 건드리지 않는다.
+  // 누적 수익률(초기 시드 대비 현재 잔고)은 출금된 금액만큼 그대로 낮아져야
+  // "출금해서 빠진 돈"이 실제로 수익률에 차감되어 보인다. (입금은 반대로
+  // 원금이 늘어난 것이므로 initial_seed를 증가시켜 수익으로 잡히지 않게 한다.)
   const previousInitialSeed = Number(settings.initial_seed ?? settings.seed_capital ?? 0)
-  const newInitialSeed = previousInitialSeed - amount
+  const newInitialSeed = previousInitialSeed
   const newBalance = balanceBefore - amount
   const newWithdrawnTotal = Number(settings.withdrawn_amount ?? 0) + amount
 
@@ -109,7 +113,6 @@ export async function POST(req: Request) {
   const { error: updateError } = await adminSupabase
     .from("auto_signal_settings")
     .update({
-      initial_seed:     newInitialSeed,
       seed_capital:     newBalance,
       withdrawn_amount: newWithdrawnTotal,
       updated_at:       new Date().toISOString(),
