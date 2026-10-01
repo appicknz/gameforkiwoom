@@ -713,7 +713,7 @@ function ClosedPositionsPanel({ refreshKey = 0, tradeMode, selectedDate: propDat
             </div>
           )
         }
-        // ───────────���──────────────────────────�����───────────────────────
+        // ───────────���──────────────────────────�������───────────────────────
 
         // ─��������� 오늘 or 스냅샷 없는 날 — 기존 실시간 계��� ────────────────
         // MARGIN = 자동매매와 동일하게 확정 잔고(confirmedMargin) 기준
@@ -1341,7 +1341,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                         데이터 수집 중 {total} / {MIN_HEALTH_SAMPLE}건
                       </div>
                       <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)", marginTop: 3 }}>
-                        {remaining}건 더 쌓이면 전략 평가를 시작합니다
+                        {remaining}건 더 쌓이면 전략 평가를 ���작합니다
                       </div>
                     </div>
                     <span className="tabular-nums" style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.32)" }}>
@@ -1595,12 +1595,14 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                 </div>
                 {dayAdjustments.map(adjustment => {
                   const amount = Number(adjustment.amount)
+                  const isWithdrawal = amount < 0
+                  const adjColor = isWithdrawal ? "rgba(239,68,68,0.85)" : GOLD
                   const [, adjustmentMonth, adjustmentDay] = adjustment.date_label.split("-")
                   return (
-                    <div key={`adjustment-${adjustment.id}`} style={{ padding: "10px 14px 10px 28px", borderBottom: "1px solid rgba(212,175,55,0.08)", borderLeft: "2px solid rgba(212,175,55,0.35)", marginLeft: 14, display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(212,175,55,0.025)" }}>
+                    <div key={`adjustment-${adjustment.id}`} style={{ padding: "10px 14px 10px 28px", borderBottom: isWithdrawal ? "1px solid rgba(239,68,68,0.1)" : "1px solid rgba(212,175,55,0.08)", borderLeft: isWithdrawal ? "2px solid rgba(239,68,68,0.4)" : "2px solid rgba(212,175,55,0.35)", marginLeft: 14, display: "flex", justifyContent: "space-between", alignItems: "center", background: isWithdrawal ? "rgba(239,68,68,0.03)" : "rgba(212,175,55,0.025)" }}>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(212,175,55,0.14)", color: GOLD }}>잔고 추가</span>
+                          <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: isWithdrawal ? "rgba(239,68,68,0.14)" : "rgba(212,175,55,0.14)", color: adjColor }}>{isWithdrawal ? "잔고 출금" : "잔고 추가"}</span>
                           {adjustment.note && <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>{adjustment.note}</span>}
                         </div>
                         <div style={{ marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>
@@ -1608,7 +1610,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: GOLD }}>{amount >= 0 ? "+" : ""}${amount.toFixed(2)}</div>
+                        <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 800, color: adjColor }}>{amount >= 0 ? "+" : ""}${amount.toFixed(2)}</div>
                         <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{amount >= 0 ? "+" : ""}{Math.round(amount * krwRate).toLocaleString("ko-KR")}원</div>
                         <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>매매 수익률 제외</div>
                       </div>
