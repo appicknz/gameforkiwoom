@@ -52,6 +52,53 @@ export async function closeAutoTrading3Day(date: string) {
   return results
 }
 
+function toAutoTrading3TvmSymbol(symbol: string): string | null {
+  const clean = symbol.trim().replace(/^(?:KRX|KOSPI|KOSDAQ):/i, "").replace(/\/(?:KRX|KOSPI|KOSDAQ)$/i, "").replace(/\.P$/i, "").toUpperCase()
+  return /^[A-Z0-9]+$/.test(clean) ? `${clean}/KOSDAQ` : null
+}
+
+function buildAutoTrading3SellTvm(params: { exchange: string; account: string; symbol: string; token: string }): string {
+  return `TVM:${JSON.stringify({ exchange: params.exchange, account: params.account, symbol: params.symbol, type: "market", side: "sell", bal_pct: 100, equity: "y", same_order: "skip", token: params.token })}:MVT`
+}
+
+export async function sendAutoTrading3SellOrder(recordId: string) {
+  const { data: record, error: recordError } = await adminSupabase.from("auto_trading3_records").select("id,symbol,account_mode,exchange,account,status,sell_order_sent_at").eq("id", recordId).maybeSingle()
+  if (recordError) throw new Error(recordError.message)
+  if (!record) return { ok: false as const, error: "기록을 찾을 수 없습니다." }
+  if (record.status === "skipped") return { ok: false as const, error: "제외된 기록은 매도할 수 없습니다." }
+
+  const tvmSymbol = toAutoTrading3TvmSymbol(record.symbol)
+  if (!tvmSymbol) return { ok: false as const, error: "잘못된 종목 코드입니다." }
+
+  const [{ data: account, error: accountError }, { data: tradingGs, error: tradingError }] = await Promise.all([
+    adminSupabase.from("auto_signal_up8_accounts").select("auth_token").eq("mode", record.account_mode).eq("exchange", record.exchange).eq("account", record.account).eq("enabled", true).maybeSingle(),
+    adminSupabase.from("auto_trading_global_settings").select("webhook_url").eq("id", 1).single(),
+  ])
+  if (accountError) throw new Error(accountError.message)
+  if (!account?.auth_token) return { ok: false as const, error: "해당 계정의 인증토큰을 찾을 수 없습니다." }
+  if (tradingError || !tradingGs?.webhook_url) return { ok: false as const, error: "TVM 전송 주소(webhook_url)가 설정되지 않았습니다." }
+
+  const tvm = buildAutoTrading3SellTvm({ exchange: record.exchange, account: record.account, symbol: tvmSymbol, token: account.auth_token })
+
+  let status = 0
+  let responseBody = ""
+  let errMsg: string | null = null
+  try {
+    const response = await fetch(tradingGs.webhook_url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: tvm, signal: AbortSignal.timeout(10000) })
+    status = response.status
+    responseBody = await response.text()
+  } catch (error) {
+    errMsg = error instanceof Error ? error.message : "TVM 전송 오류"
+  }
+  const ok = status >= 200 && status < 300 && !errMsg
+
+  const result = { ok, status, body: responseBody.slice(0, 500), error: errMsg, tvm, sent_at: new Date().toISOString() }
+  const { error: updateError } = await adminSupabase.from("auto_trading3_records").update({ sell_order_sent_at: result.sent_at, sell_order_result: result, updated_at: result.sent_at }).eq("id", recordId)
+  if (updateError) throw new Error(updateError.message)
+
+  return ok ? { ok: true as const, result } : { ok: false as const, error: errMsg ?? `매도 주문 전송 실패 (status ${status})`, result }
+}
+
 export function calculateAutoTrading3Summary(records: Array<Record<string, unknown>>, configuredSeed = DEFAULT_INITIAL_SEED) {
   const seedCapital = Number(records.find(record => Number(record.seed_capital) > 0)?.seed_capital ?? configuredSeed)
   const invested = records.reduce((sum, record) => sum + Number(record.invested_amount ?? 0), 0)

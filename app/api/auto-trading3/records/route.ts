@@ -10,7 +10,11 @@ export async function GET(req: Request) {
   if (!access.ok) return access.response
   const url = new URL(req.url)
   const date = url.searchParams.get("date")
-  let query = adminSupabase.from("auto_trading3_records").select("*").order("signal_time", { ascending: false }).limit(500)
+  let query = adminSupabase
+    .from("auto_trading3_records")
+    .select("*, sell_order_sent_at, sell_order_result")
+    .order("signal_time", { ascending: false })
+    .limit(500)
   if (date) query = query.eq("trade_date", date)
   const [{ data: records, error }, { data: settings }] = await Promise.all([
     query,

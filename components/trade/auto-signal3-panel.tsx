@@ -25,6 +25,8 @@ type Record3 = {
   price_change_percent: number | null
   volume: number | null
   trade_time: string | null
+  sell_order_sent_at: string | null
+  sell_order_result: { ok?: boolean; error?: string | null } | null
 }
 
 type Quote = { symbolName: string | null; price: number; changePercent: number | null; volume: number | null; tradedAt: string | null }
@@ -45,6 +47,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [accountFilter, setAccountFilter] = useState<AccountFilter>("all")
+  const [sellingId, setSellingId] = useState<string | null>(null)
   const loadingRef = useRef(false)
   const initialQuoteRequestRef = useRef(true)
 
@@ -144,6 +147,25 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
     }
   }
 
+  const sellRecord = async (record: Record3) => {
+    if (sellingId) return
+    const label = `${record.symbol} ${getKoreaStockName(record.symbol) || record.symbol_name || ""} (${record.account})`
+    if (!window.confirm(`${label} 종목을 시장가로 즉시 매도 주문합니다. 진행할까요?`)) return
+    setSellingId(record.id)
+    setMessage(null)
+    try {
+      const response = await fetch("/api/auto-trading3/sell-order", { method: "POST", credentials: "include", headers: tokenHeaders(true), body: JSON.stringify({ id: record.id }) })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error ?? "매도 주문 전송 실패")
+      setMessage(`${label} 매도 주문을 전송했습니다.`)
+      await load()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "매도 주문 전송 실패")
+    } finally {
+      setSellingId(null)
+    }
+  }
+
   if (loading) return <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">불러오는 중...</div>
 
   return (
@@ -218,9 +240,31 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
                   <span>{time}</span>
                 </div>
               </div>
-              <div className="flex shrink-0 items-end justify-between gap-4 md:flex-col md:items-end md:gap-0">
-                {record.status === "skipped" ? <span className="text-[10px] font-bold text-amber-400">{record.skip_reason === "price_over_50000" ? "5만원 초과 제외" : "기록 제외"}</span> : <p className="text-sm font-black tabular-nums" style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.roi >= 0 ? "+" : ""}{record.roi.toFixed(2)}%</p>}
-                <p className="text-[10px] tabular-nums text-muted-foreground">{record.pnl >= 0 ? "+" : ""}{number(record.pnl)}원</p>
+              <div className="flex shrink-0 items-center gap-3 md:items-end">
+                <div className="flex flex-col items-end gap-0">
+                  {record.status === "skipped" ? <span className="text-[10px] font-bold text-amber-400">{record.skip_reason === "price_over_50000" ? "5만원 초과 제외" : "기록 제외"}</span> : <p className="text-sm font-black tabular-nums" style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.roi >= 0 ? "+" : ""}{record.roi.toFixed(2)}%</p>}
+                  <p className="text-[10px] tabular-nums text-muted-foreground">{record.pnl >= 0 ? "+" : ""}{number(record.pnl)}원</p>
+                </div>
+                {record.status !== "skipped" && (
+                  record.sell_order_sent_at ? (
+                    <span
+                      className="shrink-0 rounded px-2 py-1 text-[10px] font-bold"
+                      style={{ background: record.sell_order_result?.ok === false ? "rgba(239,68,68,.12)" : "rgba(34,197,94,.12)", color: record.sell_order_result?.ok === false ? DOWN : UP }}
+                      title={record.sell_order_result?.error ?? undefined}
+                    >
+                      {record.sell_order_result?.ok === false ? "매도 전송 실패" : "매도 주문 전송됨"}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => sellRecord(record)}
+                      disabled={sellingId === record.id}
+                      className="shrink-0 rounded border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      {sellingId === record.id ? "전송 중..." : "매도"}
+                    </button>
+                  )
+                )}
               </div>
             </article>
           )
