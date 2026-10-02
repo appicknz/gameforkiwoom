@@ -14,30 +14,66 @@ export async function recordUp6Signal(args: { body: Record<string, unknown>; sym
   const kstDate = typeof args.body.formatted_time_kst === "string" ? args.body.formatted_time_kst.replace(" ", "T").slice(0, 10) : new Date(Date.parse(args.signalTime) + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const { data: settings } = await adminSupabase.from("auto_signal_up8_settings").select("initial_seed").eq("id", 1).maybeSingle()
   const initialSeed = Number(settings?.initial_seed ?? DEFAULT_INITIAL_SEED)
-  const results = []
-  for (const modeConfig of args.modes) {
+
+  const processMode = async (modeConfig: ModeConfig) => {
+    const exchange = modeConfig.exchange ?? "kis"
+    const account = modeConfig.account ?? ""
+    const orderResult = args.orderResults?.find(result => result.exchange === exchange && result.account === account) ?? null
+    const fallbackSymbolName = getKoreaStockName(symbol) || (typeof args.body.symbol_name === "string" ? args.body.symbol_name : null)
+
+    let quote: { price: number; symbolName?: string | null; volume?: number | null; changePercent?: number | null; tradedAt?: string | null } | null = null
+    let quoteError: string | null = null
     try {
-      const quote = await getKisQuote(symbol, modeConfig.mode)
+      quote = await getKisQuote(symbol, modeConfig.mode)
+    } catch (error) {
+      quoteError = error instanceof Error ? error.message : "quote fetch failed"
+    }
+
+    // Always persist a record for this signal/account, even if the price
+    // re-fetch for bookkeeping fails. Orders are already sent to KIS by this
+    // point, so silently skipping the insert here would hide a real trade.
+    const base = {
+      trade_date: kstDate,
+      signal_time: args.signalTime,
+      signal_type: "TRIPLE_COMBO_UP6",
+      symbol,
+      symbol_name: fallbackSymbolName || quote?.symbolName || null,
+      account_mode: modeConfig.mode,
+      exchange,
+      account,
+      seed_capital: initialSeed,
+      budget_per_symbol: SYMBOL_BUDGET,
+      webhook_raw: args.body,
+      order_result: orderResult,
+      updated_at: new Date().toISOString(),
+    }
+
+    let record: Record<string, unknown>
+    if (quoteError || !quote) {
+      record = { ...base, status: "quote_failed", skip_reason: quoteError ?? "quote fetch failed", entry_price: null, quantity: 0, invested_amount: 0, volume: null, price_change_percent: null, trade_time: null }
+    } else {
       const price = Number(quote.price)
-      const exchange = modeConfig.exchange ?? "kis"
-      const account = modeConfig.account ?? ""
-      const orderResult = args.orderResults?.find(result => result.exchange === exchange && result.account === account) ?? null
-      const base = { trade_date: kstDate, signal_time: args.signalTime, signal_type: "TRIPLE_COMBO_UP6", symbol, symbol_name: getKoreaStockName(symbol) || quote.symbolName || (typeof args.body.symbol_name === "string" ? args.body.symbol_name : null), account_mode: modeConfig.mode, exchange, account, entry_price: price, quantity: Math.floor(SYMBOL_BUDGET / price), invested_amount: Math.min(SYMBOL_BUDGET, Math.floor(SYMBOL_BUDGET / price) * price), seed_capital: initialSeed, budget_per_symbol: SYMBOL_BUDGET, volume: quote.volume, price_change_percent: quote.changePercent, trade_time: quote.tradedAt, webhook_raw: args.body, order_result: orderResult, updated_at: new Date().toISOString() }
-      const record = price > SYMBOL_BUDGET || base.quantity < 1
-        ? { ...base, status: "skipped", skip_reason: price > SYMBOL_BUDGET ? "price_over_50000" : "quantity_below_one", quantity: 0, invested_amount: 0 }
-        : { ...base, status: "open" }
+      const quantity = Math.floor(SYMBOL_BUDGET / price)
+      const priced = { ...base, entry_price: price, quantity, invested_amount: Math.min(SYMBOL_BUDGET, quantity * price), volume: quote.volume, price_change_percent: quote.changePercent, trade_time: quote.tradedAt }
+      record = price > SYMBOL_BUDGET || quantity < 1
+        ? { ...priced, status: "skipped", skip_reason: price > SYMBOL_BUDGET ? "price_over_50000" : "quantity_below_one", quantity: 0, invested_amount: 0 }
+        : { ...priced, status: "open" }
+    }
+
+    try {
       const { data, error } = await adminSupabase.from("auto_trading3_records").upsert(record, { onConflict: "trade_date,symbol,exchange,account", ignoreDuplicates: true }).select().maybeSingle()
       if (error) throw error
-      results.push({ mode: modeConfig.mode, status: record.status, price, id: data?.id ?? null })
+      return { mode: modeConfig.mode, status: record.status, price: record.entry_price, id: data?.id ?? null, quoteError }
     } catch (error) {
-      results.push({ mode: modeConfig.mode, status: "error", error: error instanceof Error ? error.message : "record failed" })
+      return { mode: modeConfig.mode, status: "error", error: error instanceof Error ? error.message : "record failed" }
     }
   }
-  return results
+
+  return Promise.all(args.modes.map(processMode))
 }
 
 export async function closeAutoTrading3Day(date: string) {
-  const { data: records, error } = await adminSupabase.from("auto_trading3_records").select("id,trade_date,symbol,account_mode,status,entry_price").eq("trade_date", date).neq("status", "skipped")
+  const { data: records, error } = await adminSupabase.from("auto_trading3_records").select("id,trade_date,symbol,account_mode,status,entry_price").eq("trade_date", date).not("status", "in", "(skipped,quote_failed)")
   if (error) throw error
   const results = []
   for (const record of records ?? []) {

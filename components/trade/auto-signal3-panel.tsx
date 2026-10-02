@@ -74,7 +74,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
       setRecords(nextRecords)
       if (isToday) {
         const symbolsByMode = new Map<string, string[]>()
-        nextRecords.filter(record => record.status !== "skipped" && (accountFilter === "all" || record.account_mode === accountFilter)).forEach(record => {
+        nextRecords.filter(record => record.status !== "skipped" && record.status !== "quote_failed" && (accountFilter === "all" || record.account_mode === accountFilter)).forEach(record => {
           const symbol = quoteSymbol(record.symbol)
           const symbols = symbolsByMode.get(record.account_mode) ?? []
           if (symbol && !symbols.includes(symbol)) symbols.push(symbol)
@@ -115,14 +115,14 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
 
   const rows = useMemo(() => records.filter(record => accountFilter === "all" || record.account_mode === accountFilter).map(record => {
     const currentPrice = isToday ? quotes[`${record.account_mode}:${quoteSymbol(record.symbol)}`]?.price ?? 0 : Number(record.close_price ?? 0)
-    const active = record.status !== "skipped" && currentPrice > 0 && Number(record.quantity) > 0
+    const active = record.status !== "skipped" && record.status !== "quote_failed" && currentPrice > 0 && Number(record.quantity) > 0
     const evaluated = active ? Number(record.quantity) * currentPrice : Number(record.invested_amount)
     const pnl = evaluated - Number(record.invested_amount)
     const roi = Number(record.invested_amount) > 0 ? pnl / Number(record.invested_amount) * 100 : 0
     return { ...record, currentPrice, evaluated, pnl, roi }
   }).filter(record => !searchQ || `${record.symbol} ${record.symbol_name ?? ""}`.toLowerCase().includes(searchQ.toLowerCase())), [accountFilter, isToday, quotes, records, searchQ])
 
-  const included = rows.filter(record => record.status !== "skipped")
+  const included = rows.filter(record => record.status !== "skipped" && record.status !== "quote_failed")
   const invested = included.reduce((sum, record) => sum + Number(record.invested_amount), 0)
   const evaluated = included.reduce((sum, record) => sum + record.evaluated, 0)
   const pnl = evaluated - invested
@@ -242,10 +242,16 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
               </div>
               <div className="flex shrink-0 items-center gap-3 md:items-end">
                 <div className="flex flex-col items-end gap-0">
-                  {record.status === "skipped" ? <span className="text-[10px] font-bold text-amber-400">{record.skip_reason === "price_over_50000" ? "5만원 초과 제외" : "기록 제외"}</span> : <p className="text-sm font-black tabular-nums" style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.roi >= 0 ? "+" : ""}{record.roi.toFixed(2)}%</p>}
+                  {record.status === "skipped" ? (
+                    <span className="text-[10px] font-bold text-amber-400">{record.skip_reason === "price_over_50000" ? "5만원 초과 제외" : "기록 제외"}</span>
+                  ) : record.status === "quote_failed" ? (
+                    <span className="text-[10px] font-bold text-amber-400" title={record.skip_reason ?? undefined}>시세 조회 실패</span>
+                  ) : (
+                    <p className="text-sm font-black tabular-nums" style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.roi >= 0 ? "+" : ""}{record.roi.toFixed(2)}%</p>
+                  )}
                   <p className="text-[10px] tabular-nums text-muted-foreground">{record.pnl >= 0 ? "+" : ""}{number(record.pnl)}원</p>
                 </div>
-                {record.status !== "skipped" && (
+                {record.status !== "skipped" && record.status !== "quote_failed" && (
                   <div className="flex flex-col items-end gap-1">
                     {record.sell_order_sent_at && (
                       record.sell_order_result?.ok === false ? (
