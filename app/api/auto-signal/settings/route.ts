@@ -49,6 +49,9 @@ export async function PATCH(req: Request) {
   if (body.enabled       !== undefined) update.enabled       = Boolean(body.enabled)
   if (body.real_order_enabled !== undefined) update.real_order_enabled = Boolean(body.real_order_enabled)
   if (body.stop_loss_pct    !== undefined) update.stop_loss_pct    = body.stop_loss_pct === null ? null : Number(body.stop_loss_pct)
+  // 일일 손익 한도(달러) — 도달 시 자동으로 금일매매 종료(반영)됨. null이면 비활성.
+  if (body.day_loss_limit_usd   !== undefined) update.day_loss_limit_usd   = body.day_loss_limit_usd   === null ? null : Number(body.day_loss_limit_usd)
+  if (body.day_profit_limit_usd !== undefined) update.day_profit_limit_usd = body.day_profit_limit_usd === null ? null : Number(body.day_profit_limit_usd)
   if (body.seed_capital !== undefined && body.initial_seed === undefined) {
     update.seed_capital = Number(body.seed_capital)
   }

@@ -959,6 +959,10 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
   const [seedCapital,  setSeedCapital]  = useState<number | null>(null)
   const [initialSeedVal,   setInitialSeedVal]   = useState<number | null>(null)
   const [showProfitDist,   setShowProfitDist]   = useState(false)
+  // 일일 손익 한도(USD) — 도달 시 자동으로 금일매매 종료. null이면 미사용.
+  const [dayLossLimitUsd,   setDayLossLimitUsd]   = useState<number | null>(null)
+  const [dayProfitLimitUsd, setDayProfitLimitUsd] = useState<number | null>(null)
+  const autoCloseTriggeredRef = useRef(false)
   const [selectedDate, setSelectedDate] = useState<Date>(() => kstToday())
   const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
   const krwRate = 1420
@@ -1005,6 +1009,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
       if (cfg?.seed_capital != null) setSeedCapital(Number(cfg.seed_capital))
       if (cfg?.initial_seed != null) setInitialSeedVal(Number(cfg.initial_seed))
       setShowProfitDist(Boolean(cfg?.show_profit_dist))
+      setDayLossLimitUsd(cfg?.day_loss_limit_usd != null ? Number(cfg.day_loss_limit_usd) : null)
+      setDayProfitLimitUsd(cfg?.day_profit_limit_usd != null ? Number(cfg.day_profit_limit_usd) : null)
     }).catch(() => {}).finally(() => setLoading(false))
   }
 
@@ -1149,6 +1155,54 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
       setConfirming(false)
     }
   }
+
+  // ── 일일 손익 한도 자동 종료 ──────────────────────────────────────
+  // 관리자 패널에서 설정한 USD 한도에 도달하면 비밀번호 확인 없이
+  // "반영"과 동일한 동작(일별 PNL 확정 + 포지션 전체 종료)을 자동 수행한다.
+  useEffect(() => {
+    if (!isMaster) return
+    if (todayRecordExists || closedToday) return
+    if (dayLossLimitUsd == null && dayProfitLimitUsd == null) return
+    if (autoCloseTriggeredRef.current) return
+
+    const hitLoss   = dayLossLimitUsd   != null && todayAutoPnl <= -Math.abs(dayLossLimitUsd)
+    const hitProfit = dayProfitLimitUsd != null && todayAutoPnl >=  Math.abs(dayProfitLimitUsd)
+    if (!hitLoss && !hitProfit) return
+
+    autoCloseTriggeredRef.current = true
+    ;(async () => {
+      try {
+        const freshTok = getToken() ?? ""
+        const kstDate  = kstTodayStr()
+
+        const saveRes = await fetch("/api/auto-signal/rebalance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshTok}` },
+          credentials: "include",
+          body: JSON.stringify({ action: "confirm", date_label: kstDate, daily_pnl: todayAutoPnl }),
+        })
+        if (!saveRes.ok) { autoCloseTriggeredRef.current = false; return }
+
+        await fetch("/api/auto-signal/positions", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshTok}` },
+          body: JSON.stringify({ all: true, reason: hitLoss ? "auto_day_loss_limit" : "auto_day_profit_limit" }),
+        })
+
+        const now = new Date(Date.now() + 9 * 3600_000)
+        const hh = String(now.getUTCHours()).padStart(2, "0")
+        const mi = String(now.getUTCMinutes()).padStart(2, "0")
+        const ss = String(now.getUTCSeconds()).padStart(2, "0")
+        const ampm = now.getUTCHours() < 12 ? "오전" : "오후"
+        const h12  = now.getUTCHours() % 12 === 0 ? 12 : now.getUTCHours() % 12
+        setClosedTime(`${ampm} ${String(h12).padStart(2,"0")}:${mi}:${ss}`)
+        setClosedToday(true)
+        load()
+      } catch {
+        autoCloseTriggeredRef.current = false
+      }
+    })()
+  }, [todayAutoPnl, dayLossLimitUsd, dayProfitLimitUsd, isMaster, todayRecordExists, closedToday])
 
   // ── 통계 계산 ────────────────────────────────────────────────────
   // 주별: ISO 주 번호(월요일 기준)
@@ -1341,7 +1395,7 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                         데이터 수집 중 {total} / {MIN_HEALTH_SAMPLE}건
                       </div>
                       <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)", marginTop: 3 }}>
-                        {remaining}건 더 쌓이면 전략 평가를 ���작합니다
+                        {remaining}건 더 쌓이면 전략 평��를 ���작합니다
                       </div>
                     </div>
                     <span className="tabular-nums" style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.32)" }}>
@@ -3362,7 +3416,7 @@ switchTab(mode)
     <div className="min-h-screen font-sans"
       style={{ background: "radial-gradient(ellipse at 50% 30%,#0a1a10 0%,#060d09 60%,#040a06 100%)" }}>
 
-      {/* ══════ 모바일 (lg 미만) ══════ */}
+      {/* ═══��══ 모바일 (lg 미만) ══════ */}
       <div className="lg:hidden" style={{ height: "calc(100dvh - 148px)", overflow: "hidden", position: "relative" }}>
         {/* LivePricesTab — 항상 mount (소켓 유지), 자동매매 탭에서는 숨김 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "mock" ? "block" : "none" }}>

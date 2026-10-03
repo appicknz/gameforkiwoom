@@ -225,8 +225,8 @@ export default function PanelPage() {
     take_profit_enabled?: boolean; take_profit_percent?: number | null
   }
   const [autoPositions,    setAutoPositions]    = useState<AutoSignalPos[]>([])
-  const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null } | null>(null)
-  const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string } | null>(null)
+  const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null; day_loss_limit_usd: number | null; day_profit_limit_usd: number | null } | null>(null)
+  const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string; day_loss_limit_usd: string; day_profit_limit_usd: string } | null>(null)
   // 자동매매2 (UP3/UP8을 제외한 시그널, 예: UP2) 설정 — 실주문 전송 여부를 자동매매와 독립적으로 선택
   const [autoSettings2,     setAutoSettings2]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null } | null>(null)
   const [autoSettings2Edit, setAutoSettings2Edit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string } | null>(null)
@@ -1811,7 +1811,7 @@ export default function PanelPage() {
                     const rulesData = await rulesRes.json()
                     setAutoPositions(posData.positions ?? [])
                     setAutoSettings(setData)
-                    setAutoSettingsEdit({ size_usd: String(setData.size_usd ?? 10), leverage: String(setData.leverage ?? 10), enabled: setData.enabled ?? true, real_order_enabled: setData.real_order_enabled ?? true, stop_loss_pct: setData.stop_loss_pct != null ? String(setData.stop_loss_pct) : "" })
+                    setAutoSettingsEdit({ size_usd: String(setData.size_usd ?? 10), leverage: String(setData.leverage ?? 10), enabled: setData.enabled ?? true, real_order_enabled: setData.real_order_enabled ?? true, stop_loss_pct: setData.stop_loss_pct != null ? String(setData.stop_loss_pct) : "", day_loss_limit_usd: setData.day_loss_limit_usd != null ? String(setData.day_loss_limit_usd) : "", day_profit_limit_usd: setData.day_profit_limit_usd != null ? String(setData.day_profit_limit_usd) : "" })
                     if (setData.seed_capital != null) setSeedCapital(String(setData.seed_capital))
                     setSignalRules(Array.isArray(rulesData) ? rulesData : [])
                     setWebhookUrl(`${window.location.origin}/api/auto-signal/webhook`)
@@ -4313,7 +4313,7 @@ export default function PanelPage() {
                   {([
                     { value: "super_admin", label: "대총판", desc: "포인트 구매 요청 승인, 총판 잔고 관리", color: "border-red-200 bg-red-50 text-red-700" },
                     { value: "branch_admin", label: "총판", desc: "지점 생성, 지점에 ���인트 분배", color: "border-blue-200 bg-blue-50 text-blue-700" },
-                    { value: "admin", label: "지점", desc: "유저 관리, 환전 요청 처리", color: "border-orange-200 bg-orange-50 text-orange-700" },
+                    { value: "admin", label: "지점", desc: "유저 ��리, 환전 요청 처리", color: "border-orange-200 bg-orange-50 text-orange-700" },
                   ] as const).map(r => (
                     <button
                       key={r.value}
@@ -4617,7 +4617,7 @@ export default function PanelPage() {
             })
             const d = await res.json()
             if (res.ok) {
-              setCommMsg({ text: `저장 완료. 총 수수료: ${(d.totalRate * 100).toFixed(1)}%`, ok: true })
+              setCommMsg({ text: `저장 ���료. 총 수수료: ${(d.totalRate * 100).toFixed(1)}%`, ok: true })
               loadCommRates()
               setCommEditing({})
             } else {
@@ -5723,6 +5723,50 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 </div>
               )}
 
+              {/* 일일 손익 한도 (자동 금일매매 종료) */}
+              {autoSettingsEdit && (
+                <div className="grid grid-cols-5 gap-4 items-end">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">
+                      일일 손실 한도 (USD) <span className="text-[10px] opacity-50">비워두면 미사용</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number" min={0} step={1}
+                        placeholder="예: 800"
+                        value={autoSettingsEdit.day_loss_limit_usd}
+                        onChange={e => setAutoSettingsEdit(s => s ? { ...s, day_loss_limit_usd: e.target.value } : s)}
+                        className="w-full h-8 px-3 pr-8 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">USD</span>
+                    </div>
+                    {autoSettingsEdit.day_loss_limit_usd && (
+                      <p className="text-[10px] text-red-400">
+                        당일 손익이 -${Number(autoSettingsEdit.day_loss_limit_usd).toFixed(0)} 이하가 되면 자동으로 금일매매 종료
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">
+                      일일 수익 한도 (USD) <span className="text-[10px] opacity-50">비워두면 미사용</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number" min={0} step={1}
+                        placeholder="예: 2000"
+                        value={autoSettingsEdit.day_profit_limit_usd}
+                        onChange={e => setAutoSettingsEdit(s => s ? { ...s, day_profit_limit_usd: e.target.value } : s)}
+                        className="w-full h-8 px-3 pr-8 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">USD</span>
+                    </div>
+                    {autoSettingsEdit.day_profit_limit_usd && (
+                      <p className="text-[10px] text-emerald-400">
+                        당일 손익이 +${Number(autoSettingsEdit.day_profit_limit_usd).toFixed(0)} 이상이 되면 자동으로 금일매매 종료
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-3">
                 <button
                   disabled={autoSaving}
@@ -5733,17 +5777,21 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     try {
                       const tok = localStorage.getItem("app_token") ?? ""
                       const slVal = autoSettingsEdit.stop_loss_pct === "" ? null : Number(autoSettingsEdit.stop_loss_pct)
+                      const dayLossVal   = autoSettingsEdit.day_loss_limit_usd   === "" ? null : Number(autoSettingsEdit.day_loss_limit_usd)
+                      const dayProfitVal = autoSettingsEdit.day_profit_limit_usd === "" ? null : Number(autoSettingsEdit.day_profit_limit_usd)
                       const [res] = await Promise.all([
                         // 1) auto_signal_settings 저장
                         fetch("/api/auto-signal/settings", {
                           method: "PATCH",
                           headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
                           body: JSON.stringify({
-                            size_usd:           Number(autoSettingsEdit.size_usd),
-                            leverage:           Number(autoSettingsEdit.leverage),
-                            enabled:            autoSettingsEdit.enabled,
-                            real_order_enabled: autoSettingsEdit.real_order_enabled,
-                            stop_loss_pct:      slVal,
+                            size_usd:              Number(autoSettingsEdit.size_usd),
+                            leverage:              Number(autoSettingsEdit.leverage),
+                            enabled:               autoSettingsEdit.enabled,
+                            real_order_enabled:    autoSettingsEdit.real_order_enabled,
+                            stop_loss_pct:         slVal,
+                            day_loss_limit_usd:    dayLossVal,
+                            day_profit_limit_usd:  dayProfitVal,
                           }),
                         }),
                         // 2) 모든 계정의 base_amount / leverage / stop_loss 동기화
