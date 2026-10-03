@@ -149,21 +149,38 @@ function sendSubscription(mode: KisMode, symbol: string, trType: "1" | "2" = "1"
   }
 }
 
+// KIS 공식 H0STCNT0(국내주식 실시간체결) 응답은 '^'로 구분된 필드이며, 공식 샘플 기준 인덱스는 다음과 같다.
+// 0: 유가증권단축종목코드, 1: 체결시간, 2: 현재가, 3: 전일대비부호, 4: 전일대비,
+// 5: 전일대비율, 7: 시가, 8: 고가, 9: 저가, 12: 체결거래량(틱), 13: 누적거래량
+const KIS_TICK_FIELD = {
+  SYMBOL: 0,
+  TRADE_TIME: 1,
+  PRICE: 2,
+  CHANGE_RATE: 5,
+  CUMULATIVE_VOLUME: 13,
+} as const
+
 function handleSocketMessage(raw: WebSocket.RawData, mode: KisMode, socket: WebSocket) {
   const text = raw.toString()
   if (text.startsWith("0|")) {
-    const fields = text.split("|").slice(3)[0]?.split("^") ?? []
-    const symbol = cleanSymbol(fields[0] ?? "")
-    const price = Number(fields[2])
+    // 헤더(암호화 유무|TR_ID|건수)를 제외한 payload를 '^'로 분해한다. 건수(countRaw) > 1이면 동일한 필드 묶음이
+    // 반복되므로, 필드 총 개수를 건수로 나눈 만큼씩 묶어 가장 마지막(최신) 틱만 사용한다.
+    const [, , countRaw, body] = text.split("|")
+    const tickCount = Math.max(1, Number(countRaw) || 1)
+    const allFields = (body ?? "").split("^")
+    const fieldsPerTick = Math.floor(allFields.length / tickCount) || allFields.length
+    const fields = allFields.slice(allFields.length - fieldsPerTick)
+    const symbol = cleanSymbol(fields[KIS_TICK_FIELD.SYMBOL] ?? "")
+    const price = Number(fields[KIS_TICK_FIELD.PRICE])
     if (!symbol || !Number.isFinite(price) || price <= 0) return
     const previous = latestQuotes.get(`${mode}:${symbol}`)
-    const tradeTime = fields[1]?.trim()
+    const tradeTime = fields[KIS_TICK_FIELD.TRADE_TIME]?.trim()
     rememberQuote(mode, {
       symbol,
       symbolName: getKoreaStockName(symbol) || previous?.symbolName || null,
       price,
-      changePercent: Number.isFinite(Number(fields[5])) ? Number(fields[5]) : previous?.changePercent ?? null,
-      volume: Number.isFinite(Number(fields[12])) ? Number(fields[12]) : previous?.volume ?? null,
+      changePercent: Number.isFinite(Number(fields[KIS_TICK_FIELD.CHANGE_RATE])) ? Number(fields[KIS_TICK_FIELD.CHANGE_RATE]) : previous?.changePercent ?? null,
+      volume: Number.isFinite(Number(fields[KIS_TICK_FIELD.CUMULATIVE_VOLUME])) ? Number(fields[KIS_TICK_FIELD.CUMULATIVE_VOLUME]) : previous?.volume ?? null,
       tradedAt: tradeTime ? `${new Date().toISOString().slice(0, 10)}T${tradeTime}` : new Date().toISOString(),
       market: "J",
     })
