@@ -439,8 +439,9 @@ async function handleSignalUp8(args: { type: string; symbol: string; ip: string;
   const failedAccounts = results.filter(result => !result.ok).map(result => result.account)
   const successfulAccounts = results.filter(result => result.ok)
   const signalTime = parseUp8SignalTime(body.formatted_time_kst)
+  let recordResults: Array<Record<string, unknown>> = []
   if (type === "TRIPLE_COMBO_UP6" && successfulAccounts.length > 0) {
-    await recordUp6Signal({
+    recordResults = await recordUp6Signal({
       body,
       symbol,
       signalTime,
@@ -448,7 +449,19 @@ async function handleSignalUp8(args: { type: string; symbol: string; ip: string;
         .filter(config => successfulAccounts.some(result => result.accountId === config.id))
         .map(config => ({ mode: config.mode, exchange: config.exchange, account: config.account })),
       orderResults: results,
-    })
+    }) as Array<Record<string, unknown>>
+
+    // TVM 주문이 성공해도 DB 기록이 실패할 수 있으므로 조용히 성공 처리하지 않는다.
+    const recordErrors = recordResults.filter(result => result.status === "error")
+    if (recordErrors.length > 0) {
+      const detail = recordErrors.map(result => `${String(result.mode ?? "unknown")}: ${String(result.error ?? "record failed")}`).join(" | ")
+      await logRequest("error", 500, body, {
+        ip,
+        symbol,
+        signalType: type,
+        errorMsg: `TVM 주문 성공 후 자동매매3 기록 실패: ${detail}`,
+      })
+    }
   }
   if (failedAccounts.length > 0) {
     const partial = successfulAccounts.length > 0
@@ -456,8 +469,8 @@ async function handleSignalUp8(args: { type: string; symbol: string; ip: string;
     await logRequest(partial ? "partial" : "error", status, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM failed: ${failedAccounts.join(",")}` })
     return NextResponse.json({ ok: false, partial, error: "UP8 TVM delivery failed", up8: true, symbol: tvmSymbol, bal_pct: balPct, results }, { status })
   }
-  await logRequest("ok", 200, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM sent: ${results.map(result => result.account).join(",")}` })
-  return NextResponse.json({ ok: true, up8: true, symbol: tvmSymbol, bal_pct: balPct, results })
+  await logRequest(recordResults.some(result => result.status === "error") ? "partial" : "ok", recordResults.some(result => result.status === "error") ? 207 : 200, body, { ip, symbol, signalType: type, errorMsg: `UP8 TVM sent: ${results.map(result => result.account).join(",")}${recordResults.some(result => result.status === "error") ? " / record failed" : ""}` })
+  return NextResponse.json({ ok: !recordResults.some(result => result.status === "error"), up8: true, symbol: tvmSymbol, bal_pct: balPct, results, record_results: recordResults })
 }
 
 // ─────────────────────────────────────────────────────────────
