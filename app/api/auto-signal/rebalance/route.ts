@@ -127,14 +127,6 @@ export async function POST(req: Request) {
   }
   const estValue = baseSeed + Number(daily_pnl)
 
-  // UPSERT: 같은 날짜면 덮어씀
-  const { data: existing } = await adminSupabase
-    .from("auto_signal_rebalance")
-    .select("id")
-    .eq("date_label", date_label)
-    .limit(1)
-    .maybeSingle()
-
   const payload = {
     date_label,
     seed_capital:  baseSeed,
@@ -144,21 +136,12 @@ export async function POST(req: Request) {
     rebalanced_at: new Date().toISOString(),
   }
 
-  let result
-  if (existing) {
-    result = await adminSupabase
-      .from("auto_signal_rebalance")
-      .update(payload)
-      .eq("id", existing.id)
-      .select()
-      .single()
-  } else {
-    result = await adminSupabase
-      .from("auto_signal_rebalance")
-      .insert(payload)
-      .select()
-      .single()
-  }
+  // date_label 유니크 인덱스 기반 원자적 UPSERT — 동시 요청이 와도 하루에 한 건만 유지
+  const result = await adminSupabase
+    .from("auto_signal_rebalance")
+    .upsert(payload, { onConflict: "date_label" })
+    .select()
+    .single()
 
   if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
   return NextResponse.json({ ok: true, record: result.data })
