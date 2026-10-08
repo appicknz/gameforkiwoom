@@ -1651,10 +1651,21 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                       <div className="tabular-nums" style={{ fontSize: 10, color: todayAutoPnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
                     </div>
                     {isMaster && (
-                      <button onClick={() => handleConfirmOpen(todayAutoPnl)}
-                        style={{ padding: "4px 10px", borderRadius: 12, border: "none", background: GOLD, color: "#000", fontSize: 10, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
-                        반영
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {!isConfirmOnly && (
+                          <button
+                            type="button"
+                            disabled={resettingDate === kstStr}
+                            onClick={() => handleResetDay(kstStr)}
+                            style={{ padding: "4px 9px", borderRadius: 12, border: "1px solid rgba(212,175,55,0.45)", background: "rgba(212,175,55,0.08)", color: GOLD, fontSize: 10, fontWeight: 700, cursor: resettingDate === kstStr ? "wait" : "pointer", opacity: resettingDate === kstStr ? 0.6 : 1, flexShrink: 0 }}>
+                            {resettingDate === kstStr ? "초기화 중" : "초기화"}
+                          </button>
+                        )}
+                        <button onClick={() => handleConfirmOpen(todayAutoPnl)}
+                          style={{ padding: "4px 10px", borderRadius: 12, border: "none", background: GOLD, color: "#000", fontSize: 10, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                          반영
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2885,7 +2896,7 @@ function AutoSignal2Panel({ selectedDate, sortOrder = "time", searchQ = "", user
             <div className="space-y-0.5">
               <h3 className="text-sm font-bold text-foreground">강제 청산</h3>
               <p className="text-xs text-muted-foreground">
-                청산 기준가(SL)보다 10% 더 불리한 가격이 자동 입력됩니다.<br />
+                청산 기준가(SL)보�� 10% 더 불리한 가격이 자동 입력됩니다.<br />
                 <span style={{ color: "rgba(239,68,68,0.8)" }}>SL CLOSE로 기록되며 TOTAL PNL에서 차감됩니다.</span>
               </p>
             </div>
@@ -3514,7 +3525,7 @@ switchTab(mode)
               <AutoSignal2Panel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto2" ? searchQ : ""} userRole={userRole} />
           </div>
         </div>
-        {/* 자동매매3: 역삼1 전용, UP6 국내주식 */}
+        {/* 자동매매3: 역삼1 전용, UP6 국내���식 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "auto3" && userName === "역삼1" ? "flex" : "none", flexDirection: "column", background: PANEL_BG }}>
           <div style={{ flexShrink: 0 }}>
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
