@@ -83,10 +83,40 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}))
   const isConfirmAction = body.action === "confirm"
+  const isResetAction = body.action === "reset_day"
   if (callerUsername === "soltest5" && !isConfirmAction)
     return NextResponse.json({ error: "soltest5 계정은 자동매매 반영만 가능합니다." }, { status: 403 })
 
   const date_label = body.date_label
+
+  if (isResetAction) {
+    if (!isMasterRole) return NextResponse.json({ error: "forbidden" }, { status: 403 })
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+    if (!date_label || date_label !== today)
+      return NextResponse.json({ error: "오늘 매매만 초기화할 수 있습니다." }, { status: 400 })
+
+    // 종료 기록은 마지막에 삭제한다. 앞 단계가 실패하면 매매 차단 상태를 유지해 부분 초기화 후 재진입을 막는다.
+    const { count: deletedPositions, error: positionsError } = await adminSupabase
+      .from("auto_signal_positions")
+      .delete({ count: "exact" })
+      .eq("date_label", date_label)
+    if (positionsError) return NextResponse.json({ error: positionsError.message }, { status: 500 })
+
+    const { error: snapshotError } = await adminSupabase
+      .from("daily_snapshots")
+      .delete()
+      .eq("date_label", date_label)
+    if (snapshotError) return NextResponse.json({ error: snapshotError.message }, { status: 500 })
+
+    const { error: rebalanceError } = await adminSupabase
+      .from("auto_signal_rebalance")
+      .delete()
+      .eq("date_label", date_label)
+    if (rebalanceError) return NextResponse.json({ error: rebalanceError.message }, { status: 500 })
+
+    return NextResponse.json({ ok: true, date_label, deleted_positions: deletedPositions ?? 0, daily_pnl: 0 })
+  }
+
   const daily_pnl = body.daily_pnl
   const note = isConfirmAction ? "자동매매 반영" : body.note
 

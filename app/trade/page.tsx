@@ -951,7 +951,7 @@ const CONFIRM_ALLOWED_USERS = ["mirea2131"]
 // 반영 버튼만 허용 (수익 입력 폼·삭제 버튼은 숨김)
 const CONFIRM_ONLY_USERS = ["mirea21310", "soltest5"]
 
-function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStats, onConfirmedValue }: { tradeMode: string; userRole: string | null; userName?: string | null; todayAutoPnl?: number; autoStats?: AutoStats | null; onConfirmedValue?: (v: number) => void }) {
+function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStats, onConfirmedValue, onResetDay }: { tradeMode: string; userRole: string | null; userName?: string | null; todayAutoPnl?: number; autoStats?: AutoStats | null; onConfirmedValue?: (v: number) => void; onResetDay?: () => void }) {
   const [records,      setRecords]      = useState<LedgerRecord[]>([])
   const [adjustments,  setAdjustments]  = useState<CapitalAdjustment[]>([])
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
@@ -963,6 +963,8 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
   const [dayLossLimitUsd,   setDayLossLimitUsd]   = useState<number | null>(null)
   const [dayProfitLimitUsd, setDayProfitLimitUsd] = useState<number | null>(null)
   const autoCloseTriggeredRef = useRef(false)
+  const resetPendingRef = useRef(false)
+  const [resettingDate, setResettingDate] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date>(() => kstToday())
   const [statTab,      setStatTab]      = useState<"daily" | "weekly" | "monthly">("daily")
   const krwRate = 1420
@@ -1100,6 +1102,42 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
     load()
   }
 
+  const handleResetDay = async (dateLabel: string) => {
+    if (!confirm(`${dateLabel}의 포지션과 손익 기록을 모두 삭제하고 수익률 0%부터 다시 시작하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) return
+    setResettingDate(dateLabel)
+    setSaveMsg(null)
+    // 서버 응답과 포지션 목록 갱신 사이에 남아 있는 이전 손익으로 재종료되지 않게 막는다.
+    resetPendingRef.current = true
+    autoCloseTriggeredRef.current = true
+    try {
+      const res = await fetch("/api/auto-signal/rebalance", {
+        method: "POST",
+        headers: authHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ action: "reset_day", date_label: dateLabel }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        resetPendingRef.current = false
+        autoCloseTriggeredRef.current = false
+        setSaveMsg(json.error ?? "초기화 실패")
+        return
+      }
+      setClosedToday(false)
+      setClosedTime("")
+      setInputPnl("")
+      setSaveMsg(`초기화 완료 · 포지션 ${Number(json.deleted_positions ?? 0)}건 삭제`)
+      onResetDay?.()
+      await load()
+    } catch {
+      resetPendingRef.current = false
+      autoCloseTriggeredRef.current = false
+      setSaveMsg("초기화 실패")
+    } finally {
+      setResettingDate(null)
+    }
+  }
+
   const handleConfirmOpen = (pnl: number) => {
     setConfirmPnl(pnl)
     setConfirmPw("")
@@ -1160,6 +1198,13 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
   // 관리자 패널에서 설정한 USD 한도에 도달하면 비밀번호 확인 없이
   // "반영"과 동일한 동작(일별 PNL 확정 + 포지션 전체 종료)을 자동 수행한다.
   useEffect(() => {
+    if (resetPendingRef.current) {
+      if (Math.abs(todayAutoPnl) < 0.000001) {
+        resetPendingRef.current = false
+        autoCloseTriggeredRef.current = false
+      }
+      return
+    }
     if (!isMaster) return
     if (todayRecordExists || closedToday) return
     if (dayLossLimitUsd == null && dayProfitLimitUsd == null) return
@@ -1641,8 +1686,17 @@ function LedgerPanel({ tradeMode, userRole, userName, todayAutoPnl = 0, autoStat
                       <div className="tabular-nums" style={{ fontSize: 9, color: "rgba(255,255,255,0.65)" }}>{pnl >= 0 ? "+" : ""}{Math.round(pnl * krwRate).toLocaleString("ko-KR")}원</div>
                       <div className="tabular-nums" style={{ fontSize: 10, color: pnl >= 0 ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)" }}>{roi >= 0 ? "+" : ""}{roi.toFixed(2)}%</div>
                     </div>
+                    {isMaster && !isConfirmOnly && rec.date_label === todayKST && (
+                      <button
+                        type="button"
+                        disabled={resettingDate === rec.date_label}
+                        onClick={() => handleResetDay(rec.date_label)}
+                        style={{ padding: "4px 9px", borderRadius: 6, border: "1px solid rgba(212,175,55,0.35)", background: "rgba(212,175,55,0.1)", color: GOLD, fontSize: 10, fontWeight: 700, cursor: resettingDate === rec.date_label ? "wait" : "pointer", opacity: resettingDate === rec.date_label ? 0.6 : 1, flexShrink: 0 }}>
+                        {resettingDate === rec.date_label ? "초기화 중" : "초기화"}
+                      </button>
+                    )}
                     {isMaster && !isConfirmOnly && (
-                      <button onClick={() => handleDelete(rec.id)}
+                      <button onClick={() => handleDelete(rec.id)} aria-label={`${rec.date_label} 매매기록 삭제`}
                         style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.6)", fontSize: 11, cursor: "pointer", flexShrink: 0 }}>×</button>
                     )}
                   </div>
@@ -1816,11 +1870,12 @@ type AutoStats = {
   priceLoaded: number; priceTotal: number; posLoading: boolean
 }
 
-function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl, onStats, confirmedMargin, userRole }: {
+function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlClosed, onTodayPnl, onStats, confirmedMargin, userRole, refreshKey = 0 }: {
   selectedDate: Date
   sortOrder?: "time" | "roi_desc" | "roi_asc" | "signal"
   searchQ?: string
   onSlClosed?: () => void
+  refreshKey?: number
   onTodayPnl?: (pnl: number) => void
   onStats?: (s: AutoStats) => void
   confirmedMargin?: number   // 전날 확정 잔고 — MARGIN 기준값
@@ -1872,7 +1927,7 @@ function AutoSignalPanel({ selectedDate, sortOrder = "time", searchQ = "", onSlC
       const refresh = setInterval(fetchPositions, 30_000)
       return () => clearInterval(refresh)
     }
-  }, [fetchPositions, isToday])
+  }, [fetchPositions, isToday, refreshKey])
 
   // 스탑로스 + 포지션당 금액 + 시드 설정 조회 (마운트 시 1회)
   useEffect(() => {
@@ -3140,6 +3195,7 @@ switchTab(mode)
 }, [searchParams])
 
   const [closedRefreshKey, setClosedRefreshKey] = useState(0)
+  const [positionsRefreshKey, setPositionsRefreshKey] = useState(0)
   const [allowMockTrade, setAllowMockTrade] = useState(false)
   const [userRole,       setUserRole]       = useState<string | null>(null)
   const [userName,       setUserName]       = useState<string | null>(null)
@@ -3446,7 +3502,7 @@ switchTab(mode)
             <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
           <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} onStats={setAutoStats} confirmedMargin={confirmedValue} userRole={userRole} />
+              <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} onStats={setAutoStats} confirmedMargin={confirmedValue} userRole={userRole} refreshKey={positionsRefreshKey} />
           </div>
         </div>
         {/* 자동매매2: 역삼1 전용, UP3 제외 신호 — 기존 매매기록과 완전히 분리 */}
@@ -3473,7 +3529,7 @@ switchTab(mode)
         </div>
         {/* 매매기록 */}
         <div style={{ position: "absolute", inset: 0, display: tradeMode === "ledger" ? "flex" : "none", flexDirection: "column", background: PANEL_BG, overflow: "hidden" }}>
-          <LedgerPanel tradeMode={tradeMode} userRole={userRole} userName={userName} todayAutoPnl={todayAutoPnl} autoStats={autoStats} onConfirmedValue={setConfirmedValue} />
+          <LedgerPanel tradeMode={tradeMode} userRole={userRole} userName={userName} todayAutoPnl={todayAutoPnl} autoStats={autoStats} onConfirmedValue={setConfirmedValue} onResetDay={() => { setTodayAutoPnl(0); setAutoStats(null); setPositionsRefreshKey(key => key + 1); setClosedRefreshKey(key => key + 1) }} />
         </div>
       </div>
 
@@ -3516,7 +3572,7 @@ switchTab(mode)
               <DateStrip key={tradeMode} selectedDate={selectedDate} onSelect={setSelectedDate} />
             </div>
             <div style={{ flex: "1 1 0", overflowY: "auto", scrollbarWidth: "none" }}>
-            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} onStats={setAutoStats} confirmedMargin={confirmedValue} userRole={userRole} />
+            <AutoSignalPanel selectedDate={selectedDate} sortOrder={sortOrder} searchQ={tradeMode === "auto" ? searchQ : ""} onSlClosed={() => setClosedRefreshKey(k => k + 1)} onTodayPnl={setTodayAutoPnl} onStats={setAutoStats} confirmedMargin={confirmedValue} userRole={userRole} refreshKey={positionsRefreshKey} />
             </div>
           </div>
           {/* 자동매매2: 역삼1 전용, UP3 제외 신호 — 기존 매매기록과 완전히 분리 */}
@@ -3560,7 +3616,7 @@ switchTab(mode)
             border: `1px solid ${BORDER}`,
             display: tradeMode === "ledger" ? "flex" : "none",
           }}>
-            <LedgerPanel tradeMode={tradeMode} userRole={userRole} userName={userName} todayAutoPnl={todayAutoPnl} autoStats={autoStats} onConfirmedValue={setConfirmedValue} />
+            <LedgerPanel tradeMode={tradeMode} userRole={userRole} userName={userName} todayAutoPnl={todayAutoPnl} autoStats={autoStats} onConfirmedValue={setConfirmedValue} onResetDay={() => { setTodayAutoPnl(0); setAutoStats(null); setPositionsRefreshKey(key => key + 1); setClosedRefreshKey(key => key + 1) }} />
           </div>
         </div>
       </main>
