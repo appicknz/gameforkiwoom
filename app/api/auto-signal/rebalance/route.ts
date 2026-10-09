@@ -102,6 +102,12 @@ export async function POST(req: Request) {
       .eq("date_label", date_label)
     if (positionsError) return NextResponse.json({ error: positionsError.message }, { status: 500 })
 
+    const { error: stopError } = await adminSupabase
+      .from("auto_signal_daily_record_stops")
+      .delete()
+      .eq("date_label", date_label)
+    if (stopError) return NextResponse.json({ error: stopError.message }, { status: 500 })
+
     const { error: rebalanceError } = await adminSupabase
       .from("auto_signal_rebalance")
       .delete()

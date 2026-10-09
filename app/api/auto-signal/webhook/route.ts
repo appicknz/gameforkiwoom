@@ -175,7 +175,15 @@ export async function POST(req: Request) {
 
   try {
     const recordLimit = await getTradingRecordLimitStatus(dateLabel)
-    if (recordLimit.reached) return NextResponse.json({ skipped: true })
+    if (recordLimit.reached) {
+      await logRequest("skipped", 200, body, {
+        ip,
+        symbol,
+        signalType: type,
+        errorMsg: `daily ${recordLimit.limit} limit already reached: ${recordLimit.dailyPnl}`,
+      })
+      return NextResponse.json({ skipped: true, reason: "daily_record_limit_reached", limit: recordLimit.limit })
+    }
   } catch (limitError) {
     const message = limitError instanceof Error ? limitError.message : "trading record limit check failed"
     await logRequest("error", 500, body, { ip, symbol, signalType: type, errorMsg: message })
