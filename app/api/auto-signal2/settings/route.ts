@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 /**
  * GET   /api/auto-signal2/settings   — 현재 설정 조회
  * PATCH /api/auto-signal2/settings   — 설정 변경 (master=역삼1 전용)
- *   body: { size_usd?, leverage?, enabled?, real_order_enabled?, stop_loss_pct? }
+ *   body: { size_usd?, leverage?, enabled?, real_order_enabled?, stop_loss_pct?, take_profit_pct?, use_balance_pct?, balance_pct? }
  */
 
 import "server-only"
@@ -39,7 +39,16 @@ export async function PATCH(req: Request) {
   if (body.leverage            !== undefined) update.leverage            = Number(body.leverage)
   if (body.enabled             !== undefined) update.enabled             = Boolean(body.enabled)
   if (body.real_order_enabled  !== undefined) update.real_order_enabled  = Boolean(body.real_order_enabled)
-  if (body.stop_loss_pct       !== undefined) update.stop_loss_pct       = Number(body.stop_loss_pct)
+  if (body.stop_loss_pct       !== undefined) update.stop_loss_pct       = body.stop_loss_pct === null ? null : Number(body.stop_loss_pct)
+  if (body.take_profit_pct     !== undefined) update.take_profit_pct     = body.take_profit_pct === null ? null : Number(body.take_profit_pct)
+  if (body.use_balance_pct     !== undefined) update.use_balance_pct     = Boolean(body.use_balance_pct)
+  if (body.balance_pct         !== undefined) {
+    const balancePct = Number(body.balance_pct)
+    if (!Number.isFinite(balancePct) || balancePct <= 0 || balancePct > 100) {
+      return NextResponse.json({ error: "balance_pct는 0 초과 100 이하여야 합니다." }, { status: 400 })
+    }
+    update.balance_pct = balancePct
+  }
   if (body.starting_balance    !== undefined) update.starting_balance    = Number(body.starting_balance)
 
   const { data, error } = await adminSupabase

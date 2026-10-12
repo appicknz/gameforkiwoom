@@ -485,8 +485,27 @@ async function handleSignalUp8(args: { type: string; symbol: string; ip: string;
 // 자동매매2 (역삼1 전용, UP3/UP8 제외 신호)
 // ─────────────────────────────────────────────────────────────
 function toTvmSymbol2(sym: string): string { const clean = sym.replace("BINANCE:", "").replace(".P", ""); return clean.endsWith("USDT") ? clean.slice(0, -4) + "/USDT" : clean }
-function buildTvm2(params: { account: string; symbol: string; side: string; amount: number; leverage: number; tpPct?: number | null; slPct?: number | null; token: string }): string {
-  const json: Record<string, unknown> = { exchange: "binance-futures", account: params.account, symbol: params.symbol, type: "market", side: params.side, open_order: "cancel", same_order: "skip", leverage: params.leverage, margin_type: "cross", amount: params.amount, amount_type: "usdt", token: params.token }
+function buildTvm2(params: { account: string; symbol: string; side: string; amount: number; useBalancePct: boolean; balancePct: number; leverage: number; tpPct?: number | null; slPct?: number | null; token: string }): string {
+  const json: Record<string, unknown> = {
+    exchange: "binance-futures",
+    account: params.account,
+    symbol: params.symbol,
+    type: "market",
+    side: params.side,
+    open_order: "cancel",
+    same_order: "skip",
+    leverage: params.leverage,
+    margin_type: "cross",
+    token: params.token,
+  }
+  if (params.useBalancePct) {
+    json.bal_pct = params.balancePct
+    json.equity = "y"
+    json.position_close = true
+  } else {
+    json.amount = params.amount
+    json.amount_type = "usdt"
+  }
   if (params.tpPct != null && Number.isFinite(params.tpPct) && params.tpPct > 0) json.tp_pct = params.side === "buy" ? Math.abs(params.tpPct) : -Math.abs(params.tpPct)
   if (params.slPct != null && Number.isFinite(params.slPct) && params.slPct > 0) json.sl_pct = params.side === "buy" ? -Math.abs(params.slPct) : Math.abs(params.slPct)
   return `TVM:${JSON.stringify(json)}:MVT`
@@ -494,7 +513,7 @@ function buildTvm2(params: { account: string; symbol: string; side: string; amou
 
 async function handleSignal2(args: { type: string; symbol: string; price: string; formatted_time_kst?: string; ip: string; body: Record<string, unknown>; logRequest: typeof logRequest }) {
   const { type, symbol, price, formatted_time_kst, ip, body, logRequest } = args
-  const [{ data: settings2 }, { data: rule2 }] = await Promise.all([adminSupabase.from("auto_signal2_settings").select("size_usd, leverage, enabled, real_order_enabled, stop_loss_pct").eq("id", 1).single(), adminSupabase.from("auto_signal_rules").select("direction, enabled, stop_loss_enabled, stop_loss_percent, take_profit_enabled, take_profit_percent").eq("signal_type", type).single()])
+  const [{ data: settings2 }, { data: rule2 }] = await Promise.all([adminSupabase.from("auto_signal2_settings").select("size_usd, leverage, enabled, real_order_enabled, stop_loss_pct, take_profit_pct, use_balance_pct, balance_pct").eq("id", 1).single(), adminSupabase.from("auto_signal_rules").select("direction, enabled").eq("signal_type", type).single()])
   if (!settings2?.enabled) { await logRequest("skipped", 200, body, { ip, symbol, signalType: type, errorMsg: "auto-signal2 disabled" }); return NextResponse.json({ skipped: true, reason: "auto_signal2_disabled" }) }
   const direction: string = rule2?.direction ?? (type.toUpperCase().includes("DOWN") ? "short" : "long")
   let signalTime: string; let dateLabel: string
@@ -507,7 +526,31 @@ async function handleSignal2(args: { type: string; symbol: string; price: string
     const { data: tradingGs } = await adminSupabase.from("auto_trading_global_settings").select("webhook_url, enabled").eq("id", 1).single()
     if (tradingGs?.enabled && tradingGs?.webhook_url) {
       const { data: tradingAccounts } = await adminSupabase.from("auto_trading_accounts").select("id, account_name, auth_token, leverage, base_amount, take_profit_enabled, take_profit_percent, stop_loss_enabled, stop_loss_percent").eq("enabled", true)
-      if (tradingAccounts?.length) { const tvmSymbol = toTvmSymbol2(cleanSymbol); const side = direction.toUpperCase() === "SHORT" ? "sell" : "buy"; const tvmResults = await Promise.all(tradingAccounts.map(async (acc: Record<string, unknown>) => { const tvm = buildTvm2({ account: acc.account_name as string, symbol: tvmSymbol, side, amount: Number(settings2.size_usd ?? acc.base_amount), leverage: Number(settings2.leverage ?? acc.leverage), tpPct: acc.take_profit_enabled ? Number(acc.take_profit_percent) : null, slPct: acc.stop_loss_enabled ? Number(acc.stop_loss_percent) : null, token: acc.auth_token as string }); try { const res = await fetch(tradingGs.webhook_url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: tvm, signal: AbortSignal.timeout(10000) }); return { ok: res.ok } } catch { return { ok: false } } })); realOrderSent = tvmResults.some(r => r.ok) }
+      if (tradingAccounts?.length) {
+        const tvmSymbol = toTvmSymbol2(cleanSymbol)
+        const side = direction.toUpperCase() === "SHORT" ? "sell" : "buy"
+        const tvmResults = await Promise.all(tradingAccounts.map(async (acc: Record<string, unknown>) => {
+          const tvm = buildTvm2({
+            account: acc.account_name as string,
+            symbol: tvmSymbol,
+            side,
+            amount: Number(settings2.size_usd ?? acc.base_amount),
+            useBalancePct: Boolean(settings2.use_balance_pct),
+            balancePct: Number(settings2.balance_pct ?? 100),
+            leverage: Number(settings2.leverage ?? acc.leverage),
+            tpPct: settings2.take_profit_pct == null ? null : Number(settings2.take_profit_pct),
+            slPct: settings2.stop_loss_pct == null ? null : Number(settings2.stop_loss_pct),
+            token: acc.auth_token as string,
+          })
+          try {
+            const res = await fetch(tradingGs.webhook_url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: tvm, signal: AbortSignal.timeout(10000) })
+            return { ok: res.ok }
+          } catch {
+            return { ok: false }
+          }
+        }))
+        realOrderSent = tvmResults.some(r => r.ok)
+      }
     }
   }
   const { data: inserted2, error: err2 } = await adminSupabase.from("auto_signal2_positions").insert({ signal_type: type, symbol: cleanSymbol, direction, entry_price: parseFloat(price), size_usd: settings2.size_usd, leverage: settings2.leverage, signal_time: signalTime, date_label: dateLabel, is_closed: false, webhook_raw: body, real_order: realOrderSent }).select("id").single()

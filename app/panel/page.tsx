@@ -228,8 +228,8 @@ export default function PanelPage() {
   const [autoSettings,     setAutoSettings]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null; day_loss_limit_usd: number | null; day_profit_limit_usd: number | null } | null>(null)
   const [autoSettingsEdit, setAutoSettingsEdit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string; day_loss_limit_usd: string; day_profit_limit_usd: string } | null>(null)
   // 자동매매2 (UP3/UP8을 제외한 시그널, 예: UP2) 설정 — 실주문 전송 여부를 자동매매와 독립적으로 선택
-  const [autoSettings2,     setAutoSettings2]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null } | null>(null)
-  const [autoSettings2Edit, setAutoSettings2Edit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string } | null>(null)
+  const [autoSettings2,     setAutoSettings2]     = useState<{ size_usd: number; leverage: number; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: number | null; take_profit_pct: number | null; use_balance_pct: boolean; balance_pct: number } | null>(null)
+  const [autoSettings2Edit, setAutoSettings2Edit] = useState<{ size_usd: string; leverage: string; enabled: boolean; real_order_enabled: boolean; stop_loss_pct: string; take_profit_pct: string; use_balance_pct: boolean; balance_pct: string } | null>(null)
   const [auto2Saving,       setAuto2Saving]       = useState(false)
   const [auto2Msg,          setAuto2Msg]          = useState<string | null>(null)
   type Up8Settings = { bal_pct: number; initial_seed: number }
@@ -1823,8 +1823,11 @@ export default function PanelPage() {
                         leverage: String(setData2.leverage ?? 10),
                         enabled: setData2.enabled ?? false,
                         real_order_enabled: setData2.real_order_enabled ?? false,
-                        stop_loss_pct: setData2.stop_loss_pct != null ? String(setData2.stop_loss_pct) : "",
-                      })
+  stop_loss_pct: setData2.stop_loss_pct != null ? String(setData2.stop_loss_pct) : "",
+  take_profit_pct: setData2.take_profit_pct != null ? String(setData2.take_profit_pct) : "",
+  use_balance_pct: setData2.use_balance_pct ?? false,
+  balance_pct: String(setData2.balance_pct ?? 100),
+  })
                     }
                     if (up8Res.ok) {
                       const up8Data = await up8Res.json() as Up8Settings
@@ -1930,7 +1933,7 @@ export default function PanelPage() {
 
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                <h2 className="text-sm font-semibold text-foreground">회원 목록</h2>
+                <h2 className="text-sm font-semibold text-foreground">��원 목록</h2>
                 <Button variant="ghost" size="sm" onClick={() => loadUsers(adminPw)} disabled={usersLoading} className="gap-1.5 text-xs">
                   <RefreshCw className={`w-3.5 h-3.5 ${usersLoading ? "animate-spin" : ""}`} /> 새로고침
                 </Button>
@@ -3712,7 +3715,7 @@ export default function PanelPage() {
                   {branchTab === "members" && (
                     <div className="divide-y divide-border">
                       {adminMembers.length === 0 && (
-                        <p className="py-8 text-center text-sm text-muted-foreground">등록된 회원이 없습니다.</p>
+                        <p className="py-8 text-center text-sm text-muted-foreground">등록된 ��원이 없습니다.</p>
                       )}
                       {/* 헤더 */}
                       {adminMembers.length > 0 && (
@@ -5827,13 +5830,37 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                 </p>
               </div>
 
-              {autoSettings2Edit && (
-                <div className="grid grid-cols-5 gap-4 items-end">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">증거금 (USD)</label>
-                    <input type="number" min={1} value={autoSettings2Edit.size_usd}
-                      onChange={e => setAutoSettings2Edit(s => s ? { ...s, size_usd: e.target.value } : s)}
-                      className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+  {autoSettings2Edit && (
+  <div className="space-y-4">
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+  <div className="space-y-1">
+  <label className="text-xs text-muted-foreground">주문 금액 방식</label>
+  <button
+  type="button"
+  onClick={() => setAutoSettings2Edit(s => s ? { ...s, use_balance_pct: !s.use_balance_pct } : s)}
+  className={`w-full h-8 rounded-lg text-xs font-semibold border transition-colors ${autoSettings2Edit.use_balance_pct ? "bg-primary/20 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"}`}>
+  {autoSettings2Edit.use_balance_pct ? "총자산 비율" : "고정 증거금"}
+  </button>
+  </div>
+  <div className="space-y-1">
+  <label className="text-xs text-muted-foreground">총자산 주문 비율 (%)</label>
+  <div className="relative">
+  <input type="number" min={0.1} max={100} step={0.1} disabled={!autoSettings2Edit.use_balance_pct} value={autoSettings2Edit.balance_pct}
+  onChange={e => setAutoSettings2Edit(s => s ? { ...s, balance_pct: e.target.value } : s)}
+  className="w-full h-8 px-3 pr-7 rounded-lg bg-secondary border border-border text-sm text-foreground disabled:opacity-40" />
+  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+  </div>
+  </div>
+  </div>
+  <p className="text-[11px] text-muted-foreground">
+  총자산 비율 사용 시 TVM에 <span className="font-mono text-primary">bal_pct · equity · position_close</span>를 전송하며 고정 증거금은 사용하지 않습니다.
+  </p>
+  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4 items-end">
+  <div className="space-y-1">
+  <label className="text-xs text-muted-foreground">증거금 (USD)</label>
+  <input type="number" min={1} disabled={autoSettings2Edit.use_balance_pct} value={autoSettings2Edit.size_usd}
+  onChange={e => setAutoSettings2Edit(s => s ? { ...s, size_usd: e.target.value } : s)}
+  className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground disabled:opacity-40" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">레버리지</label>
@@ -5853,10 +5880,24 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                         onChange={e => setAutoSettings2Edit(s => s ? { ...s, stop_loss_pct: e.target.value } : s)}
                         className="w-full h-8 px-3 pr-6 rounded-lg bg-secondary border border-border text-sm text-foreground" />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">시그널 기록</label>
+  </div>
+  </div>
+  <div className="space-y-1">
+  <label className="text-xs text-muted-foreground">
+  익절 TP (%) <span className="text-[10px] opacity-50">비워두면 미사용</span>
+  </label>
+  <div className="relative">
+  <input
+  type="number" min={0.1} max={100} step={0.1}
+  placeholder="예: 0.6"
+  value={autoSettings2Edit.take_profit_pct}
+  onChange={e => setAutoSettings2Edit(s => s ? { ...s, take_profit_pct: e.target.value } : s)}
+  className="w-full h-8 px-3 pr-6 rounded-lg bg-secondary border border-border text-sm text-foreground" />
+  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+  </div>
+  </div>
+  <div className="space-y-1">
+  <label className="text-xs text-muted-foreground">시그널 기록</label>
                     <button
                       onClick={() => setAutoSettings2Edit(s => s ? { ...s, enabled: !s.enabled } : s)}
                       className={`w-full h-8 rounded-lg text-xs font-semibold border transition-colors ${autoSettings2Edit.enabled ? "bg-primary/20 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"}`}>
@@ -5871,12 +5912,13 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                       {autoSettings2Edit.real_order_enabled ? "ON" : "OFF"}
                     </button>
                   </div>
-                </div>
-              )}
-
-              <div className="flex items-center gap-3">
-                <button
-                  disabled={auto2Saving || !autoSettings2Edit}
+  </div>
+  </div>
+  )}
+  
+  <div className="flex items-center gap-3">
+  <button
+  disabled={auto2Saving || !autoSettings2Edit}
                   onClick={async () => {
                     if (!autoSettings2Edit) return
                     setAuto2Saving(true)
@@ -5884,6 +5926,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                     try {
                       const tok = localStorage.getItem("app_token") ?? ""
                       const slVal = autoSettings2Edit.stop_loss_pct === "" ? null : Number(autoSettings2Edit.stop_loss_pct)
+                      const tpVal = autoSettings2Edit.take_profit_pct === "" ? null : Number(autoSettings2Edit.take_profit_pct)
                       const res = await fetch("/api/auto-signal2/settings", {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
@@ -5893,6 +5936,9 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
                           enabled:            autoSettings2Edit.enabled,
                           real_order_enabled: autoSettings2Edit.real_order_enabled,
                           stop_loss_pct:      slVal,
+                          take_profit_pct:    tpVal,
+                          use_balance_pct:   autoSettings2Edit.use_balance_pct,
+                          balance_pct:       Number(autoSettings2Edit.balance_pct),
                         }),
                       })
                       const d = await res.json()
@@ -6713,7 +6759,7 @@ CREATE TABLE IF NOT EXISTS auto_trading_accounts (
               <div>
                 <h2 className="text-base font-semibold text-foreground">미반영 입금 수동 처리</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  인덱서가 ���친 트랜잭션의 Solana signature를 입력하면 즉시 잔고를 반영합니다.
+                  인덱서가 ���친 트랜잭션의 Solana signature를 입력���면 즉시 잔고를 반영합니다.
                   이미 처리된 signature는 중복 적립되지 않습니다.
                 </p>
               </div>
@@ -7041,7 +7087,7 @@ function GameAccessToggle({
         return
       }
       onChanged(next)
-      setMsg(next ? "게임 활성화됨" : "게임 비활성화됨")
+      setMsg(next ? "게임 활성화됨" : "게�� 비활성화됨")
       setTimeout(() => setMsg(null), 2000)
     } catch {
       setLocalEnabled(!next)   // 실패 시 롤백
