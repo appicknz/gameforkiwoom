@@ -9,7 +9,7 @@ const SYMBOL_BUDGET = 50_000
 type ModeConfig = { mode: KisMode; exchange?: string; account?: string }
 type OrderResult = { mode?: string; exchange?: string; account?: string; ok?: boolean; status?: number | null }
 
-export async function recordUp6Signal(args: { body: Record<string, unknown>; symbol: string; signalTime: string; modes: ModeConfig[]; orderResults?: OrderResult[] }) {
+export async function recordUp6Signal(args: { body: Record<string, unknown>; symbol: string; signalTime: string; modes: ModeConfig[]; orderResults?: OrderResult[]; signalType?: string }) {
   const symbol = normalizeKisSymbol(args.symbol)
   const kstDate = typeof args.body.formatted_time_kst === "string" ? args.body.formatted_time_kst.replace(" ", "T").slice(0, 10) : new Date(Date.parse(args.signalTime) + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const { data: settings } = await adminSupabase.from("auto_signal_up8_settings").select("initial_seed").eq("id", 1).maybeSingle()
@@ -43,7 +43,7 @@ export async function recordUp6Signal(args: { body: Record<string, unknown>; sym
     const base = {
       trade_date: kstDate,
       signal_time: args.signalTime,
-      signal_type: "TRIPLE_COMBO_UP6",
+      signal_type: args.signalType ?? "TRIPLE_COMBO_UP6",
       symbol,
       symbol_name: fallbackSymbolName || quote?.symbolName || null,
       account_mode: modeConfig.mode,

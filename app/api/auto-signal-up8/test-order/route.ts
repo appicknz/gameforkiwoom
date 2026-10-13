@@ -4,6 +4,7 @@ import "server-only"
 import { NextResponse } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { adminSupabase as _adminSupabase } from "@/lib/supabase-admin"
+import { recordUp6Signal } from "@/lib/auto-trading3"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const adminSupabase = _adminSupabase as any
@@ -76,6 +77,34 @@ export async function POST(req: Request) {
       return { id: selectedOrder.id, mode: selectedOrder.mode, exchange: selectedOrder.exchange, account: selectedOrder.account, ok: false, status: null, error: error instanceof Error ? error.message : "전송 오류" }
     }
   }))
-  const ok = results.every((result: { ok: boolean }) => result.ok)
-  return NextResponse.json({ ok, symbol, bal_pct: balPct, results }, { status: ok ? 200 : 502 })
+  const successfulResults = results.filter((result: { ok: boolean }) => result.ok)
+  const signalTime = new Date().toISOString()
+  const recordResults = successfulResults.length > 0
+    ? await recordUp6Signal({
+        body: { test_order: true, source: "auto-signal-up8/test-order" },
+        symbol,
+        signalTime,
+        signalType: "TEST_ORDER",
+        modes: accounts
+          .filter((account: Record<string, unknown>) => successfulResults.some((result: { id: unknown }) => result.id === account.id))
+          .map((account: Record<string, unknown>) => ({
+            mode: account.mode as "test" | "live",
+            exchange: String(account.exchange),
+            account: String(account.account),
+          })),
+        orderResults: results.map((result: Record<string, unknown>) => ({
+          mode: String(result.mode ?? ""),
+          exchange: String(result.exchange ?? ""),
+          account: String(result.account ?? ""),
+          ok: Boolean(result.ok),
+          status: typeof result.status === "number" ? result.status : null,
+        })),
+      })
+    : []
+
+  const deliveryOk = results.every((result: { ok: boolean }) => result.ok)
+  const recordOk = recordResults.every(result => result.status !== "error")
+  const ok = deliveryOk && recordOk
+  const status = !deliveryOk ? 502 : recordOk ? 200 : 207
+  return NextResponse.json({ ok, symbol, bal_pct: balPct, results, record_results: recordResults }, { status })
 }
