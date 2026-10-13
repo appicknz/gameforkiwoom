@@ -14,6 +14,20 @@ export async function recordUp6Signal(args: { body: Record<string, unknown>; sym
   const kstDate = typeof args.body.formatted_time_kst === "string" ? args.body.formatted_time_kst.replace(" ", "T").slice(0, 10) : new Date(Date.parse(args.signalTime) + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const { data: settings } = await adminSupabase.from("auto_signal_up8_settings").select("initial_seed").eq("id", 1).maybeSingle()
   const initialSeed = Number(settings?.initial_seed ?? DEFAULT_INITIAL_SEED)
+  type QuoteResult = {
+    quote: { price: number; symbolName?: string | null; volume?: number | null; changePercent?: number | null; tradedAt?: string | null } | null
+    error: string | null
+  }
+  const quoteRequests = new Map<KisMode, Promise<QuoteResult>>()
+  const getQuoteForMode = (mode: KisMode) => {
+    const existing = quoteRequests.get(mode)
+    if (existing) return existing
+    const request = getKisQuote(symbol, mode)
+      .then(quote => ({ quote, error: null }))
+      .catch(error => ({ quote: null, error: error instanceof Error ? error.message : "quote fetch failed" }))
+    quoteRequests.set(mode, request)
+    return request
+  }
 
   const processMode = async (modeConfig: ModeConfig) => {
     const exchange = modeConfig.exchange ?? "kis"
@@ -21,13 +35,7 @@ export async function recordUp6Signal(args: { body: Record<string, unknown>; sym
     const orderResult = args.orderResults?.find(result => result.exchange === exchange && result.account === account) ?? null
     const fallbackSymbolName = getKoreaStockName(symbol) || (typeof args.body.symbol_name === "string" ? args.body.symbol_name : null)
 
-    let quote: { price: number; symbolName?: string | null; volume?: number | null; changePercent?: number | null; tradedAt?: string | null } | null = null
-    let quoteError: string | null = null
-    try {
-      quote = await getKisQuote(symbol, modeConfig.mode)
-    } catch (error) {
-      quoteError = error instanceof Error ? error.message : "quote fetch failed"
-    }
+    const { quote, error: quoteError } = await getQuoteForMode(modeConfig.mode)
 
     // Always persist a record for this signal/account, even if the price
     // re-fetch for bookkeeping fails. Orders are already sent to KIS by this
@@ -65,7 +73,12 @@ export async function recordUp6Signal(args: { body: Record<string, unknown>; sym
       if (error) throw error
       return { mode: modeConfig.mode, status: record.status, price: record.entry_price, id: data?.id ?? null, quoteError }
     } catch (error) {
-      return { mode: modeConfig.mode, status: "error", error: error instanceof Error ? error.message : "record failed" }
+      const message = error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+          ? String(error.message)
+          : "record failed"
+      return { mode: modeConfig.mode, exchange, account, status: "error", error: message }
     }
   }
 

@@ -462,7 +462,7 @@ async function handleSignalUp8(args: { type: string; symbol: string; ip: string;
     // TVM 주문이 성공해도 DB 기록이 실패할 수 있으므로 조용히 성공 처리하지 않는다.
     const recordErrors = recordResults.filter(result => result.status === "error")
     if (recordErrors.length > 0) {
-      const detail = recordErrors.map(result => `${String(result.mode ?? "unknown")}: ${String(result.error ?? "record failed")}`).join(" | ")
+      const detail = recordErrors.map(result => `${String(result.mode ?? "unknown")}/${String(result.account ?? "unknown")}: ${String(result.error ?? "record failed")}`).join(" | ")
       await logRequest("error", 500, body, {
         ip,
         symbol,
