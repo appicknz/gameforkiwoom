@@ -267,7 +267,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
                   type="button"
                   onClick={() => void sellBatch("all")}
                   disabled={Boolean(sellingId || sellingBatch) || sellableRecords.length === 0}
-                  className="rounded border border-red-500/50 bg-red-500/10 px-2.5 py-1 text-[10px] font-bold text-red-400 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="min-w-24 rounded-md border border-red-500/60 bg-red-500/15 px-4 py-2 text-xs font-black text-red-400 shadow-sm shadow-red-950/20 transition-colors hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {sellingBatch === "all" ? "전송 중..." : `일괄매도${sellableRecords.length > 0 ? ` ${sellableRecords.length}` : ""}`}
                 </button>
@@ -340,9 +340,12 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
                                 type="button"
                                 onClick={() => void sellBatch(symbol)}
                                 disabled={Boolean(sellingId || sellingBatch) || groupSellableCount === 0}
-                                className="shrink-0 rounded border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-[11px] font-bold text-amber-400 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="flex min-w-28 shrink-0 flex-col items-center rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 font-bold text-amber-400 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                               >
-                                {sellingBatch === symbol ? "전송 중..." : `그룹매도${groupSellableCount > 0 ? ` ${groupSellableCount}` : ""}`}
+                                <span className="text-[11px] leading-tight">{sellingBatch === symbol ? "전송 중..." : "그룹매도"}</span>
+                                <span className="mt-0.5 max-w-32 truncate text-[9px] font-medium leading-tight text-amber-300/70">
+                                  {symbol} {getKoreaStockName(symbol) || group[0]?.symbol_name || ""}
+                                </span>
                               </button>
                             )}
                           </div>

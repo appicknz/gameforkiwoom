@@ -61,11 +61,17 @@ export async function recordUp6Signal(args: { body: Record<string, unknown>; sym
       record = { ...base, status: "quote_failed", skip_reason: quoteError ?? "quote fetch failed", entry_price: null, quantity: 0, invested_amount: 0, volume: null, price_change_percent: null, trade_time: null }
     } else {
       const price = Number(quote.price)
-      const quantity = Math.floor(SYMBOL_BUDGET / price)
-      const priced = { ...base, entry_price: price, quantity, invested_amount: Math.min(SYMBOL_BUDGET, quantity * price), volume: quote.volume, price_change_percent: quote.changePercent, trade_time: quote.tradedAt }
-      record = price > SYMBOL_BUDGET || quantity < 1
-        ? { ...priced, status: "skipped", skip_reason: price > SYMBOL_BUDGET ? "price_over_50000" : "quantity_below_one", quantity: 0, invested_amount: 0 }
-        : { ...priced, status: "open" }
+      const quantity = Math.max(1, Math.floor(SYMBOL_BUDGET / price))
+      record = {
+        ...base,
+        entry_price: price,
+        quantity,
+        invested_amount: quantity * price,
+        volume: quote.volume,
+        price_change_percent: quote.changePercent,
+        trade_time: quote.tradedAt,
+        status: "open",
+      }
     }
 
     try {
