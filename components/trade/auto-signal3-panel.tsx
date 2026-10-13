@@ -48,6 +48,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
   const [message, setMessage] = useState<string | null>(null)
   const [accountFilter, setAccountFilter] = useState<AccountFilter>("all")
   const [sellingId, setSellingId] = useState<string | null>(null)
+  const [sellingBatch, setSellingBatch] = useState<string | null>(null)
   const loadingRef = useRef(false)
   const initialQuoteRequestRef = useRef(true)
 
@@ -122,6 +123,16 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
     return { ...record, currentPrice, evaluated, pnl, roi }
   }).filter(record => !searchQ || `${record.symbol} ${record.symbol_name ?? ""}`.toLowerCase().includes(searchQ.toLowerCase())), [accountFilter, isToday, quotes, records, searchQ])
 
+  const groupedRows = useMemo(() => {
+    const groups = new Map<string, typeof rows>()
+    rows.forEach(record => {
+      const group = groups.get(record.symbol) ?? []
+      group.push(record)
+      groups.set(record.symbol, group)
+    })
+    return [...groups.entries()]
+  }, [rows])
+
   const included = rows.filter(record => record.status !== "skipped" && record.status !== "quote_failed")
   const invested = included.reduce((sum, record) => sum + Number(record.invested_amount), 0)
   const evaluated = included.reduce((sum, record) => sum + record.evaluated, 0)
@@ -129,6 +140,12 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
   const roi = invested > 0 ? pnl / invested * 100 : 0
   const profitCount = included.filter(record => record.roi > 0).length
   const lossCount = included.filter(record => record.roi < 0).length
+  const sellableRecords = records.filter(record =>
+    record.status !== "skipped" &&
+    record.status !== "quote_failed" &&
+    Number(record.quantity) > 0 &&
+    (!record.sell_order_sent_at || record.sell_order_result?.ok === false)
+  )
 
   const saveCloses = async () => {
     setSaving(true)
@@ -148,7 +165,7 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
   }
 
   const sellRecord = async (record: Record3) => {
-    if (sellingId) return
+    if (sellingId || sellingBatch) return
     const label = `${record.symbol} ${getKoreaStockName(record.symbol) || record.symbol_name || ""} (${record.account})`
     if (!window.confirm(`${label} 종목을 시장가로 즉시 매도 주문합니다. 진행할까요?`)) return
     setSellingId(record.id)
@@ -163,6 +180,39 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
       setMessage(error instanceof Error ? error.message : "매도 주문 전송 실패")
     } finally {
       setSellingId(null)
+    }
+  }
+
+  const sellBatch = async (scope: "all" | string) => {
+    if (sellingId || sellingBatch) return
+    const targets = scope === "all" ? sellableRecords : sellableRecords.filter(record => record.symbol === scope)
+    if (targets.length === 0) {
+      setMessage("매도할 수 있는 미전송 포지션이 없습니다.")
+      return
+    }
+    const symbolName = scope === "all" ? "전체" : `${scope} ${getKoreaStockName(scope) || targets[0]?.symbol_name || ""}`.trim()
+    const description = scope === "all"
+      ? `계좌와 종목에 관계없이 ${targets.length}개 포지션을 모두 시장가로 매도 주문합니다.`
+      : `${symbolName}의 모든 계좌 포지션 ${targets.length}건을 시장가로 매도 주문합니다.`
+    if (!window.confirm(`${description}\n이 작업은 되돌릴 수 없습니다. 진행할까요?`)) return
+
+    setSellingBatch(scope)
+    setMessage(null)
+    try {
+      const response = await fetch("/api/auto-trading3/sell-order", {
+        method: "POST",
+        credentials: "include",
+        headers: tokenHeaders(true),
+        body: JSON.stringify({ ids: targets.map(record => record.id) }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error ?? "일괄 매도 주문 전송 실패")
+      setMessage(`${symbolName} 매도 주문: ${data.succeeded ?? 0}건 성공${data.failed ? `, ${data.failed}건 실패` : ""}`)
+      await load()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "일괄 매도 주문 전송 실패")
+    } finally {
+      setSellingBatch(null)
     }
   }
 
@@ -210,79 +260,99 @@ export default function AutoSignal3Panel({ selectedDate, searchQ = "" }: { selec
           ["투입금액", invested, "원"], ["평가금액", evaluated, "원"], ["TOTAL PNL", pnl, "원"], ["TOTAL ROI", roi, "%"],
         ].map(([label, value, suffix], index) => (
           <div key={String(label)} className="border-b border-r border-primary/10 px-4 py-3 md:border-b-0">
-            <p className="text-[9px] font-semibold text-muted-foreground">{label}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[9px] font-semibold text-muted-foreground">{label}</p>
+              {index === 3 && (
+                <button
+                  type="button"
+                  onClick={() => void sellBatch("all")}
+                  disabled={Boolean(sellingId || sellingBatch) || sellableRecords.length === 0}
+                  className="rounded border border-red-500/50 bg-red-500/10 px-2.5 py-1 text-[10px] font-bold text-red-400 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {sellingBatch === "all" ? "전송 중..." : `일괄매도${sellableRecords.length > 0 ? ` ${sellableRecords.length}` : ""}`}
+                </button>
+              )}
+            </div>
             <p className="mt-1 text-sm font-black tabular-nums" style={{ color: index >= 2 ? (Number(value) >= 0 ? UP : DOWN) : GOLD }}>{index === 3 ? Number(value).toFixed(2) : number(Number(value))}<span className="ml-1 text-[9px] font-medium text-muted-foreground">{suffix}</span></p>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-col">
-        {rows.length === 0 && <div className="py-10 text-center text-xs text-muted-foreground">선택한 날짜의 UP6 기록이 없습니다.</div>}
-        {rows.map(record => {
-          const priceLabel = isToday ? "현재" : "종가"
-          const time = new Date(record.signal_time).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      <div className="flex flex-col gap-px bg-primary/10">
+        {rows.length === 0 && <div className="bg-background py-10 text-center text-xs text-muted-foreground">선택한 날짜의 UP6 기록이 없습니다.</div>}
+        {groupedRows.map(([symbol, group]) => {
+          const groupSellableCount = sellableRecords.filter(record => record.symbol === symbol).length
           return (
-            <article key={record.id} className="flex flex-col gap-2 border-b border-border px-4 py-3 transition-colors hover:bg-muted/20 md:flex-row md:items-center md:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <strong className="text-sm text-foreground">{record.symbol}</strong>
-                  <span className="text-[11px] font-medium text-muted-foreground">{getKoreaStockName(record.symbol) || record.symbol_name || "종목명 확인 중"}</span>
-                  <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: record.account_mode === "live" ? "rgba(212,175,55,.12)" : "rgba(56,189,248,.12)", color: record.account_mode === "live" ? GOLD : "#38bdf8" }}>{record.account_mode === "live" ? "실계좌" : "모의"}</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">{record.account}</span>
-                  <span className="rounded px-1.5 py-0.5 text-[9px] font-bold text-primary/80 bg-primary/10">{record.signal_type || "-"}</span>
-                </div>
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
-                  <span>진입 <b className="text-foreground/70">{number(Number(record.entry_price))}원</b></span>
-                  <span>{priceLabel} <b style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.currentPrice ? `${number(record.currentPrice)}원` : "대기 중"}</b></span>
-                  <span>수량 <b className="text-foreground/70">{number(Number(record.quantity))}주</b></span>
-                  <span>투입 <b className="text-foreground/70">{number(Number(record.invested_amount))}원</b></span>
-                  <span>거래량 <b className="text-foreground/70">{number(Number(record.volume ?? 0))}</b></span>
-                  <span>{time}</span>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-3 md:items-end">
-                <div className="flex flex-col items-end gap-0">
-                  {record.status === "skipped" ? (
-                    <span className="text-[10px] font-bold text-amber-400">{record.skip_reason === "price_over_50000" ? "5만원 초과 제외" : "기록 제외"}</span>
-                  ) : record.status === "quote_failed" ? (
-                    <span className="text-[10px] font-bold text-amber-400" title={record.skip_reason ?? undefined}>시세 조회 실패</span>
-                  ) : (
-                    <p className="text-sm font-black tabular-nums" style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.roi >= 0 ? "+" : ""}{record.roi.toFixed(2)}%</p>
-                  )}
-                  <p className="text-[10px] tabular-nums text-muted-foreground">{record.pnl >= 0 ? "+" : ""}{number(record.pnl)}원</p>
-                </div>
-                {record.status !== "skipped" && record.status !== "quote_failed" && (
-                  <div className="flex flex-col items-end gap-1">
-                    {record.sell_order_sent_at && (
-                      record.sell_order_result?.ok === false ? (
-                        <span
-                          className="shrink-0 rounded px-2 py-1 text-[10px] font-bold"
-                          style={{ background: "rgba(239,68,68,.12)", color: DOWN }}
-                          title={record.sell_order_result?.error ?? undefined}
-                        >
-                          매도 전송 실패
-                        </span>
-                      ) : (
-                        <span
-                          className="shrink-0 rounded px-2 py-1 text-[10px] font-bold"
-                          style={{ background: "rgba(34,197,94,.12)", color: UP }}
-                        >
-                          매도 주문 전송됨
-                        </span>
-                      )
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => sellRecord(record)}
-                      disabled={sellingId === record.id}
-                      className="shrink-0 rounded border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
-                    >
-                      {sellingId === record.id ? "전송 중..." : record.sell_order_sent_at ? "재시도" : "매도"}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </article>
+            <section key={symbol} aria-label={`${symbol} 포지션 그룹`} className="bg-background">
+              {group.map((record, index) => {
+                const priceLabel = isToday ? "현재" : "종가"
+                const time = new Date(record.signal_time).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+                return (
+                  <article key={record.id} className="flex flex-col gap-2 border-b border-border/70 px-4 py-3 transition-colors last:border-b-0 hover:bg-muted/20 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong className="text-sm text-foreground">{record.symbol}</strong>
+                        <span className="text-[11px] font-medium text-muted-foreground">{getKoreaStockName(record.symbol) || record.symbol_name || "종목명 확인 중"}</span>
+                        <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: record.account_mode === "live" ? "rgba(212,175,55,.12)" : "rgba(56,189,248,.12)", color: record.account_mode === "live" ? GOLD : "#38bdf8" }}>{record.account_mode === "live" ? "실계좌" : "모의"}</span>
+                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">{record.account}</span>
+                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary/80">{record.signal_type || "-"}</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+                        <span>진입 <b className="text-foreground/70">{number(Number(record.entry_price))}원</b></span>
+                        <span>{priceLabel} <b style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.currentPrice ? `${number(record.currentPrice)}원` : "대기 중"}</b></span>
+                        <span>수량 <b className="text-foreground/70">{number(Number(record.quantity))}주</b></span>
+                        <span>투입 <b className="text-foreground/70">{number(Number(record.invested_amount))}원</b></span>
+                        <span>거래량 <b className="text-foreground/70">{number(Number(record.volume ?? 0))}</b></span>
+                        <span>{time}</span>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3 md:items-end">
+                      <div className="flex flex-col items-end gap-0">
+                        {record.status === "skipped" ? (
+                          <span className="text-[10px] font-bold text-amber-400">{record.skip_reason === "price_over_50000" ? "5만원 초과 제외" : "기록 제외"}</span>
+                        ) : record.status === "quote_failed" ? (
+                          <span className="text-[10px] font-bold text-amber-400" title={record.skip_reason ?? undefined}>시세 조회 실패</span>
+                        ) : (
+                          <p className="text-sm font-black tabular-nums" style={{ color: record.roi >= 0 ? UP : DOWN }}>{record.roi >= 0 ? "+" : ""}{record.roi.toFixed(2)}%</p>
+                        )}
+                        <p className="text-[10px] tabular-nums text-muted-foreground">{record.pnl >= 0 ? "+" : ""}{number(record.pnl)}원</p>
+                      </div>
+                      {record.status !== "skipped" && record.status !== "quote_failed" && (
+                        <div className="flex flex-col items-end gap-1">
+                          {record.sell_order_sent_at && (
+                            record.sell_order_result?.ok === false ? (
+                              <span className="shrink-0 rounded bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-400" title={record.sell_order_result?.error ?? undefined}>매도 전송 실패</span>
+                            ) : (
+                              <span className="shrink-0 rounded bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-500">매도 주문 전송됨</span>
+                            )
+                          )}
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => void sellRecord(record)}
+                              disabled={Boolean(sellingId || sellingBatch)}
+                              className="shrink-0 rounded border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {sellingId === record.id ? "전송 중..." : record.sell_order_sent_at ? "재시도" : "매도"}
+                            </button>
+                            {index === 0 && (
+                              <button
+                                type="button"
+                                onClick={() => void sellBatch(symbol)}
+                                disabled={Boolean(sellingId || sellingBatch) || groupSellableCount === 0}
+                                className="shrink-0 rounded border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-[11px] font-bold text-amber-400 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                {sellingBatch === symbol ? "전송 중..." : `그룹매도${groupSellableCount > 0 ? ` ${groupSellableCount}` : ""}`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
+            </section>
           )
         })}
       </div>
